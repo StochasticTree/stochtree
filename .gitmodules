@@ -1,0 +1,10 @@
+[submodule "dependencies/fast_double_parser"]
+	path = dependencies/fast_double_parser
+	url = https://github.com/lemire/fast_double_parser/
+[submodule "dependencies/fmt"]
+	path = dependencies/fmt
+	url = https://github.com/fmtlib/fmt/
+[submodule "dependencies/pybind11"]
+	path = dependencies/pybind11
+	url = ../../pybind/pybind11
+	branch = stable
