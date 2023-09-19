@@ -1,0 +1,18 @@
+# package root
+PKGROOT=../..
+
+PKG_CPPFLAGS= -I$(PKGROOT)/include
+CXXFLAGS = -falign-functions=64 -Wall -g -O0 $(LTO)
+CPPFLAGS = -falign-functions=64 -Wall -g -O0 $(LTO)
+
+OBJECTS = \
+    xbart.o \
+    cpp11.o \
+    $(PKGROOT)/src/config.o \
+    $(PKGROOT)/src/interface.o \
+    $(PKGROOT)/src/io.o \
+    $(PKGROOT)/src/json11.o \
+    $(PKGROOT)/src/model.o \
+    $(PKGROOT)/src/model_draw.o \
+    $(PKGROOT)/src/train_data.o \
+    $(PKGROOT)/src/tree.o
