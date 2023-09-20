@@ -6,5 +6,5 @@
 	url = https://github.com/fmtlib/fmt/
 [submodule "dependencies/pybind11"]
 	path = dependencies/pybind11
-	url = ../../pybind/pybind11
+	url = https://github.com/pybind/pybind11/
 	branch = stable
