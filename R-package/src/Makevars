@@ -2,8 +2,6 @@
 PKGROOT=../..
 
 PKG_CPPFLAGS= -I$(PKGROOT)/include
-CXXFLAGS = -falign-functions=64 -Wall -g -O0 $(LTO)
-CPPFLAGS = -falign-functions=64 -Wall -g -O0 $(LTO)
 
 OBJECTS = \
     xbart.o \
