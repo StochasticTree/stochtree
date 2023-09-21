@@ -1,5 +1,5 @@
 ## System and data files
-
+*.pdf
 *.csv
 *.txt
 *.DS_Store
