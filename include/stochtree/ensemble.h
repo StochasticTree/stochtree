@@ -57,6 +57,10 @@ class TreeEnsemble {
     trees_[i].reset(new Tree());
   }
 
+  inline void CopyTree(int i, Tree* tree) {
+    return trees_[i].reset(new Tree(*tree));
+  }
+
   inline void PredictInplace(TrainData* data, std::vector<double> &output, data_size_t offset = 0) {
     PredictInplace(data, output, 0, trees_.size(), offset);
   }

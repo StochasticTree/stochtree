@@ -65,6 +65,8 @@ class StochTreeInterface {
   std::unique_ptr<TreeEnsemble> greedy_tree_ensemble_;
   /*! \brief Sample XBART gaussian regression */
   void SampleXBARTGaussianRegression();
+  /*! \brief Sample BART gaussian regression */
+  void SampleBARTGaussianRegression();
 };
 
 } // namespace StochTree

@@ -218,6 +218,35 @@ struct Config {
   // data_driven_prior is set to true
   double b_tau = 0.5;
 
+  // check = >0.0
+  // desc = used only in bart regression applications
+  // desc = shape parameter for inverse-gamma prior on residual variances 
+  // is equal to nu / 2
+  double nu = 5;
+
+  // check = >0.0
+  // desc = used only in bart regression applications
+  // desc = scale parameter for inverse-gamma prior on residual variances
+  // is equal to nu*lambda / 2
+  // desc = **Note**: this is re-calibrated so that p(sigma < sigma_hat) = 0.9
+  // if data_driven_prior is set to true
+  double lambda = 5;
+
+  // desc = used only in bart regression applications
+  // desc = mean hyperparameter for prior on leaf node parameters
+  // desc = **Note**: this is re-calibrated so that 
+  // min(y) = num_trees * mu_mean - k sqrt(num_trees) * mu_sigma
+  // max(y) = num_trees * mu_mean + k sqrt(num_trees) * mu_sigma
+  double mu_mean = 5;
+
+  // check = >0.0
+  // desc = used only in bart regression applications
+  // desc = variance hyperparameter for prior on leaf node parameters
+  // desc = **Note**: this is re-calibrated so that 
+  // min(y) = num_trees * mu_mean - k sqrt(num_trees) * mu_sigma
+  // max(y) = num_trees * mu_mean + k sqrt(num_trees) * mu_sigma
+  double mu_sigma = 5;
+
   // check = >1.0
   // desc = number of cutpoints to consider at each split
   data_size_t cutpoint_grid_size = 100;

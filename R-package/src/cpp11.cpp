@@ -5,6 +5,20 @@
 #include "cpp11/declarations.hpp"
 #include <R_ext/Visibility.h>
 
+// bart.cpp
+cpp11::external_pointer<StochTree::StochTreeInterface> bart_sample_cpp(cpp11::doubles_matrix<> model_matrix, cpp11::r_string param_string);
+extern "C" SEXP _stoch_tree_bart_sample_cpp(SEXP model_matrix, SEXP param_string) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bart_sample_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(model_matrix), cpp11::as_cpp<cpp11::decay_t<cpp11::r_string>>(param_string)));
+  END_CPP11
+}
+// bart.cpp
+cpp11::writable::doubles_matrix<> bart_predict_cpp(cpp11::external_pointer<StochTree::StochTreeInterface> bart_ptr, cpp11::doubles_matrix<> model_matrix, cpp11::r_string param_string);
+extern "C" SEXP _stoch_tree_bart_predict_cpp(SEXP bart_ptr, SEXP model_matrix, SEXP param_string) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bart_predict_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::StochTreeInterface>>>(bart_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(model_matrix), cpp11::as_cpp<cpp11::decay_t<cpp11::r_string>>(param_string)));
+  END_CPP11
+}
 // xbart.cpp
 cpp11::external_pointer<StochTree::StochTreeInterface> xbart_sample_cpp(cpp11::doubles_matrix<> model_matrix, cpp11::r_string param_string);
 extern "C" SEXP _stoch_tree_xbart_sample_cpp(SEXP model_matrix, SEXP param_string) {
@@ -22,6 +36,8 @@ extern "C" SEXP _stoch_tree_xbart_predict_cpp(SEXP xbart_ptr, SEXP model_matrix,
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
+    {"_stoch_tree_bart_predict_cpp",  (DL_FUNC) &_stoch_tree_bart_predict_cpp,  3},
+    {"_stoch_tree_bart_sample_cpp",   (DL_FUNC) &_stoch_tree_bart_sample_cpp,   2},
     {"_stoch_tree_xbart_predict_cpp", (DL_FUNC) &_stoch_tree_xbart_predict_cpp, 3},
     {"_stoch_tree_xbart_sample_cpp",  (DL_FUNC) &_stoch_tree_xbart_sample_cpp,  2},
     {NULL, NULL, 0}

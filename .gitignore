@@ -5,6 +5,7 @@
 *.DS_Store
 lib/
 build/
+.vscode/
 
 ## R gitignore
 
