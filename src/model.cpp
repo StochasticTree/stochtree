@@ -779,8 +779,6 @@ void BARTGaussianRegressionModel::PruneMCMC(TrainData* train_data, Tree* tree, N
   }
 
   // Determine the number of leaves in the current tree and leaf parents in the proposed tree
-  // int num_leaves = tree->GetNumLeaves();
-  // int num_leaf_parents = tree->GetNumLeafParents();
   double p_leaf = 1/(num_leaves-1);
   double p_leaf_parent = 1/(num_leaf_parents);
 
