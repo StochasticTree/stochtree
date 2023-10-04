@@ -708,16 +708,19 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
   double p_leaf_parent = 1/(num_leaf_parents+1);
 
   // Compute the final MH ratio
-  double mh_ratio = ((pg*(1-pgl)*(1-pgr))/(1-pg))*((prob_prune_new*p_leaf_parent)/(prob_grow_old*p_leaf))*(split_likelihood/no_split_likelihood);
-  // Threshold at 1
-  if (mh_ratio > 1) {
-    mh_ratio = 1;
+  double log_mh_ratio = (
+    std::log(pg) + std::log(1-pgl) + std::log(1-pgr) - std::log(1-pg) + std::log(prob_prune_new) + 
+    std::log(p_leaf_parent) - std::log(prob_grow_old) - std::log(p_leaf) + std::log(split_likelihood) - std::log(no_split_likelihood)
+  );
+  // Threshold at 0
+  if (log_mh_ratio > 1) {
+    log_mh_ratio = 1;
   }
 
   // Draw a uniform random variable and accept/reject the proposal on this basis
   std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
-  double acceptance_prob = mh_accept(gen);
-  if (acceptance_prob > mh_ratio) {
+  double log_acceptance_prob = std::log(mh_accept(gen));
+  if (log_acceptance_prob > log_mh_ratio) {
     accept = true;
     AddSplitToModel(train_data, tree, node_tracker, leaf_chosen, var_chosen, split_point_chosen, node_suff_stat, left_suff_stat, right_suff_stat);
   } else {
@@ -783,16 +786,19 @@ void BARTGaussianRegressionModel::PruneMCMC(TrainData* train_data, Tree* tree, N
   double p_leaf_parent = 1/(num_leaf_parents);
 
   // Compute the final MH ratio
-  double mh_ratio = ((1-pg)/(pg*(1-pgl)*(1-pgr)))*((prob_prune_old*p_leaf)/(prob_grow_new*p_leaf_parent))*(no_split_likelihood/split_likelihood);
-  // Threshold at 1
-  if (mh_ratio > 1) {
-    mh_ratio = 1;
+  double log_mh_ratio = (
+    std::log(1-pg) - std::log(pg) - std::log(1-pgl) - std::log(1-pgr) + std::log(prob_prune_old) + 
+    std::log(p_leaf) - std::log(prob_grow_new) - std::log(p_leaf_parent) + std::log(no_split_likelihood) - std::log(split_likelihood)
+  );
+  // Threshold at 0
+  if (log_mh_ratio > 0) {
+    log_mh_ratio = 0;
   }
 
   // Draw a uniform random variable and accept/reject the proposal on this basis
   std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
-  double acceptance_prob = mh_accept(gen);
-  if (acceptance_prob > mh_ratio) {
+  double log_acceptance_prob = std::log(mh_accept(gen));
+  if (log_acceptance_prob > log_mh_ratio) {
     accept = true;
     RemoveSplitFromModel(train_data, tree, node_tracker, leaf_parent_chosen, left_node, right_node, feature_split, split_value, node_suff_stat, left_suff_stat, right_suff_stat);
   } else {
