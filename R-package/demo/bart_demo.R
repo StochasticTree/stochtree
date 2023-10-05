@@ -5,12 +5,16 @@
 # Load stochtree
 library(stoch.tree)
 
+# Set seed
+random_seed = 12
+set.seed(random_seed)
+
 # Run a single iteration of the comparison and plot the results
 
 # Generate simulated data and split into training and prediction sets
 n <- 500
 p <- 3
-num_samples <- 100
+num_samples <- 50
 num_burnin <- 100
 num_trees <- 100
 train_inds <- sample(1:n, round(n*0.8), replace = F)
@@ -25,7 +29,7 @@ model_matrix_train <- cbind(ytrain, Xtrain)
 model_matrix_test <- cbind(ytest, Xtest)
 
 # Sample from BART and evaluate its predictions on out of sample data
-param_list = list(label_column=0, num_trees=num_trees, num_burnin=num_burnin, num_samples=num_samples, min_data_in_leaf=1, alpha=0.95, beta=1.25)
+param_list = list(label_column=0, num_trees=num_trees, num_burnin=num_burnin, num_samples=num_samples, min_data_in_leaf=1, alpha=0.95, beta=1.25, random_seed=random_seed)
 stochtree_samples <- bart(model_matrix_train, param_list)
 stochtree_predictions <- predict(stochtree_samples, model_matrix_test, param_list)
 stochtree_avg_prediction <- rowMeans(stochtree_predictions)

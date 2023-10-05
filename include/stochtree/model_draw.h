@@ -54,10 +54,24 @@ class XBARTGaussianRegressionModelDraw : public ModelDraw {
   void SetGlobalParameters(Model* model, std::set<std::string> update_params) {
     if (update_params.count("sigma_sq") > 0) {
       sigma_sq_ = model->GetGlobalParameter("sigma_sq");
-    }
-
-    if (update_params.count("tau") > 0) {
+    } else if (update_params.count("tau") > 0) {
       tau_ = model->GetGlobalParameter("tau");
+    } else if (update_params.count("ybar_offset") > 0) {
+      ybar_offset_ = model->GetGlobalParameter("ybar_offset");
+    } else if (update_params.count("sd_scale") > 0) {
+      sd_scale_ = model->GetGlobalParameter("sd_scale");
+    }
+  }
+
+  double GetGlobalParameter(std::string param_name) {
+    if (param_name == std::string("sigma_sq")) {
+      return sigma_sq_;
+    } else if (param_name == std::string("tau")) {
+      return tau_;
+    } else if (param_name == std::string("ybar_offset")) {
+      return ybar_offset_;
+    } else if (param_name == std::string("sd_scale")) {
+      return sd_scale_;
     }
   }
 
@@ -115,6 +129,16 @@ class BARTGaussianRegressionModelDraw : public ModelDraw {
       ybar_offset_ = model->GetGlobalParameter("ybar_offset");
     } else if (update_params.count("sd_scale") > 0) {
       sd_scale_ = model->GetGlobalParameter("sd_scale");
+    }
+  }
+
+  double GetGlobalParameter(std::string param_name) {
+    if (param_name == std::string("sigma_sq")) {
+      return sigma_sq_;
+    } else if (param_name == std::string("ybar_offset")) {
+      return ybar_offset_;
+    } else if (param_name == std::string("sd_scale")) {
+      return sd_scale_;
     }
   }
 
