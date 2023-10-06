@@ -488,6 +488,8 @@ BARTGaussianRegressionModel::BARTGaussianRegressionModel() {
   lambda_ = config_.lambda;
   mu_mean_ = config_.mu_mean;
   mu_sigma_ = config_.mu_sigma;
+  alpha_ = config_.alpha;
+  beta_ = config_.beta;
   sigma_sq_ = 1;
   if (config_.random_seed < 0) {
     std::random_device rd;
@@ -503,6 +505,8 @@ BARTGaussianRegressionModel::BARTGaussianRegressionModel(const Config& config) {
   lambda_ = config_.lambda;
   mu_mean_ = config_.mu_mean;
   mu_sigma_ = config_.mu_sigma;
+  alpha_ = config_.alpha;
+  beta_ = config_.beta;
   sigma_sq_ = 1;
   if (config_.random_seed < 0) {
     std::random_device rd;
@@ -684,9 +688,9 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
   double no_split_likelihood = NoSplitMarginalLikelihood(node_suff_stat);
   
   // Determine probability of growing the split node and its two new left and right nodes
-  double pg = alpha_ * std::pow(1+leaf_depth, beta_);
-  double pgl = alpha_ * std::pow(1+leaf_depth+1, beta_);
-  double pgr = alpha_ * std::pow(1+leaf_depth+1, beta_);
+  double pg = alpha_ * std::pow(1+leaf_depth, -beta_);
+  double pgl = alpha_ * std::pow(1+leaf_depth+1, -beta_);
+  double pgr = alpha_ * std::pow(1+leaf_depth+1, -beta_);
 
   // Determine whether a "grow" move is possible from the newly formed tree
   // in order to compute the probability of choosing "prune" from the new tree 
@@ -720,7 +724,7 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
   // Draw a uniform random variable and accept/reject the proposal on this basis
   std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
   double log_acceptance_prob = std::log(mh_accept(gen));
-  if (log_acceptance_prob > log_mh_ratio) {
+  if (log_acceptance_prob <= log_mh_ratio) {
     accept = true;
     AddSplitToModel(train_data, tree, node_tracker, leaf_chosen, var_chosen, split_point_chosen, node_suff_stat, left_suff_stat, right_suff_stat);
   } else {
@@ -755,9 +759,9 @@ void BARTGaussianRegressionModel::PruneMCMC(TrainData* train_data, Tree* tree, N
   double no_split_likelihood = NoSplitMarginalLikelihood(node_suff_stat);
   
   // Determine probability of growing the split node and its two new left and right nodes
-  double pg = alpha_ * std::pow(1+leaf_parent_depth, beta_);
-  double pgl = alpha_ * std::pow(1+leaf_parent_depth+1, beta_);
-  double pgr = alpha_ * std::pow(1+leaf_parent_depth+1, beta_);
+  double pg = alpha_ * std::pow(1+leaf_parent_depth, -beta_);
+  double pgl = alpha_ * std::pow(1+leaf_parent_depth+1, -beta_);
+  double pgr = alpha_ * std::pow(1+leaf_parent_depth+1, -beta_);
 
   // Determine whether a "prune" move is possible from the new tree, 
   // in order to compute the probability of choosing "grow" from the new tree 
@@ -798,7 +802,7 @@ void BARTGaussianRegressionModel::PruneMCMC(TrainData* train_data, Tree* tree, N
   // Draw a uniform random variable and accept/reject the proposal on this basis
   std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
   double log_acceptance_prob = std::log(mh_accept(gen));
-  if (log_acceptance_prob > log_mh_ratio) {
+  if (log_acceptance_prob <= log_mh_ratio) {
     accept = true;
     RemoveSplitFromModel(train_data, tree, node_tracker, leaf_parent_chosen, left_node, right_node, feature_split, split_value, node_suff_stat, left_suff_stat, right_suff_stat);
   } else {
