@@ -171,7 +171,6 @@ struct Config {
   // alias = min_data_per_leaf, min_data, min_child_samples, min_samples_leaf
   // check = >=0
   // desc = minimal number of data in one leaf. Can be used to deal with over-fitting
-  // desc = **Note**: this is an approximation based on the Hessian, so occasionally you may observe splits which produce leaf nodes that have less than this many observations
   int min_data_in_leaf = 10;
 
   // check = >0
@@ -237,7 +236,7 @@ struct Config {
   // desc = **Note**: this is re-calibrated so that 
   // min(y) = num_trees * mu_mean - k sqrt(num_trees) * mu_sigma
   // max(y) = num_trees * mu_mean + k sqrt(num_trees) * mu_sigma
-  double mu_mean = 5;
+  double mu_mean = 0;
 
   // check = >0.0
   // desc = used only in bart regression applications
@@ -245,7 +244,7 @@ struct Config {
   // desc = **Note**: this is re-calibrated so that 
   // min(y) = num_trees * mu_mean - k sqrt(num_trees) * mu_sigma
   // max(y) = num_trees * mu_mean + k sqrt(num_trees) * mu_sigma
-  double mu_sigma = 5;
+  double mu_sigma = 1;
 
   // check = >1.0
   // desc = number of cutpoints to consider at each split
