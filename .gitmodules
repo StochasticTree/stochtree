@@ -8,3 +8,6 @@
 	path = dependencies/pybind11
 	url = https://github.com/pybind/pybind11/
 	branch = stable
+[submodule "dependencies/boost_math"]
+	path = dependencies/boost_math
+	url = https://github.com/boostorg/math

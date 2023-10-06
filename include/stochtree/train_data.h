@@ -442,6 +442,20 @@ class TrainData {
     }
   }
 
+  /*! \brief Center residuals by subtracting constant ybar */
+  inline void ResidualCenter(double ybar) {
+    for (data_size_t i = 0; i < num_data_; i++) {
+      residuals_[i] -= ybar;
+    }
+  }
+
+  /*! \brief Scale residuals by dividing by a constant sd */
+  inline void ResidualScale(double sd) {
+    for (data_size_t i = 0; i < num_data_; i++) {
+      residuals_[i] /= sd;
+    }
+  }
+
   /*! \brief Add predictions of various trees from the residual vector */
   inline void ResidualAdd(std::vector<std::vector<data_size_t>>& tree_data_observations, Tree* tree, int tree_num) {
     data_size_t n = tree_data_observations[0].size();

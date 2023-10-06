@@ -1,9 +1,10 @@
 # package root
 PKGROOT=../..
 
-PKG_CPPFLAGS= -I$(PKGROOT)/include
+PKG_CPPFLAGS= -I$(PKGROOT)/include -I$(PKGROOT)/dependencies/boost_math/include
 
 OBJECTS = \
+    bart.o \
     xbart.o \
     cpp11.o \
     $(PKGROOT)/src/config.o \

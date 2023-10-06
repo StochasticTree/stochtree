@@ -171,7 +171,6 @@ struct Config {
   // alias = min_data_per_leaf, min_data, min_child_samples, min_samples_leaf
   // check = >=0
   // desc = minimal number of data in one leaf. Can be used to deal with over-fitting
-  // desc = **Note**: this is an approximation based on the Hessian, so occasionally you may observe splits which produce leaf nodes that have less than this many observations
   int min_data_in_leaf = 10;
 
   // check = >0
@@ -217,6 +216,35 @@ struct Config {
   // desc = **Note**: this is reset to 0.5*var(y)/num_trees if 
   // data_driven_prior is set to true
   double b_tau = 0.5;
+
+  // check = >0.0
+  // desc = used only in bart regression applications
+  // desc = shape parameter for inverse-gamma prior on residual variances 
+  // is equal to nu / 2
+  double nu = 5;
+
+  // check = >0.0
+  // desc = used only in bart regression applications
+  // desc = scale parameter for inverse-gamma prior on residual variances
+  // is equal to nu*lambda / 2
+  // desc = **Note**: this is re-calibrated so that p(sigma < sigma_hat) = 0.9
+  // if data_driven_prior is set to true
+  double lambda = 5;
+
+  // desc = used only in bart regression applications
+  // desc = mean hyperparameter for prior on leaf node parameters
+  // desc = **Note**: this is re-calibrated so that 
+  // min(y) = num_trees * mu_mean - k sqrt(num_trees) * mu_sigma
+  // max(y) = num_trees * mu_mean + k sqrt(num_trees) * mu_sigma
+  double mu_mean = 0;
+
+  // check = >0.0
+  // desc = used only in bart regression applications
+  // desc = variance hyperparameter for prior on leaf node parameters
+  // desc = **Note**: this is re-calibrated so that 
+  // min(y) = num_trees * mu_mean - k sqrt(num_trees) * mu_sigma
+  // max(y) = num_trees * mu_mean + k sqrt(num_trees) * mu_sigma
+  double mu_sigma = 1;
 
   // check = >1.0
   // desc = number of cutpoints to consider at each split

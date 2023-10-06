@@ -194,6 +194,20 @@ class Tree {
       nodes_[i].SetParent(kInvalidNodeId);
     }
   }
+
+  /*! \brief Copy constructor */
+  Tree(Tree& tree) {
+    param_ = TreeParam();
+    param_.num_nodes = tree.param_.num_nodes;
+    param_.num_deleted = tree.param_.num_deleted;
+    param_.num_feature = tree.param_.num_feature;
+    nodes_ = tree.nodes_;
+    internal_nodes_ = tree.internal_nodes_;
+    leaf_parents_ = tree.leaf_parents_;
+    leaves_ = tree.leaves_;
+    split_types_ = tree.split_types_;
+    deleted_nodes_ = tree.deleted_nodes_;
+  }
   
   /**
    * \brief Constructor that initializes the tree model with shape.

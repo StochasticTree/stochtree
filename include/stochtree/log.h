@@ -127,10 +127,10 @@ class Log {
 // R code should write back to R's error stream,
 // otherwise to stderr
 #ifndef LGB_R_BUILD
-    fprintf(stderr, "[LightGBM] [Fatal] %s\n", str_buf);
+    fprintf(stderr, "[StochTree] [Fatal] %s\n", str_buf);
     fflush(stderr);
 #else
-    REprintf("[LightGBM] [Fatal] %s\n", str_buf);
+    REprintf("[StochTree] [Fatal] %s\n", str_buf);
     R_FlushConsole();
 #endif
     throw std::runtime_error(std::string(str_buf));
@@ -144,21 +144,21 @@ class Log {
 // otherwise to stdout
 #ifndef LGB_R_BUILD
       if (GetLogCallBack() == nullptr) {
-        printf("[LightGBM] [%s] ", level_str);
+        printf("[StochTree] [%s] ", level_str);
         vprintf(format, val);
         printf("\n");
         fflush(stdout);
       } else {
         const size_t kBufSize = 512;
         char buf[kBufSize];
-        snprintf(buf, kBufSize, "[LightGBM] [%s] ", level_str);
+        snprintf(buf, kBufSize, "[StochTree] [%s] ", level_str);
         GetLogCallBack()(buf);
         vsnprintf(buf, kBufSize, format, val);
         GetLogCallBack()(buf);
         GetLogCallBack()("\n");
       }
 #else
-      Rprintf("[LightGBM] [%s] ", level_str);
+      Rprintf("[StochTree] [%s] ", level_str);
       Rvprintf(format, val);
       Rprintf("\n");
       R_FlushConsole();
