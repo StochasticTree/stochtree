@@ -7,3 +7,6 @@
 [submodule "dependencies/boost_math"]
 	path = dependencies/boost_math
 	url = https://github.com/boostorg/math
+[submodule "python-package/pybind11"]
+	path = python-package/pybind11
+	url = https://github.com/pybind/pybind11
