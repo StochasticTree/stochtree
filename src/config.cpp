@@ -327,8 +327,12 @@ std::string Config::SaveMembersToString() const {
   str_buf << "[b_sigma: " << b_sigma << "]\n";
   str_buf << "[a_tau: " << a_tau << "]\n";
   str_buf << "[b_tau: " << b_tau << "]\n";
+  str_buf << "[nu: " << nu << "]\n";
+  str_buf << "[lambda: " << lambda << "]\n";
+  str_buf << "[mu_mean: " << mu_mean << "]\n";
+  str_buf << "[mu_sigma: " << mu_sigma << "]\n";
   str_buf << "[data_driven_prior: " << data_driven_prior << "]\n";
-  str_buf << "[min_ssr_reduction: " << data_driven_prior << "]\n";
+  str_buf << "[min_ssr_reduction: " << min_ssr_reduction << "]\n";
   str_buf << "[header: " << header << "]\n";
   str_buf << "[label_column: " << label_column << "]\n";
   str_buf << "[treatment_column: " << treatment_column << "]\n";
@@ -360,8 +364,9 @@ const std::unordered_set<std::string>& Config::parameter_set() {
     "num_class", "num_trees", "num_samples", "num_burnin", 
     "random_seed", "max_depth", "min_data_in_leaf", 
     "mu", "kappa", "a_sigma", "b_sigma", "a_tau", "b_tau", "alpha", "beta", 
-    "cutpoint_grid_size", "data_driven_prior", "min_ssr_reduction", "header", 
-    "label_column", "treatment_column", "save_model_draws", "precise_float_parser",
+    "nu", "lambda", "mu_mean", "mu_sigma", "cutpoint_grid_size", "data_driven_prior", 
+    "min_ssr_reduction", "header", "label_column", "treatment_column", 
+    "save_model_draws", "precise_float_parser",
   });
   return params;
 }
@@ -414,6 +419,17 @@ void Config::GetMembersFromString(const std::unordered_map<std::string, std::str
   GetDouble(params, "beta", &beta);
   CHECK_GT(beta, 0.0);
 
+  GetDouble(params, "nu", &nu);
+  CHECK_GT(nu, 0.0);
+
+  GetDouble(params, "lambda", &lambda);
+  CHECK_GT(lambda, 0.0);
+
+  GetDouble(params, "mu_mean", &mu_mean);
+  
+  GetDouble(params, "mu_sigma", &mu_sigma);
+  CHECK_GT(mu_sigma, 0.0);
+
   GetInt(params, "cutpoint_grid_size", &cutpoint_grid_size);
   CHECK_GT(cutpoint_grid_size, 0.0);
   
@@ -457,6 +473,10 @@ const std::unordered_map<std::string, std::vector<std::string>>& Config::paramet
     {"b_sigma", {}},
     {"a_tau", {}},
     {"b_tau", {}},
+    {"nu", {}},
+    {"lambda", {}},
+    {"mu_mean", {}},
+    {"mu_sigma", {}},
     {"cutpoint_grid_size", {}},
     {"data_driven_prior", {}},
     {"min_ssr_reduction", {}},
@@ -492,6 +512,10 @@ const std::unordered_map<std::string, std::string>& Config::ParameterTypes() {
     {"b_sigma", "double"},
     {"a_tau", "double"},
     {"b_tau", "double"},
+    {"nu", "double"},
+    {"lambda", "double"},
+    {"mu_mean", "double"},
+    {"mu_sigma", "double"},
     {"cutpoint_grid_size", "int"},
     {"data_driven_prior", "bool"},
     {"min_ssr_reduction", "double"},
