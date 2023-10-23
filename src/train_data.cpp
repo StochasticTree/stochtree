@@ -192,7 +192,6 @@ TrainData* TrainDataLoader::LoadFromFile(const char* filename) {
   }
   Log::Info("Num features = %d", num_features);
 
-  // Log::Info("Set number of features");
   dataset->num_variables_ = num_features;
   dataset->data_filename_ = filename;
   dataset->set_feature_names(variable_names_);

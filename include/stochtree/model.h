@@ -179,17 +179,23 @@ class XBARTGaussianRegressionModel : public Model {
   inline double GetGlobalParameter(std::string param_name) {
     if (param_name == "tau") {
       return tau_;
-    }
-    if (param_name == "sigma_sq") {
+    } else if (param_name == "sigma_sq") {
       return sigma_sq_;
+    } else if (param_name == "ybar_offset") {
+      return ybar_offset_;
+    } else if (param_name == "sd_scale") {
+      return sd_scale_;
     }
   }
   inline void SetGlobalParameter(std::string param_name, double param_value) {
     if (param_name == "tau") {
       tau_ = param_value;
-    }
-    if (param_name == "sigma_sq") {
+    } else if (param_name == "sigma_sq") {
       sigma_sq_ = param_value;
+    } else if (param_name == "ybar_offset") {
+      ybar_offset_ = param_value;
+    } else if (param_name == "sd_scale") {
+      sd_scale_ = param_value;
     }
   }
   inline void NodeIndexMapReset(data_size_t n) {
