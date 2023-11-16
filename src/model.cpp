@@ -131,7 +131,8 @@ void XBARTGaussianRegressionModel::SampleLeafParameters(TrainData* train_data, T
     
     // Draw from N(mean, stddev^2) and set the leaf parameter with each draw
     node_mu = leaf_node_dist(gen)*node_stddev + node_mean;
-    (*tree)[tree_leaves[i]].SetLeaf(node_mu);
+    // (*tree)[tree_leaves[i]].SetLeaf(node_mu);
+    tree->SetLeaf(tree_leaves[i], node_mu);
   }
 }
 
@@ -186,10 +187,11 @@ void XBARTGaussianRegressionModel::SampleSplitRule(TrainData* train_data, Tree* 
   std::vector<double> log_cutpoint_evaluations;
   std::vector<int> cutpoint_features;
   std::vector<double> cutpoint_values;
+  std::vector<FeatureType> cutpoint_feature_types;
   StochTree::data_size_t valid_cutpoint_count;
   Cutpoints(train_data, tree, leaf_node, node_begin, node_end, 
             log_cutpoint_evaluations, cutpoint_features, cutpoint_values, 
-            valid_cutpoint_count);
+            cutpoint_feature_types, valid_cutpoint_count);
   
   // Convert log marginal likelihood to marginal likelihood, normalizing by the maximum log-likelihood
   double largest_mll = *std::max_element(log_cutpoint_evaluations.begin(), log_cutpoint_evaluations.end());
@@ -207,9 +209,10 @@ void XBARTGaussianRegressionModel::SampleSplitRule(TrainData* train_data, Tree* 
   } else {
     // Split sampled
     int feature_split = cutpoint_features[split_chosen];
+    FeatureType feature_type = cutpoint_feature_types[split_chosen];
     double split_value = cutpoint_values[split_chosen];
     // Perform all of the relevant "split" operations in the model, tree and training dataset
-    AddSplitToModel(train_data, tree, leaf_node, node_begin, node_end, 
+    AddSplitToModel(train_data, tree, feature_type, leaf_node, node_begin, node_end, 
                     feature_split, split_value, split_queue, tree_observation_indices, tree_num);
   }
 }
@@ -219,6 +222,7 @@ void XBARTGaussianRegressionModel::Cutpoints(TrainData* train_data, Tree* tree, 
                                              std::vector<double>& log_cutpoint_evaluations, 
                                              std::vector<int>& cutpoint_feature, 
                                              std::vector<double>& cutpoint_values, 
+                                             std::vector<FeatureType>& cutpoint_feature_types, 
                                              data_size_t& valid_cutpoint_count) {
   // Compute sufficient statistics for the current node
   XBARTGaussianRegressionSuffStat node_suff_stat_ = ComputeNodeSuffStat(train_data, node_begin, node_end, 0);
@@ -234,9 +238,11 @@ void XBARTGaussianRegressionModel::Cutpoints(TrainData* train_data, Tree* tree, 
   data_size_t num_cutpoints = 0;
   bool valid_split = false;
   data_size_t node_row_iter;
+  FeatureType feature_type;
   double feature_value = 0.0;
   double log_split_eval = 0.0;
   for (int j = 0; j < train_data->num_variables(); j++) {
+    feature_type = train_data->get_feature_type(j);
     node_row_iter = node_begin;
     ResetSuffStat(left_suff_stat_, 0, 0.0);
     ResetSuffStat(right_suff_stat_, node_suff_stat_.sample_size_, node_suff_stat_.outcome_sum_);
@@ -251,6 +257,7 @@ void XBARTGaussianRegressionModel::Cutpoints(TrainData* train_data, Tree* tree, 
       if (valid_split) {
         num_cutpoints++;
         // Add to split rule vector
+        cutpoint_feature_types.push_back(feature_type);
         cutpoint_feature.push_back(j);
         cutpoint_values.push_back(feature_value);
         // Add the log marginal likelihood of the split to the split eval vector 
@@ -270,7 +277,7 @@ void XBARTGaussianRegressionModel::Cutpoints(TrainData* train_data, Tree* tree, 
   valid_cutpoint_count = num_cutpoints;
 }
 
-void XBARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* tree, node_t leaf_node, 
+void XBARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* tree, FeatureType feature_type, node_t leaf_node, 
                                                    data_size_t node_begin, data_size_t node_end, 
                                                    int feature_split, double split_value, std::deque<node_t>& split_queue, 
                                                    std::vector<std::vector<data_size_t>>& tree_observation_indices, int tree_num) {
@@ -288,14 +295,39 @@ void XBARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* 
   // all leaf parameters after tree sampling is complete
   double left_leaf_value = left_suff_stat_.outcome_sum_/left_suff_stat_.sample_size_;
   double right_leaf_value = right_suff_stat_.outcome_sum_/right_suff_stat_.sample_size_;
-  tree->ExpandNode(leaf_node, feature_split, split_value, true, 1., left_leaf_value, right_leaf_value, -1);
+  if (feature_type == FeatureType::kUnorderedCategorical) {
+    // Determine the number of categories available in a categorical split and the set of categories that route observations to the left node after split
+    int num_categories;
+    std::vector<std::uint32_t> categories;
+    train_data->determine_categorical_split(num_categories, categories, feature_split, split_value, node_begin, node_end);
+    // Perform the split
+    // tree->ExpandNode(leaf_node, feature_split, num_categories, categories, true, 1., left_leaf_value, right_leaf_value, -1);
+    tree->ExpandNode(leaf_node, feature_split, categories, true, left_leaf_value, right_leaf_value);
+    // Partition the dataset according to the new split rule and 
+    // determine the beginning and end of the new left and right nodes
+    train_data->PartitionLeaf(node_begin, node_suff_stat_.sample_size_, 
+                              feature_split, categories);
+  } else {
+    if (feature_type == FeatureType::kOrderedCategorical) {
+      // tree->ExpandNode(leaf_node, FeatureSplitType::kOrderedCategoricalSplit, feature_split, split_value, true, 1., left_leaf_value, right_leaf_value, -1);
+      tree->ExpandNode(leaf_node, feature_split, split_value, true, left_leaf_value, right_leaf_value);
+      // Partition the dataset according to the new split rule and 
+      // determine the beginning and end of the new left and right nodes
+      train_data->PartitionLeaf(node_begin, node_suff_stat_.sample_size_, 
+                                feature_split, split_value);
+    } else if (feature_type == FeatureType::kNumeric) {
+      // tree->ExpandNode(leaf_node, FeatureSplitType::kOrderedCategoricalSplit, feature_split, split_value, true, 1., left_leaf_value, right_leaf_value, -1);
+      tree->ExpandNode(leaf_node, feature_split, split_value, true, left_leaf_value, right_leaf_value);
+      // Partition the dataset according to the new split rule and 
+      // determine the beginning and end of the new left and right nodes
+      train_data->PartitionLeaf(node_begin, node_suff_stat_.sample_size_, 
+                                feature_split, split_value);
+    } else {
+      Log::Fatal("Invalid split type");
+    }
+  }
   node_t left_node = tree->LeftChild(leaf_node);
   node_t right_node = tree->RightChild(leaf_node);
-
-  // Partition the dataset according to the new split rule and 
-  // determine the beginning and end of the new left and right nodes
-  train_data->PartitionLeaf(node_begin, node_suff_stat_.sample_size_, 
-                            feature_split, split_value);
 
   // Update the leaf node observation tracker
   data_size_t obs_idx;
@@ -307,6 +339,10 @@ void XBARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* 
     obs_idx = train_data->get_feature_sort_index(i, 0);
     tree_observation_indices[tree_num][obs_idx] = right_node;
   }
+
+  // Recompute the categorical indices for the training data
+  train_data->ResetCategoricalMetadataStartEnd(node_begin, node_begin + left_suff_stat_.sample_size_);
+  train_data->ResetCategoricalMetadataStartEnd(node_begin + left_suff_stat_.sample_size_, node_end);
 
   // Add the begin and end indices for the new left and right nodes to node_index_map
   AddNode(left_node, node_begin, node_begin + left_suff_stat_.sample_size_);
@@ -438,8 +474,12 @@ void XBARTGaussianRegressionModel::AccumulateRowSuffStat(TrainData* train_data, 
     // If feature value is non-unique, need to look at the outcome for every unique occurence of that value
     suff_stat.sample_size_ += feature_stride;
     node_row_iter += feature_stride;
+    if ((feature_stride + row) > train_data->num_data()) {
+      train_data->get_feature_stride(row, col);
+      Log::Info("Not possible!");
+    }
     for (data_size_t k = 0; k < feature_stride; k++){
-      outcome_value = train_data->get_residual_value(train_data->get_feature_sort_index(row, col) + k);
+      outcome_value = train_data->get_residual_value(train_data->get_feature_sort_index(row + k, col));
       outcome_value_sq = std::pow(outcome_value, 2.0);
       suff_stat.outcome_sum_ += outcome_value;
       suff_stat.outcome_sum_sq_ += outcome_value_sq;
@@ -647,7 +687,7 @@ void BARTGaussianRegressionModel::MCMCTreeStep(TrainData* train_data, Tree* tree
 
 void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, bool& accept) {
   // Choose a leaf node at random
-  int num_leaves = tree->GetNumLeaves();
+  int num_leaves = tree->NumLeaves();
   std::vector<int> leaves = tree->GetLeaves();
   std::vector<double> leaf_weights(num_leaves);
   std::fill(leaf_weights.begin(), leaf_weights.end(), 1.0/num_leaves);
@@ -707,7 +747,7 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
   double prob_grow_old = 0.5;
 
   // Determine the number of leaves in the current tree and leaf parents in the proposed tree
-  int num_leaf_parents = tree->GetNumLeafParents();
+  int num_leaf_parents = tree->NumLeafParents();
   double p_leaf = 1/num_leaves;
   double p_leaf_parent = 1/(num_leaf_parents+1);
 
@@ -734,18 +774,22 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
 
 void BARTGaussianRegressionModel::PruneMCMC(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, bool& accept) {
   // Choose a "leaf parent" node at random
-  int num_leaves = tree->GetNumLeaves();
-  int num_leaf_parents = tree->GetNumLeafParents();
-  std::vector<int> leaves = tree->GetLeafParents();
+  int num_leaves = tree->NumLeaves();
+  int num_leaf_parents = tree->NumLeafParents();
+  std::vector<int> leaf_parents = tree->GetLeafParents();
   std::vector<double> leaf_parent_weights(num_leaf_parents);
   std::fill(leaf_parent_weights.begin(), leaf_parent_weights.end(), 1.0/num_leaf_parents);
   std::discrete_distribution<> leaf_parent_dist(leaf_parent_weights.begin(), leaf_parent_weights.end());
-  int leaf_parent_chosen = leaves[leaf_parent_dist(gen)];
+  int leaf_parent_chosen = leaf_parents[leaf_parent_dist(gen)];
   int leaf_parent_depth = tree->GetDepth(leaf_parent_chosen);
-  int left_node = (*tree)[leaf_parent_chosen].LeftChild();
-  int right_node = (*tree)[leaf_parent_chosen].RightChild();
-  int feature_split = (*tree)[leaf_parent_chosen].SplitIndex();
-  double split_value = (*tree)[leaf_parent_chosen].SplitCond();
+  // int left_node = (*tree)[leaf_parent_chosen].LeftChild();
+  // int right_node = (*tree)[leaf_parent_chosen].RightChild();
+  // int feature_split = (*tree)[leaf_parent_chosen].SplitIndex();
+  // double split_value = (*tree)[leaf_parent_chosen].NumericSplitCond();
+  int left_node = tree->LeftChild(leaf_parent_chosen);
+  int right_node = tree->RightChild(leaf_parent_chosen);
+  int feature_split = tree->SplitIndex(leaf_parent_chosen);
+  double split_value = tree->Threshold(leaf_parent_chosen);
 
   // Retrieve sufficient statistic for split node
   BARTGaussianRegressionSuffStat node_suff_stat = node_suff_stats_[leaf_parent_chosen];
@@ -920,7 +964,8 @@ void BARTGaussianRegressionModel::SampleLeafParameters(TrainData* train_data, Tr
     
     // Draw from N(mean, stddev^2) and set the leaf parameter with each draw
     node_mu = leaf_node_dist(gen)*node_stddev + node_mean;
-    (*tree)[tree_leaves[i]].SetLeaf(node_mu);
+    // (*tree)[tree_leaves[i]].SetLeaf(node_mu);
+    tree->SetLeaf(tree_leaves[i], node_mu);
   }
 }
 
@@ -1001,7 +1046,8 @@ void BARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* t
   // all leaf parameters after tree sampling is complete
   double left_leaf_value = left_suff_stat.outcome_sum_/left_suff_stat.sample_size_;
   double right_leaf_value = right_suff_stat.outcome_sum_/right_suff_stat.sample_size_;
-  tree->ExpandNode(leaf_node, feature_split, split_value, true, 1., left_leaf_value, right_leaf_value, -1);
+  // tree->ExpandNode(leaf_node, feature_split, split_value, true, 1., left_leaf_value, right_leaf_value, -1);
+  tree->ExpandNode(leaf_node, feature_split, split_value, true, left_leaf_value, right_leaf_value);
   node_t left_node = tree->LeftChild(leaf_node);
   node_t right_node = tree->RightChild(leaf_node);
 

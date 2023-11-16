@@ -53,7 +53,7 @@ void TrainData::FinishLoad() {
   }
   if (num_variables_ > 0) {
     for (int i = 0; i < num_variables_; ++i) {
-      variables_[i]->ResetFeatureMetadata();
+      variables_[i]->CalculateFeatureMetadata();
     }
   }
   is_finish_load_ = true;
@@ -64,6 +64,7 @@ TrainDataLoader::TrainDataLoader(const Config& io_config, int num_class, const c
   label_idx_ = NO_SPECIFIC;
   treatment_idx_ = NO_SPECIFIC;
   SetHeader(filename);
+  UnpackCategoricalVariables(ordered_categoricals_, unordered_categoricals_);
 }
 
 TrainDataLoader::~TrainDataLoader() {
@@ -160,12 +161,25 @@ void TrainDataLoader::SetHeader(const char* filename) {
   }
 }
 
+void TrainDataLoader::UnpackCategoricalVariables(std::vector<int>& ordered_categoricals, std::vector<int>& unordered_categoricals) {
+  // Read ordered categorical variables from config
+  if (config_.ordered_categoricals.size() > 0) {
+    ordered_categoricals = config_.Str2FeatureVec(config_.ordered_categoricals.c_str());
+  }
+
+  // Read unordered categorical variables from config
+  if (config_.unordered_categoricals.size() > 0) {
+    unordered_categoricals = config_.Str2FeatureVec(config_.unordered_categoricals.c_str());
+  }
+}
+
+
 TrainData* TrainDataLoader::LoadFromFile(const char* filename) {
   auto dataset = std::unique_ptr<TrainData>(new TrainData());
   data_size_t num_global_data = 0;
   std::vector<data_size_t> used_data_indices;
   auto parser = std::unique_ptr<Parser>(Parser::CreateParser(filename, config_.header, 0, label_idx_,
-                                                              config_.precise_float_parser));
+                                                             config_.precise_float_parser));
   if (parser == nullptr) {
     Log::Fatal("Could not recognize data format of %s", filename);
   }
@@ -249,10 +263,24 @@ TrainData* TrainDataLoader::ConstructFromMatrix(double* matrix_data, int num_col
   dataset->set_outcome_index(label_idx_);
   dataset->set_treatment_index(treatment_idx_);
 
+  // Unpack categorical variables into the training data object
+  for (auto& ind: unordered_categoricals_) {
+    dataset->unordered_categoricals_.insert(ind);
+  }
+  for (auto& ind: ordered_categoricals_) {
+    dataset->ordered_categoricals_.insert(ind);
+  }
+
   // Allocate space for variables in vector
   dataset->variables_.resize(dataset->num_variables_);
   for (int i = 0; i < dataset->num_variables_; i++){
-    dataset->variables_[i].reset(new Feature(dataset->num_data_, FeatureType::kNumeric));
+    if (dataset->unordered_categoricals_.count(i) > 0) {
+      dataset->variables_[i].reset(new Feature(dataset->num_data_, FeatureType::kUnorderedCategorical));
+    } else if (dataset->ordered_categoricals_.count(i) > 0) {
+      dataset->variables_[i].reset(new Feature(dataset->num_data_, FeatureType::kOrderedCategorical));
+    } else {
+      dataset->variables_[i].reset(new Feature(dataset->num_data_, FeatureType::kNumeric));
+    }
   }
 
   // set variable names as a default "Column_0" through num_col - 1

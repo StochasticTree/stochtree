@@ -26,6 +26,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -54,11 +55,13 @@ class Feature {
     data_sort_indices_.resize(num_data_, 0);
     // Initialize index stride vector
     data_index_strides_.resize(num_data_, 1);
+    // Initialize sort indices
+    data_sort_indices_orig_.resize(num_data_, 0);
+    // Initialize index stride vector
+    data_index_strides_orig_.resize(num_data_, 1);
 
     // Deduce (high-level) feature type and missing value coding
-    if (feature_type == FeatureType::kUnorderedCategorical) {
-      Log::Fatal("Unordered categorical features not yet implemented");
-    } else if ((feature_type != FeatureType::kOrderedCategorical) && (feature_type != FeatureType::kNumeric)) {
+    if ((feature_type != FeatureType::kUnorderedCategorical) && (feature_type != FeatureType::kOrderedCategorical) && (feature_type != FeatureType::kNumeric)) {
       Log::Fatal("RawFeature type must be either Numeric, Ordered Categorical, or Unordered Categorical");
     }
   }
@@ -81,11 +84,36 @@ class Feature {
    *        been loaded), or to reset training for the next tree in 
    *        an ensemble.
    */
-  inline void ResetFeatureMetadata() {
+  inline void CalculateFeatureMetadata() {
     // Construct sort indices from the raw data
     ArgSortFeature();
     // Construct strides vector from the raw data
     CalculateStrides();
+  }
+
+  /*!
+   * \brief Reset the sort indices and strides for a feature based on the original sort indices and strides.
+   */
+  inline void ResetFeatureMetadata() {
+    // Reset "mutable" sort indices to the originally-computed immutable sort indices
+    data_sort_indices_ = data_sort_indices_orig_;
+    // Set the "siftable" strides based on the "immutable" strides
+    data_index_strides_ = data_index_strides_orig_;
+  }
+
+  /*!
+   * \brief Reset the sort indices and strides for a categorical feature based on the current residual.
+   */
+  inline void ResetCategoricalMetadataStartEnd(std::vector<double>& residuals, data_size_t start, data_size_t end) {
+    if ((start == 0) && (end == num_data_)) {
+      // Construct sort indices from the raw data
+      ArgSortCategoricalInit(residuals);
+    } else {
+      // Construct sort indices from the raw data
+      ArgSortCategorical(residuals, start, end);
+    }
+    // Construct strides vector from the raw data
+    CalculateStridesCategorical(start, end);
   }
 
   /*!
@@ -95,10 +123,11 @@ class Feature {
    */
   void ArgSortFeature() {
     // Make a vector of indices from 0 to num_data_ - 1
-    if (data_sort_indices_.size() != num_data_){
+    if (data_sort_indices_orig_.size() != num_data_){
       data_sort_indices_.resize(num_data_, 0);
+      data_sort_indices_orig_.resize(num_data_, 0);
     }
-    std::iota(data_sort_indices_.begin(), data_sort_indices_.end(), 0);
+    std::iota(data_sort_indices_orig_.begin(), data_sort_indices_orig_.end(), 0);
     
     // Check whether or not the data are trivial
     auto first_data_elem = raw_data_[0];
@@ -110,7 +139,7 @@ class Feature {
     }
     
     // Check that the argsort indices produced by this procedure are the same size as the raw data
-    if (raw_data_.size() != data_sort_indices_.size()){
+    if (raw_data_.size() != data_sort_indices_orig_.size()){
       Log::Fatal("Raw data and sort indices must be the same size");
     }
 
@@ -118,17 +147,23 @@ class Feature {
     // For every two indices l and r store as elements of `data_sort_indices_`, 
     // compare them for sorting purposes by indexing `raw_data_` with both l and r
     auto comp_op = [&](size_t const &l, size_t const &r) { return std::less<double>{}(raw_data_[l], raw_data_[r]); };
-    std::stable_sort(data_sort_indices_.begin(), data_sort_indices_.end(), comp_op);
+    std::stable_sort(data_sort_indices_orig_.begin(), data_sort_indices_orig_.end(), comp_op);
+    // Set the "siftable" sort indices based on the "immutable" indices
+    data_sort_indices_ = data_sort_indices_orig_;
     return;
   }
 
   /*!
    * \brief Determine strides for a feature for the first time
+   * 
+   * Intended primarily for ordered categorical variables that 
+   * don't need to be resorted based on the outcome value
    */
   void CalculateStrides() {
     // Make a vector of all 1s of length num_data_
-    if (data_index_strides_.size() != num_data_){
-      data_index_strides_.resize(num_data_, 0);
+    if (data_index_strides_orig_.size() != num_data_){
+      data_index_strides_.resize(num_data_, 1);
+      data_index_strides_orig_.resize(num_data_, 1);
     }
 
     // Run through the sorted data, determining the stride length 
@@ -140,8 +175,8 @@ class Feature {
     for (data_size_t i = 0; i < num_data_; i++){
       // Need at least two values to have a duplicate
       if (i != 0){
-        previous_val = raw_data_[data_sort_indices_[i-1]];
-        current_val = raw_data_[data_sort_indices_[i]];
+        previous_val = raw_data_[data_sort_indices_orig_[i-1]];
+        current_val = raw_data_[data_sort_indices_orig_[i]];
         // Check if current value is same as previous
         if (std::fabs(current_val - previous_val) < kEpsilon) { 
           // If so, increment stride length
@@ -149,7 +184,7 @@ class Feature {
         } else {
           // Otherwise, write the stride length for every element in the stride
           for (data_size_t j = 0; j < stride_length; j++){ 
-            data_index_strides_[stride_begin + j] = stride_length;
+            data_index_strides_orig_[stride_begin + j] = stride_length;
           }
           // Reset stride at the next element
           stride_begin += stride_length;
@@ -157,6 +192,166 @@ class Feature {
         }
       } 
     }
+    // Set the "siftable" strides based on the "immutable" strides
+    data_index_strides_ = data_index_strides_orig_;
+  }
+
+  /*!
+   * \brief Determine strides for a categorical feature 
+   * for the (sorted) indices in a node, beginning at "start", 
+   * ending at "end"
+   */
+  void CalculateStridesCategorical(data_size_t start, data_size_t end) {
+    // Make a vector of all 1s of length num_data_
+    if (data_index_strides_.size() != num_data_){
+      Log::Fatal("Stride vector is not the same size as dataset");
+    }
+
+    // Run through the sorted data, determining the stride length 
+    // of all unique values (stored for every observation, no dedupliation)
+    data_size_t stride_begin = start;
+    data_size_t stride_length = 1;
+    std::uint32_t current_val;
+    std::uint32_t previous_val;
+    // double current_val;
+    // double previous_val;
+    if (start > 395) {
+      Log::Info("Watch this!");
+    }
+    for (data_size_t i = start; i < end; i++){
+      // Need at least two values to have a duplicate
+      if (i != start){
+        previous_val = static_cast<std::uint32_t>(raw_data_[data_sort_indices_[i-1]]);
+        current_val = static_cast<std::uint32_t>(raw_data_[data_sort_indices_[i]]);
+        // Check if current value is same as previous
+        if ((current_val == previous_val) && (i != (end - 1))) { 
+          // If so, increment stride length
+          stride_length += 1;
+        } else if ((current_val == previous_val) && (i == (end - 1))) { 
+          // Handle case where we're at the end of the vector
+          stride_length += 1;
+          // Otherwise, write the stride length for every element in the stride
+          for (data_size_t j = 0; j < stride_length; j++){ 
+            data_index_strides_[stride_begin + j] = stride_length;
+          }
+        } else {
+          // Otherwise, write the stride length for every element in the stride
+          // without any need to increment stride length by 1 beforehand
+          for (data_size_t j = 0; j < stride_length; j++){ 
+            data_index_strides_[stride_begin + j] = stride_length;
+          }
+          // Reset stride at the next element since we will continue iterating
+          stride_begin += stride_length;
+          stride_length = 1;
+          // Check if stride_begin is at the end of the vector
+          // If so, we can go ahead and write a stride of one to that entry
+          if (stride_begin == (end - 1)) {
+            data_index_strides_[stride_begin] = stride_length;
+          }
+        }
+      } else if ((i == start) && (i == (end - 1))) {
+        data_index_strides_[stride_begin] = 1;
+      }
+    }
+  }
+
+    /*!
+   * \brief Convert categorical feature values to sort indices based on residual outcome.
+   * 
+   * This function is run once when tree training begins, then subsequent updates call the 
+   * node-indexed ArgSortCategorical
+   */
+  void ArgSortCategoricalInit(std::vector<double>& residuals) {
+    // Make a vector of indices from 0 to num_data_ - 1
+    if (data_sort_indices_.size() != num_data_){
+      data_sort_indices_.resize(num_data_, 0);
+      data_index_strides_.resize(num_data_, 1);
+    }
+    std::iota(data_sort_indices_.begin(), data_sort_indices_.end(), 0);
+    
+    // Check that the argsort indices produced by this procedure are the same size as the raw data
+    if (raw_data_.size() != data_sort_indices_.size()){
+      Log::Fatal("Raw data and sort indices must be the same size");
+    }
+
+    // Compute mean residual value for each unique level of the feature
+    std::uint32_t feature_value;
+    double residual_value;
+    std::map<std::uint32_t, double> category_resid_sum_mapping;
+    std::map<std::uint32_t, data_size_t> category_sample_size_mapping;
+    std::map<std::uint32_t, double> category_resid_mean_mapping;
+    for (data_size_t i = 0; i < num_data_; i++) {
+      feature_value = static_cast<std::uint32_t>(raw_data_[i]);
+      category_resid_sum_mapping[feature_value] += residuals[i];
+      category_sample_size_mapping[feature_value] += 1;
+    }
+    for (auto& [key, val] : category_resid_sum_mapping){
+      category_resid_mean_mapping[key] = category_resid_sum_mapping[key] / category_sample_size_mapping[key];
+    }
+
+    // Unpack means into a parallel vector of mean residuals
+    std::vector<double> mean_resid(num_data_);
+    for (data_size_t i = 0; i < num_data_; i++) {
+      feature_value = static_cast<std::uint32_t>(raw_data_[i]);
+      mean_resid[i] = category_resid_mean_mapping[feature_value];
+    }
+
+    // Define a custom comparator to be used with stable_sort:
+    // For every two indices l and r store as elements of `data_sort_indices_`, 
+    // compare them for sorting purposes by indexing `raw_data_` with both l and r
+    auto comp_op = [&](size_t const &l, size_t const &r) { return std::less<double>{}(mean_resid[l], mean_resid[r]); };
+    std::stable_sort(data_sort_indices_.begin(), data_sort_indices_.end(), comp_op);
+    return;
+  }
+
+  /*!
+   * \brief Convert categorical feature values to sort indices based on residual outcome.
+   */
+  void ArgSortCategorical(std::vector<double>& residuals, data_size_t start, data_size_t end) {
+    // Assume that data_sort_indices_ are the same size as num_data_
+    if (data_sort_indices_.size() != num_data_){
+      Log::Fatal("data_sort_indices_ must be of length num_data_");
+    }
+
+    // Compute mean residual value for each unique level of the feature
+    std::uint32_t feature_value;
+    double residual_value;
+    std::vector<std::uint32_t> temp_indices_;
+    std::map<std::uint32_t, double> category_resid_sum_mapping;
+    std::map<std::uint32_t, data_size_t> category_sample_size_mapping;
+    std::map<std::uint32_t, double> category_resid_mean_mapping;
+    for (data_size_t i = start; i < end; i++) {
+      temp_indices_.push_back(data_sort_indices_[i]);
+      feature_value = static_cast<std::uint32_t>(raw_data_[data_sort_indices_[i]]);
+      category_resid_sum_mapping[feature_value] += residuals[data_sort_indices_[i]];
+      category_sample_size_mapping[feature_value] += 1;
+    }
+    for (auto& [key, val] : category_resid_sum_mapping){
+      category_resid_mean_mapping[key] = val / category_sample_size_mapping[key];
+    }
+
+    // Unpack means into a parallel vector of mean residuals
+    std::vector<double> mean_resid(temp_indices_.size());
+    for (data_size_t i = 0; i < temp_indices_.size(); i++) {
+      feature_value = static_cast<std::uint32_t>(raw_data_[data_sort_indices_[start + i]]);
+      mean_resid[i] = category_resid_mean_mapping[feature_value];
+    }
+
+    // Temporary argsort indices used to rearrange the temp_indices_ before unpacking back to data_sort_indices_
+    std::vector<data_size_t> temp_sort_keys(temp_indices_.size());
+    std::iota(temp_sort_keys.begin(), temp_sort_keys.end(), 0);
+    
+    // Define a custom comparator to be used with stable_sort:
+    // For every two indices l and r store as elements of `data_sort_indices_`, 
+    // compare them for sorting purposes by indexing `raw_data_` with both l and r
+    auto comp_op = [&](size_t const &l, size_t const &r) { return std::less<double>{}(mean_resid[l], mean_resid[r]); };
+    std::stable_sort(temp_sort_keys.begin(), temp_sort_keys.end(), comp_op);
+
+    // Unpack re-arranged data to data_sort_indices_
+    for (data_size_t i = 0; i < temp_indices_.size(); i++) {
+      data_sort_indices_[start + i] = temp_indices_[temp_sort_keys[i]];
+    }
+    return;
   }
 
   /*!
@@ -309,9 +504,35 @@ class Feature {
     return num_data_;
   }
 
+  /*! @brief set the type of the feature */
+  inline void set_feature_type(FeatureType feature_type) {
+    feature_type_ = feature_type;
+  }
+
   /*! @brief return the type of the feature */
   inline FeatureType get_feature_type() {
     return feature_type_;
+  }
+
+  /*! @brief Determine the split condition for an underordered categorical feature */
+  inline void determine_categorical_split(int& num_categories, std::vector<std::uint32_t>& categories, double split_value, data_size_t node_begin, data_size_t node_end) {
+    if (feature_type_ != kUnorderedCategorical) {
+      Log::Fatal("Feature must be unordered categorical");
+    }
+    data_size_t stride_length;
+    double category_value;
+    num_categories = 0;
+    categories.clear();
+    data_size_t i = node_begin;
+    while (i < node_end) {
+      num_categories++;
+      category_value = raw_data_[data_sort_indices_[i]];
+      if (category_value <= split_value) {
+        categories.push_back(category_value);
+      }
+      stride_length = data_index_strides_[i];
+      i += stride_length;
+    }    
   }
 
  private:
@@ -322,8 +543,14 @@ class Feature {
   /*! \brief Indices that place the feature's value in ascending order */
   std::vector<data_size_t> data_sort_indices_;
   
+  /*! \brief Indices that place the feature's value in ascending order (original copy, used to reset the data in each sweep) */
+  std::vector<data_size_t> data_sort_indices_orig_;
+  
   /*! \brief Indices that report the stride length of any repeated indices */
   std::vector<data_size_t> data_index_strides_;
+  
+  /*! \brief Indices that report the stride length of any repeated indices (original copy, used to reset the data in each sweep) */
+  std::vector<data_size_t> data_index_strides_orig_;
   
   /*! \brief Details about size of feature */
   data_size_t num_data_;
@@ -397,33 +624,6 @@ class TrainData {
     }
   }
 
-  inline void Predict(const std::vector<std::unique_ptr<Tree>> &trees, 
-                      std::vector<double> output, int tree_begin, int tree_end) {
-    double pred;
-    if (output.size() != num_data_){
-      Log::Fatal("Mismatched size of prediction vector and training data");
-    }
-    for (data_size_t i = 0; i < num_data_; i++) {
-      pred = 0.0;
-      for (size_t i = tree_begin; i < tree_end; ++i) {
-        auto const &tree = *(trees[i].get());
-        node_t nidx = 0;
-        while (!tree[nidx].IsLeaf()) {
-          int col = tree[nidx].SplitIndex();
-          auto fvalue = this->get_feature_value(i, col);
-          bool proceed_left = fvalue < tree[nidx].SplitCond();
-          if (proceed_left) {
-            nidx = tree[nidx].LeftChild();
-          } else {
-            nidx = tree[nidx].RightChild();
-          }
-        }
-        pred += (*trees[i])[nidx].LeafValue();
-      }
-      output[i] = pred;
-    }
-  }
-
   /*! \brief Subtract predictions of various trees from the residual vector */
   inline void ResidualSubtract(std::vector<std::vector<data_size_t>>& tree_data_observations, Tree* tree, int tree_num) {
     data_size_t n = tree_data_observations[0].size();
@@ -431,7 +631,8 @@ class TrainData {
       Log::Fatal("Training set and leaf tracker have a different number of observations");
     }
     for (data_size_t i = 0; i < num_data_; i++) {
-      residuals_[i] -= (*tree)[tree_data_observations[tree_num][i]].LeafValue();
+      // residuals_[i] -= (*tree)[tree_data_observations[tree_num][i]].LeafValue();
+      residuals_[i] += tree->LeafValue(tree_data_observations[tree_num][i]);
     }
   }
 
@@ -463,7 +664,8 @@ class TrainData {
       Log::Fatal("Training set and leaf tracker have a different number of observations");
     }
     for (data_size_t i = 0; i < num_data_; i++) {
-      residuals_[i] += (*tree)[tree_data_observations[tree_num][i]].LeafValue();
+      // residuals_[i] += (*tree)[tree_data_observations[tree_num][i]].LeafValue();
+      residuals_[i] += tree->LeafValue(tree_data_observations[tree_num][i]);
     }
   }
 
@@ -516,6 +718,76 @@ class TrainData {
         feature_sort_ind = this->get_feature_sort_index(i, j);
         feature_value = this->get_feature_value(feature_sort_ind, split_col);
         if (feature_value <= split_value){
+          true_vector_inds[num_true] = feature_sort_ind;
+          num_true++;
+        } else {
+          false_vector_inds[num_false] = feature_sort_ind;
+          num_false++;
+        }
+      }
+
+      // Second pass through data -- rearrange indices for feature j
+      true_idx = 0;
+      false_idx = 0;
+      offset = 0;
+      for (data_size_t i = leaf_start_idx; i < leaf_start_idx + num_leaf_elements; i++) {
+        if (offset < num_true){
+          this->set_feature_sort_index(i, j, true_vector_inds[true_idx]);
+          true_idx++;
+        } else {
+          this->set_feature_sort_index(i, j, false_vector_inds[false_idx]);
+          false_idx++;
+        }
+        offset++;
+      }
+    }
+  }
+
+  /*!
+   * \brief "Partition" the sort indices in a training dataset after a node has been split, 
+   * so that the samples indices are sifted into the two newly created leaf nodes.
+   */
+  inline void PartitionLeaf(data_size_t leaf_start_idx, data_size_t num_leaf_elements, 
+                            int split_col, std::vector<std::uint32_t> categories) {
+    double feature_value;
+    data_size_t feature_sort_ind;
+    double first_comp_feature_value;
+    double second_comp_feature_value;
+    bool first_comp_true;
+    bool second_comp_true;
+    std::vector<data_size_t> true_vector_inds(num_leaf_elements);
+    std::vector<data_size_t> false_vector_inds(num_leaf_elements);
+    data_size_t num_true = 0;
+    data_size_t num_false = 0;
+    data_size_t true_idx = 0;
+    data_size_t false_idx = 0;
+    data_size_t offset = 0;
+    bool category_matched;
+
+    auto max_representable_int
+            = std::min(static_cast<double>(std::numeric_limits<std::uint32_t>::max()),
+                static_cast<double>(std::uint64_t(1) << std::numeric_limits<double>::digits));
+    
+    for (int j = 0; j < num_variables_; j++) {
+      // First pass through the data for feature j -- assess true / false for each observation
+      num_true = 0;
+      num_false = 0;
+      for (data_size_t i = leaf_start_idx; i < leaf_start_idx + num_leaf_elements; i++) {
+        feature_sort_ind = this->get_feature_sort_index(i, j);
+        feature_value = this->get_feature_value(feature_sort_ind, split_col);
+
+        // A valid (integer) category must satisfy two criteria:
+        // 1) it must be exactly representable as double
+        // 2) it must fit into uint32_t
+        if (feature_value < 0 || std::fabs(feature_value) > max_representable_int) {
+          category_matched = false;
+        } else {
+          auto const category_value = static_cast<std::uint32_t>(feature_value);
+          category_matched = (std::find(categories.begin(), categories.end(), category_value)
+                              != categories.end());
+        }
+
+        if (category_matched){
           true_vector_inds[num_true] = feature_sort_ind;
           num_true++;
         } else {
@@ -640,6 +912,45 @@ class TrainData {
     }
   }
 
+  /*! \brief Setting type of feature indexed by col_id to feature_type */
+  inline void set_feature_type(int col_id, FeatureType feature_type){
+    if (col_id < variables_.size()){
+      variables_[col_id]->set_feature_type(feature_type);
+    } else {
+      Log::Fatal("Feature %d exceeds the total number of features %d", 
+                 col_id, num_variables_);
+    }
+  }
+
+  /*! \brief Type of feature indexed by col_id */
+  inline FeatureType get_feature_type(int col_id){
+    if (col_id < variables_.size()){
+      return variables_[col_id]->get_feature_type();
+    } else {
+      Log::Fatal("Feature %d exceeds the total number of features %d", 
+                 col_id, num_variables_);
+    }
+  }
+
+  /*! \brief Feature */
+  inline void determine_categorical_split(int& num_categories, std::vector<std::uint32_t>& categories, int feature_split, double split_value, data_size_t node_begin, data_size_t node_end) {
+    variables_[feature_split]->determine_categorical_split(num_categories, categories, split_value, node_begin, node_end);
+  }
+
+  /*! \brief Reset sort indices for all categorical features */
+  inline void ResetCategoricalMetadata() {
+    ResetCategoricalMetadataStartEnd(0, num_data_);
+  }
+
+  /*! \brief Reset sort indices for all categorical features */
+  inline void ResetCategoricalMetadataStartEnd(data_size_t start, data_size_t end) {
+    CHECK_GE(start, 0);
+    CHECK_LE(end, num_data_);
+    for (auto& var: unordered_categoricals_) {
+      variables_[var]->ResetCategoricalMetadataStartEnd(residuals_, start, end);
+    }
+  }
+
  private:
   std::string data_filename_;
   /*! \brief Store variables all as doubles (for now) */
@@ -655,6 +966,10 @@ class TrainData {
   int num_variables_;
   /*! \brief Number of observations*/
   data_size_t num_data_;
+  /*! \brief indices of unordered categorical features */
+  std::set<int> unordered_categoricals_;
+  /*! \brief indices of ordered categorical features */
+  std::set<int> ordered_categoricals_;
   /*! \brief store feature names */
   std::vector<std::string> variable_names_;
   /*! \brief serialized versions */
@@ -695,6 +1010,8 @@ class TrainDataLoader {
 
   void SetHeader(const Config& io_config);
 
+  void UnpackCategoricalVariables(std::vector<int>& ordered_categoricals, std::vector<int>& unordered_categoricals);
+
   void CheckDataset(const TrainData* dataset);
 
   std::vector<std::string> LoadTextDataToMemory(const char* filename, int* num_global_data);
@@ -712,6 +1029,10 @@ class TrainDataLoader {
   int treatment_idx_;
   /*! \brief store feature names */
   std::vector<std::string> variable_names_;
+  /*! \brief indices of unordered categorical features */
+  std::vector<int> unordered_categoricals_;
+  /*! \brief indices of ordered categorical features */
+  std::vector<int> ordered_categoricals_;
 };
 
 }  // namespace StochTree

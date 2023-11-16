@@ -82,9 +82,9 @@ class XBARTGaussianRegressionModelDraw : public ModelDraw {
   /*! \brief Return the type of model being sampled */
   const char* SubModelName() const { return "XBARTGaussianRegression"; }
 
-  void SaveModelDrawToFile(const char* filename);
+  // void SaveModelDrawToFile(const char* filename);
 
-  std::string SaveModelDrawToString() const;
+  // std::string SaveModelDrawToString() const;
 
   void PredictInplace(TrainData* data, std::vector<double> &output, data_size_t offset = 0) {
     PredictInplace(data, output, 0, tree_ensemble_->NumTrees(), offset);
@@ -149,9 +149,9 @@ class BARTGaussianRegressionModelDraw : public ModelDraw {
   /*! \brief Return the type of model being sampled */
   const char* SubModelName() const { return "BARTGaussianRegression"; }
 
-  void SaveModelDrawToFile(const char* filename);
+  // void SaveModelDrawToFile(const char* filename);
 
-  std::string SaveModelDrawToString() const;
+  // std::string SaveModelDrawToString() const;
 
   void PredictInplace(TrainData* data, std::vector<double> &output, data_size_t offset = 0) {
     PredictInplace(data, output, 0, tree_ensemble_->NumTrees(), offset);

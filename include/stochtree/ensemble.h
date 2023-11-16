@@ -11,6 +11,7 @@
 #define STOCHTREE_ENSEMBLE_H_
 
 #include <stochtree/config.h>
+#include <stochtree/predict.h>
 #include <stochtree/train_data.h>
 #include <stochtree/tree.h>
 
@@ -29,6 +30,7 @@ class TreeEnsemble {
     trees_ = std::vector<std::unique_ptr<Tree>>(config_.num_trees);
     for (int i = 0; i < config_.num_trees; i++) {
       trees_[i].reset(new Tree());
+      trees_[i]->Init(1);
     }
   }
   TreeEnsemble(const Config& config) {
@@ -37,6 +39,7 @@ class TreeEnsemble {
     trees_ = std::vector<std::unique_ptr<Tree>>(config_.num_trees);
     for (int i = 0; i < config_.num_trees; i++) {
       trees_[i].reset(new Tree());
+      trees_[i]->Init(1);
     }
   }
   TreeEnsemble(int num_trees) {
@@ -45,6 +48,7 @@ class TreeEnsemble {
     trees_ = std::vector<std::unique_ptr<Tree>>(num_trees);
     for (int i = 0; i < num_trees; i++) {
       trees_[i].reset(new Tree());
+      trees_[i]->Init(1);
     }
   }
   ~TreeEnsemble() {}
@@ -57,8 +61,17 @@ class TreeEnsemble {
     trees_[i].reset(new Tree());
   }
 
+  inline void ResetInitTree(int i) {
+    trees_[i].reset(new Tree());
+    trees_[i]->Init(1);
+  }
+
   inline void CopyTree(int i, Tree* tree) {
-    return trees_[i].reset(new Tree(*tree));
+    return trees_[i].reset(tree->Clone());
+  }
+
+  inline void CloneFromExistingTree(int i, Tree* tree) {
+    return trees_[i]->CloneFromTree(tree);
   }
 
   inline void PredictInplace(TrainData* data, std::vector<double> &output, data_size_t offset = 0) {
@@ -68,26 +81,15 @@ class TreeEnsemble {
   inline void PredictInplace(TrainData* data, std::vector<double> &output, 
                              int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
-    // Predict from 
     if (output.size() < data->num_data() + offset) {
       Log::Fatal("Mismatched size of prediction vector and training data");
     }
     for (data_size_t i = 0; i < data->num_data(); i++) {
       pred = 0.0;
       for (size_t j = tree_begin; j < tree_end; j++) {
-        auto const &tree = *trees_[j];
-        node_t nidx = 0;
-        while (!tree[nidx].IsLeaf()) {
-          int col = tree[nidx].SplitIndex();
-          auto fvalue = data->get_feature_value(i, col);
-          bool proceed_left = fvalue <= tree[nidx].SplitCond();
-          if (proceed_left) {
-            nidx = tree[nidx].LeftChild();
-          } else {
-            nidx = tree[nidx].RightChild();
-          }
-        }
-        pred += tree[nidx].LeafValue();
+        auto &tree = *trees_[j];
+        std::int32_t nidx = EvaluateTree(tree, data, i);
+        pred += tree.LeafValue(nidx);
       }
       output[i + offset] = pred;
     }
@@ -104,19 +106,10 @@ class TreeEnsemble {
     for (data_size_t i = 0; i < data->num_data(); i++) {
       pred = 0.0;
       for (size_t j = tree_begin; j < tree_end; ++j) {
-        auto const &tree = *trees_[j];
-        node_t nidx = 0;
-        while (!tree[nidx].IsLeaf()) {
-          int col = tree[nidx].SplitIndex();
-          auto fvalue = data->get_feature_value(i, col);
-          bool proceed_left = fvalue <= tree[nidx].SplitCond();
-          if (proceed_left) {
-            nidx = tree[nidx].LeftChild();
-          } else {
-            nidx = tree[nidx].RightChild();
-          }
-        }
-        pred += tree[nidx].LeafValue();
+        auto &tree = *trees_[j];
+        std::int32_t nidx = EvaluateTree(tree, data, i);
+        // TODO: handle vector-valued leaves
+        pred += tree.LeafValue(nidx);
       }
       output[i] = pred;
     }

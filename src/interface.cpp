@@ -174,7 +174,8 @@ void StochTreeInterface::SampleXBARTGaussianRegression() {
       // Initialize the ensemble by setting all trees to a root node predicting mean(y) / num_trees
       for (int j = 0; j < config_.num_trees; j++) {
         Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-        (*tree)[0].SetLeaf(mean_outcome / config_.num_trees);
+        // (*tree)[0].SetLeaf(mean_outcome / config_.num_trees);
+        tree->SetLeaf(0, mean_outcome / config_.num_trees);
         for (data_size_t k = 0; k < n; k++) {
           tree_observation_indices_[j][k] = 0;
         }
@@ -213,9 +214,10 @@ void StochTreeInterface::SampleXBARTGaussianRegression() {
 
       // Reset training data so that features are pre-sorted based on the entire dataset
       train_data_->ResetToRaw();
+      train_data_->ResetCategoricalMetadata();
       
       // Reset tree j to a constant root node
-      (model_draws_[model_iter]->GetEnsemble())->ResetTree(j);
+      (model_draws_[model_iter]->GetEnsemble())->ResetInitTree(j);
 
       // Reset the observation indices to point to node 0
       for (data_size_t k = 0; k < n; k++) {
@@ -324,7 +326,8 @@ void StochTreeInterface::SampleBARTGaussianRegression() {
       // Initialize the ensemble by setting all trees to a root node predicting mean(y) / num_trees
       for (int j = 0; j < config_.num_trees; j++) {
         Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-        (*tree)[0].SetLeaf(mean_outcome / config_.num_trees);
+        // (*tree)[0].SetLeaf(mean_outcome / config_.num_trees);
+        tree->SetLeaf(0, mean_outcome / config_.num_trees);
         for (data_size_t k = 0; k < n; k++) {
           tree_observation_indices_[j][k] = 0;
         }
@@ -357,7 +360,9 @@ void StochTreeInterface::SampleBARTGaussianRegression() {
 
       // If model_iter is different from prev_model_iter, copy tree j from prev_model_iter to model_iter
       if (model_iter > prev_model_iter) {
-        (model_draws_[model_iter]->GetEnsemble())->CopyTree(j, tree);
+        // (model_draws_[model_iter]->GetEnsemble())->CopyTree(j, tree);
+        (model_draws_[model_iter]->GetEnsemble())->ResetTree(j);
+        (model_draws_[model_iter]->GetEnsemble())->CloneFromExistingTree(j, tree);
       }
       
       // Retrieve pointer to tree j (which might be a new tree if we copied it)

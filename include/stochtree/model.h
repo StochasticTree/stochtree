@@ -100,10 +100,11 @@ class XBARTGaussianRegressionModel : public Model {
                  std::vector<double>& log_cutpoint_evaluations, 
                  std::vector<int>& cutpoint_feature, 
                  std::vector<double>& cutpoint_values, 
+                 std::vector<FeatureType>& cutpoint_feature_types, 
                  data_size_t& valid_cutpoint_count);
   
   /*! \brief Add a split to the model by growing the tree and modifying the training tracker */
-  void AddSplitToModel(TrainData* train_data, Tree* tree, node_t leaf_node, 
+  void AddSplitToModel(TrainData* train_data, Tree* tree, FeatureType feature_type, node_t leaf_node, 
                        data_size_t node_begin, data_size_t node_end, 
                        int feature_split, double split_value, std::deque<node_t>& split_queue, 
                        std::vector<std::vector<data_size_t>>& tree_observation_indices, int tree_num);
@@ -157,7 +158,8 @@ class XBARTGaussianRegressionModel : public Model {
     double sum_sq_leaf_vals = 0;
     for (int i = 0; i < config_.num_trees; i++) {
       for (auto& leaf: tree_ensemble->GetTree(i)->GetLeaves()) {
-        sum_sq_leaf_vals += std::pow((*tree_ensemble->GetTree(i))[leaf].LeafValue(), 2.);
+        // sum_sq_leaf_vals += std::pow((*tree_ensemble->GetTree(i))[leaf].LeafValue(), 2.);
+        sum_sq_leaf_vals += std::pow((*tree_ensemble->GetTree(i)).LeafValue(leaf), 2.);
       }
     }
     return (b_tau_ + sum_sq_leaf_vals)/2.;

@@ -2,7 +2,7 @@
 option(USE_DEBUG "Set to ON for Debug mode" ON)
 option(USE_SANITIZER "Use santizer flags" ON)
 option(BUILD_CLI "Build the 'lightbgm' command-line interface in addition to lib_lightgbm" ON)
-option(BUILD_CPP_TEST "Build C++ tests with Google Test" ON)
+option(BUILD_CPP_TEST "Build C++ tests with Google Test" OFF)
 
 # GoogleTest requires at least C++14
 set(CMAKE_CXX_STANDARD 14)
