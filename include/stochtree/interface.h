@@ -25,7 +25,6 @@
 #include <stochtree/model.h>
 #include <stochtree/model_draw.h>
 #include <stochtree/partition_tracker.h>
-#include <stochtree/train_data.h>
 #include <stochtree/tree.h>
 
 #include <memory>

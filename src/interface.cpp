@@ -23,7 +23,6 @@
 #include <stochtree/meta.h>
 #include <stochtree/model.h>
 #include <stochtree/model_draw.h>
-#include <stochtree/train_data.h>
 #include <stochtree/tree.h>
 
 #include <iostream>

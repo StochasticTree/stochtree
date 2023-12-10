@@ -29,7 +29,6 @@
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/log.h>
-#include <stochtree/train_data.h>
 #include <stochtree/tree.h>
 
 #include <cmath>

@@ -16,7 +16,6 @@
 #include <stochtree/ensemble.h>
 #include <stochtree/log.h>
 #include <stochtree/partition_tracker.h>
-#include <stochtree/train_data.h>
 #include <stochtree/tree.h>
 #include "../../dependencies/boost_math/include/boost/math/special_functions/gamma.hpp"
 

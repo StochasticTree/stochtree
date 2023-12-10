@@ -12,7 +12,6 @@
 
 #include <stochtree/config.h>
 #include <stochtree/data.h>
-#include <stochtree/train_data.h>
 #include <stochtree/tree.h>
 
 #include <algorithm>

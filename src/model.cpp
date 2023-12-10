@@ -4,7 +4,6 @@
 #include <stochtree/data.h>
 #include <stochtree/meta.h>
 #include <stochtree/model.h>
-#include <stochtree/train_data.h>
 #include <cmath>
 #include <iterator>
 
