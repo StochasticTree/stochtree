@@ -1,6 +1,7 @@
-/*!
- * Copyright (c) 2023 by randtree authors. 
- */
+/*! Copyright (c) 2023 by randtree authors. */
+
+#include <stochtree/cutpoint_candidates.h>
+#include <stochtree/data.h>
 #include <stochtree/meta.h>
 #include <stochtree/model.h>
 #include <stochtree/train_data.h>
@@ -45,16 +46,16 @@ XBARTGaussianRegressionModel::XBARTGaussianRegressionModel(const Config& config)
   }
 }
 
-void XBARTGaussianRegressionModel::InitializeGlobalParameters(TrainData* train_data) {
+void XBARTGaussianRegressionModel::InitializeGlobalParameters(Dataset* dataset) {
   // Compute the outcome mean (used as an offset) and the outcome sd
   double var_y = 0.0;
   double outcome_sum_squares = 0.0;
   double outcome_sum = 0.0;
   double outcome_val;
-  data_size_t n = train_data->num_data();
+  data_size_t n = dataset->NumObservations();
   int num_trees = config_.num_trees;
   for (data_size_t i = 0; i < n; i++){
-    outcome_val = train_data->get_outcome_value(i);
+    outcome_val = dataset->OutcomeValue(i);
     outcome_sum += outcome_val;
     outcome_sum_squares += std::pow(outcome_val, 2.0);
   }
@@ -63,18 +64,19 @@ void XBARTGaussianRegressionModel::InitializeGlobalParameters(TrainData* train_d
   ybar_offset_ = outcome_sum / n;
 
   // Scale and center the outcome
-  train_data->ResidualCenter(ybar_offset_);
-  train_data->ResidualScale(sd_scale_);
+  for (data_size_t i = 0; i < n; i++){
+    dataset->ResidualSubtract(i, 0, ybar_offset_);
+    dataset->ResidualDivide(i, 0, sd_scale_);
+  }
 
   if (config_.data_driven_prior) {
     double var_y = 0.0;
     double outcome_sum_squares = 0.0;
     double outcome_sum = 0.0;
     double outcome_val;
-    data_size_t n = train_data->num_data();
     int num_trees = config_.num_trees;
     for (data_size_t i = 0; i < n; i++){
-      outcome_val = train_data->get_residual_value(i);
+      outcome_val = dataset->ResidualValue(i);
       outcome_sum += outcome_val;
       outcome_sum_squares += std::pow(outcome_val, 2.0);
     }
@@ -84,12 +86,13 @@ void XBARTGaussianRegressionModel::InitializeGlobalParameters(TrainData* train_d
   }
 }
 
-void XBARTGaussianRegressionModel::SampleTree(TrainData* train_data, Tree* tree, std::vector<std::vector<data_size_t>>& tree_observation_indices, int tree_num) {
+void XBARTGaussianRegressionModel::SampleTree(Dataset* dataset, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, 
+                                              SampleNodeMapper* sample_node_mapper, int tree_num) {
   node_t root_id = Tree::kRoot;
   node_t curr_node_id;
   data_size_t curr_node_begin;
   data_size_t curr_node_end;
-  data_size_t n = train_data->num_data();
+  data_size_t n = dataset->NumObservations();
   // Reset the mapping from node id to start and end points of sorted indices
   NodeIndexMapReset(n);
   std::pair<data_size_t, data_size_t> begin_end;
@@ -106,18 +109,18 @@ void XBARTGaussianRegressionModel::SampleTree(TrainData* train_data, Tree* tree,
     curr_node_begin = begin_end.first;
     curr_node_end = begin_end.second;
     // Draw a split rule at random
-    SampleSplitRule(train_data, tree, curr_node_id, curr_node_begin, curr_node_end, split_queue_, tree_observation_indices, tree_num);
+    SampleSplitRule(dataset, tree, sorted_node_sample_tracker, curr_node_id, curr_node_begin, curr_node_end, split_queue_, sample_node_mapper, tree_num);
   }
 }
 
-void XBARTGaussianRegressionModel::SampleLeafParameters(TrainData* train_data, Tree* tree) {
+void XBARTGaussianRegressionModel::SampleLeafParameters(Dataset* dataset, SortedNodeSampleTracker* sorted_node_sample_tracker, Tree* tree) {
   // Vector of leaf indices for tree
   std::vector<node_t> tree_leaves = tree->GetLeaves();
   std::vector<XBARTGaussianRegressionSuffStat> leaf_suff_stats;
   std::normal_distribution<double> leaf_node_dist(0.,1.);
   // Vector of sufficient statistics for each leaf
   for (int i = 0; i < tree_leaves.size(); i++) {
-    leaf_suff_stats.push_back(LeafSuffStat(train_data, tree_leaves[i]));
+    leaf_suff_stats.push_back(LeafSuffStat(dataset, sorted_node_sample_tracker, tree_leaves[i]));
   }
 
   // Sample each leaf node parameter
@@ -136,7 +139,7 @@ void XBARTGaussianRegressionModel::SampleLeafParameters(TrainData* train_data, T
   }
 }
 
-XBARTGaussianRegressionSuffStat XBARTGaussianRegressionModel::LeafSuffStat(TrainData* train_data, node_t leaf_id) {
+XBARTGaussianRegressionSuffStat XBARTGaussianRegressionModel::LeafSuffStat(Dataset* dataset, SortedNodeSampleTracker* sorted_node_sample_tracker, node_t leaf_id) {
   data_size_t node_begin, node_end;
   std::pair<data_size_t, data_size_t> begin_end;
   if (node_index_map_.find(leaf_id) == node_index_map_.end()) {
@@ -145,15 +148,15 @@ XBARTGaussianRegressionSuffStat XBARTGaussianRegressionModel::LeafSuffStat(Train
   begin_end = node_index_map_[leaf_id];
   node_begin = begin_end.first;
   node_end = begin_end.second;
-  return ComputeNodeSuffStat(train_data, node_begin, node_end, 0);
+  return ComputeNodeSuffStat(dataset, sorted_node_sample_tracker, node_begin, node_end, 0);
 }
 
-void XBARTGaussianRegressionModel::SampleGlobalParameters(TrainData* train_data, TreeEnsemble* tree_ensemble, std::set<std::string> update_params) {
+void XBARTGaussianRegressionModel::SampleGlobalParameters(Dataset* dataset, TreeEnsemble* tree_ensemble, std::set<std::string> update_params) {
   // Update sigma^2
   if (update_params.count("sigma_sq") > 0) {
     // Compute posterior shape and scale parameters for inverse gamma
-    double ig_shape_sig = SigmaPosteriorShape(train_data);
-    double ig_scale_sig = SigmaPosteriorScale(train_data);
+    double ig_shape_sig = SigmaPosteriorShape(dataset);
+    double ig_scale_sig = SigmaPosteriorScale(dataset);
     
     // C++ standard library provides a gamma distribution with scale
     // parameter, but the correspondence between gamma and IG is that 
@@ -181,15 +184,15 @@ void XBARTGaussianRegressionModel::SampleGlobalParameters(TrainData* train_data,
   }
 }
 
-void XBARTGaussianRegressionModel::SampleSplitRule(TrainData* train_data, Tree* tree, node_t leaf_node, 
-                      data_size_t node_begin, data_size_t node_end, std::deque<node_t>& split_queue, 
-                      std::vector<std::vector<data_size_t>>& tree_observation_indices, int tree_num) {
+void XBARTGaussianRegressionModel::SampleSplitRule(Dataset* dataset, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, 
+                                                   node_t leaf_node, data_size_t node_begin, data_size_t node_end, std::deque<node_t>& split_queue, 
+                                                   SampleNodeMapper* sample_node_mapper, int tree_num) {
   std::vector<double> log_cutpoint_evaluations;
   std::vector<int> cutpoint_features;
   std::vector<double> cutpoint_values;
   std::vector<FeatureType> cutpoint_feature_types;
   StochTree::data_size_t valid_cutpoint_count;
-  Cutpoints(train_data, tree, leaf_node, node_begin, node_end, 
+  Cutpoints(dataset, tree, sorted_node_sample_tracker, leaf_node, node_begin, node_end, 
             log_cutpoint_evaluations, cutpoint_features, cutpoint_values, 
             cutpoint_feature_types, valid_cutpoint_count);
   
@@ -212,20 +215,20 @@ void XBARTGaussianRegressionModel::SampleSplitRule(TrainData* train_data, Tree* 
     FeatureType feature_type = cutpoint_feature_types[split_chosen];
     double split_value = cutpoint_values[split_chosen];
     // Perform all of the relevant "split" operations in the model, tree and training dataset
-    AddSplitToModel(train_data, tree, feature_type, leaf_node, node_begin, node_end, 
-                    feature_split, split_value, split_queue, tree_observation_indices, tree_num);
+    AddSplitToModel(dataset, tree, sorted_node_sample_tracker, feature_type, leaf_node, node_begin, node_end, 
+                    feature_split, split_value, split_queue, sample_node_mapper, tree_num);
   }
 }
 
-void XBARTGaussianRegressionModel::Cutpoints(TrainData* train_data, Tree* tree, node_t leaf_node, 
-                                             data_size_t node_begin, data_size_t node_end, 
+void XBARTGaussianRegressionModel::Cutpoints(Dataset* dataset, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, 
+                                             node_t leaf_node, data_size_t node_begin, data_size_t node_end, 
                                              std::vector<double>& log_cutpoint_evaluations, 
                                              std::vector<int>& cutpoint_feature, 
                                              std::vector<double>& cutpoint_values, 
                                              std::vector<FeatureType>& cutpoint_feature_types, 
                                              data_size_t& valid_cutpoint_count) {
   // Compute sufficient statistics for the current node
-  XBARTGaussianRegressionSuffStat node_suff_stat_ = ComputeNodeSuffStat(train_data, node_begin, node_end, 0);
+  XBARTGaussianRegressionSuffStat node_suff_stat_ = ComputeNodeSuffStat(dataset, sorted_node_sample_tracker, node_begin, node_end, 0);
   XBARTGaussianRegressionSuffStat left_suff_stat_;
   XBARTGaussianRegressionSuffStat right_suff_stat_;
 
@@ -233,24 +236,58 @@ void XBARTGaussianRegressionModel::Cutpoints(TrainData* train_data, Tree* tree, 
   log_cutpoint_evaluations.clear();
   cutpoint_feature.clear();
   cutpoint_values.clear();
-  
+
+  // Reset cutpoint grid container
+  cutpoint_grid_container.reset(new CutpointGridContainer(dataset, config_));
+
   // Compute sufficient statistics for each possible split
   data_size_t num_cutpoints = 0;
   bool valid_split = false;
   data_size_t node_row_iter;
+  data_size_t current_bin_begin, current_bin_size, next_bin_begin;
+  data_size_t feature_sort_idx;
+  data_size_t row_iter_idx;
+  double outcome_val, outcome_val_sq;
   FeatureType feature_type;
   double feature_value = 0.0;
+  double cutoff_value = 0.0;
   double log_split_eval = 0.0;
-  for (int j = 0; j < train_data->num_variables(); j++) {
-    feature_type = train_data->get_feature_type(j);
-    node_row_iter = node_begin;
+  for (int j = 0; j < dataset->NumCovariates(); j++) {
+
+    // Enumerate cutpoint strides
+    cutpoint_grid_container->CalculateStrides(dataset, sorted_node_sample_tracker, leaf_node, node_begin, node_end, j);
+
+    // Iterate through possible cutpoints
+    int32_t num_feature_cutpoints = cutpoint_grid_container->NumCutpoints(j);
+    feature_type = dataset->GetFeatureType(j);
+    // node_row_iter = node_begin;
     ResetSuffStat(left_suff_stat_, 0, 0.0);
     ResetSuffStat(right_suff_stat_, node_suff_stat_.sample_size_, node_suff_stat_.outcome_sum_);
-    while (node_row_iter < node_end) {
-      feature_value = train_data->get_feature_value(train_data->get_feature_sort_index(node_row_iter, j), j);
-      AccumulateRowSuffStat(train_data, left_suff_stat_, node_row_iter, j, node_row_iter);
+    for (data_size_t cutpoint_idx = 0; cutpoint_idx < (num_feature_cutpoints - 1); cutpoint_idx++) {
+      // Unpack cutpoint details, noting that since we partition an entire cutpoint bin to the left, 
+      // we must stop one bin before the total number of cutpoint bins
+      current_bin_begin = cutpoint_grid_container->BinStartIndex(cutpoint_idx, j);
+      current_bin_size = cutpoint_grid_container->BinLength(cutpoint_idx, j);
+      next_bin_begin = cutpoint_grid_container->BinStartIndex(cutpoint_idx + 1, j);
+
+      // Accumulate sufficient statistics
+      for (data_size_t k = 0; k < current_bin_size; k++) {
+        row_iter_idx = current_bin_begin + k;
+        feature_sort_idx = sorted_node_sample_tracker->SortIndex(row_iter_idx, j);
+        outcome_val = dataset->ResidualValue(feature_sort_idx);
+        outcome_val_sq = std::pow(outcome_val, 2.0);
+        left_suff_stat_.sample_size_++;
+        left_suff_stat_.outcome_sum_ += outcome_val;
+        left_suff_stat_.outcome_sum_sq_ += outcome_val_sq;
+      }
+
+      // AccumulateRowSuffStat(dataset, left_suff_stat_, node_row_iter, j, node_row_iter);
       right_suff_stat_ = SubtractSuffStat(node_suff_stat_, left_suff_stat_);
-      
+
+      // Store the bin index as the "cutpoint value" - we can use this to query the actual split 
+      // value or the set of split categories later on once a split is chose
+      cutoff_value = cutpoint_idx;
+
       // Only include cutpoint for consideration if it defines a valid split in the training data
       valid_split = ((left_suff_stat_.sample_size_ >= config_.min_data_in_leaf) && 
                       (right_suff_stat_.sample_size_ >= config_.min_data_in_leaf));
@@ -259,7 +296,7 @@ void XBARTGaussianRegressionModel::Cutpoints(TrainData* train_data, Tree* tree, 
         // Add to split rule vector
         cutpoint_feature_types.push_back(feature_type);
         cutpoint_feature.push_back(j);
-        cutpoint_values.push_back(feature_value);
+        cutpoint_values.push_back(cutoff_value);
         // Add the log marginal likelihood of the split to the split eval vector 
         log_split_eval = SplitLogMarginalLikelihood(left_suff_stat_, right_suff_stat_);
         log_cutpoint_evaluations.push_back(log_split_eval);
@@ -277,51 +314,64 @@ void XBARTGaussianRegressionModel::Cutpoints(TrainData* train_data, Tree* tree, 
   valid_cutpoint_count = num_cutpoints;
 }
 
-void XBARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* tree, FeatureType feature_type, node_t leaf_node, 
-                                                   data_size_t node_begin, data_size_t node_end, 
+void XBARTGaussianRegressionModel::AddSplitToModel(Dataset* dataset, Tree* tree, SortedNodeSampleTracker* sort_node_sample_tracker, 
+                                                   FeatureType feature_type, node_t leaf_node, data_size_t node_begin, data_size_t node_end, 
                                                    int feature_split, double split_value, std::deque<node_t>& split_queue, 
-                                                   std::vector<std::vector<data_size_t>>& tree_observation_indices, int tree_num) {
+                                                   SampleNodeMapper* sample_node_mapper, int tree_num) {
   // Compute the sufficient statistics for the new left and right node as well as the parent node being split
   XBARTGaussianRegressionSuffStat node_suff_stat_;
   XBARTGaussianRegressionSuffStat left_suff_stat_;
   XBARTGaussianRegressionSuffStat right_suff_stat_;
   ResetSuffStat(left_suff_stat_);
-  node_suff_stat_ = ComputeNodeSuffStat(train_data, node_begin, node_end, feature_split);
-  AccumulateSplitRule(train_data, left_suff_stat_, feature_split, split_value, node_begin, node_end, true);
-  right_suff_stat_ = SubtractSuffStat(node_suff_stat_, left_suff_stat_);
+  node_suff_stat_ = ComputeNodeSuffStat(dataset, sort_node_sample_tracker, node_begin, node_end, feature_split);
+  
+  // Actual numeric cutpoint used for ordered categorical and numeric features
+  double split_value_numeric;
 
   // Split the tree at leaf node
-  // Use the average outcome in each leaf as a "temporary" leaf value since we sample 
+  // Use 0 as a "temporary" leaf value since we sample 
   // all leaf parameters after tree sampling is complete
-  double left_leaf_value = left_suff_stat_.outcome_sum_/left_suff_stat_.sample_size_;
-  double right_leaf_value = right_suff_stat_.outcome_sum_/right_suff_stat_.sample_size_;
+  double left_leaf_value = 0.;
+  double right_leaf_value = 0.;
   if (feature_type == FeatureType::kUnorderedCategorical) {
     // Determine the number of categories available in a categorical split and the set of categories that route observations to the left node after split
     int num_categories;
-    std::vector<std::uint32_t> categories;
-    train_data->determine_categorical_split(num_categories, categories, feature_split, split_value, node_begin, node_end);
+    std::vector<std::uint32_t> categories = cutpoint_grid_container->CutpointVector(static_cast<std::uint32_t>(split_value), feature_split);
+
+    // Accumulate split rule sufficient statistics
+    AccumulateSplitRule(dataset, sort_node_sample_tracker, left_suff_stat_, feature_split, categories, node_begin, node_end, true);
+    right_suff_stat_ = SubtractSuffStat(node_suff_stat_, left_suff_stat_);
+
     // Perform the split
-    // tree->ExpandNode(leaf_node, feature_split, num_categories, categories, true, 1., left_leaf_value, right_leaf_value, -1);
     tree->ExpandNode(leaf_node, feature_split, categories, true, left_leaf_value, right_leaf_value);
     // Partition the dataset according to the new split rule and 
     // determine the beginning and end of the new left and right nodes
-    train_data->PartitionLeaf(node_begin, node_suff_stat_.sample_size_, 
-                              feature_split, categories);
+    PartitionLeaf(dataset, sort_node_sample_tracker, leaf_node, node_begin, node_suff_stat_.sample_size_, feature_split, categories);
   } else {
     if (feature_type == FeatureType::kOrderedCategorical) {
-      // tree->ExpandNode(leaf_node, FeatureSplitType::kOrderedCategoricalSplit, feature_split, split_value, true, 1., left_leaf_value, right_leaf_value, -1);
-      tree->ExpandNode(leaf_node, feature_split, split_value, true, left_leaf_value, right_leaf_value);
+      // Convert the bin split to an actual split value
+      split_value_numeric = cutpoint_grid_container->CutpointValue(static_cast<std::uint32_t>(split_value), feature_split);
+
+      // Accumulate split rule sufficient statistics
+      AccumulateSplitRule(dataset, sort_node_sample_tracker, left_suff_stat_, feature_split, split_value_numeric, node_begin, node_end, true);
+      right_suff_stat_ = SubtractSuffStat(node_suff_stat_, left_suff_stat_);
+      
+      tree->ExpandNode(leaf_node, feature_split, split_value_numeric, true, left_leaf_value, right_leaf_value);
       // Partition the dataset according to the new split rule and 
       // determine the beginning and end of the new left and right nodes
-      train_data->PartitionLeaf(node_begin, node_suff_stat_.sample_size_, 
-                                feature_split, split_value);
+      PartitionLeaf(dataset, sort_node_sample_tracker, leaf_node, node_begin, node_suff_stat_.sample_size_, feature_split, split_value_numeric);
     } else if (feature_type == FeatureType::kNumeric) {
-      // tree->ExpandNode(leaf_node, FeatureSplitType::kOrderedCategoricalSplit, feature_split, split_value, true, 1., left_leaf_value, right_leaf_value, -1);
-      tree->ExpandNode(leaf_node, feature_split, split_value, true, left_leaf_value, right_leaf_value);
+      // Convert the bin split to an actual split value
+      split_value_numeric = cutpoint_grid_container->CutpointValue(static_cast<std::uint32_t>(split_value), feature_split);
+
+      // Accumulate split rule sufficient statistics
+      AccumulateSplitRule(dataset, sort_node_sample_tracker, left_suff_stat_, feature_split, split_value_numeric, node_begin, node_end, true);
+      right_suff_stat_ = SubtractSuffStat(node_suff_stat_, left_suff_stat_);
+      
+      tree->ExpandNode(leaf_node, feature_split, split_value_numeric, true, left_leaf_value, right_leaf_value);
       // Partition the dataset according to the new split rule and 
       // determine the beginning and end of the new left and right nodes
-      train_data->PartitionLeaf(node_begin, node_suff_stat_.sample_size_, 
-                                feature_split, split_value);
+      PartitionLeaf(dataset, sort_node_sample_tracker, leaf_node, node_begin, node_suff_stat_.sample_size_, feature_split, split_value_numeric);
     } else {
       Log::Fatal("Invalid split type");
     }
@@ -330,19 +380,8 @@ void XBARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* 
   node_t right_node = tree->RightChild(leaf_node);
 
   // Update the leaf node observation tracker
-  data_size_t obs_idx;
-  for (data_size_t i = node_begin; i < node_begin + left_suff_stat_.sample_size_; i++) {
-    obs_idx = train_data->get_feature_sort_index(i, 0);
-    tree_observation_indices[tree_num][obs_idx] = left_node;
-  }
-  for (data_size_t i = node_begin + left_suff_stat_.sample_size_; i < node_end; i++) {
-    obs_idx = train_data->get_feature_sort_index(i, 0);
-    tree_observation_indices[tree_num][obs_idx] = right_node;
-  }
-
-  // Recompute the categorical indices for the training data
-  train_data->ResetCategoricalMetadataStartEnd(node_begin, node_begin + left_suff_stat_.sample_size_);
-  train_data->ResetCategoricalMetadataStartEnd(node_begin + left_suff_stat_.sample_size_, node_end);
+  sort_node_sample_tracker->UpdateObservationMapping(left_node, tree_num, sample_node_mapper);
+  sort_node_sample_tracker->UpdateObservationMapping(right_node, tree_num, sample_node_mapper);
 
   // Add the begin and end indices for the new left and right nodes to node_index_map
   AddNode(left_node, node_begin, node_begin + left_suff_stat_.sample_size_);
@@ -421,14 +460,15 @@ double XBARTGaussianRegressionModel::NoSplitMarginalLikelihood(const XBARTGaussi
   return std::exp(NoSplitLogMarginalLikelihood(node_stat, node_depth, num_split_candidates));
 }
 
-XBARTGaussianRegressionSuffStat XBARTGaussianRegressionModel::ComputeNodeSuffStat(TrainData* train_data, data_size_t node_begin, 
-                                                                                  data_size_t node_end, int feature_idx) {
+XBARTGaussianRegressionSuffStat XBARTGaussianRegressionModel::ComputeNodeSuffStat(Dataset* dataset, SortedNodeSampleTracker* sorted_node_sample_tracker, 
+                                                                                  data_size_t node_begin, data_size_t node_end, int feature_idx) {
   XBARTGaussianRegressionSuffStat suff_stat;
   // Reset sample size and outcome sum
   data_size_t sample_size = 0;
   double outcome;
   double outcome_sum = 0.;
   double outcome_sum_sq = 0.;
+  data_size_t sort_idx;
   // Compute the total sufficient statistics for a node
   for (data_size_t i = node_begin; i < node_end; i++) {
     // We could also compute this as node_end - node_begin
@@ -437,7 +477,8 @@ XBARTGaussianRegressionSuffStat XBARTGaussianRegressionModel::ComputeNodeSuffSta
     // need a running total sample size and running total outcome 
     // per node we can use any feature's sort indices to get the 
     // corresponding outcome information
-    outcome = train_data->get_residual_value(train_data->get_feature_sort_index(i, feature_idx));
+    sort_idx = sorted_node_sample_tracker->SortIndex(i, feature_idx);
+    outcome = dataset->ResidualValue(sort_idx);
     outcome_sum += outcome;
     outcome_sum_sq += std::pow(outcome, 2.0);
   }
@@ -457,47 +498,14 @@ XBARTGaussianRegressionSuffStat XBARTGaussianRegressionModel::SubtractSuffStat(c
   return suff_stat;
 }
 
-void XBARTGaussianRegressionModel::AccumulateRowSuffStat(TrainData* train_data, XBARTGaussianRegressionSuffStat& suff_stat, 
-                                                         data_size_t row, int col, data_size_t& node_row_iter) {
-  double outcome_value = train_data->get_residual_value(train_data->get_feature_sort_index(row, col));
-  double outcome_value_sq = std::pow(outcome_value, 2.0);
-  double feature_value = train_data->get_feature_value(train_data->get_feature_sort_index(row, col), col);
-  data_size_t feature_stride = train_data->get_feature_stride(row, col);
-  
-  if (feature_stride == 1){
-    // If feature value is unique, no need to handle the strides
-    suff_stat.sample_size_++;
-    suff_stat.outcome_sum_ += outcome_value;
-    suff_stat.outcome_sum_sq_ += outcome_value_sq;
-    node_row_iter++;
-  } else if (feature_stride > 1) {
-    // If feature value is non-unique, need to look at the outcome for every unique occurence of that value
-    suff_stat.sample_size_ += feature_stride;
-    node_row_iter += feature_stride;
-    if ((feature_stride + row) > train_data->num_data()) {
-      train_data->get_feature_stride(row, col);
-      Log::Info("Not possible!");
-    }
-    for (data_size_t k = 0; k < feature_stride; k++){
-      outcome_value = train_data->get_residual_value(train_data->get_feature_sort_index(row + k, col));
-      outcome_value_sq = std::pow(outcome_value, 2.0);
-      suff_stat.outcome_sum_ += outcome_value;
-      suff_stat.outcome_sum_sq_ += outcome_value_sq;
-    }
-  } else {
-    // This case implies an error in the training dataset loading process (feature with at least one 
-    // unique value and a stride of <= 0)
-    Log::Fatal("Error reading from training dataset, unique feature value %d has a stride of 0", feature_value);
-  }
-}
-
 void XBARTGaussianRegressionModel::ResetSuffStat(XBARTGaussianRegressionSuffStat& suff_stat, data_size_t sample_size, double outcome_sum, double outcome_sum_sq) {
   suff_stat.sample_size_ = sample_size;
   suff_stat.outcome_sum_ = outcome_sum;
   suff_stat.outcome_sum_sq_ = outcome_sum_sq;
 }
 
-void XBARTGaussianRegressionModel::AccumulateSplitRule(TrainData* train_data, XBARTGaussianRegressionSuffStat& suff_stat, 
+void XBARTGaussianRegressionModel::AccumulateSplitRule(Dataset* dataset, SortedNodeSampleTracker* sorted_node_sample_tracker, 
+                                                       XBARTGaussianRegressionSuffStat& suff_stat, 
                                                        int split_col, double split_value, data_size_t node_begin, 
                                                        data_size_t node_end, bool is_left) {
   double feature_value;
@@ -506,15 +514,57 @@ void XBARTGaussianRegressionModel::AccumulateSplitRule(TrainData* train_data, XB
   suff_stat.sample_size_ = 0;
   suff_stat.outcome_sum_ = 0.0;
   suff_stat.outcome_sum_sq_ = 0.0;
+  data_size_t sort_idx;
+  bool split_true;
   for (data_size_t i = node_begin; i < node_end; i++) {
-    feature_value = train_data->get_feature_value(train_data->get_feature_sort_index(i, split_col), split_col);
-    outcome_value = train_data->get_residual_value(train_data->get_feature_sort_index(i, split_col));
+    sort_idx = sorted_node_sample_tracker->SortIndex(i, split_col);
+    feature_value = dataset->CovariateValue(sort_idx, split_col);
+    outcome_value = dataset->ResidualValue(sort_idx, 0);
     outcome_value_sq = std::pow(outcome_value, 2.0);
-    if (feature_value <= split_value && is_left){
+    split_true = SplitTrueNumeric(feature_value, split_value);
+    // Only accumulate sample sufficient statistics if either 
+    // (a) the accumulated sufficient statistic is for a left node and the split rule is true, or
+    // (b) the accumulated sufficient statistic is for a right node and the split rule is false
+    if (split_true && is_left){
       suff_stat.sample_size_++;
       suff_stat.outcome_sum_ += outcome_value;
       suff_stat.outcome_sum_sq_ += outcome_value_sq;
-    } else if (feature_value > split_value && !is_left) {
+    } else if (!split_true && !is_left) {
+      suff_stat.sample_size_++;
+      suff_stat.outcome_sum_ += outcome_value;
+      suff_stat.outcome_sum_sq_ += outcome_value_sq;
+    }
+  }
+}
+
+
+
+void XBARTGaussianRegressionModel::AccumulateSplitRule(Dataset* dataset, SortedNodeSampleTracker* sorted_node_sample_tracker, 
+                                                       XBARTGaussianRegressionSuffStat& suff_stat, 
+                                                       int split_col, std::vector<std::uint32_t> const& categorical_indices, 
+                                                       data_size_t node_begin, data_size_t node_end, bool is_left) {
+  double feature_value;
+  double outcome_value;
+  double outcome_value_sq;
+  suff_stat.sample_size_ = 0;
+  suff_stat.outcome_sum_ = 0.0;
+  suff_stat.outcome_sum_sq_ = 0.0;
+  data_size_t sort_idx;
+  bool split_true;
+  for (data_size_t i = node_begin; i < node_end; i++) {
+    sort_idx = sorted_node_sample_tracker->SortIndex(i, split_col);
+    feature_value = dataset->CovariateValue(sort_idx, split_col);
+    outcome_value = dataset->ResidualValue(sort_idx, 0);
+    outcome_value_sq = std::pow(outcome_value, 2.0);
+    split_true = SplitTrueCategorical(feature_value, categorical_indices);
+    // Only accumulate sample sufficient statistics if either 
+    // (a) the accumulated sufficient statistic is for a left node and the split rule is true, or
+    // (b) the accumulated sufficient statistic is for a right node and the split rule is false
+    if (split_true && is_left){
+      suff_stat.sample_size_++;
+      suff_stat.outcome_sum_ += outcome_value;
+      suff_stat.outcome_sum_sq_ += outcome_value_sq;
+    } else if (!split_true && !is_left) {
       suff_stat.sample_size_++;
       suff_stat.outcome_sum_ += outcome_value;
       suff_stat.outcome_sum_sq_ += outcome_value_sq;
@@ -556,16 +606,18 @@ BARTGaussianRegressionModel::BARTGaussianRegressionModel(const Config& config) {
   }
 }
 
-void BARTGaussianRegressionModel::InitializeGlobalParameters(TrainData* train_data) {
+void BARTGaussianRegressionModel::InitializeGlobalParameters(Dataset* dataset) {
   // Compute the outcome mean (used as an offset) and the outcome sd
   double var_y = 0.0;
   double outcome_sum_squares = 0.0;
   double outcome_sum = 0.0;
   double outcome_val;
-  data_size_t n = train_data->num_data();
+  // data_size_t n = train_data->num_data();
+  data_size_t n = dataset->NumObservations();
   int num_trees = config_.num_trees;
   for (data_size_t i = 0; i < n; i++){
-    outcome_val = train_data->get_outcome_value(i);
+    // outcome_val = train_data->get_outcome_value(i);
+    outcome_val = dataset->OutcomeValue(i, 0);
     outcome_sum += outcome_val;
     outcome_sum_squares += std::pow(outcome_val, 2.0);
   }
@@ -574,8 +626,11 @@ void BARTGaussianRegressionModel::InitializeGlobalParameters(TrainData* train_da
   ybar_offset_ = outcome_sum / n;
 
   // Scale and center the outcome
-  train_data->ResidualCenter(ybar_offset_);
-  train_data->ResidualScale(sd_scale_);
+  for (data_size_t i = 0; i < n; i++){
+    // outcome_val = train_data->get_outcome_value(i);
+    dataset->ResidualSubtract(i, 0, ybar_offset_);
+    dataset->ResidualDivide(i, 0, sd_scale_);
+  }
 
   // Calibrate priors if called for
   if (config_.data_driven_prior) {
@@ -587,11 +642,13 @@ void BARTGaussianRegressionModel::InitializeGlobalParameters(TrainData* train_da
     double outcome_sum = 0.0;
     double outcome_val;
     double ybar;
-    data_size_t n = train_data->num_data();
+    // data_size_t n = train_data->num_data();
+    data_size_t n = dataset->NumObservations();
     int num_trees = config_.num_trees;
     // Compute min and max
     for (data_size_t i = 0; i < n; i++) {
-      outcome_val = train_data->get_residual_value(i);
+      // outcome_val = train_data->get_residual_value(i);
+      outcome_val = dataset->ResidualValue(i, 0);
       outcome_sum += outcome_val;
       outcome_sum_squares += std::pow(outcome_val, 2.0);
       if (outcome_val < y_min) {
@@ -617,32 +674,21 @@ void BARTGaussianRegressionModel::InitializeGlobalParameters(TrainData* train_da
   sigma_sq_ = (nu_*lambda_) / (nu_ - 2.0);
 }
 
-void BARTGaussianRegressionModel::SampleTree(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, 
-                                             std::vector<std::vector<data_size_t>>& tree_observation_indices, int tree_num) {
+void BARTGaussianRegressionModel::SampleTree(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, 
+                                             SampleNodeMapper* sample_node_mapper, int tree_num) {
   // Perform one MCMC step
-  MCMCTreeStep(train_data, tree, node_tracker);
+  MCMCTreeStep(dataset, tree, node_tracker, tree_num);
 
-  // Update the tree_observation_indices
-  std::vector<int> leaves = tree->GetLeaves();
-  data_size_t idx;
-  int leaf;
-  for (int i = 0; i < leaves.size(); i++) {
-    leaf = leaves[i];
-    auto node_begin = (node_tracker->indices_.begin() + node_tracker->NodeBegin(leaf));
-    auto node_end = (node_tracker->indices_.begin() + node_tracker->NodeEnd(leaf));
-    for (auto j = node_begin; j != node_end; j++) {
-      idx = *j;
-      tree_observation_indices[tree_num][idx] = leaf;
-    }
-  }
+  // Update the SampleNodeMapper
+  node_tracker->UpdateObservationMapping(tree, tree_num, sample_node_mapper);
 }
 
-void BARTGaussianRegressionModel::MCMCTreeStep(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker) {
+void BARTGaussianRegressionModel::MCMCTreeStep(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, int tree_num) {
   // Compute sufficient statistics for each node
   BARTGaussianRegressionSuffStat suff_stat;
   node_suff_stats_.clear();
   for (int i = 0; i < tree->NumNodes(); i++) {
-    node_suff_stats_.push_back(ComputeNodeSufficientStatistics(train_data, tree, node_tracker, i));
+    node_suff_stats_.push_back(ComputeNodeSufficientStatistics(dataset, tree, node_tracker, i, tree_num));
   }
 
   // Determine whether it is possible to grow any of the leaves
@@ -679,13 +725,13 @@ void BARTGaussianRegressionModel::MCMCTreeStep(TrainData* train_data, Tree* tree
   bool accept;
   
   if (step_chosen == 0) {
-    GrowMCMC(train_data, tree, node_tracker, accept);
+    GrowMCMC(dataset, tree, node_tracker, accept, tree_num);
   } else {
-    PruneMCMC(train_data, tree, node_tracker, accept);
+    PruneMCMC(dataset, tree, node_tracker, accept, tree_num);
   }
 }
 
-void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, bool& accept) {
+void BARTGaussianRegressionModel::GrowMCMC(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, bool& accept, int tree_num) {
   // Choose a leaf node at random
   int num_leaves = tree->NumLeaves();
   std::vector<int> leaves = tree->GetLeaves();
@@ -696,7 +742,7 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
   int leaf_depth = tree->GetDepth(leaf_chosen);
 
   // Select a split variable at random
-  int p = train_data->num_variables();
+  int p = dataset->NumCovariates();
   std::vector<double> var_weights(p);
   std::fill(var_weights.begin(), var_weights.end(), 1.0/p);
   std::discrete_distribution<> var_dist(var_weights.begin(), var_weights.end());
@@ -704,7 +750,7 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
 
   // Determine the range of possible cutpoints
   double var_min, var_max;
-  VarSplitRange(train_data, tree, node_tracker, leaf_chosen, var_chosen, var_min, var_max);
+  VarSplitRange(dataset, tree, node_tracker, leaf_chosen, var_chosen, var_min, var_max, tree_num);
   if (var_max <= var_min) {
     accept = true;
     return;
@@ -716,9 +762,9 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
   // Compute sufficient statistics of the two new nodes
   BARTGaussianRegressionSuffStat left_suff_stat = {0, 0.0, 0.0};
   BARTGaussianRegressionSuffStat right_suff_stat = {0, 0.0, 0.0};
-  ComputeSplitSuffStats(train_data, tree, node_tracker, leaf_chosen, 
+  ComputeSplitSuffStats(dataset, tree, node_tracker, leaf_chosen, 
                         left_suff_stat, right_suff_stat, 
-                        var_chosen, split_point_chosen);
+                        var_chosen, split_point_chosen, tree_num);
   
   // Retrieve sufficient statistic for split node
   BARTGaussianRegressionSuffStat node_suff_stat = node_suff_stats_[leaf_chosen];
@@ -735,7 +781,7 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
   // Determine whether a "grow" move is possible from the newly formed tree
   // in order to compute the probability of choosing "prune" from the new tree 
   // (which is always possible by construction)
-  bool non_constant = NodesNonConstantAfterSplit(train_data, tree, node_tracker, leaf_chosen, var_chosen, split_point_chosen);
+  bool non_constant = NodesNonConstantAfterSplit(dataset, tree, node_tracker, leaf_chosen, var_chosen, split_point_chosen, tree_num);
   bool min_samples_left_check = left_suff_stat.sample_size_ > 2*config_.min_data_in_leaf;
   bool min_samples_right_check = right_suff_stat.sample_size_ > 2*config_.min_data_in_leaf;
   double prob_prune_new;
@@ -766,13 +812,13 @@ void BARTGaussianRegressionModel::GrowMCMC(TrainData* train_data, Tree* tree, No
   double log_acceptance_prob = std::log(mh_accept(gen));
   if (log_acceptance_prob <= log_mh_ratio) {
     accept = true;
-    AddSplitToModel(train_data, tree, node_tracker, leaf_chosen, var_chosen, split_point_chosen, node_suff_stat, left_suff_stat, right_suff_stat);
+    AddSplitToModel(dataset, tree, node_tracker, leaf_chosen, var_chosen, split_point_chosen, node_suff_stat, left_suff_stat, right_suff_stat, tree_num);
   } else {
     accept = false;
   }
 }
 
-void BARTGaussianRegressionModel::PruneMCMC(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, bool& accept) {
+void BARTGaussianRegressionModel::PruneMCMC(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, bool& accept, int tree_num) {
   // Choose a "leaf parent" node at random
   int num_leaves = tree->NumLeaves();
   int num_leaf_parents = tree->NumLeafParents();
@@ -820,8 +866,8 @@ void BARTGaussianRegressionModel::PruneMCMC(TrainData* train_data, Tree* tree, N
 
   // Determine whether a "grow" move was possible from the old tree, 
   // in order to compute the probability of choosing "prune" from the old tree
-  bool non_constant_left = NodeNonConstant(train_data, tree, node_tracker, left_node);
-  bool non_constant_right = NodeNonConstant(train_data, tree, node_tracker, right_node);
+  bool non_constant_left = NodeNonConstant(dataset, tree, node_tracker, left_node, tree_num);
+  bool non_constant_right = NodeNonConstant(dataset, tree, node_tracker, right_node, tree_num);
   double prob_prune_old;
   if (non_constant_left && non_constant_right) {
     prob_prune_old = 0.5;
@@ -848,21 +894,22 @@ void BARTGaussianRegressionModel::PruneMCMC(TrainData* train_data, Tree* tree, N
   double log_acceptance_prob = std::log(mh_accept(gen));
   if (log_acceptance_prob <= log_mh_ratio) {
     accept = true;
-    RemoveSplitFromModel(train_data, tree, node_tracker, leaf_parent_chosen, left_node, right_node, feature_split, split_value, node_suff_stat, left_suff_stat, right_suff_stat);
+    RemoveSplitFromModel(dataset, tree, node_tracker, leaf_parent_chosen, left_node, right_node, feature_split, split_value, node_suff_stat, left_suff_stat, right_suff_stat, tree_num);
   } else {
     accept = false;
   }
 }
 
-BARTGaussianRegressionSuffStat BARTGaussianRegressionModel::ComputeNodeSufficientStatistics(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, int node_id) {
+BARTGaussianRegressionSuffStat BARTGaussianRegressionModel::ComputeNodeSufficientStatistics(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, int node_id, int tree_num) {
   data_size_t idx;
   double outcome_value;
   BARTGaussianRegressionSuffStat node_suff_stat{0, 0.0, 0.0};
-  auto node_begin_iter = node_tracker->indices_.begin() + node_tracker->NodeBegin(node_id);
-  auto node_end_iter = node_tracker->indices_.begin() + node_tracker->NodeEnd(node_id);
+  auto tree_node_tracker = node_tracker->GetFeaturePartition(tree_num);
+  auto node_begin_iter = tree_node_tracker->indices_.begin() + tree_node_tracker->NodeBegin(node_id);
+  auto node_end_iter = tree_node_tracker->indices_.begin() + tree_node_tracker->NodeEnd(node_id);
   for (auto i = node_begin_iter; i != node_end_iter; i++) {
     idx = *i;
-    outcome_value = train_data->get_residual_value(idx);
+    outcome_value = dataset->ResidualValue(idx, 0);
     node_suff_stat.sample_size_++;
     node_suff_stat.outcome_sum_ += outcome_value;
     node_suff_stat.outcome_sum_sq_ += std::pow(outcome_value, 2.0);
@@ -870,25 +917,26 @@ BARTGaussianRegressionSuffStat BARTGaussianRegressionModel::ComputeNodeSufficien
   return node_suff_stat;
 }
 
-bool BARTGaussianRegressionModel::NodeNonConstant(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, int node_id) {
-  int p = train_data->num_variables();
+bool BARTGaussianRegressionModel::NodeNonConstant(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, int node_id, int tree_num) {
+  int p = dataset->NumCovariates();
   double outcome_value;
   double feature_value;
   double split_feature_value;
   double var_max;
   double var_min;
-  data_size_t node_begin = node_tracker->NodeBegin(node_id);
-  data_size_t node_end = node_tracker->NodeEnd(node_id);
+  auto tree_node_tracker = node_tracker->GetFeaturePartition(tree_num);
+  data_size_t node_begin = tree_node_tracker->NodeBegin(node_id);
+  data_size_t node_end = tree_node_tracker->NodeEnd(node_id);
   data_size_t idx;
 
   for (int j = 0; j < p; j++) {
     var_max = std::numeric_limits<double>::min();
     var_min = std::numeric_limits<double>::max();
-    auto node_begin_iter = node_tracker->indices_.begin() + node_begin;
-    auto node_end_iter = node_tracker->indices_.begin() + node_end;
+    auto node_begin_iter = tree_node_tracker->indices_.begin() + node_begin;
+    auto node_end_iter = tree_node_tracker->indices_.begin() + node_end;
     for (auto i = node_begin_iter; i != node_end_iter; i++) {
       idx = *i;
-      feature_value = train_data->get_feature_value(idx, j);
+      feature_value = dataset->CovariateValue(idx, j);
       if (var_max < feature_value) {
         var_max = feature_value;
       } else if (var_min > feature_value) {
@@ -902,9 +950,9 @@ bool BARTGaussianRegressionModel::NodeNonConstant(TrainData* train_data, Tree* t
   return false;
 }
 
-bool BARTGaussianRegressionModel::NodesNonConstantAfterSplit(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, 
-                                                             int leaf_split, int feature_split, double split_value) {
-  int p = train_data->num_variables();
+bool BARTGaussianRegressionModel::NodesNonConstantAfterSplit(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, 
+                                                             int leaf_split, int feature_split, double split_value, int tree_num) {
+  int p = dataset->NumCovariates();
   data_size_t idx;
   double feature_value;
   double split_feature_value;
@@ -912,20 +960,21 @@ bool BARTGaussianRegressionModel::NodesNonConstantAfterSplit(TrainData* train_da
   double var_min_left;
   double var_max_right;
   double var_min_right;
-  data_size_t node_begin = node_tracker->NodeBegin(leaf_split);
-  data_size_t node_end = node_tracker->NodeEnd(leaf_split);
+  auto tree_node_tracker = node_tracker->GetFeaturePartition(tree_num);
+  data_size_t node_begin = tree_node_tracker->NodeBegin(leaf_split);
+  data_size_t node_end = tree_node_tracker->NodeEnd(leaf_split);
 
   for (int j = 0; j < p; j++) {
     var_max_left = std::numeric_limits<double>::min();
     var_min_left = std::numeric_limits<double>::max();
     var_max_right = std::numeric_limits<double>::min();
     var_min_right = std::numeric_limits<double>::max();
-    auto node_begin_iter = node_tracker->indices_.begin() + node_begin;
-    auto node_end_iter = node_tracker->indices_.begin() + node_end;
+    auto node_begin_iter = tree_node_tracker->indices_.begin() + node_begin;
+    auto node_end_iter = tree_node_tracker->indices_.begin() + node_end;
     for (auto i = node_begin_iter; i != node_end_iter; i++) {
       idx = *i;
-      feature_value = train_data->get_feature_value(idx, j);
-      split_feature_value = train_data->get_feature_value(idx, feature_split);
+      feature_value = dataset->CovariateValue(idx, j);
+      split_feature_value = dataset->CovariateValue(idx, feature_split);
       if (split_feature_value <= split_value) {
         if (var_max_left < feature_value) {
           var_max_left = feature_value;
@@ -947,7 +996,7 @@ bool BARTGaussianRegressionModel::NodesNonConstantAfterSplit(TrainData* train_da
   return false;
 }
 
-void BARTGaussianRegressionModel::SampleLeafParameters(TrainData* train_data, Tree* tree) {
+void BARTGaussianRegressionModel::SampleLeafParameters(Dataset* dataset, Tree* tree) {
   // Vector of leaf indices for tree
   std::vector<node_t> tree_leaves = tree->GetLeaves();
   // Standard normal distribution
@@ -969,21 +1018,22 @@ void BARTGaussianRegressionModel::SampleLeafParameters(TrainData* train_data, Tr
   }
 }
 
-void BARTGaussianRegressionModel::ComputeSplitSuffStats(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, 
+void BARTGaussianRegressionModel::ComputeSplitSuffStats(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, 
                                                         int leaf_split, BARTGaussianRegressionSuffStat& left_suff_stat, 
                                                         BARTGaussianRegressionSuffStat& right_suff_stat, 
-                                                        int feature_split, double split_value) {
+                                                        int feature_split, double split_value, int tree_num) {
   double outcome_value;
   double feature_value;
-  data_size_t node_begin = node_tracker->NodeBegin(leaf_split);
-  data_size_t node_end = node_tracker->NodeEnd(leaf_split);
+  auto tree_node_tracker = node_tracker->GetFeaturePartition(tree_num);
+  data_size_t node_begin = tree_node_tracker->NodeBegin(leaf_split);
+  data_size_t node_end = tree_node_tracker->NodeEnd(leaf_split);
   data_size_t idx;
-  auto node_begin_iter = node_tracker->indices_.begin() + node_begin;
-  auto node_end_iter = node_tracker->indices_.begin() + node_end;
+  auto node_begin_iter = tree_node_tracker->indices_.begin() + node_begin;
+  auto node_end_iter = tree_node_tracker->indices_.begin() + node_end;
   for (auto i = node_begin_iter; i != node_end_iter; i++) {
     idx = *i;
-    feature_value = train_data->get_feature_value(idx, feature_split);
-    outcome_value = train_data->get_residual_value(idx);
+    feature_value = dataset->CovariateValue(idx, feature_split);
+    outcome_value = dataset->ResidualValue(idx);
     if (feature_value <= split_value) {
       left_suff_stat.sample_size_++;
       left_suff_stat.outcome_sum_ += outcome_value;
@@ -996,20 +1046,21 @@ void BARTGaussianRegressionModel::ComputeSplitSuffStats(TrainData* train_data, T
   }
 }
 
-void BARTGaussianRegressionModel::VarSplitRange(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, 
-                                                int leaf_split, int feature_split, double& var_min, double& var_max) {
-  data_size_t n = train_data->num_data();
+void BARTGaussianRegressionModel::VarSplitRange(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, 
+                                                int leaf_split, int feature_split, double& var_min, double& var_max, int tree_num) {
+  data_size_t n = dataset->NumObservations();
   var_min = std::numeric_limits<double>::max();
   var_max = std::numeric_limits<double>::min();
   double feature_value;
-  data_size_t node_begin = node_tracker->NodeBegin(leaf_split);
-  data_size_t node_end = node_tracker->NodeEnd(leaf_split);
+  auto tree_node_tracker = node_tracker->GetFeaturePartition(tree_num);
+  data_size_t node_begin = tree_node_tracker->NodeBegin(leaf_split);
+  data_size_t node_end = tree_node_tracker->NodeEnd(leaf_split);
   data_size_t idx;
-  auto node_begin_iter = node_tracker->indices_.begin() + node_begin;
-  auto node_end_iter = node_tracker->indices_.begin() + node_end;
+  auto node_begin_iter = tree_node_tracker->indices_.begin() + node_begin;
+  auto node_end_iter = tree_node_tracker->indices_.begin() + node_end;
   for (auto i = node_begin_iter; i != node_end_iter; i++) {
     idx = *i;
-    feature_value = train_data->get_feature_value(idx, feature_split);
+    feature_value = dataset->CovariateValue(idx, feature_split);
     if (feature_value < var_min) {
       var_min = feature_value;
     } else if (feature_value > var_max) {
@@ -1018,12 +1069,12 @@ void BARTGaussianRegressionModel::VarSplitRange(TrainData* train_data, Tree* tre
   }
 }
 
-void BARTGaussianRegressionModel::SampleGlobalParameters(TrainData* train_data, TreeEnsemble* tree_ensemble, std::set<std::string> update_params) {
+void BARTGaussianRegressionModel::SampleGlobalParameters(Dataset* dataset, TreeEnsemble* tree_ensemble, std::set<std::string> update_params) {
   // Update sigma^2
   if (update_params.count("sigma_sq") > 0) {
     // Compute posterior shape and scale parameters for inverse gamma
-    double ig_shape_sig = SigmaPosteriorShape(train_data);
-    double ig_scale_sig = SigmaPosteriorScale(train_data);
+    double ig_shape_sig = SigmaPosteriorShape(dataset);
+    double ig_scale_sig = SigmaPosteriorScale(dataset);
     
     // C++ standard library provides a gamma distribution with scale
     // parameter, but the correspondence between gamma and IG is that 
@@ -1038,9 +1089,9 @@ void BARTGaussianRegressionModel::SampleGlobalParameters(TrainData* train_data, 
   }
 }
 
-void BARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, node_t leaf_node, 
+void BARTGaussianRegressionModel::AddSplitToModel(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, node_t leaf_node, 
                                                   int feature_split, double split_value, BARTGaussianRegressionSuffStat& node_suff_stat, 
-                                                  BARTGaussianRegressionSuffStat& left_suff_stat, BARTGaussianRegressionSuffStat& right_suff_stat) {
+                                                  BARTGaussianRegressionSuffStat& left_suff_stat, BARTGaussianRegressionSuffStat& right_suff_stat, int tree_num) {
   // Split the tree at leaf node
   // Use the average outcome in each leaf as a "temporary" leaf value since we sample 
   // all leaf parameters after tree sampling is complete
@@ -1051,8 +1102,8 @@ void BARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* t
   node_t left_node = tree->LeftChild(leaf_node);
   node_t right_node = tree->RightChild(leaf_node);
 
-  // Update the NodeSampleTracker
-  node_tracker->PartitionNode(train_data, leaf_node, left_node, right_node, feature_split, split_value);
+  // Update the UnsortedNodeSampleTracker
+  node_tracker->PartitionTreeNode(dataset, tree_num, leaf_node, left_node, right_node, feature_split, split_value);
 
   // Update the vector of node sufficient statistics
   if (right_node >= node_suff_stats_.size()) {
@@ -1062,15 +1113,15 @@ void BARTGaussianRegressionModel::AddSplitToModel(TrainData* train_data, Tree* t
   node_suff_stats_.at(right_node) = right_suff_stat;
 }
 
-void BARTGaussianRegressionModel::RemoveSplitFromModel(TrainData* train_data, Tree* tree, NodeSampleTracker* node_tracker, node_t leaf_node, node_t left_node, 
+void BARTGaussianRegressionModel::RemoveSplitFromModel(Dataset* dataset, Tree* tree, UnsortedNodeSampleTracker* node_tracker, node_t leaf_node, node_t left_node, 
                                                        node_t right_node, int feature_split, double split_value, BARTGaussianRegressionSuffStat& node_suff_stat, 
-                                                       BARTGaussianRegressionSuffStat& left_suff_stat, BARTGaussianRegressionSuffStat& right_suff_stat) {
+                                                       BARTGaussianRegressionSuffStat& left_suff_stat, BARTGaussianRegressionSuffStat& right_suff_stat, int tree_num) {
   // Prune the tree
   double leaf_value = node_suff_stat.outcome_sum_/node_suff_stat.sample_size_;
   tree->ChangeToLeaf(leaf_node, leaf_value);
 
-  // Update the NodeSampleTracker
-  node_tracker->PruneNodeToLeaf(leaf_node);
+  // Update the UnsortedNodeSampleTracker
+  node_tracker->PruneTreeNodeToLeaf(tree_num, leaf_node);
 }
 
 double BARTGaussianRegressionModel::SplitLogMarginalLikelihood(const BARTGaussianRegressionSuffStat& left_stat, 
@@ -1114,137 +1165,6 @@ double BARTGaussianRegressionModel::NoSplitMarginalLikelihood(const BARTGaussian
   double exponent = prior_contrib * data_contrib;
 
   return exponent;
-}
-
-NodeSampleTracker::NodeSampleTracker(data_size_t n) {
-  indices_.resize(n);
-  std::iota(indices_.begin(), indices_.end(), 0);
-  node_begin_ = {0};
-  node_length_ = {n};
-  parent_nodes_ = {StochTree::Tree::kInvalidNodeId};
-  left_nodes_ = {StochTree::Tree::kInvalidNodeId};
-  right_nodes_ = {StochTree::Tree::kInvalidNodeId};
-  num_nodes_ = 1;
-  num_deleted_nodes_ = 0;
-}
-
-data_size_t NodeSampleTracker::NodeBegin(int node_id) {
-  return node_begin_[node_id];
-}
-
-data_size_t NodeSampleTracker::NodeEnd(int node_id) {
-  return node_begin_[node_id] + node_length_[node_id];
-}
-
-int NodeSampleTracker::Parent(int node_id) {
-  return parent_nodes_[node_id];
-}
-
-int NodeSampleTracker::LeftNode(int node_id) {
-  return left_nodes_[node_id];
-}
-
-int NodeSampleTracker::RightNode(int node_id) {
-  return right_nodes_[node_id];
-}
-
-void NodeSampleTracker::PartitionNode(TrainData* train_data, int node_id, int left_node_id, int right_node_id, int feature_split, double split_value) {
-  // First pass through the data for feature_split -- assess true / false for each observation
-  data_size_t num_true = 0;
-  data_size_t num_false = 0;
-  data_size_t node_start_idx = node_begin_[node_id];
-  data_size_t num_node_elements = node_length_[node_id];
-  data_size_t idx;
-  double feature_value;
-  std::vector<data_size_t> true_vector_inds(num_node_elements);
-  std::vector<data_size_t> false_vector_inds(num_node_elements);
-  for (data_size_t i = node_start_idx; i < node_start_idx + num_node_elements; i++) {
-    idx = indices_[i];
-    feature_value = train_data->get_feature_value(idx, feature_split);
-    if (feature_value <= split_value){
-      true_vector_inds[num_true] = idx;
-      num_true++;
-    } else {
-      false_vector_inds[num_false] = idx;
-      num_false++;
-    }
-  }
-
-  // Second pass through data -- rearrange indices
-  data_size_t true_idx = 0;
-  data_size_t false_idx = 0;
-  data_size_t offset = 0;
-  for (data_size_t i = node_start_idx; i < node_start_idx + num_node_elements; i++) {
-    if (offset < num_true){
-      indices_[i] = true_vector_inds[true_idx];
-      true_idx++;
-    } else {
-      indices_[i] = false_vector_inds[false_idx];
-      false_idx++;
-    }
-    offset++;
-  }
-
-  // Now, update all of the node tracking machinery
-  ExpandNodeTrackingVectors(node_id, left_node_id, right_node_id, node_start_idx, num_true, num_false);
-}
-
-void NodeSampleTracker::ExpandNodeTrackingVectors(int node_id, int left_node_id, int right_node_id, data_size_t node_start_idx, data_size_t num_left, data_size_t num_right) {
-  int largest_node_id = left_node_id > right_node_id ? left_node_id : right_node_id;
-  if (largest_node_id >= num_nodes_) {
-    node_begin_.resize(largest_node_id + 1);
-    node_length_.resize(largest_node_id + 1);
-    parent_nodes_.resize(largest_node_id + 1);
-    left_nodes_.resize(largest_node_id + 1);
-    right_nodes_.resize(largest_node_id + 1);
-  }
-  left_nodes_[node_id] = left_node_id;
-  right_nodes_[node_id] = right_node_id;
-  node_begin_[left_node_id] = node_start_idx;
-  node_begin_[right_node_id] = node_start_idx + num_left;
-  node_length_[left_node_id] = num_left;
-  node_length_[right_node_id] = num_right;
-  parent_nodes_[left_node_id] = node_id;
-  parent_nodes_[right_node_id] = node_id;
-  left_nodes_[left_node_id] = StochTree::Tree::kInvalidNodeId;
-  left_nodes_[right_node_id] = StochTree::Tree::kInvalidNodeId;
-  right_nodes_[left_node_id] = StochTree::Tree::kInvalidNodeId;
-  right_nodes_[right_node_id] = StochTree::Tree::kInvalidNodeId;
-  num_nodes_ += 2;
-}
-
-bool NodeSampleTracker::IsLeaf(int node_id) {
-  return left_nodes_[node_id] == StochTree::Tree::kInvalidNodeId;
-}
-
-bool NodeSampleTracker::LeftNodeIsLeaf(int node_id) {
-  return left_nodes_[left_nodes_[node_id]] == StochTree::Tree::kInvalidNodeId;
-}
-
-bool NodeSampleTracker::RightNodeIsLeaf(int node_id) {
-  return left_nodes_[right_nodes_[node_id]] == StochTree::Tree::kInvalidNodeId;
-}
-
-void NodeSampleTracker::PruneNodeToLeaf(int node_id) {
-  // No need to "un-sift" the indices in the newly pruned node, we don't depend on the indices 
-  // having any type of sort order, so the indices will simply be "re-sifted" if the node is later partitioned
-  if (IsLeaf(node_id)) return;
-  if (!LeftNodeIsLeaf(node_id)) {
-    PruneNodeToLeaf(left_nodes_[node_id]);
-  }
-  if (!RightNodeIsLeaf(node_id)) {
-    PruneNodeToLeaf(right_nodes_[node_id]);
-  }
-  ConvertLeafParentToLeaf(node_id);
-}
-
-void NodeSampleTracker::ConvertLeafParentToLeaf(int node_id) {
-  CHECK(left_nodes_[left_nodes_[node_id]] == StochTree::Tree::kInvalidNodeId);
-  CHECK(right_nodes_[right_nodes_[node_id]] == StochTree::Tree::kInvalidNodeId);
-  deleted_nodes_.push_back(left_nodes_[node_id]);
-  deleted_nodes_.push_back(right_nodes_[node_id]);
-  left_nodes_[node_id] = StochTree::Tree::kInvalidNodeId;
-  right_nodes_[node_id] = StochTree::Tree::kInvalidNodeId;
 }
 
 } // namespace StochTree

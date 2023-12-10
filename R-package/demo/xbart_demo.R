@@ -26,7 +26,7 @@ model_matrix_train <- cbind(ytrain, Xtrain)
 model_matrix_test <- cbind(ytest, Xtest)
 
 # Sample from XBART and evaluate its predictions on out of sample data
-param_list = list(label_column=0, num_trees=num_trees, num_burnin=num_burnin, num_samples=num_samples, min_data_in_leaf=1, alpha=0.95, beta=1.25, unordered_categoricals="8,9")
+param_list = list(outcome_columns=0, num_trees=num_trees, num_burnin=num_burnin, num_samples=num_samples, min_data_in_leaf=1, alpha=0.95, beta=1.25, cutpoint_grid_size=500, unordered_categoricals="8,9")
 stochtree_samples <- xbart(model_matrix_train, param_list)
 stochtree_predictions <- predict(stochtree_samples, model_matrix_test, param_list)
 stochtree_avg_prediction <- rowMeans(stochtree_predictions)

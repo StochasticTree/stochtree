@@ -64,14 +64,18 @@ void Tree::InplacePredictFromNodes(std::vector<double> result, std::vector<std::
   }
 }
 
+double Tree::PredictFromNode(std::int32_t node_id) {
+  if (!this->IsLeaf(node_id)) {
+    Log::Fatal("Node %d is not a leaf node", node_id);
+  }
+  return this->LeafValue(node_id);
+}
+
 std::vector<double> Tree::PredictFromNodes(std::vector<std::int32_t> node_indices) {
   data_size_t n = node_indices.size();
   std::vector<double> result(n);
   for (data_size_t i = 0; i < n; i++) {
-    if (!this->IsLeaf(node_indices[i])) {
-      Log::Fatal("Leaf node %d indexed by observation %d is not a leaf node", node_indices[i], i);
-    }
-    result[i] = this->LeafValue(node_indices[i]);
+    result[i] = PredictFromNode(node_indices[i]);
   }
   return result;
 }
@@ -191,6 +195,7 @@ void Tree::DeleteNode(std::int32_t nid) {
 }
 
 void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, double left_value, double right_value) {
+  CHECK_EQ(output_dimension_, 1);
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
   this->SetChildren(nid, pleft, pright);
@@ -216,6 +221,7 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, boo
 }
 
 void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, double left_value, double right_value) {
+  CHECK_EQ(output_dimension_, 1);
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
   this->SetChildren(nid, pleft, pright);
@@ -223,6 +229,58 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
   this->SetCategoricalSplit(nid, split_index, default_left, categorical_indices);
   this->SetLeaf(pleft, left_value);
   this->SetLeaf(pright, right_value);
+
+  // Remove nid from leaves and add to internal nodes and leaf parents
+  leaves_.erase(std::remove(leaves_.begin(), leaves_.end(), nid), leaves_.end());
+  leaf_parents_.push_back(nid);
+  internal_nodes_.push_back(nid);
+
+  // Remove nid's parent node (if applicable) from leaf parents
+  if (this->IsRoot(nid)){
+    std::int32_t parent_idx = this->Parent(nid);
+    leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
+  }
+
+  // Add pleft and pright to leaves
+  leaves_.push_back(pleft);
+  leaves_.push_back(pright);
+}
+
+void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
+  CHECK_GT(output_dimension_, 1);
+  int pleft = this->AllocNode();
+  int pright = this->AllocNode();
+  this->SetChildren(nid, pleft, pright);
+  this->SetParents(nid, pleft, pright);
+  this->SetNumericSplit(nid, split_index, split_value, default_left);
+  this->SetLeafVector(pleft, left_value_vector);
+  this->SetLeafVector(pright, right_value_vector);
+
+  // Remove nid from leaves and add to internal nodes and leaf parents
+  leaves_.erase(std::remove(leaves_.begin(), leaves_.end(), nid), leaves_.end());
+  leaf_parents_.push_back(nid);
+  internal_nodes_.push_back(nid);
+
+  // Remove nid's parent node (if applicable) from leaf parents
+  if (!this->IsRoot(nid)){
+    std::int32_t parent_idx = this->Parent(nid);
+    leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
+  }
+
+  // Add pleft and pright to leaves
+  leaves_.push_back(pleft);
+  leaves_.push_back(pright);
+}
+
+void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
+  CHECK_GT(output_dimension_, 1);
+  int pleft = this->AllocNode();
+  int pright = this->AllocNode();
+  this->SetChildren(nid, pleft, pright);
+  this->SetParents(nid, pleft, pright);
+  this->SetCategoricalSplit(nid, split_index, default_left, categorical_indices);
+  this->SetLeafVector(pleft, left_value_vector);
+  this->SetLeafVector(pright, right_value_vector);
 
   // Remove nid from leaves and add to internal nodes and leaf parents
   leaves_.erase(std::remove(leaves_.begin(), leaves_.end(), nid), leaves_.end());
@@ -273,6 +331,8 @@ void Tree::Reset() {
 }
 
 void Tree::Init(std::int32_t output_dimension) {
+  CHECK_GE(output_dimension, 1);
+
   // Clear all of the vectors that define the tree structure
   node_type_.clear();
   cleft_.clear();
@@ -304,7 +364,11 @@ void Tree::Init(std::int32_t output_dimension) {
   int rid = AllocNode();
   SetChildren(rid, kInvalidNodeId, kInvalidNodeId);
   SetParent(rid, kInvalidNodeId);
-  this->SetLeaf(rid, 0.0);
+  if (output_dimension == 1) {
+    this->SetLeaf(rid, 0.0);
+  } else {
+    this->SetLeafVector(rid, std::vector<double>(output_dimension, 0.));
+  }
 
   // Add rid as a leaf node
   leaves_.push_back(rid);
@@ -334,14 +398,15 @@ void Tree::SetCategoricalSplit(std::int32_t nid,
 }
 
 void Tree::SetLeaf(std::int32_t nid, double value) {
+  CHECK_EQ(output_dimension_, 1);
   leaf_value_.at(nid) = value;
   cleft_.at(nid) = -1;
   cright_.at(nid) = -1;
   node_type_.at(nid) = TreeNodeType::kLeafNode;
 }
 
-void Tree::SetLeafVector(
-    std::int32_t nid, std::vector<double> const& node_leaf_vector) {
+void Tree::SetLeafVector(std::int32_t nid, std::vector<double> const& node_leaf_vector) {
+  CHECK_GT(output_dimension_, 1);
   if (HasLeafVector(nid)) {
     if (node_leaf_vector.size() != output_dimension_) {
       Log::Fatal("node_leaf_vector must be same size as the vector output dimension");

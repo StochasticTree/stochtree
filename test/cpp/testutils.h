@@ -6,17 +6,15 @@
 #define STOCHTREE_TESTUTILS_H_
 
 #include <stochtree/random.h>
-#include <stochtree/train_data.h>
+#include <stochtree/data.h>
 #include <vector>
 
 namespace StochTree {
 
 namespace TestUtils {
 
-/*!
-  * Creates a Dataset from the internal repository examples.
-  */
-void LoadDatasetFromDemos(const char* filename, const char* config_str, std::unique_ptr<TrainData>& out);
+/*! Creates a Dataset from the internal repository examples. */
+void LoadDatasetFromDemos(const char* filename, const char* config_str, std::unique_ptr<Dataset>& out);
 
 } // namespace TestUtils
 

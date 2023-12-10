@@ -259,7 +259,7 @@ struct Config {
   // max(y) = num_trees * mu_mean + k sqrt(num_trees) * mu_sigma
   double mu_sigma = 1;
 
-  // check = >1.0
+  // check = >=1
   // desc = number of cutpoints to consider at each split
   data_size_t cutpoint_grid_size = 100;
 
@@ -275,12 +275,25 @@ struct Config {
   bool header = true;
 
   // type = comma-separated ints
+  // desc = used to specify indices of outcome(s), in the format "0,2,3"
+  std::string outcome_columns = "";
+
+  // type = comma-separated ints
+  // desc = used to specify indices of treatment(s), in the format "0,2,3"
+  std::string treatment_columns = "";
+
+  // type = comma-separated ints
   // desc = used to specify indices of features that are (unordered) categorical, in the format "0,2,3"
   std::string unordered_categoricals = "";
 
   // type = comma-separated ints
   // desc = used to specify indices of features that are (ordered) categorical, in the format "0,2,3"
   std::string ordered_categoricals = "";
+
+  // type = int
+  // check = >10
+  // desc = Number of cutpoints to consider for numeric features with many observations
+  int32_t num_cutpoints = 500;
 
   // type = int or string
   // alias = label

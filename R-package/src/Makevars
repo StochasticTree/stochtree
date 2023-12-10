@@ -8,10 +8,12 @@ OBJECTS = \
     xbart.o \
     cpp11.o \
     $(PKGROOT)/src/config.o \
+    $(PKGROOT)/src/cutpoint_candidates.o \
+    $(PKGROOT)/src/data.o \
     $(PKGROOT)/src/interface.o \
     $(PKGROOT)/src/io.o \
     $(PKGROOT)/src/json11.o \
     $(PKGROOT)/src/model.o \
     $(PKGROOT)/src/model_draw.o \
-    $(PKGROOT)/src/train_data.o \
+    $(PKGROOT)/src/partition_tracker.o \
     $(PKGROOT)/src/tree.o

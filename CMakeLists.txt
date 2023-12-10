@@ -2,7 +2,8 @@
 option(USE_DEBUG "Set to ON for Debug mode" ON)
 option(USE_SANITIZER "Use santizer flags" ON)
 option(BUILD_CLI "Build the 'lightbgm' command-line interface in addition to lib_lightgbm" ON)
-option(BUILD_CPP_TEST "Build C++ tests with Google Test" OFF)
+option(BUILD_CPP_TEST "Build C++ tests with Google Test" ON)
+option(BUILD_CPP_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
 
 # GoogleTest requires at least C++14
 set(CMAKE_CXX_STANDARD 14)
@@ -60,13 +61,15 @@ file(
   GLOB 
   SOURCES 
   src/config.cpp
+  src/cutpoint_candidates.cpp
+  src/data.cpp
   src/interface.cpp
   src/io.cpp
   src/json11.cpp
   src/model.cpp
   src/model_draw.cpp
   src/optimization.cpp
-  src/train_data.cpp
+  src/partition_tracker.cpp
   src/tree.cpp
 )
 
@@ -84,10 +87,6 @@ if(BUILD_CLI)
   add_executable(stochtree src/main.cpp)
   target_include_directories(stochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR})
   target_link_libraries(stochtree PRIVATE stochtree_objs)
-  install(
-    TARGETS stochtree
-    RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
-  )
 endif()
 
 if(BUILD_CPP_TEST)
@@ -112,3 +111,12 @@ if(BUILD_CPP_TEST)
   target_link_libraries(teststochtree PRIVATE stochtree_objs GTest::gtest_main)
   gtest_discover_tests(teststochtree)
 endif()
+
+if(BUILD_CPP_DEBUG_TARGETS)
+  # Build test suite
+  add_executable(debugstochtree debug/cpp/debug.cpp)
+  set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug/cpp)
+  target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR})
+  target_link_libraries(debugstochtree PRIVATE stochtree_objs)
+endif()
+

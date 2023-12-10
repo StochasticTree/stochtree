@@ -313,15 +313,6 @@ class Parser {
   * \brief Parse one line with label
   * \param str One line record, string format, should end with '\0'
   * \param out_features Output columns, store in (column_idx, values)
-  * \param out_label Label will store to this if exists
-  */
-  virtual void ParseOneLine(const char* str,
-                            std::vector<std::pair<int, double>>* out_features, double* out_label) const = 0;
-
-  /*!
-  * \brief Parse one line with label
-  * \param str One line record, string format, should end with '\0'
-  * \param out_features Output columns, store in (column_idx, values)
   */
   virtual void ParseOneLine(const char* str,
                             std::vector<std::pair<int, double>>* out_features) const = 0;
@@ -333,42 +324,16 @@ class Parser {
   * \param filename One Filename of data
   * \param header whether input file contains header
   * \param num_features Pass num_features of this data file if you know, <=0 means don't know
-  * \param label_idx index of label column
   * \param precise_float_parser using precise floating point number parsing if true
   * \return Object of parser
   */
-  static Parser* CreateParser(const char* filename, bool header, int num_features, int label_idx, bool precise_float_parser);
+  static Parser* CreateParser(const char* filename, bool header, int num_features, bool precise_float_parser);
 };
 
 class CSVParser: public Parser {
  public:
-  explicit CSVParser(int label_idx, int total_columns, AtofFunc atof)
-    :label_idx_(label_idx), total_columns_(total_columns), atof_(atof) {
-  }
-  inline void ParseOneLine(const char* str,
-    std::vector<std::pair<int, double>>* out_features, double* out_label) const override {
-    int idx = 0;
-    double val = 0.0f;
-    int offset = 0;
-    *out_label = 0.0f;
-    while (*str != '\0') {
-      // Log::Info(str);
-      str = atof_(str, &val);
-      if (idx == label_idx_) {
-        // Log::Info(("Setting label value: " + std::to_string(val)).c_str());
-        *out_label = val;
-        offset = -1;
-      } else if (std::fabs(val) > kZeroThreshold || std::isnan(val)) {
-        // Log::Info(("Setting feature value: " + std::to_string(val)).c_str());
-        out_features->emplace_back(idx + offset, val);
-      }
-      ++idx;
-      if (*str == ',') {
-        ++str;
-      } else if (*str != '\0') {
-        Log::Fatal("Input format error when parsing as CSV");
-      }
-    }
+  explicit CSVParser(int total_columns, AtofFunc atof)
+    :total_columns_(total_columns), atof_(atof) {
   }
 
   inline void ParseOneLine(const char* str,
@@ -396,7 +361,6 @@ class CSVParser: public Parser {
   }
 
  private:
-  int label_idx_ = 0;
   int total_columns_ = -1;
   AtofFunc atof_;
 };

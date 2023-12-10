@@ -5,9 +5,9 @@
 #include <gtest/gtest.h>
 #include <testutils.h>
 #include <stochtree/config.h>
+#include <stochtree/data.h>
 #include <stochtree/log.h>
 #include <stochtree/random.h>
-#include <stochtree/train_data.h>
 #include <memory>
 #include <string>
 #include <thread>
@@ -17,7 +17,7 @@ namespace StochTree {
 
 namespace TestUtils{
 
-  void LoadDatasetFromDemos(const char* filename, const char* config_str, std::unique_ptr<TrainData>& out) {
+  void LoadDatasetFromDemos(const char* filename, const char* config_str, std::unique_ptr<Dataset>& out) {
     std::string fullPath("demo/");
     fullPath += filename;
     Log::Info("Debug sample data path: %s", fullPath.c_str());
@@ -25,8 +25,7 @@ namespace TestUtils{
     auto param = Config::Str2Map(config_str);
     Config config;
     config.Set(param);
-    // OMP_SET_NUM_THREADS(config.num_threads);
-    TrainDataLoader loader(config, 1, fullPath.c_str());
+    DataLoader loader(config, 1, fullPath.c_str());
     out.reset(loader.LoadFromFile(fullPath.c_str()));
   }
 

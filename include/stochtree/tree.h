@@ -6,6 +6,7 @@
 #ifndef STOCHTREE_TREE_H_
 #define STOCHTREE_TREE_H_
 
+#include <stochtree/data.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 
@@ -70,6 +71,10 @@ class Tree {
   void ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, double left_value, double right_value);
   /*! \brief Expand a node based on a categorical split rule */
   void ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, double left_value, double right_value);
+  /*! \brief Expand a node based on a numeric split rule */
+  void ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
+  /*! \brief Expand a node based on a categorical split rule */
+  void ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
 
   /*!
    * \brief change a non leaf node to a leaf node, delete its children
@@ -88,23 +93,59 @@ class Tree {
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), nid), leaf_parents_.end());
     internal_nodes_.erase(std::remove(internal_nodes_.begin(), internal_nodes_.end(), nid), internal_nodes_.end());
   }
-  
+
   /*!
    * \brief collapse a non leaf node to a leaf node, delete its children
    * \param nid node id of the node
    * \param value new leaf value
    */
   void CollapseToLeaf(std::int32_t nid, double value) {
+    CHECK_EQ(output_dimension_, 1);
     if (this->IsLeaf(nid)) return;
-    if (this->IsLeaf(this->LeftChild(nid))) {
-      CollapseToLeaf(this->LeftChild(nid), 0.0f);
+    if (!this->IsLeaf(this->LeftChild(nid))) {
+      CollapseToLeaf(this->LeftChild(nid), value);
     }
-    if (this->IsLeaf(this->RightChild(nid))) {
-      CollapseToLeaf(this->RightChild(nid), 0.0f);
+    if (!this->IsLeaf(this->RightChild(nid))) {
+      CollapseToLeaf(this->RightChild(nid), value);
     }
     this->ChangeToLeaf(nid, value);
   }
+
+  /*!
+   * \brief change a non leaf node to a leaf node, delete its children
+   * \param nid node id of the node
+   * \param value_vector new leaf vector value
+   */
+  void ChangeToLeaf(std::int32_t nid, std::vector<double> value_vector) {
+    CHECK(this->IsLeaf(this->LeftChild(nid)));
+    CHECK(this->IsLeaf(this->RightChild(nid)));
+    this->DeleteNode(this->LeftChild(nid));
+    this->DeleteNode(this->RightChild(nid));
+    this->SetLeafVector(nid, value_vector);
+
+    // Add nid to leaves and remove from internal nodes and leaf parents (if it was there)
+    leaves_.push_back(nid);
+    leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), nid), leaf_parents_.end());
+    internal_nodes_.erase(std::remove(internal_nodes_.begin(), internal_nodes_.end(), nid), internal_nodes_.end());
+  }
   
+  /*!
+   * \brief collapse a non leaf node to a leaf node, delete its children
+   * \param nid node id of the node
+   * \param value_vector new leaf vector value
+   */
+  void CollapseToLeaf(std::int32_t nid, std::vector<double> value_vector) {
+    CHECK_GT(output_dimension_, 1);
+    if (this->IsLeaf(nid)) return;
+    if (!this->IsLeaf(this->LeftChild(nid))) {
+      CollapseToLeaf(this->LeftChild(nid), value_vector);
+    }
+    if (!this->IsLeaf(this->RightChild(nid))) {
+      CollapseToLeaf(this->RightChild(nid), value_vector);
+    }
+    this->ChangeToLeaf(nid, value_vector);
+  }
+
   /*!
    * \brief Iterate through all nodes in this tree.
    * \param Function that accepts a node index, and returns false when iteration should
@@ -136,6 +177,7 @@ class Tree {
    */
   void InplacePredictFromNodes(std::vector<double> result, std::vector<std::int32_t> node_indices);
   std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices);
+  double PredictFromNode(std::int32_t node_id);
 
   /** Getters **/
   /*!
@@ -143,6 +185,13 @@ class Tree {
    */
   bool HasVectorOutput() const {
     return output_dimension_ > 1;
+  }
+
+  /*!
+   * \brief Dimension of tree output
+   */
+  std::int32_t OutputDimension() const {
+    return output_dimension_;
   }
   
   /*!
@@ -218,7 +267,26 @@ class Tree {
   }
   
   /*!
-   * \brief get leaf vector of the leaf node; useful for multi-class random forest classifier
+   * \brief Get value of the leaf node at a given output dimension
+   * \param nid ID of node being queried
+   * \param dim_id Output dimension being queried
+   */
+  double LeafValue(std::int32_t nid, std::int32_t dim_id) const {
+    CHECK_LT(dim_id, output_dimension_);
+    if (output_dimension_ == 1 && dim_id == 0) {
+      return leaf_value_[nid];
+    } else {
+      std::size_t const offset_begin = leaf_vector_begin_[nid];
+      std::size_t const offset_end = leaf_vector_end_[nid];
+      if (offset_begin >= leaf_vector_.size() || offset_end > leaf_vector_.size()) {
+        Log::Fatal("No leaf vector set for node nid");
+      }
+      return leaf_vector_[offset_begin + dim_id];
+    }
+  }
+  
+  /*!
+   * \brief get leaf vector of the leaf node; useful for multi-output trees
    * \param nid ID of node being queried
    */
   std::vector<double> LeafVector(std::int32_t nid) const {
@@ -348,6 +416,7 @@ class Tree {
    * \brief Get the total number of nodes including deleted ones in this tree.
    */
   [[nodiscard]] std::int32_t NumNodes() const noexcept { return num_nodes; }
+  
   /**
    * \brief Get the total number of valid nodes in this tree.
    */
@@ -375,15 +444,6 @@ class Tree {
   }
 
   /*!
-   * \brief Identify right child node
-   * \param nid ID of node being modified
-   * \param right_child ID of the right child node
-   */
-  void SetParent(std::int32_t child_node, std::int32_t parent_node) {
-    parent_[child_node] = parent_node;
-  }
-
-  /*!
    * \brief Identify two child nodes of the node and the corresponding parent node of the child nodes
    * \param nid ID of node being modified
    * \param left_child ID of the left child node
@@ -392,6 +452,15 @@ class Tree {
   void SetChildren(std::int32_t nid, std::int32_t left_child, std::int32_t right_child) {
     SetLeftChild(nid, left_child);
     SetRightChild(nid, right_child);
+  }
+
+  /*!
+   * \brief Identify parent node
+   * \param child_node ID of child node
+   * \param parent_node ID of the parent node
+   */
+  void SetParent(std::int32_t child_node, std::int32_t parent_node) {
+    parent_[child_node] = parent_node;
   }
 
   /*!
@@ -406,7 +475,7 @@ class Tree {
   }
 
   /*!
-   * \brief Create a numerical test
+   * \brief Create a numerical split
    * \param nid ID of node being updated
    * \param split_index Feature index to split
    * \param threshold Threshold value
@@ -416,7 +485,7 @@ class Tree {
       std::int32_t nid, std::int32_t split_index, double threshold, bool default_left);
   
   /*!
-   * \brief Create a categorical test
+   * \brief Create a categorical split
    * \param nid ID of node being updated
    * \param split_index Feature index to split
    * \param default_left Default direction when feature is unknown
@@ -435,7 +504,7 @@ class Tree {
   void SetLeaf(std::int32_t nid, double value);
 
   /*!
-   * \brief Set the leaf vector of the node; useful for multi-class random forest classifier
+   * \brief Set the leaf vector of the node; useful for multi-output trees
    * \param nid ID of node being updated
    * \param leaf_vector Leaf vector
    */
@@ -468,6 +537,106 @@ class Tree {
   bool has_categorical_split_{false};
   int output_dimension_{1};
 };
+
+/*! \brief Determine whether an observation produces a "true" value in a numeric split node
+ *  \param fvalue Value of the split feature for the observation
+ *  \param threshold Value of the numeric split threshold at the node
+ *  \param left_child Node id of the left child
+ *  \param right_child Node id of the right child
+ */
+inline bool SplitTrueNumeric(double fvalue, double threshold) {
+  return (fvalue <= threshold);
+}
+
+/*! \brief Determine whether an observation produces a "true" value in a categorical split node
+ *  \param fvalue Value of the split feature for the observation
+ *  \param category_list Category indices that route an observation to the left child
+ *  \param left_child Node id of the left child
+ *  \param right_child Node id of the right child
+ */
+inline bool SplitTrueCategorical(double fvalue, std::vector<std::uint32_t> const& category_list) {
+  bool category_matched;
+  // A valid (integer) category must satisfy two criteria:
+  // 1) it must be exactly representable as double
+  // 2) it must fit into uint32_t
+  auto max_representable_int
+      = std::min(static_cast<double>(std::numeric_limits<std::uint32_t>::max()),
+          static_cast<double>(std::uint64_t(1) << std::numeric_limits<double>::digits));
+  if (fvalue < 0 || std::fabs(fvalue) > max_representable_int) {
+    category_matched = false;
+  } else {
+    auto const category_value = static_cast<std::uint32_t>(fvalue);
+    category_matched = (std::find(category_list.begin(), category_list.end(), category_value)
+                        != category_list.end());
+  }
+  return category_matched;
+}
+
+/*! \brief Return left or right node id based on a numeric split
+ *  \param fvalue Value of the split feature for the observation
+ *  \param threshold Value of the numeric split threshold at the node
+ *  \param left_child Node id of the left child
+ *  \param right_child Node id of the right child
+ */
+inline int NextNodeNumeric(double fvalue, double threshold, int left_child, int right_child) {
+  return (SplitTrueNumeric(fvalue, threshold) ? left_child : right_child);
+}
+
+/*! \brief Return left or right node id based on a categorical split
+ *  \param fvalue Value of the split feature for the observation
+ *  \param category_list Category indices that route an observation to the left child
+ *  \param left_child Node id of the left child
+ *  \param right_child Node id of the right child
+ */
+inline int NextNodeCategorical(double fvalue, std::vector<std::uint32_t> const& category_list, int left_child, int right_child) {
+  return SplitTrueCategorical(fvalue, category_list) ? left_child : right_child;
+}
+
+/*! \brief Determine the node at which a tree places a given observation
+ *  \param tree Tree object used for prediction
+ *  \param data Dataset used for prediction
+ *  \param row Row indexing the prediction observation
+ */
+inline int EvaluateTree(Tree const& tree, Dataset* data, int row) {
+  int node_id = 0;
+  while (!tree.IsLeaf(node_id)) {
+    auto const split_index = tree.SplitIndex(node_id);
+    double const fvalue = data->CovariateValue(row, split_index);
+    if (std::isnan(fvalue)) {
+      node_id = tree.DefaultChild(node_id);
+    } else {
+      if (tree.NodeType(node_id) == StochTree::TreeNodeType::kCategoricalSplitNode) {
+        node_id = NextNodeCategorical(fvalue, tree.CategoryList(node_id),
+            tree.LeftChild(node_id), tree.RightChild(node_id));
+      } else {
+        node_id = NextNodeNumeric(fvalue, tree.Threshold(node_id), tree.LeftChild(node_id), tree.RightChild(node_id));
+      }
+    }
+  }
+  return node_id;
+}
+
+/*! \brief Determine whether a given observation is "true" at a split proposed by split_index and split_value
+ *  \param data Dataset used for prediction
+ *  \param row Row indexing the prediction observation
+ *  \param split_index Column of new split
+ *  \param split_value Value defining the split
+ */
+inline bool RowSplitLeft(Dataset* data, int row, int split_index, double split_value) {
+  double const fvalue = data->CovariateValue(row, split_index);
+  return SplitTrueNumeric(fvalue, split_value);
+}
+
+/*! \brief Determine whether a given observation is "true" at a split proposed by split_index and split_value
+ *  \param data Dataset used for prediction
+ *  \param row Row indexing the prediction observation
+ *  \param split_index Column of new split
+ *  \param category_list Categories defining the split
+ */
+inline bool RowSplitLeft(Dataset* data, int row, int split_index, std::vector<std::uint32_t> const& category_list) {
+  double const fvalue = data->CovariateValue(row, split_index);
+  return SplitTrueCategorical(fvalue, category_list);
+}
 
 } // namespace StochTree
 

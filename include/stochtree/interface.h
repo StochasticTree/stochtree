@@ -16,12 +16,15 @@
 #ifndef STOCHTREE_INTERFACE_H_
 #define STOCHTREE_INTERFACE_H_
 
+#include <stochtree/cutpoint_candidates.h>
+#include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/export.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <stochtree/model.h>
 #include <stochtree/model_draw.h>
+#include <stochtree/partition_tracker.h>
 #include <stochtree/train_data.h>
 #include <stochtree/tree.h>
 
@@ -52,9 +55,13 @@ class StochTreeInterface {
   /*! \brief Config */
   Config config_;
   /*! \brief Pointer to training dataset */
-  std::unique_ptr<TrainData> train_data_;
+  std::unique_ptr<Dataset> train_dataset_;
+  /*! \brief Vector of pointers to feature sort indices */
+  // std::vector<std::unique_ptr<FeatureNodeSortTracker>> feature_sort_tracker_;
+  std::unique_ptr<UnsortedNodeSampleTracker> unsorted_node_sample_tracker_;
+  std::unique_ptr<SortedNodeSampleTracker> sorted_node_sample_tracker_;
   /*! \brief Pointer to prediction dataset */
-  std::unique_ptr<TrainData> prediction_data_;
+  std::unique_ptr<Dataset> prediction_dataset_;
   /*! \brief Pointer to model */
   std::unique_ptr<Model> model_;
   /*! \brief Pointer to draws of the model */
