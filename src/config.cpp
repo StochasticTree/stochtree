@@ -11,6 +11,26 @@
 
 namespace StochTree {
 
+std::vector<int> Config::Str2FeatureVec(const char* parameters) {
+  std::vector<int> feature_vec;
+  auto args = Common::Split(parameters, ",");
+  for (auto arg : args) {
+    FeatureUnpack(&feature_vec, Common::Trim(arg).c_str());
+  }
+  return feature_vec;
+}
+
+void Config::FeatureUnpack(std::vector<int>* categorical_variables, const char* var_id) {
+  std::string var_clean = Common::RemoveQuotationSymbol(Common::Trim(var_id));
+  int out;
+  bool success = Common::AtoiAndCheck(var_clean.c_str(), &out);
+  if (success) {
+    categorical_variables->push_back(out);
+  } else {
+    Log::Warning("Parsed variable index %s cannot be cast to an integer", var_clean.c_str());
+  }
+}
+
 void Config::KV2Map(std::unordered_map<std::string, std::vector<std::string>>* params, const char* kv) {
   std::vector<std::string> tmp_strs = Common::Split(kv, '=');
   if (tmp_strs.size() == 2 || tmp_strs.size() == 1) {
@@ -119,7 +139,7 @@ void GetTaskType(const std::unordered_map<std::string, std::string>& params, Tas
       *task = TaskType::kSupervisedLearning;
     } else if (value == std::string("binary_treatment_effect")) {
       *task = TaskType::kBinaryTreatmentEffect;
-    } else if (value == std::string("binary_treatment_effect")) {
+    } else if (value == std::string("continuous_treatment_effect")) {
       *task = TaskType::kContinuousTreatmentEffect;
     } else {
       Log::Fatal("Unknown task type %s", value.c_str());
@@ -334,8 +354,11 @@ std::string Config::SaveMembersToString() const {
   str_buf << "[data_driven_prior: " << data_driven_prior << "]\n";
   str_buf << "[min_ssr_reduction: " << min_ssr_reduction << "]\n";
   str_buf << "[header: " << header << "]\n";
-  str_buf << "[label_column: " << label_column << "]\n";
-  str_buf << "[treatment_column: " << treatment_column << "]\n";
+  str_buf << "[unordered_categoricals: " << unordered_categoricals << "]\n";
+  str_buf << "[ordered_categoricals: " << ordered_categoricals << "]\n";
+  str_buf << "[cutpoint_grid_size: " << cutpoint_grid_size << "]\n";
+  str_buf << "[outcome_columns: " << outcome_columns << "]\n";
+  str_buf << "[treatment_columns: " << treatment_columns << "]\n";
   str_buf << "[save_model_draws: " << save_model_draws << "]\n";
   str_buf << "[precise_float_parser: " << precise_float_parser << "]\n";
   return str_buf.str();
@@ -365,8 +388,9 @@ const std::unordered_set<std::string>& Config::parameter_set() {
     "random_seed", "max_depth", "min_data_in_leaf", 
     "mu", "kappa", "a_sigma", "b_sigma", "a_tau", "b_tau", "alpha", "beta", 
     "nu", "lambda", "mu_mean", "mu_sigma", "cutpoint_grid_size", "data_driven_prior", 
-    "min_ssr_reduction", "header", "label_column", "treatment_column", 
-    "save_model_draws", "precise_float_parser",
+    "min_ssr_reduction", "header", "unordered_categoricals", "ordered_categoricals", 
+    "outcome_columns", "treatment_columns", 
+    "label_column", "treatment_column", "save_model_draws", "precise_float_parser",
   });
   return params;
 }
@@ -440,6 +464,14 @@ void Config::GetMembersFromString(const std::unordered_map<std::string, std::str
 
   GetBool(params, "header", &header);
 
+  GetString(params, "unordered_categoricals", &unordered_categoricals);
+
+  GetString(params, "ordered_categoricals", &ordered_categoricals);
+
+  GetString(params, "outcome_columns", &outcome_columns);
+
+  GetString(params, "treatment_columns", &treatment_columns);
+
   GetString(params, "label_column", &label_column);
 
   GetString(params, "treatment_column", &treatment_column);
@@ -481,6 +513,10 @@ const std::unordered_map<std::string, std::vector<std::string>>& Config::paramet
     {"data_driven_prior", {}},
     {"min_ssr_reduction", {}},
     {"header", {}},
+    {"unordered_categoricals", {}},
+    {"ordered_categoricals", {}},
+    {"outcome_columns", {}},
+    {"treatment_columns", {}},
     {"label_column", {}},
     {"treatment_column", {}},
     {"save_model_draws", {}},
@@ -520,6 +556,10 @@ const std::unordered_map<std::string, std::string>& Config::ParameterTypes() {
     {"data_driven_prior", "bool"},
     {"min_ssr_reduction", "double"},
     {"header", "bool"},
+    {"unordered_categoricals", "string"},
+    {"ordered_categoricals", "string"},
+    {"outcome_columns", "string"},
+    {"treatment_columns", "string"},
     {"label_column", "string"},
     {"treatment_column", "string"},
     {"save_model_draws", "bool"},

@@ -291,7 +291,7 @@ DataType GetDataType(const char* filename, bool header,
   return type;
 }
 
-Parser* Parser::CreateParser(const char* filename, bool header, int num_features, int label_idx, bool precise_float_parser) {
+Parser* Parser::CreateParser(const char* filename, bool header, int num_features, bool precise_float_parser) {
   const int n_read_line = 32;
   auto lines = ReadKLineFromFile(filename, header, n_read_line);
   int num_col = 0;
@@ -300,20 +300,15 @@ Parser* Parser::CreateParser(const char* filename, bool header, int num_features
     Log::Fatal("Unknown format of training data. Only CSV formatted text files are supported.");
   }
   std::unique_ptr<Parser> ret;
-  int output_label_index = -1;
   AtofFunc atof = precise_float_parser ? Common::AtofPrecise : Common::Atof;
   if (type == DataType::LIBSVM) {
     Log::Fatal("LibSVM (zero-based) formatted text files are not supported.");
   } else if (type == DataType::TSV) {
     Log::Fatal("TSV formatted text files are not supported.");
   } else if (type == DataType::CSV) {
-    output_label_index = GetLabelIdxForCSV(lines[0], num_features, label_idx);
-    ret.reset(new CSVParser(output_label_index, num_col, atof));
+    ret.reset(new CSVParser(num_col, atof));
   }
 
-  if (output_label_index < 0 && label_idx >= 0) {
-    Log::Info("Data file %s doesn't contain a label column.", filename);
-  }
   return ret.release();
 }
 

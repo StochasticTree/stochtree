@@ -1,7 +1,10 @@
 /*!
+ * Based on the design of the LightGBM command line program, released under the following terms
+ * 
  * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for license information.
  */
+#include "../debug/cpp/simulate_data_supervised_learning.h"
 #include <stochtree/config.h>
 #include <stochtree/io.h>
 #include <stochtree/interface.h>
@@ -65,7 +68,17 @@ int main(int argc, char** argv) {
       StochTree::Log::Info("Creating dataset from file");
       interface.LoadTrainDataFromFile();
     } else {
-      StochTree::Log::Info("CLI only supports reading data from CSV files");
+      // Override config params to specify 0 as outcome column
+      const char* params = "outcome_columns=0";
+      auto param = StochTree::Config::Str2Map(params);
+      config_.Set(param);
+
+      // Generate simulated dataset and load it
+      StochTree::Log::Info("Generating a simulated dataset");
+      StochTree::data_size_t n = 5000;
+      int p = 10;
+      std::vector<double> output_vector = StochTree::SimulateTabularDataset(n, p, 1234);
+      interface.LoadTrainDataFromMemory(output_vector.data(), p+1, n, true);
     }
 
     // Sample from the model

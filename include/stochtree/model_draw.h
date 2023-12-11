@@ -11,9 +11,9 @@
 #define STOCHTREE_MODEL_DRAW_H_
 
 #include <stochtree/config.h>
+#include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/model.h>
-#include <stochtree/train_data.h>
 #include <stochtree/tree.h>
 
 #include <algorithm>
@@ -32,8 +32,8 @@ class ModelDraw {
   virtual TreeEnsemble* GetEnsemble() {}
   virtual void SaveModelDrawToFile(const char* filename) {}
   virtual const char* SubModelName() const {}
-  virtual void PredictInplace(TrainData* data, std::vector<double> &output, data_size_t offset = 0) {}
-  virtual void PredictInplace(TrainData* data, std::vector<double> &output, 
+  virtual void PredictInplace(Dataset* dataset, std::vector<double> &output, data_size_t offset = 0) {}
+  virtual void PredictInplace(Dataset* dataset, std::vector<double> &output, 
                              int tree_begin, int tree_end, data_size_t offset = 0) {}
 };
 
@@ -82,18 +82,18 @@ class XBARTGaussianRegressionModelDraw : public ModelDraw {
   /*! \brief Return the type of model being sampled */
   const char* SubModelName() const { return "XBARTGaussianRegression"; }
 
-  void SaveModelDrawToFile(const char* filename);
+  // void SaveModelDrawToFile(const char* filename);
 
-  std::string SaveModelDrawToString() const;
+  // std::string SaveModelDrawToString() const;
 
-  void PredictInplace(TrainData* data, std::vector<double> &output, data_size_t offset = 0) {
-    PredictInplace(data, output, 0, tree_ensemble_->NumTrees(), offset);
+  void PredictInplace(Dataset* dataset, std::vector<double> &output, data_size_t offset = 0) {
+    PredictInplace(dataset, output, 0, tree_ensemble_->NumTrees(), offset);
   }
 
-  void PredictInplace(TrainData* data, std::vector<double> &output, 
+  void PredictInplace(Dataset* dataset, std::vector<double> &output, 
                       int tree_begin, int tree_end, data_size_t offset = 0) {
-    tree_ensemble_->PredictInplace(data, output, tree_begin, tree_end, offset);
-    data_size_t n = data->num_data();
+    tree_ensemble_->PredictInplace(dataset, output, tree_begin, tree_end, offset);
+    data_size_t n = dataset->NumObservations();
     for (int i = 0; i < n; i++) {
       output[offset + i] = ybar_offset_ + sd_scale_ * output[offset + i];
     }
@@ -149,18 +149,18 @@ class BARTGaussianRegressionModelDraw : public ModelDraw {
   /*! \brief Return the type of model being sampled */
   const char* SubModelName() const { return "BARTGaussianRegression"; }
 
-  void SaveModelDrawToFile(const char* filename);
+  // void SaveModelDrawToFile(const char* filename);
 
-  std::string SaveModelDrawToString() const;
+  // std::string SaveModelDrawToString() const;
 
-  void PredictInplace(TrainData* data, std::vector<double> &output, data_size_t offset = 0) {
-    PredictInplace(data, output, 0, tree_ensemble_->NumTrees(), offset);
+  void PredictInplace(Dataset* dataset, std::vector<double> &output, data_size_t offset = 0) {
+    PredictInplace(dataset, output, 0, tree_ensemble_->NumTrees(), offset);
   }
 
-  void PredictInplace(TrainData* data, std::vector<double> &output, 
+  void PredictInplace(Dataset* dataset, std::vector<double> &output, 
                       int tree_begin, int tree_end, data_size_t offset = 0) {
-    tree_ensemble_->PredictInplace(data, output, tree_begin, tree_end, offset);
-    data_size_t n = data->num_data();
+    tree_ensemble_->PredictInplace(dataset, output, tree_begin, tree_end, offset);
+    data_size_t n = dataset->NumObservations();
     for (int i = 0; i < n; i++) {
       output[offset + i] = ybar_offset_ + sd_scale_ * output[offset + i];
     }

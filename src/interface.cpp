@@ -14,14 +14,15 @@
  * Copyright 2015~2023 by XGBoost Contributors
  */
 
-#include <stochtree/interface.h>
+#include <stochtree/cutpoint_candidates.h>
+#include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/export.h>
+#include <stochtree/interface.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <stochtree/model.h>
 #include <stochtree/model_draw.h>
-#include <stochtree/train_data.h>
 #include <stochtree/tree.h>
 
 #include <iostream>
@@ -44,18 +45,18 @@ StochTreeInterface::StochTreeInterface(const Config& config) {
 StochTreeInterface::~StochTreeInterface() {}
 
 void StochTreeInterface::LoadTrainDataFromMemory(double* matrix_data, int num_col, data_size_t num_row, bool is_row_major) {
-  TrainDataLoader dataloader(config_, config_.num_class, nullptr);
-  train_data_.reset(dataloader.ConstructFromMatrix(matrix_data, num_col, num_row, is_row_major));
+  DataLoader dataloader(config_, config_.num_class, nullptr);
+  train_dataset_.reset(dataloader.ConstructFromMatrix(matrix_data, num_col, num_row, is_row_major));
 }
 
 void StochTreeInterface::LoadPredictionDataFromMemory(double* matrix_data, int num_col, data_size_t num_row, bool is_row_major) {
-  TrainDataLoader dataloader(config_, config_.num_class, nullptr);
-  prediction_data_.reset(dataloader.ConstructFromMatrix(matrix_data, num_col, num_row, is_row_major));
+  DataLoader dataloader(config_, config_.num_class, nullptr);
+  prediction_dataset_.reset(dataloader.ConstructFromMatrix(matrix_data, num_col, num_row, is_row_major));
 }
 
 void StochTreeInterface::LoadPredictionDataFromMemory(double* matrix_data, int num_col, data_size_t num_row, bool is_row_major, const Config config) {
-  TrainDataLoader dataloader(config, config.num_class, nullptr);
-  prediction_data_.reset(dataloader.ConstructFromMatrix(matrix_data, num_col, num_row, is_row_major));
+  DataLoader dataloader(config, config.num_class, nullptr);
+  prediction_dataset_.reset(dataloader.ConstructFromMatrix(matrix_data, num_col, num_row, is_row_major));
 }
 
 void StochTreeInterface::LoadTrainDataFromFile() {
@@ -67,8 +68,8 @@ void StochTreeInterface::LoadTrainDataFromFile() {
     train_filename = nullptr;
     Log::Fatal("No training data filename provided to config");
   }
-  TrainDataLoader dataloader(config_, config_.num_class, train_filename);
-  train_data_.reset(dataloader.LoadFromFile(train_filename));
+  DataLoader dataloader(config_, config_.num_class, train_filename);
+  train_dataset_.reset(dataloader.LoadFromFile(train_filename));
 }
 
 void StochTreeInterface::LoadPredictionDataFromFile() {
@@ -80,8 +81,8 @@ void StochTreeInterface::LoadPredictionDataFromFile() {
     predict_filename = nullptr;
     Log::Fatal("No prediction data filename provided to config");
   }
-  TrainDataLoader dataloader(config_, config_.num_class, predict_filename);
-  prediction_data_.reset(dataloader.LoadFromFile(predict_filename));
+  DataLoader dataloader(config_, config_.num_class, predict_filename);
+  prediction_dataset_.reset(dataloader.LoadFromFile(predict_filename));
 }
 
 void StochTreeInterface::SampleModel() {
@@ -102,10 +103,10 @@ void StochTreeInterface::SampleModel() {
 }
 
 std::vector<double> StochTreeInterface::PredictSamples() {
-  if (prediction_data_ == nullptr) {
+  if (prediction_dataset_ == nullptr) {
     Log::Fatal("No prediction dataset available!");
   }
-  data_size_t n = prediction_data_->num_data();
+  data_size_t n = prediction_dataset_->NumObservations();
   data_size_t offset = 0;
   int num_samples = config_.num_samples;
   std::vector<double> result(n*num_samples);
@@ -114,7 +115,7 @@ std::vector<double> StochTreeInterface::PredictSamples() {
       Log::Fatal("Sample %d has not drawn a tree ensemble");
     }
     // Store in column-major format and handle unpacking into proper format at the R / Python layers
-    model_draws_[j]->PredictInplace(prediction_data_.get(), result, offset);
+    model_draws_[j]->PredictInplace(prediction_dataset_.get(), result, offset);
     offset += n;
   }
   return result;
@@ -124,9 +125,10 @@ void StochTreeInterface::SampleXBARTGaussianRegression() {
   // Run the sampler
   bool file_saved;
   std::string model_draw_filename;
+  double prediction_val;
 
   // Data structure to track in-sample predictions of each sweep of the model
-  data_size_t n = train_data_->num_data();
+  data_size_t n = train_dataset_->NumObservations();
   std::vector<std::vector<double>> insample_sweep_predictions;
   insample_sweep_predictions.resize(config_.num_samples + config_.num_burnin);
   for (int i = 0; i < config_.num_samples + config_.num_burnin; i++) {
@@ -135,21 +137,21 @@ void StochTreeInterface::SampleXBARTGaussianRegression() {
 
   // Initialize all of the global parameters outside of the loop
   std::set<std::string> param_list;
-  model_->InitializeGlobalParameters(train_data_.get());
+  model_->InitializeGlobalParameters(train_dataset_.get());
 
   // Compute the mean outcome for the model
   double outcome_sum = 0;
-  for (data_size_t i = 0; i < train_data_->num_data(); i++){
-    outcome_sum += train_data_->get_residual_value(i);
+  for (data_size_t i = 0; i < n; i++){
+    outcome_sum += train_dataset_->ResidualValue(i);
   }
-  double mean_outcome = outcome_sum / train_data_->num_data();
+  double mean_outcome = outcome_sum / n;
 
   // Initialize the vector of vectors of leaf indices for each tree
-  tree_observation_indices_.resize(config_.num_trees);
-  for (int j = 0; j < config_.num_trees; j++) {
-    tree_observation_indices_[j].resize(n);
-  }
+  std::unique_ptr<SampleNodeMapper> sample_node_mapper = std::make_unique<SampleNodeMapper>(config_.num_trees, n);
 
+  // Initialize a FeaturePresortRootContainer unique pointer
+  std::unique_ptr<StochTree::FeaturePresortRootContainer> presort_container = std::make_unique<StochTree::FeaturePresortRootContainer>(train_dataset_.get());
+  
   int model_iter = 0;
   int prev_model_iter = 0;
   for (int i = 0; i < config_.num_samples + config_.num_burnin; i++) {
@@ -174,23 +176,26 @@ void StochTreeInterface::SampleXBARTGaussianRegression() {
       // Initialize the ensemble by setting all trees to a root node predicting mean(y) / num_trees
       for (int j = 0; j < config_.num_trees; j++) {
         Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-        (*tree)[0].SetLeaf(mean_outcome / config_.num_trees);
-        for (data_size_t k = 0; k < n; k++) {
-          tree_observation_indices_[j][k] = 0;
-        }
+        // (*tree)[0].SetLeaf(mean_outcome / config_.num_trees);
+        tree->SetLeaf(0, mean_outcome / config_.num_trees);
+        sample_node_mapper->AssignAllSamplesToRoot(j);
       }
 
       // Subtract the predictions of the (constant) trees from the outcome to obtain initial residuals
       // train_data_->ResidualReset();
       for (int j = 0; j < config_.num_trees; j++) {
         Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-        train_data_->ResidualSubtract(tree->PredictFromNodes(tree_observation_indices_[j]));
+        for (data_size_t i = 0; i < n; i++) {
+          prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(i, j));
+          // TODO: update to handle vector-valued residuals
+          train_dataset_->ResidualSubtract(i, 0, prediction_val);
+        }
       }
 
       // Sample sigma^2
       param_list.clear();
       param_list.insert("sigma_sq");
-      model_->SampleGlobalParameters(train_data_.get(), (model_draws_[model_iter]->GetEnsemble()), param_list);
+      model_->SampleGlobalParameters(train_dataset_.get(), (model_draws_[model_iter]->GetEnsemble()), param_list);
       param_list.clear();
     }
 
@@ -204,39 +209,45 @@ void StochTreeInterface::SampleXBARTGaussianRegression() {
       // Similarly, we do not "store" any of the burnin draws, we just continue to overwrite 
       // draws in the first sweep, so we don't begin incrementing model_iter at an offset of 
       // 1 from prev_model_iter until burn-in is complete
-      
+
       // Retrieve pointer to tree j from the previous draw of the model
       Tree* tree = (model_draws_[prev_model_iter]->GetEnsemble())->GetTree(j);
 
       // Add its prediction back to the residual to obtain a "partial" residual for fitting tree j
-      train_data_->ResidualAdd(tree->PredictFromNodes(tree_observation_indices_[j]));
+      for (data_size_t k = 0; k < n; k++) {
+        prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j));
+        // TODO: update to handle vector-valued residuals
+        train_dataset_->ResidualAdd(k, 0, prediction_val);
+      }
 
       // Reset training data so that features are pre-sorted based on the entire dataset
-      train_data_->ResetToRaw();
+      sorted_node_sample_tracker_.reset(new SortedNodeSampleTracker(presort_container.get(), train_dataset_.get()));
       
       // Reset tree j to a constant root node
-      (model_draws_[model_iter]->GetEnsemble())->ResetTree(j);
+      (model_draws_[model_iter]->GetEnsemble())->ResetInitTree(j);
 
       // Reset the observation indices to point to node 0
-      for (data_size_t k = 0; k < n; k++) {
-        tree_observation_indices_[j][k] = 0;
-      }
+      sample_node_mapper->AssignAllSamplesToRoot(j);
       
       // Retrieve pointer to the newly-reallocated tree j
       tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
       
       // Sample tree structure recursively using the "grow from root" algorithm
-      model_->SampleTree(train_data_.get(), tree, tree_observation_indices_, j);
+      model_->SampleTree(train_dataset_.get(), tree, sorted_node_sample_tracker_.get(), sample_node_mapper.get(), j);
 
       // Sample leaf node parameters
-      model_->SampleLeafParameters(train_data_.get(), tree);
+      model_->SampleLeafParameters(train_dataset_.get(), sorted_node_sample_tracker_.get(), tree);
       
       // Subtract tree j's predictions back out of the residual
-      train_data_->ResidualSubtract(tree->PredictFromNodes(tree_observation_indices_[j]));
+      for (data_size_t k = 0; k < n; k++) {
+        prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j));
+        // TODO: update to handle vector-valued residuals
+        train_dataset_->ResidualSubtract(k, 0, prediction_val);
+      }
       
       // Sample sigma^2
       param_list.insert("sigma_sq");
-      model_->SampleGlobalParameters(train_data_.get(), (model_draws_[model_iter]->GetEnsemble()), param_list);
+      model_->SampleGlobalParameters(train_dataset_.get(), (model_draws_[model_iter]->GetEnsemble()), param_list);
       if (j == (config_.num_trees - 1)) {
         // Store the value of sigma^2 at the last sweep of the model
         model_draws_[model_iter]->SetGlobalParameters(model_.get(), param_list);
@@ -246,7 +257,7 @@ void StochTreeInterface::SampleXBARTGaussianRegression() {
 
     // Sample tau (in between "sweeps" of the ensemble)
     param_list.insert("tau");
-    model_->SampleGlobalParameters(train_data_.get(), (model_draws_[model_iter]->GetEnsemble()), param_list);
+    model_->SampleGlobalParameters(train_dataset_.get(), (model_draws_[model_iter]->GetEnsemble()), param_list);
     model_draws_[model_iter]->SetGlobalParameters(model_.get(), param_list);
     param_list.clear();
     
@@ -268,9 +279,10 @@ void StochTreeInterface::SampleBARTGaussianRegression() {
   // Run the sampler
   bool file_saved;
   std::string model_draw_filename;
+  double prediction_val;
 
   // Data structure to track in-sample predictions for each draw of the model
-  data_size_t n = train_data_->num_data();
+  data_size_t n = train_dataset_->NumObservations();
   std::vector<std::vector<double>> insample_sweep_predictions;
   insample_sweep_predictions.resize(config_.num_samples + config_.num_burnin);
   for (int i = 0; i < config_.num_samples + config_.num_burnin; i++) {
@@ -279,26 +291,20 @@ void StochTreeInterface::SampleBARTGaussianRegression() {
 
   // Initialize all of the global parameters outside of the loop
   std::set<std::string> param_list;
-  model_->InitializeGlobalParameters(train_data_.get());
+  model_->InitializeGlobalParameters(train_dataset_.get());
 
   // Compute the mean outcome for the model
   double outcome_sum = 0;
-  for (data_size_t i = 0; i < train_data_->num_data(); i++){
-    outcome_sum += train_data_->get_residual_value(i);
+  for (data_size_t i = 0; i < n; i++){
+    outcome_sum += train_dataset_->ResidualValue(i);
   }
-  double mean_outcome = outcome_sum / train_data_->num_data();
+  double mean_outcome = outcome_sum / n;
 
   // Initialize the vector of vectors of leaf indices for each tree
-  tree_observation_indices_.resize(config_.num_trees);
-  for (int j = 0; j < config_.num_trees; j++) {
-    tree_observation_indices_[j].resize(n);
-  }
+  std::unique_ptr<SampleNodeMapper> sample_node_mapper = std::make_unique<SampleNodeMapper>(config_.num_trees, n);
 
-  // Initialize a vector of NodeSampleTracker
-  std::vector<std::unique_ptr<NodeSampleTracker>> node_trackers(config_.num_trees);
-  for (int i = 0; i < config_.num_trees; i++) {
-    node_trackers[i] = std::make_unique<NodeSampleTracker>(n);
-  }
+  // Reset training data so that features are pre-sorted based on the entire dataset
+  unsorted_node_sample_tracker_.reset(new UnsortedNodeSampleTracker(n, config_.num_trees));
 
   int model_iter = 0;
   int prev_model_iter = 0;
@@ -324,17 +330,20 @@ void StochTreeInterface::SampleBARTGaussianRegression() {
       // Initialize the ensemble by setting all trees to a root node predicting mean(y) / num_trees
       for (int j = 0; j < config_.num_trees; j++) {
         Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-        (*tree)[0].SetLeaf(mean_outcome / config_.num_trees);
-        for (data_size_t k = 0; k < n; k++) {
-          tree_observation_indices_[j][k] = 0;
-        }
+        // (*tree)[0].SetLeaf(mean_outcome / config_.num_trees);
+        tree->SetLeaf(0, mean_outcome / config_.num_trees);
+        sample_node_mapper->AssignAllSamplesToRoot(j);
       }
 
       // Subtract the predictions of the (constant) trees from the outcome to obtain initial residuals
       // train_data_->ResidualReset();
       for (int j = 0; j < config_.num_trees; j++) {
         Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-        train_data_->ResidualSubtract(tree->PredictFromNodes(tree_observation_indices_[j]));
+        for (data_size_t i = 0; i < n; i++) {
+          prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(i, j));
+          // TODO: update to handle vector-valued residuals
+          train_dataset_->ResidualSubtract(i, 0, prediction_val);
+        }
       }
     }
 
@@ -353,29 +362,39 @@ void StochTreeInterface::SampleBARTGaussianRegression() {
       Tree* tree = (model_draws_[prev_model_iter]->GetEnsemble())->GetTree(j);
 
       // Add its prediction back to the residual to obtain a "partial" residual for fitting tree j
-      train_data_->ResidualAdd(tree->PredictFromNodes(tree_observation_indices_[j]));
+      for (data_size_t k = 0; k < n; k++) {
+        prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j));
+        // TODO: update to handle vector-valued residuals
+        train_dataset_->ResidualAdd(k, 0, prediction_val);
+      }
 
       // If model_iter is different from prev_model_iter, copy tree j from prev_model_iter to model_iter
       if (model_iter > prev_model_iter) {
-        (model_draws_[model_iter]->GetEnsemble())->CopyTree(j, tree);
+        // (model_draws_[model_iter]->GetEnsemble())->CopyTree(j, tree);
+        (model_draws_[model_iter]->GetEnsemble())->ResetTree(j);
+        (model_draws_[model_iter]->GetEnsemble())->CloneFromExistingTree(j, tree);
       }
       
       // Retrieve pointer to tree j (which might be a new tree if we copied it)
       tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
       
       // Conduct one MCMC step of the grow/prune process
-      model_->SampleTree(train_data_.get(), tree, node_trackers[j].get(), tree_observation_indices_, j);
+      model_->SampleTree(train_dataset_.get(), tree, unsorted_node_sample_tracker_.get(), sample_node_mapper.get(), j);
 
       // Sample leaf node parameters
-      model_->SampleLeafParameters(train_data_.get(), tree);
+      model_->SampleLeafParameters(train_dataset_.get(), tree);
       
       // Subtract tree j's predictions back out of the residual
-      train_data_->ResidualSubtract(tree->PredictFromNodes(tree_observation_indices_[j]));
+      for (data_size_t k = 0; k < n; k++) {
+        prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j));
+        // TODO: update to handle vector-valued residuals
+        train_dataset_->ResidualSubtract(k, 0, prediction_val);
+      }
     }
 
     // Sample sigma^2
     param_list.insert("sigma_sq");
-    model_->SampleGlobalParameters(train_data_.get(), (model_draws_[model_iter]->GetEnsemble()), param_list);
+    model_->SampleGlobalParameters(train_dataset_.get(), (model_draws_[model_iter]->GetEnsemble()), param_list);
     // Store the value of sigma^2 at the last sweep of the model
     model_draws_[model_iter]->SetGlobalParameters(model_.get(), param_list);
     param_list.clear();

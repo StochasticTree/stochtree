@@ -6,6 +6,7 @@
 lib/
 build/
 .vscode/
+xcode/
 
 ## R gitignore
 

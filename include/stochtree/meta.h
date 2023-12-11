@@ -30,6 +30,12 @@
 
 namespace StochTree {
 
+enum FeatureType {
+  kNumeric,
+  kOrderedCategorical,
+  kUnorderedCategorical
+};
+
 /*! \brief Type of data size, it is better to use signed type*/
 typedef int32_t data_size_t;
 
