@@ -34,13 +34,14 @@ file(
   GLOB 
   SOURCES 
   ${MAIN_PROJECT_DIR}/src/config.cpp
+  ${MAIN_PROJECT_DIR}/src/data.cpp
   ${MAIN_PROJECT_DIR}/src/interface.cpp
   ${MAIN_PROJECT_DIR}/src/io.cpp
   ${MAIN_PROJECT_DIR}/src/json11.cpp
   ${MAIN_PROJECT_DIR}/src/model.cpp
   ${MAIN_PROJECT_DIR}/src/model_draw.cpp
   ${MAIN_PROJECT_DIR}/src/optimization.cpp
-  ${MAIN_PROJECT_DIR}/src/train_data.cpp
+  ${MAIN_PROJECT_DIR}/src/partition_tracker.cpp
   ${MAIN_PROJECT_DIR}/src/tree.cpp
 )
 
