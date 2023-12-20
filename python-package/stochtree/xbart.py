@@ -36,7 +36,7 @@ class XBART:
         param_dict = {
             "num_samples": num_samples, 
             "num_burnin": num_burnin, 
-            "label_column": 0
+            "outcome_columns": 0
         }
         param_str = _param_dict_to_str(param_dict)
         self.xbart_cpp.reset_params(param_str)
