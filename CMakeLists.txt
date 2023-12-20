@@ -69,7 +69,8 @@ file(
   src/interface.cpp
   src/io.cpp
   src/json11.cpp
-  src/model.cpp
+  src/model/univariate_xbart.cpp
+  src/model/univariate_bart.cpp
   src/model_draw.cpp
   src/optimization.cpp
   src/partition_tracker.cpp
