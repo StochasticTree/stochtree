@@ -34,6 +34,7 @@ file(
   GLOB 
   SOURCES 
   ${MAIN_PROJECT_DIR}/src/config.cpp
+  ${MAIN_PROJECT_DIR}/src/cutpoint_candidates.cpp
   ${MAIN_PROJECT_DIR}/src/data.cpp
   ${MAIN_PROJECT_DIR}/src/interface.cpp
   ${MAIN_PROJECT_DIR}/src/io.cpp
