@@ -10,8 +10,6 @@
 #ifndef STOCHTREE_ENSEMBLE_H_
 #define STOCHTREE_ENSEMBLE_H_
 
-#include <stochtree/config.h>
-#include <stochtree/data.h>
 #include <stochtree/tree.h>
 
 #include <algorithm>
@@ -23,32 +21,17 @@ namespace StochTree {
 
 class TreeEnsemble {
  public:
-  TreeEnsemble(int output_dimension = 1) {
-    // Set class config
-    config_ = Config();
-    trees_ = std::vector<std::unique_ptr<Tree>>(config_.num_trees);
-    for (int i = 0; i < config_.num_trees; i++) {
-      trees_[i].reset(new Tree());
-      trees_[i]->Init(output_dimension);
-    }
-  }
-  TreeEnsemble(const Config& config, int output_dimension = 1) {
-    // Set class config
-    config_ = config;
-    trees_ = std::vector<std::unique_ptr<Tree>>(config_.num_trees);
-    for (int i = 0; i < config_.num_trees; i++) {
-      trees_[i].reset(new Tree());
-      trees_[i]->Init(output_dimension);
-    }
-  }
-  TreeEnsemble(int num_trees, int output_dimension = 1) {
-    // Set class config
-    config_ = Config();
+  TreeEnsemble(int num_trees, int output_dimension = 1, bool is_leaf_constant = true) {
+    // Initialize trees in the ensemble
     trees_ = std::vector<std::unique_ptr<Tree>>(num_trees);
     for (int i = 0; i < num_trees; i++) {
       trees_[i].reset(new Tree());
       trees_[i]->Init(output_dimension);
     }
+    // Store ensemble configurations
+    num_trees_ = num_trees;
+    output_dimension_ = output_dimension;
+    is_leaf_constant_ = is_leaf_constant;
   }
   ~TreeEnsemble() {}
 
@@ -73,68 +56,98 @@ class TreeEnsemble {
     return trees_[i]->CloneFromTree(tree);
   }
 
-  inline void PredictInplace(Dataset* dataset, std::vector<double> &output, data_size_t offset = 0) {
-    PredictInplace(dataset, output, 0, trees_.size(), offset);
+  inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, data_size_t offset = 0) {
+    PredictInplace(covariates, basis, output, 0, trees_.size(), offset);
   }
 
-  inline void PredictInplace(Dataset* dataset, std::vector<double> &output, 
+  inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, 
                              int tree_begin, int tree_end, data_size_t offset = 0) {
-    std::vector<double> pred;
-    data_size_t n = dataset->NumObservations();
-    std::int32_t output_dim = trees_[0]->OutputDimension();
-    data_size_t total_output_size = output_dim*n;
+    double pred;
+    CHECK(!is_leaf_constant_);
+    CHECK_EQ(covariates.rows(), basis.rows());
+    CHECK_EQ(output_dimension_, trees_[0]->OutputDimension());
+    CHECK_EQ(output_dimension_, basis.cols());
+    data_size_t n = covariates.rows();
+    data_size_t total_output_size = n;
     if (output.size() < total_output_size + offset) {
       Log::Fatal("Mismatched size of prediction vector and training data");
     }
     for (data_size_t i = 0; i < n; i++) {
-      pred = std::vector<double>(output_dim, 0.0);
+      pred = 0.0;
       for (size_t j = tree_begin; j < tree_end; j++) {
         auto &tree = *trees_[j];
-        std::int32_t nidx = EvaluateTree(tree, dataset, i);
-        for (int32_t k = 0; k < output_dim; k++) {
-          pred[k] += tree.LeafValue(nidx, k);
+        std::int32_t nidx = EvaluateTree(tree, covariates, i);
+        for (int32_t k = 0; k < output_dimension_; k++) {
+          pred += tree.LeafValue(nidx, k) * basis(i, k);
         }
       }
-      for (int32_t k = 0; k < output_dim; k++) {
-        output[i*output_dim + k + offset] = pred[k];
-      }
+      output[i + offset] = pred;
     }
   }
 
-  inline std::vector<double> Predict(Dataset* dataset) {
-    return Predict(dataset, 0, trees_.size());
+  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double> &output, data_size_t offset = 0) {
+    PredictInplace(covariates, output, 0, trees_.size(), offset);
+  }
+
+  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double> &output, int tree_begin, int tree_end, data_size_t offset = 0) {
+    double pred;
+    CHECK(is_leaf_constant_);
+    data_size_t n = covariates.rows();
+    data_size_t total_output_size = n;
+    if (output.size() < total_output_size + offset) {
+      Log::Fatal("Mismatched size of prediction vector and training data");
+    }
+    for (data_size_t i = 0; i < n; i++) {
+      pred = 0.0;
+      for (size_t j = tree_begin; j < tree_end; j++) {
+        auto &tree = *trees_[j];
+        std::int32_t nidx = EvaluateTree(tree, covariates, i);
+        pred += tree.LeafValue(nidx, 0);
+      }
+      output[i + offset] = pred;
+    }
+  }
+
+  inline std::vector<double> Predict(Eigen::MatrixXd& covariates) {
+    return Predict(covariates, 0, trees_.size());
   }
   
-  inline std::vector<double> Predict(Dataset* dataset, int tree_begin, int tree_end) {
-    std::vector<double> pred;
-    data_size_t n = dataset->NumObservations();
-    std::int32_t output_dim = trees_[0]->OutputDimension();
-    data_size_t total_output_size = output_dim*n;
+  inline std::vector<double> Predict(Eigen::MatrixXd& covariates, int tree_begin, int tree_end) {
+    double pred;
+    CHECK(is_leaf_constant_);
+    data_size_t n = covariates.rows();
+    data_size_t total_output_size = n;
     std::vector<double> output(total_output_size);
-    // Predict the outcome for each observation in data
-    for (data_size_t i = 0; i < dataset->NumObservations(); i++) {
-      pred = std::vector<double>(output_dim, 0.0);
+    // Predict the outcome for each observation
+    for (data_size_t i = 0; i < n; i++) {
+      pred = 0.0;
       for (size_t j = tree_begin; j < tree_end; ++j) {
         auto &tree = *trees_[j];
-        std::int32_t nidx = EvaluateTree(tree, dataset, i);
-        for (int32_t k = 0; k < output_dim; k++) {
-          pred[k] += tree.LeafValue(nidx, k);
-        }
+        std::int32_t nidx = EvaluateTree(tree, covariates, i);
+        pred += tree.LeafValue(nidx, 0);
       }
-      for (int32_t k = 0; k < output_dim; k++) {
-        output[i*output_dim + k] = pred[k];
-      }
+      output[i] = pred;
     }
     return output;
   }
 
   inline int32_t NumTrees() {
-    return trees_.size();
+    return num_trees_;
+  }
+
+  inline int32_t OutputDimension() {
+    return output_dimension_;
+  }
+
+  inline int32_t IsLeafConstant() {
+    return is_leaf_constant_;
   }
 
  private:
   std::vector<std::unique_ptr<Tree>> trees_;
-  Config config_;
+  int num_trees_;
+  int output_dimension_;
+  bool is_leaf_constant_;
 };
 
 } // namespace StochTree

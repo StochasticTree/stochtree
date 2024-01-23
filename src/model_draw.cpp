@@ -10,9 +10,7 @@
  * =======
  * Copyright 2015~2023 by XGBoost Contributors
  */
-#include <stochtree/config.h>
 #include <stochtree/ensemble.h>
-#include <stochtree/model.h>
 #include <stochtree/model_draw.h>
 #include <stochtree/tree.h>
 

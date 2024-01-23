@@ -3,7 +3,6 @@
  * Licensed under the MIT License. See LICENSE file in the project root for
  * license information.
  */
-#include <stochtree/data.h>
 #include <stochtree/io.h>
 #include <stochtree/partition_tracker.h>
 
@@ -35,6 +34,10 @@ data_size_t FeatureUnsortedPartition::NodeEnd(int node_id) {
   return node_begin_[node_id] + node_length_[node_id];
 }
 
+data_size_t FeatureUnsortedPartition::NodeSize(int node_id) {
+  return node_length_[node_id];
+}
+
 int FeatureUnsortedPartition::Parent(int node_id) {
   return parent_nodes_[node_id];
 }
@@ -47,7 +50,7 @@ int FeatureUnsortedPartition::RightNode(int node_id) {
   return right_nodes_[node_id];
 }
 
-void FeatureUnsortedPartition::PartitionNode(Dataset* dataset, int node_id, int left_node_id, int right_node_id, int feature_split, double split_value) {
+void FeatureUnsortedPartition::PartitionNode(Eigen::MatrixXd& covariates, int node_id, int left_node_id, int right_node_id, int feature_split, double split_value) {
   // Partition-related values
   data_size_t node_start_idx = node_begin_[node_id];
   data_size_t num_node_elements = node_length_[node_id];
@@ -55,7 +58,7 @@ void FeatureUnsortedPartition::PartitionNode(Dataset* dataset, int node_id, int 
   // Partition the node indices 
   auto node_begin = (indices_.begin() + node_begin_[node_id]);
   auto node_end = (indices_.begin() + node_begin_[node_id] + node_length_[node_id]);
-  auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return RowSplitLeft(dataset, row, feature_split, split_value); });
+  auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return RowSplitLeft(covariates, row, feature_split, split_value); });
   
   // Determine the number of true and false elements
   node_begin = (indices_.begin() + node_begin_[node_id]);
@@ -66,7 +69,7 @@ void FeatureUnsortedPartition::PartitionNode(Dataset* dataset, int node_id, int 
   ExpandNodeTrackingVectors(node_id, left_node_id, right_node_id, node_start_idx, num_true, num_false);
 }
 
-void FeatureUnsortedPartition::PartitionNode(Dataset* dataset, int node_id, int left_node_id, int right_node_id, int feature_split, std::vector<std::uint32_t> const& category_list) {
+void FeatureUnsortedPartition::PartitionNode(Eigen::MatrixXd& covariates, int node_id, int left_node_id, int right_node_id, int feature_split, std::vector<std::uint32_t> const& category_list) {
   // Partition-related values
   data_size_t node_start_idx = node_begin_[node_id];
   data_size_t num_node_elements = node_length_[node_id];
@@ -74,7 +77,7 @@ void FeatureUnsortedPartition::PartitionNode(Dataset* dataset, int node_id, int 
   // Partition the node indices 
   auto node_begin = (indices_.begin() + node_begin_[node_id]);
   auto node_end = (indices_.begin() + node_begin_[node_id] + node_length_[node_id]);
-  auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return RowSplitLeft(dataset, row, feature_split, category_list); });
+  auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return RowSplitLeft(covariates, row, feature_split, category_list); });
   
   // Determine the number of true and false elements
   node_begin = (indices_.begin() + node_begin_[node_id]);
@@ -182,7 +185,7 @@ void FeaturePresortPartition::AddLeftRightNodes(data_size_t left_node_begin, dat
   node_offset_sizes_.emplace_back(right_node_begin, right_node_size);
 }
 
-void FeaturePresortPartition::SplitFeatureNumeric(Dataset* dataset, int32_t node_id, int32_t feature_index, double split_value) {
+void FeaturePresortPartition::SplitFeatureNumeric(Eigen::MatrixXd& covariates, int32_t node_id, int32_t feature_index, double split_value) {
   // Partition-related values
   data_size_t node_start_idx = NodeBegin(node_id);
   data_size_t node_end_idx = NodeEnd(node_id);
@@ -191,7 +194,7 @@ void FeaturePresortPartition::SplitFeatureNumeric(Dataset* dataset, int32_t node
   // Partition the node indices 
   auto node_begin = (feature_sort_indices_.begin() + node_start_idx);
   auto node_end = (feature_sort_indices_.begin() + node_end_idx);
-  auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return RowSplitLeft(dataset, row, feature_index, split_value); });
+  auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return RowSplitLeft(covariates, row, feature_index, split_value); });
   
   // Add the left and right nodes to the offset size vector
   node_begin = (feature_sort_indices_.begin() + node_start_idx);
@@ -200,7 +203,7 @@ void FeaturePresortPartition::SplitFeatureNumeric(Dataset* dataset, int32_t node
   AddLeftRightNodes(node_start_idx, num_true, node_start_idx + num_true, num_false);
 }
 
-void FeaturePresortPartition::SplitFeatureCategorical(Dataset* dataset, int32_t node_id, int32_t feature_index, std::vector<std::uint32_t> const& category_list) {
+void FeaturePresortPartition::SplitFeatureCategorical(Eigen::MatrixXd& covariates, int32_t node_id, int32_t feature_index, std::vector<std::uint32_t> const& category_list) {
   // Partition-related values
   data_size_t node_start_idx = NodeBegin(node_id);
   data_size_t node_end_idx = NodeEnd(node_id);
@@ -209,7 +212,7 @@ void FeaturePresortPartition::SplitFeatureCategorical(Dataset* dataset, int32_t 
   // Partition the node indices 
   auto node_begin = (feature_sort_indices_.begin() + node_start_idx);
   auto node_end = (feature_sort_indices_.begin() + node_end_idx);
-  auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return RowSplitLeft(dataset, row, feature_index, category_list); });
+  auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return RowSplitLeft(covariates, row, feature_index, category_list); });
   
   // Add the left and right nodes to the offset size vector
   node_begin = (feature_sort_indices_.begin() + node_start_idx);

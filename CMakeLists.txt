@@ -1,9 +1,8 @@
 # Build options
 option(USE_DEBUG "Set to ON for Debug mode" ON)
 option(USE_SANITIZER "Use santizer flags" ON)
-option(BUILD_CLI "Build the 'lightbgm' command-line interface in addition to lib_lightgbm" ON)
-option(BUILD_CPP_TEST "Build C++ tests with Google Test" ON)
-option(BUILD_CPP_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
+option(BUILD_TEST "Build C++ tests with Google Test" OFF)
+option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
 
 # GoogleTest requires at least C++14
 set(CMAKE_CXX_STANDARD 14)
@@ -63,17 +62,16 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
 file(
   GLOB 
   SOURCES 
-  src/config.cpp
   src/cutpoint_candidates.cpp
-  src/data.cpp
-  src/interface.cpp
+  src/dispatcher.cpp
   src/io.cpp
   src/json11.cpp
-  src/model/univariate_xbart.cpp
-  src/model/univariate_bart.cpp
   src/model_draw.cpp
-  src/optimization.cpp
+  src/outcome_model/homoskedastic_gaussian_constant.cpp
+  src/outcome_model/homoskedastic_gaussian_univariate_regression.cpp
+  src/outcome_model/homoskedastic_gaussian_multivariate_regression.cpp
   src/partition_tracker.cpp
+  src/sampler.cpp
   src/tree.cpp
 )
 
@@ -87,13 +85,7 @@ if(APPLE)
   set(CMAKE_SHARED_LIBRARY_SUFFIX ".so")
 endif()
 
-if(BUILD_CLI)
-  add_executable(stochtree src/main.cpp)
-  target_include_directories(stochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR})
-  target_link_libraries(stochtree PRIVATE stochtree_objs)
-endif()
-
-if(BUILD_CPP_TEST)
+if(BUILD_TEST)
   # Download the GoogleTest dependency if necessary
   include(FetchContent)
   FetchContent_Declare(
@@ -116,7 +108,7 @@ if(BUILD_CPP_TEST)
   gtest_discover_tests(teststochtree)
 endif()
 
-if(BUILD_CPP_DEBUG_TARGETS)
+if(BUILD_DEBUG_TARGETS)
   # Build test suite
   add_executable(debugstochtree debug/cpp/debug.cpp)
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug/cpp)

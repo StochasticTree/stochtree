@@ -80,6 +80,26 @@ std::vector<double> Tree::PredictFromNodes(std::vector<std::int32_t> node_indice
   return result;
 }
 
+double Tree::PredictFromNode(std::int32_t node_id, Eigen::MatrixXd& basis, int row_idx) {
+  if (!this->IsLeaf(node_id)) {
+    Log::Fatal("Node %d is not a leaf node", node_id);
+  }
+  double pred = 0;
+  for (int32_t k = 0; k < output_dimension_; k++) {
+    pred += LeafValue(node_id, k) * basis(row_idx, k);
+  }
+  return pred;
+}
+
+std::vector<double> Tree::PredictFromNodes(std::vector<std::int32_t> node_indices, Eigen::MatrixXd& basis) {
+  data_size_t n = node_indices.size();
+  std::vector<double> result(n);
+  for (data_size_t i = 0; i < n; i++) {
+    result[i] = PredictFromNode(node_indices[i], basis, i);
+  }
+  return result;
+}
+
 Tree* Tree::Clone() {
   // Create tree with empty vectors / default scalar values
   Tree tree{};

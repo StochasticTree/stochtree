@@ -36,17 +36,16 @@ set(EIGEN_HEADER_DIR ${MAIN_PROJECT_DIR}/dependencies/eigen)
 file(
   GLOB 
   SOURCES 
-  ${MAIN_PROJECT_DIR}/src/config.cpp
   ${MAIN_PROJECT_DIR}/src/cutpoint_candidates.cpp
-  ${MAIN_PROJECT_DIR}/src/data.cpp
-  ${MAIN_PROJECT_DIR}/src/interface.cpp
+  ${MAIN_PROJECT_DIR}/src/dispatcher.cpp
   ${MAIN_PROJECT_DIR}/src/io.cpp
   ${MAIN_PROJECT_DIR}/src/json11.cpp
-  ${MAIN_PROJECT_DIR}/src/model/univariate_xbart.cpp
-  ${MAIN_PROJECT_DIR}/src/model/univariate_bart.cpp
   ${MAIN_PROJECT_DIR}/src/model_draw.cpp
-  ${MAIN_PROJECT_DIR}/src/optimization.cpp
+  ${MAIN_PROJECT_DIR}/src/outcome_model/homoskedastic_gaussian_constant.cpp
+  ${MAIN_PROJECT_DIR}/src/outcome_model/homoskedastic_gaussian_univariate_regression.cpp
+  ${MAIN_PROJECT_DIR}/src/outcome_model/homoskedastic_gaussian_multivariate_regression.cpp
   ${MAIN_PROJECT_DIR}/src/partition_tracker.cpp
+  ${MAIN_PROJECT_DIR}/src/sampler.cpp
   ${MAIN_PROJECT_DIR}/src/tree.cpp
 )
 
@@ -70,5 +69,4 @@ target_link_libraries(stochtree_cpp PRIVATE stochtree_objs)
 
 # EXAMPLE_VERSION_INFO is defined by setup.py and passed into the C++ code as a
 # define (VERSION_INFO) here.
-target_compile_definitions(stochtree_cpp
-                           PRIVATE VERSION_INFO=${EXAMPLE_VERSION_INFO})
+target_compile_definitions(stochtree_cpp PRIVATE VERSION_INFO=${EXAMPLE_VERSION_INFO})
