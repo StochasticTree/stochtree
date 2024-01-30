@@ -3,7 +3,7 @@
 ################################################################################
 
 # Load stochtree
-library(stoch.tree)
+library(stochtree)
 
 # Run a single iteration of the comparison and plot the results
 
@@ -36,7 +36,11 @@ omegatest <- omega[test_inds]
 
 # Sample from XBART and evaluate its predictions on out of sample data
 cutpoint_grid_size <- 20
-stochtree_samples <- xbart(ytrain, Xtrain, omegatrain, num_samples, num_burnin, num_trees, 0.5, 2, cutpoint_grid_size, random_seed = random_seed)
+nu <- 0.5
+lambda <- 2.
+a <- 1.
+b <- 1.
+stochtree_samples <- xbart(ytrain, Xtrain, omegatrain, num_samples, num_burnin, num_trees, nu, lambda, a, b, cutpoint_grid_size, random_seed = random_seed)
 stochtree_predictions <- predict(stochtree_samples, Xtest, omegatest, num_samples)
 stochtree_avg_prediction <- rowMeans(stochtree_predictions)
 stochtree_rmse <- sqrt(mean((stochtree_avg_prediction - ytest)^2))

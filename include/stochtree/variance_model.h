@@ -48,6 +48,35 @@ class GlobalHomoskedasticVarianceModel {
   }
 };
 
+
+/*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
+class LeafNodeHomoskedasticVarianceModel {
+ public:
+  LeafNodeHomoskedasticVarianceModel() {}
+  ~LeafNodeHomoskedasticVarianceModel() {}
+  double PosteriorShape(ModelDraw* model_draw, double a, double b) {
+    data_size_t num_leaves = model_draw->NumLeaves();
+    return (a/2.0) + num_leaves;
+  }
+  double PosteriorScale(ModelDraw* model_draw, double a, double b) {
+    double mu_sq = model_draw->SumLeafSquared();
+    return (b/2.0) + mu_sq;
+  }
+  double SampleVarianceParameter(ModelDraw* model_draw, double a, double b, std::mt19937& gen) {
+    double ig_shape = PosteriorShape(model_draw, a, b);
+    double ig_scape = PosteriorScale(model_draw, a, b);
+
+    // C++ standard library provides a gamma distribution with scale
+    // parameter, but the correspondence between gamma and IG is that 
+    // 1 / gamma(a,b) ~ IG(a,b) when b is a __rate__ parameter.
+    // Before sampling, we convert ig_scale to a gamma scale parameter by 
+    // taking its multiplicative inverse.
+    double gamma_scale = 1./ig_scape;
+    std::gamma_distribution<double> residual_variance_dist(ig_shape, gamma_scale);
+    return (1/residual_variance_dist(gen));
+  }
+};
+
 } // namespace StochTree
 
 #endif // STOCHTREE_VARIANCE_MODEL_H_

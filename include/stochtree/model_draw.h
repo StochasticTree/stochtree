@@ -47,6 +47,14 @@ class ModelDraw {
     return tree_ensemble_.get();
   }
 
+  inline int32_t NumLeaves() {
+    return tree_ensemble_->NumLeaves();
+  }
+
+  inline double SumLeafSquared() {
+    return tree_ensemble_->SumLeafSquared();
+  }
+
   void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, data_size_t offset = 0) {
     PredictInplace(covariates, basis, output, 0, tree_ensemble_->NumTrees(), offset);
   }

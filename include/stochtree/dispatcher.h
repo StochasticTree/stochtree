@@ -249,7 +249,7 @@ class GFRDispatcher {
   bool PredictionDataConsistent();
   
   template <typename ModelType, typename TreePriorType>
-  void SampleModel(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* outcome_data_ptr, int num_outcome, data_size_t num_row, bool is_row_major, bool non_constant_basis, double nu, double lambda, ModelType& model, TreePriorType& tree_prior, GlobalHomoskedasticVarianceModel& variance_model, std::vector<FeatureType>& feature_types, int cutpoint_grid_size) {
+  void SampleModel(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* outcome_data_ptr, int num_outcome, data_size_t num_row, bool is_row_major, bool non_constant_basis, double nu, double lambda, double a, double b, ModelType& model, TreePriorType& tree_prior, GlobalHomoskedasticVarianceModel& variance_model, LeafNodeHomoskedasticVarianceModel& leaf_variance_model, std::vector<FeatureType>& feature_types, int cutpoint_grid_size) {
     // Load the data
     LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, covariates_);
     LoadData(basis_data_ptr, num_row, num_basis, is_row_major, basis_);
@@ -399,6 +399,9 @@ class GFRDispatcher {
           residual_(k, 0) -= prediction_val;
         }
       }
+
+      // Sample tau
+      model.SetGlobalParameter(leaf_variance_model.SampleVarianceParameter(model_draws_[model_iter].get(), a, b, gen_), GlobalParamName::LeafPriorVariance);
 
       // Sample sigma^2
       model.SetGlobalParameter(variance_model.SampleVarianceParameter(residual_, nu, lambda, gen_), GlobalParamName::GlobalVariance);

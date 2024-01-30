@@ -304,6 +304,38 @@ class Tree {
     // Use unsafe access here, since we may need to take the address of one past the last
     // element, to follow with the range semantic of std::vector<>.
   }
+
+  /*!
+   * \brief sum of squared values for a given node
+   * \param nid ID of node being queried
+   */
+  double SumSquaredNodeValues(std::int32_t nid) const {
+    if (output_dimension_ == 1) {
+      return std::pow(leaf_value_[nid], 2.0);
+    } else {
+      double result = 0.;
+      std::size_t const offset_begin = leaf_vector_begin_[nid];
+      std::size_t const offset_end = leaf_vector_end_[nid];
+      if (offset_begin >= leaf_vector_.size() || offset_end > leaf_vector_.size()) {
+        Log::Fatal("No leaf vector set for node nid");
+      }
+      for (std::size_t i = offset_begin; i < offset_end; i++) {
+        result += std::pow(leaf_vector_[i], 2.0);
+      }
+      return result;
+    }
+  }
+
+  /*!
+   * \brief sum of squared values for all leaves in a tree
+   */
+  double SumSquaredLeafValues() const {
+    double result = 0.;
+    for (auto& leaf : leaves_) {
+      result += SumSquaredNodeValues(leaf);
+    }
+    return result;
+  }
   
   /*!
    * \brief Tests whether the leaf node has a non-empty leaf vector

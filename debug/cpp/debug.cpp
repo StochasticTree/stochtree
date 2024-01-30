@@ -206,15 +206,20 @@ void RunExample(bool random_data = true) {
   // Initialize model classes
   GaussianHomoskedasticUnivariateRegressionModelWrapper model = GaussianHomoskedasticUnivariateRegressionModelWrapper();
   GlobalHomoskedasticVarianceModel variance_model = GlobalHomoskedasticVarianceModel();
+  LeafNodeHomoskedasticVarianceModel leaf_variance_model = LeafNodeHomoskedasticVarianceModel();
   ClassicTreePrior tree_prior{0.95, 2.0, 1};
   model.SetGlobalParameter(1., GlobalParamName::GlobalVariance);
   model.SetGlobalParameter(1., GlobalParamName::LeafPriorVariance);
   
   // Run the sampler
   std::vector<FeatureType> feature_types = {FeatureType::kNumeric, FeatureType::kNumeric, FeatureType::kNumeric, FeatureType::kNumeric, FeatureType::kNumeric};
+  double nu = 1.0;
+  double lambda = 1.0;
+  double a = 1.0;
+  double b = 1.0;
   int cutpoint_grid_size = 500;
   GFRDispatcher dispatcher(20, 10, 1, 101);
-  dispatcher.SampleModel<GaussianHomoskedasticUnivariateRegressionModelWrapper, ClassicTreePrior>(covariates.data(), x_cols, basis.data(), omega_cols, outcome.data(), y_cols, n, true, true, 1.0, 1.0, model, tree_prior, variance_model, feature_types, cutpoint_grid_size);
+  dispatcher.SampleModel<GaussianHomoskedasticUnivariateRegressionModelWrapper, ClassicTreePrior>(covariates.data(), x_cols, basis.data(), omega_cols, outcome.data(), y_cols, n, true, true, nu, lambda, a, b, model, tree_prior, variance_model, leaf_variance_model, feature_types, cutpoint_grid_size);
   // MCMCDispatcher dispatcher(20, 10, 20, 101);
   // dispatcher.SampleModel<GaussianHomoskedasticUnivariateRegressionModelWrapper, ClassicTreePrior>(covariates.data(), x_cols, basis.data(), omega_cols, outcome.data(), y_cols, n, true, true, 1.0, 1.0, model, tree_prior, variance_model);
 }

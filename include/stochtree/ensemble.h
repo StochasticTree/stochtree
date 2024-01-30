@@ -135,6 +135,22 @@ class TreeEnsemble {
     return num_trees_;
   }
 
+  inline int32_t NumLeaves() {
+    int32_t result = 0;
+    for (int i = 0; i < num_trees_; i++) {
+      result += trees_[i]->NumLeaves();
+    }
+    return result;
+  }
+
+  inline double SumLeafSquared() {
+    double result = 0.;
+    for (int i = 0; i < num_trees_; i++) {
+      result += trees_[i]->NumLeaves();
+    }
+    return result;
+  }
+
   inline int32_t OutputDimension() {
     return output_dimension_;
   }

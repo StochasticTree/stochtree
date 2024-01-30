@@ -8,7 +8,8 @@ using namespace cpp11;
 
 [[cpp11::register]]
 cpp11::external_pointer<StochTree::GFRDispatcher> xbart_sample_cpp(cpp11::doubles_matrix<> y, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, 
-                                                                   int num_samples, int num_burnin, int num_trees, double nu, double lambda, int cutpoint_grid_size, int random_seed = -1) {
+                                                                   int num_samples, int num_burnin, int num_trees, double nu, double lambda, 
+                                                                   double a, double b, int cutpoint_grid_size, int random_seed = -1) {
     // Extract dimensions of covariate matrix X and pointer to its contiguous block of memory
     int p_covariates = X.ncol();
     int n = X.nrow();
@@ -31,11 +32,12 @@ cpp11::external_pointer<StochTree::GFRDispatcher> xbart_sample_cpp(cpp11::double
     model.SetGlobalParameter(1., StochTree::GlobalParamName::GlobalVariance);
     model.SetGlobalParameter(1., StochTree::GlobalParamName::LeafPriorVariance);
     StochTree::GlobalHomoskedasticVarianceModel variance_model = StochTree::GlobalHomoskedasticVarianceModel();
+    StochTree::LeafNodeHomoskedasticVarianceModel leaf_variance_model = StochTree::LeafNodeHomoskedasticVarianceModel();
     StochTree::ClassicTreePrior tree_prior{0.95, 2.0, 10};
     
     // Run the sampler
     std::vector<StochTree::FeatureType> feature_types(p_covariates, StochTree::FeatureType::kNumeric);
-    xbart_ptr_->SampleModel<StochTree::GaussianHomoskedasticUnivariateRegressionModelWrapper, StochTree::ClassicTreePrior>(covariate_data_ptr, p_covariates, basis_data_ptr, p_basis, outcome_data_ptr, p_outcome, n, false, true, nu, lambda, model, tree_prior, variance_model, feature_types, cutpoint_grid_size);
+    xbart_ptr_->SampleModel<StochTree::GaussianHomoskedasticUnivariateRegressionModelWrapper, StochTree::ClassicTreePrior>(covariate_data_ptr, p_covariates, basis_data_ptr, p_basis, outcome_data_ptr, p_outcome, n, false, true, nu, lambda, a, b, model, tree_prior, variance_model, leaf_variance_model, feature_types, cutpoint_grid_size);
     
     // Unprotect pointers
     UNPROTECT(3);
