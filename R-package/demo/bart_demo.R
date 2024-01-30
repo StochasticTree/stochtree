@@ -3,7 +3,7 @@
 ################################################################################
 
 # Load stochtree
-library(stoch.tree)
+library(stochtree)
 
 # Set seed
 random_seed = 12
@@ -39,7 +39,9 @@ omegatrain <- omega[train_inds]
 omegatest <- omega[test_inds]
 
 # Sample from BART and evaluate its predictions on out of sample data
-stochtree_samples <- bart(ytrain, Xtrain, omegatrain, num_samples, num_burnin, num_trees, 0.5, 2, random_seed = random_seed)
+nu <- 0.5
+lambda <- 2.
+stochtree_samples <- bart(ytrain, Xtrain, omegatrain, num_samples, num_burnin, num_trees, nu, lambda, random_seed = random_seed)
 stochtree_predictions <- predict(stochtree_samples, Xtest, omegatest, num_samples)
 stochtree_avg_prediction <- rowMeans(stochtree_predictions)
 (stochtree_rmse <- sqrt(mean((stochtree_avg_prediction - ytest)^2)))

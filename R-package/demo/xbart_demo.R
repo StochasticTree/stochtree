@@ -5,6 +5,10 @@
 # Load stochtree
 library(stochtree)
 
+# Set seed
+random_seed = 12
+set.seed(random_seed)
+
 # Run a single iteration of the comparison and plot the results
 
 # Generate simulated data and split into training and prediction sets
