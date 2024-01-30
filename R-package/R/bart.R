@@ -14,16 +14,9 @@
 #' model_matrix <- cbind(y, X)
 #' param_list = list(label_column=0, num_trees=50, num_burnin=0, num_samples=20, min_samples_in_leaf=5)
 #' result <- bart(model_matrix, param_list)
-bart <- function(model_matrix, params = list()){
-    params_string <- stochtree.params2str(params = params)
-    y <- model_matrix[,params$label_column + 1]
-    # ybar <- mean(y)
-    # ysig <- sd(y)
-    # y_std <- (y - ybar)/ysig
-    # model_matrix[,params$label_column + 1] <- y_std
-    ptr <- bart_sample_cpp(model_matrix, params_string)
+bart <- function(y, X, omega, num_samples, num_burnin, num_trees, nu, lambda, random_seed = -1) {
+    ptr <- bart_sample_cpp(y, X, omega, num_samples, num_burnin, num_trees, nu, lambda, random_seed)
     result <- list(ptr=ptr)
-    # result <- list(ptr=ptr, ybar=ybar, ysig=ysig)
     class(result) <- "bart_samples"
     return(result)
 }
@@ -50,9 +43,7 @@ bart <- function(model_matrix, params = list()){
 #' predictions <- predict(bart_samples, model_matrix_test, param_list)
 #' for (i in 1:ncol(predictions)) {plot(y[test_inds], predictions[,i], ylab = paste0("yhat_",i)); abline(0,1); Sys.sleep(0.25)}
 #' plot(y[test_inds], rowMeans(predictions), ylab = "yhat_mean"); abline(0,1)
-predict.bart_samples <- function(bart, model_matrix, params = list()){
-    params_string <- stochtree.params2str(params = params)
-    # result <- bart_predict_cpp(bart$ptr, model_matrix, params_string)*bart$ysig + bart$ybar
-    result <- bart_predict_cpp(bart$ptr, model_matrix, params_string)
+predict.bart_samples <- function(bart, X, omega, num_samples){
+    result <- bart_predict_cpp(bart$ptr, X, omega, num_samples)
     return(result)
 }

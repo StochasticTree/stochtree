@@ -104,9 +104,9 @@ double GaussianHomoskedasticUnivariateRegressionOutcomeModel::NoSplitLogMarginal
 }
 
 double GaussianHomoskedasticUnivariateRegressionOutcomeModel::PosteriorParameterMean(GaussianHomoskedasticUnivariateRegressionSuffStat& suff_stat, GaussianHomoskedasticUnivariateRegressionGlobalParameters& global_params) {
-  double sum_y = suff_stat.sum_y;
+  double sum_yx = suff_stat.sum_yx;
   double sum_x_squared = suff_stat.sum_x_squared;
-  return ((global_params.tau*sum_y)/(global_params.sigma_sq + (global_params.tau*sum_x_squared)));
+  return ((global_params.tau*sum_yx)/(global_params.sigma_sq + (global_params.tau*sum_x_squared)));
 }
 
 double GaussianHomoskedasticUnivariateRegressionOutcomeModel::PosteriorParameterVariance(GaussianHomoskedasticUnivariateRegressionSuffStat& suff_stat, GaussianHomoskedasticUnivariateRegressionGlobalParameters& global_params) {

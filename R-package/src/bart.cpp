@@ -1,6 +1,5 @@
 #include <cpp11.hpp>
-#include <stochtree/config.h>
-#include <stochtree/interface.h>
+#include <stochtree/dispatcher.h>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -8,66 +7,66 @@
 using namespace cpp11;
 
 [[cpp11::register]]
-cpp11::external_pointer<StochTree::StochTreeInterface> bart_sample_cpp(cpp11::doubles_matrix<> model_matrix, cpp11::r_string param_string) {
-    // Extract dimensions of matrix X and pointer to its contiguous block of memory
-    int p = model_matrix.ncol();
-    int n = model_matrix.nrow();
-    double* data_ptr = REAL(PROTECT(model_matrix));
+cpp11::external_pointer<StochTree::MCMCDispatcher> bart_sample_cpp(cpp11::doubles_matrix<> y, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, 
+                                                                   int num_samples, int num_burnin, int num_trees, double nu, double lambda, int random_seed = -1) {
+    // Extract dimensions of covariate matrix X and pointer to its contiguous block of memory
+    int p_covariates = X.ncol();
+    int n = X.nrow();
+    double* covariate_data_ptr = REAL(PROTECT(X));
+    
+    // Extract dimensions of basis matrix omega and pointer to its contiguous block of memory
+    int p_basis = omega.ncol();
+    double* basis_data_ptr = REAL(PROTECT(omega));
+    
+    // Extract dimensions of outcome matrix y and pointer to its contiguous block of memory
+    int p_outcome = y.ncol();
+    double* outcome_data_ptr = REAL(PROTECT(y));
 
-    // Convert param_string to a char pointer
-    const char* parameters = CHAR(PROTECT(Rf_asChar(param_string)));
+    // Configure MCMCDispatcher object
+    std::unique_ptr<StochTree::MCMCDispatcher> bart_ptr_;
+    bart_ptr_.reset(new StochTree::MCMCDispatcher(num_samples, num_burnin, num_trees, random_seed));
+    
+    // Initialize model classes
+    StochTree::GaussianHomoskedasticUnivariateRegressionModelWrapper model = StochTree::GaussianHomoskedasticUnivariateRegressionModelWrapper();
+    model.SetGlobalParameter(1., StochTree::GlobalParamName::GlobalVariance);
+    model.SetGlobalParameter(1., StochTree::GlobalParamName::LeafPriorVariance);
+    StochTree::GlobalHomoskedasticVarianceModel variance_model = StochTree::GlobalHomoskedasticVarianceModel();
+    StochTree::ClassicTreePrior tree_prior{0.95, 2.0, 10};
 
-    // Generate a config object from the provided parameter string
-    auto param = StochTree::Config::Str2Map(parameters);
-    StochTree::Config config;
-    config.Set(param);
-    std::unordered_map<std::string, std::string> method_override = {{"method_type", "bart"}};
-    config.Set(method_override);
+    // Run the sampler
+    std::vector<StochTree::FeatureType> feature_types(p_covariates, StochTree::FeatureType::kNumeric);
+    bart_ptr_->SampleModel<StochTree::GaussianHomoskedasticUnivariateRegressionModelWrapper, StochTree::ClassicTreePrior>(covariate_data_ptr, p_covariates, basis_data_ptr, p_basis, outcome_data_ptr, p_outcome, n, false, true, nu, lambda, model, tree_prior, variance_model);
 
-    // Configure a BART object
-    std::unique_ptr<StochTree::StochTreeInterface> bart_ptr_;
-    bart_ptr_.reset(new StochTree::StochTreeInterface(config));
-    bart_ptr_->LoadTrainDataFromMemory(data_ptr, p, n, false);
+    // Unprotect pointers
+    UNPROTECT(3);
 
-    // Sample the BART model
-    bart_ptr_->SampleModel();
-
-    // Unprotect character pointers
-    UNPROTECT(2);
-
-    return cpp11::external_pointer<StochTree::StochTreeInterface>(bart_ptr_.release());
+    return cpp11::external_pointer<StochTree::MCMCDispatcher>(bart_ptr_.release());
 }
 
 [[cpp11::register]]
-cpp11::writable::doubles_matrix<> bart_predict_cpp(cpp11::external_pointer<StochTree::StochTreeInterface> bart_ptr, cpp11::doubles_matrix<> model_matrix, cpp11::r_string param_string) {
-    // Extract dimensions of matrix X and pointer to its contiguous block of memory
-    int p = model_matrix.ncol();
-    int n = model_matrix.nrow();
-    double* data_ptr = REAL(PROTECT(model_matrix));
-
-    // Convert param_string to a char pointer
-    const char* parameters = CHAR(PROTECT(Rf_asChar(param_string)));
-
-    // Generate a config object from the provided parameter string
-    auto param = StochTree::Config::Str2Map(parameters);
-    StochTree::Config config;
-    config.Set(param);
-
-    // Configure a BART object
-    bart_ptr->LoadPredictionDataFromMemory(data_ptr, p, n, false, config);
+cpp11::writable::doubles_matrix<> bart_predict_cpp(cpp11::external_pointer<StochTree::MCMCDispatcher> bart_ptr, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, int num_samples) {
+    // Extract dimensions of covariate matrix X and pointer to its contiguous block of memory
+    int p_covariate = X.ncol();
+    int n = X.nrow();
+    double* covariate_data_ptr = REAL(PROTECT(X));
+    
+    // Extract dimensions of basis matrix omega and pointer to its contiguous block of memory
+    int p_basis = omega.ncol();
+    double* basis_data_ptr = REAL(PROTECT(omega));
 
     // Predict from the sampled BART model
-    std::vector<double> output_raw = bart_ptr->PredictSamples();
+    // std::vector<double> output_raw = bart_ptr->PredictSamples();
+    std::vector<double> output_raw = bart_ptr->PredictSamples(covariate_data_ptr, p_covariate, basis_data_ptr, p_basis, n, false);
 
     // Convert result to a matrix
-    cpp11::writable::doubles_matrix<> output(n, config.num_samples);
+    cpp11::writable::doubles_matrix<> output(n, num_samples);
     for (size_t i = 0; i < n; i++) {
-        for (int j = 0; j < config.num_samples; j++) {
+        for (int j = 0; j < num_samples; j++) {
             output(i, j) = output_raw[n*j + i];
         }
     }
 
-    // Unprotect character pointers
+    // Unprotect pointers
     UNPROTECT(2);
 
     return output;

@@ -51,7 +51,6 @@ void AddSplitToModel(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Tree* 
 void RemoveSplitFromModel(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Tree* tree, UnsortedNodeSampleTracker* node_tracker, SampleNodeMapper* sample_node_mapper, int leaf_node, int left_node, int right_node, int feature_split, double split_value, int tree_num);
 
 /*! \brief Compute sufficient statistics relevant to a proposed numeric split */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void ComputeSplitSuffStats(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, UnsortedNodeSampleTracker* node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, int leaf_split, int feature_split, double split_value, ModelType& model, TreePriorType& tree_prior) {
   // Unpack shifted iterators to observations in a given node
@@ -66,9 +65,6 @@ void ComputeSplitSuffStats(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, 
   model.ResetNodeSuffStat(NodeIndicator::SplitNode);
   model.ResetNodeSuffStat(NodeIndicator::LeftNode);
   model.ResetNodeSuffStat(NodeIndicator::RightNode);
-  // node_suff_stat.ResetSuffStat(covariates, basis, outcome);
-  // left_suff_stat.ResetSuffStat(covariates, basis, outcome);
-  // right_suff_stat.ResetSuffStat(covariates, basis, outcome);
 
   // Iterate through every observation in the node
   double feature_value;
@@ -77,21 +73,17 @@ void ComputeSplitSuffStats(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, 
     feature_value = covariates(idx, feature_split);
     // Increment sufficient statistics for the split node, regardless of covariate value
     model.IncrementNodeSuffStat(covariates, basis, outcome, idx, NodeIndicator::SplitNode);
-    // node_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
     if (SplitTrueNumeric(feature_value, split_value)) {
       // Increment new left node sufficient statistic if split is true
       model.IncrementNodeSuffStat(covariates, basis, outcome, idx, NodeIndicator::LeftNode);
-      // left_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
     } else {
       // Increment new left node sufficient statistic if split is false
       model.IncrementNodeSuffStat(covariates, basis, outcome, idx, NodeIndicator::RightNode);
-      // right_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
     }
   }
 }
 
 /*! \brief Compute sufficient statistics relevant to a proposed categorical split */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void ComputeSplitSuffStats(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, UnsortedNodeSampleTracker* node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, int leaf_split, int feature_split, std::vector<std::uint32_t>& split_categories, ModelType& model, TreePriorType& tree_prior) {
   // Unpack shifted iterators to observations in a given node
@@ -106,9 +98,6 @@ void ComputeSplitSuffStats(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, 
   model.ResetNodeSuffStat(NodeIndicator::SplitNode);
   model.ResetNodeSuffStat(NodeIndicator::LeftNode);
   model.ResetNodeSuffStat(NodeIndicator::RightNode);
-  // node_suff_stat.ResetSuffStat(covariates, basis, outcome);
-  // left_suff_stat.ResetSuffStat(covariates, basis, outcome);
-  // right_suff_stat.ResetSuffStat(covariates, basis, outcome);
 
   // Iterate through every observation in the node
   double feature_value;
@@ -117,21 +106,17 @@ void ComputeSplitSuffStats(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, 
     feature_value = covariates(idx, feature_split);
     // Increment sufficient statistics for the split node, regardless of covariate value
     model.IncrementNodeSuffStat(covariates, basis, outcome, idx, NodeIndicator::SplitNode);
-    // node_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
     if (SplitTrueCategorical(feature_value, split_categories)) {
       // Increment new left node sufficient statistic if split is true
       model.IncrementNodeSuffStat(covariates, basis, outcome, idx, NodeIndicator::LeftNode);
-      // left_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
     } else {
       // Increment new left node sufficient statistic if split is false
       model.IncrementNodeSuffStat(covariates, basis, outcome, idx, NodeIndicator::RightNode);
-      // right_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
     }
   }
 }
 
 /*! \brief Compute sufficient statistics for a given node, assuming a non-feature-specific node tracker */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void ComputeNodeSuffStats(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, UnsortedNodeSampleTracker* node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, int leaf_split, ModelType& model, TreePriorType& tree_prior, NodeIndicator node_indicator) {
   // Unpack shifted iterators to observations in a given node
@@ -144,36 +129,30 @@ void ComputeNodeSuffStats(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, E
 
   // Reset sufficient statistic for the "SplitNode"
   model.ResetNodeSuffStat(node_indicator);
-  // node_suff_stat.ResetSuffStat(covariates, basis, outcome);
  
   // Iterate through every observation in the node
   for (auto i = node_begin_iter; i != node_end_iter; i++) {
     idx = *i;
     // Increment sufficient statistic
     model.IncrementNodeSuffStat(covariates, basis, outcome, idx, node_indicator);
-    // node_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
   }
 }
 
 /*! \brief Compute sufficient statistics for a given node, assuming a feature-pre-sorted node tracker */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void ComputeNodeSuffStats(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, SampleNodeMapper* sample_node_mapper, data_size_t node_begin, data_size_t node_end, ModelType& model, TreePriorType& tree_prior, NodeIndicator node_indicator) {
   // Reset sufficient statistic
   model.ResetNodeSuffStat(node_indicator);
-  // node_suff_stat.ResetSuffStat(covariates, basis, outcome);
 
   // Compute the total sufficient statistics for a node
   data_size_t sort_idx;
   for (data_size_t i = node_begin; i < node_end; i++) {
     sort_idx = sorted_node_sample_tracker->SortIndex(i, 0);
     model.IncrementNodeSuffStat(covariates, basis, outcome, sort_idx, node_indicator);
-    // node_suff_stat.IncrementSuffStat(covariates, basis, outcome, sort_idx);
   }
 }
 
 /*! \brief Perform one MCMC grow step */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void GrowMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, UnsortedNodeSampleTracker* node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, std::mt19937& gen, ModelType& model, TreePriorType& tree_prior, double prob_grow_old) {
   // Extract dataset information
@@ -200,7 +179,6 @@ void GrowMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matrix
   double var_min, var_max;
   VarSplitRange(covariates, tree, node_sample_tracker, leaf_chosen, var_chosen, var_min, var_max, tree_num);
   if (var_max <= var_min) {
-    // accept = true;
     return;
   }
   // Split based on var_min to var_max in a given node
@@ -208,16 +186,11 @@ void GrowMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matrix
   double split_point_chosen = split_point_dist(gen);
 
   // Compute sufficient statistics of the existing node and the two new nodes
-  // SuffStatType node_suff_stat;
-  // SuffStatType left_suff_stat;
-  // SuffStatType right_suff_stat;
   ComputeSplitSuffStats<ModelType, TreePriorType>(covariates, basis, outcome, tree, node_sample_tracker, sample_node_mapper, tree_num, leaf_chosen, var_chosen, split_point_chosen, model, tree_prior);
 
   // Compute the marginal likelihood
   double split_log_marginal_likelihood = model.SplitLogMarginalLikelihood();
   double no_split_log_marginal_likelihood = model.NoSplitLogMarginalLikelihood();
-  // double split_log_marginal_likelihood = outcome_model.SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_param);
-  // double no_split_log_marginal_likelihood = outcome_model.NoSplitLogMarginalLikelihood(node_suff_stat, global_param);
   
   // Determine probability of growing the split node and its two new left and right nodes
   double pg = tree_prior.alpha * std::pow(1+leaf_depth, -tree_prior.beta);
@@ -228,8 +201,6 @@ void GrowMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matrix
   // in order to compute the probability of choosing "prune" from the new tree
   // (which is always possible by construction)
   bool non_constant = NodesNonConstantAfterSplit(covariates, tree, node_sample_tracker, leaf_chosen, var_chosen, split_point_chosen, tree_num);
-  // bool min_samples_left_check = left_suff_stat.SampleGreaterThan(2*tree_prior.min_samples_in_leaf);
-  // bool min_samples_right_check = right_suff_stat.SampleGreaterThan(2*tree_prior.min_samples_in_leaf);
   bool min_samples_left_check = model.NodeSampleGreaterThan(NodeIndicator::LeftNode, 2*tree_prior.min_samples_in_leaf);
   bool min_samples_right_check = model.NodeSampleGreaterThan(NodeIndicator::RightNode, 2*tree_prior.min_samples_in_leaf);
   double prob_prune_new;
@@ -267,7 +238,6 @@ void GrowMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matrix
 }
 
 /*! \brief Perform one MCMC prune step */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void PruneMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, UnsortedNodeSampleTracker* node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, std::mt19937& gen, ModelType& model, TreePriorType& tree_prior) {
   // Choose a "leaf parent" node at random
@@ -285,17 +255,11 @@ void PruneMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matri
   double split_value = tree->Threshold(leaf_parent_chosen);
 
   // Compute sufficient statistics for the leaf parent and its left and right nodes
-  // SuffStatType node_suff_stat, left_suff_stat, right_suff_stat;
-  // ComputeNodeSuffStats<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, node_sample_tracker, sample_node_mapper, tree_num, leaf_parent_chosen, node_suff_stat, outcome_model, global_param, tree_prior);
-  // ComputeNodeSuffStats<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, node_sample_tracker, sample_node_mapper, tree_num, left_node, left_suff_stat, outcome_model, global_param, tree_prior);
-  // ComputeNodeSuffStats<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, node_sample_tracker, sample_node_mapper, tree_num, right_node, right_suff_stat, outcome_model, global_param, tree_prior);
   ComputeNodeSuffStats<ModelType, TreePriorType>(covariates, basis, outcome, tree, node_sample_tracker, sample_node_mapper, tree_num, leaf_parent_chosen, model, tree_prior, NodeIndicator::SplitNode);
   ComputeNodeSuffStats<ModelType, TreePriorType>(covariates, basis, outcome, tree, node_sample_tracker, sample_node_mapper, tree_num, left_node, model, tree_prior, NodeIndicator::LeftNode);
   ComputeNodeSuffStats<ModelType, TreePriorType>(covariates, basis, outcome, tree, node_sample_tracker, sample_node_mapper, tree_num, right_node, model, tree_prior, NodeIndicator::RightNode);
 
   // Compute the marginal likelihoods
-  // double split_log_marginal_likelihood = outcome_model.SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_param);
-  // double no_split_log_marginal_likelihood = outcome_model.NoSplitLogMarginalLikelihood(node_suff_stat, global_param);
   double split_log_marginal_likelihood = model.SplitLogMarginalLikelihood();
   double no_split_log_marginal_likelihood = model.NoSplitLogMarginalLikelihood();
   
@@ -353,7 +317,6 @@ void PruneMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matri
 }
 
 /*! \brief Perform one MCMC grow-prune step */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void BirthDeathMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, UnsortedNodeSampleTracker* node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, std::mt19937& gen, ModelType& model, TreePriorType& tree_prior) {
   // Determine whether it is possible to grow any of the leaves
@@ -402,7 +365,6 @@ void BirthDeathMCMC(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::
 
 
 /*! \brief Accumulate a numeric split rule to a left node sufficient statistic */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void AccumulateSplitRule(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, 
                          data_size_t node_begin, data_size_t node_end, int feature_split, double split_value, bool is_left, ModelType& model, TreePriorType& tree_prior) {
@@ -419,22 +381,18 @@ void AccumulateSplitRule(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Ei
     // (a) the accumulated sufficient statistic is for a left node and the split rule is true, or
     // (b) the accumulated sufficient statistic is for a right node and the split rule is false
     if (split_true && is_left){
-      // suff_stat.IncrementSuffStat(covariates, basis, outcome, i);
       model.IncrementNodeSuffStat(covariates, basis, outcome, i, NodeIndicator::LeftNode);
     } else if (!split_true && !is_left) {
-      // suff_stat.IncrementSuffStat(covariates, basis, outcome, i);
       model.IncrementNodeSuffStat(covariates, basis, outcome, i, NodeIndicator::LeftNode);
     }
   }
 }
 
 /*! \brief Accumulate a categorical split rule to a left node sufficient statistic */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void AccumulateSplitRule(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, 
                          data_size_t node_begin, data_size_t node_end, int feature_split, std::vector<std::uint32_t> const& categorical_indices, bool is_left, ModelType& model, TreePriorType& tree_prior) {
   model.ResetNodeSuffStat(NodeIndicator::LeftNode);
-  // suff_stat.ResetSuffStat(covariates, basis, outcome);
   double feature_value;
   data_size_t sort_idx;
   bool split_true;
@@ -446,27 +404,20 @@ void AccumulateSplitRule(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Ei
     // (a) the accumulated sufficient statistic is for a left node and the split rule is true, or
     // (b) the accumulated sufficient statistic is for a right node and the split rule is false
     if (split_true && is_left){
-      // suff_stat.IncrementSuffStat(covariates, basis, outcome, i);
       model.IncrementNodeSuffStat(covariates, basis, outcome, i, NodeIndicator::LeftNode);
     } else if (!split_true && !is_left) {
-      // suff_stat.IncrementSuffStat(covariates, basis, outcome, i);
       model.IncrementNodeSuffStat(covariates, basis, outcome, i, NodeIndicator::LeftNode);
     }
   }
 }
 
 /*! \brief Add a split to a model in the GFR algorithm */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void AddSplitToModel(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, 
                      FeatureType feature_type, node_t leaf_node, data_size_t node_begin, data_size_t node_end, int feature_split, double split_value, std::deque<node_t>& split_queue, 
                      SampleNodeMapper* sample_node_mapper, int tree_num, ModelType& model, TreePriorType& tree_prior, 
                      CutpointGridContainer& cutpoint_grid_container, std::unordered_map<int, std::pair<data_size_t, data_size_t>>& node_index_map) {
-    // Compute the sufficient statistics for the new left and right node as well as the parent node being split
-  // SuffStatType node_suff_stat;
-  // SuffStatType left_suff_stat;
-  // SuffStatType right_suff_stat;
-  // left_suff_stat.ResetSuffStat(covariates, basis, outcome);
+  // Compute the sufficient statistics for the new left and right node as well as the parent node being split
   model.ResetNodeSuffStat(NodeIndicator::SplitNode);
   // ComputeNodeSuffStats<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, node_begin, node_end, node_suff_stat, outcome_model, global_param, tree_prior);
   ComputeNodeSuffStats<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, node_begin, node_end, model, tree_prior, NodeIndicator::SplitNode);
@@ -490,12 +441,9 @@ void AddSplitToModel(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen:
   if (feature_type == FeatureType::kUnorderedCategorical) {
     // Determine the number of categories available in a categorical split and the set of categories that route observations to the left node after split
     int num_categories;
-    // std::vector<std::uint32_t> categories = cutpoint_grid_container->CutpointVector(static_cast<std::uint32_t>(split_value), feature_split);
     std::vector<std::uint32_t> categories = cutpoint_grid_container.CutpointVector(static_cast<std::uint32_t>(split_value), feature_split);
 
     // Accumulate split rule sufficient statistics
-    // AccumulateSplitRule<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, node_begin, node_end, feature_split, categories, true, outcome_model, global_param, tree_prior, left_suff_stat);
-    // right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
     AccumulateSplitRule<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, node_begin, node_end, feature_split, categories, true, model, tree_prior);
     model.SubtractNodeSuffStat(NodeIndicator::RightNode, NodeIndicator::SplitNode, NodeIndicator::LeftNode);
 
@@ -513,8 +461,6 @@ void AddSplitToModel(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen:
     split_value_numeric = cutpoint_grid_container.CutpointValue(static_cast<std::uint32_t>(split_value), feature_split);
 
     // Accumulate split rule sufficient statistics
-    // AccumulateSplitRule<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, node_begin, node_end, feature_split, split_value_numeric, true, outcome_model, global_param, tree_prior, left_suff_stat);
-    // right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
     AccumulateSplitRule<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, node_begin, node_end, feature_split, split_value_numeric, true, model, tree_prior);
     model.SubtractNodeSuffStat(NodeIndicator::RightNode, NodeIndicator::SplitNode, NodeIndicator::LeftNode);
     
@@ -527,12 +473,9 @@ void AddSplitToModel(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen:
     PartitionLeaf(covariates, sorted_node_sample_tracker, leaf_node, feature_split, split_value_numeric);
   } else if (feature_type == FeatureType::kNumeric) {
     // Convert the bin split to an actual split value
-    // split_value_numeric = cutpoint_grid_container->CutpointValue(static_cast<std::uint32_t>(split_value), feature_split);
     split_value_numeric = cutpoint_grid_container.CutpointValue(static_cast<std::uint32_t>(split_value), feature_split);
 
     // Accumulate split rule sufficient statistics
-    // AccumulateSplitRule<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, node_begin, node_end, feature_split, split_value_numeric, true, outcome_model, global_param, tree_prior, left_suff_stat);
-    // right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
     AccumulateSplitRule<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, node_begin, node_end, feature_split, split_value_numeric, true, model, tree_prior);
     model.SubtractNodeSuffStat(NodeIndicator::RightNode, NodeIndicator::SplitNode, NodeIndicator::LeftNode);
     
@@ -560,14 +503,11 @@ void AddSplitToModel(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen:
 }
 
 /*! \brief Evaluate potential splits for each variable */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void Cutpoints(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, std::mt19937& gen, ModelType& model, TreePriorType& tree_prior, 
                std::vector<FeatureType>& feature_types, data_size_t node_begin, data_size_t node_end, std::deque<node_t>& split_queue, std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_feature, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, 
                data_size_t& valid_cutpoint_count, int cutpoint_grid_size, int leaf_node, CutpointGridContainer& cutpoint_grid_container) {
   // Compute sufficient statistics for the current node
-  // SuffStatType node_suff_stat, left_suff_stat, right_suff_stat;
-  // ComputeNodeSuffStats<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, node_begin, node_end, node_suff_stat, outcome_model, global_param, tree_prior);
   ComputeNodeSuffStats<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, node_begin, node_end, model, tree_prior, NodeIndicator::SplitNode);
 
   // Clear vectors
@@ -577,7 +517,6 @@ void Cutpoints(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matri
   cutpoint_feature_types.clear();
 
   // Reset cutpoint grid container
-  // std::unique_ptr<CutpointGridContainer> cutpoint_grid_container = std::make_unique<CutpointGridContainer>(covariates, outcome, cutpoint_grid_size);
   cutpoint_grid_container.Reset(covariates, outcome, cutpoint_grid_size);
 
   // Compute sufficient statistics for each possible split
@@ -595,15 +534,11 @@ void Cutpoints(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matri
   for (int j = 0; j < covariates.cols(); j++) {
 
     // Enumerate cutpoint strides
-    // cutpoint_grid_container->CalculateStrides(covariates, outcome, sorted_node_sample_tracker, leaf_node, node_begin, node_end, j, feature_types);
     cutpoint_grid_container.CalculateStrides(covariates, outcome, sorted_node_sample_tracker, leaf_node, node_begin, node_end, j, feature_types);
 
     // Iterate through possible cutpoints
-    // int32_t num_feature_cutpoints = cutpoint_grid_container->NumCutpoints(j);
     int32_t num_feature_cutpoints = cutpoint_grid_container.NumCutpoints(j);
     feature_type = feature_types[j];
-    // left_suff_stat.ResetSuffStat(covariates, basis, outcome);
-    // right_suff_stat.ResetSuffStat(covariates, basis, outcome);
     model.ResetNodeSuffStat(NodeIndicator::LeftNode);
     model.ResetNodeSuffStat(NodeIndicator::RightNode);
     for (data_size_t cutpoint_idx = 0; cutpoint_idx < (num_feature_cutpoints - 1); cutpoint_idx++) {
@@ -612,20 +547,14 @@ void Cutpoints(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matri
       current_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx, j);
       current_bin_size = cutpoint_grid_container.BinLength(cutpoint_idx, j);
       next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx + 1, j);
-      // current_bin_begin = cutpoint_grid_container->BinStartIndex(cutpoint_idx, j);
-      // current_bin_size = cutpoint_grid_container->BinLength(cutpoint_idx, j);
-      // next_bin_begin = cutpoint_grid_container->BinStartIndex(cutpoint_idx + 1, j);
 
       // Accumulate sufficient statistics
       for (data_size_t k = 0; k < current_bin_size; k++) {
         row_iter_idx = current_bin_begin + k;
         feature_sort_idx = sorted_node_sample_tracker->SortIndex(row_iter_idx, j);
-        // left_suff_stat.IncrementSuffStat(covariates, basis, outcome, feature_sort_idx);
         model.IncrementNodeSuffStat(covariates, basis, outcome, feature_sort_idx, NodeIndicator::LeftNode);
       }
 
-      // AccumulateRowSuffStat(dataset, left_suff_stat_, node_row_iter, j, node_row_iter);
-      // right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
       model.SubtractNodeSuffStat(NodeIndicator::RightNode, NodeIndicator::SplitNode, NodeIndicator::LeftNode);
 
       // Store the bin index as the "cutpoint value" - we can use this to query the actual split 
@@ -633,8 +562,6 @@ void Cutpoints(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matri
       cutoff_value = cutpoint_idx;
 
       // Only include cutpoint for consideration if it defines a valid split in the training data
-      // valid_split = (left_suff_stat.SampleGreaterThan(tree_prior.min_samples_in_leaf) && 
-      //                right_suff_stat.SampleGreaterThan(tree_prior.min_samples_in_leaf));
       valid_split = (model.NodeSampleGreaterThan(NodeIndicator::LeftNode, tree_prior.min_samples_in_leaf) && 
                      model.NodeSampleGreaterThan(NodeIndicator::RightNode, tree_prior.min_samples_in_leaf));
       if (valid_split) {
@@ -644,7 +571,6 @@ void Cutpoints(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matri
         cutpoint_feature.push_back(j);
         cutpoint_values.push_back(cutoff_value);
         // Add the log marginal likelihood of the split to the split eval vector 
-        // log_split_eval = outcome_model.SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_param);
         log_split_eval = model.SplitLogMarginalLikelihood();
         log_cutpoint_evaluations.push_back(log_split_eval);
       }
@@ -656,7 +582,6 @@ void Cutpoints(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matri
   cutpoint_feature.push_back(-1);
   cutpoint_values.push_back(std::numeric_limits<double>::max());
   cutpoint_feature_types.push_back(FeatureType::kNumeric);
-  // log_no_split_eval = outcome_model.NoSplitLogMarginalLikelihood(node_suff_stat, global_param);
   log_no_split_eval = model.NoSplitLogMarginalLikelihood();
   
   // Compute an adjustment to reflect the no split prior probability and the number of cutpoints
@@ -675,7 +600,6 @@ void Cutpoints(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::Matri
 }
 
 /*! \brief Sample a split (or no-split) rule at a given stage of the grow-from-root algorithm */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void SampleSplitRule(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, std::mt19937& gen, ModelType& model, TreePriorType& tree_prior, std::vector<FeatureType>& feature_types, data_size_t node_begin, data_size_t node_end, std::deque<node_t>& split_queue, int cutpoint_grid_size, int leaf_node, std::unordered_map<int, std::pair<data_size_t, data_size_t>>& node_index_map) {
   std::vector<double> log_cutpoint_evaluations;
@@ -683,9 +607,7 @@ void SampleSplitRule(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen:
   std::vector<double> cutpoint_values;
   std::vector<FeatureType> cutpoint_feature_types;
   StochTree::data_size_t valid_cutpoint_count;
-  // std::unique_ptr<CutpointGridContainer> cutpoint_grid_container;
   CutpointGridContainer cutpoint_grid_container(covariates, outcome, cutpoint_grid_size);
-  // Cutpoints<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, tree_num, gen, outcome_model, global_param, tree_prior, feature_types, node_begin, node_end, split_queue, log_cutpoint_evaluations, cutpoint_features, cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_size, leaf_node, cutpoint_grid_container);
   Cutpoints<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, tree_num, gen, model, tree_prior, feature_types, node_begin, node_end, split_queue, log_cutpoint_evaluations, cutpoint_features, cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_size, leaf_node, cutpoint_grid_container);
   
   // Convert log marginal likelihood to marginal likelihood, normalizing by the maximum log-likelihood
@@ -707,15 +629,12 @@ void SampleSplitRule(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen:
     FeatureType feature_type = cutpoint_feature_types[split_chosen];
     double split_value = cutpoint_values[split_chosen];
     // Perform all of the relevant "split" operations in the model, tree and training dataset
-    // AddSplitToModel<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, feature_type, leaf_node, node_begin, node_end, 
-    //                                                                                 feature_split, split_value, split_queue, sample_node_mapper, tree_num, outcome_model, global_param, tree_prior, cutpoint_grid_container, node_index_map);
     AddSplitToModel<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, feature_type, leaf_node, node_begin, node_end, 
                                               feature_split, split_value, split_queue, sample_node_mapper, tree_num, model, tree_prior, cutpoint_grid_container, node_index_map);
   }
 }
 
 /*! \brief Perform one stochastic grow-from-root step */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void TreeGrowFromRoot(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, std::mt19937& gen, ModelType& model, TreePriorType& tree_prior, std::vector<FeatureType>& feature_types, int cutpoint_grid_size) {
   int root_id = Tree::kRoot;
@@ -740,61 +659,44 @@ void TreeGrowFromRoot(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen
     curr_node_begin = begin_end.first;
     curr_node_end = begin_end.second;
     // Draw a split rule at random
-    // SampleSplitRule<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, tree_num, gen, outcome_model, global_param, tree_prior, feature_types, curr_node_begin, curr_node_end, split_queue_, cutpoint_grid_size, curr_node_id, node_index_map_);
     SampleSplitRule<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, tree_num, gen, model, tree_prior, feature_types, curr_node_begin, curr_node_end, split_queue_, cutpoint_grid_size, curr_node_id, node_index_map_);
   }
 }
 
 /*! \brief Sample leaf node parameters, assuming an unsorted node tracker (i.e. for birth-death style algorithms) */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void SampleLeafParameters(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, UnsortedNodeSampleTracker* node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, std::mt19937& gen, ModelType& model, TreePriorType& tree_prior) {
-  // Vector of leaf indices for tree
   std::vector<int> tree_leaves = tree->GetLeaves();
-  // // Node sufficient statistic
-  // SuffStatType node_suff_stat;
-  
   int basis_dim = basis.cols();
   data_size_t node_begin, node_end;
 
   for (int i = 0; i < tree_leaves.size(); i++) {
     // Compute node sufficient statistics
-    // node_suff_stat.ResetSuffStat(covariates, basis, outcome);
     model.ResetNodeSuffStat(NodeIndicator::SplitNode);
     node_begin = node_sample_tracker->NodeBegin(tree_num, tree_leaves[i]);
     node_end = node_sample_tracker->NodeEnd(tree_num, tree_leaves[i]);
     ComputeNodeSuffStats<ModelType, TreePriorType>(covariates, basis, outcome, tree, node_sample_tracker, sample_node_mapper, tree_num, tree_leaves[i], model, tree_prior, NodeIndicator::SplitNode);
 
     // Sample leaf value / vector and place it directly in the tree leaf
-    // outcome_model.SampleLeafParameters(node_suff_stat, global_param, gen, tree_leaves[i], tree);
     model.SampleLeafParameters(gen, tree_leaves[i], tree);
   }
 }
 
 /*! \brief Sample leaf node parameters, assuming a pre-sorted feature-specific node tracker (i.e. for recursive grow-from-root style algorithms) */
-// template <typename SuffStatType, typename GlobalParamType, typename OutcomeModelType, typename TreePriorType>
 template <typename ModelType, typename TreePriorType>
 void SampleLeafParameters(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Tree* tree, SortedNodeSampleTracker* sorted_node_sample_tracker, SampleNodeMapper* sample_node_mapper, int tree_num, std::mt19937& gen, ModelType& model, TreePriorType& tree_prior) {
-  // Vector of leaf indices for tree
   std::vector<int> tree_leaves = tree->GetLeaves();
-  // // Node sufficient statistic
-  // SuffStatType node_suff_stat;
-  
   int basis_dim = basis.cols();
   data_size_t node_begin, node_end;
 
   for (int i = 0; i < tree_leaves.size(); i++) {
     // Compute node sufficient statistics
-    // node_suff_stat.ResetSuffStat(covariates, basis, outcome);
     model.ResetNodeSuffStat(NodeIndicator::SplitNode);
     node_begin = sorted_node_sample_tracker->NodeBegin(tree_leaves[i], 0);
     node_end = sorted_node_sample_tracker->NodeEnd(tree_leaves[i], 0);
-    // node_begin = sorted_node_sample_tracker->NodeBegin(tree_num, tree_leaves[i]);
-    // node_end = node_sample_tracker->NodeEnd(tree_num, tree_leaves[i]);
-    ComputeNodeSuffStats<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, tree_num, tree_leaves[i], model, tree_prior, NodeIndicator::SplitNode);
+    ComputeNodeSuffStats<ModelType, TreePriorType>(covariates, basis, outcome, tree, sorted_node_sample_tracker, sample_node_mapper, node_begin, node_end, model, tree_prior, NodeIndicator::SplitNode);
 
     // Sample leaf value / vector and place it directly in the tree leaf
-    // outcome_model.SampleLeafParameters(node_suff_stat, global_param, gen, tree_leaves[i], tree);
     model.SampleLeafParameters(gen, tree_leaves[i], tree);
   }
 }

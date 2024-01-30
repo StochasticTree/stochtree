@@ -95,8 +95,8 @@ void MCMCDispatcher::LoadData(double* data_ptr, int num_row, int num_col, bool i
 
 std::vector<double> MCMCDispatcher::PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major) {
   // Load the data
-  LoadData(covariate_data_ptr, num_covariate, num_row, is_row_major, prediction_covariates_);
-  LoadData(basis_data_ptr, num_basis, num_row, is_row_major, prediction_basis_);
+  LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, prediction_covariates_);
+  LoadData(basis_data_ptr, num_row, num_basis, is_row_major, prediction_basis_);
   CHECK(PredictionDataConsistent());
   
   // Predict outcomes using supplied data and sampled ensembles
@@ -205,8 +205,8 @@ void GFRDispatcher::LoadData(double* data_ptr, int num_row, int num_col, bool is
 
 std::vector<double> GFRDispatcher::PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major) {
   // Load the data
-  LoadData(covariate_data_ptr, num_covariate, num_row, is_row_major, prediction_covariates_);
-  LoadData(basis_data_ptr, num_basis, num_row, is_row_major, prediction_basis_);
+  LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, prediction_covariates_);
+  LoadData(basis_data_ptr, num_row, num_basis, is_row_major, prediction_basis_);
   CHECK(PredictionDataConsistent());
   
   // Predict outcomes using supplied data and sampled ensembles

@@ -70,8 +70,9 @@ class MCMCDispatcher {
     if (!has_basis_) {
       initial_leaf_value = mean_outcome / num_trees_;
     } else if (has_basis_ && (num_basis_ == 1)) {
-      initial_leaf_value = ((basis_.array() * residual_.array()).sum() / (basis_.array() * basis_.array()).sum()) / num_trees_;
+      initial_leaf_value = (mean_outcome / num_trees_) / (basis_.array().sum());
     } else if (has_basis_ && (num_basis_ > 1)) {
+      // TODO: find a heuristic initialization that yields mean_outcome as a prediction
       Eigen::MatrixXd leaf_reg_solution = (basis_.transpose() * basis_).inverse() * basis_.transpose() * residual_;
       initial_leaf_values.resize(num_basis_);
       for (int i = 0; i < num_basis_; i++) {
@@ -84,7 +85,6 @@ class MCMCDispatcher {
 
     // Reset training data so that features are pre-sorted based on the entire dataset
     std::unique_ptr<UnsortedNodeSampleTracker> unsorted_node_sample_tracker = std::make_unique<UnsortedNodeSampleTracker>(num_observations_, num_trees_);
-    // unsorted_node_sample_tracker_.reset(new UnsortedNodeSampleTracker(num_observations_, num_trees_));
 
     // Placeholder declaration for unpacked prediction value
     double prediction_val;
@@ -154,13 +154,11 @@ class MCMCDispatcher {
             prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j), basis_, k);
           }
           // TODO: update to handle vector-valued residuals
-          // train_dataset_->ResidualAdd(k, 0, prediction_val);
           residual_(k, 0) += prediction_val;
         }
 
         // If model_iter is different from prev_model_iter, copy tree j from prev_model_iter to model_iter
         if (model_iter > prev_model_iter) {
-          // (model_draws_[model_iter]->GetEnsemble())->CopyTree(j, tree);
           (model_draws_[model_iter]->GetEnsemble())->ResetTree(j);
           (model_draws_[model_iter]->GetEnsemble())->CloneFromExistingTree(j, tree);
         }
@@ -170,7 +168,6 @@ class MCMCDispatcher {
         
         // Conduct one MCMC step of the grow/prune process
         BirthDeathMCMC<ModelType, TreePriorType>(covariates_, basis_, residual_, tree, unsorted_node_sample_tracker.get(), sample_node_mapper.get(), j, gen_, model, tree_prior);
-        // BirthDeathMCMC<SuffStatType, GlobalParamType, OutcomeModelType, TreePriorType>(covariates_, basis_, residual_, tree, unsorted_node_sample_tracker, sample_node_mapper, j, gen_, outcome_model, global_param, tree_prior);
 
         // Sample leaf node parameters
         SampleLeafParameters<ModelType, TreePriorType>(covariates_, basis_, residual_, tree, unsorted_node_sample_tracker.get(), sample_node_mapper.get(), j, gen_, model, tree_prior);
@@ -188,7 +185,6 @@ class MCMCDispatcher {
       }
 
       // Sample sigma^2
-      // global_param.sigma_sq = variance_model.SampleVarianceParameter(residual_, nu, lambda, gen_);
       model.SetGlobalParameter(variance_model.SampleVarianceParameter(residual_, nu, lambda, gen_), GlobalParamName::GlobalVariance);
       
       // Determine whether to advance the model_iter variable
@@ -285,8 +281,9 @@ class GFRDispatcher {
     if (!has_basis_) {
       initial_leaf_value = mean_outcome / num_trees_;
     } else if (has_basis_ && (num_basis_ == 1)) {
-      initial_leaf_value = ((basis_.array() * residual_.array()).sum() / (basis_.array() * basis_.array()).sum()) / num_trees_;
+      initial_leaf_value = (mean_outcome / num_trees_) / (basis_.array().sum());
     } else if (has_basis_ && (num_basis_ > 1)) {
+      // TODO: find a heuristic initialization that yields mean_outcome as a prediction
       Eigen::MatrixXd leaf_reg_solution = (basis_.transpose() * basis_).inverse() * basis_.transpose() * residual_;
       initial_leaf_values.resize(num_basis_);
       for (int i = 0; i < num_basis_; i++) {
@@ -370,12 +367,10 @@ class GFRDispatcher {
             prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j), basis_, k);
           }
           // TODO: update to handle vector-valued residuals
-          // train_dataset_->ResidualAdd(k, 0, prediction_val);
           residual_(k, 0) += prediction_val;
         }
 
         // Reset training data so that features are pre-sorted based on the entire dataset
-        // sorted_node_sample_tracker_.reset(new SortedNodeSampleTracker(presort_container.get(), covariates_, feature_types));
         sorted_node_sample_tracker.reset(new SortedNodeSampleTracker(presort_container.get(), covariates_, feature_types));
 
         // Reset tree j to a constant root node
@@ -389,7 +384,7 @@ class GFRDispatcher {
         
         // Run the GFR algorithm
         TreeGrowFromRoot<ModelType, TreePriorType>(covariates_, basis_, residual_, tree, sorted_node_sample_tracker.get(), sample_node_mapper.get(), j, gen_, model, tree_prior, feature_types, cutpoint_grid_size);
-
+        
         // Sample leaf node parameters
         SampleLeafParameters<ModelType, TreePriorType>(covariates_, basis_, residual_, tree, sorted_node_sample_tracker.get(), sample_node_mapper.get(), j, gen_, model, tree_prior);
         
@@ -406,7 +401,6 @@ class GFRDispatcher {
       }
 
       // Sample sigma^2
-      // global_param.sigma_sq = variance_model.SampleVarianceParameter(residual_, nu, lambda, gen_);
       model.SetGlobalParameter(variance_model.SampleVarianceParameter(residual_, nu, lambda, gen_), GlobalParamName::GlobalVariance);
       // TODO: figure out storage container for other global parameters
       

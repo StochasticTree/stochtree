@@ -14,15 +14,9 @@
 #' model_matrix <- cbind(y, X)
 #' param_list = list(label_column=0, num_trees=50, num_burnin=0, num_samples=20, min_samples_in_leaf=5)
 #' result <- xbart(model_matrix, param_list)
-xbart <- function(model_matrix, params = list()){
-    params_string <- stochtree.params2str(params = params)
-    y <- model_matrix[,params$label_column + 1]
-    # ybar <- mean(y)
-    # ysig <- sd(y)
-    # y_std <- (y - ybar)/ysig
-    ptr <- xbart_sample_cpp(model_matrix, params_string)
+xbart <- function(y, X, omega, num_samples, num_burnin, num_trees, nu, lambda, cutpoint_grid_size, random_seed = -1){
+    ptr <- xbart_sample_cpp(y, X, omega, num_samples, num_burnin, num_trees, nu, lambda, cutpoint_grid_size, random_seed)
     result <- list(ptr=ptr)
-    # result <- list(ptr=ptr, ybar=ybar, ysig=ysig)
     class(result) <- "xbart_samples"
     return(result)
 }
@@ -49,9 +43,7 @@ xbart <- function(model_matrix, params = list()){
 #' predictions <- predict(xbart_samples, model_matrix_test, param_list)
 #' for (i in 1:ncol(predictions)) {plot(y[test_inds], predictions[,i], ylab = paste0("yhat_",i)); abline(0,1); Sys.sleep(0.25)}
 #' plot(y[test_inds], rowMeans(predictions), ylab = "yhat_mean"); abline(0,1)
-predict.xbart_samples <- function(xbart, model_matrix, params = list()){
-    params_string <- stochtree.params2str(params = params)
-    # result <- xbart_predict_cpp(xbart$ptr, model_matrix, params_string)*xbart$ysig + xbart$ybar
-    result <- xbart_predict_cpp(xbart$ptr, model_matrix, params_string)
+predict.xbart_samples <- function(xbart, X, omega, num_samples){
+    result <- xbart_predict_cpp(xbart$ptr, X, omega, num_samples)
     return(result)
 }
