@@ -23,11 +23,11 @@ X <- matrix(runif(n*p), ncol=p)
 omega <- runif(n)
 betas <- c(-5, -10, 10, 5)
 y <- ifelse(
-    (X[,1] >= 0) & (X[,1] < 0.25), betas[1] * omega,
+    (X[,1] < 0.5) & (X[,2] < 0.5), betas[1] * omega,
     ifelse(
-        (X[,1] >= 0.25) & (X[,1] < 0.5), betas[2] * omega,
+        (X[,1] >= 0.5) & (X[,2] < 0.5), betas[2] * omega,
         ifelse(
-            (X[,1] >= 0.5) & (X[,1] < 0.75), betas[3] * omega, betas[4] * omega
+            (X[,1] < 0.5) & (X[,1] >= 0.5), betas[3] * omega, betas[4] * omega
         )
     )
 ) + rnorm(n, 0, 1)
