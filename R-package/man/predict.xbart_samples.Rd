@@ -4,7 +4,7 @@
 \alias{predict.xbart_samples}
 \title{Predicts from a sampled XBART model and returns the result as a matrix}
 \usage{
-\method{predict}{xbart_samples}(xbart, X, omega, num_samples)
+\method{predict}{xbart_samples}(xbart, X, omega, rfx_basis, rfx_groups, num_samples)
 }
 \arguments{
 \item{xbart}{Object returned by the \code{xbart} function}
@@ -12,6 +12,10 @@
 \item{X}{Covariates for which outcome will be predicted}
 
 \item{omega}{Basis vector to use in leaf node predictions}
+
+\item{rfx_basis}{Basis function for group random effects}
+
+\item{rfx_groups}{Group indices for random effects}
 
 \item{num_samples}{Number of retained samples in the original \code{xbart} model}
 }
@@ -30,9 +34,11 @@ num_trees <- 50
 train_inds <- sample(1:n, round(n*0.8), replace = F)
 test_inds <- (1:n)[!((1:n) \%in\% train_inds)]
 X <- matrix(runif(n*p), ncol = p)
+rfx_labels <- as.integer(rep(c(1,2), times = n/2))
+rfx_basis <- rep(1, times = n)
 omega <- runif(n)
 betas <- c(-5, -10, 10, 5)
-y <- ifelse(
+f_x_omega <- ifelse(
     (X[,1] >= 0) & (X[,1] < 0.25), betas[1] * omega,
     ifelse(
         (X[,1] >= 0.25) & (X[,1] < 0.5), betas[2] * omega,
@@ -40,12 +46,31 @@ y <- ifelse(
             (X[,1] >= 0.5) & (X[,1] < 0.75), betas[3] * omega, betas[4] * omega
         )
     )
-) + rnorm(n, 0, 1)
-cutpoint_grid_size <- 20
+)
+rfx <- ifelse(rfx_labels == 1, -1, 5)
+y <- f_x_omega + rfx + rnorm(n, 0, 1)
+
+train_inds <- sample(1:n, round(n*0.8), replace = F)
+test_inds <- (1:n)[!((1:n) \%in\% train_inds)]
+Xtrain <- X[train_inds,]
+Xtest <- X[test_inds,]
+ytrain <- y[train_inds]
+ytest <- y[test_inds]
+omegatrain <- omega[train_inds]
+omegatest <- omega[test_inds]
+rfx_labels_train <- rfx_labels[train_inds]
+rfx_labels_test <- rfx_labels[test_inds]
+rfx_basis_train <- rfx_basis[train_inds]
+rfx_basis_test <- rfx_basis[test_inds]
+
 nu <- 0.5
 lambda <- 2.
-a <- 1.
-b <- 1.
-stochtree_samples <- xbart(ytrain, Xtrain, omegatrain, num_samples, num_burnin, num_trees, nu, lambda, a, b, cutpoint_grid_size, random_seed = random_seed)
-stochtree_predictions <- predict(stochtree_samples, Xtest, omegatest, num_samples)
+a_rfx <- 1.
+b_rfx <- 1.
+a_leaf <- 1.
+b_leaf <- 1.
+cutpoint_grid_size <- 20
+
+stochtree_samples <- xbart(ytrain, Xtrain, omegatrain, rfx_basis_train, rfx_labels_train, num_samples, num_burnin, num_trees, nu, lambda, a_leaf, b_leaf, a_rfx, b_rfx, cutpoint_grid_size, random_seed = random_seed)
+stochtree_predictions <- predict(stochtree_samples, Xtest, omegatest, rfx_basis_test, rfx_labels_test, num_samples)
 }

@@ -8,11 +8,15 @@ bart(
   y,
   X,
   omega,
+  rfx_basis,
+  rfx_groups,
   num_samples,
   num_burnin,
   num_trees,
   nu,
   lambda,
+  a_rfx,
+  b_rfx,
   random_seed = -1
 )
 }
@@ -23,15 +27,23 @@ bart(
 
 \item{omega}{Basis functions used for leaf node regression}
 
+\item{rfx_basis}{Basis functions used in the random effects regression. For simple group random effects, this is a vector of 1's.}
+
+\item{rfx_groups}{Vector of integer labels distinguishing groups for random effects}
+
 \item{num_samples}{Number of samples retained}
 
 \item{num_burnin}{Number of "burn-in" (not retained) samples}
 
 \item{num_trees}{Number of trees in the ensemble}
 
-\item{nu}{Prior scale for global variance parameter (sigma^2)}
+\item{nu}{Prior shape for global variance parameter (sigma^2)}
 
-\item{lambda}{Prior shape for global variance parameter (sigma^2)}
+\item{lambda}{Prior scale for global variance parameter (sigma^2)}
+
+\item{a_rfx}{Prior shape for rfx variance parameter(s)}
+
+\item{b_rfx}{Prior scale for rfx variance parameter(s)}
 
 \item{random_seed}{Seed for random number generator}
 }
@@ -50,9 +62,11 @@ num_trees <- 50
 train_inds <- sample(1:n, round(n*0.8), replace = F)
 test_inds <- (1:n)[!((1:n) \%in\% train_inds)]
 X <- matrix(runif(n*p), ncol = p)
+rfx_labels <- as.integer(rep(c(1,2), times = n/2))
+rfx_basis <- rep(1, times = n)
 omega <- runif(n)
 betas <- c(-5, -10, 10, 5)
-y <- ifelse(
+f_x_omega <- ifelse(
     (X[,1] >= 0) & (X[,1] < 0.25), betas[1] * omega,
     ifelse(
         (X[,1] >= 0.25) & (X[,1] < 0.5), betas[2] * omega,
@@ -60,11 +74,13 @@ y <- ifelse(
             (X[,1] >= 0.5) & (X[,1] < 0.75), betas[3] * omega, betas[4] * omega
         )
     )
-) + rnorm(n, 0, 1)
+)
+rfx <- ifelse(rfx_labels == 1, -1, 5)
+y <- f_x_omega + rfx + rnorm(n, 0, 1)
 cutpoint_grid_size <- 20
 nu <- 0.5
 lambda <- 2.
-a <- 1.
-b <- 1.
-result <- bart(ytrain, Xtrain, omegatrain, num_samples, num_burnin, num_trees, nu, lambda, random_seed = random_seed)
+a_rfx <- 1.
+b_rfx <- 1.
+result <- bart(y, X, omega, rfx_basis, rfx_labels, num_samples, num_burnin, num_trees, nu, lambda, a_rfx, b_rfx, random_seed = random_seed)
 }

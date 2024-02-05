@@ -3,13 +3,17 @@
 #' @param y Outcome of interest
 #' @param X Covariates used in the tree model
 #' @param omega Basis functions used for leaf node regression
+#' @param rfx_basis Basis function for group random effects
+#' @param rfx_groups Group indices for random effects
 #' @param num_samples Number of samples retained
 #' @param num_burnin Number of "burn-in" (not retained) samples
 #' @param num_trees Number of trees in the ensemble
 #' @param nu Prior scale for global variance parameter (sigma^2)
 #' @param lambda Prior shape for global variance parameter (sigma^2)
-#' @param a Prior scale for leaf node variance parameter (tau)
-#' @param b Prior shape for leaf node variance parameter (tau)
+#' @param a_leaf Prior scale for leaf node variance parameter (tau)
+#' @param b_leaf Prior shape for leaf node variance parameter (tau)
+#' @param a_rfx Prior scale for group random effects
+#' @param b_rfx Prior shape for group random effects
 #' @param cutpoint_grid_size Maximum number of cutpoints to consider at each split
 #' @param random_seed Seed for random number generator
 #'
@@ -25,9 +29,11 @@
 #' train_inds <- sample(1:n, round(n*0.8), replace = F)
 #' test_inds <- (1:n)[!((1:n) %in% train_inds)]
 #' X <- matrix(runif(n*p), ncol = p)
+#' rfx_labels <- as.integer(rep(c(1,2), times = n/2))
+#' rfx_basis <- rep(1, times = n)
 #' omega <- runif(n)
 #' betas <- c(-5, -10, 10, 5)
-#' y <- ifelse(
+#' f_x_omega <- ifelse(
 #'     (X[,1] >= 0) & (X[,1] < 0.25), betas[1] * omega,
 #'     ifelse(
 #'         (X[,1] >= 0.25) & (X[,1] < 0.5), betas[2] * omega,
@@ -35,15 +41,20 @@
 #'             (X[,1] >= 0.5) & (X[,1] < 0.75), betas[3] * omega, betas[4] * omega
 #'         )
 #'     )
-#' ) + rnorm(n, 0, 1)
+#' )
+#' rfx <- ifelse(rfx_labels == 1, -1, 5)
+#' y <- f_x_omega + rfx + rnorm(n, 0, 1)
 #' cutpoint_grid_size <- 20
 #' nu <- 0.5
 #' lambda <- 2.
-#' a <- 1.
-#' b <- 1.
-#' result <- xbart(ytrain, Xtrain, omegatrain, num_samples, num_burnin, num_trees, nu, lambda, a, b, cutpoint_grid_size, random_seed = random_seed)
-xbart <- function(y, X, omega, num_samples, num_burnin, num_trees, nu, lambda, a, b, cutpoint_grid_size, random_seed = -1){
-    ptr <- xbart_sample_cpp(y, X, omega, num_samples, num_burnin, num_trees, nu, lambda, a, b, cutpoint_grid_size, random_seed)
+#' a_rfx <- 1.
+#' b_rfx <- 1.
+#' a_leaf <- 1.
+#' b_leaf <- 1.
+#' result <- xbart(y, X, omega, rfx_basis, rfx_labels, num_samples, num_burnin, num_trees, nu, lambda, a_leaf, b_leaf, a_rfx, b_rfx, cutpoint_grid_size, random_seed = random_seed)
+xbart <- function(y, X, omega, rfx_basis, rfx_groups, num_samples, num_burnin, num_trees, nu, lambda, a_leaf, b_leaf, a_rfx, b_rfx, cutpoint_grid_size, random_seed = -1){
+    num_rfx_groups <- length(unique(rfx_groups))
+    ptr <- xbart_sample_cpp(y, X, omega, rfx_basis, rfx_groups, num_rfx_groups, num_samples, num_burnin, num_trees, nu, lambda, a_leaf, b_leaf, a_rfx, b_rfx, cutpoint_grid_size, random_seed)
     result <- list(ptr=ptr)
     class(result) <- "xbart_samples"
     return(result)
@@ -54,6 +65,8 @@ xbart <- function(y, X, omega, num_samples, num_burnin, num_trees, nu, lambda, a
 #' @param xbart Object returned by the `xbart` function
 #' @param X Covariates for which outcome will be predicted
 #' @param omega Basis vector to use in leaf node predictions
+#' @param rfx_basis Basis function for group random effects
+#' @param rfx_groups Group indices for random effects
 #' @param num_samples Number of retained samples in the original `xbart` model
 #'
 #' @return Matrix with observations in rows and sampled XBART draws in columns
@@ -68,9 +81,11 @@ xbart <- function(y, X, omega, num_samples, num_burnin, num_trees, nu, lambda, a
 #' train_inds <- sample(1:n, round(n*0.8), replace = F)
 #' test_inds <- (1:n)[!((1:n) %in% train_inds)]
 #' X <- matrix(runif(n*p), ncol = p)
+#' rfx_labels <- as.integer(rep(c(1,2), times = n/2))
+#' rfx_basis <- rep(1, times = n)
 #' omega <- runif(n)
 #' betas <- c(-5, -10, 10, 5)
-#' y <- ifelse(
+#' f_x_omega <- ifelse(
 #'     (X[,1] >= 0) & (X[,1] < 0.25), betas[1] * omega,
 #'     ifelse(
 #'         (X[,1] >= 0.25) & (X[,1] < 0.5), betas[2] * omega,
@@ -78,15 +93,34 @@ xbart <- function(y, X, omega, num_samples, num_burnin, num_trees, nu, lambda, a
 #'             (X[,1] >= 0.5) & (X[,1] < 0.75), betas[3] * omega, betas[4] * omega
 #'         )
 #'     )
-#' ) + rnorm(n, 0, 1)
-#' cutpoint_grid_size <- 20
+#' )
+#' rfx <- ifelse(rfx_labels == 1, -1, 5)
+#' y <- f_x_omega + rfx + rnorm(n, 0, 1)
+#' 
+#' train_inds <- sample(1:n, round(n*0.8), replace = F)
+#' test_inds <- (1:n)[!((1:n) %in% train_inds)]
+#' Xtrain <- X[train_inds,]
+#' Xtest <- X[test_inds,]
+#' ytrain <- y[train_inds]
+#' ytest <- y[test_inds]
+#' omegatrain <- omega[train_inds]
+#' omegatest <- omega[test_inds]
+#' rfx_labels_train <- rfx_labels[train_inds]
+#' rfx_labels_test <- rfx_labels[test_inds]
+#' rfx_basis_train <- rfx_basis[train_inds]
+#' rfx_basis_test <- rfx_basis[test_inds]
+#' 
 #' nu <- 0.5
 #' lambda <- 2.
-#' a <- 1.
-#' b <- 1.
-#' stochtree_samples <- xbart(ytrain, Xtrain, omegatrain, num_samples, num_burnin, num_trees, nu, lambda, a, b, cutpoint_grid_size, random_seed = random_seed)
-#' stochtree_predictions <- predict(stochtree_samples, Xtest, omegatest, num_samples)
-predict.xbart_samples <- function(xbart, X, omega, num_samples){
-    result <- xbart_predict_cpp(xbart$ptr, X, omega, num_samples)
+#' a_rfx <- 1.
+#' b_rfx <- 1.
+#' a_leaf <- 1.
+#' b_leaf <- 1.
+#' cutpoint_grid_size <- 20
+#' 
+#' stochtree_samples <- xbart(ytrain, Xtrain, omegatrain, rfx_basis_train, rfx_labels_train, num_samples, num_burnin, num_trees, nu, lambda, a_leaf, b_leaf, a_rfx, b_rfx, cutpoint_grid_size, random_seed = random_seed)
+#' stochtree_predictions <- predict(stochtree_samples, Xtest, omegatest, rfx_basis_test, rfx_labels_test, num_samples)
+predict.xbart_samples <- function(xbart, X, omega, rfx_basis, rfx_groups, num_samples){
+    result <- xbart_predict_cpp(xbart$ptr, X, omega, rfx_basis, rfx_groups, num_samples)
     return(result)
 }

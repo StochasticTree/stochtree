@@ -18,6 +18,7 @@
 
 #include <stochtree/model_draw.h>
 #include <stochtree/outcome_model.h>
+#include <stochtree/random_effects.h>
 #include <stochtree/sampler.h>
 #include <stochtree/tree_prior.h>
 #include <stochtree/variance_model.h>
@@ -38,12 +39,13 @@ class MCMCDispatcher {
   bool PredictionDataConsistent();
   
   template <typename ModelType, typename TreePriorType>
-  void SampleModel(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* outcome_data_ptr, int num_outcome, data_size_t num_row, bool is_row_major, bool non_constant_basis, double nu, double lambda, ModelType& model, TreePriorType& tree_prior, GlobalHomoskedasticVarianceModel& variance_model) {
+  void SampleModel(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* outcome_data_ptr, int num_outcome, double* rfx_basis_data_ptr, int num_rfx_basis, int num_rfx_groups, std::vector<int32_t>& group_indices, data_size_t num_row, bool is_row_major, bool non_constant_basis, double nu, double lambda, double a_rfx, double b_rfx, ModelType& model, TreePriorType& tree_prior, GlobalHomoskedasticVarianceModel& variance_model) {
     // Load the data
     LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, covariates_);
     LoadData(basis_data_ptr, num_row, num_basis, is_row_major, basis_);
     LoadData(outcome_data_ptr, num_row, num_outcome, is_row_major, outcome_);
     LoadData(outcome_data_ptr, num_row, num_outcome, is_row_major, residual_);
+    LoadData(rfx_basis_data_ptr, num_row, num_rfx_basis, is_row_major, rfx_basis_);
 
     // Check that a non-empty, consistently-sized dataset has been loaded
     CHECK(TrainDataConsistent());
@@ -60,6 +62,14 @@ class MCMCDispatcher {
     OutcomeCenterScale(residual_, ybar_offset, sd_scale);
     residual_ = residual_.array() - ybar_offset;
     residual_ /= sd_scale;
+
+    // Initialize and predict random effects
+    RandomEffectsModel rfx_model(group_indices, num_rfx_basis, num_rfx_groups);
+    rfx_model.InitializeParameters(rfx_basis_, residual_);
+    Eigen::VectorXd rfx_predictions = rfx_model.PredictRandomEffects(rfx_basis_, group_indices);
+
+    // Subtract rfx predictions from residual
+    residual_ -= rfx_predictions;
 
     // Compute the mean outcome for the model
     double mean_outcome = residual_.sum() / num_observations_;
@@ -186,6 +196,15 @@ class MCMCDispatcher {
 
       // Sample sigma^2
       model.SetGlobalParameter(variance_model.SampleVarianceParameter(residual_, nu, lambda, gen_), GlobalParamName::GlobalVariance);
+
+      // Sample random effects
+      residual_ += rfx_predictions;
+      rfx_model.SampleRandomEffects(rfx_basis_, residual_, gen_, a_rfx, b_rfx);
+      Eigen::VectorXd rfx_predictions = rfx_model.PredictRandomEffects(rfx_basis_, group_indices);
+      residual_ -= rfx_predictions;
+
+      // Store random effects for the model draw
+      model_draws_[model_iter]->SetRandomEffects(rfx_model);
       
       // Determine whether to advance the model_iter variable
       if (i >= num_burnin_) {
@@ -196,8 +215,7 @@ class MCMCDispatcher {
   }
 
   
-  std::vector<double> PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major);
-  std::vector<double> PredictSamples(double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major);
+  std::vector<double> PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* rfx_basis_data_ptr, int num_rfx_basis, std::vector<int32_t>& rfx_groups, data_size_t num_row, bool is_row_major);
 
  private:
   /*! \brief Outcome, residual, covariates, and basis matrix for training */
@@ -205,6 +223,7 @@ class MCMCDispatcher {
   Eigen::MatrixXd residual_;
   Eigen::MatrixXd covariates_;
   Eigen::MatrixXd basis_;
+  Eigen::MatrixXd rfx_basis_;
   int num_observations_;
   int num_covariates_;
   int num_basis_;
@@ -213,6 +232,7 @@ class MCMCDispatcher {
   /*! \brief Covariates and basis matrix for prediction */
   Eigen::MatrixXd prediction_covariates_;
   Eigen::MatrixXd prediction_basis_;
+  Eigen::MatrixXd prediction_rfx_basis_;
   int num_pred_covariates_;
   int num_pred_basis_;
 
@@ -249,12 +269,13 @@ class GFRDispatcher {
   bool PredictionDataConsistent();
   
   template <typename ModelType, typename TreePriorType>
-  void SampleModel(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* outcome_data_ptr, int num_outcome, data_size_t num_row, bool is_row_major, bool non_constant_basis, double nu, double lambda, double a, double b, ModelType& model, TreePriorType& tree_prior, GlobalHomoskedasticVarianceModel& variance_model, LeafNodeHomoskedasticVarianceModel& leaf_variance_model, std::vector<FeatureType>& feature_types, int cutpoint_grid_size) {
+  void SampleModel(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* outcome_data_ptr, int num_outcome, double* rfx_basis_data_ptr, int num_rfx_basis, int num_rfx_groups, std::vector<int32_t>& group_indices, data_size_t num_row, bool is_row_major, bool non_constant_basis, double nu, double lambda, double a_leaf, double b_leaf, double a_rfx, double b_rfx, int cutpoint_grid_size, std::vector<FeatureType>& feature_types, ModelType& model, TreePriorType& tree_prior, GlobalHomoskedasticVarianceModel& variance_model, LeafNodeHomoskedasticVarianceModel& leaf_variance_model) {
     // Load the data
     LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, covariates_);
     LoadData(basis_data_ptr, num_row, num_basis, is_row_major, basis_);
     LoadData(outcome_data_ptr, num_row, num_outcome, is_row_major, outcome_);
     LoadData(outcome_data_ptr, num_row, num_outcome, is_row_major, residual_);
+    LoadData(rfx_basis_data_ptr, num_row, num_rfx_basis, is_row_major, rfx_basis_);
 
     // Check that a non-empty, consistently-sized dataset has been loaded
     CHECK(TrainDataConsistent());
@@ -271,6 +292,14 @@ class GFRDispatcher {
     OutcomeCenterScale(residual_, ybar_offset, sd_scale);
     residual_ = residual_.array() - ybar_offset;
     residual_ /= sd_scale;
+
+    // Initialize and predict random effects
+    RandomEffectsModel rfx_model(group_indices, num_rfx_basis, num_rfx_groups);
+    rfx_model.InitializeParameters(rfx_basis_, residual_);
+    Eigen::VectorXd rfx_predictions = rfx_model.PredictRandomEffects(rfx_basis_, group_indices);
+
+    // Subtract rfx predictions from residual
+    residual_ -= rfx_predictions;
 
     // Compute the mean outcome for the model
     double mean_outcome = residual_.sum() / num_observations_;
@@ -401,11 +430,20 @@ class GFRDispatcher {
       }
 
       // Sample tau
-      model.SetGlobalParameter(leaf_variance_model.SampleVarianceParameter(model_draws_[model_iter].get(), a, b, gen_), GlobalParamName::LeafPriorVariance);
+      model.SetGlobalParameter(leaf_variance_model.SampleVarianceParameter(model_draws_[model_iter].get(), a_leaf, b_leaf, gen_), GlobalParamName::LeafPriorVariance);
 
       // Sample sigma^2
       model.SetGlobalParameter(variance_model.SampleVarianceParameter(residual_, nu, lambda, gen_), GlobalParamName::GlobalVariance);
       // TODO: figure out storage container for other global parameters
+
+      // Sample random effects
+      residual_ += rfx_predictions;
+      rfx_model.SampleRandomEffects(rfx_basis_, residual_, gen_, a_rfx, b_rfx);
+      Eigen::VectorXd rfx_predictions = rfx_model.PredictRandomEffects(rfx_basis_, group_indices);
+      residual_ -= rfx_predictions;
+
+      // Store random effects for the model draw
+      model_draws_[model_iter]->SetRandomEffects(rfx_model);
       
       // Determine whether to advance the model_iter variable
       if (i >= num_burnin_) {
@@ -415,8 +453,7 @@ class GFRDispatcher {
     }
   }
   
-  std::vector<double> PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major);
-  std::vector<double> PredictSamples(double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major);
+  std::vector<double> PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* rfx_basis_data_ptr, int num_rfx_basis, std::vector<int32_t>& rfx_groups,  data_size_t num_row, bool is_row_major);
 
  private:
   /*! \brief Outcome, residual, covariates, and basis matrix for training */
@@ -424,6 +461,7 @@ class GFRDispatcher {
   Eigen::MatrixXd residual_;
   Eigen::MatrixXd covariates_;
   Eigen::MatrixXd basis_;
+  Eigen::MatrixXd rfx_basis_;
   int num_observations_;
   int num_covariates_;
   int num_basis_;
@@ -432,6 +470,7 @@ class GFRDispatcher {
   /*! \brief Covariates and basis matrix for prediction */
   Eigen::MatrixXd prediction_covariates_;
   Eigen::MatrixXd prediction_basis_;
+  Eigen::MatrixXd prediction_rfx_basis_;
   int num_pred_covariates_;
   int num_pred_basis_;
 

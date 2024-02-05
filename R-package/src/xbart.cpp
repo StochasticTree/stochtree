@@ -8,8 +8,10 @@ using namespace cpp11;
 
 [[cpp11::register]]
 cpp11::external_pointer<StochTree::GFRDispatcher> xbart_sample_cpp(cpp11::doubles_matrix<> y, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, 
+                                                                   cpp11::doubles_matrix<> rfx_basis, cpp11::integers rfx_groups, int num_rfx_groups, 
                                                                    int num_samples, int num_burnin, int num_trees, double nu, double lambda, 
-                                                                   double a, double b, int cutpoint_grid_size, int random_seed = -1) {
+                                                                   double a_leaf, double b_leaf, double a_rfx, double b_rfx, 
+                                                                   int cutpoint_grid_size, int random_seed = -1) {
     // Extract dimensions of covariate matrix X and pointer to its contiguous block of memory
     int p_covariates = X.ncol();
     int n = X.nrow();
@@ -22,6 +24,16 @@ cpp11::external_pointer<StochTree::GFRDispatcher> xbart_sample_cpp(cpp11::double
     // Extract dimensions of outcome matrix y and pointer to its contiguous block of memory
     int p_outcome = y.ncol();
     double* outcome_data_ptr = REAL(PROTECT(y));
+    
+    // Extract dimensions of random effects basis matrix rfx_basis and pointer to its contiguous block of memory
+    int p_rfx_basis = rfx_basis.ncol();
+    double* rfx_basis_data_ptr = REAL(PROTECT(rfx_basis));
+    
+    // Unload group indices into a std::vector
+    std::vector<int32_t> rfx_group_indices(n);
+    for (int i = 0; i < n; i++) {
+        rfx_group_indices[i] = rfx_groups[i];
+    }
     
     // Configure GFRDispatcher object
     std::unique_ptr<StochTree::GFRDispatcher> xbart_ptr_;
@@ -37,7 +49,7 @@ cpp11::external_pointer<StochTree::GFRDispatcher> xbart_sample_cpp(cpp11::double
     
     // Run the sampler
     std::vector<StochTree::FeatureType> feature_types(p_covariates, StochTree::FeatureType::kNumeric);
-    xbart_ptr_->SampleModel<StochTree::GaussianHomoskedasticUnivariateRegressionModelWrapper, StochTree::ClassicTreePrior>(covariate_data_ptr, p_covariates, basis_data_ptr, p_basis, outcome_data_ptr, p_outcome, n, false, true, nu, lambda, a, b, model, tree_prior, variance_model, leaf_variance_model, feature_types, cutpoint_grid_size);
+    xbart_ptr_->SampleModel<StochTree::GaussianHomoskedasticUnivariateRegressionModelWrapper, StochTree::ClassicTreePrior>(covariate_data_ptr, p_covariates, basis_data_ptr, p_basis, outcome_data_ptr, p_outcome, rfx_basis_data_ptr, p_rfx_basis, num_rfx_groups, rfx_group_indices, n, false, true, nu, lambda, a_leaf, b_leaf, a_rfx, b_rfx, cutpoint_grid_size, feature_types, model, tree_prior, variance_model, leaf_variance_model);
     
     // Unprotect pointers
     UNPROTECT(3);
@@ -46,7 +58,7 @@ cpp11::external_pointer<StochTree::GFRDispatcher> xbart_sample_cpp(cpp11::double
 }
 
 [[cpp11::register]]
-cpp11::writable::doubles_matrix<> xbart_predict_cpp(cpp11::external_pointer<StochTree::GFRDispatcher> xbart_ptr, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, int num_samples) {
+cpp11::writable::doubles_matrix<> xbart_predict_cpp(cpp11::external_pointer<StochTree::GFRDispatcher> xbart_ptr, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, cpp11::doubles_matrix<> rfx_basis, cpp11::integers rfx_groups, int num_samples) {
     // Extract dimensions of covariate matrix X and pointer to its contiguous block of memory
     int p_covariate = X.ncol();
     int n = X.nrow();
@@ -56,9 +68,18 @@ cpp11::writable::doubles_matrix<> xbart_predict_cpp(cpp11::external_pointer<Stoc
     int p_basis = omega.ncol();
     double* basis_data_ptr = REAL(PROTECT(omega));
     
-    // Predict from the sampled BART model
-    // std::vector<double> output_raw = bart_ptr->PredictSamples();
-    std::vector<double> output_raw = xbart_ptr->PredictSamples(covariate_data_ptr, p_covariate, basis_data_ptr, p_basis, n, false);
+    // Extract dimensions of random effects basis matrix rfx_basis and pointer to its contiguous block of memory
+    int p_rfx_basis = rfx_basis.ncol();
+    double* rfx_basis_data_ptr = REAL(PROTECT(rfx_basis));
+    
+    // Unload group indices into a std::vector
+    std::vector<int32_t> rfx_group_indices(n);
+    for (int i = 0; i < n; i++) {
+        rfx_group_indices[i] = rfx_groups[i];
+    }
+    
+    // Predict from the sampled XBART model
+    std::vector<double> output_raw = xbart_ptr->PredictSamples(covariate_data_ptr, p_covariate, basis_data_ptr, p_basis, rfx_basis_data_ptr, p_rfx_basis, rfx_group_indices, n, false);
     
     // Convert result to a matrix
     cpp11::writable::doubles_matrix<> output(n, num_samples);

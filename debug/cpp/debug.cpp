@@ -11,11 +11,12 @@
 
 namespace StochTree{
 
-void GenerateFixedData(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, int n, int x_cols, int omega_cols, int y_cols) {
+void GenerateFixedData(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Eigen::MatrixXd& rfx_basis, std::vector<int32_t>& rfx_groups, int n, int x_cols, int omega_cols, int y_cols, int rfx_basis_cols) {
   CHECK_EQ(n, 100);
   CHECK_EQ(x_cols, 5);
   CHECK_EQ(omega_cols, 1);
   CHECK_EQ(y_cols, 1);
+  CHECK_EQ(rfx_basis_cols, 1);
   
   covariates << 0.766969853, 0.83894646, 0.63649772, 0.6747788934, 0.27398269,
                 0.634970996, 0.15237997, 0.3800786, 0.6457891271, 0.21604451,
@@ -146,16 +147,33 @@ void GenerateFixedData(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eige
              1.015348805, -0.91839562, 1.924546112, -0.218826033, 1.761318971, 0.928338732, 1.109589807,
              2.165307398, 2.258640565, 1.147428989, 0.332872857, 0.373646084, 0.520770108, 1.857996323,
              -1.971537882, 0.962010578, 1.552073631, 0.459464684, -0.149159276, 0.203079262, -0.453721958, 2.152977755, 0.948865461;
+  
+  rfx_basis <<  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
+  
+  for (int i = 0; i < n/2; i++) {
+    if (i % 2 == 0) {
+      rfx_groups[i] = 1;
+    } else {
+      rfx_groups[i] = 2;
+    }
+  }
+
 }
 
-void GenerateRandomData(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, int n, int x_cols, int omega_cols, int y_cols) {
+void GenerateRandomData(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eigen::MatrixXd& outcome, Eigen::MatrixXd& rfx_basis, std::vector<int32_t>& rfx_groups, int n, int x_cols, int omega_cols, int y_cols, int rfx_basis_cols) {
   std::mt19937 gen(101);
   std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
   std::normal_distribution<double> normal_dist(0.,1.);
   std::vector<double> betas{-10, -5, 5, 10};
   int num_partitions = betas.size();
   double beta = 5;
-  double e_y;
+  double f_x_omega;
+  double rfx;
   
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
@@ -166,17 +184,32 @@ void GenerateRandomData(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eig
       basis(i, j) = uniform_dist(gen);
     }
     
+    for (int j = 0; j < rfx_basis_cols; j++) {
+      rfx_basis(i, j) = 1;
+    }
+    
+    if (i % 2 == 0) {
+      rfx_groups[i] = 1;
+    } else {
+      rfx_groups[i] = 2;
+    }
+    
     for (int j = 0; j < y_cols; j++) {
       if ((covariates(i, 0) >= 0.0) && covariates(i, 0) < 0.25) {
-        e_y = betas[0] * basis(i, 0);
+        f_x_omega = betas[0] * basis(i, 0);
       } else if ((covariates(i, 0) >= 0.25) && covariates(i, 0) < 0.5) {
-        e_y = betas[1] * basis(i, 0);
+        f_x_omega = betas[1] * basis(i, 0);
       } else if ((covariates(i, 0) >= 0.5) && covariates(i, 0) < 0.75) {
-        e_y = betas[2] * basis(i, 0);
+        f_x_omega = betas[2] * basis(i, 0);
       } else {
-        e_y = betas[3] * basis(i, 0);
+        f_x_omega = betas[3] * basis(i, 0);
       }
-      outcome(i, j) = e_y + normal_dist(gen);
+      if (rfx_groups[i] == 1) {
+        rfx = 5.;
+      } else {
+        rfx = -5.;
+      }
+      outcome(i, j) = f_x_omega + rfx + normal_dist(gen);
     }
   }
 }
@@ -190,17 +223,21 @@ void RunExample(bool random_data = true) {
   int omega_cols = 1;
   int y_rows = n;
   int y_cols = 1;
+  int rfx_basis_rows = n;
+  int rfx_basis_cols = 1;
   
   // Declare covariates, basis and outcome
   Eigen::MatrixXd covariates(x_rows, x_cols);
   Eigen::MatrixXd basis(omega_rows, omega_cols);
   Eigen::MatrixXd outcome(y_rows, y_cols);
+  Eigen::MatrixXd rfx_basis(rfx_basis_rows, rfx_basis_cols);
+  std::vector<int32_t> rfx_groups(n);
   
   // Load the data
   if (random_data) {
-    GenerateRandomData(covariates, basis, outcome, n, x_cols, omega_cols, y_cols);
+    GenerateRandomData(covariates, basis, outcome, rfx_basis, rfx_groups, n, x_cols, omega_cols, y_cols, rfx_basis_cols);
   } else {
-    GenerateFixedData(covariates, basis, outcome, n, x_cols, omega_cols, y_cols);
+    GenerateFixedData(covariates, basis, outcome, rfx_basis, rfx_groups, n, x_cols, omega_cols, y_cols, rfx_basis_cols);
   }
   
   // Initialize model classes
@@ -218,10 +255,14 @@ void RunExample(bool random_data = true) {
   double a = 1.0;
   double b = 1.0;
   int cutpoint_grid_size = 500;
-  GFRDispatcher dispatcher(20, 10, 1, 101);
-  dispatcher.SampleModel<GaussianHomoskedasticUnivariateRegressionModelWrapper, ClassicTreePrior>(covariates.data(), x_cols, basis.data(), omega_cols, outcome.data(), y_cols, n, true, true, nu, lambda, a, b, model, tree_prior, variance_model, leaf_variance_model, feature_types, cutpoint_grid_size);
-  // MCMCDispatcher dispatcher(20, 10, 20, 101);
-  // dispatcher.SampleModel<GaussianHomoskedasticUnivariateRegressionModelWrapper, ClassicTreePrior>(covariates.data(), x_cols, basis.data(), omega_cols, outcome.data(), y_cols, n, true, true, 1.0, 1.0, model, tree_prior, variance_model);
+  int num_rfx_groups = 2;
+//  GFRDispatcher dispatcher(20, 10, 1, 101);
+//  dispatcher.SampleModel<GaussianHomoskedasticUnivariateRegressionModelWrapper, ClassicTreePrior>(covariates.data(), x_cols, basis.data(), omega_cols, outcome.data(), y_cols, n, true, true, nu, lambda, a, b, model, tree_prior, cutpoint_grid_size, feature_types, variance_model, leaf_variance_model);
+  MCMCDispatcher dispatcher(20, 10, 20, 101);
+  dispatcher.SampleModel<GaussianHomoskedasticUnivariateRegressionModelWrapper, ClassicTreePrior>(covariates.data(), x_cols, basis.data(), omega_cols, outcome.data(), y_cols, rfx_basis.data(), rfx_basis_cols, num_rfx_groups, rfx_groups, n, true, true, 1.0, 1.0, a, b, model, tree_prior, variance_model);
+  
+  // Predict from the sampled model
+  std::vector<double> output_raw = dispatcher.PredictSamples(covariates.data(), x_cols, basis.data(), omega_cols, rfx_basis.data(), rfx_basis_cols, rfx_groups, n, false);
 }
 
 } // namespace StochTree

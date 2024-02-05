@@ -8,13 +8,17 @@ xbart(
   y,
   X,
   omega,
+  rfx_basis,
+  rfx_groups,
   num_samples,
   num_burnin,
   num_trees,
   nu,
   lambda,
-  a,
-  b,
+  a_leaf,
+  b_leaf,
+  a_rfx,
+  b_rfx,
   cutpoint_grid_size,
   random_seed = -1
 )
@@ -26,6 +30,10 @@ xbart(
 
 \item{omega}{Basis functions used for leaf node regression}
 
+\item{rfx_basis}{Basis function for group random effects}
+
+\item{rfx_groups}{Group indices for random effects}
+
 \item{num_samples}{Number of samples retained}
 
 \item{num_burnin}{Number of "burn-in" (not retained) samples}
@@ -36,9 +44,13 @@ xbart(
 
 \item{lambda}{Prior shape for global variance parameter (sigma^2)}
 
-\item{a}{Prior scale for leaf node variance parameter (tau)}
+\item{a_leaf}{Prior scale for leaf node variance parameter (tau)}
 
-\item{b}{Prior shape for leaf node variance parameter (tau)}
+\item{b_leaf}{Prior shape for leaf node variance parameter (tau)}
+
+\item{a_rfx}{Prior scale for group random effects}
+
+\item{b_rfx}{Prior shape for group random effects}
 
 \item{cutpoint_grid_size}{Maximum number of cutpoints to consider at each split}
 
@@ -59,9 +71,11 @@ num_trees <- 50
 train_inds <- sample(1:n, round(n*0.8), replace = F)
 test_inds <- (1:n)[!((1:n) \%in\% train_inds)]
 X <- matrix(runif(n*p), ncol = p)
+rfx_labels <- as.integer(rep(c(1,2), times = n/2))
+rfx_basis <- rep(1, times = n)
 omega <- runif(n)
 betas <- c(-5, -10, 10, 5)
-y <- ifelse(
+f_x_omega <- ifelse(
     (X[,1] >= 0) & (X[,1] < 0.25), betas[1] * omega,
     ifelse(
         (X[,1] >= 0.25) & (X[,1] < 0.5), betas[2] * omega,
@@ -69,11 +83,15 @@ y <- ifelse(
             (X[,1] >= 0.5) & (X[,1] < 0.75), betas[3] * omega, betas[4] * omega
         )
     )
-) + rnorm(n, 0, 1)
+)
+rfx <- ifelse(rfx_labels == 1, -1, 5)
+y <- f_x_omega + rfx + rnorm(n, 0, 1)
 cutpoint_grid_size <- 20
 nu <- 0.5
 lambda <- 2.
-a <- 1.
-b <- 1.
-result <- xbart(ytrain, Xtrain, omegatrain, num_samples, num_burnin, num_trees, nu, lambda, a, b, cutpoint_grid_size, random_seed = random_seed)
+a_rfx <- 1.
+b_rfx <- 1.
+a_leaf <- 1.
+b_leaf <- 1.
+result <- xbart(y, X, omega, rfx_basis, rfx_labels, num_samples, num_burnin, num_trees, nu, lambda, a_leaf, b_leaf, a_rfx, b_rfx, cutpoint_grid_size, random_seed = random_seed)
 }

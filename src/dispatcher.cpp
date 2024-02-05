@@ -93,10 +93,11 @@ void MCMCDispatcher::LoadData(double* data_ptr, int num_row, int num_col, bool i
   }
 }
 
-std::vector<double> MCMCDispatcher::PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major) {
+std::vector<double> MCMCDispatcher::PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* rfx_basis_data_ptr, int num_rfx_basis, std::vector<int32_t>& rfx_groups, data_size_t num_row, bool is_row_major) {
   // Load the data
   LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, prediction_covariates_);
   LoadData(basis_data_ptr, num_row, num_basis, is_row_major, prediction_basis_);
+  LoadData(rfx_basis_data_ptr, num_row, num_rfx_basis, is_row_major, prediction_rfx_basis_);
   CHECK(PredictionDataConsistent());
   
   // Predict outcomes using supplied data and sampled ensembles
@@ -109,7 +110,7 @@ std::vector<double> MCMCDispatcher::PredictSamples(double* covariate_data_ptr, i
       Log::Fatal("Sample %d has not drawn a tree ensemble");
     }
     // Store in column-major format and handle unpacking into proper format at the R / Python layers
-    model_draws_[j]->PredictInplace(prediction_covariates_, prediction_basis_, result, offset);
+    model_draws_[j]->PredictInplace(prediction_covariates_, prediction_basis_, prediction_rfx_basis_, rfx_groups, result, offset);
     offset += n;
   }
   return result;
@@ -203,10 +204,11 @@ void GFRDispatcher::LoadData(double* data_ptr, int num_row, int num_col, bool is
   }
 }
 
-std::vector<double> GFRDispatcher::PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major) {
+std::vector<double> GFRDispatcher::PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* rfx_basis_data_ptr, int num_rfx_basis, std::vector<int32_t>& rfx_groups, data_size_t num_row, bool is_row_major) {
   // Load the data
   LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, prediction_covariates_);
   LoadData(basis_data_ptr, num_row, num_basis, is_row_major, prediction_basis_);
+  LoadData(rfx_basis_data_ptr, num_row, num_rfx_basis, is_row_major, prediction_rfx_basis_);
   CHECK(PredictionDataConsistent());
   
   // Predict outcomes using supplied data and sampled ensembles
@@ -219,7 +221,7 @@ std::vector<double> GFRDispatcher::PredictSamples(double* covariate_data_ptr, in
       Log::Fatal("Sample %d has not drawn a tree ensemble");
     }
     // Store in column-major format and handle unpacking into proper format at the R / Python layers
-    model_draws_[j]->PredictInplace(prediction_covariates_, prediction_basis_, result, offset);
+    model_draws_[j]->PredictInplace(prediction_covariates_, prediction_basis_, prediction_rfx_basis_, rfx_groups, result, offset);
     offset += n;
   }
   return result;

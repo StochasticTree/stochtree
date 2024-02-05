@@ -6,40 +6,40 @@
 #include <R_ext/Visibility.h>
 
 // bart.cpp
-cpp11::external_pointer<StochTree::MCMCDispatcher> bart_sample_cpp(cpp11::doubles_matrix<> y, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, int num_samples, int num_burnin, int num_trees, double nu, double lambda, int random_seed);
-extern "C" SEXP _stochtree_bart_sample_cpp(SEXP y, SEXP X, SEXP omega, SEXP num_samples, SEXP num_burnin, SEXP num_trees, SEXP nu, SEXP lambda, SEXP random_seed) {
+cpp11::external_pointer<StochTree::MCMCDispatcher> bart_sample_cpp(cpp11::doubles_matrix<> y, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, cpp11::doubles_matrix<> rfx_basis, cpp11::integers rfx_groups, int num_rfx_groups, int num_samples, int num_burnin, int num_trees, double nu, double lambda, double a_rfx, double b_rfx, int random_seed);
+extern "C" SEXP _stochtree_bart_sample_cpp(SEXP y, SEXP X, SEXP omega, SEXP rfx_basis, SEXP rfx_groups, SEXP num_rfx_groups, SEXP num_samples, SEXP num_burnin, SEXP num_trees, SEXP nu, SEXP lambda, SEXP a_rfx, SEXP b_rfx, SEXP random_seed) {
   BEGIN_CPP11
-    return cpp11::as_sexp(bart_sample_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(y), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(X), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(omega), cpp11::as_cpp<cpp11::decay_t<int>>(num_samples), cpp11::as_cpp<cpp11::decay_t<int>>(num_burnin), cpp11::as_cpp<cpp11::decay_t<int>>(num_trees), cpp11::as_cpp<cpp11::decay_t<double>>(nu), cpp11::as_cpp<cpp11::decay_t<double>>(lambda), cpp11::as_cpp<cpp11::decay_t<int>>(random_seed)));
+    return cpp11::as_sexp(bart_sample_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(y), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(X), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(omega), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(rfx_basis), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(rfx_groups), cpp11::as_cpp<cpp11::decay_t<int>>(num_rfx_groups), cpp11::as_cpp<cpp11::decay_t<int>>(num_samples), cpp11::as_cpp<cpp11::decay_t<int>>(num_burnin), cpp11::as_cpp<cpp11::decay_t<int>>(num_trees), cpp11::as_cpp<cpp11::decay_t<double>>(nu), cpp11::as_cpp<cpp11::decay_t<double>>(lambda), cpp11::as_cpp<cpp11::decay_t<double>>(a_rfx), cpp11::as_cpp<cpp11::decay_t<double>>(b_rfx), cpp11::as_cpp<cpp11::decay_t<int>>(random_seed)));
   END_CPP11
 }
 // bart.cpp
-cpp11::writable::doubles_matrix<> bart_predict_cpp(cpp11::external_pointer<StochTree::MCMCDispatcher> bart_ptr, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, int num_samples);
-extern "C" SEXP _stochtree_bart_predict_cpp(SEXP bart_ptr, SEXP X, SEXP omega, SEXP num_samples) {
+cpp11::writable::doubles_matrix<> bart_predict_cpp(cpp11::external_pointer<StochTree::MCMCDispatcher> bart_ptr, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, cpp11::doubles_matrix<> rfx_basis, cpp11::integers rfx_groups, int num_samples);
+extern "C" SEXP _stochtree_bart_predict_cpp(SEXP bart_ptr, SEXP X, SEXP omega, SEXP rfx_basis, SEXP rfx_groups, SEXP num_samples) {
   BEGIN_CPP11
-    return cpp11::as_sexp(bart_predict_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::MCMCDispatcher>>>(bart_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(X), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(omega), cpp11::as_cpp<cpp11::decay_t<int>>(num_samples)));
+    return cpp11::as_sexp(bart_predict_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::MCMCDispatcher>>>(bart_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(X), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(omega), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(rfx_basis), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(rfx_groups), cpp11::as_cpp<cpp11::decay_t<int>>(num_samples)));
   END_CPP11
 }
 // xbart.cpp
-cpp11::external_pointer<StochTree::GFRDispatcher> xbart_sample_cpp(cpp11::doubles_matrix<> y, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, int num_samples, int num_burnin, int num_trees, double nu, double lambda, double a, double b, int cutpoint_grid_size, int random_seed);
-extern "C" SEXP _stochtree_xbart_sample_cpp(SEXP y, SEXP X, SEXP omega, SEXP num_samples, SEXP num_burnin, SEXP num_trees, SEXP nu, SEXP lambda, SEXP a, SEXP b, SEXP cutpoint_grid_size, SEXP random_seed) {
+cpp11::external_pointer<StochTree::GFRDispatcher> xbart_sample_cpp(cpp11::doubles_matrix<> y, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, cpp11::doubles_matrix<> rfx_basis, cpp11::integers rfx_groups, int num_rfx_groups, int num_samples, int num_burnin, int num_trees, double nu, double lambda, double a_leaf, double b_leaf, double a_rfx, double b_rfx, int cutpoint_grid_size, int random_seed);
+extern "C" SEXP _stochtree_xbart_sample_cpp(SEXP y, SEXP X, SEXP omega, SEXP rfx_basis, SEXP rfx_groups, SEXP num_rfx_groups, SEXP num_samples, SEXP num_burnin, SEXP num_trees, SEXP nu, SEXP lambda, SEXP a_leaf, SEXP b_leaf, SEXP a_rfx, SEXP b_rfx, SEXP cutpoint_grid_size, SEXP random_seed) {
   BEGIN_CPP11
-    return cpp11::as_sexp(xbart_sample_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(y), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(X), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(omega), cpp11::as_cpp<cpp11::decay_t<int>>(num_samples), cpp11::as_cpp<cpp11::decay_t<int>>(num_burnin), cpp11::as_cpp<cpp11::decay_t<int>>(num_trees), cpp11::as_cpp<cpp11::decay_t<double>>(nu), cpp11::as_cpp<cpp11::decay_t<double>>(lambda), cpp11::as_cpp<cpp11::decay_t<double>>(a), cpp11::as_cpp<cpp11::decay_t<double>>(b), cpp11::as_cpp<cpp11::decay_t<int>>(cutpoint_grid_size), cpp11::as_cpp<cpp11::decay_t<int>>(random_seed)));
+    return cpp11::as_sexp(xbart_sample_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(y), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(X), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(omega), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(rfx_basis), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(rfx_groups), cpp11::as_cpp<cpp11::decay_t<int>>(num_rfx_groups), cpp11::as_cpp<cpp11::decay_t<int>>(num_samples), cpp11::as_cpp<cpp11::decay_t<int>>(num_burnin), cpp11::as_cpp<cpp11::decay_t<int>>(num_trees), cpp11::as_cpp<cpp11::decay_t<double>>(nu), cpp11::as_cpp<cpp11::decay_t<double>>(lambda), cpp11::as_cpp<cpp11::decay_t<double>>(a_leaf), cpp11::as_cpp<cpp11::decay_t<double>>(b_leaf), cpp11::as_cpp<cpp11::decay_t<double>>(a_rfx), cpp11::as_cpp<cpp11::decay_t<double>>(b_rfx), cpp11::as_cpp<cpp11::decay_t<int>>(cutpoint_grid_size), cpp11::as_cpp<cpp11::decay_t<int>>(random_seed)));
   END_CPP11
 }
 // xbart.cpp
-cpp11::writable::doubles_matrix<> xbart_predict_cpp(cpp11::external_pointer<StochTree::GFRDispatcher> xbart_ptr, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, int num_samples);
-extern "C" SEXP _stochtree_xbart_predict_cpp(SEXP xbart_ptr, SEXP X, SEXP omega, SEXP num_samples) {
+cpp11::writable::doubles_matrix<> xbart_predict_cpp(cpp11::external_pointer<StochTree::GFRDispatcher> xbart_ptr, cpp11::doubles_matrix<> X, cpp11::doubles_matrix<> omega, cpp11::doubles_matrix<> rfx_basis, cpp11::integers rfx_groups, int num_samples);
+extern "C" SEXP _stochtree_xbart_predict_cpp(SEXP xbart_ptr, SEXP X, SEXP omega, SEXP rfx_basis, SEXP rfx_groups, SEXP num_samples) {
   BEGIN_CPP11
-    return cpp11::as_sexp(xbart_predict_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::GFRDispatcher>>>(xbart_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(X), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(omega), cpp11::as_cpp<cpp11::decay_t<int>>(num_samples)));
+    return cpp11::as_sexp(xbart_predict_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::GFRDispatcher>>>(xbart_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(X), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(omega), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(rfx_basis), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(rfx_groups), cpp11::as_cpp<cpp11::decay_t<int>>(num_samples)));
   END_CPP11
 }
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_stochtree_bart_predict_cpp",  (DL_FUNC) &_stochtree_bart_predict_cpp,   4},
-    {"_stochtree_bart_sample_cpp",   (DL_FUNC) &_stochtree_bart_sample_cpp,    9},
-    {"_stochtree_xbart_predict_cpp", (DL_FUNC) &_stochtree_xbart_predict_cpp,  4},
-    {"_stochtree_xbart_sample_cpp",  (DL_FUNC) &_stochtree_xbart_sample_cpp,  12},
+    {"_stochtree_bart_predict_cpp",  (DL_FUNC) &_stochtree_bart_predict_cpp,   6},
+    {"_stochtree_bart_sample_cpp",   (DL_FUNC) &_stochtree_bart_sample_cpp,   14},
+    {"_stochtree_xbart_predict_cpp", (DL_FUNC) &_stochtree_xbart_predict_cpp,  6},
+    {"_stochtree_xbart_sample_cpp",  (DL_FUNC) &_stochtree_xbart_sample_cpp,  17},
     {NULL, NULL, 0}
 };
 }
