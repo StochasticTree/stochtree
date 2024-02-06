@@ -67,6 +67,7 @@ file(
   src/io.cpp
   src/json11.cpp
   src/model_draw.cpp
+  src/model_graph.cpp
   src/outcome_model/homoskedastic_gaussian_constant.cpp
   src/outcome_model/homoskedastic_gaussian_univariate_regression.cpp
   src/outcome_model/homoskedastic_gaussian_multivariate_regression.cpp

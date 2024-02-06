@@ -33,6 +33,18 @@ class TreeEnsemble {
     output_dimension_ = output_dimension;
     is_leaf_constant_ = is_leaf_constant;
   }
+  TreeEnsemble(TreeEnsemble& ensemble) {
+    // Unpack ensemble configurations
+    num_trees_ = ensemble.num_trees_;
+    output_dimension_ = ensemble.output_dimension_;
+    is_leaf_constant_ = ensemble.is_leaf_constant_;
+    // Clone trees in the ensemble
+    trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
+    for (int j = 0; j < num_trees_; j++) {
+      Tree* tree = ensemble.GetTree(j);
+      this->CloneFromExistingTree(j, tree);
+    }
+  }
   ~TreeEnsemble() {}
 
   inline Tree* GetTree(int i) {
