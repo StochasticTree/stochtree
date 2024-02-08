@@ -167,7 +167,7 @@ class TreeEnsemble {
     return output_dimension_;
   }
 
-  inline int32_t IsLeafConstant() {
+  inline bool IsLeafConstant() {
     return is_leaf_constant_;
   }
 
