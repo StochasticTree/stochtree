@@ -36,10 +36,26 @@ enum FeatureType {
   kUnorderedCategorical
 };
 
-/*! \brief Type of data size, it is better to use signed type*/
+enum ForestLeafVarianceType {
+  kStochastic,
+  kFixed
+};
+
+enum ForestLeafPriorType {
+  kConstantLeafGaussian,
+  kUnivariateRegressionLeafGaussian,
+  kMultivariateRegressionLeafGaussian
+};
+
+enum ForestSampler {
+  kMCMC,
+  kGFR
+};
+
+/*! \brief Type of data size */
 typedef int32_t data_size_t;
 
-/*! \brief Type of feature index*/
+/*! \brief Type of feature index */
 typedef int32_t feature_size_t;
 
 // Enable following macro to use double for score_t

@@ -1,4 +1,4 @@
-/*! Copyright (c) 2023 by randtree authors. */
+/*! Copyright (c) 2024 by stochtree authors. */
 #include <stochtree/tree.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/sampler.h>

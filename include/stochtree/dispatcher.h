@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2023 by randtree authors. 
+ * Copyright (c) 2024 by randtree authors. 
  * 
  * Inspired by the C API of both lightgbm and xgboost, which carry the 
  * following respective copyrights:
@@ -16,485 +16,283 @@
 #ifndef STOCHTREE_DISPATCHER_H_
 #define STOCHTREE_DISPATCHER_H_
 
-#include <stochtree/model_draw.h>
-#include <stochtree/outcome_model.h>
+#include <stochtree/data.h>
+#include <stochtree/ensemble.h>
+#include <stochtree/meta.h>
+#include <stochtree/prior.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/sampler.h>
-#include <stochtree/tree_prior.h>
-#include <stochtree/variance_model.h>
 
 #include <Eigen/Dense>
 
 #include <memory>
+#include <vector>
 
 namespace StochTree {
 
-class MCMCDispatcher {
+class Dispatcher {
  public:
-  MCMCDispatcher(int num_samples, int num_burnin, int num_trees, int random_seed = -1);
-  ~MCMCDispatcher();
-
-  void Initialize();
-  bool TrainDataConsistent();  
-  bool PredictionDataConsistent();
-  
-  template <typename ModelType, typename TreePriorType>
-  void SampleModel(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* outcome_data_ptr, int num_outcome, double* rfx_basis_data_ptr, int num_rfx_basis, int num_rfx_groups, std::vector<int32_t>& group_indices, data_size_t num_row, bool is_row_major, bool non_constant_basis, double nu, double lambda, double a_rfx, double b_rfx, ModelType& model, TreePriorType& tree_prior, GlobalHomoskedasticVarianceModel& variance_model) {
-    // Load the data
-    LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, covariates_);
-    LoadData(basis_data_ptr, num_row, num_basis, is_row_major, basis_);
-    LoadData(outcome_data_ptr, num_row, num_outcome, is_row_major, outcome_);
-    LoadData(outcome_data_ptr, num_row, num_outcome, is_row_major, residual_);
-    LoadData(rfx_basis_data_ptr, num_row, num_rfx_basis, is_row_major, rfx_basis_);
-
-    // Check that a non-empty, consistently-sized dataset has been loaded
-    CHECK(TrainDataConsistent());
-
-    // Extract data dimensions
-    num_observations_ = residual_.rows();
-    num_covariates_ = covariates_.cols();
-    num_basis_ = basis_.cols();
-    has_basis_ = non_constant_basis;
-
-    // Center and scale the residual
-    double ybar_offset;
-    double sd_scale;
-    OutcomeCenterScale(residual_, ybar_offset, sd_scale);
-    residual_ = residual_.array() - ybar_offset;
-    residual_ /= sd_scale;
-
-    // Initialize and predict random effects
-    RandomEffectsModel rfx_model(group_indices, num_rfx_basis, num_rfx_groups);
-    rfx_model.InitializeParameters(rfx_basis_, residual_);
-    Eigen::VectorXd rfx_predictions = rfx_model.PredictRandomEffects(rfx_basis_, group_indices);
-
-    // Subtract rfx predictions from residual
-    residual_ -= rfx_predictions;
-
-    // Compute the mean outcome for the model
-    double mean_outcome = residual_.sum() / num_observations_;
-
-    // Compute the implied leaf value initialization for each root node
-    double initial_leaf_value;
-    std::vector<double> initial_leaf_values;
-    if (!has_basis_) {
-      initial_leaf_value = mean_outcome / num_trees_;
-    } else if (has_basis_ && (num_basis_ == 1)) {
-      initial_leaf_value = (mean_outcome / num_trees_) / (basis_.array().sum());
-    } else if (has_basis_ && (num_basis_ > 1)) {
-      // TODO: find a heuristic initialization that yields mean_outcome as a prediction
-      Eigen::MatrixXd leaf_reg_solution = (basis_.transpose() * basis_).inverse() * basis_.transpose() * residual_;
-      initial_leaf_values.resize(num_basis_);
-      for (int i = 0; i < num_basis_; i++) {
-        initial_leaf_values[i] = leaf_reg_solution(i,0) / num_trees_;
-      }
-    }
-
-    // Initialize the vector of vectors of leaf indices for each tree
-    std::unique_ptr<SampleNodeMapper> sample_node_mapper = std::make_unique<SampleNodeMapper>(num_trees_, num_observations_);
-
-    // Reset training data so that features are pre-sorted based on the entire dataset
-    std::unique_ptr<UnsortedNodeSampleTracker> unsorted_node_sample_tracker = std::make_unique<UnsortedNodeSampleTracker>(num_observations_, num_trees_);
-
-    // Placeholder declaration for unpacked prediction value
-    double prediction_val;
-
-    int model_iter = 0;
-    int prev_model_iter = 0;
-    for (int i = 0; i < num_samples_ + num_burnin_; i++) {
-      // The way we handle "burn-in" samples is to write them to the first 
-      // element of the model draw vector until we begin retaining samples.
-      // Thus, the two conditions in which we reset an entry in the model 
-      // draw vector are:
-      //   1. The very first iteration of the sampler (i = 0)
-      //   2. The model_iter variable tracking retained samples has advanced past 0
-      if ((i == 0) || (model_iter > prev_model_iter)) {
-        model_draws_[model_iter].reset(new ModelDraw(num_trees_, num_basis_, !has_basis_));
-        model_draws_[model_iter]->SetGlobalParameters(ybar_offset, "ybar_offset");
-        model_draws_[model_iter]->SetGlobalParameters(sd_scale, "sd_scale");
-      }
-
-      if (i == 0) {
-        // Initialize the ensemble by setting all trees to a root node predicting mean(y) / num_trees
-        for (int j = 0; j < num_trees_; j++) {
-          Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-          if (num_basis_ == 1) {
-            tree->SetLeaf(0, initial_leaf_value);
-          } else {
-            tree->SetLeafVector(0, initial_leaf_values);
-          }
-          sample_node_mapper->AssignAllSamplesToRoot(j);
-        }
-
-        // Subtract the predictions of the (constant) trees from the outcome to obtain initial residuals
-        // train_data_->ResidualReset();
-        for (int j = 0; j < num_trees_; j++) {
-          Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-          for (data_size_t i = 0; i < num_observations_; i++) {
-            if (!has_basis_) {
-              prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(i, j));
-            } else {
-              prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(i, j), basis_, i);
-            }
-            // TODO: update to handle vector-valued residuals
-            residual_(i,0) -= prediction_val;
-          }
-        }
-      }
-
-      // Sample the ensemble
-      for (int j = 0; j < num_trees_; j++) {
-        // Add the predictions from tree j in the previous sweep back to the residual
-        // NOTE: in the first sweep, we treat each constant (ybar / num_trees) root tree 
-        // as the result of the "previous sweep" which is why we use a special prev_model_iter
-        // variable to track this
-        // 
-        // Similarly, we do not "store" any of the burnin draws, we just continue to overwrite 
-        // draws in the first sweep, so we don't begin incrementing model_iter at an offset of 
-        // 1 from prev_model_iter until burn-in is complete
-        
-        // Retrieve pointer to tree j from the previous draw of the model
-        Tree* tree = (model_draws_[prev_model_iter]->GetEnsemble())->GetTree(j);
-
-        // Add its prediction back to the residual to obtain a "partial" residual for fitting tree j
-        for (data_size_t k = 0; k < num_observations_; k++) {
-          if (!has_basis_) {
-            prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j));
-          } else {
-            prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j), basis_, k);
-          }
-          // TODO: update to handle vector-valued residuals
-          residual_(k, 0) += prediction_val;
-        }
-
-        // If model_iter is different from prev_model_iter, copy tree j from prev_model_iter to model_iter
-        if (model_iter > prev_model_iter) {
-          (model_draws_[model_iter]->GetEnsemble())->ResetTree(j);
-          (model_draws_[model_iter]->GetEnsemble())->CloneFromExistingTree(j, tree);
-        }
-        
-        // Retrieve pointer to tree j (which might be a new tree if we copied it)
-        tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-        
-        // Conduct one MCMC step of the grow/prune process
-        BirthDeathMCMC<ModelType, TreePriorType>(covariates_, basis_, residual_, tree, unsorted_node_sample_tracker.get(), sample_node_mapper.get(), j, gen_, model, tree_prior);
-
-        // Sample leaf node parameters
-        SampleLeafParameters<ModelType, TreePriorType>(covariates_, basis_, residual_, tree, unsorted_node_sample_tracker.get(), sample_node_mapper.get(), j, gen_, model, tree_prior);
-        
-        // Subtract tree j's predictions back out of the residual
-        for (data_size_t k = 0; k < num_observations_; k++) {
-          if (!has_basis_) {
-            prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j));
-          } else {
-            prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j), basis_, k);
-          }
-          // TODO: update to handle vector-valued residuals
-          residual_(k, 0) -= prediction_val;
-        }
-      }
-
-      // Sample sigma^2
-      model.SetGlobalParameter(variance_model.SampleVarianceParameter(residual_, nu, lambda, gen_), GlobalParamName::GlobalVariance);
-
-      // Sample random effects
-      residual_ += rfx_predictions;
-      rfx_model.SampleRandomEffects(rfx_basis_, residual_, gen_, a_rfx, b_rfx);
-      Eigen::VectorXd rfx_predictions = rfx_model.PredictRandomEffects(rfx_basis_, group_indices);
-      residual_ -= rfx_predictions;
-
-      // Store random effects for the model draw
-      model_draws_[model_iter]->SetRandomEffects(rfx_model);
-      
-      // Determine whether to advance the model_iter variable
-      if (i >= num_burnin_) {
-        prev_model_iter = model_iter;
-        model_iter += 1;
-      }
-    }
+  Dispatcher() {
+    num_forests_ = 0; num_rfx_ = 0; total_draws_ = 0; num_samples_ = 0; num_burnin_ = 0; 
+    std::random_device rd; std::mt19937 gen_(rd());
   }
-
+  Dispatcher(int random_seed) {
+    num_forests_ = 0; num_rfx_ = 0; total_draws_ = 0; num_samples_ = 0; num_burnin_ = 0;
+    std::mt19937 gen_(random_seed);
+  }
+  ~Dispatcher() {}
   
-  std::vector<double> PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* rfx_basis_data_ptr, int num_rfx_basis, std::vector<int32_t>& rfx_groups, data_size_t num_row, bool is_row_major);
+  // Adding model terms
+  void AddOutcome(double* outcome_data_ptr, data_size_t num_row);
+  void AddConstantLeafForest(double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major, int num_trees, double mu_bar, double tau, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, bool leaf_variance_random, double a_leaf = 1., double b_leaf = 1.);
+  void AddUnivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, int num_trees, double beta_bar, double tau, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, bool leaf_variance_random, double a_leaf = 1., double b_leaf = 1.);
+  void AddMultivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, int num_trees, Eigen::VectorXd& Beta, Eigen::MatrixXd& Sigma, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, bool leaf_variance_random);
+  void AddRandomEffectRegression(double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<int32_t> group_indices, double a, double b, int num_components, int num_groups);
+  void AddGlobalVarianceTerm(double a, double b, double global_variance_init);
 
- private:
-  /*! \brief Outcome, residual, covariates, and basis matrix for training */
-  Eigen::MatrixXd outcome_;
-  Eigen::MatrixXd residual_;
-  Eigen::MatrixXd covariates_;
-  Eigen::MatrixXd basis_;
-  Eigen::MatrixXd rfx_basis_;
-  int num_observations_;
-  int num_covariates_;
-  int num_basis_;
-  bool has_basis_{false};
-  
-  /*! \brief Covariates and basis matrix for prediction */
-  Eigen::MatrixXd prediction_covariates_;
-  Eigen::MatrixXd prediction_basis_;
-  Eigen::MatrixXd prediction_rfx_basis_;
-  int num_pred_covariates_;
-  int num_pred_basis_;
+  // Sampling model terms
+  // void SampleModel(int num_samples, int num_burnin);
+  template <typename ForestDatasetType, typename ForestLeafPriorType, typename ForestLeafSuffStatType, typename LeafSamplerType, typename ForestSamplerType, typename NodeSampleTrackerType>
+  void SampleModel(int num_samples, int num_burnin) {
+    // Unpack sample size
+    num_burnin_ = num_burnin;
+    num_samples_ = num_samples;
+    total_draws_ = num_burnin + num_samples;
 
-  /*! \brief Variance prior parameters */
-  double nu_;
-  double lambda_;
-
-  /*! \brief Sampling parameters */
-  int num_trees_;
-  int num_samples_;
-  int num_burnin_;
-  int min_data_in_leaf_;
-  double alpha_;
-  double beta_;
-
-  /*! \brief Random number generator */
-  std::mt19937 gen_;
-
-  /*! \brief Pointer to draws of the model */
-  std::vector<std::unique_ptr<ModelDraw>> model_draws_;
-  /*! \brief Compute ybar and scale parameter */
-  void OutcomeCenterScale(Eigen::MatrixXd& outcome, double& ybar_offset, double& sd_scale);
-  /*! \brief Load data from pointer to eigen matrix */
-  void LoadData(double* data_ptr, int num_row, int num_col, bool is_row_major, Eigen::MatrixXd& data_matrix);
-};
-
-class GFRDispatcher {
- public:
-  GFRDispatcher(int num_samples, int num_burnin, int num_trees, int random_seed = -1);
-  ~GFRDispatcher();
-
-  void Initialize();
-  bool TrainDataConsistent();  
-  bool PredictionDataConsistent();
-  
-  template <typename ModelType, typename TreePriorType>
-  void SampleModel(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* outcome_data_ptr, int num_outcome, double* rfx_basis_data_ptr, int num_rfx_basis, int num_rfx_groups, std::vector<int32_t>& group_indices, data_size_t num_row, bool is_row_major, bool non_constant_basis, double nu, double lambda, double a_leaf, double b_leaf, double a_rfx, double b_rfx, int cutpoint_grid_size, std::vector<FeatureType>& feature_types, ModelType& model, TreePriorType& tree_prior, GlobalHomoskedasticVarianceModel& variance_model, LeafNodeHomoskedasticVarianceModel& leaf_variance_model) {
-    // Load the data
-    LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, covariates_);
-    LoadData(basis_data_ptr, num_row, num_basis, is_row_major, basis_);
-    LoadData(outcome_data_ptr, num_row, num_outcome, is_row_major, outcome_);
-    LoadData(outcome_data_ptr, num_row, num_outcome, is_row_major, residual_);
-    LoadData(rfx_basis_data_ptr, num_row, num_rfx_basis, is_row_major, rfx_basis_);
-
-    // Check that a non-empty, consistently-sized dataset has been loaded
-    CHECK(TrainDataConsistent());
-
-    // Extract data dimensions
-    num_observations_ = residual_.rows();
-    num_covariates_ = covariates_.cols();
-    num_basis_ = basis_.cols();
-    has_basis_ = non_constant_basis;
-
-    // Center and scale the residual
-    double ybar_offset;
-    double sd_scale;
-    OutcomeCenterScale(residual_, ybar_offset, sd_scale);
-    residual_ = residual_.array() - ybar_offset;
-    residual_ /= sd_scale;
-
-    // Initialize and predict random effects
-    RandomEffectsModel rfx_model(group_indices, num_rfx_basis, num_rfx_groups);
-    rfx_model.InitializeParameters(rfx_basis_, residual_);
-    Eigen::VectorXd rfx_predictions = rfx_model.PredictRandomEffects(rfx_basis_, group_indices);
-
-    // Subtract rfx predictions from residual
-    residual_ -= rfx_predictions;
-
-    // Compute the mean outcome for the model
-    double mean_outcome = residual_.sum() / num_observations_;
-
-    // Compute the implied leaf value initialization for each root node
-    double initial_leaf_value;
-    std::vector<double> initial_leaf_values;
-    if (!has_basis_) {
-      initial_leaf_value = mean_outcome / num_trees_;
-    } else if (has_basis_ && (num_basis_ == 1)) {
-      initial_leaf_value = (mean_outcome / num_trees_) / (basis_.array().sum());
-    } else if (has_basis_ && (num_basis_ > 1)) {
-      // TODO: find a heuristic initialization that yields mean_outcome as a prediction
-      Eigen::MatrixXd leaf_reg_solution = (basis_.transpose() * basis_).inverse() * basis_.transpose() * residual_;
-      initial_leaf_values.resize(num_basis_);
-      for (int i = 0; i < num_basis_; i++) {
-        initial_leaf_values[i] = leaf_reg_solution(i,0) / num_trees_;
+    // Resize forest containers
+    for (int i = 0; i < num_forests_; i++) {
+      forest_sample_containers_[i]->AddSamples(total_draws_);
+      if (forest_leaf_variance_type_[i] == ForestLeafVarianceType::kStochastic) {
+        forest_leaf_variance_sample_containers_[i].resize(total_draws_);
       }
     }
+    // Resize rfx containers
+    for (int i = 0; i < num_rfx_; i++) {
+      rfx_sample_containers_[i]->AddSamples(total_draws_);
+    }
+    // Resize global variance container
+    global_variance_sample_container_.resize(total_draws_);
 
-    // Initialize the vector of vectors of leaf indices for each tree
-    std::unique_ptr<SampleNodeMapper> sample_node_mapper = std::make_unique<SampleNodeMapper>(num_trees_, num_observations_);
+    // Center and scale outcome
+    CenterScaleOutcome();
 
-    // Initialize a FeaturePresortRootContainer unique pointer
-    std::unique_ptr<FeaturePresortRootContainer> presort_container = std::make_unique<FeaturePresortRootContainer>(covariates_, feature_types);
+    // Initialize forests with default values
+    double mean_residual = MeanOutcome();
+    int sample_num = 0;
+    for (int i = 0; i < num_forests_; i++) {
+      if (i == 0) {
+        InitializeForest(i, sample_num, mean_residual);
+      } else {
+        InitializeForest(i, sample_num, 0.);
+      }
+    }
     
-    // Initialize a SortedNodeSampleTracker unique pointer (which will be reset with each sweep of the algorithm)
-    std::unique_ptr<SortedNodeSampleTracker> sorted_node_sample_tracker = std::make_unique<SortedNodeSampleTracker>(presort_container.get(), covariates_, feature_types);
+    // Initialize random effects sampler
+    for (int i = 0; i < num_rfx_; i++) {
+      rfx_samplers_[i]->InitializeParameters(rfx_datasets_[i].get(), residual_.get());
+    }
 
-    // Placeholder declaration for unpacked prediction value
-    double prediction_val;
-
-    int model_iter = 0;
-    int prev_model_iter = 0;
-    for (int i = 0; i < num_samples_ + num_burnin_; i++) {
-      // The way we handle "burn-in" samples is to write them to the first 
-      // element of the model draw vector until we begin retaining samples.
-      // Thus, the two conditions in which we reset an entry in the model 
-      // draw vector are:
-      //   1. The very first iteration of the sampler (i = 0)
-      //   2. The model_iter variable tracking retained samples has advanced past 0
-      if ((i == 0) || (model_iter > prev_model_iter)) {
-        model_draws_[model_iter].reset(new ModelDraw(num_trees_, num_basis_, !has_basis_));
-        model_draws_[model_iter]->SetGlobalParameters(ybar_offset, "ybar_offset");
-        model_draws_[model_iter]->SetGlobalParameters(sd_scale, "sd_scale");
-      }
-
-      if (i == 0) {
-        // Initialize the ensemble by setting all trees to a root node predicting mean(y) / num_trees
-        for (int j = 0; j < num_trees_; j++) {
-          Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-          if (num_basis_ == 1) {
-            tree->SetLeaf(0, initial_leaf_value);
-          } else {
-            tree->SetLeafVector(0, initial_leaf_values);
-          }
-          sample_node_mapper->AssignAllSamplesToRoot(j);
+    // Subtract prediction of each tree in each forest from the outcome to obtain the residual
+    int n;
+    for (int i = 0; i < num_forests_; i++) {
+      ForestDatasetType* dataset = dynamic_cast<ForestDatasetType*>(forest_datasets_[i].get());
+      n = dataset->covariates.rows();
+      // if (forest_leaf_prior_type_[i] == ForestLeafPriorType::kConstantLeafGaussian) {
+      //   ConstantLeafForestDataset* dataset = dynamic_cast<ConstantLeafForestDataset*>(forest_datasets_[i].get());
+      //   n = dataset->covariates.rows();
+      // } else {
+      //   RegressionLeafForestDataset* dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[i].get());
+      //   n = dataset->covariates.rows();
+      // }
+      TreeEnsemble* ensemble = forest_sample_containers_[i]->GetEnsemble(sample_num);
+      for (int j = 0; j < ensemble->NumTrees(); j++) {
+        for (int k = 0; k < n; k++) {
+          residual_->residual(k) -= TreePredictFromNodeSampleTracker<ForestDatasetType>(i, k, j, sample_num);
         }
-
-        // Subtract the predictions of the (constant) trees from the outcome to obtain initial residuals
-        for (int j = 0; j < num_trees_; j++) {
-          Tree* tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-          for (data_size_t i = 0; i < num_observations_; i++) {
-            if (!has_basis_) {
-              prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(i, j));
-            } else {
-              prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(i, j), basis_, i);
-            }
-            // TODO: update to handle vector-valued residuals
-            residual_(i,0) -= prediction_val;
-          }
-        }
-      }
-
-      // Sample the ensemble
-      for (int j = 0; j < num_trees_; j++) {
-        // Add the predictions from tree j in the previous sweep back to the residual
-        // NOTE: in the first sweep, we treat each constant (ybar / num_trees) root tree 
-        // as the result of the "previous sweep" which is why we use a special prev_model_iter
-        // variable to track this
-        // 
-        // Similarly, we do not "store" any of the burnin draws, we just continue to overwrite 
-        // draws in the first sweep, so we don't begin incrementing model_iter at an offset of 
-        // 1 from prev_model_iter until burn-in is complete
-        
-        // Retrieve pointer to tree j from the previous draw of the model
-        Tree* tree = (model_draws_[prev_model_iter]->GetEnsemble())->GetTree(j);
-
-        // Add its prediction back to the residual to obtain a "partial" residual for fitting tree j
-        for (data_size_t k = 0; k < num_observations_; k++) {
-          if (!has_basis_) {
-            prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j));
-          } else {
-            prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j), basis_, k);
-          }
-          // TODO: update to handle vector-valued residuals
-          residual_(k, 0) += prediction_val;
-        }
-
-        // Reset training data so that features are pre-sorted based on the entire dataset
-        sorted_node_sample_tracker.reset(new SortedNodeSampleTracker(presort_container.get(), covariates_, feature_types));
-
-        // Reset tree j to a constant root node
-        (model_draws_[model_iter]->GetEnsemble())->ResetInitTree(j);
-
-        // Reset the observation indices to point to node 0
-        sample_node_mapper->AssignAllSamplesToRoot(j);
-        
-        // Retrieve pointer to the newly-reallocated tree j
-        tree = (model_draws_[model_iter]->GetEnsemble())->GetTree(j);
-        
-        // Run the GFR algorithm
-        TreeGrowFromRoot<ModelType, TreePriorType>(covariates_, basis_, residual_, tree, sorted_node_sample_tracker.get(), sample_node_mapper.get(), j, gen_, model, tree_prior, feature_types, cutpoint_grid_size);
-        
-        // Sample leaf node parameters
-        SampleLeafParameters<ModelType, TreePriorType>(covariates_, basis_, residual_, tree, sorted_node_sample_tracker.get(), sample_node_mapper.get(), j, gen_, model, tree_prior);
-        
-        // Subtract tree j's predictions back out of the residual
-        for (data_size_t k = 0; k < num_observations_; k++) {
-          if (!has_basis_) {
-            prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j));
-          } else {
-            prediction_val = tree->PredictFromNode(sample_node_mapper->GetNodeId(k, j), basis_, k);
-          }
-          // TODO: update to handle vector-valued residuals
-          residual_(k, 0) -= prediction_val;
-        }
-      }
-
-      // Sample tau
-      model.SetGlobalParameter(leaf_variance_model.SampleVarianceParameter(model_draws_[model_iter].get(), a_leaf, b_leaf, gen_), GlobalParamName::LeafPriorVariance);
-
-      // Sample sigma^2
-      model.SetGlobalParameter(variance_model.SampleVarianceParameter(residual_, nu, lambda, gen_), GlobalParamName::GlobalVariance);
-      // TODO: figure out storage container for other global parameters
-
-      // Sample random effects
-      residual_ += rfx_predictions;
-      rfx_model.SampleRandomEffects(rfx_basis_, residual_, gen_, a_rfx, b_rfx);
-      Eigen::VectorXd rfx_predictions = rfx_model.PredictRandomEffects(rfx_basis_, group_indices);
-      residual_ -= rfx_predictions;
-
-      // Store random effects for the model draw
-      model_draws_[model_iter]->SetRandomEffects(rfx_model);
-      
-      // Determine whether to advance the model_iter variable
-      if (i >= num_burnin_) {
-        prev_model_iter = model_iter;
-        model_iter += 1;
       }
     }
+
+    // We don't compute initial values of random effects, just assume 0 and don't residualize
+    // We will sample them in the first pass after sampling the forests
+    
+    // Run the MCMC sampler
+    double sigma_sq;
+    for (int model_draw = 0; model_draw < total_draws_; model_draw++) {
+      // Sample each forest
+      for (int forest_num = 0; forest_num < num_forests_; forest_num++) {
+        ForestDatasetType* dataset = dynamic_cast<ForestDatasetType*>(forest_datasets_[forest_num].get());
+        ForestLeafPriorType* leaf_prior = dynamic_cast<ForestLeafPriorType*>(forest_leaf_priors_[forest_num].get());
+        ForestSamplerType* tree_sampler = dynamic_cast<ForestSamplerType*>(forest_samplers_[forest_num].get());
+        LeafSamplerType* leaf_sampler = dynamic_cast<LeafSamplerType*>(forest_leaf_mean_samplers_[forest_num].get());
+        NodeSampleTrackerType* node_sample_tracker = tree_sampler->GetNodeSampleTracker();
+        
+        // // TODO: fix this default hack using templates
+        // ConstantLeafForestDataset* dataset;
+        // LeafConstantGaussianPrior* leaf_prior;
+        // if (forest_leaf_prior_type_[forest_num] == ForestLeafPriorType::kConstantLeafGaussian) {
+        //   ConstantLeafForestDataset* dataset = dynamic_cast<ConstantLeafForestDataset*>(forest_datasets_[forest_num].get());
+        //   LeafConstantGaussianPrior* leaf_prior = dynamic_cast<LeafConstantGaussianPrior*>(forest_leaf_priors_[forest_num].get());
+        // } else if (forest_leaf_prior_type_[forest_num] == ForestLeafPriorType::kUnivariateRegressionLeafGaussian) {
+        //   RegressionLeafForestDataset* dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[forest_num].get());
+        //   LeafUnivariateRegressionGaussianPrior* leaf_prior = dynamic_cast<LeafUnivariateRegressionGaussianPrior*>(forest_leaf_priors_[forest_num].get());
+        // } else {
+        //   RegressionLeafForestDataset* dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[forest_num].get());
+        //   LeafMultivariateRegressionGaussianPrior* leaf_prior = dynamic_cast<LeafMultivariateRegressionGaussianPrior*>(forest_leaf_priors_[forest_num].get());
+        // }
+        
+        // UnsortedNodeSampleTracker* node_sample_tracker;
+        // MCMCTreeSampler* tree_sampler;
+        // if (forest_sampler_type_[forest_num] == ForestSampler::kMCMC) {
+        //   ForestSamplerType* tree_sampler = dynamic_cast<ForestSamplerType*>(forest_samplers_[forest_num].get());
+        //   UnsortedNodeSampleTracker* node_sample_tracker = tree_sampler->GetNodeSampleTracker();
+        // }
+        //  else {
+        //   GFRTreeSampler* tree_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[forest_num].get());
+        //   SortedNodeSampleTracker* node_sample_tracker = tree_sampler->GetNodeSampleTracker();
+        // }
+
+        TreeEnsemble* ensemble = forest_sample_containers_[forest_num]->GetEnsemble(model_draw);        
+        n = dataset->covariates.rows();
+        for (int tree_num = 0; tree_num < ensemble->NumTrees(); tree_num++) {
+          // Reset the tree and tracking info relevant to the sampler
+          if (model_draw == 0) {
+            sigma_sq = global_variance_init_;
+          } else {
+            sigma_sq = global_variance_sample_container_[model_draw - 1];
+            tree_sampler->template Reset<ForestDatasetType, ForestLeafPriorType, ForestLeafSuffStatType>(forest_sample_containers_[forest_num].get(), dataset, forest_feature_types_[forest_num], tree_num, model_draw, model_draw - 1);
+          }
+          
+          // Add tree's prediction back to the residual to obtain a "partial" residual for fitting tree j
+          for (int k = 0; k < n; k++) {
+            residual_->residual(k) += TreePredictFromNodeSampleTracker<ForestDatasetType>(forest_num, k, tree_num, model_draw);
+          }
+          
+          // Obtain a pointer to the current tree
+          Tree* tree = ensemble->GetTree(tree_num);
+
+          // Sample the tree
+          // forest_samplers_[forest_num]->SampleTree(tree, residual_.get(), dataset, leaf_prior, forest_tree_priors_[forest_num].get(), sigma_sq, gen_, tree_num);
+          tree_sampler->template SampleTree<ForestDatasetType, ForestLeafPriorType, ForestLeafSuffStatType>(tree, residual_.get(), dataset, leaf_prior, forest_tree_priors_[forest_num].get(), sigma_sq, gen_, tree_num);
+          // if (forest_leaf_prior_type_[forest_num] == ForestLeafPriorType::kConstantLeafGaussian) {
+          //   tree_sampler->SampleTree<ConstantLeafForestDataset, LeafConstantGaussianPrior, LeafConstantGaussianSuffStat>(tree, residual_.get(), dataset, leaf_prior, forest_tree_priors_[forest_num].get(), sigma_sq, gen_, tree_num);
+          // } else if (forest_leaf_prior_type_[forest_num] == ForestLeafPriorType::kUnivariateRegressionLeafGaussian) {
+          //   tree_sampler->SampleTree<RegressionLeafForestDataset, LeafUnivariateRegressionGaussianPrior, LeafUnivariateRegressionGaussianSuffStat>(tree, residual_.get(), dataset, leaf_prior, forest_tree_priors_[forest_num].get(), sigma_sq, gen_, tree_num);
+          // } else {
+          //   tree_sampler->SampleTree<RegressionLeafForestDataset, LeafMultivariateRegressionGaussianPrior, LeafMultivariateRegressionGaussianSuffStat>(tree, residual_.get(), dataset, leaf_prior, forest_tree_priors_[forest_num].get(), sigma_sq, gen_, tree_num);
+          // }
+          // Sample the leaf node parameters
+          
+          leaf_sampler->SampleLeafParameters(leaf_prior, dataset, residual_.get(), tree, node_sample_tracker, tree_num, gen_, sigma_sq);
+          
+          // Subtract tree's prediction back out of the residual
+          for (int k = 0; k < n; k++) {
+            residual_->residual(k) -= TreePredictFromNodeSampleTracker<ForestDatasetType>(forest_num, k, tree_num, model_draw);
+          }
+        }
+      }
+
+      // Sample each random effect term
+      for (int rfx_num = 0; rfx_num < num_rfx_; rfx_num++) {
+        RegressionRandomEffectsDataset* rfx_dataset = rfx_datasets_[rfx_num].get();
+        RandomEffectsRegressionGaussianPrior* rfx_prior = dynamic_cast<RandomEffectsRegressionGaussianPrior*>(rfx_priors_[rfx_num].get());
+        RandomEffectsSampler* rfx_sampler = rfx_samplers_[rfx_num].get();
+        
+        // Add rfx predictions back to residual
+        if (model_draw > 0) {
+          residual_->residual += rfx_sampler->PredictRandomEffects(rfx_dataset->basis, rfx_dataset->group_indices);
+        }
+        
+        // Sample the random effects
+        rfx_sampler->SampleRandomEffects(rfx_prior, rfx_dataset, residual_.get(), gen_);
+
+        // Subtract rfx predictions back out of residual
+        residual_->residual -= rfx_sampler->PredictRandomEffects(rfx_dataset->basis, rfx_dataset->group_indices);
+
+        // Store the random effects
+        rfx_sample_containers_[rfx_num]->ResetSample(rfx_sampler, model_draw);
+      }
+
+      // Sample global variance
+      global_variance_sample_container_[model_draw] = global_variance_sampler_->SampleVarianceParameter(residual_.get(), global_variance_prior_.get(), gen_);
+
+      // TODO: sample leaf node scale variances
+
+    }  
   }
-  
-  std::vector<double> PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* rfx_basis_data_ptr, int num_rfx_basis, std::vector<int32_t>& rfx_groups,  data_size_t num_row, bool is_row_major);
+  void SampleConstantLeafForest(int sample_iter);
+  void SampleUnivariateRegressionLeafForest(int sample_iter);
+  void SampleMultivariateRegressionLeafForest(int sample_iter);
+  void SampleRandomEffectRegression(int sample_iter);
+
+  // Predicting model terms
+  void PredictConstantLeafForest(double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major, std::vector<double>& output);
+  void PredictUnivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<double>& output);
+  void PredictMultivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<double>& output);
+  void PredictRandomEffectRegression(double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<int32_t> group_indices, std::vector<double>& output);
 
  private:
-  /*! \brief Outcome, residual, covariates, and basis matrix for training */
-  Eigen::MatrixXd outcome_;
-  Eigen::MatrixXd residual_;
-  Eigen::MatrixXd covariates_;
-  Eigen::MatrixXd basis_;
-  Eigen::MatrixXd rfx_basis_;
-  int num_observations_;
-  int num_covariates_;
-  int num_basis_;
-  bool has_basis_{false};
+  // Mean model components
+  /*! \brief Forest storage, prior info, training data, and samplers */
+  std::vector<std::unique_ptr<ForestDataset>> forest_datasets_;
+  std::vector<std::unique_ptr<TreeEnsembleContainer>> forest_sample_containers_;
+  std::vector<std::unique_ptr<LeafGaussianPrior>> forest_leaf_priors_;
+  std::vector<std::unique_ptr<TreePrior>> forest_tree_priors_;
+  std::vector<std::unique_ptr<IGVariancePrior>> forest_leaf_variance_priors_;
+  std::vector<std::unique_ptr<TreeSampler>> forest_samplers_;
+  std::vector<std::unique_ptr<LeafGaussianSampler>> forest_leaf_mean_samplers_;
+  std::vector<std::unique_ptr<LeafNodeHomoskedasticVarianceSampler>> forest_leaf_variance_samplers_;
+  std::vector<ForestLeafVarianceType> forest_leaf_variance_type_;
+  std::vector<ForestLeafPriorType> forest_leaf_prior_type_;
+  std::vector<ForestSampler> forest_sampler_type_;
+  std::vector<std::vector<double>> forest_leaf_variance_sample_containers_;
+  std::vector<std::vector<FeatureType>> forest_feature_types_;
+  int num_forests_;
   
-  /*! \brief Covariates and basis matrix for prediction */
-  Eigen::MatrixXd prediction_covariates_;
-  Eigen::MatrixXd prediction_basis_;
-  Eigen::MatrixXd prediction_rfx_basis_;
-  int num_pred_covariates_;
-  int num_pred_basis_;
-
-  /*! \brief Variance prior parameters */
-  double nu_;
-  double lambda_;
-
-  /*! \brief Sampling parameters */
-  int num_trees_;
-  int num_samples_;
-  int num_burnin_;
-  int min_data_in_leaf_;
-  double alpha_;
-  double beta_;
-
+  /*! \brief Random effects storage, prior info, training data, and samplers */
+  std::vector<std::unique_ptr<RegressionRandomEffectsDataset>> rfx_datasets_;
+  std::vector<std::unique_ptr<RandomEffectsContainer>> rfx_sample_containers_;
+  std::vector<std::unique_ptr<RandomEffectsRegressionGaussianPrior>> rfx_priors_;
+  std::vector<std::unique_ptr<RandomEffectsSampler>> rfx_samplers_;
+  int num_rfx_;
+  
+  // Variance model components
+  /*! \brief Global outcome variance storage, prior info, and sampler */
+  double global_variance_init_;
+  std::unique_ptr<IGVariancePrior> global_variance_prior_;
+  std::unique_ptr<GlobalHomoskedasticVarianceSampler> global_variance_sampler_;
+  std::vector<double> global_variance_sample_container_;
+  
+  // Outcome
+  /*! \brief Outcome for training */
+  std::unique_ptr<UnivariateResidual> residual_;
+  double outcome_offset_;
+  double outcome_scale_;
+  
+  // Global state
   /*! \brief Random number generator */
   std::mt19937 gen_;
+  int total_draws_;
+  int num_samples_;
+  int num_burnin_;
 
-  /*! \brief Pointer to draws of the model */
-  std::vector<std::unique_ptr<ModelDraw>> model_draws_;
-  /*! \brief Compute ybar and scale parameter */
-  void OutcomeCenterScale(Eigen::MatrixXd& outcome, double& ybar_offset, double& sd_scale);
-  /*! \brief Load data from pointer to eigen matrix */
-  void LoadData(double* data_ptr, int num_row, int num_col, bool is_row_major, Eigen::MatrixXd& data_matrix);
+  // Private helper functions
+  void CenterScaleOutcome();
+  double MeanOutcome();
+//  double TreePredictFromNode(int forest_num, int observation_num, int tree_num, int sample_num);
+  void InitializeForest(int forest_num, int sample_num, double initial_forest_pred);
+  void InitializeRandomEffects(int rfx_num, double initial_rfx_pred);
+  
+  template<typename ForestDatasetType>
+  double TreePredictFromNodeSampleTracker(int forest_num, int observation_num, int tree_num, int sample_num) {
+    ForestDatasetType* dataset = dynamic_cast<ForestDatasetType*>(forest_datasets_[forest_num].get());
+    Tree* tree = forest_sample_containers_[forest_num]->GetEnsemble(sample_num)->GetTree(tree_num);
+    data_size_t node_id = forest_samplers_[forest_num]->GetNodeId(observation_num, tree_num);
+    if (std::is_same_v<RegressionLeafForestDataset*, ForestDatasetType*>){
+      return tree->PredictFromNode(node_id, dataset->basis, observation_num);
+    } else {
+      return tree->PredictFromNode(node_id);
+    }
+  }
 };
 
 } // namespace StochTree

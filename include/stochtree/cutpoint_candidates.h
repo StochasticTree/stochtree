@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2023 stochtree authors.
+ * Copyright (c) 2024 stochtree authors.
  * 
  * Data structures for enumerating potential cutpoint candidates.
  * 

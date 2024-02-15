@@ -628,30 +628,6 @@ inline int NextNodeCategorical(double fvalue, std::vector<std::uint32_t> const& 
   return SplitTrueCategorical(fvalue, category_list) ? left_child : right_child;
 }
 
-// /*! \brief Determine the node at which a tree places a given observation
-//  *  \param tree Tree object used for prediction
-//  *  \param data Dataset used for prediction
-//  *  \param row Row indexing the prediction observation
-//  */
-// inline int EvaluateTree(Tree const& tree, Dataset* data, int row) {
-//   int node_id = 0;
-//   while (!tree.IsLeaf(node_id)) {
-//     auto const split_index = tree.SplitIndex(node_id);
-//     double const fvalue = data->CovariateValue(row, split_index);
-//     if (std::isnan(fvalue)) {
-//       node_id = tree.DefaultChild(node_id);
-//     } else {
-//       if (tree.NodeType(node_id) == StochTree::TreeNodeType::kCategoricalSplitNode) {
-//         node_id = NextNodeCategorical(fvalue, tree.CategoryList(node_id),
-//             tree.LeftChild(node_id), tree.RightChild(node_id));
-//       } else {
-//         node_id = NextNodeNumeric(fvalue, tree.Threshold(node_id), tree.LeftChild(node_id), tree.RightChild(node_id));
-//       }
-//     }
-//   }
-//   return node_id;
-// }
-
 /*! \brief Determine the node at which a tree places a given observation
  *  \param tree Tree object used for prediction
  *  \param data Dataset used for prediction
@@ -675,28 +651,6 @@ inline int EvaluateTree(Tree const& tree, Eigen::MatrixXd data, int row) {
   }
   return node_id;
 }
-
-// /*! \brief Determine whether a given observation is "true" at a split proposed by split_index and split_value
-//  *  \param data Dataset used for prediction
-//  *  \param row Row indexing the prediction observation
-//  *  \param split_index Column of new split
-//  *  \param split_value Value defining the split
-//  */
-// inline bool RowSplitLeft(Dataset* data, int row, int split_index, double split_value) {
-//   double const fvalue = data->CovariateValue(row, split_index);
-//   return SplitTrueNumeric(fvalue, split_value);
-// }
-
-// /*! \brief Determine whether a given observation is "true" at a split proposed by split_index and split_value
-//  *  \param data Dataset used for prediction
-//  *  \param row Row indexing the prediction observation
-//  *  \param split_index Column of new split
-//  *  \param category_list Categories defining the split
-//  */
-// inline bool RowSplitLeft(Dataset* data, int row, int split_index, std::vector<std::uint32_t> const& category_list) {
-//   double const fvalue = data->CovariateValue(row, split_index);
-//   return SplitTrueCategorical(fvalue, category_list);
-// }
 
 /*! \brief Determine whether a given observation is "true" at a split proposed by split_index and split_value
  *  \param covariates Dataset used for prediction

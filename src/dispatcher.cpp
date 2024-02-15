@@ -1,248 +1,257 @@
-/*!
- * Copyright (c) 2023 by randtree authors. 
- * 
- * Inspired by the C API of both lightgbm and xgboost, which carry the 
- * following respective copyrights:
- * 
- * LightGBM
- * ========
- * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See LICENSE file in the project root for license information.
- * 
- * xgboost
- * =======
- * Copyright 2015~2023 by XGBoost Contributors
- */
+/*! Copyright (c) 2024 by stochtree authors */
+#include <Eigen/Dense>
 #include <stochtree/dispatcher.h>
-#include <stochtree/partition_tracker.h>
-
-#include <iostream>
-#include <memory>
-#include <set>
-#include <string>
 
 namespace StochTree {
 
-MCMCDispatcher::MCMCDispatcher(int num_samples, int num_burnin, int num_trees, int random_seed) {
-  num_samples_ = num_samples;
-  num_burnin_ = num_burnin;
-  num_trees_ = num_trees;
-  model_draws_ = std::vector<std::unique_ptr<ModelDraw>>(num_samples);
-  if (random_seed < 0) {
-    std::random_device rd;
-    std::mt19937 gen_(rd());
+void Dispatcher::AddOutcome(double* outcome_data_ptr, data_size_t num_row) {
+  residual_.reset(new UnivariateResidual());
+  residual_->LoadFromMemory(outcome_data_ptr, num_row);
+}
+
+void Dispatcher::AddConstantLeafForest(double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major, int num_trees, double mu_bar, double tau, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, bool leaf_variance_random, double a_leaf, double b_leaf) {
+  // Add dataset
+  forest_datasets_.push_back(std::make_unique<ConstantLeafForestDataset>());
+  forest_datasets_[num_forests_]->LoadFromMemory(covariate_data_ptr, num_covariate, num_row, is_row_major);
+  forest_feature_types_.push_back(feature_types);
+  ConstantLeafForestDataset* forest_dataset = dynamic_cast<ConstantLeafForestDataset*>(forest_datasets_[num_forests_].get());
+
+  // Add forest (with no drawn samples yet ... we'll add later)
+  forest_sample_containers_.push_back(std::make_unique<TreeEnsembleContainer>(0, num_trees, 1, true));
+
+  // Add leaf prior
+  forest_leaf_priors_.push_back(std::make_unique<LeafConstantGaussianPrior>(mu_bar, tau));
+  forest_leaf_prior_type_.push_back(ForestLeafPriorType::kConstantLeafGaussian);
+
+  // Add tree prior
+  forest_tree_priors_.push_back(std::make_unique<TreePrior>(alpha, beta, min_samples_in_leaf));
+
+  // Add forest sampler
+  forest_sampler_type_.push_back(forest_sampler);
+  if (forest_sampler == ForestSampler::kMCMC) {
+    forest_samplers_.push_back(std::make_unique<MCMCTreeSampler>());
+    MCMCTreeSampler* forest_sampler = dynamic_cast<MCMCTreeSampler*>(forest_samplers_[num_forests_].get());
+    forest_sampler->template Initialize<ConstantLeafForestDataset, LeafConstantGaussianPrior, LeafConstantGaussianSuffStat>(forest_dataset, num_trees, num_row, feature_types);
+  // } else if (forest_sampler == ForestSampler::kGFR) {
+  //   forest_samplers_.push_back(std::make_unique<GFRTreeSampler>());
+  //    GFRTreeSampler* forest_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[num_forests_].get());
+  //    forest_sampler->template Initialize<RegressionLeafForestDataset>(forest_dataset, num_trees, num_row, feature_types);
   } else {
-    std::mt19937 gen_(random_seed);
+    Log::Fatal("Sampler %s not implemented", forest_sampler);
   }
+
+  // Add forest leaf sampler
+  forest_leaf_mean_samplers_.push_back(std::make_unique<LeafConstantGaussianSampler>());
+
+  // Add tracking info on leaf scale sampling
+  if (leaf_variance_random) {
+    forest_leaf_variance_type_.push_back(ForestLeafVarianceType::kStochastic);
+  } else {
+    forest_leaf_variance_type_.push_back(ForestLeafVarianceType::kFixed);
+  }
+  forest_leaf_variance_samplers_.push_back(std::make_unique<LeafNodeHomoskedasticVarianceSampler>());
+  forest_leaf_variance_priors_.push_back(std::make_unique<IGVariancePrior>(a_leaf, b_leaf));
+  // TODO: eventually this will be refactored into a contained of "LeafScaleSample" objects, flexible enough to be scalar / matrix
+  forest_leaf_variance_sample_containers_.push_back(std::vector<double>(0));
+
+  // Increment forest count
+  num_forests_++;
 }
 
-MCMCDispatcher::~MCMCDispatcher() {}
+void Dispatcher::AddUnivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, int num_trees, double beta_bar, double tau, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, bool leaf_variance_random, double a_leaf, double b_leaf) {
+  // Add dataset
+  forest_datasets_.push_back(std::make_unique<RegressionLeafForestDataset>());
+  forest_datasets_[num_forests_]->LoadFromMemory(covariate_data_ptr, num_covariate, basis_data_ptr, num_basis, num_row, is_row_major);
+  forest_feature_types_.push_back(feature_types);
+  RegressionLeafForestDataset* forest_dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[num_forests_].get());
 
-bool MCMCDispatcher::TrainDataConsistent(){
-  if (outcome_.rows() != residual_.rows()) {
-    return false;
-  } 
-  if (outcome_.rows() != covariates_.rows()) {
-    return false;
-  } 
-  if (outcome_.rows() != basis_.rows()) {
-    return false;
-  } 
-  if (residual_.rows() != covariates_.rows()) {
-    return false;
-  } 
-  if (residual_.rows() != basis_.rows()) {
-    return false;
-  } 
-  if (covariates_.rows() != basis_.rows()) {
-    return false;
+  // Add forest (with no drawn samples yet ... we'll add later)
+  forest_sample_containers_.push_back(std::make_unique<TreeEnsembleContainer>(0, num_trees, 1, true));
+
+  // Add leaf prior
+  forest_leaf_priors_.push_back(std::make_unique<LeafUnivariateRegressionGaussianPrior>(beta_bar, tau));
+  forest_leaf_prior_type_.push_back(ForestLeafPriorType::kUnivariateRegressionLeafGaussian);
+
+  // Add tree prior
+  forest_tree_priors_.push_back(std::make_unique<TreePrior>(alpha, beta, min_samples_in_leaf));
+
+  // Add forest sampler
+  if (forest_sampler == ForestSampler::kMCMC) {
+    forest_samplers_.push_back(std::make_unique<MCMCTreeSampler>());
+    MCMCTreeSampler* forest_sampler = dynamic_cast<MCMCTreeSampler*>(forest_samplers_[num_forests_].get());
+    forest_sampler->template Initialize<RegressionLeafForestDataset, LeafUnivariateRegressionGaussianPrior, LeafUnivariateRegressionGaussianSuffStat>(forest_dataset, num_trees, num_row, feature_types);
+  // } else if (forest_sampler == ForestSampler::kGFR) {
+  //   forest_samplers_.push_back(std::make_unique<GFRTreeSampler>());
+  //    GFRTreeSampler* forest_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[num_forests_].get());
+  //    forest_sampler->template Initialize<RegressionLeafForestDataset>(forest_dataset, num_trees, num_row, feature_types);
+  } else {
+    Log::Fatal("Sampler %s not implemented", forest_sampler);
   }
-  if (outcome_.rows() == 0) {
-    return false;
+
+  // Add forest leaf sampler
+  forest_leaf_mean_samplers_.push_back(std::make_unique<LeafUnivariateRegressionGaussianSampler>());
+
+  // Add tracking info on leaf scale sampling
+  if (leaf_variance_random) {
+    forest_leaf_variance_type_.push_back(ForestLeafVarianceType::kStochastic);
+  } else {
+    forest_leaf_variance_type_.push_back(ForestLeafVarianceType::kFixed);
   }
-  return true;
+  forest_leaf_variance_samplers_.push_back(std::make_unique<LeafNodeHomoskedasticVarianceSampler>());
+  forest_leaf_variance_priors_.push_back(std::make_unique<IGVariancePrior>(a_leaf, b_leaf));
+  // TODO: eventually this will be refactored into a contained of "LeafScaleSample" objects, flexible enough to be scalar / matrix
+  forest_leaf_variance_sample_containers_.push_back(std::vector<double>(0));
+
+  // Increment forest count
+  num_forests_++;
 }
 
-bool MCMCDispatcher::PredictionDataConsistent(){
-  if (prediction_covariates_.rows() != prediction_basis_.rows()) {
-    return false;
+void Dispatcher::AddMultivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, int num_trees, Eigen::VectorXd& Beta, Eigen::MatrixXd& Sigma, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, bool leaf_variance_random) {
+  // Add dataset
+  forest_datasets_.push_back(std::make_unique<RegressionLeafForestDataset>());
+  forest_datasets_[num_forests_]->LoadFromMemory(covariate_data_ptr, num_covariate, basis_data_ptr, num_basis, num_row, is_row_major);
+  forest_feature_types_.push_back(feature_types);
+  RegressionLeafForestDataset* forest_dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[num_forests_].get());
+
+  // Add forest (with no drawn samples yet ... we'll add later)
+  forest_sample_containers_.push_back(std::make_unique<TreeEnsembleContainer>(0, num_trees, 1, true));
+
+  // Add leaf prior
+  forest_leaf_priors_.push_back(std::make_unique<LeafMultivariateRegressionGaussianPrior>(Beta, Sigma, num_basis));
+  forest_leaf_prior_type_.push_back(ForestLeafPriorType::kMultivariateRegressionLeafGaussian);
+
+  // Add tree prior
+  forest_tree_priors_.push_back(std::make_unique<TreePrior>(alpha, beta, min_samples_in_leaf));
+
+  // Add forest sampler
+  if (forest_sampler == ForestSampler::kMCMC) {
+    forest_samplers_.push_back(std::make_unique<MCMCTreeSampler>());
+    MCMCTreeSampler* forest_sampler = dynamic_cast<MCMCTreeSampler*>(forest_samplers_[num_forests_].get());
+    forest_sampler->template Initialize<RegressionLeafForestDataset, LeafMultivariateRegressionGaussianPrior, LeafMultivariateRegressionGaussianSuffStat>(forest_dataset, num_trees, num_row, feature_types);
+  // } else if (forest_sampler == ForestSampler::kGFR) {
+  //   forest_samplers_.push_back(std::make_unique<GFRTreeSampler>());
+  //    GFRTreeSampler* forest_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[num_forests_].get());
+  //    forest_sampler->template Initialize<RegressionLeafForestDataset>(forest_dataset, num_trees, num_row, feature_types);
+  } else {
+    Log::Fatal("Sampler %s not implemented", forest_sampler);
   }
-  if (prediction_covariates_.rows() == 0) {
-    return false;
+
+  // Add forest leaf sampler
+  forest_leaf_mean_samplers_.push_back(std::make_unique<LeafMultivariateRegressionGaussianSampler>());
+
+  // Add tracking info on leaf scale sampling
+  if (leaf_variance_random) {
+    Log::Fatal("Leaf covariance sampling is not implemented for multivariate leaf node regression");
+  } else {
+    forest_leaf_variance_type_.push_back(ForestLeafVarianceType::kFixed);
   }
-  return true;
+  forest_leaf_variance_samplers_.push_back(std::make_unique<LeafNodeHomoskedasticVarianceSampler>());
+  forest_leaf_variance_priors_.push_back(std::make_unique<IGVariancePrior>(1., 1.));
+  // TODO: eventually this will be refactored into a contained of "LeafScaleSample" objects, flexible enough to be scalar / matrix
+  forest_leaf_variance_sample_containers_.push_back(std::vector<double>(0));
+
+  // Increment forest count
+  num_forests_++;
 }
 
-void MCMCDispatcher::LoadData(double* data_ptr, int num_row, int num_col, bool is_row_major, Eigen::MatrixXd& data_matrix) {
-  data_matrix.resize(num_row, num_col);
+void Dispatcher::AddRandomEffectRegression(double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<int32_t> group_indices, double a, double b, int num_components, int num_groups) {
+  // Add dataset
+  rfx_datasets_.push_back(std::make_unique<RegressionRandomEffectsDataset>());
+  rfx_datasets_[num_rfx_]->LoadFromMemory(basis_data_ptr, num_basis, num_row, is_row_major, group_indices);
 
-  // Copy data from R / Python process memory to Eigen matrix
-  double temp_value;
-  for (data_size_t i = 0; i < num_row; ++i) {
-    for (int j = 0; j < num_col; ++j) {
-      if (is_row_major){
-        // Numpy 2-d arrays are stored in "row major" order
-        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
-      } else {
-        // R matrices are stored in "column major" order
-        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
-      }
-      
-      data_matrix(i, j) = temp_value;
-    }
-  }
+  // Add sample container (with no drawn samples yet ... we'll add later)
+  rfx_sample_containers_.push_back(std::make_unique<RandomEffectsContainer>(0));
+
+  // Add prior
+  rfx_priors_.push_back(std::make_unique<RandomEffectsRegressionGaussianPrior>(a, b, num_components, num_groups));
+
+  // Add sampler
+  rfx_samplers_.push_back(std::make_unique<RandomEffectsSampler>(rfx_datasets_[num_rfx_].get(), rfx_priors_[num_rfx_].get()));
+
+  // Increment rfx count
+  num_rfx_++;
 }
 
-std::vector<double> MCMCDispatcher::PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* rfx_basis_data_ptr, int num_rfx_basis, std::vector<int32_t>& rfx_groups, data_size_t num_row, bool is_row_major) {
-  // Load the data
-  LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, prediction_covariates_);
-  LoadData(basis_data_ptr, num_row, num_basis, is_row_major, prediction_basis_);
-  LoadData(rfx_basis_data_ptr, num_row, num_rfx_basis, is_row_major, prediction_rfx_basis_);
-  CHECK(PredictionDataConsistent());
-  
-  // Predict outcomes using supplied data and sampled ensembles
-  data_size_t n = prediction_covariates_.rows();
-  data_size_t offset = 0;
-  int num_samples = num_samples_;
-  std::vector<double> result(n*num_samples_);
-  for (int j = 0; j < num_samples_; j++) {
-    if (model_draws_[j]->GetEnsemble() == nullptr) {
-      Log::Fatal("Sample %d has not drawn a tree ensemble");
-    }
-    // Store in column-major format and handle unpacking into proper format at the R / Python layers
-    model_draws_[j]->PredictInplace(prediction_covariates_, prediction_basis_, prediction_rfx_basis_, rfx_groups, result, offset);
-    offset += n;
-  }
-  return result;
+void Dispatcher::AddGlobalVarianceTerm(double a, double b, double global_variance_init) {
+  // Update sample container (with no drawn samples yet ... we'll add later)
+  global_variance_sample_container_.resize(0);
+
+  // Update sample container (with no drawn samples yet ... we'll add later)
+  global_variance_init_ = global_variance_init;
+  global_variance_prior_ = std::make_unique<IGVariancePrior>(a, b);
+  global_variance_sampler_ = std::make_unique<GlobalHomoskedasticVarianceSampler>();
 }
 
-void MCMCDispatcher::OutcomeCenterScale(Eigen::MatrixXd& outcome, double& ybar_offset, double& sd_scale){
+void Dispatcher::CenterScaleOutcome() {
+  // Compute and store the offset / scale factors
   double var_y = 0.0;
   double outcome_sum_squares = 0.0;
   double outcome_sum = 0.0;
   double outcome_val;
-  data_size_t n = outcome.rows();
-  int p = outcome.cols();
-  CHECK_EQ(p, 1);
+  data_size_t n = residual_->residual.rows();
   for (data_size_t i = 0; i < n; i++){
-    outcome_val = outcome(i, 0);
+    outcome_val = residual_->residual(i);
     outcome_sum += outcome_val;
     outcome_sum_squares += std::pow(outcome_val, 2.0);
   }
   var_y = outcome_sum_squares/n - std::pow(outcome_sum / n, 2.0);
-  sd_scale = std::sqrt(var_y);
-  ybar_offset = outcome_sum / n;
-}
-
-GFRDispatcher::GFRDispatcher(int num_samples, int num_burnin, int num_trees, int random_seed) {
-  num_samples_ = num_samples;
-  num_burnin_ = num_burnin;
-  num_trees_ = num_trees;
-  model_draws_ = std::vector<std::unique_ptr<ModelDraw>>(num_samples);
-  if (random_seed < 0) {
-    std::random_device rd;
-    std::mt19937 gen_(rd());
-  } else {
-    std::mt19937 gen_(random_seed);
-  }
-}
-
-GFRDispatcher::~GFRDispatcher() {}
-
-bool GFRDispatcher::TrainDataConsistent(){
-  if (outcome_.rows() != residual_.rows()) {
-    return false;
-  } 
-  if (outcome_.rows() != covariates_.rows()) {
-    return false;
-  } 
-  if (outcome_.rows() != basis_.rows()) {
-    return false;
-  } 
-  if (residual_.rows() != covariates_.rows()) {
-    return false;
-  } 
-  if (residual_.rows() != basis_.rows()) {
-    return false;
-  } 
-  if (covariates_.rows() != basis_.rows()) {
-    return false;
-  }
-  if (outcome_.rows() == 0) {
-    return false;
-  }
-  return true;
-}
-
-bool GFRDispatcher::PredictionDataConsistent(){
-  if (prediction_covariates_.rows() != prediction_basis_.rows()) {
-    return false;
-  }
-  if (prediction_covariates_.rows() == 0) {
-    return false;
-  }
-  return true;
-}
-
-void GFRDispatcher::LoadData(double* data_ptr, int num_row, int num_col, bool is_row_major, Eigen::MatrixXd& data_matrix) {
-  data_matrix.resize(num_row, num_col);
-
-  // Copy data from R / Python process memory to Eigen matrix
-  double temp_value;
-  for (data_size_t i = 0; i < num_row; ++i) {
-    for (int j = 0; j < num_col; ++j) {
-      if (is_row_major){
-        // Numpy 2-d arrays are stored in "row major" order
-        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
-      } else {
-        // R matrices are stored in "column major" order
-        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
-      }
-      
-      data_matrix(i, j) = temp_value;
-    }
-  }
-}
-
-std::vector<double> GFRDispatcher::PredictSamples(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, double* rfx_basis_data_ptr, int num_rfx_basis, std::vector<int32_t>& rfx_groups, data_size_t num_row, bool is_row_major) {
-  // Load the data
-  LoadData(covariate_data_ptr, num_row, num_covariate, is_row_major, prediction_covariates_);
-  LoadData(basis_data_ptr, num_row, num_basis, is_row_major, prediction_basis_);
-  LoadData(rfx_basis_data_ptr, num_row, num_rfx_basis, is_row_major, prediction_rfx_basis_);
-  CHECK(PredictionDataConsistent());
   
-  // Predict outcomes using supplied data and sampled ensembles
-  data_size_t n = prediction_covariates_.rows();
-  data_size_t offset = 0;
-  int num_samples = num_samples_;
-  std::vector<double> result(n*num_samples_);
-  for (int j = 0; j < num_samples_; j++) {
-    if (model_draws_[j]->GetEnsemble() == nullptr) {
-      Log::Fatal("Sample %d has not drawn a tree ensemble");
-    }
-    // Store in column-major format and handle unpacking into proper format at the R / Python layers
-    model_draws_[j]->PredictInplace(prediction_covariates_, prediction_basis_, prediction_rfx_basis_, rfx_groups, result, offset);
-    offset += n;
-  }
-  return result;
+  // Store the offset and scale factors (necessary for prediction later on)
+  outcome_scale_ = std::sqrt(var_y);
+  outcome_offset_ = outcome_sum / n;
+
+  // Update the residual
+  residual_->residual = residual_->residual.array() - outcome_offset_;
+  residual_->residual /= outcome_scale_;
 }
 
-void GFRDispatcher::OutcomeCenterScale(Eigen::MatrixXd& outcome, double& ybar_offset, double& sd_scale){
-  double var_y = 0.0;
-  double outcome_sum_squares = 0.0;
+double Dispatcher::MeanOutcome() {
   double outcome_sum = 0.0;
   double outcome_val;
-  data_size_t n = outcome.rows();
-  int p = outcome.cols();
-  CHECK_EQ(p, 1);
+  data_size_t n = residual_->residual.rows();
   for (data_size_t i = 0; i < n; i++){
-    outcome_val = outcome(i, 0);
+    outcome_val = residual_->residual(i);
     outcome_sum += outcome_val;
-    outcome_sum_squares += std::pow(outcome_val, 2.0);
   }
-  var_y = outcome_sum_squares/n - std::pow(outcome_sum / n, 2.0);
-  sd_scale = std::sqrt(var_y);
-  ybar_offset = outcome_sum / n;
+  return outcome_sum / n;
+}
+
+void Dispatcher::InitializeForest(int forest_num, int sample_num, double initial_forest_pred) {
+  // Compute the implied leaf value initialization for each root node
+  double initial_leaf_value;
+  std::vector<double> initial_leaf_values;
+  int num_basis;
+  int num_trees = forest_sample_containers_[forest_num]->NumTrees();
+  TreeEnsembleContainer* ensemble_container = forest_sample_containers_[forest_num].get();
+  UnivariateResidual* residual = residual_.get();
+  if (forest_leaf_prior_type_[forest_num] == ForestLeafPriorType::kConstantLeafGaussian) {
+    initial_leaf_value = initial_forest_pred / num_trees;
+    num_basis = 0;
+  } else if (forest_leaf_prior_type_[forest_num] == ForestLeafPriorType::kUnivariateRegressionLeafGaussian) {
+    RegressionLeafForestDataset* dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[forest_num].get());
+    initial_leaf_value = (initial_forest_pred / num_trees) / (dataset->basis.array().sum());
+  } else if (forest_leaf_prior_type_[forest_num] == ForestLeafPriorType::kMultivariateRegressionLeafGaussian) {
+    // TODO: find a heuristic initialization that yields mean_outcome as a prediction
+    std::vector<double> initial_leaf_values;
+    RegressionLeafForestDataset* dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[forest_num].get());
+    Eigen::MatrixXd leaf_reg_solution = (dataset->basis.transpose() * dataset->basis).inverse() * dataset->basis.transpose() * residual->residual;
+    int num_basis = dataset->basis.cols();
+    initial_leaf_values.resize(num_basis);
+    for (int i = 0; i < num_basis; i++) {
+      initial_leaf_values[i] = leaf_reg_solution(i,0) / num_trees;
+    }
+  }
+
+  TreeEnsemble* ensemble = ensemble_container->GetEnsemble(sample_num);
+  for (int j = 0; j < num_trees; j++) {
+    Tree* tree = ensemble->GetTree(j);
+    if (num_basis <= 1) {
+      tree->SetLeaf(0, initial_leaf_value);
+    } else {
+      tree->SetLeafVector(0, initial_leaf_values);
+    }
+    forest_samplers_[forest_num]->AssignAllSamplesToRoot(j);
+  }
 }
 
 } // namespace StochTree

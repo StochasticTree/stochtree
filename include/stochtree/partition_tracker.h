@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2023 stochtree authors.
+ * Copyright (c) 2024 stochtree authors.
  * 
  * Data structures used for tracking dataset through the tree building process.
  * 
@@ -22,8 +22,8 @@
  * 
  * Copyright 2015~2023 by XGBoost Contributors
  */
-#ifndef STOCHTREE_NODE_SAMPLE_TRACKER_H_
-#define STOCHTREE_NODE_SAMPLE_TRACKER_H_
+#ifndef STOCHTREE_PARTITION_TRACKER_H_
+#define STOCHTREE_PARTITION_TRACKER_H_
 
 #include <stochtree/ensemble.h>
 #include <stochtree/log.h>
@@ -475,4 +475,4 @@ class SortedNodeSampleTracker {
 
 } // namespace StochTree
 
-#endif // STOCHTREE_NODE_SAMPLE_TRACKER_H_
+#endif // STOCHTREE_PARTITION_TRACKER_H_

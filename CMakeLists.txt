@@ -4,8 +4,8 @@ option(USE_SANITIZER "Use santizer flags" OFF)
 option(BUILD_TEST "Build C++ tests with Google Test" OFF)
 option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
 
-# GoogleTest requires at least C++14
-set(CMAKE_CXX_STANDARD 14)
+# Require at least C++17
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Default to CMake 3.16
@@ -63,17 +63,15 @@ file(
   GLOB 
   SOURCES 
   src/cutpoint_candidates.cpp
+  src/data.cpp
   src/dispatcher.cpp
   src/io.cpp
   src/json11.cpp
-  src/model_draw.cpp
-  src/model_graph.cpp
-  src/outcome_model/homoskedastic_gaussian_constant.cpp
-  src/outcome_model/homoskedastic_gaussian_univariate_regression.cpp
-  src/outcome_model/homoskedastic_gaussian_multivariate_regression.cpp
   src/partition_tracker.cpp
-  src/sampler.cpp
+  # src/sampler.cpp
   src/tree.cpp
+  src/sampler/random_effects_sampler.cpp
+  src/sampler/tree_sampler.cpp
 )
 
 # Define the C++ source code as a target

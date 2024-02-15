@@ -1,9 +1,7 @@
-/*! Copyright (c) 2023 stochtree authors*/
+/*! Copyright (c) 2024 stochtree authors*/
 #include <stochtree/dispatcher.h>
-#include <stochtree/outcome_model.h>
-#include <stochtree/tree_prior.h>
-#include <stochtree/variance_model.h>
 
+#include <iostream>
 #include <random>
 #include <string>
 #include <unordered_map>
@@ -218,7 +216,7 @@ void RunExample(bool random_data = true) {
   // Data dimensions
   int n = 100;
   int x_rows = n;
-  int x_cols = 2;
+  int x_cols = 10;
   int omega_rows = n;
   int omega_cols = 1;
   int y_rows = n;
@@ -240,29 +238,31 @@ void RunExample(bool random_data = true) {
     GenerateFixedData(covariates, basis, outcome, rfx_basis, rfx_groups, n, x_cols, omega_cols, y_cols, rfx_basis_cols);
   }
   
-  // Initialize model classes
-  GaussianHomoskedasticUnivariateRegressionModelWrapper model = GaussianHomoskedasticUnivariateRegressionModelWrapper();
-  GlobalHomoskedasticVarianceModel variance_model = GlobalHomoskedasticVarianceModel();
-  LeafNodeHomoskedasticVarianceModel leaf_variance_model = LeafNodeHomoskedasticVarianceModel();
-  ClassicTreePrior tree_prior{0.95, 2.0, 1};
-  model.SetGlobalParameter(1., GlobalParamName::GlobalVariance);
-  model.SetGlobalParameter(1., GlobalParamName::LeafPriorVariance);
-  
   // Run the sampler
   std::vector<FeatureType> feature_types = {FeatureType::kNumeric, FeatureType::kNumeric, FeatureType::kNumeric, FeatureType::kNumeric, FeatureType::kNumeric};
   double nu = 1.0;
   double lambda = 1.0;
-  double a = 1.0;
-  double b = 1.0;
+  double a_leaf = 1.0;
+  double b_leaf = 1.0;
+  double a_rfx = 1.0;
+  double b_rfx = 1.0;
+  double sigma_sq_init = 1.0;
+  double tau_init = 1.0;
   int cutpoint_grid_size = 500;
   int num_rfx_groups = 2;
-//  GFRDispatcher dispatcher(20, 10, 1, 101);
-//  dispatcher.SampleModel<GaussianHomoskedasticUnivariateRegressionModelWrapper, ClassicTreePrior>(covariates.data(), x_cols, basis.data(), omega_cols, outcome.data(), y_cols, n, true, true, nu, lambda, a, b, model, tree_prior, cutpoint_grid_size, feature_types, variance_model, leaf_variance_model);
-  MCMCDispatcher dispatcher(20, 10, 20, 101);
-  dispatcher.SampleModel<GaussianHomoskedasticUnivariateRegressionModelWrapper, ClassicTreePrior>(covariates.data(), x_cols, basis.data(), omega_cols, outcome.data(), y_cols, rfx_basis.data(), rfx_basis_cols, num_rfx_groups, rfx_groups, n, true, true, 1.0, 1.0, a, b, model, tree_prior, variance_model);
+  int num_trees = 200;
+  Dispatcher dispatcher(101);
+  dispatcher.AddOutcome(outcome.data(), n);
+  dispatcher.AddGlobalVarianceTerm(1., 1., 1.);
+  dispatcher.AddUnivariateRegressionLeafForest(covariates.data(), x_cols, basis.data(), omega_cols, n, false, num_trees, 0, 1., 0.95, 2.0, 10, ForestSampler::kMCMC, feature_types, false);
+  dispatcher.AddRandomEffectRegression(rfx_basis.data(), rfx_basis_cols, n, false, rfx_groups, a_rfx, b_rfx, 1, 2);
+  dispatcher.SampleModel<RegressionLeafForestDataset, LeafUnivariateRegressionGaussianPrior, LeafUnivariateRegressionGaussianSuffStat, LeafUnivariateRegressionGaussianSampler, MCMCTreeSampler, UnsortedNodeSampleTracker>(10, 100);
   
-  // Predict from the sampled model
-  std::vector<double> output_raw = dispatcher.PredictSamples(covariates.data(), x_cols, basis.data(), omega_cols, rfx_basis.data(), rfx_basis_cols, rfx_groups, n, false);
+  // // Predict from the sampled model
+  // dispatcher.LoadForestPredictionData(covariates.data(), x_cols, n, true, true);
+  // dispatcher.PredictionConsistencyCheck();
+  // std::vector<double> forest_preds = dispatcher.PredictForest();
+  // std::vector<double> rfc_preds = dispatcher.PredictRandomEffects();
 }
 
 } // namespace StochTree
