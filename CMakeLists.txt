@@ -68,7 +68,6 @@ file(
   src/io.cpp
   src/json11.cpp
   src/partition_tracker.cpp
-  # src/sampler.cpp
   src/tree.cpp
   src/sampler/random_effects_sampler.cpp
   src/sampler/tree_sampler.cpp
