@@ -9,7 +9,7 @@ void Dispatcher::AddOutcome(double* outcome_data_ptr, data_size_t num_row) {
   residual_->LoadFromMemory(outcome_data_ptr, num_row);
 }
 
-void Dispatcher::AddConstantLeafForest(double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major, int num_trees, double mu_bar, double tau, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, bool leaf_variance_random, double a_leaf, double b_leaf) {
+void Dispatcher::AddConstantLeafForest(double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major, int num_trees, double mu_bar, double tau, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, int cutpoint_grid_size, bool leaf_variance_random, double a_leaf, double b_leaf) {
   // Add dataset
   forest_datasets_.push_back(std::make_unique<ConstantLeafForestDataset>());
   forest_datasets_[num_forests_]->LoadFromMemory(covariate_data_ptr, num_covariate, num_row, is_row_major);
@@ -32,10 +32,10 @@ void Dispatcher::AddConstantLeafForest(double* covariate_data_ptr, int num_covar
     forest_samplers_.push_back(std::make_unique<MCMCTreeSampler>());
     MCMCTreeSampler* forest_sampler = dynamic_cast<MCMCTreeSampler*>(forest_samplers_[num_forests_].get());
     forest_sampler->template Initialize<ConstantLeafForestDataset, LeafConstantGaussianPrior, LeafConstantGaussianSuffStat>(forest_dataset, num_trees, num_row, feature_types);
-  // } else if (forest_sampler == ForestSampler::kGFR) {
-  //   forest_samplers_.push_back(std::make_unique<GFRTreeSampler>());
-  //    GFRTreeSampler* forest_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[num_forests_].get());
-  //    forest_sampler->template Initialize<RegressionLeafForestDataset>(forest_dataset, num_trees, num_row, feature_types);
+  } else if (forest_sampler == ForestSampler::kGFR) {
+    forest_samplers_.push_back(std::make_unique<GFRTreeSampler>());
+    GFRTreeSampler* forest_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[num_forests_].get());
+    forest_sampler->template Initialize<ConstantLeafForestDataset, LeafConstantGaussianPrior, LeafConstantGaussianSuffStat>(forest_dataset, num_trees, num_row, feature_types);
   } else {
     Log::Fatal("Sampler %s not implemented", forest_sampler);
   }
@@ -54,11 +54,14 @@ void Dispatcher::AddConstantLeafForest(double* covariate_data_ptr, int num_covar
   // TODO: eventually this will be refactored into a contained of "LeafScaleSample" objects, flexible enough to be scalar / matrix
   forest_leaf_variance_sample_containers_.push_back(std::vector<double>(0));
 
+  // Add cutpoint grid size
+  forest_cutpoint_grid_sizes_.push_back(cutpoint_grid_size);
+
   // Increment forest count
   num_forests_++;
 }
 
-void Dispatcher::AddUnivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, int num_trees, double beta_bar, double tau, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, bool leaf_variance_random, double a_leaf, double b_leaf) {
+void Dispatcher::AddUnivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, int num_trees, double beta_bar, double tau, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, int32_t cutpoint_grid_size, bool leaf_variance_random, double a_leaf, double b_leaf) {
   // Add dataset
   forest_datasets_.push_back(std::make_unique<RegressionLeafForestDataset>());
   forest_datasets_[num_forests_]->LoadFromMemory(covariate_data_ptr, num_covariate, basis_data_ptr, num_basis, num_row, is_row_major);
@@ -80,10 +83,10 @@ void Dispatcher::AddUnivariateRegressionLeafForest(double* covariate_data_ptr, i
     forest_samplers_.push_back(std::make_unique<MCMCTreeSampler>());
     MCMCTreeSampler* forest_sampler = dynamic_cast<MCMCTreeSampler*>(forest_samplers_[num_forests_].get());
     forest_sampler->template Initialize<RegressionLeafForestDataset, LeafUnivariateRegressionGaussianPrior, LeafUnivariateRegressionGaussianSuffStat>(forest_dataset, num_trees, num_row, feature_types);
-  // } else if (forest_sampler == ForestSampler::kGFR) {
-  //   forest_samplers_.push_back(std::make_unique<GFRTreeSampler>());
-  //    GFRTreeSampler* forest_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[num_forests_].get());
-  //    forest_sampler->template Initialize<RegressionLeafForestDataset>(forest_dataset, num_trees, num_row, feature_types);
+  } else if (forest_sampler == ForestSampler::kGFR) {
+    forest_samplers_.push_back(std::make_unique<GFRTreeSampler>());
+    GFRTreeSampler* forest_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[num_forests_].get());
+    forest_sampler->template Initialize<RegressionLeafForestDataset, LeafUnivariateRegressionGaussianPrior, LeafUnivariateRegressionGaussianSuffStat>(forest_dataset, num_trees, num_row, feature_types);
   } else {
     Log::Fatal("Sampler %s not implemented", forest_sampler);
   }
@@ -102,11 +105,14 @@ void Dispatcher::AddUnivariateRegressionLeafForest(double* covariate_data_ptr, i
   // TODO: eventually this will be refactored into a contained of "LeafScaleSample" objects, flexible enough to be scalar / matrix
   forest_leaf_variance_sample_containers_.push_back(std::vector<double>(0));
 
+  // Add cutpoint grid size
+  forest_cutpoint_grid_sizes_.push_back(cutpoint_grid_size);
+
   // Increment forest count
   num_forests_++;
 }
 
-void Dispatcher::AddMultivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, int num_trees, Eigen::VectorXd& Beta, Eigen::MatrixXd& Sigma, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, bool leaf_variance_random) {
+void Dispatcher::AddMultivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, int num_trees, Eigen::VectorXd& Beta, Eigen::MatrixXd& Sigma, double alpha, double beta, int min_samples_in_leaf, ForestSampler forest_sampler, std::vector<FeatureType> feature_types, int32_t cutpoint_grid_size, bool leaf_variance_random) {
   // Add dataset
   forest_datasets_.push_back(std::make_unique<RegressionLeafForestDataset>());
   forest_datasets_[num_forests_]->LoadFromMemory(covariate_data_ptr, num_covariate, basis_data_ptr, num_basis, num_row, is_row_major);
@@ -128,10 +134,10 @@ void Dispatcher::AddMultivariateRegressionLeafForest(double* covariate_data_ptr,
     forest_samplers_.push_back(std::make_unique<MCMCTreeSampler>());
     MCMCTreeSampler* forest_sampler = dynamic_cast<MCMCTreeSampler*>(forest_samplers_[num_forests_].get());
     forest_sampler->template Initialize<RegressionLeafForestDataset, LeafMultivariateRegressionGaussianPrior, LeafMultivariateRegressionGaussianSuffStat>(forest_dataset, num_trees, num_row, feature_types);
-  // } else if (forest_sampler == ForestSampler::kGFR) {
-  //   forest_samplers_.push_back(std::make_unique<GFRTreeSampler>());
-  //    GFRTreeSampler* forest_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[num_forests_].get());
-  //    forest_sampler->template Initialize<RegressionLeafForestDataset>(forest_dataset, num_trees, num_row, feature_types);
+  } else if (forest_sampler == ForestSampler::kGFR) {
+    forest_samplers_.push_back(std::make_unique<GFRTreeSampler>());
+    GFRTreeSampler* forest_sampler = dynamic_cast<GFRTreeSampler*>(forest_samplers_[num_forests_].get());
+    forest_sampler->template Initialize<RegressionLeafForestDataset, LeafMultivariateRegressionGaussianPrior, LeafMultivariateRegressionGaussianSuffStat>(forest_dataset, num_trees, num_row, feature_types);
   } else {
     Log::Fatal("Sampler %s not implemented", forest_sampler);
   }
@@ -149,6 +155,9 @@ void Dispatcher::AddMultivariateRegressionLeafForest(double* covariate_data_ptr,
   forest_leaf_variance_priors_.push_back(std::make_unique<IGVariancePrior>(1., 1.));
   // TODO: eventually this will be refactored into a contained of "LeafScaleSample" objects, flexible enough to be scalar / matrix
   forest_leaf_variance_sample_containers_.push_back(std::vector<double>(0));
+
+  // Add cutpoint grid size
+  forest_cutpoint_grid_sizes_.push_back(cutpoint_grid_size);
 
   // Increment forest count
   num_forests_++;
@@ -230,6 +239,7 @@ void Dispatcher::InitializeForest(int forest_num, int sample_num, double initial
   } else if (forest_leaf_prior_type_[forest_num] == ForestLeafPriorType::kUnivariateRegressionLeafGaussian) {
     RegressionLeafForestDataset* dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[forest_num].get());
     initial_leaf_value = (initial_forest_pred / num_trees) / (dataset->basis.array().sum());
+    num_basis = 1;
   } else if (forest_leaf_prior_type_[forest_num] == ForestLeafPriorType::kMultivariateRegressionLeafGaussian) {
     // TODO: find a heuristic initialization that yields mean_outcome as a prediction
     std::vector<double> initial_leaf_values;

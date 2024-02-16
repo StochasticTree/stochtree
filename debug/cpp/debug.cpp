@@ -214,7 +214,7 @@ void GenerateRandomData(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eig
 
 void RunExample(bool random_data = true) {
   // Data dimensions
-  int n = 100;
+  int n = 1000;
   int x_rows = n;
   int x_cols = 10;
   int omega_rows = n;
@@ -239,7 +239,7 @@ void RunExample(bool random_data = true) {
   }
   
   // Run the sampler
-  std::vector<FeatureType> feature_types = {FeatureType::kNumeric, FeatureType::kNumeric, FeatureType::kNumeric, FeatureType::kNumeric, FeatureType::kNumeric};
+  std::vector<FeatureType> feature_types(x_cols, FeatureType::kNumeric);
   double nu = 1.0;
   double lambda = 1.0;
   double a_leaf = 1.0;
@@ -254,9 +254,14 @@ void RunExample(bool random_data = true) {
   Dispatcher dispatcher(101);
   dispatcher.AddOutcome(outcome.data(), n);
   dispatcher.AddGlobalVarianceTerm(1., 1., 1.);
-  dispatcher.AddUnivariateRegressionLeafForest(covariates.data(), x_cols, basis.data(), omega_cols, n, false, num_trees, 0, 1., 0.95, 2.0, 10, ForestSampler::kMCMC, feature_types, false);
+  dispatcher.AddUnivariateRegressionLeafForest(covariates.data(), x_cols, basis.data(), omega_cols, n, false, num_trees, 0, 1., 0.95, 2.0, 10, ForestSampler::kGFR, feature_types, cutpoint_grid_size, false, a_leaf, b_leaf);
   dispatcher.AddRandomEffectRegression(rfx_basis.data(), rfx_basis_cols, n, false, rfx_groups, a_rfx, b_rfx, 1, 2);
-  dispatcher.SampleModel<RegressionLeafForestDataset, LeafUnivariateRegressionGaussianPrior, LeafUnivariateRegressionGaussianSuffStat, LeafUnivariateRegressionGaussianSampler, MCMCTreeSampler, UnsortedNodeSampleTracker>(10, 100);
+  dispatcher.SampleModel<RegressionLeafForestDataset, 
+                         LeafUnivariateRegressionGaussianPrior,
+                         LeafUnivariateRegressionGaussianSuffStat,
+                         LeafUnivariateRegressionGaussianSampler,
+                         GFRTreeSampler,
+                         SortedNodeSampleTracker>(10, 20);
   
   // // Predict from the sampled model
   // dispatcher.LoadForestPredictionData(covariates.data(), x_cols, n, true, true);
