@@ -1,5 +1,5 @@
 # Build options
-option(USE_DEBUG "Set to ON for Debug mode" ON)
+option(USE_DEBUG "Set to ON for Debug mode" OFF)
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(BUILD_TEST "Build C++ tests with Google Test" OFF)
 option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)

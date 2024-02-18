@@ -53,6 +53,9 @@ void Dispatcher::AddConstantLeafForest(double* covariate_data_ptr, int num_covar
   forest_leaf_variance_priors_.push_back(std::make_unique<IGVariancePrior>(a_leaf, b_leaf));
   // TODO: eventually this will be refactored into a contained of "LeafScaleSample" objects, flexible enough to be scalar / matrix
   forest_leaf_variance_sample_containers_.push_back(std::vector<double>(0));
+  
+  // Add information about the forest type
+  forest_types_.push_back(ForestType::kConstantForest);
 
   // Add cutpoint grid size
   forest_cutpoint_grid_sizes_.push_back(cutpoint_grid_size);
@@ -69,7 +72,7 @@ void Dispatcher::AddUnivariateRegressionLeafForest(double* covariate_data_ptr, i
   RegressionLeafForestDataset* forest_dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[num_forests_].get());
 
   // Add forest (with no drawn samples yet ... we'll add later)
-  forest_sample_containers_.push_back(std::make_unique<TreeEnsembleContainer>(0, num_trees, 1, true));
+  forest_sample_containers_.push_back(std::make_unique<TreeEnsembleContainer>(0, num_trees, 1, false));
 
   // Add leaf prior
   forest_leaf_priors_.push_back(std::make_unique<LeafUnivariateRegressionGaussianPrior>(beta_bar, tau));
@@ -104,6 +107,9 @@ void Dispatcher::AddUnivariateRegressionLeafForest(double* covariate_data_ptr, i
   forest_leaf_variance_priors_.push_back(std::make_unique<IGVariancePrior>(a_leaf, b_leaf));
   // TODO: eventually this will be refactored into a contained of "LeafScaleSample" objects, flexible enough to be scalar / matrix
   forest_leaf_variance_sample_containers_.push_back(std::vector<double>(0));
+  
+  // Add information about the forest type
+  forest_types_.push_back(ForestType::kUnivariateRegressionForest);
 
   // Add cutpoint grid size
   forest_cutpoint_grid_sizes_.push_back(cutpoint_grid_size);
@@ -120,7 +126,7 @@ void Dispatcher::AddMultivariateRegressionLeafForest(double* covariate_data_ptr,
   RegressionLeafForestDataset* forest_dataset = dynamic_cast<RegressionLeafForestDataset*>(forest_datasets_[num_forests_].get());
 
   // Add forest (with no drawn samples yet ... we'll add later)
-  forest_sample_containers_.push_back(std::make_unique<TreeEnsembleContainer>(0, num_trees, 1, true));
+  forest_sample_containers_.push_back(std::make_unique<TreeEnsembleContainer>(0, num_trees, 1, false));
 
   // Add leaf prior
   forest_leaf_priors_.push_back(std::make_unique<LeafMultivariateRegressionGaussianPrior>(Beta, Sigma, num_basis));
@@ -155,6 +161,9 @@ void Dispatcher::AddMultivariateRegressionLeafForest(double* covariate_data_ptr,
   forest_leaf_variance_priors_.push_back(std::make_unique<IGVariancePrior>(1., 1.));
   // TODO: eventually this will be refactored into a contained of "LeafScaleSample" objects, flexible enough to be scalar / matrix
   forest_leaf_variance_sample_containers_.push_back(std::vector<double>(0));
+  
+  // Add information about the forest type
+  forest_types_.push_back(ForestType::kMultivariateRegressionForest);
 
   // Add cutpoint grid size
   forest_cutpoint_grid_sizes_.push_back(cutpoint_grid_size);
@@ -176,6 +185,9 @@ void Dispatcher::AddRandomEffectRegression(double* basis_data_ptr, int num_basis
 
   // Add sampler
   rfx_samplers_.push_back(std::make_unique<RandomEffectsSampler>(rfx_datasets_[num_rfx_].get(), rfx_priors_[num_rfx_].get()));
+  
+  // Add information about the forest type
+  rfx_types_.push_back(RandomEffectsType::kRegressionRandomEffect);
 
   // Increment rfx count
   num_rfx_++;
@@ -262,6 +274,63 @@ void Dispatcher::InitializeForest(int forest_num, int sample_num, double initial
     }
     forest_samplers_[forest_num]->AssignAllSamplesToRoot(j);
   }
+}
+
+std::vector<double> Dispatcher::PredictForest(int forest_num, double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major) {
+  if (forest_types_[forest_num] != ForestType::kConstantForest) {
+    Log::Fatal("Cannot predict from a regression forest without an out-of-sample basis");
+  }
+  
+  // Load data
+  std::unique_ptr<ConstantLeafForestDataset> pred_data = std::make_unique<ConstantLeafForestDataset>();
+  pred_data->LoadFromMemory(covariate_data_ptr, num_covariate, num_row, is_row_major);
+  
+  // Predict from the forest
+  int num_samples = forest_sample_containers_[forest_num]->NumSamples();
+  int total_num_outputs = num_row*num_samples;
+  std::vector<double> output(total_num_outputs);
+  forest_sample_containers_[forest_num]->PredictInplace(pred_data.get(), output);
+
+  // Return predictions
+  return output;
+}
+
+std::vector<double> Dispatcher::PredictForest(int forest_num, double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major) {
+  if ((forest_types_[forest_num] != ForestType::kUnivariateRegressionForest) && (forest_types_[forest_num] != ForestType::kMultivariateRegressionForest)) {
+    Log::Fatal("Forest %d is being predicted as if it were a regression forest, but it is not", forest_num);
+  }
+  
+  // Load data
+  std::unique_ptr<RegressionLeafForestDataset> pred_data = std::make_unique<RegressionLeafForestDataset>();
+  pred_data->LoadFromMemory(covariate_data_ptr, num_covariate, basis_data_ptr, num_basis, num_row, is_row_major);
+  
+  // Predict from the forest
+  int num_samples = forest_sample_containers_[forest_num]->NumSamples();
+  int total_num_outputs = num_row*num_samples;
+  std::vector<double> output(total_num_outputs);
+  forest_sample_containers_[forest_num]->PredictInplace(pred_data.get(), output);
+
+  // Return predictions
+  return output;
+}
+
+std::vector<double> Dispatcher::PredictRandomEffect(int rfx_num, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<int32_t> group_indices) {
+  if (rfx_types_[rfx_num] != RandomEffectsType::kRegressionRandomEffect) {
+    Log::Fatal("Random effects model %d is being predicted as if it involved a regression basis, but it was not trained / sampled that way", rfx_num);
+  }
+  
+  // Load data
+  std::unique_ptr<RegressionRandomEffectsDataset> pred_data = std::make_unique<RegressionRandomEffectsDataset>();
+  pred_data->LoadFromMemory(basis_data_ptr, num_basis, num_row, is_row_major, group_indices);
+  
+  // Predict from the forest
+  int num_samples = rfx_sample_containers_[rfx_num]->NumSamples();
+  int total_num_outputs = num_row*num_samples;
+  std::vector<double> output(total_num_outputs);
+  rfx_sample_containers_[rfx_num]->PredictInplace(pred_data.get(), output);
+
+  // Return predictions
+  return output;
 }
 
 } // namespace StochTree

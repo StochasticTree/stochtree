@@ -214,7 +214,7 @@ void GenerateRandomData(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, Eig
 
 void RunExample(bool random_data = true) {
   // Data dimensions
-  int n = 1000;
+  int n = 100;
   int x_rows = n;
   int x_cols = 10;
   int omega_rows = n;
@@ -250,24 +250,22 @@ void RunExample(bool random_data = true) {
   double tau_init = 1.0;
   int cutpoint_grid_size = 500;
   int num_rfx_groups = 2;
-  int num_trees = 200;
+  int num_trees = 20;
   Dispatcher dispatcher(101);
   dispatcher.AddOutcome(outcome.data(), n);
   dispatcher.AddGlobalVarianceTerm(1., 1., 1.);
-  dispatcher.AddUnivariateRegressionLeafForest(covariates.data(), x_cols, basis.data(), omega_cols, n, false, num_trees, 0, 1., 0.95, 2.0, 10, ForestSampler::kGFR, feature_types, cutpoint_grid_size, false, a_leaf, b_leaf);
+  dispatcher.AddUnivariateRegressionLeafForest(covariates.data(), x_cols, basis.data(), omega_cols, n, false, num_trees, 0, 1., 0.95, 2.0, 10, ForestSampler::kMCMC, feature_types, cutpoint_grid_size, false, a_leaf, b_leaf);
   dispatcher.AddRandomEffectRegression(rfx_basis.data(), rfx_basis_cols, n, false, rfx_groups, a_rfx, b_rfx, 1, 2);
   dispatcher.SampleModel<RegressionLeafForestDataset, 
                          LeafUnivariateRegressionGaussianPrior,
                          LeafUnivariateRegressionGaussianSuffStat,
                          LeafUnivariateRegressionGaussianSampler,
-                         GFRTreeSampler,
-                         SortedNodeSampleTracker>(10, 20);
+                         MCMCTreeSampler,
+                         UnsortedNodeSampleTracker>(10, 20);
   
-  // // Predict from the sampled model
-  // dispatcher.LoadForestPredictionData(covariates.data(), x_cols, n, true, true);
-  // dispatcher.PredictionConsistencyCheck();
-  // std::vector<double> forest_preds = dispatcher.PredictForest();
-  // std::vector<double> rfc_preds = dispatcher.PredictRandomEffects();
+  // Predict from the sampled model
+  std::vector<double> forest_pred = dispatcher.PredictForest(0, covariates.data(), x_cols, basis.data(), omega_cols, n, false);
+  std::vector<double> rfx_pred = dispatcher.PredictRandomEffect(0, rfx_basis.data(), rfx_basis_cols, n, false, rfx_groups);
 }
 
 } // namespace StochTree

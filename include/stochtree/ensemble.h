@@ -10,6 +10,7 @@
 #ifndef STOCHTREE_ENSEMBLE_H_
 #define STOCHTREE_ENSEMBLE_H_
 
+#include <stochtree/data.h>
 #include <stochtree/tree.h>
 
 #include <algorithm>
@@ -219,37 +220,23 @@ class TreeEnsembleContainer {
     return forests_[i].get();
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, 
-                             int tree_begin, int tree_end) {
-    data_size_t n = covariates.rows();
+  inline void PredictInplace(RegressionLeafForestDataset* dataset, std::vector<double> &output) {
+    data_size_t n = dataset->covariates.rows();
     data_size_t total_output_size = n*num_samples_;
     if (output.size() < total_output_size) {
       Log::Fatal("Mismatched size of prediction vector and training data");
     }
 
     data_size_t offset = 0;
-    for (int i = 0; i < num_samples_; i++) {
-      forests_[i]->PredictInplace(covariates, basis, output, tree_begin, tree_end, offset);
-      offset += n;
-    }
-  }
-
-  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double> &output, data_size_t offset = 0) {
-    data_size_t n = covariates.rows();
-    data_size_t total_output_size = n*num_samples_;
-    if (output.size() < total_output_size) {
-      Log::Fatal("Mismatched size of prediction vector and training data");
-    }
-
     for (int i = 0; i < num_samples_; i++) {
       auto num_trees = forests_[i]->NumTrees();
-      forests_[i]->PredictInplace(covariates, output, 0, num_trees, offset);
+      forests_[i]->PredictInplace(dataset->covariates, dataset->basis, output, 0, num_trees, offset);
       offset += n;
     }
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double> &output, int tree_begin, int tree_end) {
-    data_size_t n = covariates.rows();
+  inline void PredictInplace(RegressionLeafForestDataset* dataset, std::vector<double> &output, int tree_begin, int tree_end) {
+    data_size_t n = dataset->covariates.rows();
     data_size_t total_output_size = n*num_samples_;
     if (output.size() < total_output_size) {
       Log::Fatal("Mismatched size of prediction vector and training data");
@@ -257,9 +244,42 @@ class TreeEnsembleContainer {
 
     data_size_t offset = 0;
     for (int i = 0; i < num_samples_; i++) {
-      forests_[i]->PredictInplace(covariates, output, tree_begin, tree_end, offset);
+      forests_[i]->PredictInplace(dataset->covariates, dataset->basis, output, tree_begin, tree_end, offset);
       offset += n;
     }
+  }
+
+  inline void PredictInplace(ConstantLeafForestDataset* dataset, std::vector<double> &output) {
+    data_size_t n = dataset->covariates.rows();
+    data_size_t total_output_size = n*num_samples_;
+    if (output.size() < total_output_size) {
+      Log::Fatal("Mismatched size of prediction vector and training data");
+    }
+
+    data_size_t offset = 0;
+    for (int i = 0; i < num_samples_; i++) {
+      auto num_trees = forests_[i]->NumTrees();
+      forests_[i]->PredictInplace(dataset->covariates, output, 0, num_trees, offset);
+      offset += n;
+    }
+  }
+
+  inline void PredictInplace(ConstantLeafForestDataset* dataset, std::vector<double> &output, int tree_begin, int tree_end) {
+    data_size_t n = dataset->covariates.rows();
+    data_size_t total_output_size = n*num_samples_;
+    if (output.size() < total_output_size) {
+      Log::Fatal("Mismatched size of prediction vector and training data");
+    }
+
+    data_size_t offset = 0;
+    for (int i = 0; i < num_samples_; i++) {
+      forests_[i]->PredictInplace(dataset->covariates, output, tree_begin, tree_end, offset);
+      offset += n;
+    }
+  }
+
+  inline int32_t NumSamples() {
+    return num_samples_;
   }
 
   inline int32_t NumTrees() {

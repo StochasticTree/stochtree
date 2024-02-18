@@ -52,6 +52,17 @@ enum ForestSampler {
   kGFR
 };
 
+enum ForestType {
+  kConstantForest,
+  kUnivariateRegressionForest,
+  kMultivariateRegressionForest
+};
+
+enum RandomEffectsType {
+  kConstantRandomEffect,
+  kRegressionRandomEffect
+};
+
 /*! \brief Type of data size */
 typedef int32_t data_size_t;
 

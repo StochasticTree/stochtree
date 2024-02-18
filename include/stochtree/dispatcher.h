@@ -192,16 +192,11 @@ class Dispatcher {
       }
     }  
   }
-  void SampleConstantLeafForest(int sample_iter);
-  void SampleUnivariateRegressionLeafForest(int sample_iter);
-  void SampleMultivariateRegressionLeafForest(int sample_iter);
-  void SampleRandomEffectRegression(int sample_iter);
 
   // Predicting model terms
-  void PredictConstantLeafForest(double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major, std::vector<double>& output);
-  void PredictUnivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<double>& output);
-  void PredictMultivariateRegressionLeafForest(double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<double>& output);
-  void PredictRandomEffectRegression(double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<int32_t> group_indices, std::vector<double>& output);
+  std::vector<double> PredictForest(int forest_num, double* covariate_data_ptr, int num_covariate, data_size_t num_row, bool is_row_major);
+  std::vector<double> PredictForest(int forest_num, double* covariate_data_ptr, int num_covariate, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major);
+  std::vector<double> PredictRandomEffect(int rfx_num, double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<int32_t> group_indices);
 
  private:
   // Mean model components
@@ -219,6 +214,7 @@ class Dispatcher {
   std::vector<ForestSampler> forest_sampler_type_;
   std::vector<std::vector<double>> forest_leaf_variance_sample_containers_;
   std::vector<std::vector<FeatureType>> forest_feature_types_;
+  std::vector<ForestType> forest_types_;
   std::vector<int32_t> forest_cutpoint_grid_sizes_;
   int num_forests_;
   
@@ -227,6 +223,7 @@ class Dispatcher {
   std::vector<std::unique_ptr<RandomEffectsContainer>> rfx_sample_containers_;
   std::vector<std::unique_ptr<RandomEffectsRegressionGaussianPrior>> rfx_priors_;
   std::vector<std::unique_ptr<RandomEffectsSampler>> rfx_samplers_;
+  std::vector<RandomEffectsType> rfx_types_;
   int num_rfx_;
   
   // Variance model components

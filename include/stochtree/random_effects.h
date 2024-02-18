@@ -67,7 +67,7 @@ class RandomEffectsPersisted {
   }
   
   void PredictInplaceDefault(int n, std::vector<double>& output, data_size_t offset = 0) {
-    CHECK_GT(output.size(), n + offset);
+    CHECK_GE(output.size(), n + offset);
     for (int i = 0; i < n; i++) {
       output[i + offset] = 0.;
     }
@@ -89,7 +89,7 @@ class RandomEffectsPersisted {
   void PredictInplaceSampled(Eigen::MatrixXd& X, std::vector<int32_t>& group_labels, std::vector<double>& output, data_size_t offset = 0) {
     CHECK_EQ(X.rows(), group_labels.size());
     int n = X.rows();
-    CHECK_GT(output.size(), n + offset);
+    CHECK_GE(output.size(), n + offset);
     Eigen::MatrixXd alpha_diag = alpha_.asDiagonal().toDenseMatrix();
     std::uint64_t group_ind;
     for (int i = 0; i < n; i++) {
@@ -124,6 +124,10 @@ class RandomEffectsContainer {
     num_samples_ = total_new_samples;
   }
 
+  inline int32_t NumSamples() {
+    return num_samples_;
+  }
+
   void ResetSample(RandomEffectsSampler* sampler, int sample_num) {
     rfx_[sample_num].reset(new RandomEffectsPersisted(*sampler));
   }
@@ -134,6 +138,20 @@ class RandomEffectsContainer {
   
   Eigen::VectorXd Predict(int i, RegressionRandomEffectsDataset* rfx_dataset) {
     return rfx_[i]->Predict(rfx_dataset);
+  }
+
+  void PredictInplace(RegressionRandomEffectsDataset* rfx_dataset, std::vector<double>& output) {
+    data_size_t n = rfx_dataset->basis.rows();
+    data_size_t total_output_size = n*num_samples_;
+    if (output.size() < total_output_size) {
+      Log::Fatal("Mismatched size of prediction vector and training data");
+    }
+
+    data_size_t offset = 0;
+    for (int i = 0; i < num_samples_; i++) {
+      PredictInplace(i, rfx_dataset, output, offset);
+      offset += n;
+    }
   }
 
   void PredictInplace(int i, RegressionRandomEffectsDataset* rfx_dataset, std::vector<double>& output, data_size_t offset = 0) {
