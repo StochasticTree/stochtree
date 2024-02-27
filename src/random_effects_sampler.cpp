@@ -3,13 +3,13 @@
  * Licensed under the MIT License. See LICENSE file in the project root for
  * license information.
  */
-#include <stochtree/sampler.h>
+#include <stochtree/random_effects_sampler.h>
 
 namespace StochTree {
 
-RandomEffectsSampler::RandomEffectsSampler(RegressionRandomEffectsDataset* rfx_dataset, RandomEffectsRegressionGaussianPrior* rfx_prior) {
-  int32_t num_components = rfx_prior->GetNumComponents();
-  int32_t num_groups = rfx_prior->GetNumGroups();
+RandomEffectsSampler::RandomEffectsSampler(RegressionRandomEffectsDataset& rfx_dataset, RandomEffectsRegressionGaussianPrior& rfx_prior) {
+  int32_t num_components = rfx_prior.GetNumComponents();
+  int32_t num_groups = rfx_prior.GetNumGroups();
   W_beta_ = Eigen::MatrixXd(num_components, num_components);
   xi_ = Eigen::MatrixXd(num_components, num_groups);
   alpha_ = Eigen::VectorXd(num_components);
@@ -17,7 +17,7 @@ RandomEffectsSampler::RandomEffectsSampler(RegressionRandomEffectsDataset* rfx_d
   sigma_alpha_ = Eigen::VectorXd(num_components);
   num_components_ = num_components;
   num_groups_ = num_groups;
-  SiftGroupIndices(rfx_dataset->group_indices);
+  SiftGroupIndices(rfx_dataset.group_indices);
 }
 
 std::vector<std::int32_t> RandomEffectsSampler::GroupObservationIndices(std::int32_t group_num) const {
@@ -50,9 +50,9 @@ void RandomEffectsSampler::InitializeParameters(Eigen::MatrixXd& X, Eigen::Matri
   }
 }
 
-void RandomEffectsSampler::InitializeParameters(RegressionRandomEffectsDataset* rfx_dataset, UnivariateResidual* residual) {
-  Eigen::MatrixXd X = rfx_dataset->basis;
-  Eigen::VectorXd y = residual->residual;
+void RandomEffectsSampler::InitializeParameters(RegressionRandomEffectsDataset& rfx_dataset, ColumnVector& residual) {
+  Eigen::MatrixXd X = rfx_dataset.basis;
+  Eigen::VectorXd y = residual.GetData();
   for (int i = 0; i < num_components_; i++) {
     alpha_(i) = 1.;
     sigma_alpha_(i) = 1.;
@@ -73,12 +73,12 @@ void RandomEffectsSampler::InitializeParameters(RegressionRandomEffectsDataset* 
   }
 }
 
-void RandomEffectsSampler::SampleRandomEffects(RandomEffectsRegressionGaussianPrior* rfx_prior, RegressionRandomEffectsDataset* rfx_dataset, UnivariateResidual* residual, std::mt19937& gen) {
-  Eigen::MatrixXd X = rfx_dataset->basis;
-  Eigen::VectorXd y = residual->residual;
+void RandomEffectsSampler::SampleRandomEffects(RandomEffectsRegressionGaussianPrior& rfx_prior, RegressionRandomEffectsDataset& rfx_dataset, ColumnVector& residual, std::mt19937& gen) {
+  Eigen::MatrixXd X = rfx_dataset.basis;
+  Eigen::VectorXd y = residual.GetData();
   SampleXi(X, y, gen);
   SampleAlpha(X, y, gen);
-  SampleSigma(gen, rfx_prior->GetPriorVarianceShape(), rfx_prior->GetPriorVarianceScale());
+  SampleSigma(gen, rfx_prior.GetPriorVarianceShape(), rfx_prior.GetPriorVarianceScale());
 }
 
 void RandomEffectsSampler::SampleRandomEffects(Eigen::MatrixXd& X, Eigen::VectorXd& y, std::mt19937& gen, double a, double b) {

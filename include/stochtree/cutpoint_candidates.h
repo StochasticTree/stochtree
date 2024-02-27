@@ -117,6 +117,7 @@ class CutpointGridContainer {
     for (int i = 0; i < num_features_; i++) {
       feature_cutpoint_grid_[i].reset(new FeatureCutpointGrid(cutpoint_grid_size));
     }
+    cutpoint_grid_size_ = cutpoint_grid_size;
   }
 
   ~CutpointGridContainer() {}
@@ -127,12 +128,16 @@ class CutpointGridContainer {
     for (int i = 0; i < num_features_; i++) {
       feature_cutpoint_grid_[i].reset(new FeatureCutpointGrid(cutpoint_grid_size));
     }
+    cutpoint_grid_size_ = cutpoint_grid_size;
   }
 
   /*! \brief Calculate strides */
   void CalculateStrides(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index, std::vector<FeatureType>& feature_types) {
     feature_cutpoint_grid_[feature_index]->CalculateStrides(covariates, residuals, feature_node_sort_tracker, node_id, node_begin, node_end, feature_index, feature_types);
   }
+
+  /*! \brief Max size of cutpoint grid */
+  int32_t CutpointGridSize() {return cutpoint_grid_size_;}
 
   /*! \brief Number of potential cutpoints enumerated */
   int32_t NumCutpoints(int feature_index) {return feature_cutpoint_grid_[feature_index]->NumCutpoints();}
@@ -161,6 +166,7 @@ class CutpointGridContainer {
  private:
   std::vector<std::unique_ptr<FeatureCutpointGrid>> feature_cutpoint_grid_;
   int num_features_;
+  int cutpoint_grid_size_;
 };
 
 /*! \brief Computing and tracking cutpoints available for a given feature at a given node */

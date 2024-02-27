@@ -36,6 +36,9 @@ enum FeatureSplitType {
   kUnorderedCategoricalSplit
 };
 
+/*! \brief Forward declaration of TreeSplit class */
+class TreeSplit;
+
 /*! \brief in-memory representation of a decision tree */
 class Tree {
  public:
@@ -75,7 +78,10 @@ class Tree {
   void ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
   /*! \brief Expand a node based on a categorical split rule */
   void ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
-  
+    /*! \brief Expand a node based on a generic split rule */
+  void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, double left_value, double right_value);
+  /*! \brief Expand a node based on a generic split rule */
+  void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
 
   /*!
    * \brief change a non leaf node to a leaf node, delete its children
@@ -673,6 +679,35 @@ inline bool RowSplitLeft(Eigen::MatrixXd& covariates, int row, int split_index, 
   double const fvalue = covariates(row, split_index);
   return SplitTrueCategorical(fvalue, category_list);
 }
+
+class TreeSplit {
+ public:
+  TreeSplit() {}
+  TreeSplit(double split_value) {
+    numeric_ = true;
+    split_value_ = split_value;
+    split_set_ = true;
+  }
+  TreeSplit(std::vector<std::uint32_t>& split_categories) {
+    numeric_ = false;
+    split_categories_ = split_categories;
+    split_set_ = true;
+  }
+  ~TreeSplit() {}
+  bool SplitSet() {return split_set_;}
+  bool NumericSplit() {return numeric_;}
+  bool SplitTrue(double fvalue) {
+    if (numeric_) return SplitTrueNumeric(fvalue, split_value_);
+    else return SplitTrueCategorical(fvalue, split_categories_);
+  }
+  double SplitValue() {return split_value_;}
+  std::vector<std::uint32_t> SplitCategories() {return split_categories_;}
+ private:
+  bool split_set_{false};
+  bool numeric_;
+  double split_value_;
+  std::vector<std::uint32_t> split_categories_;
+};
 
 } // namespace StochTree
 

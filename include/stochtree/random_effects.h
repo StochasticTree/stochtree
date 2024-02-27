@@ -7,7 +7,7 @@
 
 #include <stochtree/data.h>
 #include <stochtree/log.h>
-#include <stochtree/sampler.h>
+#include <stochtree/random_effects_sampler.h>
 #include <Eigen/Dense>
 
 #include <cmath>
@@ -34,12 +34,12 @@ class RandomEffectsPersisted {
   }
   ~RandomEffectsPersisted() {}
   
-  Eigen::VectorXd Predict(RegressionRandomEffectsDataset* rfx_dataset) {
-    return Predict(rfx_dataset->basis, rfx_dataset->group_indices);
+  Eigen::VectorXd Predict(RegressionRandomEffectsDataset& rfx_dataset) {
+    return Predict(rfx_dataset.basis, rfx_dataset.group_indices);
   }
 
-  void PredictInplace(RegressionRandomEffectsDataset* rfx_dataset, std::vector<double>& output, data_size_t offset = 0) {
-    PredictInplaceSampled(rfx_dataset->basis, rfx_dataset->group_indices, output, offset);
+  void PredictInplace(RegressionRandomEffectsDataset& rfx_dataset, std::vector<double>& output, data_size_t offset = 0) {
+    PredictInplaceSampled(rfx_dataset.basis, rfx_dataset.group_indices, output, offset);
   }
   
   Eigen::VectorXd Predict(Eigen::MatrixXd& X, std::vector<int32_t>& group_labels) {
@@ -128,20 +128,20 @@ class RandomEffectsContainer {
     return num_samples_;
   }
 
-  void ResetSample(RandomEffectsSampler* sampler, int sample_num) {
-    rfx_[sample_num].reset(new RandomEffectsPersisted(*sampler));
+  void ResetSample(RandomEffectsSampler& sampler, int sample_num) {
+    rfx_[sample_num].reset(new RandomEffectsPersisted(sampler));
   }
 
-  inline void CopyRandomEffect(int i, RandomEffectsSampler* rfx_model) {
-    return rfx_[i].reset(new RandomEffectsPersisted(*rfx_model));
+  inline void CopyRandomEffect(int i, RandomEffectsSampler& rfx_model) {
+    return rfx_[i].reset(new RandomEffectsPersisted(rfx_model));
   }
   
-  Eigen::VectorXd Predict(int i, RegressionRandomEffectsDataset* rfx_dataset) {
+  Eigen::VectorXd Predict(int i, RegressionRandomEffectsDataset& rfx_dataset) {
     return rfx_[i]->Predict(rfx_dataset);
   }
 
-  void PredictInplace(RegressionRandomEffectsDataset* rfx_dataset, std::vector<double>& output) {
-    data_size_t n = rfx_dataset->basis.rows();
+  void PredictInplace(RegressionRandomEffectsDataset& rfx_dataset, std::vector<double>& output) {
+    data_size_t n = rfx_dataset.basis.rows();
     data_size_t total_output_size = n*num_samples_;
     if (output.size() < total_output_size) {
       Log::Fatal("Mismatched size of prediction vector and training data");
@@ -154,7 +154,7 @@ class RandomEffectsContainer {
     }
   }
 
-  void PredictInplace(int i, RegressionRandomEffectsDataset* rfx_dataset, std::vector<double>& output, data_size_t offset = 0) {
+  void PredictInplace(int i, RegressionRandomEffectsDataset& rfx_dataset, std::vector<double>& output, data_size_t offset = 0) {
     rfx_[i]->PredictInplace(rfx_dataset, output, offset);
   }
 

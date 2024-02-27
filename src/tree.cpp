@@ -322,6 +322,24 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
   leaves_.push_back(pright);
 }
 
+void Tree::ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, double left_value, double right_value) {
+  CHECK_EQ(output_dimension_, 1);
+  if (split.NumericSplit()) {
+    ExpandNode(nid, split_index, split.SplitValue(), default_left, left_value, right_value);
+  } else {
+    ExpandNode(nid, split_index, split.SplitCategories(), default_left, left_value, right_value);
+  }
+}
+
+void Tree::ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
+  CHECK_GT(output_dimension_, 1);
+  if (split.NumericSplit()) {
+    ExpandNode(nid, split_index, split.SplitValue(), default_left, left_value_vector, right_value_vector);
+  } else {
+    ExpandNode(nid, split_index, split.SplitCategories(), default_left, left_value_vector, right_value_vector);
+  }
+}
+
 void Tree::Reset() {
   // Clear all of the vectors that define the tree structure
   node_type_.clear();

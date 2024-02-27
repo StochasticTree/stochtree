@@ -1,5 +1,5 @@
 # Build options
-option(USE_DEBUG "Set to ON for Debug mode" OFF)
+option(USE_DEBUG "Set to ON for Debug mode" ON)
 option(USE_SANITIZER "Use santizer flags" OFF)
 option(BUILD_TEST "Build C++ tests with Google Test" OFF)
 option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
@@ -62,15 +62,16 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
 file(
   GLOB 
   SOURCES 
+  src/container.cpp
   src/cutpoint_candidates.cpp
   src/data.cpp
-  src/dispatcher.cpp
   src/io.cpp
   src/json11.cpp
+  src/leaf_model.cpp
   src/partition_tracker.cpp
+  src/random_effects_sampler.cpp
   src/tree.cpp
-  src/sampler/random_effects_sampler.cpp
-  src/sampler/tree_sampler.cpp
+  src/tree_sampler.cpp
 )
 
 # Define the C++ source code as a target
@@ -108,7 +109,7 @@ endif()
 
 if(BUILD_DEBUG_TARGETS)
   # Build test suite
-  add_executable(debugstochtree debug/cpp/debug.cpp)
+  add_executable(debugstochtree debug/cpp/api_debug.cpp)
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug/cpp)
   target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR})
   target_link_libraries(debugstochtree PRIVATE stochtree_objs)
