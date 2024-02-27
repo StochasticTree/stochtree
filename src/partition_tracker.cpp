@@ -28,11 +28,17 @@ ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureTyp
 
 data_size_t ForestTracker::GetNodeId(int observation_num, int tree_num) {return sample_node_mapper_->GetNodeId(observation_num, tree_num);}
 
-data_size_t ForestTracker::NodeBegin(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeBegin(tree_id, node_id);}
+data_size_t ForestTracker::UnsortedNodeBegin(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeBegin(tree_id, node_id);}
 
-data_size_t ForestTracker::NodeEnd(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeEnd(tree_id, node_id);}
+data_size_t ForestTracker::UnsortedNodeEnd(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeEnd(tree_id, node_id);}
 
-data_size_t ForestTracker::NodeSize(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeSize(tree_id, node_id);}
+data_size_t ForestTracker::UnsortedNodeSize(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeSize(tree_id, node_id);}
+
+data_size_t ForestTracker::SortedNodeBegin(int node_id, int feature_id) {return sorted_node_sample_tracker_->NodeBegin(node_id, feature_id);}
+
+data_size_t ForestTracker::SortedNodeEnd(int node_id, int feature_id) {return sorted_node_sample_tracker_->NodeEnd(node_id, feature_id);}
+
+data_size_t ForestTracker::SortedNodeSize(int node_id, int feature_id) {return sorted_node_sample_tracker_->NodeSize(node_id, feature_id);}
 
 std::vector<data_size_t>::iterator ForestTracker::UnsortedNodeBeginIterator(int tree_id, int node_id) {
   return unsorted_node_sample_tracker_->NodeBeginIterator(tree_id, node_id);

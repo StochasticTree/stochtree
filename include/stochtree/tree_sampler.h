@@ -184,7 +184,7 @@ class MCMCForestSampler {
     bool grow_possible = false;
     std::vector<int> leaves = tree->GetLeaves();
     for (auto& leaf: leaves) {
-      if (tracker.NodeSize(tree_num, leaf) > 2 * tree_prior.GetMinSamplesLeaf()) {
+      if (tracker.UnsortedNodeSize(tree_num, leaf) > 2 * tree_prior.GetMinSamplesLeaf()) {
         grow_possible = true;
         break;
       }
@@ -515,22 +515,11 @@ class GFRForestSampler {
 
       // Determine the number of observation in the newly created left node
       int left_node = tree->LeftChild(node_id);
+      int right_node = tree->RightChild(node_id);
       auto left_begin_iter = tracker.SortedNodeBeginIterator(left_node, feature_split);
       auto left_end_iter = tracker.SortedNodeEndIterator(left_node, feature_split);
       for (auto i = left_begin_iter; i < left_end_iter; i++) {
-        auto idx = *i;
-        feature_value = dataset.CovariateValue(idx, feature_split);
-        if (tree_split.SplitTrue(feature_value)) left_n += 1;
-      }
-
-      // Determine the number of observation in the newly created right node
-      int right_node = tree->RightChild(node_id);
-      auto right_begin_iter = tracker.SortedNodeBeginIterator(right_node, feature_split);
-      auto right_end_iter = tracker.SortedNodeEndIterator(right_node, feature_split);
-      for (auto i = right_begin_iter; i < right_end_iter; i++) {
-        auto idx = *i;
-        feature_value = dataset.CovariateValue(idx, feature_split);
-        if (tree_split.SplitTrue(feature_value)) right_n += 1;
+        left_n += 1;
       }
 
       // Add the begin and end indices for the new left and right nodes to node_index_map

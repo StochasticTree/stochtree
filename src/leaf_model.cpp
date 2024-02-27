@@ -126,6 +126,9 @@ void AccumulateCutpointBinSuffStat(SuffStatType& left_suff_stat, ForestTracker& 
   // Acquire iterators
   auto node_begin_iter = tracker.SortedNodeBeginIterator(node_id, feature_num);
   auto node_end_iter = tracker.SortedNodeEndIterator(node_id, feature_num);
+  
+  // Determine node start point
+  data_size_t node_begin = tracker.SortedNodeBegin(node_id, feature_num);
 
   // Determine cutpoint bin start and end points
   data_size_t current_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_num, feature_num);
@@ -133,8 +136,9 @@ void AccumulateCutpointBinSuffStat(SuffStatType& left_suff_stat, ForestTracker& 
   data_size_t next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_num + 1, feature_num);
 
   // Cutpoint specific iterators
-  auto cutpoint_begin_iter = node_begin_iter + current_bin_begin;
-  auto cutpoint_end_iter = node_begin_iter + next_bin_begin;
+  // TODO: fix the hack of having to subtract off node_begin, probably by cleaning up the CutpointGridContainer interface
+  auto cutpoint_begin_iter = node_begin_iter + current_bin_begin - node_begin;
+  auto cutpoint_end_iter = node_begin_iter + next_bin_begin - node_begin;
 
   // Accumulate sufficient statistics
   for (auto i = cutpoint_begin_iter; i != cutpoint_end_iter; i++) {

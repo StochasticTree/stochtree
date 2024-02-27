@@ -53,9 +53,12 @@ class ForestTracker {
   void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id);
   void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id);
   data_size_t GetNodeId(int observation_num, int tree_num);
-  data_size_t NodeBegin(int tree_id, int node_id);
-  data_size_t NodeEnd(int tree_id, int node_id);
-  data_size_t NodeSize(int tree_id, int node_id);
+  data_size_t UnsortedNodeBegin(int tree_id, int node_id);
+  data_size_t UnsortedNodeEnd(int tree_id, int node_id);
+  data_size_t UnsortedNodeSize(int tree_id, int node_id);
+  data_size_t SortedNodeBegin(int node_id, int feature_id);
+  data_size_t SortedNodeEnd(int node_id, int feature_id);
+  data_size_t SortedNodeSize(int node_id, int feature_id);
   std::vector<data_size_t>::iterator UnsortedNodeBeginIterator(int tree_id, int node_id);
   std::vector<data_size_t>::iterator UnsortedNodeEndIterator(int tree_id, int node_id);
   std::vector<data_size_t>::iterator SortedNodeBeginIterator(int node_id, int feature_id);
