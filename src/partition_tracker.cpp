@@ -26,6 +26,12 @@ ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureTyp
   feature_types_ = feature_types;
 }
 
+void ForestTracker::ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num) {
+  AssignAllSamplesToRoot(tree_num);
+  unsorted_node_sample_tracker_->ResetTreeToRoot(tree_num, covariates.rows());
+  sorted_node_sample_tracker_.reset(new SortedNodeSampleTracker(presort_container_.get(), covariates, feature_types));
+}
+
 data_size_t ForestTracker::GetNodeId(int observation_num, int tree_num) {return sample_node_mapper_->GetNodeId(observation_num, tree_num);}
 
 data_size_t ForestTracker::UnsortedNodeBegin(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeBegin(tree_id, node_id);}
@@ -57,6 +63,10 @@ void ForestTracker::AssignAllSamplesToRoot() {
   for (int i = 0; i < num_trees_; i++) {
     sample_node_mapper_->AssignAllSamplesToRoot(i);
   }
+}
+
+void ForestTracker::AssignAllSamplesToRoot(int32_t tree_num) {
+  sample_node_mapper_->AssignAllSamplesToRoot(tree_num);
 }
 
 void ForestTracker::AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id) {

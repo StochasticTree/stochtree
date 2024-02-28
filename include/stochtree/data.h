@@ -17,6 +17,7 @@ class ColumnMatrix {
   ColumnMatrix(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
   ~ColumnMatrix() {}
   double GetElement(data_size_t row_num, int32_t col_num) {return data_(row_num, col_num);}
+  void SetElement(data_size_t row_num, int32_t col_num, double value) {data_(row_num, col_num) = value;}
   void LoadData(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
   inline data_size_t NumRows() {return data_.rows();}
   inline int NumCols() {return data_.cols();}
@@ -31,6 +32,7 @@ class ColumnVector {
   ColumnVector(double* data_ptr, data_size_t num_row);
   ~ColumnVector() {}
   double GetElement(data_size_t row_num) {return data_(row_num);}
+  void SetElement(data_size_t row_num, double value) {data_(row_num) = value;}
   void LoadData(double* data_ptr, data_size_t num_row);
   inline data_size_t NumRows() {return data_.size();}
   inline Eigen::VectorXd& GetData() {return data_;}

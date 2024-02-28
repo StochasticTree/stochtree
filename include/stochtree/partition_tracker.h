@@ -50,6 +50,8 @@ class ForestTracker {
   ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations);
   ~ForestTracker() {}
   void AssignAllSamplesToRoot();
+  void AssignAllSamplesToRoot(int32_t tree_num);
+  void ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num);
   void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id);
   void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id);
   data_size_t GetNodeId(int observation_num, int tree_num);
@@ -249,6 +251,11 @@ class UnsortedNodeSampleTracker {
   /*! \brief Partition a node based on a new split rule */
   void PartitionTreeNode(Eigen::MatrixXd& covariates, int tree_id, int node_id, int left_node_id, int right_node_id, int feature_split, std::vector<std::uint32_t> const& category_list) {
     return feature_partitions_[tree_id]->PartitionNode(covariates, node_id, left_node_id, right_node_id, feature_split, category_list);
+  }
+  
+  /*! \brief Convert a tree to root */
+  void ResetTreeToRoot(int tree_id, data_size_t n) {
+    feature_partitions_[tree_id].reset(new FeatureUnsortedPartition(n));;
   }
 
   /*! \brief Convert a (currently split) node to a leaf */

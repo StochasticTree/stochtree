@@ -153,6 +153,32 @@ void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset, TreePr
   tracker.RemoveSplit(dataset.GetCovariates(), tree, tree_num, leaf_node, left_node, right_node);
 }
 
+double ComputeMeanOutcome(ColumnVector& residual) {
+  data_size_t n = residual.NumRows();
+  double total_outcome = 0.;
+  for (data_size_t i = 0; i < n; i++) {
+    total_outcome += residual.GetElement(i);
+  }
+  return total_outcome / static_cast<double>(n);
+}
+
+void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, bool requires_basis, std::function<double(double, double)> op) {
+  data_size_t n = dataset.GetCovariates().rows();
+  double pred_value;
+  int32_t leaf_pred;
+  double new_resid;
+  for (data_size_t i = 0; i < n; i++) {
+    leaf_pred = tracker.GetNodeId(i, tree_num);
+    if (requires_basis) {
+      pred_value = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+    } else {
+      pred_value = tree->PredictFromNode(leaf_pred);
+    }
+    new_resid = op(residual.GetElement(i), pred_value);
+    residual.SetElement(i, new_resid);
+  }
+}
+
 template <typename LeafModel>
 class MCMCForestSampler {
  public:
@@ -161,25 +187,49 @@ class MCMCForestSampler {
   
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, double global_variance) {
+    
+    // Previous number of samples
+    int prev_num_samples = forests.NumSamples();
     // Add new forest to the container
-    int num_samples = forests.NumSamples();
     forests.AddSamples(1);
     
-    // Copy old forest
-    forests.CopyFromPreviousSample(num_samples, num_samples - 1);
-
+    if (prev_num_samples == 0) {
+      // Set initial value for each leaf in the forest
+      double root_pred = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
+      TreeEnsemble* ensemble = forests.GetEnsemble(0);
+      leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, root_pred);
+    } else {
+      // Copy previous forest
+      forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
+    }
+    
     // Run the MCMC algorithm for each tree
-    TreeEnsemble* ensemble = forests.GetEnsemble(num_samples);
+    TreeEnsemble* ensemble = forests.GetEnsemble(prev_num_samples);
     int num_trees = forests.NumTrees();
     for (int i = 0; i < num_trees; i++) {
+      // Add tree i's predictions back to the residual (thus, training a model on the "partial residual")
       Tree* tree = ensemble->GetTree(i);
-      SampleTreeOneIter(tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, tree, i, global_variance);
+      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), plus_op_);
+      
+      // Sample tree i
+      SampleTreeOneIter(tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, i, global_variance);
+      
+      // Sample leaf parameters for tree i
+      tree = ensemble->GetTree(i);
+      leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
+      
+      // Subtract tree i's predictions back out of the residual
+      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), minus_op_);
     }
   }
  
  private:
-  void SampleTreeOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
-                         ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, Tree* tree, int tree_num, double global_variance) {
+  // Function objects for element-wise addition and subtraction (used in the residual update function which takes std::function as an argument)
+  std::plus<double> plus_op_;
+  std::minus<double> minus_op_;
+  
+  void SampleTreeOneIter(Tree* tree, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset,
+                         ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance) {
     // Determine whether it is possible to grow any of the leaves
     bool grow_possible = false;
     std::vector<int> leaves = tree->GetLeaves();
@@ -398,22 +448,58 @@ class GFRForestSampler {
 
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, double global_variance, std::vector<FeatureType>& feature_types) {
+    // Previous number of samples
+    int prev_num_samples = forests.NumSamples();
     // Add new forest to the container
-    int num_samples = forests.NumSamples();
     forests.AddSamples(1);
     
+    if (prev_num_samples == 0) {
+      // Set initial value for each leaf in the forest
+      double root_pred = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
+      TreeEnsemble* ensemble = forests.GetEnsemble(0);
+      leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, root_pred);
+    } else {
+      // NOTE: only doing this for the simplicity of the partial residual step
+      // We could alternatively "reach back" to the tree predictions from a previous
+      // sample (whenever there is more than one sample). This is cleaner / quicker
+      // to implement during this refactor.
+      forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
+    }
+    
     // Run the GFR algorithm for each tree
-    TreeEnsemble* ensemble = forests.GetEnsemble(num_samples);
+    TreeEnsemble* ensemble = forests.GetEnsemble(prev_num_samples);
     int num_trees = forests.NumTrees();
     for (int i = 0; i < num_trees; i++) {
+      // Add tree i's predictions back to the residual (thus, training a model on the "partial residual")
       Tree* tree = ensemble->GetTree(i);
+      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), plus_op_);
+      
+      // Reset the tree and sample trackers
+      ensemble->ResetInitTree(i);
+      tracker.ResetRoot(dataset.GetCovariates(), feature_types, i);
+      tree = ensemble->GetTree(i);
+      
+      // Sample tree i
       SampleTreeOneIter(tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, i, global_variance, feature_types);
+      
+      // Sample leaf parameters for tree i
+      tree = ensemble->GetTree(i);
+      leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
+      
+      // Subtract tree i's predictions back out of the residual
+      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), minus_op_);
     }
   }
- 
+
  private:
+  // Maximum cutpoint grid size in the enumeration of possible splits
   int cutpoint_grid_size_;
-  void SampleTreeOneIter(Tree* tree, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
+  
+  // Function objects for element-wise addition and subtraction (used in the residual update function which takes std::function as an argument)
+  std::plus<double> plus_op_;
+  std::minus<double> minus_op_;
+  
+  void SampleTreeOneIter(Tree* tree, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset,
                          ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, 
                          std::vector<FeatureType>& feature_types) {
     int root_id = Tree::kRoot;

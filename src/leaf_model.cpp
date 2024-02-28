@@ -14,23 +14,10 @@ void AccumulateSuffStatProposed(SuffStatType& node_suff_stat, SuffStatType& left
     auto idx = *i;
     double feature_value = dataset.CovariateValue(idx, split_feature);
     node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
-    // if (has_weights && has_basis) {node_suff_stat.IncrementSuffStat(covariates, basis, outcome, var_weights, idx);}
-    // else if (!has_weights && has_basis) {node_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);}
-    // else if (has_weights && !has_basis) {node_suff_stat.IncrementSuffStat(covariates, outcome, var_weights, idx);}
-    // else {node_suff_stat.IncrementSuffStat(covariates, outcome, idx);}
-    
     if (split.SplitTrue(feature_value)) {
       left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
-      // if (has_weights && has_basis) {left_suff_stat.IncrementSuffStat(covariates, basis, outcome, var_weights, idx);}
-      // else if (!has_weights && has_basis) {left_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);}
-      // else if (has_weights && !has_basis) {left_suff_stat.IncrementSuffStat(covariates, outcome, var_weights, idx);}
-      // else {left_suff_stat.IncrementSuffStat(covariates, outcome, idx);}
     } else {
       right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
-      // if (has_weights && has_basis) {right_suff_stat.IncrementSuffStat(covariates, basis, outcome, var_weights, idx);}
-      // else if (!has_weights && has_basis) {right_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);}
-      // else if (has_weights && !has_basis) {right_suff_stat.IncrementSuffStat(covariates, outcome, var_weights, idx);}
-      // else {right_suff_stat.IncrementSuffStat(covariates, outcome, idx);}
     }
   }
 }
@@ -49,19 +36,6 @@ void AccumulateSuffStatExisting(SuffStatType& node_suff_stat, SuffStatType& left
     auto idx = *i;
     left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
     node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
-    // if (has_weights && has_basis) {
-    //   left_suff_stat.IncrementSuffStat(covariates, basis, outcome, var_weights, idx);
-    //   node_suff_stat.IncrementSuffStat(covariates, basis, outcome, var_weights, idx);
-    // } else if (!has_weights && has_basis) {
-    //   left_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
-    //   node_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
-    // } else if (has_weights && !has_basis) {
-    //   left_suff_stat.IncrementSuffStat(covariates, outcome, var_weights, idx);
-    //   node_suff_stat.IncrementSuffStat(covariates, outcome, var_weights, idx);
-    // } else {
-    //   left_suff_stat.IncrementSuffStat(covariates, outcome, idx);
-    //   node_suff_stat.IncrementSuffStat(covariates, outcome, idx);
-    // }
   }
 
   // Accumulate sufficient statistics for the right and split nodes
@@ -69,33 +43,11 @@ void AccumulateSuffStatExisting(SuffStatType& node_suff_stat, SuffStatType& left
     auto idx = *i;
     right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
     node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
-    // if (has_weights && has_basis) {
-    //   right_suff_stat.IncrementSuffStat(covariates, basis, outcome, var_weights, idx);
-    //   node_suff_stat.IncrementSuffStat(covariates, basis, outcome, var_weights, idx);
-    // } else if (!has_weights && has_basis) {
-    //   right_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
-    //   node_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);
-    // } else if (has_weights && !has_basis) {
-    //   right_suff_stat.IncrementSuffStat(covariates, outcome, var_weights, idx);
-    //   node_suff_stat.IncrementSuffStat(covariates, outcome, var_weights, idx);
-    // } else {
-    //   right_suff_stat.IncrementSuffStat(covariates, outcome, idx);
-    //   node_suff_stat.IncrementSuffStat(covariates, outcome, idx);
-    // }
   }
 }
 
 template<typename SuffStatType, bool sorted>
 void AccumulateSingleNodeSuffStat(SuffStatType& node_suff_stat, ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, int tree_num, int node_id) {
-  // // Unpack data
-  // Eigen::MatrixXd covariates = dataset.GetCovariates();
-  // Eigen::VectorXd outcome = residual.GetData();
-  // Eigen::MatrixXd basis;
-  // if (has_basis) basis = dataset.GetBasis();
-  // Eigen::VectorXd var_weights;
-  // bool has_weights = dataset.HasVarWeights();
-  // if (has_weights) var_weights = dataset.GetVarWeights();
-
   // Acquire iterators
   std::vector<data_size_t>::iterator node_begin_iter;
   std::vector<data_size_t>::iterator node_end_iter;
@@ -112,10 +64,6 @@ void AccumulateSingleNodeSuffStat(SuffStatType& node_suff_stat, ForestDataset& d
   for (auto i = node_begin_iter; i != node_end_iter; i++) {
     auto idx = *i;
     node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
-    // if (has_weights && has_basis) {node_suff_stat.IncrementSuffStat(covariates, basis, outcome, var_weights, idx);}
-    // else if (!has_weights && has_basis) {node_suff_stat.IncrementSuffStat(covariates, basis, outcome, idx);}
-    // else if (has_weights && !has_basis) {node_suff_stat.IncrementSuffStat(covariates, outcome, var_weights, idx);}
-    // else {node_suff_stat.IncrementSuffStat(covariates, outcome, idx);}
   }
 }
 
@@ -211,16 +159,6 @@ void GaussianConstantLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset
   // Minimum size of newly created leaf nodes (used to rule out invalid splits)
   int32_t min_samples_in_leaf = tree_prior.GetMinSamplesLeaf();
 
-  // // Clear vectors
-  // log_cutpoint_evaluations.clear();
-  // cutpoint_features.clear();
-  // cutpoint_values.clear();
-  // cutpoint_feature_types.clear();
-
-  // // Reset cutpoint grid container
-  // int cutpoint_grid_size = cutpoint_grid_container.CutpointGridSize();
-  // cutpoint_grid_container.Reset(dataset.GetCovariates(), residual.GetData(), cutpoint_grid_size);
-
   // Compute sufficient statistics for each possible split
   data_size_t num_cutpoints = 0;
   bool valid_split = false;
@@ -253,13 +191,6 @@ void GaussianConstantLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset
       next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx + 1, j);
 
       // Accumulate sufficient statistics for the left node
-//      if (has_weights) {
-//        AccumulateCutpointBinSuffStat<GaussianConstantSuffStat>(left_suff_stat, tracker, cutpoint_grid_container, dataset, residual, 
-//                                                                global_variance, tree_num, node_id, j, cutpoint_idx);
-//      } else {
-//        AccumulateCutpointBinSuffStat<GaussianConstantSuffStat>(left_suff_stat, tracker, cutpoint_grid_container, dataset, residual,
-//                                                                global_variance, tree_num, node_id, j, cutpoint_idx);
-//      }
       AccumulateCutpointBinSuffStat<GaussianConstantSuffStat>(left_suff_stat, tracker, cutpoint_grid_container, dataset, residual,
                                                               global_variance, tree_num, node_id, j, cutpoint_idx);
 
@@ -316,6 +247,48 @@ double GaussianConstantLeafModel::NoSplitLogMarginalLikelihood(GaussianConstantS
   return log_ml;
 }
 
+double GaussianConstantLeafModel::PosteriorParameterMean(GaussianConstantSuffStat& suff_stat, double global_variance) {
+  return (tau_*suff_stat.sum_yw) / (suff_stat.sum_w*tau_ + global_variance);
+}
 
+double GaussianConstantLeafModel::PosteriorParameterVariance(GaussianConstantSuffStat& suff_stat, double global_variance) {
+  return (tau_*global_variance) / (suff_stat.sum_w*tau_ + global_variance);
+}
+
+void GaussianConstantLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen) {
+  // Vector of leaf indices for tree
+  std::vector<int32_t> tree_leaves = tree->GetLeaves();
+  
+  // Initialize sufficient statistics
+  GaussianConstantSuffStat node_suff_stat = GaussianConstantSuffStat();
+
+  // Sample each leaf node parameter
+  double node_mean;
+  double node_variance;
+  double node_mu;
+  int32_t leaf_id;
+  for (int i = 0; i < tree_leaves.size(); i++) {
+    // Compute leaf node sufficient statistics
+    leaf_id = tree_leaves[i];
+    node_suff_stat.ResetSuffStat();
+    AccumulateSingleNodeSuffStat<GaussianConstantSuffStat, false>(node_suff_stat, dataset, tracker, residual, tree_num, leaf_id);
+    
+    // Compute posterior mean and variance
+    node_mean = PosteriorParameterMean(node_suff_stat, global_variance);
+    node_variance = PosteriorParameterVariance(node_suff_stat, global_variance);
+    
+    // Draw from N(mean, stddev^2) and set the leaf parameter with each draw
+    node_mu = normal_sampler_.Sample(node_mean, node_variance, gen);
+    tree->SetLeaf(leaf_id, node_mu);
+  }
+}
+
+void GaussianConstantLeafModel::SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value) {
+  int num_trees = ensemble->NumTrees();
+  for (int i = 0; i < num_trees; i++) {
+    Tree* tree = ensemble->GetTree(i);
+    tree->SetLeaf(0, root_pred_value);
+  }
+}
 
 } // namespace StochTree

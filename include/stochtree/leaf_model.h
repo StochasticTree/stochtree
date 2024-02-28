@@ -10,6 +10,7 @@
 #include <stochtree/data.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
+#include <stochtree/normal_sampler.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/prior.h>
 #include <stochtree/tree.h>
@@ -61,8 +62,8 @@ class GaussianConstantSuffStat {
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class GaussianConstantLeafModel {
  public:
-  GaussianConstantLeafModel(double tau) {tau_ = tau;}
-  ~GaussianConstantLeafModel() {}  
+  GaussianConstantLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
+  ~GaussianConstantLeafModel() {}
   std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance);
   std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);
   void EvaluateAllPossibleSplits(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, double global_variance, int tree_num, int split_node_id, 
@@ -72,9 +73,12 @@ class GaussianConstantLeafModel {
   double NoSplitLogMarginalLikelihood(GaussianConstantSuffStat& suff_stat, double global_variance);
   double PosteriorParameterMean(GaussianConstantSuffStat& suff_stat, double global_variance);
   double PosteriorParameterVariance(GaussianConstantSuffStat& suff_stat, double global_variance);
-  void SampleLeafParameters(GaussianConstantSuffStat& suff_stat, double global_variance, std::mt19937& gen, int leaf_num, Tree* tree);
+  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
+  void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
+  inline bool RequiresBasis() {return false;}
  private:
   double tau_;
+  UnivariateNormalSampler normal_sampler_;
 };
 
 /*! \brief Sufficient statistic and associated operations for gaussian homoskedastic constant leaf outcome model */
@@ -119,17 +123,20 @@ class GaussianUnivariateRegressionSuffStat {
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class GaussianUnivariateRegressionLeafModel {
  public:
-  GaussianUnivariateRegressionLeafModel() {}
-  ~GaussianUnivariateRegressionLeafModel() {}  
+  GaussianUnivariateRegressionLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
+  ~GaussianUnivariateRegressionLeafModel() {}
   std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, TreeSplit& split, int tree_num, int leaf_num, int split_feature);
   std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);
   double SplitLogMarginalLikelihood(GaussianUnivariateRegressionSuffStat& left_stat, GaussianUnivariateRegressionSuffStat& right_stat, double global_variance);
   double NoSplitLogMarginalLikelihood(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance);
   double PosteriorParameterMean(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance);
   double PosteriorParameterVariance(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance);
-  void SampleLeafParameters(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance, std::mt19937& gen, int leaf_num, Tree* tree);
+  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
+  void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
+  inline bool RequiresBasis() {return true;}
  private:
   double tau_;
+  UnivariateNormalSampler normal_sampler_;
 };
 
 /*! \brief Sufficient statistic and associated operations for gaussian homoskedastic constant leaf outcome model */
@@ -176,17 +183,20 @@ class GaussianMultivariateRegressionSuffStat {
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class GaussianMultivariateRegressionLeafModel {
  public:
-  GaussianMultivariateRegressionLeafModel() {}
-  ~GaussianMultivariateRegressionLeafModel() {}  
+  GaussianMultivariateRegressionLeafModel(double tau) {tau_ = tau; multivariate_normal_sampler_ = MultivariateNormalSampler();}
+  ~GaussianMultivariateRegressionLeafModel() {}
   std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, TreeSplit& split, int tree_num, int leaf_num, int split_feature);
   std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);
   double SplitLogMarginalLikelihood(GaussianMultivariateRegressionSuffStat& left_stat, GaussianMultivariateRegressionSuffStat& right_stat, double global_variance);
   double NoSplitLogMarginalLikelihood(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance);
   double PosteriorParameterMean(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance);
   double PosteriorParameterVariance(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance);
-  void SampleLeafParameters(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance, std::mt19937& gen, int leaf_num, Tree* tree);
+  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
+  void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
+  inline bool RequiresBasis() {return true;}
  private:
   double tau_;
+  MultivariateNormalSampler multivariate_normal_sampler_;
 };
 
 } // namespace StochTree

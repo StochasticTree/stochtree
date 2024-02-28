@@ -39,8 +39,14 @@ class TreeEnsemble {
     num_trees_ = ensemble.num_trees_;
     output_dimension_ = ensemble.output_dimension_;
     is_leaf_constant_ = ensemble.is_leaf_constant_;
-    // Clone trees in the ensemble
+    // Initialize trees in the ensemble
     trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
+    for (int i = 0; i < num_trees_; i++) {
+      trees_[i].reset(new Tree());
+      // trees_[i]->Init(output_dimension);
+    }
+    // Clone trees in the ensemble
+    // trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
     for (int j = 0; j < num_trees_; j++) {
       Tree* tree = ensemble.GetTree(j);
       this->CloneFromExistingTree(j, tree);
@@ -58,7 +64,7 @@ class TreeEnsemble {
 
   inline void ResetInitTree(int i) {
     trees_[i].reset(new Tree());
-    trees_[i]->Init(1);
+    trees_[i]->Init(output_dimension_);
   }
 
   inline void CopyTree(int i, Tree* tree) {

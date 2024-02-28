@@ -61,6 +61,27 @@ void GenerateRandomData(std::vector<double>& covariates, std::vector<double>& ba
   }
 }
 
+void OutcomeOffsetScale(ColumnVector& residual, double& outcome_offset, double& outcome_scale) {
+  data_size_t n = residual.NumRows();
+  double outcome_val = 0.0;
+  double outcome_sum = 0.0;
+  double outcome_sum_squares = 0.0;
+  double var_y = 0.0;
+  for (data_size_t i = 0; i < n; i++){
+    outcome_val = residual.GetElement(i);
+    outcome_sum += outcome_val;
+    outcome_sum_squares += std::pow(outcome_val, 2.0);
+  }
+  var_y = outcome_sum_squares / static_cast<double>(n) - std::pow(outcome_sum / static_cast<double>(n), 2.0);
+  outcome_scale = std::sqrt(var_y);
+  outcome_offset = outcome_sum / static_cast<double>(n);
+  double previous_residual;
+  for (data_size_t i = 0; i < n; i++){
+    previous_residual = residual.GetElement(i);
+    residual.SetElement(i, (previous_residual - outcome_offset) / outcome_scale);
+  }
+}
+
 void RunAPI() {
   // Data dimensions
   int n = 100;
@@ -85,17 +106,17 @@ void RunAPI() {
   
   // Define internal datasets
   bool row_major = true;
-  // ColumnMatrix covariates = ColumnMatrix(covariates_raw.data(), n, x_cols, row_major);
-  // ColumnMatrix basis = ColumnMatrix(basis_raw.data(), n, omega_cols, row_major);
-  // ColumnVector outcome = ColumnVector(outcome_raw.data(), n, row_major);
-  // ColumnVector residual = ColumnVector(outcome_raw.data(), n, row_major);
-  // ColumnMatrix rfx_basis = ColumnMatrix(rfx_basis_raw.data(), n, rfx_basis_cols, row_major);
 
   // Construct datasets for training
   ForestDataset dataset = ForestDataset();
   dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
   dataset.AddBasis(basis_raw.data(), n, omega_cols, row_major);
-  ColumnVector outcome = ColumnVector(outcome_raw.data(), n);
+  ColumnVector residual = ColumnVector(outcome_raw.data(), n);
+  
+  // Center and scale the data
+  double outcome_offset;
+  double outcome_scale;
+  OutcomeOffsetScale(residual, outcome_offset, outcome_scale);
   
   // Initialize an ensemble
   int num_trees = 100;
@@ -120,19 +141,21 @@ void RunAPI() {
 
   // Initialize a sampler
   std::vector<FeatureType> feature_types(x_cols, FeatureType::kNumeric);
-  double alpha = 0.95;
-  double beta = 2.;
+  double alpha = 0.99;
+  double beta = 1.25;
   int min_samples_leaf = 10;
   int cutpoint_grid_size = 500;
   TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf);
   GFRForestSampler gfr_sampler = GFRForestSampler<GaussianConstantLeafModel>(cutpoint_grid_size);
+  MCMCForestSampler mcmc_sampler = MCMCForestSampler<GaussianConstantLeafModel>();
   ForestTracker tracker = ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
   
   // Run a single iteration of the GFR algorithm
-  int random_seed = 100;
+  int random_seed = 1;
   std::mt19937 gen = std::mt19937(random_seed);
   double global_variance = 1.;
-  gfr_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, outcome, tree_prior, gen, global_variance, feature_types);  
+  gfr_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance, feature_types);
+  mcmc_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance);
 }
 
 } // namespace StochTree
