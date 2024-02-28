@@ -52,11 +52,11 @@ void GenerateRandomData(std::vector<double>& covariates, std::vector<double>& ba
         f_x_omega = betas[3] * basis[i * omega_cols + 0];
       }
       if (rfx_groups[i] == 1) {
-        rfx = 5.;
+        rfx = 0.5;
       } else {
-        rfx = -5.;
+        rfx = -0.5;
       }
-      outcome[i * y_cols + j] = f_x_omega + rfx + normal_dist(gen);
+      outcome[i * y_cols + j] = f_x_omega + rfx + 0.1*normal_dist(gen);
     }
   }
 }
@@ -84,7 +84,7 @@ void OutcomeOffsetScale(ColumnVector& residual, double& outcome_offset, double& 
 
 void RunAPI() {
   // Data dimensions
-  int n = 100;
+  int n = 1000;
   int x_rows = n;
   int x_cols = 10;
   int omega_rows = n;
@@ -127,7 +127,7 @@ void RunAPI() {
   // Initialize a leaf model
   double leaf_prior_mean = 0.;
   double leaf_prior_scale = 1.;
-  GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_prior_scale);
+  GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_prior_scale);
 
   // // Check consistency
   // CHECK(ForestModelCompatible(forest_samples, leaf_model));
@@ -146,8 +146,8 @@ void RunAPI() {
   int min_samples_leaf = 10;
   int cutpoint_grid_size = 500;
   TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf);
-  GFRForestSampler gfr_sampler = GFRForestSampler<GaussianConstantLeafModel>(cutpoint_grid_size);
-  MCMCForestSampler mcmc_sampler = MCMCForestSampler<GaussianConstantLeafModel>();
+  GFRForestSampler gfr_sampler = GFRForestSampler<GaussianUnivariateRegressionLeafModel>(cutpoint_grid_size);
+  MCMCForestSampler mcmc_sampler = MCMCForestSampler<GaussianUnivariateRegressionLeafModel>();
   ForestTracker tracker = ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
   
   // Run a single iteration of the GFR algorithm
