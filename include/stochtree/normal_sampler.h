@@ -11,7 +11,7 @@ namespace StochTree {
 
 class UnivariateNormalSampler {
  public:
-  UnivariateNormalSampler() {}
+  UnivariateNormalSampler() {std_normal_dist_ = std::normal_distribution<double>(0.,1.);}
   ~UnivariateNormalSampler() {}
   double Sample(double mean, double variance, std::mt19937& gen) {
     return mean + std::sqrt(variance) * std_normal_dist_(gen);
@@ -23,7 +23,7 @@ class UnivariateNormalSampler {
 
 class MultivariateNormalSampler {
  public:
-  MultivariateNormalSampler() {}
+  MultivariateNormalSampler() {std_normal_dist_ = std::normal_distribution<double>(0.,1.);}
   ~MultivariateNormalSampler() {}
   std::vector<double> Sample(Eigen::VectorXd& mean, Eigen::MatrixXd& covariance, std::mt19937& gen) {
     // Dimension extraction and checks

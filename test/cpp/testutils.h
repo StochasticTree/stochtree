@@ -5,16 +5,32 @@
 #ifndef STOCHTREE_TESTUTILS_H_
 #define STOCHTREE_TESTUTILS_H_
 
+#include <Eigen/Dense>
 #include <stochtree/random.h>
-#include <stochtree/data.h>
 #include <vector>
 
 namespace StochTree {
 
 namespace TestUtils {
 
-/*! Creates a Dataset from the internal repository examples. */
-void LoadDatasetFromDemos(const char* filename, const char* config_str, std::unique_ptr<Dataset>& out);
+struct TestDataset {
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> covariates;
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> omega;
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> rfx_basis;
+  Eigen::VectorXd outcome;
+  std::vector<int32_t> rfx_groups;
+  int n;
+  int x_cols;
+  int omega_cols;
+  int rfx_basis_cols;
+  bool row_major{true};
+};
+
+/*! Creates a small dataset (10 observations) */
+TestDataset LoadSmallDataset();
+
+/*! Creates a modest dataset (100 observations) */
+TestDataset LoadMediumDataset();
 
 } // namespace TestUtils
 
