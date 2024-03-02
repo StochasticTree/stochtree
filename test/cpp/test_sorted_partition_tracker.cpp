@@ -11,7 +11,7 @@
 TEST(SortedNodeSampleTracker, BasicOperations) {
   // Load test data
   StochTree::TestUtils::TestDataset test_dataset;
-  test_dataset = StochTree::TestUtils::LoadSmallDataset();
+  test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
   std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
 
   // Construct datasets

@@ -27,10 +27,13 @@ struct TestDataset {
 };
 
 /*! Creates a small dataset (10 observations) */
-TestDataset LoadSmallDataset();
+TestDataset LoadSmallDatasetUnivariateBasis();
+
+/*! Creates a small dataset (10 observations) with a multivariate basis for leaf regression applications */
+TestDataset LoadSmallDatasetMultivariateBasis();
 
 /*! Creates a modest dataset (100 observations) */
-TestDataset LoadMediumDataset();
+TestDataset LoadMediumDatasetUnivariateBasis();
 
 } // namespace TestUtils
 

@@ -12,7 +12,7 @@
 TEST(UnsortedNodeSampleTracker, BasicOperations) {
   // Load test data
   StochTree::TestUtils::TestDataset test_dataset;
-  test_dataset = StochTree::TestUtils::LoadSmallDataset();
+  test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
 
   // Construct datasets
   int n = test_dataset.n;

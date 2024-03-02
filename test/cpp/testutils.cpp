@@ -11,7 +11,7 @@ namespace StochTree {
 
 namespace TestUtils{
 
-TestDataset LoadSmallDataset() {
+TestDataset LoadSmallDatasetUnivariateBasis() {
   TestDataset output;
   
   // Data dimensions
@@ -59,7 +59,64 @@ TestDataset LoadSmallDataset() {
   return output;
 }
 
-TestDataset LoadMediumDataset() {
+TestDataset LoadSmallDatasetMultivariateBasis() {
+  TestDataset output;
+  
+  // Data dimensions
+  output.n = 10;
+  output.x_cols = 5;
+  output.omega_cols = 2;
+  output.rfx_basis_cols = 1;
+  output.covariates.resize(output.n, output.x_cols);
+  output.omega.resize(output.n, output.omega_cols);
+  output.rfx_basis.resize(output.n, output.rfx_basis_cols);
+  output.rfx_groups.resize(output.n);
+  output.outcome.resize(output.n);
+  
+  // Covariates
+  output.covariates << 0.766969853, 0.83894646, 0.63649772, 0.6747788934, 0.27398269,
+                       0.634970996, 0.15237997, 0.3800786,  0.6457891271, 0.21604451,
+                       0.229598754, 0.12461481, 0.81407372, 0.364336529,  0.45160373,
+                       0.741084778, 0.53356288, 0.58940162, 0.9995219493, 0.19142269,
+                       0.618177813, 0.88876378, 0.51174404, 0.8827708189, 0.12730742,
+                       0.858657839, 0.9271676,  0.5115294,  0.67865624,   0.28658962,
+                       0.719224842, 0.0546961,  0.42850897, 0.260336376,  0.1371501,
+                       0.747422328, 0.87172033, 0.98791964, 0.4018020707, 0.29145664,
+                       0.3158837,   0.39253551, 0.83610831, 0.0101785748, 0.1955386,
+                       0.419554105, 0.5586495,  0.19908607, 0.4873921743, 0.35568569;
+  
+  // Leaf regression basis
+  output.omega << 0.97801674, 0.3707159, 
+                  0.34045661, 0.1312134, 
+                  0.20528387, 0.5614470, 
+                  0.76230322, 0.2276504, 
+                  0.63244655, 0.9029984, 
+                  0.61225851, 0.7448547, 
+                  0.40492125, 0.2549813, 
+                  0.33112223, 0.5295535, 
+                  0.86917047, 0.5584614, 
+                  0.58444831, 0.2365117;
+  
+  // Outcome
+  output.outcome << 2.158854445, 1.175387297, 0.40481061,  1.751578365, 0.299641379, 
+                    0.347249942, 0.546179903, 1.164750138, 3.389946886, -0.605464414;
+  
+  // Random effects regression basis (i.e. constant, intercept-only RFX model)
+  output.rfx_basis << 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
+  
+  // Random effects group labels
+  for (int i = 0; i < output.n/2; i++) {
+    if (i % 2 == 0) {
+      output.rfx_groups[i] = 1;
+    } else {
+      output.rfx_groups[i] = 2;
+    }
+  }
+
+  return output;
+}
+
+TestDataset LoadMediumDatasetUnivariateBasis() {
   TestDataset output;
   
   // Data dimensions

@@ -338,8 +338,8 @@ class MCMCForestSampler {
 
     // Determine the number of leaves in the current tree and leaf parents in the proposed tree
     int num_leaf_parents = tree->NumLeafParents();
-    double p_leaf = 1/num_leaves;
-    double p_leaf_parent = 1/(num_leaf_parents+1);
+    double p_leaf = 1/static_cast<double>(num_leaves);
+    double p_leaf_parent = 1/static_cast<double>(num_leaf_parents+1);
 
     // Compute the final MH ratio
     double log_mh_ratio = (
@@ -413,8 +413,8 @@ class MCMCForestSampler {
     }
 
     // Determine the number of leaves in the current tree and leaf parents in the proposed tree
-    double p_leaf = 1/(num_leaves-1);
-    double p_leaf_parent = 1/(num_leaf_parents);
+    double p_leaf = 1/static_cast<double>(num_leaves-1);
+    double p_leaf_parent = 1/static_cast<double>(num_leaf_parents);
 
     // Compute the final MH ratio
     double log_mh_ratio = (
