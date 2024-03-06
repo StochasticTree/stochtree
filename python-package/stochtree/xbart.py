@@ -8,7 +8,7 @@ from .utils import _param_dict_to_str
 class XBART:
     def __init__(self, num_trees = 100, min_data_in_leaf = 10, max_depth = -1, 
                  alpha = 0.9, beta = 2., a_sigma = 16, b_sigma = 4, a_tau = 3, 
-                 b_tau = 0.5, data_driven_prior = True) -> None:
+                 b_tau = 0.5, data_driven_prior = True, random_seed = -1) -> None:
         # Set config parameters
         param_dict = {
             "num_trees": num_trees, 
@@ -17,7 +17,8 @@ class XBART:
             "alpha": alpha, "beta": beta, 
             "a_sigma": a_sigma, "b_sigma": b_sigma, 
             "a_tau": a_tau, "b_tau": b_tau, 
-            "data_driven_prior": data_driven_prior
+            "data_driven_prior": data_driven_prior, 
+            "random_seed": random_seed
         }
         param_str = _param_dict_to_str(param_dict)
 

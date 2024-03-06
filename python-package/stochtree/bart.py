@@ -8,7 +8,7 @@ from .utils import _param_dict_to_str
 class BART:
     def __init__(self, num_trees = 100, min_data_in_leaf = 10, max_depth = -1, 
                  alpha = 0.9, beta = 2., nu = 5, lam = 5, mu_mean = 0, mu_sigma = 1, 
-                 data_driven_prior = True) -> None:
+                 data_driven_prior = True, random_seed = -1) -> None:
         # Set config parameters
         param_dict = {
             "num_trees": num_trees, 
@@ -18,7 +18,8 @@ class BART:
             "nu": nu, "lam": lam, 
             "mu_mean": mu_mean, 
             "mu_sigma": mu_sigma, 
-            "data_driven_prior": data_driven_prior
+            "data_driven_prior": data_driven_prior, 
+            "random_seed": random_seed
         }
         param_str = _param_dict_to_str(param_dict)
 
