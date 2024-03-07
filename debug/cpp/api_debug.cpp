@@ -2,6 +2,7 @@
 #include <stochtree/data.h>
 #include <stochtree/container.h>
 #include <stochtree/leaf_model.h>
+#include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 
 #include <iostream>
@@ -52,9 +53,9 @@ void GenerateRandomData(std::vector<double>& covariates, std::vector<double>& ba
         f_x_omega = betas[3] * basis[i * omega_cols + 0];
       }
       if (rfx_groups[i] == 1) {
-        rfx = 0.5;
+        rfx = 5.;
       } else {
-        rfx = -0.5;
+        rfx = -5.;
       }
       outcome[i * y_cols + j] = f_x_omega + rfx + 0.1*normal_dist(gen);
     }
@@ -86,13 +87,14 @@ void RunAPI() {
   // Data dimensions
   int n = 1000;
   int x_rows = n;
-  int x_cols = 10;
+  int x_cols = 2;
   int omega_rows = n;
   int omega_cols = 1;
   int y_rows = n;
   int y_cols = 1;
   int rfx_basis_rows = n;
   int rfx_basis_cols = 1;
+  int num_rfx_groups = 2;
   
   // Declare covariates, basis and outcome
   std::vector<double> covariates_raw(x_rows*x_cols);
@@ -117,6 +119,11 @@ void RunAPI() {
   double outcome_offset;
   double outcome_scale;
   OutcomeOffsetScale(residual, outcome_offset, outcome_scale);
+
+  // Construct a random effects dataset
+  RandomEffectsDataset rfx_dataset = RandomEffectsDataset();
+  rfx_dataset.AddBasis(rfx_basis_raw.data(), n, rfx_basis_cols, row_major);
+  rfx_dataset.AddGroupLabels(rfx_groups);
   
   // Initialize an ensemble
   int num_trees = 100;
@@ -139,23 +146,55 @@ void RunAPI() {
   
   // Check consistency
 
-  // Initialize a sampler
+  // Initialize forest sampling machinery
   std::vector<FeatureType> feature_types(x_cols, FeatureType::kNumeric);
   double alpha = 0.99;
   double beta = 1.25;
   int min_samples_leaf = 10;
   int cutpoint_grid_size = 500;
+  double a_rfx = 1.;
+  double b_rfx = 1.;
   TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf);
   GFRForestSampler gfr_sampler = GFRForestSampler<GaussianUnivariateRegressionLeafModel>(cutpoint_grid_size);
   MCMCForestSampler mcmc_sampler = MCMCForestSampler<GaussianUnivariateRegressionLeafModel>();
   ForestTracker tracker = ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
+
+  // Initialize random effect sampling machinery
+  RandomEffectsTracker rfx_tracker = RandomEffectsTracker(rfx_groups);
+  RandomEffectsContainer rfx_samples = RandomEffectsContainer();
+  MultivariateRegressionRandomEffectsModel rfx_model = MultivariateRegressionRandomEffectsModel();
+  double rfx_scale = 0.5;
+  Eigen::MatrixXd working_parameter_prior_covariance = Eigen::MatrixXd::Identity(rfx_basis_cols, rfx_basis_cols);
+  Eigen::MatrixXd group_parameter_prior_covariance = Eigen::MatrixXd::Identity(rfx_basis_cols, rfx_basis_cols) * rfx_scale;
+  Eigen::VectorXd working_parameter_init = Eigen::VectorXd::Zero(rfx_basis_cols);
+  Eigen::MatrixXd group_parameter_init = Eigen::MatrixXd::Zero(rfx_basis_cols, rfx_tracker.NumCategories());
   
   // Run a single iteration of the GFR algorithm
   int random_seed = 1;
   std::mt19937 gen = std::mt19937(random_seed);
-  double global_variance = 1.;
-  gfr_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance, feature_types);
-  mcmc_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance);
+  double global_variance = 0.1;
+  
+  // Run GFR ensemble sampler and other parameter samplers in a loop
+  int num_gfr_samples = 10;
+  for (int i = 0; i < num_gfr_samples; i++) {
+    // Tree ensemble sampler
+    gfr_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance, feature_types);
+
+    // Random effects
+    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init, working_parameter_prior_covariance, group_parameter_prior_covariance, 1);
+    rfx_model.SampleRandomEffects(rfx_samples.GetRandomEffectsTerm(i), rfx_dataset, residual, rfx_tracker, global_variance, gen);
+  }
+
+  // Run MCMC ensemble sampler and other parameter samplers in a loop
+  int num_mcmc_samples = 10;
+  for (int i = 0; i < num_mcmc_samples; i++) {
+    // Tree ensemble sampler
+    mcmc_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance);
+
+    // Random effects
+    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init, working_parameter_prior_covariance, group_parameter_prior_covariance, 1);
+    rfx_model.SampleRandomEffects(rfx_samples.GetRandomEffectsTerm(i + num_gfr_samples), rfx_dataset, residual, rfx_tracker, global_variance, gen);
+  }
 }
 
 } // namespace StochTree

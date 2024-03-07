@@ -4,7 +4,7 @@
  * General-purpose data structures used for keeping track of categories in a training dataset.
  * 
  * SampleCategoryMapper is a simplified version of SampleNodeMapper, which is not tree-specific 
- * as it tracks categories loaded into a training dataset and we do not expect to modify it during 
+ * as it tracks categories loaded into a training dataset, and we do not expect to modify it during 
  * training.
  * 
  * SampleCategoryMapper is used in two places:
@@ -25,6 +25,7 @@
 #ifndef STOCHTREE_CATEGORY_TRACKER_H_
 #define STOCHTREE_CATEGORY_TRACKER_H_
 
+#include <Eigen/Dense>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 
@@ -91,9 +92,11 @@ class CategorySampleTracker {
     for (int i = 0; i < n; i++) {
       bool start_cond = i == 0;
       bool end_cond = i == n-1;
-      bool new_group_cond = group_indices[indices_[i]] != group_indices[indices_[i-1]];
+      bool new_group_cond{false};
+      if (i > 0) new_group_cond = group_indices[indices_[i]] != group_indices[indices_[i-1]];
       if (start_cond || end_cond || new_group_cond) {
-        category_id_map_.insert({group_indices[indices_[i]], category_count_});        
+        category_id_map_.insert({group_indices[indices_[i]], category_count_});
+        node_index_vector_.emplace_back();
         if (i == 0) {
           category_begin_.push_back(i);
         } else if (i == n-1) {
@@ -107,6 +110,8 @@ class CategorySampleTracker {
       } else {
         observation_count++;
       }
+      // Add the index to the category's node index vector in either case
+      node_index_vector_[category_count_ - 1].emplace_back(indices_[i]);
     }
   }
 
@@ -131,19 +136,24 @@ class CategorySampleTracker {
   std::vector<data_size_t> indices_;
 
   /*! \brief Data indices for a given node */
-  std::vector<data_size_t> NodeIndices(int category_id) {
+  std::vector<data_size_t>& NodeIndices(int category_id) {
     int32_t id = category_id_map_[category_id];
-    std::vector<data_size_t>::iterator start = indices_.begin() + category_begin_[id];
-    std::vector<data_size_t>::iterator end = indices_.begin() + category_begin_[id] + category_length_[id];
-    std::vector<data_size_t> output(start, end);
-    return output;
+    // std::vector<data_size_t>::iterator start = indices_.begin() + category_begin_[id];
+    // std::vector<data_size_t>::iterator end = indices_.begin() + category_begin_[id] + category_length_[id];
+    // std::vector<data_size_t> output(start, end);
+    // return output;
+    return node_index_vector_[id];
   }
+
+  /*! \brief Returns label index map */
+  std::map<int32_t, int32_t>& GetLabelMap() {return category_id_map_;}
 
  private:
   // Vectors tracking indices in each node
   std::vector<data_size_t> category_begin_;
   std::vector<data_size_t> category_length_;
   std::map<int32_t, int32_t> category_id_map_;
+  std::vector<std::vector<data_size_t>> node_index_vector_;
   int32_t category_count_;
 };
 

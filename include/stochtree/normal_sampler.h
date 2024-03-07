@@ -50,6 +50,26 @@ class MultivariateNormalSampler {
     }
     return result;
   }
+  Eigen::VectorXd SampleEigen(Eigen::VectorXd& mean, Eigen::MatrixXd& covariance, std::mt19937& gen) {
+    // Dimension extraction and checks
+    int mean_cols = mean.size();
+    int cov_rows = covariance.rows();
+    int cov_cols = covariance.cols();
+    CHECK_EQ(mean_cols, cov_cols);
+    
+    // Variance cholesky decomposition
+    Eigen::LLT<Eigen::MatrixXd> decomposition(covariance);
+    Eigen::MatrixXd covariance_chol = decomposition.matrixL();
+
+    // Sample a vector of standard normal random variables
+    Eigen::VectorXd std_norm_vec(cov_rows);
+    for (int i = 0; i < cov_rows; i++) {
+      std_norm_vec(i) = std_normal_dist_(gen);
+    }
+
+    // Compute and return the sampled value
+    return mean + covariance_chol * std_norm_vec;
+  }
  private:
   /*! \brief Standard normal distribution */
   std::normal_distribution<double> std_normal_dist_;

@@ -74,20 +74,38 @@ class ForestDataset {
   bool has_var_weights_{false};
 };
 
-struct RandomEffectsDataset {
-  virtual void LoadFromMemory(std::vector<int32_t>& rfx_group_indices) {};
-  virtual void LoadFromMemory(double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<int32_t>& rfx_group_indices) {};
-};
-
-struct ConstantRandomEffectsDataset : public RandomEffectsDataset {
-  std::vector<int32_t> group_indices;
-  void LoadFromMemory(std::vector<int32_t>& rfx_group_indices);
-};
-
-struct RegressionRandomEffectsDataset : public RandomEffectsDataset {
-  std::vector<int32_t> group_indices;
-  Eigen::MatrixXd basis;
-  void LoadFromMemory(double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<int32_t>& rfx_group_indices);
+class RandomEffectsDataset {
+ public:
+  RandomEffectsDataset() {}
+  ~RandomEffectsDataset() {}
+  void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+    basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    has_basis_ = true;
+  }
+  void AddVarianceWeights(double* data_ptr, data_size_t num_row) {
+    var_weights_ = ColumnVector(data_ptr, num_row);
+    has_var_weights_ = true;
+  }
+  void AddGroupLabels(std::vector<int32_t>& group_labels) {
+    group_labels_ = group_labels;
+    has_group_labels_ = true;
+  }
+  inline bool HasBasis() {return has_basis_;}
+  inline bool HasVarWeights() {return has_var_weights_;}
+  inline bool HasGroupLabels() {return has_group_labels_;}
+  inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
+  inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
+  inline int32_t GroupId(data_size_t row) {return group_labels_[row];}
+  inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
+  inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
+  inline std::vector<int32_t>& GetGroupLabels() {return group_labels_;}
+ private:
+  ColumnMatrix basis_;
+  ColumnVector var_weights_;
+  std::vector<int32_t> group_labels_;
+  bool has_basis_{false};
+  bool has_var_weights_{false};
+  bool has_group_labels_{false};
 };
 
 } // namespace StochTree

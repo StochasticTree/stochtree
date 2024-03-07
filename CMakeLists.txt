@@ -1,6 +1,6 @@
 # Build options
 option(USE_DEBUG "Set to ON for Debug mode" ON)
-option(USE_SANITIZER "Use santizer flags" ON)
+option(USE_SANITIZER "Use santizer flags" OFF)
 option(BUILD_TEST "Build C++ tests with Google Test" ON)
 option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
 
@@ -69,7 +69,7 @@ file(
   src/json11.cpp
   src/leaf_model.cpp
   src/partition_tracker.cpp
-  src/random_effects_sampler.cpp
+  src/random_effects.cpp
   src/tree.cpp
   src/tree_sampler.cpp
 )

@@ -73,9 +73,4 @@ void LoadData(double* data_ptr, int num_row, Eigen::VectorXd& data_vector) {
   }
 }
 
-void RegressionRandomEffectsDataset::LoadFromMemory(double* basis_data_ptr, int num_basis, data_size_t num_row, bool is_row_major, std::vector<int32_t>& rfx_group_indices) {
-  LoadData(basis_data_ptr, num_row, num_basis, is_row_major, basis);
-  group_indices = rfx_group_indices;
-}
-
 } // namespace StochTree
