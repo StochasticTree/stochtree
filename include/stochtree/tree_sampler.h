@@ -20,7 +20,7 @@
 
 namespace StochTree {
 
-void VarSplitRange(ForestTracker& tracker, ForestDataset& dataset, int tree_num, int leaf_split, int feature_split, double& var_min, double& var_max) {
+static void VarSplitRange(ForestTracker& tracker, ForestDataset& dataset, int tree_num, int leaf_split, int feature_split, double& var_min, double& var_max) {
   var_min = std::numeric_limits<double>::max();
   var_max = std::numeric_limits<double>::min();
   double feature_value;
@@ -39,7 +39,7 @@ void VarSplitRange(ForestTracker& tracker, ForestDataset& dataset, int tree_num,
   }
 }
 
-bool NodesNonConstantAfterSplit(ForestDataset& dataset, ForestTracker& tracker, TreeSplit& split, int tree_num, int leaf_split, int feature_split) {
+static bool NodesNonConstantAfterSplit(ForestDataset& dataset, ForestTracker& tracker, TreeSplit& split, int tree_num, int leaf_split, int feature_split) {
   int p = dataset.GetCovariates().cols();
   data_size_t idx;
   double feature_value;
@@ -82,7 +82,7 @@ bool NodesNonConstantAfterSplit(ForestDataset& dataset, ForestTracker& tracker, 
   return false;
 }
 
-bool NodeNonConstant(ForestDataset& dataset, ForestTracker& tracker, int tree_num, int node_id) {
+static bool NodeNonConstant(ForestDataset& dataset, ForestTracker& tracker, int tree_num, int node_id) {
   int p = dataset.GetCovariates().cols();
   data_size_t idx;
   double feature_value;
@@ -111,7 +111,7 @@ bool NodeNonConstant(ForestDataset& dataset, ForestTracker& tracker, int tree_nu
   return false;
 }
 
-void AddSplitToModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, TreeSplit& split, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int feature_split) {
+static void AddSplitToModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, TreeSplit& split, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int feature_split) {
   // Use zeros as a "temporary" leaf values since we draw leaf parameters after tree sampling is complete
   int basis_dim = 1;
   if (dataset.HasBasis()) {
@@ -133,7 +133,7 @@ void AddSplitToModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& 
   tracker.AddSplit(dataset.GetCovariates(), split, feature_split, tree_num, leaf_node, left_node, right_node);
 }
 
-void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int left_node, int right_node) {
+static void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int left_node, int right_node) {
   // Use zeros as a "temporary" leaf values since we draw leaf parameters after tree sampling is complete
   int basis_dim = 1;
   if (dataset.HasBasis()) {
@@ -153,7 +153,7 @@ void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset, TreePr
   tracker.RemoveSplit(dataset.GetCovariates(), tree, tree_num, leaf_node, left_node, right_node);
 }
 
-double ComputeMeanOutcome(ColumnVector& residual) {
+static double ComputeMeanOutcome(ColumnVector& residual) {
   data_size_t n = residual.NumRows();
   double total_outcome = 0.;
   for (data_size_t i = 0; i < n; i++) {
@@ -162,7 +162,7 @@ double ComputeMeanOutcome(ColumnVector& residual) {
   return total_outcome / static_cast<double>(n);
 }
 
-void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, bool requires_basis, std::function<double(double, double)> op) {
+static void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, bool requires_basis, std::function<double(double, double)> op) {
   data_size_t n = dataset.GetCovariates().rows();
   double pred_value;
   int32_t leaf_pred;
