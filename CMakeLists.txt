@@ -71,7 +71,6 @@ file(
   src/partition_tracker.cpp
   src/random_effects.cpp
   src/tree.cpp
-  src/tree_sampler.cpp
 )
 
 # Define the C++ source code as a target
