@@ -209,6 +209,7 @@ class RandomEffectsContainer {
   void AddSamples(RandomEffectsDataset& rfx_dataset, RandomEffectsTracker& rfx_tracker, 
                   Eigen::VectorXd& working_parameter, Eigen::MatrixXd& group_parameters, 
                   Eigen::MatrixXd& working_parameter_covariance, Eigen::MatrixXd& group_parameter_covariance, 
+                  double group_parameter_variance_prior_shape, double group_parameter_variance_prior_scale, 
                   int num_new_samples) {
     int total_new_samples = num_new_samples + num_samples_;
     rfx_.resize(total_new_samples);
@@ -221,6 +222,8 @@ class RandomEffectsContainer {
         rfx_[i]->SetGroupParameters(group_parameters);
         rfx_[i]->SetWorkingParameterCovariance(working_parameter_covariance);
         rfx_[i]->SetGroupParameterCovariance(group_parameter_covariance);
+        rfx_[i]->SetVariancePriorShape(group_parameter_variance_prior_shape);
+        rfx_[i]->SetVariancePriorScale(group_parameter_variance_prior_scale);
       }
     } else {
       for (int i = num_samples_; i < total_new_samples; i++) {

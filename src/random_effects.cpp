@@ -13,8 +13,6 @@ RandomEffectsTracker::RandomEffectsTracker(std::vector<int32_t>& group_indices) 
   num_categories_ = category_sample_tracker_->NumCategories();
 }
 
-
-
 void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffectsTerm* rfx, RandomEffectsDataset& dataset, ColumnVector& residual, 
                                                                    RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
   // Update partial residual to add back in the random effects
@@ -27,8 +25,8 @@ void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffects
   }
   
   // Sample random effects
-  SampleGroupParameters(rfx, dataset, residual, rfx_tracker, global_variance, gen);
   SampleWorkingParameter(rfx, dataset, residual, rfx_tracker, global_variance, gen);
+  SampleGroupParameters(rfx, dataset, residual, rfx_tracker, global_variance, gen);
   SampleVarianceComponents(rfx, dataset, residual, rfx_tracker, global_variance, gen);
 
   // Update partial residual to remove the random effects

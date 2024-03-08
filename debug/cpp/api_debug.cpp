@@ -166,8 +166,10 @@ void RunAPI() {
   double rfx_scale = 0.5;
   Eigen::MatrixXd working_parameter_prior_covariance = Eigen::MatrixXd::Identity(rfx_basis_cols, rfx_basis_cols);
   Eigen::MatrixXd group_parameter_prior_covariance = Eigen::MatrixXd::Identity(rfx_basis_cols, rfx_basis_cols) * rfx_scale;
-  Eigen::VectorXd working_parameter_init = Eigen::VectorXd::Zero(rfx_basis_cols);
-  Eigen::MatrixXd group_parameter_init = Eigen::MatrixXd::Zero(rfx_basis_cols, rfx_tracker.NumCategories());
+  Eigen::VectorXd working_parameter_init = Eigen::VectorXd::Ones(rfx_basis_cols);
+  Eigen::MatrixXd group_parameter_init = Eigen::MatrixXd::Ones(rfx_basis_cols, rfx_tracker.NumCategories());
+  double group_parameter_variance_prior_shape = 1.;
+  double group_parameter_variance_prior_scale = 1.;
   
   // Run a single iteration of the GFR algorithm
   int random_seed = 1;
@@ -181,7 +183,9 @@ void RunAPI() {
     gfr_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance, feature_types);
 
     // Random effects
-    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init, working_parameter_prior_covariance, group_parameter_prior_covariance, 1);
+    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init, 
+                           working_parameter_prior_covariance, group_parameter_prior_covariance,
+                           group_parameter_variance_prior_shape, group_parameter_variance_prior_scale, 1);
     rfx_model.SampleRandomEffects(rfx_samples.GetRandomEffectsTerm(i), rfx_dataset, residual, rfx_tracker, global_variance, gen);
   }
 
@@ -192,7 +196,9 @@ void RunAPI() {
     mcmc_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance);
 
     // Random effects
-    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init, working_parameter_prior_covariance, group_parameter_prior_covariance, 1);
+    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init,
+                           working_parameter_prior_covariance, group_parameter_prior_covariance,
+                           group_parameter_variance_prior_shape, group_parameter_variance_prior_scale, 1);
     rfx_model.SampleRandomEffects(rfx_samples.GetRandomEffectsTerm(i + num_gfr_samples), rfx_dataset, residual, rfx_tracker, global_variance, gen);
   }
 }

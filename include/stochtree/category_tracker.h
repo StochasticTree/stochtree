@@ -94,19 +94,19 @@ class CategorySampleTracker {
       bool end_cond = i == n-1;
       bool new_group_cond{false};
       if (i > 0) new_group_cond = group_indices[indices_[i]] != group_indices[indices_[i-1]];
-      if (start_cond || end_cond || new_group_cond) {
+      if (start_cond || new_group_cond) {
         category_id_map_.insert({group_indices[indices_[i]], category_count_});
         node_index_vector_.emplace_back();
         if (i == 0) {
           category_begin_.push_back(i);
-        } else if (i == n-1) {
-          category_length_.push_back(observation_count+1);
         } else {
           category_begin_.push_back(i);
           category_length_.push_back(observation_count);
         }
         observation_count = 1;
         category_count_++;
+      } else if (end_cond) {
+        category_length_.push_back(observation_count+1);
       } else {
         observation_count++;
       }
