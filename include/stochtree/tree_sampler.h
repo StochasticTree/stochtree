@@ -447,7 +447,8 @@ class GFRForestSampler {
   ~GFRForestSampler() {}
 
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
-                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, double global_variance, std::vector<FeatureType>& feature_types) {
+                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, double global_variance, 
+                     std::vector<FeatureType>& feature_types) {
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
     // Add new forest to the container
@@ -622,9 +623,6 @@ class GFRForestSampler {
                          std::mt19937& gen, int tree_num, double global_variance, int cutpoint_grid_size, int node_id, data_size_t node_begin, data_size_t node_end, 
                          std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, 
                          std::vector<FeatureType>& cutpoint_feature_types, data_size_t& valid_cutpoint_count, std::vector<FeatureType> feature_types, CutpointGridContainer& cutpoint_grid_container) {
-//    // Initialize a cutpoint grid
-//    CutpointGridContainer cutpoint_grid_container(dataset.GetCovariates(), residual.GetData(), cutpoint_grid_size);
-
     // Evaluate all possible cutpoints according to the leaf node model, 
     // recording their log-likelihood and other split information in a series of vectors.
     // The last element of these vectors concerns the "no-split" option.

@@ -25,8 +25,9 @@ class ForestContainer {
 
   void AddSamples(int num_samples);
   void CopyFromPreviousSample(int new_sample_id, int previous_sample_id);
-  std::vector<double> Predict(ColumnMatrix* covariates);
-  std::vector<double> Predict(ColumnMatrix* covariates, ColumnMatrix* basis);
+  std::vector<double> Predict(ForestDataset& dataset);
+  std::vector<double> Predict(Eigen::MatrixXd& covariates);
+  std::vector<double> Predict(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis);
   
   inline TreeEnsemble* GetEnsemble(int i) {return forests_[i].get();}
   inline int32_t NumSamples() {return num_samples_;}

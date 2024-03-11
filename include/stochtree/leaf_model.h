@@ -54,6 +54,9 @@ class GaussianConstantSuffStat {
   bool SampleGreaterThan(data_size_t threshold) {
     return n > threshold;
   }
+  bool SampleGreaterThanEqual(data_size_t threshold) {
+    return n >= threshold;
+  }
   data_size_t SampleSize() {
     return n;
   }
@@ -114,6 +117,9 @@ class GaussianUnivariateRegressionSuffStat {
   }
   bool SampleGreaterThan(data_size_t threshold) {
     return n > threshold;
+  }
+  bool SampleGreaterThanEqual(data_size_t threshold) {
+    return n >= threshold;
   }
   data_size_t SampleSize() {
     return n;
@@ -178,6 +184,9 @@ class GaussianMultivariateRegressionSuffStat {
   bool SampleGreaterThan(data_size_t threshold) {
     return n > threshold;
   }
+  bool SampleGreaterThanEqual(data_size_t threshold) {
+    return n >= threshold;
+  }
   data_size_t SampleSize() {
     return n;
   }
@@ -188,7 +197,7 @@ class GaussianMultivariateRegressionLeafModel {
  public:
   GaussianMultivariateRegressionLeafModel(Eigen::MatrixXd Sigma_0) {Sigma_0_ = Sigma_0; multivariate_normal_sampler_ = MultivariateNormalSampler();}
   ~GaussianMultivariateRegressionLeafModel() {}
-  std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, TreeSplit& split, int tree_num, int leaf_num, int split_feature);
+  std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance);
   std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);
   void EvaluateAllPossibleSplits(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, double global_variance, int tree_num, int split_node_id, 
                                  std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, 
