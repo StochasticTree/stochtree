@@ -116,6 +116,17 @@ class Tree {
       CollapseToLeaf(this->RightChild(nid), value);
     }
     this->ChangeToLeaf(nid, value);
+
+    // Check if the other child of nid's parent node is also a leaf, if so, add parent back to leaf parents
+    int parent_id = parent_[nid];
+    bool is_valid_parent = (parent_id != kInvalidNodeId);
+    if (is_valid_parent) {
+      bool left_and_right_leaves = (
+        (IsLeaf(cleft_[parent_id])) && 
+        (IsLeaf(cright_[parent_id]))
+      );
+      leaf_parents_.push_back(parent_id);
+    }
   }
 
   /*!

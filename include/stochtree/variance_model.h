@@ -24,11 +24,11 @@ class GlobalHomoskedasticVarianceModel {
  public:
   GlobalHomoskedasticVarianceModel() {ig_sampler_ = InverseGammaSampler();}
   ~GlobalHomoskedasticVarianceModel() {}
-  double PosteriorShape(Eigen::MatrixXd& residuals, double nu, double lambda) {
+  double PosteriorShape(Eigen::VectorXd& residuals, double nu, double lambda) {
     data_size_t n = residuals.rows();
     return (nu/2.0) + n;
   }
-  double PosteriorScale(Eigen::MatrixXd& residuals, double nu, double lambda) {
+  double PosteriorScale(Eigen::VectorXd& residuals, double nu, double lambda) {
     data_size_t n = residuals.rows();
     double nu_lambda = nu*lambda;
     double sum_sq_resid = 0.;
@@ -37,7 +37,7 @@ class GlobalHomoskedasticVarianceModel {
     }
     return (nu_lambda/2.0) + sum_sq_resid;
   }
-  double SampleVarianceParameter(Eigen::MatrixXd& residuals, double nu, double lambda, std::mt19937& gen) {
+  double SampleVarianceParameter(Eigen::VectorXd& residuals, double nu, double lambda, std::mt19937& gen) {
     double ig_shape = PosteriorShape(residuals, nu, lambda);
     double ig_scale = PosteriorScale(residuals, nu, lambda);
     return ig_sampler_.Sample(ig_shape, ig_scale, gen);
