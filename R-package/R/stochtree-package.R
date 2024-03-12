@@ -1,2 +1,2 @@
 #' @useDynLib stochtree, .registration = TRUE
-NULL
+"_PACKAGE"

@@ -4,17 +4,16 @@ PKGROOT=../..
 PKG_CPPFLAGS= -I$(PKGROOT)/include -I$(PKGROOT)/dependencies/boost_math/include -I$(PKGROOT)/dependencies/eigen
 
 OBJECTS = \
-    bart.o \
-    xbart.o \
+    data.o \
+    predictor.o \
+    sampler.o \
     cpp11.o \
+	$(PKGROOT)/src/container.o \
     $(PKGROOT)/src/cutpoint_candidates.o \
-    $(PKGROOT)/src/dispatcher.o \
-    $(PKGROOT)/src/io.o \
-    $(PKGROOT)/src/json11.o \
-    $(PKGROOT)/src/model_draw.o \
-    $(PKGROOT)/src/outcome_model/homoskedastic_gaussian_constant.o \
-    $(PKGROOT)/src/outcome_model/homoskedastic_gaussian_univariate_regression.o \
-    $(PKGROOT)/src/outcome_model/homoskedastic_gaussian_multivariate_regression.o \
-    $(PKGROOT)/src/partition_tracker.o \
-    $(PKGROOT)/src/sampler.o \
-    $(PKGROOT)/src/tree.o
+	$(PKGROOT)/src/data.o \
+	$(PKGROOT)/src/io.o \
+	$(PKGROOT)/src/json11.o \
+	$(PKGROOT)/src/leaf_model.o \
+	$(PKGROOT)/src/partition_tracker.o \
+	$(PKGROOT)/src/random_effects.o \
+	$(PKGROOT)/src/tree.o
