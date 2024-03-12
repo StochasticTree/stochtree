@@ -230,8 +230,8 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, boo
   internal_nodes_.push_back(nid);
 
   // Remove nid's parent node (if applicable) from leaf parents
-  if (!this->IsRoot(nid)){
-    std::int32_t parent_idx = this->Parent(nid);
+  if (!IsRoot(nid)){
+    std::int32_t parent_idx = Parent(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
   }
 
@@ -256,8 +256,8 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
   internal_nodes_.push_back(nid);
 
   // Remove nid's parent node (if applicable) from leaf parents
-  if (this->IsRoot(nid)){
-    std::int32_t parent_idx = this->Parent(nid);
+  if (!IsRoot(nid)){
+    std::int32_t parent_idx = Parent(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
   }
 
@@ -284,8 +284,8 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, boo
   internal_nodes_.push_back(nid);
 
   // Remove nid's parent node (if applicable) from leaf parents
-  if (!this->IsRoot(nid)){
-    std::int32_t parent_idx = this->Parent(nid);
+  if (!IsRoot(nid)){
+    std::int32_t parent_idx = Parent(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
   }
 
@@ -312,8 +312,8 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
   internal_nodes_.push_back(nid);
 
   // Remove nid's parent node (if applicable) from leaf parents
-  if (this->IsRoot(nid)){
-    std::int32_t parent_idx = this->Parent(nid);
+  if (!IsRoot(nid)){
+    std::int32_t parent_idx = Parent(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
   }
 

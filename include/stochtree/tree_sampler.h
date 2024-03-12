@@ -139,14 +139,14 @@ static void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset,
   if (dataset.HasBasis()) {
     if (dataset.GetBasis().cols() > 1) {
       std::vector<double> temp_leaf_values(basis_dim, 0.);
-      tree->ChangeToLeaf(leaf_node, temp_leaf_values);
+      tree->CollapseToLeaf(leaf_node, temp_leaf_values);
     } else {
       double temp_leaf_value = 0.;
-      tree->ChangeToLeaf(leaf_node, temp_leaf_value);
+      tree->CollapseToLeaf(leaf_node, temp_leaf_value);
     }
   } else {
     double temp_leaf_value = 0.;
-    tree->ChangeToLeaf(leaf_node, temp_leaf_value);
+    tree->CollapseToLeaf(leaf_node, temp_leaf_value);
   }
 
   // Update the ForestTracker
@@ -205,13 +205,15 @@ class MCMCForestSampler {
     
     // Run the MCMC algorithm for each tree
     TreeEnsemble* ensemble = forests.GetEnsemble(prev_num_samples);
+    Tree* tree;
     int num_trees = forests.NumTrees();
     for (int i = 0; i < num_trees; i++) {
       // Add tree i's predictions back to the residual (thus, training a model on the "partial residual")
-      Tree* tree = ensemble->GetTree(i);
+      tree = ensemble->GetTree(i);
       UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), plus_op_);
       
       // Sample tree i
+      tree = ensemble->GetTree(i);
       SampleTreeOneIter(tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, i, global_variance);
       
       // Sample leaf parameters for tree i
@@ -219,6 +221,7 @@ class MCMCForestSampler {
       leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
       
       // Subtract tree i's predictions back out of the residual
+      tree = ensemble->GetTree(i);
       UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), minus_op_);
     }
   }

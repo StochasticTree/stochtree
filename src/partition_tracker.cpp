@@ -175,6 +175,7 @@ void FeatureUnsortedPartition::PartitionNode(Eigen::MatrixXd& covariates, int no
 }
 
 void FeatureUnsortedPartition::ExpandNodeTrackingVectors(int node_id, int left_node_id, int right_node_id, data_size_t node_start_idx, data_size_t num_left, data_size_t num_right) {
+  // Allocate more space if necessary
   int largest_node_id = left_node_id > right_node_id ? left_node_id : right_node_id;
   if (largest_node_id >= num_nodes_) {
     node_begin_.resize(largest_node_id + 1);
@@ -182,20 +183,34 @@ void FeatureUnsortedPartition::ExpandNodeTrackingVectors(int node_id, int left_n
     parent_nodes_.resize(largest_node_id + 1);
     left_nodes_.resize(largest_node_id + 1);
     right_nodes_.resize(largest_node_id + 1);
+    num_nodes_ = largest_node_id + 1;
   }
+
+  // Remove left and right nodes from "deleted" tracker if they are reused
+  if (!IsValidNode(left_node_id)) {
+    num_deleted_nodes_--;
+    deleted_nodes_.erase(std::remove(deleted_nodes_.begin(), deleted_nodes_.end(), left_node_id), deleted_nodes_.end());
+  }
+  if (!IsValidNode(right_node_id)) {
+    num_deleted_nodes_--;
+    deleted_nodes_.erase(std::remove(deleted_nodes_.begin(), deleted_nodes_.end(), right_node_id), deleted_nodes_.end());
+  }
+
+  // Add left node tracking information
   left_nodes_[node_id] = left_node_id;
-  right_nodes_[node_id] = right_node_id;
   node_begin_[left_node_id] = node_start_idx;
-  node_begin_[right_node_id] = node_start_idx + num_left;
   node_length_[left_node_id] = num_left;
-  node_length_[right_node_id] = num_right;
   parent_nodes_[left_node_id] = node_id;
-  parent_nodes_[right_node_id] = node_id;
   left_nodes_[left_node_id] = StochTree::Tree::kInvalidNodeId;
   left_nodes_[right_node_id] = StochTree::Tree::kInvalidNodeId;
+  
+  // Add right node tracking information
+  right_nodes_[node_id] = right_node_id;
+  node_begin_[right_node_id] = node_start_idx + num_left;
+  node_length_[right_node_id] = num_right;
+  parent_nodes_[right_node_id] = node_id;
   right_nodes_[left_node_id] = StochTree::Tree::kInvalidNodeId;
   right_nodes_[right_node_id] = StochTree::Tree::kInvalidNodeId;
-  num_nodes_ += 2;
 }
 
 void FeatureUnsortedPartition::UpdateObservationMapping(int node_id, int tree_id, SampleNodeMapper* sample_node_mapper) {
@@ -243,10 +258,12 @@ void FeatureUnsortedPartition::PruneNodeToLeaf(int node_id) {
 }
 
 void FeatureUnsortedPartition::ConvertLeafParentToLeaf(int node_id) {
-  CHECK(left_nodes_[left_nodes_[node_id]] == StochTree::Tree::kInvalidNodeId);
-  CHECK(right_nodes_[right_nodes_[node_id]] == StochTree::Tree::kInvalidNodeId);
+  CHECK(IsLeaf(LeftNode(node_id)));
+  CHECK(IsLeaf(RightNode(node_id)));
   deleted_nodes_.push_back(left_nodes_[node_id]);
+  num_deleted_nodes_++;
   deleted_nodes_.push_back(right_nodes_[node_id]);
+  num_deleted_nodes_++;
   left_nodes_[node_id] = StochTree::Tree::kInvalidNodeId;
   right_nodes_[node_id] = StochTree::Tree::kInvalidNodeId;
 }

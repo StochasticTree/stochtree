@@ -27,6 +27,67 @@ TEST(Tree, UnivariateTreeConstruction) {
   ASSERT_TRUE(tree.IsLeaf(2));
 }
 
+TEST(Tree, UnivariateTreeCopyConstruction) {
+  StochTree::Tree tree_1;
+  StochTree::Tree tree_2;
+  StochTree::TreeSplit split;
+  tree_1.Init(1);
+  
+  // Perform two splits
+  split = StochTree::TreeSplit(0.5);
+  tree_1.ExpandNode(0, 0, split, true, 0., 0.);
+  split = StochTree::TreeSplit(0.75);
+  tree_1.ExpandNode(1, 1, split, true, 0., 0.);
+  ASSERT_EQ(tree_1.NumValidNodes(), 5);
+  ASSERT_EQ(tree_1.NumLeafParents(), 1);
+  
+  // Check leaves
+  std::vector<int32_t> leaves = tree_1.GetLeaves();
+  for (int i = 0; i < leaves.size(); i++) {
+    ASSERT_TRUE(tree_1.IsLeaf(leaves[i]));
+  }
+  // Check leaf parents
+  std::vector<int32_t> leaf_parents = tree_1.GetLeafParents();
+  for (int i = 0; i < leaf_parents.size(); i++) {
+    ASSERT_TRUE(tree_1.IsLeafParent(leaf_parents[i]));
+  }
+  
+  // Perform another split
+  split = StochTree::TreeSplit(0.6);
+  tree_1.ExpandNode(3, 2, split, true, 0., 0.);
+  ASSERT_EQ(tree_1.NumValidNodes(), 7);
+  ASSERT_EQ(tree_1.NumLeaves(), 4);
+  ASSERT_EQ(tree_1.NumLeafParents(), 1);
+  
+  // Check leaves
+  leaves = tree_1.GetLeaves();
+  for (int i = 0; i < leaves.size(); i++) {
+    ASSERT_TRUE(tree_1.IsLeaf(leaves[i]));
+  }
+  // Check leaf parents
+  leaf_parents = tree_1.GetLeafParents();
+  for (int i = 0; i < leaf_parents.size(); i++) {
+    ASSERT_TRUE(tree_1.IsLeafParent(leaf_parents[i]));
+  }
+
+  // Prune node 3 to a leaf
+  tree_1.CollapseToLeaf(3, 0.);
+  ASSERT_EQ(tree_1.NumValidNodes(), 5);
+  ASSERT_EQ(tree_1.NumLeaves(), 3);
+  ASSERT_EQ(tree_1.NumLeafParents(), 1);
+  
+  // Check leaves
+  leaves = tree_1.GetLeaves();
+  for (int i = 0; i < leaves.size(); i++) {
+    ASSERT_TRUE(tree_1.IsLeaf(leaves[i]));
+  }
+  // Check leaf parents
+  leaf_parents = tree_1.GetLeafParents();
+  for (int i = 0; i < leaf_parents.size(); i++) {
+    ASSERT_TRUE(tree_1.IsLeafParent(leaf_parents[i]));
+  }
+}
+
 TEST(Tree, BadInitialization) {
   StochTree::Tree tree;
   EXPECT_THROW(tree.Init(0), std::runtime_error);

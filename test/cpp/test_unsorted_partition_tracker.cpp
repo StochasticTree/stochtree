@@ -93,4 +93,10 @@ TEST(UnsortedNodeSampleTracker, BasicOperations) {
   ASSERT_EQ(node_sample_tracker.NodeEnd(0, 4), n);
   expected_result = {0, 3, 4, 5, 7};
   ASSERT_EQ(node_sample_tracker.TreeNodeIndices(0, 4), expected_result);
+
+  // Prune the node 2 split
+  node_sample_tracker.PruneTreeNodeToLeaf(0, 2);
+  ASSERT_TRUE(node_sample_tracker.IsLeaf(0, 2));
+  ASSERT_FALSE(node_sample_tracker.IsValidNode(0, 3));
+  ASSERT_FALSE(node_sample_tracker.IsValidNode(0, 4));
 }
