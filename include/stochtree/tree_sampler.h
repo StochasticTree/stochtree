@@ -111,7 +111,7 @@ static bool NodeNonConstant(ForestDataset& dataset, ForestTracker& tracker, int 
   return false;
 }
 
-static void AddSplitToModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, TreeSplit& split, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int feature_split) {
+static void AddSplitToModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, TreeSplit& split, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int feature_split, bool keep_sorted = false) {
   // Use zeros as a "temporary" leaf values since we draw leaf parameters after tree sampling is complete
   int basis_dim = 1;
   if (dataset.HasBasis()) {
@@ -130,10 +130,10 @@ static void AddSplitToModel(ForestTracker& tracker, ForestDataset& dataset, Tree
   int right_node = tree->RightChild(leaf_node);
 
   // Update the ForestTracker
-  tracker.AddSplit(dataset.GetCovariates(), split, feature_split, tree_num, leaf_node, left_node, right_node);
+  tracker.AddSplit(dataset.GetCovariates(), split, feature_split, tree_num, leaf_node, left_node, right_node, keep_sorted);
 }
 
-static void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int left_node, int right_node) {
+static void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int left_node, int right_node, bool keep_sorted = false) {
   // Use zeros as a "temporary" leaf values since we draw leaf parameters after tree sampling is complete
   int basis_dim = 1;
   if (dataset.HasBasis()) {
@@ -150,7 +150,7 @@ static void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset,
   }
 
   // Update the ForestTracker
-  tracker.RemoveSplit(dataset.GetCovariates(), tree, tree_num, leaf_node, left_node, right_node);
+  tracker.RemoveSplit(dataset.GetCovariates(), tree, tree_num, leaf_node, left_node, right_node, keep_sorted);
 }
 
 static double ComputeMeanOutcome(ColumnVector& residual) {
@@ -360,7 +360,7 @@ class MCMCForestSampler {
     double log_acceptance_prob = std::log(mh_accept(gen));
     if (log_acceptance_prob <= log_mh_ratio) {
       accept = true;
-      AddSplitToModel(tracker, dataset, tree_prior, split, gen, tree, tree_num, leaf_chosen, var_chosen);
+      AddSplitToModel(tracker, dataset, tree_prior, split, gen, tree, tree_num, leaf_chosen, var_chosen, false);
     } else {
       accept = false;
     }
@@ -435,7 +435,7 @@ class MCMCForestSampler {
     double log_acceptance_prob = std::log(mh_accept(gen));
     if (log_acceptance_prob <= log_mh_ratio) {
       accept = true;
-      RemoveSplitFromModel(tracker, dataset, tree_prior, gen, tree, tree_num, leaf_parent_chosen, left_node, right_node);
+      RemoveSplitFromModel(tracker, dataset, tree_prior, gen, tree, tree_num, leaf_parent_chosen, left_node, right_node, false);
     } else {
       accept = false;
     }
@@ -601,7 +601,7 @@ class GFRForestSampler {
       }
       
       // Add split to tree and trackers
-      AddSplitToModel(tracker, dataset, tree_prior, tree_split, gen, tree, tree_num, node_id, feature_split);
+      AddSplitToModel(tracker, dataset, tree_prior, tree_split, gen, tree, tree_num, node_id, feature_split, true);
 
       // Determine the number of observation in the newly created left node
       int left_node = tree->LeftChild(node_id);

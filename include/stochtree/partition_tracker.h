@@ -52,8 +52,8 @@ class ForestTracker {
   void AssignAllSamplesToRoot();
   void AssignAllSamplesToRoot(int32_t tree_num);
   void ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num);
-  void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id);
-  void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id);
+  void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
+  void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
   data_size_t GetNodeId(int observation_num, int tree_num);
   data_size_t UnsortedNodeBegin(int tree_id, int node_id);
   data_size_t UnsortedNodeEnd(int tree_id, int node_id);

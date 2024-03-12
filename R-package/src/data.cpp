@@ -6,9 +6,6 @@ using namespace cpp11;
 
 [[cpp11::register]]
 cpp11::external_pointer<StochTree::ForestDataset> create_forest_dataset_cpp() {
-    // TODO: add handling code on the R side to ensure matrices are row-major
-    bool row_major{true};
-    
     // Create smart pointer to newly allocated object
     std::unique_ptr<StochTree::ForestDataset> dataset_ptr_ = std::make_unique<StochTree::ForestDataset>();
     
@@ -18,8 +15,8 @@ cpp11::external_pointer<StochTree::ForestDataset> create_forest_dataset_cpp() {
 
 [[cpp11::register]]
 void forest_dataset_add_covariates_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles_matrix<> covariates) {
-    // TODO: add handling code on the R side to ensure matrices are row-major
-    bool row_major{true};
+    // TODO: add handling code on the R side to ensure matrices are column-major
+    bool row_major{false};
 
     // Add covariates
     StochTree::data_size_t n = covariates.nrow();
@@ -33,8 +30,8 @@ void forest_dataset_add_covariates_cpp(cpp11::external_pointer<StochTree::Forest
 
 [[cpp11::register]]
 void forest_dataset_add_basis_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles_matrix<> basis) {
-    // TODO: add handling code on the R side to ensure matrices are row-major
-    bool row_major{true};
+    // TODO: add handling code on the R side to ensure matrices are column-major
+    bool row_major{false};
 
     // Add basis
     StochTree::data_size_t n = basis.nrow();
