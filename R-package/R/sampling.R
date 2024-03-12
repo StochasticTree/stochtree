@@ -14,20 +14,20 @@
 #' @param gfr (Boolean) Whether or not the GFR sampler should be used (if false, MCMC is used)
 #' 
 #' @export
-sample_model_one_iteration <- function(data, residual, forest_samples, tracker, 
-                                       split_prior, rng, feature_types, leaf_model_int, leaf_model_scale, 
+sample_model_one_iteration <- function(data, residual, forest_samples, tracker, split_prior, rng, 
+                                       feature_types, leaf_model_int, leaf_model_scale, variable_weights, 
                                        global_scale, cutpoint_grid_size = 500, gfr = T) {
     if (gfr) {
         sample_gfr_one_iteration_cpp(
-            data, residual, forest_samples, tracker, 
-            split_prior, rng, feature_types, cutpoint_grid_size, 
-            leaf_model_scale, global_scale, leaf_model_int
+            data, residual, forest_samples, tracker, split_prior, 
+            rng, feature_types, cutpoint_grid_size, leaf_model_scale, 
+            variable_weights, global_scale, leaf_model_int
         )
     } else {
         sample_mcmc_one_iteration_cpp(
-            data, residual, forest_samples, tracker, 
-            split_prior, rng, feature_types, cutpoint_grid_size, 
-            leaf_model_scale, global_scale, leaf_model_int
+            data, residual, forest_samples, tracker, split_prior, 
+            rng, feature_types, cutpoint_grid_size, leaf_model_scale, 
+            variable_weights, global_scale, leaf_model_int
         ) 
     }
 }

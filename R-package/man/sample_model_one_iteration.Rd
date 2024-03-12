@@ -14,6 +14,7 @@ sample_model_one_iteration(
   feature_types,
   leaf_model_int,
   leaf_model_scale,
+  variable_weights,
   global_scale,
   cutpoint_grid_size = 500,
   gfr = T

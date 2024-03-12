@@ -31,6 +31,9 @@ f_XW <- (
 )
 y <- f_XW + rnorm(n, 0, 1)
 feature_types <- as.integer(rep(0, p_X)) # 0 = numeric
+var_1_prob <- 0.9
+var_weights <- c(var_1_prob, rep((1-var_1_prob)/(p_X - 1), p_X - 1))
+# var_weights <- rep(1/p_X, p_X)
 
 # Scale the data
 y_bar <- mean(y)
@@ -72,8 +75,8 @@ leaf_scale_samples <- c(tau_init, rep(0, num_samples))
 
 # Draw warm start (GFR) samples
 for (i in 1:num_warmstart) {
-    sample_model_one_iteration(data_ptr, outcome_ptr, forest_samples_ptr, tracker_ptr, 
-                               tree_prior_ptr, rng_ptr, feature_types, 1, leaf_prior_scale, 
+    sample_model_one_iteration(data_ptr, outcome_ptr, forest_samples_ptr, tracker_ptr, tree_prior_ptr,
+                               rng_ptr, feature_types, 1, leaf_prior_scale, var_weights,
                                global_var_samples[i], cutpoint_grid_size, gfr = T)
     global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_ptr, rng_ptr, nu, lambda)
     leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples_ptr, rng_ptr, a_leaf, a_leaf, i-1)
@@ -82,8 +85,8 @@ for (i in 1:num_warmstart) {
 
 # Draw MCMC samples
 for (i in (num_warmstart+1):num_samples) {
-    sample_model_one_iteration(data_ptr, outcome_ptr, forest_samples_ptr, tracker_ptr,
-                               tree_prior_ptr, rng_ptr, feature_types, 1, leaf_prior_scale,
+    sample_model_one_iteration(data_ptr, outcome_ptr, forest_samples_ptr, tracker_ptr, tree_prior_ptr, 
+                               rng_ptr, feature_types, 1, leaf_prior_scale, var_weights, 
                                global_var_samples[i], cutpoint_grid_size, gfr = F)
     global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_ptr, rng_ptr, nu, lambda)
     leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples_ptr, rng_ptr, a_leaf, a_leaf, i-1)
@@ -98,8 +101,10 @@ avg_pred <- rowMeans(preds)
 plot(leaf_scale_samples[1:num_warmstart]*y_std)
 plot(sqrt(global_var_samples[1:num_warmstart])*y_std)
 plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, cex=0.75); abline(0,1,col="red",lty=2,lwd=2.5)
+mean((rowMeans(preds[,1:num_warmstart]) - y)^2)
 
 # Plot MCMC results
 plot(leaf_scale_samples[(num_warmstart+1):num_samples]*y_std)
 plot(sqrt(global_var_samples[(num_warmstart+1):num_samples])*y_std)
 plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, cex=0.75); abline(0,1,col="red",lty=2,lwd=2.5)
+mean((rowMeans(preds[,(num_warmstart+1):num_samples]) - y)^2)

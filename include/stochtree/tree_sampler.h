@@ -186,7 +186,7 @@ class MCMCForestSampler {
   ~MCMCForestSampler() {}
   
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
-                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, double global_variance) {
+                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double> variable_weights, double global_variance) {
     
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
@@ -214,7 +214,7 @@ class MCMCForestSampler {
       
       // Sample tree i
       tree = ensemble->GetTree(i);
-      SampleTreeOneIter(tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, i, global_variance);
+      SampleTreeOneIter(tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, variable_weights, i, global_variance);
       
       // Sample leaf parameters for tree i
       tree = ensemble->GetTree(i);
@@ -232,7 +232,7 @@ class MCMCForestSampler {
   std::minus<double> minus_op_;
   
   void SampleTreeOneIter(Tree* tree, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset,
-                         ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance) {
+                         ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double> variable_weights, int tree_num, double global_variance) {
     // Determine whether it is possible to grow any of the leaves
     bool grow_possible = false;
     std::vector<int> leaves = tree->GetLeaves();
@@ -271,14 +271,14 @@ class MCMCForestSampler {
     bool accept;
     
     if (step_chosen == 0) {
-      GrowTreeOneIter(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance, prob_grow);
+      GrowTreeOneIter(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, variable_weights, global_variance, prob_grow);
     } else {
       PruneTreeOneIter(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance);
     }
   }
 
   void GrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, 
-                       TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, double prob_grow_old) {
+                       TreePrior& tree_prior, std::mt19937& gen, int tree_num, std::vector<double> variable_weights, double global_variance, double prob_grow_old) {
     // Extract dataset information
     data_size_t n = dataset.GetCovariates().rows();
     int basis_dim = 1;
@@ -294,9 +294,10 @@ class MCMCForestSampler {
 
     // Select a split variable at random
     int p = dataset.GetCovariates().cols();
-    std::vector<double> var_weights(p);
-    std::fill(var_weights.begin(), var_weights.end(), 1.0/p);
-    std::discrete_distribution<> var_dist(var_weights.begin(), var_weights.end());
+    CHECK_EQ(variable_weights.size(), p);
+    // std::vector<double> var_weights(p);
+    // std::fill(var_weights.begin(), var_weights.end(), 1.0/p);
+    std::discrete_distribution<> var_dist(variable_weights.begin(), variable_weights.end());
     int var_chosen = var_dist(gen);
 
     // Determine the range of possible cutpoints
@@ -450,8 +451,8 @@ class GFRForestSampler {
   ~GFRForestSampler() {}
 
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
-                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, double global_variance, 
-                     std::vector<FeatureType>& feature_types) {
+                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double> variable_weights, 
+                     double global_variance, std::vector<FeatureType>& feature_types) {
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
     // Add new forest to the container
