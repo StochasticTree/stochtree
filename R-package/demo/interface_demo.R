@@ -68,7 +68,7 @@ tracker_ptr <- forest_tracker(data_ptr, feature_types, num_trees, n)
 
 # Sampling parameters
 num_warmstart <- 10
-num_mcmc <- 10
+num_mcmc <- 100
 num_samples <- num_warmstart + num_mcmc
 global_var_samples <- c(global_variance_init, rep(0, num_samples))
 leaf_scale_samples <- c(tau_init, rep(0, num_samples))
@@ -98,13 +98,13 @@ preds <- predict_forest(forest_samples_ptr, data_ptr)*y_std + y_bar
 avg_pred <- rowMeans(preds)
 
 # Plot warm start (GFR) results
-plot(leaf_scale_samples[1:num_warmstart]*y_std)
-plot(sqrt(global_var_samples[1:num_warmstart])*y_std)
-plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, cex=0.75); abline(0,1,col="red",lty=2,lwd=2.5)
+plot(leaf_scale_samples[1:num_warmstart], ylab="tau")
+plot(sqrt(global_var_samples[1:num_warmstart])*y_std, ylab="sigma^2")
+plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, cex=0.75, xlab = "pred", ylab = "actual"); abline(0,1,col="red",lty=2,lwd=2.5)
 mean((rowMeans(preds[,1:num_warmstart]) - y)^2)
 
 # Plot MCMC results
-plot(leaf_scale_samples[(num_warmstart+1):num_samples]*y_std)
-plot(sqrt(global_var_samples[(num_warmstart+1):num_samples])*y_std)
-plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, cex=0.75); abline(0,1,col="red",lty=2,lwd=2.5)
+plot(leaf_scale_samples[(num_warmstart+1):num_samples], ylab="tau")
+plot(sqrt(global_var_samples[(num_warmstart+1):num_samples])*y_std, ylab="sigma^2")
+plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, cex=0.75, xlab = "pred", ylab = "actual"); abline(0,1,col="red",lty=2,lwd=2.5)
 mean((rowMeans(preds[,(num_warmstart+1):num_samples]) - y)^2)

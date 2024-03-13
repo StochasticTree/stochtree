@@ -39,7 +39,7 @@ void AccumulateSuffStatExisting(SuffStatType& node_suff_stat, SuffStatType& left
   }
 
   // Accumulate sufficient statistics for the right and split nodes
-  for (auto i = right_node_begin_iter; i != right_node_begin_iter; i++) {
+  for (auto i = right_node_begin_iter; i != right_node_end_iter; i++) {
     auto idx = *i;
     right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
     node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
