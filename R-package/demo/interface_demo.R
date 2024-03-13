@@ -79,7 +79,7 @@ for (i in 1:num_warmstart) {
                                rng_ptr, feature_types, 1, leaf_prior_scale, var_weights,
                                global_var_samples[i], cutpoint_grid_size, gfr = T)
     global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_ptr, rng_ptr, nu, lambda)
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples_ptr, rng_ptr, a_leaf, a_leaf, i-1)
+    leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples_ptr, rng_ptr, a_leaf, b_leaf, i-1)
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
 }
 
@@ -89,7 +89,7 @@ for (i in (num_warmstart+1):num_samples) {
                                rng_ptr, feature_types, 1, leaf_prior_scale, var_weights, 
                                global_var_samples[i], cutpoint_grid_size, gfr = F)
     global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_ptr, rng_ptr, nu, lambda)
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples_ptr, rng_ptr, a_leaf, a_leaf, i-1)
+    leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples_ptr, rng_ptr, a_leaf, b_leaf, i-1)
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
 }
 

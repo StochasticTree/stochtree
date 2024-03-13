@@ -657,7 +657,7 @@ inline int NextNodeCategorical(double fvalue, std::vector<std::uint32_t> const& 
  *  \param data Dataset used for prediction
  *  \param row Row indexing the prediction observation
  */
-inline int EvaluateTree(Tree const& tree, Eigen::MatrixXd data, int row) {
+inline int EvaluateTree(Tree const& tree, Eigen::MatrixXd& data, int row) {
   int node_id = 0;
   while (!tree.IsLeaf(node_id)) {
     auto const split_index = tree.SplitIndex(node_id);

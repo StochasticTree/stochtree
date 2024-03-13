@@ -120,5 +120,5 @@ tree_prior <- function(alpha, beta, min_samples_leaf) {
 #' feature_types <- rep(0, p_X)
 #' gfr_sampler_ptr <- gfr_forest_sampler(data_ptr, feature_types, 100, n)
 forest_tracker <- function(dataset, feature_types, num_trees, n) {
-    return(forest_tracker_cpp(data_ptr, feature_types, num_trees, n))
+    return(forest_tracker_cpp(dataset, feature_types, num_trees, n))
 }
