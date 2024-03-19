@@ -6,6 +6,7 @@
 #define STOCHTREE_DATA_H_
 
 #include <Eigen/Dense>
+#include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <memory>
 
@@ -69,6 +70,24 @@ class ForestDataset {
   inline Eigen::MatrixXd& GetCovariates() {return covariates_.GetData();}
   inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
   inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
+  void UpdateBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+    CHECK(has_basis_);
+    CHECK_EQ(num_col, num_basis_);
+    // Copy data from R / Python process memory to Eigen matrix
+    double temp_value;
+    for (data_size_t i = 0; i < num_row; ++i) {
+      for (int j = 0; j < num_col; ++j) {
+        if (is_row_major){
+          // Numpy 2-d arrays are stored in "row major" order
+          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
+        } else {
+          // R matrices are stored in "column major" order
+          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
+        }
+        basis_.SetElement(i, j, temp_value);
+      }
+    }
+  }
  private:
   ColumnMatrix covariates_;
   ColumnMatrix basis_;

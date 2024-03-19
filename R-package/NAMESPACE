@@ -2,6 +2,7 @@
 
 export(create_column_vector)
 export(create_forest_dataset)
+export(dataset_update_basis)
 export(forest_container)
 export(forest_tracker)
 export(predict_forest)

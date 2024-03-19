@@ -9,7 +9,7 @@ create_forest_dataset(covariates, basis = NULL, weights = NULL)
 \arguments{
 \item{covariates}{Matrix of covariates used for the tree splits}
 
-\item{basis}{(Optional) matrix of basis functions used to define a regression model in the tree leaves}
+\item{basis}{(Optional) matrix of bases used to define a regression model in the tree leaves}
 
 \item{weights}{(Optional) vector of variance weights}
 }

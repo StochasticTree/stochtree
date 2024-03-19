@@ -49,6 +49,21 @@ void forest_dataset_add_basis_cpp(cpp11::external_pointer<StochTree::ForestDatas
 }
 
 [[cpp11::register]]
+void forest_dataset_update_basis_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles_matrix<> basis) {
+    // TODO: add handling code on the R side to ensure matrices are column-major
+    bool row_major{false};
+    
+    // Add basis
+    StochTree::data_size_t n = basis.nrow();
+    int num_basis = basis.ncol();
+    double* basis_data_ptr = REAL(PROTECT(basis));
+    dataset_ptr->UpdateBasis(basis_data_ptr, n, num_basis, row_major);
+    
+    // Unprotect pointers to R data
+    UNPROTECT(1);
+}
+
+[[cpp11::register]]
 void forest_dataset_add_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles weights) {
     // Add weights
     StochTree::data_size_t n = weights.size();

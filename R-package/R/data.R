@@ -1,7 +1,7 @@
 #' Create a StochTree dataset used for sampling forests
 #'
 #' @param covariates Matrix of covariates used for the tree splits
-#' @param basis (Optional) matrix of basis functions used to define a regression model in the tree leaves
+#' @param basis (Optional) matrix of bases used to define a regression model in the tree leaves
 #' @param weights (Optional) vector of variance weights
 #'
 #' @return External pointer to the dataset
@@ -32,6 +32,25 @@ create_forest_dataset <- function(covariates, basis = NULL, weights = NULL) {
     }
     
     return(data_ptr)
+}
+
+#' Update basis in a StochTree dataset
+#'
+#' @param basis Matrix of bases used to define a regression model in the tree leaves
+#'
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p_X <- 10
+#' p_W <- 1
+#' X <- matrix(runif(n*p_X), ncol = p_X)
+#' W <- matrix(runif(n*p_W), ncol = p_W)
+#' data_ptr <- create_forest_dataset(X, W)
+#' W_2 <- 2*W
+#' dataset_update_basis(W_2)
+dataset_update_basis <- function(data_ptr, basis) {
+    forest_dataset_update_basis_cpp(data_ptr, basis)
 }
 
 #' Create a StochTree C++ ColumVector object (most commonly this is used for the outcome variable)

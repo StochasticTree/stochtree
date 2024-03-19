@@ -36,6 +36,14 @@ extern "C" SEXP _stochtree_forest_dataset_add_basis_cpp(SEXP dataset_ptr, SEXP b
   END_CPP11
 }
 // data.cpp
+void forest_dataset_update_basis_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles_matrix<> basis);
+extern "C" SEXP _stochtree_forest_dataset_update_basis_cpp(SEXP dataset_ptr, SEXP basis) {
+  BEGIN_CPP11
+    forest_dataset_update_basis_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(basis));
+    return R_NilValue;
+  END_CPP11
+}
+// data.cpp
 void forest_dataset_add_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles weights);
 extern "C" SEXP _stochtree_forest_dataset_add_weights_cpp(SEXP dataset_ptr, SEXP weights) {
   BEGIN_CPP11
@@ -145,6 +153,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_forest_dataset_add_basis_cpp",      (DL_FUNC) &_stochtree_forest_dataset_add_basis_cpp,       2},
     {"_stochtree_forest_dataset_add_covariates_cpp", (DL_FUNC) &_stochtree_forest_dataset_add_covariates_cpp,  2},
     {"_stochtree_forest_dataset_add_weights_cpp",    (DL_FUNC) &_stochtree_forest_dataset_add_weights_cpp,     2},
+    {"_stochtree_forest_dataset_update_basis_cpp",   (DL_FUNC) &_stochtree_forest_dataset_update_basis_cpp,    2},
     {"_stochtree_forest_output_dimension",           (DL_FUNC) &_stochtree_forest_output_dimension,            1},
     {"_stochtree_forest_tracker_cpp",                (DL_FUNC) &_stochtree_forest_tracker_cpp,                 4},
     {"_stochtree_num_dataset_rows",                  (DL_FUNC) &_stochtree_num_dataset_rows,                   1},
