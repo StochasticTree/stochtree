@@ -75,6 +75,21 @@ class TreeEnsemble {
     return trees_[i]->CloneFromTree(tree);
   }
 
+  inline void PredictInplace(ForestDataset& dataset, std::vector<double> &output, data_size_t offset = 0) {
+    PredictInplace(dataset, output, 0, trees_.size(), offset);
+  }
+
+  inline void PredictInplace(ForestDataset& dataset, std::vector<double> &output, 
+                             int tree_begin, int tree_end, data_size_t offset = 0) {
+    if (dataset.HasBasis()) {
+      CHECK(!is_leaf_constant_);
+      PredictInplace(dataset.GetCovariates(), dataset.GetBasis(), output, tree_begin, tree_end, offset);
+    } else {
+      CHECK(is_leaf_constant_);
+      PredictInplace(dataset.GetCovariates(), output, tree_begin, tree_end, offset);
+    }
+  }
+
   inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, data_size_t offset = 0) {
     PredictInplace(covariates, basis, output, 0, trees_.size(), offset);
   }
@@ -82,7 +97,6 @@ class TreeEnsemble {
   inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, 
                              int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
-    CHECK(!is_leaf_constant_);
     CHECK_EQ(covariates.rows(), basis.rows());
     CHECK_EQ(output_dimension_, trees_[0]->OutputDimension());
     CHECK_EQ(output_dimension_, basis.cols());
@@ -110,7 +124,6 @@ class TreeEnsemble {
 
   inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double> &output, int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
-    CHECK(is_leaf_constant_);
     data_size_t n = covariates.rows();
     data_size_t total_output_size = n;
     if (output.size() < total_output_size + offset) {
@@ -127,27 +140,31 @@ class TreeEnsemble {
     }
   }
 
-  inline std::vector<double> Predict(Eigen::MatrixXd& covariates) {
-    return Predict(covariates, 0, trees_.size());
+  inline void PredictRawInplace(ForestDataset& dataset, std::vector<double> &output, data_size_t offset = 0) {
+    PredictRawInplace(dataset, output, 0, trees_.size(), offset);
   }
-  
-  inline std::vector<double> Predict(Eigen::MatrixXd& covariates, int tree_begin, int tree_end) {
+
+  inline void PredictRawInplace(ForestDataset& dataset, std::vector<double> &output, 
+                             int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
-    CHECK(is_leaf_constant_);
+    Eigen::MatrixXd covariates = dataset.GetCovariates();
+    CHECK_EQ(output_dimension_, trees_[0]->OutputDimension());
     data_size_t n = covariates.rows();
-    data_size_t total_output_size = n;
-    std::vector<double> output(total_output_size);
-    // Predict the outcome for each observation
-    for (data_size_t i = 0; i < n; i++) {
-      pred = 0.0;
-      for (size_t j = tree_begin; j < tree_end; ++j) {
-        auto &tree = *trees_[j];
-        std::int32_t nidx = EvaluateTree(tree, covariates, i);
-        pred += tree.LeafValue(nidx, 0);
-      }
-      output[i] = pred;
+    data_size_t total_output_size = n * output_dimension_;
+    if (output.size() < total_output_size + offset) {
+      Log::Fatal("Mismatched size of raw prediction vector and training data");
     }
-    return output;
+    for (data_size_t i = 0; i < n; i++) {
+      for (int32_t k = 0; k < output_dimension_; k++) {
+        pred = 0.0;
+        for (size_t j = tree_begin; j < tree_end; j++) {
+          auto &tree = *trees_[j];
+          int32_t nidx = EvaluateTree(tree, covariates, i);
+          pred += tree.LeafValue(nidx, k);
+        }
+        output[i + k + offset] = pred;
+      }
+    }
   }
 
   inline int32_t NumTrees() {

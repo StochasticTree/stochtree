@@ -14,6 +14,11 @@ cpp11::external_pointer<StochTree::ForestDataset> create_forest_dataset_cpp() {
 }
 
 [[cpp11::register]]
+int num_dataset_rows(cpp11::external_pointer<StochTree::ForestDataset> dataset) {
+    return dataset->NumObservations();
+}
+
+[[cpp11::register]]
 void forest_dataset_add_covariates_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles_matrix<> covariates) {
     // TODO: add handling code on the R side to ensure matrices are column-major
     bool row_major{false};

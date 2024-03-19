@@ -22,3 +22,23 @@ cpp11::writable::doubles_matrix<> predict_forest_cpp(cpp11::external_pointer<Sto
 
     return output;
 }
+
+[[cpp11::register]]
+cpp11::writable::doubles_matrix<> predict_forest_raw_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::ForestDataset> dataset) {
+    // Predict from the sampled forests
+    std::vector<double> output_raw = forest_samples->PredictRaw(*dataset);
+    
+    // Convert result to a matrix
+    int n = dataset->GetCovariates().rows();
+    int num_samples = forest_samples->NumSamples();
+    int output_dimension = forest_samples->OutputDimension();
+    int num_rows = n * output_dimension;
+    cpp11::writable::doubles_matrix<> output(num_rows, num_samples);
+    for (size_t i = 0; i < num_rows; i++) {
+        for (int j = 0; j < num_samples; j++) {
+            output(i, j) = output_raw[num_rows*j + i];
+        }
+    }
+    
+    return output;
+}

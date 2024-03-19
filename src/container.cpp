@@ -40,39 +40,27 @@ void ForestContainer::AddSamples(int num_samples) {
 }
 
 std::vector<double> ForestContainer::Predict(ForestDataset& dataset) {
-  bool basis_predict = dataset.HasBasis();
-  if (basis_predict) {
-    return Predict(dataset.GetCovariates(), dataset.GetBasis());
-  } else {
-    return Predict(dataset.GetCovariates());
-  }
-}
-
-std::vector<double> ForestContainer::Predict(Eigen::MatrixXd& covariates) {
-  CHECK(is_leaf_constant_);
-  data_size_t n = covariates.rows();
+  data_size_t n = dataset.NumObservations();
   data_size_t total_output_size = n*num_samples_;
   std::vector<double> output(total_output_size);
   data_size_t offset = 0;
   for (int i = 0; i < num_samples_; i++) {
     auto num_trees = forests_[i]->NumTrees();
-    forests_[i]->PredictInplace(covariates, output, 0, num_trees, offset);
+    forests_[i]->PredictInplace(dataset, output, 0, num_trees, offset);
     offset += n;
   }
   return output;
 }
 
-std::vector<double> ForestContainer::Predict(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis) {
-  CHECK_EQ(covariates.rows(), basis.rows());
-  CHECK(!is_leaf_constant_);
-  data_size_t n = covariates.rows();
-  data_size_t total_output_size = n*num_samples_;
+std::vector<double> ForestContainer::PredictRaw(ForestDataset& dataset) {
+  data_size_t n = dataset.NumObservations();
+  data_size_t total_output_size = n * output_dimension_ * num_samples_;
   std::vector<double> output(total_output_size);
   data_size_t offset = 0;
   for (int i = 0; i < num_samples_; i++) {
     auto num_trees = forests_[i]->NumTrees();
-    forests_[i]->PredictInplace(covariates, basis, output, 0, num_trees, offset);
-    offset += n;
+    forests_[i]->PredictRawInplace(dataset, output, 0, num_trees, offset);
+    offset += n * output_dimension_;
   }
   return output;
 }

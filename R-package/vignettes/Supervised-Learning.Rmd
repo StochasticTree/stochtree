@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
 ```
 
 This interface is not necessarily designed for performance or simplicity
---- rather the intent is to provide a "research" interface to the C++
+--- rather the intent is to provide a "prototype" interface to the C++
 code that doesn't require modifying any C++.
 
 To give one (simplified) example, rather than running
@@ -152,7 +152,7 @@ for (i in (num_warmstart+1):num_samples) {
 
 Predict and rescale samples
 
-```{r}
+```{r predict}
 # Forest predictions
 preds <- predict_forest(forest_samples_ptr, data_ptr)*y_std + y_bar
 
@@ -162,7 +162,7 @@ sigma_samples <- sqrt(global_var_samples)*y_std
 
 Inspect the XBART results
 
-```{r}
+```{r xbart_plot}
 plot(leaf_scale_samples[1:num_warmstart], ylab="tau")
 plot(sigma_samples[1:num_warmstart], ylab="sigma^2")
 plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, cex=0.75, xlab = "pred", ylab = "actual"); abline(0,1,col="red",lty=2,lwd=2.5)
@@ -170,7 +170,7 @@ plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, cex=0.75, xlab = "pred", ylab
 
 Inspect the warm start BART results
 
-```{r}
+```{r warm_start_plot}
 plot(leaf_scale_samples[(num_warmstart+1):num_samples], ylab="tau")
 plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma^2")
 plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, cex=0.75, xlab = "pred", ylab = "actual"); abline(0,1,col="red",lty=2,lwd=2.5)

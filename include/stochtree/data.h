@@ -46,10 +46,13 @@ class ForestDataset {
   ~ForestDataset() {}
   void AddCovariates(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
     covariates_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    num_observations_ = num_row;
+    num_covariates_ = num_col;
     has_covariates_ = true;
   }
   void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
     basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    num_basis_ = num_col;
     has_basis_ = true;
   }
   void AddVarianceWeights(double* data_ptr, data_size_t num_row) {
@@ -59,6 +62,7 @@ class ForestDataset {
   inline bool HasCovariates() {return has_covariates_;}
   inline bool HasBasis() {return has_basis_;}
   inline bool HasVarWeights() {return has_var_weights_;}
+  inline data_size_t NumObservations() {return num_observations_;}
   inline double CovariateValue(data_size_t row, int col) {return covariates_.GetElement(row, col);}
   inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
   inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
@@ -69,6 +73,9 @@ class ForestDataset {
   ColumnMatrix covariates_;
   ColumnMatrix basis_;
   ColumnVector var_weights_;
+  data_size_t num_observations_;
+  int num_covariates_;
+  int num_basis_;
   bool has_covariates_{false};
   bool has_basis_{false};
   bool has_var_weights_{false};

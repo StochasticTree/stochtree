@@ -14,9 +14,9 @@ knitr::opts_chunk$set(
 )
 ```
 
-This interface is not necessarily designed for performance or 
-simplicity --- rather the intent is to provide a "research" 
-interface to the C++ code that doesn't require modifying any C++. 
+This interface is not necessarily designed for performance or simplicity
+--- rather the intent is to provide a "prototype" interface to the C++
+code that doesn't require modifying any C++.
 
 To give one (simplified) example, rather than running 
 `sample_sigma2_one_iteration`, a researcher might prototype an alternative 
@@ -39,7 +39,7 @@ linear model).
 
 ```{r data}
 # Generate the data
-n <- 5000
+n <- 1000
 p_X <- 10
 p_W <- 1
 X <- matrix(runif(n*p_X), ncol = p_X)
@@ -72,8 +72,8 @@ b_leaf_mu <- 0.5
 leaf_regression_mu <- F
 
 # Tau forest
-alpha_tau <- 0.9
-beta_tau <- 1.25
+alpha_tau <- 0.75
+beta_tau <- 2.0
 min_samples_leaf_tau <- 1
 num_trees_tau <- 50
 cutpoint_grid_size_tau = 100
@@ -194,10 +194,10 @@ for (i in (num_warmstart+1):num_samples) {
 
 Predict and rescale samples
 
-```{r}
+```{r prediction}
 # Forest predictions
 mu_preds <- predict_forest(forest_samples_ptr_mu, data_ptr_mu)*y_std + y_bar
-tau_preds <- predict_forest(forest_samples_ptr_tau, data_ptr_tau)*y_std
+tau_preds <- predict_forest_raw(forest_samples_ptr_tau, data_ptr_tau)*y_std
 
 # Global error variance
 sigma_samples <- sqrt(global_var_samples)*y_std
@@ -205,24 +205,18 @@ sigma_samples <- sqrt(global_var_samples)*y_std
 
 Inspect the XBART results
 
-```{r}
-plot(leaf_scale_samples_mu[1:num_warmstart], ylab="tau (prognostic)")
-plot(leaf_scale_samples_tau[1:num_warmstart], ylab="tau (treatment)")
+```{r xbcf_plot}
 plot(sigma_samples[1:num_warmstart], ylab="sigma^2")
 plot(rowMeans(mu_preds[,1:num_warmstart]), mu_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "prognostic term");
 abline(0,1,col="red",lty=2,lwd=2.5)
-plot(rowMeans(tau_preds[,1:num_warmstart]/Z), tau_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "treatment effect term");
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(rowMeans(tau_preds[,1:num_warmstart]), tau_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "treatment effect term"); abline(0,1,col="red",lty=2,lwd=2.5)
 ```
 
 Inspect the warm start BART results
 
-```{r}
-plot(leaf_scale_samples_mu[(num_warmstart+1):num_samples], ylab="tau (prognostic)")
-plot(leaf_scale_samples_tau[(num_warmstart+1):num_samples], ylab="tau (treatment)")
+```{r warm_start_plot}
 plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma^2")
 plot(rowMeans(mu_preds[,(num_warmstart+1):num_samples]), mu_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "prognostic term");
 abline(0,1,col="red",lty=2,lwd=2.5)
-plot(rowMeans(tau_preds[,(num_warmstart+1):num_samples]/Z), tau_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "treatment effect term");
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(rowMeans(tau_preds[,(num_warmstart+1):num_samples]), tau_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "treatment effect term"); abline(0,1,col="red",lty=2,lwd=2.5)
 ```

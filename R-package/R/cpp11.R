@@ -4,6 +4,10 @@ create_forest_dataset_cpp <- function() {
   .Call(`_stochtree_create_forest_dataset_cpp`)
 }
 
+num_dataset_rows <- function(dataset) {
+  .Call(`_stochtree_num_dataset_rows`, dataset)
+}
+
 forest_dataset_add_covariates_cpp <- function(dataset_ptr, covariates) {
   invisible(.Call(`_stochtree_forest_dataset_add_covariates_cpp`, dataset_ptr, covariates))
 }
@@ -24,8 +28,20 @@ predict_forest_cpp <- function(forest_samples, dataset) {
   .Call(`_stochtree_predict_forest_cpp`, forest_samples, dataset)
 }
 
+predict_forest_raw_cpp <- function(forest_samples, dataset) {
+  .Call(`_stochtree_predict_forest_raw_cpp`, forest_samples, dataset)
+}
+
 sample_gfr_one_iteration_cpp <- function(data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, global_variance, leaf_model_int) {
   invisible(.Call(`_stochtree_sample_gfr_one_iteration_cpp`, data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, global_variance, leaf_model_int))
+}
+
+forest_output_dimension <- function(forest_samples) {
+  .Call(`_stochtree_forest_output_dimension`, forest_samples)
+}
+
+num_forest_samples <- function(forest_samples) {
+  .Call(`_stochtree_num_forest_samples`, forest_samples)
 }
 
 sample_mcmc_one_iteration_cpp <- function(data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, global_variance, leaf_model_int) {
