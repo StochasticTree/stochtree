@@ -1,5 +1,5 @@
 ---
-title: "Causal Machine Learning in StochTree"
+title: "Customized Causal Machine Learning in StochTree"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Supervised-Learning}
@@ -94,42 +94,44 @@ Initialize R-level access to the C++ classes needed to sample our model
 ```{r external_pointers}
 # Data
 if (leaf_regression_mu) {
-    forest_dataset_mu <- createForestDataset(cbind(X,pi_X), Z)
+    data_ptr_mu <- create_forest_dataset(cbind(X,pi_X), Z)
     outcome_model_type_mu <- 1
 } else {
-    forest_dataset_mu <- createForestDataset(cbind(X,pi_X))
+    data_ptr_mu <- create_forest_dataset(cbind(X,pi_X))
     outcome_model_type_mu <- 0
 }
 if (leaf_regression_tau) {
-    forest_dataset_tau <- createForestDataset(X, Z)
+    data_ptr_tau <- create_forest_dataset(X, Z)
     outcome_model_type_tau <- 1
 } else {
-    forest_dataset_tau <- createForestDataset(X)
+    data_ptr_tau <- create_forest_dataset(X)
     outcome_model_type_tau <- 0
 }
-outcome <- createOutcome(resid)
+outcome_ptr <- create_column_vector(resid)
 feature_types_mu <- as.integer(c(rep(0, p_X), 0)) # 0 = numeric
 var_weights_mu <- rep(1/(p_X+1), p_X+1)
 feature_types_tau <- as.integer(rep(0, p_X)) # 0 = numeric
 var_weights_tau <- rep(1/p_X, p_X)
 
 # Random number generator (std::mt19937)
-rng <- createRNG(random_seed)
+rng_ptr <- random_number_generator(random_seed)
 
 # Sampling data structures
-forest_model_mu <- createForestModel(forest_dataset_mu, feature_types_mu, num_trees_mu, n, alpha_mu, beta_mu, min_samples_leaf_mu)
-forest_model_tau <- createForestModel(forest_dataset_tau, feature_types_tau, num_trees_tau, n, alpha_tau, beta_tau, min_samples_leaf_tau)
+tree_prior_ptr_mu <- tree_prior(alpha_mu, beta_mu, min_samples_leaf_mu)
+tracker_ptr_mu <- forest_tracker(data_ptr_mu, feature_types_mu, num_trees_mu, n)
+tree_prior_ptr_tau <- tree_prior(alpha_tau, beta_tau, min_samples_leaf_tau)
+tracker_ptr_tau <- forest_tracker(data_ptr_tau, feature_types_tau, num_trees_tau, n)
 
 # Container of forest samples
 if (leaf_regression_mu) {
-    forest_samples_mu <- createForestContainer(num_trees_mu, 1, F)
+    forest_samples_ptr_mu <- forest_container(num_trees_mu, 1, F)
 } else {
-    forest_samples_mu <- createForestContainer(num_trees_mu, 1, T)
+    forest_samples_ptr_mu <- forest_container(num_trees_mu, 1, T)
 }
 if (leaf_regression_tau) {
-    forest_samples_tau <- createForestContainer(num_trees_tau, 1, F)
+    forest_samples_ptr_tau <- forest_container(num_trees_tau, 1, F)
 } else {
-    forest_samples_tau <- createForestContainer(num_trees_tau, 1, T)
+    forest_samples_ptr_tau <- forest_container(num_trees_tau, 1, T)
 }
 ```
 
@@ -149,23 +151,21 @@ Run the grow-from-root sampler to "warm-start" BART
 ```{r gfr}
 for (i in 1:num_warmstart) {
     # Sample the prognostic forest
-    forest_model_mu$sample_one_iteration(forest_dataset_mu, outcome, forest_samples_mu, rng, feature_types_mu, 
-                                         outcome_model_type_mu, leaf_prior_scale_mu, var_weights_mu, 
-                                         global_var_samples[i], cutpoint_grid_size_mu, gfr = T)
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome, rng, nu, lambda)
-    leaf_scale_samples_mu[i+1] <- sample_tau_one_iteration(forest_samples_mu, rng, a_leaf_mu, b_leaf_mu, i-1)
+    sample_model_one_iteration(data_ptr_mu, outcome_ptr, forest_samples_ptr_mu, tracker_ptr_mu, tree_prior_ptr_mu,
+                               rng_ptr, feature_types_mu, outcome_model_type_mu, leaf_prior_scale_mu, var_weights_mu,
+                               global_var_samples[i], cutpoint_grid_size_mu, gfr = T)
+    leaf_scale_samples_mu[i+1] <- sample_tau_one_iteration(forest_samples_ptr_mu, rng_ptr, a_leaf_mu, b_leaf_mu, i-1)
     leaf_prior_scale_mu[1,1] <- leaf_scale_samples_mu[i+1]
-
+    
     # Sample the treatment forest
-    forest_model_tau$sample_one_iteration(forest_dataset_tau, outcome, forest_samples_tau, rng, feature_types_tau, 
-                                         outcome_model_type_tau, leaf_prior_scale_tau, var_weights_tau, 
-                                         global_var_samples[i], cutpoint_grid_size_tau, gfr = T)
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome, rng, nu, lambda)
-    leaf_scale_samples_tau[i+1] <- sample_tau_one_iteration(forest_samples_tau, rng, a_leaf_tau, b_leaf_tau, i-1)
+    sample_model_one_iteration(data_ptr_tau, outcome_ptr, forest_samples_ptr_tau, tracker_ptr_tau, tree_prior_ptr_tau,
+                               rng_ptr, feature_types_tau, outcome_model_type_tau, leaf_prior_scale_tau, var_weights_tau,
+                               global_var_samples[i], cutpoint_grid_size_tau, gfr = T)
+    leaf_scale_samples_tau[i+1] <- sample_tau_one_iteration(forest_samples_ptr_tau, rng_ptr, a_leaf_tau, b_leaf_tau, i-1)
     leaf_prior_scale_tau[1,1] <- leaf_scale_samples_tau[i+1]
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome, rng, nu, lambda)
+    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_ptr, rng_ptr, nu, lambda)
 }
 ```
 
@@ -174,23 +174,21 @@ Pick up from the last GFR forest (and associated global variance / leaf scale pa
 ```{r mcmc}
 for (i in (num_warmstart+1):num_samples) {
     # Sample the prognostic forest
-    forest_model_mu$sample_one_iteration(forest_dataset_mu, outcome, forest_samples_mu, rng, feature_types_mu, 
-                                         outcome_model_type_mu, leaf_prior_scale_mu, var_weights_mu, 
-                                         global_var_samples[i], cutpoint_grid_size_mu, gfr = F)
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome, rng, nu, lambda)
-    leaf_scale_samples_mu[i+1] <- sample_tau_one_iteration(forest_samples_mu, rng, a_leaf_mu, b_leaf_mu, i-1)
+    sample_model_one_iteration(data_ptr_mu, outcome_ptr, forest_samples_ptr_mu, tracker_ptr_mu, tree_prior_ptr_mu,
+                               rng_ptr, feature_types_mu, outcome_model_type_mu, leaf_prior_scale_mu, var_weights_mu,
+                               global_var_samples[i], cutpoint_grid_size_mu, gfr = F)
+    leaf_scale_samples_mu[i+1] <- sample_tau_one_iteration(forest_samples_ptr_mu, rng_ptr, a_leaf_mu, b_leaf_mu, i-1)
     leaf_prior_scale_mu[1,1] <- leaf_scale_samples_mu[i+1]
-
+    
     # Sample the treatment forest
-    forest_model_tau$sample_one_iteration(forest_dataset_tau, outcome, forest_samples_tau, rng, feature_types_tau, 
-                                         outcome_model_type_tau, leaf_prior_scale_tau, var_weights_tau, 
-                                         global_var_samples[i], cutpoint_grid_size_tau, gfr = F)
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome, rng, nu, lambda)
-    leaf_scale_samples_tau[i+1] <- sample_tau_one_iteration(forest_samples_tau, rng, a_leaf_tau, b_leaf_tau, i-1)
+    sample_model_one_iteration(data_ptr_tau, outcome_ptr, forest_samples_ptr_tau, tracker_ptr_tau, tree_prior_ptr_tau,
+                               rng_ptr, feature_types_tau, outcome_model_type_tau, leaf_prior_scale_tau, var_weights_tau,
+                               global_var_samples[i], cutpoint_grid_size_tau, gfr = F)
+    leaf_scale_samples_tau[i+1] <- sample_tau_one_iteration(forest_samples_ptr_tau, rng_ptr, a_leaf_tau, b_leaf_tau, i-1)
     leaf_prior_scale_tau[1,1] <- leaf_scale_samples_tau[i+1]
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome, rng, nu, lambda)
+    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_ptr, rng_ptr, nu, lambda)
 }
 ```
 
@@ -198,8 +196,8 @@ Predict and rescale samples
 
 ```{r prediction}
 # Forest predictions
-mu_preds <- forest_samples_mu$predict(forest_dataset_mu)*y_std + y_bar
-tau_preds <- forest_samples_tau$predict_raw(forest_dataset_tau)*y_std
+mu_preds <- predict_forest(forest_samples_ptr_mu, data_ptr_mu)*y_std + y_bar
+tau_preds <- predict_forest_raw(forest_samples_ptr_tau, data_ptr_tau)*y_std
 
 # Global error variance
 sigma_samples <- sqrt(global_var_samples)*y_std

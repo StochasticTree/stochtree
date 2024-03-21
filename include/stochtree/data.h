@@ -64,6 +64,8 @@ class ForestDataset {
   inline bool HasBasis() {return has_basis_;}
   inline bool HasVarWeights() {return has_var_weights_;}
   inline data_size_t NumObservations() {return num_observations_;}
+  inline int NumCovariates() {return num_covariates_;}
+  inline int NumBasis() {return num_basis_;}
   inline double CovariateValue(data_size_t row, int col) {return covariates_.GetElement(row, col);}
   inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
   inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
@@ -92,9 +94,9 @@ class ForestDataset {
   ColumnMatrix covariates_;
   ColumnMatrix basis_;
   ColumnVector var_weights_;
-  data_size_t num_observations_;
-  int num_covariates_;
-  int num_basis_;
+  data_size_t num_observations_{0};
+  int num_covariates_{0};
+  int num_basis_{0};
   bool has_covariates_{false};
   bool has_basis_{false};
   bool has_var_weights_{false};

@@ -90,26 +90,25 @@ Initialize R-level access to the C++ classes needed to sample our model
 ```{r external_pointers}
 # Data
 if (leaf_regression) {
-    data_ptr <- create_forest_dataset(X, W)
+    forest_dataset <- createForestDataset(X, W)
     outcome_model_type <- 1
 } else {
-    data_ptr <- create_forest_dataset(X)
+    forest_dataset <- createForestDataset(X)
     outcome_model_type <- 0
 }
-outcome_ptr <- create_column_vector(resid)
+outcome <- createOutcome(resid)
 
 # Random number generator (std::mt19937)
-rng_ptr <- random_number_generator(random_seed)
+rng <- createRNG(random_seed)
 
 # Sampling data structures
-tree_prior_ptr <- tree_prior(alpha, beta, min_samples_leaf)
-tracker_ptr <- forest_tracker(data_ptr, feature_types, num_trees, n)
+forest_model <- createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf)
 
 # Container of forest samples
 if (leaf_regression) {
-    forest_samples_ptr <- forest_container(num_trees, 1, F)
+    forest_samples <- createForestContainer(num_trees, 1, F)
 } else {
-    forest_samples_ptr <- forest_container(num_trees, 1, T)
+    forest_samples <- createForestContainer(num_trees, 1, T)
 }
 ```
 
@@ -127,11 +126,11 @@ Run the grow-from-root sampler to "warm-start" BART
 
 ```{r gfr}
 for (i in 1:num_warmstart) {
-    sample_model_one_iteration(data_ptr, outcome_ptr, forest_samples_ptr, tracker_ptr, tree_prior_ptr,
-                               rng_ptr, feature_types, outcome_model_type, leaf_prior_scale, var_weights,
-                               global_var_samples[i], cutpoint_grid_size, gfr = T)
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_ptr, rng_ptr, nu, lambda)
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples_ptr, rng_ptr, a_leaf, b_leaf, i-1)
+    forest_model$sample_one_iteration(forest_dataset, outcome, forest_samples, rng, feature_types, 
+                                      outcome_model_type, leaf_prior_scale, var_weights, 
+                                      global_var_samples[i], cutpoint_grid_size, gfr = T)
+    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome, rng, nu, lambda)
+    leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples, rng, a_leaf, b_leaf, i-1)
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
 }
 ```
@@ -141,11 +140,11 @@ scale parameters) with an MCMC sampler
 
 ```{r mcmc}
 for (i in (num_warmstart+1):num_samples) {
-    sample_model_one_iteration(data_ptr, outcome_ptr, forest_samples_ptr, tracker_ptr, tree_prior_ptr, 
-                               rng_ptr, feature_types, outcome_model_type, leaf_prior_scale, var_weights, 
-                               global_var_samples[i], cutpoint_grid_size, gfr = F)
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_ptr, rng_ptr, nu, lambda)
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples_ptr, rng_ptr, a_leaf, b_leaf, i-1)
+    forest_model$sample_one_iteration(forest_dataset, outcome, forest_samples, rng, feature_types, 
+                                      outcome_model_type, leaf_prior_scale, var_weights, 
+                                      global_var_samples[i], cutpoint_grid_size, gfr = T)
+    global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome, rng, nu, lambda)
+    leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples, rng, a_leaf, b_leaf, i-1)
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
 }
 ```
@@ -154,7 +153,7 @@ Predict and rescale samples
 
 ```{r predict}
 # Forest predictions
-preds <- predict_forest(forest_samples_ptr, data_ptr)*y_std + y_bar
+preds <- forest_samples$predict(forest_dataset)*y_std + y_bar
 
 # Global error variance
 sigma_samples <- sqrt(global_var_samples)*y_std
@@ -163,7 +162,7 @@ sigma_samples <- sqrt(global_var_samples)*y_std
 Inspect the XBART results
 
 ```{r xbart_plot}
-plot(leaf_scale_samples[1:num_warmstart], ylab="tau")
+# plot(leaf_scale_samples[1:num_warmstart], ylab="tau")
 plot(sigma_samples[1:num_warmstart], ylab="sigma^2")
 plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, cex=0.75, xlab = "pred", ylab = "actual"); abline(0,1,col="red",lty=2,lwd=2.5)
 ```
@@ -171,7 +170,7 @@ plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, cex=0.75, xlab = "pred", ylab
 Inspect the warm start BART results
 
 ```{r warm_start_plot}
-plot(leaf_scale_samples[(num_warmstart+1):num_samples], ylab="tau")
+# plot(leaf_scale_samples[(num_warmstart+1):num_samples], ylab="tau")
 plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma^2")
 plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, cex=0.75, xlab = "pred", ylab = "actual"); abline(0,1,col="red",lty=2,lwd=2.5)
 ```

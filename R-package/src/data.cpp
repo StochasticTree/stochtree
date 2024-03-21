@@ -14,8 +14,28 @@ cpp11::external_pointer<StochTree::ForestDataset> create_forest_dataset_cpp() {
 }
 
 [[cpp11::register]]
-int num_dataset_rows(cpp11::external_pointer<StochTree::ForestDataset> dataset) {
+int dataset_num_rows_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset) {
     return dataset->NumObservations();
+}
+
+[[cpp11::register]]
+int dataset_num_covariates_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset) {
+    return dataset->NumCovariates();
+}
+
+[[cpp11::register]]
+int dataset_num_basis_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset) {
+    return dataset->NumBasis();
+}
+
+[[cpp11::register]]
+bool dataset_has_basis_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset) {
+    return dataset->HasBasis();
+}
+
+[[cpp11::register]]
+bool dataset_has_variance_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset) {
+    return dataset->HasVarWeights();
 }
 
 [[cpp11::register]]

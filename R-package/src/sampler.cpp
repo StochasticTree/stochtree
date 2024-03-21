@@ -74,16 +74,6 @@ void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDatas
 }
 
 [[cpp11::register]]
-int forest_output_dimension(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
-    return forest_samples->OutputDimension();
-}
-
-[[cpp11::register]]
-int num_forest_samples(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
-    return forest_samples->NumSamples();
-}
-
-[[cpp11::register]]
 void sample_mcmc_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
                                    cpp11::external_pointer<StochTree::ColumnVector> residual, 
                                    cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 
@@ -187,6 +177,16 @@ cpp11::external_pointer<StochTree::ForestContainer> forest_container_cpp(int num
 
     // Release management of the pointer to R session
     return cpp11::external_pointer<StochTree::ForestContainer>(forest_sample_ptr_.release());
+}
+
+[[cpp11::register]]
+int num_samples_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
+    return forest_samples->NumSamples();
+}
+
+[[cpp11::register]]
+int output_dimension_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
+    return forest_samples->OutputDimension();
 }
 
 [[cpp11::register]]

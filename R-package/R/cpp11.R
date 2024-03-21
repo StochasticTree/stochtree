@@ -4,8 +4,24 @@ create_forest_dataset_cpp <- function() {
   .Call(`_stochtree_create_forest_dataset_cpp`)
 }
 
-num_dataset_rows <- function(dataset) {
-  .Call(`_stochtree_num_dataset_rows`, dataset)
+dataset_num_rows_cpp <- function(dataset) {
+  .Call(`_stochtree_dataset_num_rows_cpp`, dataset)
+}
+
+dataset_num_covariates_cpp <- function(dataset) {
+  .Call(`_stochtree_dataset_num_covariates_cpp`, dataset)
+}
+
+dataset_num_basis_cpp <- function(dataset) {
+  .Call(`_stochtree_dataset_num_basis_cpp`, dataset)
+}
+
+dataset_has_basis_cpp <- function(dataset) {
+  .Call(`_stochtree_dataset_has_basis_cpp`, dataset)
+}
+
+dataset_has_variance_weights_cpp <- function(dataset) {
+  .Call(`_stochtree_dataset_has_variance_weights_cpp`, dataset)
 }
 
 forest_dataset_add_covariates_cpp <- function(dataset_ptr, covariates) {
@@ -40,14 +56,6 @@ sample_gfr_one_iteration_cpp <- function(data, residual, forest_samples, tracker
   invisible(.Call(`_stochtree_sample_gfr_one_iteration_cpp`, data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, global_variance, leaf_model_int))
 }
 
-forest_output_dimension <- function(forest_samples) {
-  .Call(`_stochtree_forest_output_dimension`, forest_samples)
-}
-
-num_forest_samples <- function(forest_samples) {
-  .Call(`_stochtree_num_forest_samples`, forest_samples)
-}
-
 sample_mcmc_one_iteration_cpp <- function(data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, global_variance, leaf_model_int) {
   invisible(.Call(`_stochtree_sample_mcmc_one_iteration_cpp`, data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, global_variance, leaf_model_int))
 }
@@ -66,6 +74,14 @@ rng_cpp <- function(random_seed) {
 
 forest_container_cpp <- function(num_trees, output_dimension, is_leaf_constant) {
   .Call(`_stochtree_forest_container_cpp`, num_trees, output_dimension, is_leaf_constant)
+}
+
+num_samples_forest_container_cpp <- function(forest_samples) {
+  .Call(`_stochtree_num_samples_forest_container_cpp`, forest_samples)
+}
+
+output_dimension_forest_container_cpp <- function(forest_samples) {
+  .Call(`_stochtree_output_dimension_forest_container_cpp`, forest_samples)
 }
 
 tree_prior_cpp <- function(alpha, beta, min_samples_leaf) {

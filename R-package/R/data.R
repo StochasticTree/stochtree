@@ -1,71 +1,123 @@
-#' Create a StochTree dataset used for sampling forests
+#' Dataset used to sample a forest
 #'
-#' @param covariates Matrix of covariates used for the tree splits
-#' @param basis (Optional) matrix of bases used to define a regression model in the tree leaves
-#' @param weights (Optional) vector of variance weights
+#' @description
+#' A dataset consists of three matrices / vectors: covariates, 
+#' bases, and variance weights. Both the basis vector and variance 
+#' weights are optional
+
+ForestDataset <- R6::R6Class(
+    classname = "ForestDataset",
+    cloneable = FALSE,
+    public = list(
+        
+        #' @field data_ptr External pointer to a C++ ForestDataset class
+        data_ptr = NULL,
+        
+        #' @description
+        #' Create a new ForestDataset object.
+        #' @param covariates Matrix of covariates
+        #' @param basis (Optional) Matrix of bases used to define a leaf regression
+        #' @param variance_weights (Optional) Vector of observation-specific variance weights
+        #' @return A new `ForestDataset` object.
+        initialize = function(covariates, basis=NULL, variance_weights=NULL) {
+            self$data_ptr <- create_forest_dataset_cpp()
+            forest_dataset_add_covariates_cpp(self$data_ptr, covariates)
+            if (!is.null(basis)) {
+                forest_dataset_add_basis_cpp(self$data_ptr, basis)
+            }
+            if (!is.null(variance_weights)) {
+                forest_dataset_add_weights_cpp(self$data_ptr, variance_weights)
+            }
+        }, 
+        
+        #' @description
+        #' Update basis matrix in a dataset
+        #' @param basis Updated matrix of bases used to define a leaf regression
+        #' @return 
+        update_basis = function(basis) {
+            stopifnot(self$has_basis())
+            forest_dataset_update_basis_cpp(self$data_ptr, basis)
+        }, 
+        
+        #' @description
+        #' Return number of observations in a `ForestDataset` object
+        #' @return Observation count
+        num_observations = function() {
+            return(dataset_num_rows_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return number of covariates in a `ForestDataset` object
+        #' @return Covariate count
+        num_covariates = function() {
+            return(dataset_num_covariates_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return number of bases in a `ForestDataset` object
+        #' @return Basis count
+        num_basis = function() {
+            return(dataset_num_basis_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Whether or not a dataset has a basis matrix
+        #' @return True if basis matrix is loaded, false otherwise
+        has_basis = function() {
+            return(dataset_has_basis_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Whether or not a dataset has variance weights
+        #' @return True if variance weights are loaded, false otherwise
+        has_variance_weights = function() {
+            return(dataset_has_variance_weights_cpp(self$data_ptr))
+        }
+    )
+)
+
+#' Outcome / partial residual used to sample a forest
+
+Outcome <- R6::R6Class(
+    classname = "Outcome",
+    cloneable = FALSE,
+    public = list(
+        
+        #' @field data_ptr External pointer to a C++ Outcome class
+        data_ptr = NULL,
+        
+        #' @description
+        #' Create a new Outcome object.
+        #' @param outcome Vector of outcome values
+        #' @return A new `Outcome` object.
+        initialize = function(outcome) {
+            self$data_ptr <- create_column_vector_cpp(outcome)
+        }
+    )
+)
+
+#' Create a forest dataset object
 #'
-#' @return External pointer to the dataset
+#' @param covariates Matrix of covariates
+#' @param basis (Optional) Matrix of bases used to define a leaf regression
+#' @param variance_weights (Optional) Vector of observation-specific variance weights
+#'
+#' @return `ForestDataset` object
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p_X <- 10
-#' p_W <- 1
-#' X <- matrix(runif(n*p_X), ncol = p_X)
-#' W <- matrix(runif(n*p_W), ncol = p_W)
-#' data_ptr <- create_forest_dataset(X, W)
-create_forest_dataset <- function(covariates, basis = NULL, weights = NULL) {
-    # Create external pointer to the C++ dataset object
-    data_ptr <- create_forest_dataset_cpp()
-    
-    # Add covariates
-    forest_dataset_add_covariates_cpp(data_ptr, covariates)
-    
-    # Add basis
-    if (!is.null(basis)) {
-        forest_dataset_add_basis_cpp(data_ptr, basis)
-    }
-    
-    # Add weights
-    if (!is.null(weights)) {
-        forest_dataset_add_weights_cpp(data_ptr, weights)
-    }
-    
-    return(data_ptr)
+createForestDataset <- function(covariates, basis=NULL, variance_weights=NULL){
+    return(invisible((
+        ForestDataset$new(covariates, basis, variance_weights)
+    )))
 }
 
-#' Update basis in a StochTree dataset
+#' Create an outcome object
 #'
-#' @param basis Matrix of bases used to define a regression model in the tree leaves
+#' @param outcome Vector of outcome values
 #'
+#' @return `Outcome` object
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p_X <- 10
-#' p_W <- 1
-#' X <- matrix(runif(n*p_X), ncol = p_X)
-#' W <- matrix(runif(n*p_W), ncol = p_W)
-#' data_ptr <- create_forest_dataset(X, W)
-#' W_2 <- 2*W
-#' dataset_update_basis(W_2)
-dataset_update_basis <- function(data_ptr, basis) {
-    forest_dataset_update_basis_cpp(data_ptr, basis)
-}
-
-#' Create a StochTree C++ ColumVector object (most commonly this is used for the outcome variable)
-#'
-#' @param vector Vector of values
-#'
-#' @return External pointer to the ColumnVector object
-#' @export
-#'
-#' @examples
-#' n <- 100
-#' x <- runif(n)
-#' y <- x*10 + rnorm(n, 0, 0.5)
-#' outcome_ptr <- create_column_vector(y)
-create_column_vector <- function(vector) {
-    col_vector_ptr <- create_column_vector_cpp(vector)
-    return(col_vector_ptr)
+createOutcome <- function(outcome){
+    return(invisible((
+        Outcome$new(outcome)
+    )))
 }
