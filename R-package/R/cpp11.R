@@ -52,6 +52,10 @@ predict_forest_raw_cpp <- function(forest_samples, dataset) {
   .Call(`_stochtree_predict_forest_raw_cpp`, forest_samples, dataset)
 }
 
+predict_forest_raw_single_forest_cpp <- function(forest_samples, dataset, forest_num) {
+  .Call(`_stochtree_predict_forest_raw_single_forest_cpp`, forest_samples, dataset, forest_num)
+}
+
 sample_gfr_one_iteration_cpp <- function(data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, global_variance, leaf_model_int) {
   invisible(.Call(`_stochtree_sample_gfr_one_iteration_cpp`, data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, global_variance, leaf_model_int))
 }

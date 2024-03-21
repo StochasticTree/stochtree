@@ -27,6 +27,7 @@ class ForestContainer {
   void CopyFromPreviousSample(int new_sample_id, int previous_sample_id);
   std::vector<double> Predict(ForestDataset& dataset);
   std::vector<double> PredictRaw(ForestDataset& dataset);
+  std::vector<double> PredictRaw(ForestDataset& dataset, int forest_num);
   
   inline TreeEnsemble* GetEnsemble(int i) {return forests_[i].get();}
   inline int32_t NumSamples() {return num_samples_;}

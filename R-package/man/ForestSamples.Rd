@@ -21,6 +21,7 @@ Class that stores draws from an random ensemble of decision trees
 \item \href{#method-ForestSamples-new}{\code{ForestSamples$new()}}
 \item \href{#method-ForestSamples-predict}{\code{ForestSamples$predict()}}
 \item \href{#method-ForestSamples-predict_raw}{\code{ForestSamples$predict_raw()}}
+\item \href{#method-ForestSamples-predict_raw_single_forest}{\code{ForestSamples$predict_raw_single_forest()}}
 \item \href{#method-ForestSamples-num_samples}{\code{ForestSamples$num_samples()}}
 }
 }
@@ -76,6 +77,27 @@ and as many columns as samples in the \code{ForestContainer}
 Predict "raw" leaf values (without being multiplied by basis) for every tree ensemble on every sample in \code{forest_dataset}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$predict_raw(forest_dataset)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_dataset}}{\code{ForestDataset} R class}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+matrix of predictions with as many rows as in forest_dataset
+and as many columns as samples in the \code{ForestContainer}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-predict_raw_single_forest"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-predict_raw_single_forest}{}}}
+\subsection{Method \code{predict_raw_single_forest()}}{
+Predict "raw" leaf values (without being multiplied by basis) for every tree ensemble on every sample in \code{forest_dataset}
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$predict_raw_single_forest(forest_dataset, forest_num)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{

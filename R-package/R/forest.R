@@ -53,6 +53,22 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
+        #' Predict "raw" leaf values (without being multiplied by basis) for every tree ensemble on every sample in `forest_dataset`
+        #' @param forest_dataset `ForestDataset` R class
+        #' @return matrix of predictions with as many rows as in forest_dataset 
+        #' and as many columns as samples in the `ForestContainer`
+        predict_raw_single_forest = function(forest_dataset, forest_num) {
+            stopifnot(!is.null(forest_dataset$data_ptr))
+            # Unpack dimensions
+            output_dim <- output_dimension_forest_container_cpp(self$forest_container_ptr)
+            n <- dataset_num_rows_cpp(forest_dataset$data_ptr)
+            
+            # Predict leaf values from forest
+            output <- predict_forest_raw_single_forest_cpp(self$forest_container_ptr, forest_dataset$data_ptr, forest_num)
+            return(output)
+        }, 
+        
+        #' @description
         #' Return number of samples in a `ForestContainer` object
         #' @return Sample count
         num_samples = function() {

@@ -65,4 +65,14 @@ std::vector<double> ForestContainer::PredictRaw(ForestDataset& dataset) {
   return output;
 }
 
+std::vector<double> ForestContainer::PredictRaw(ForestDataset& dataset, int forest_num) {
+  data_size_t n = dataset.NumObservations();
+  data_size_t total_output_size = n * output_dimension_;
+  std::vector<double> output(total_output_size);
+  data_size_t offset = 0;
+  auto num_trees = forests_[forest_num]->NumTrees();
+  forests_[forest_num]->PredictRawInplace(dataset, output, 0, num_trees, offset);
+  return output;
+}
+
 } // namespace StochTree

@@ -100,6 +100,13 @@ extern "C" SEXP _stochtree_predict_forest_raw_cpp(SEXP forest_samples, SEXP data
     return cpp11::as_sexp(predict_forest_raw_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset)));
   END_CPP11
 }
+// predictor.cpp
+cpp11::writable::doubles_matrix<> predict_forest_raw_single_forest_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::ForestDataset> dataset, int forest_num);
+extern "C" SEXP _stochtree_predict_forest_raw_single_forest_cpp(SEXP forest_samples, SEXP dataset, SEXP forest_num) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(predict_forest_raw_single_forest_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num)));
+  END_CPP11
+}
 // sampler.cpp
 void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::ForestTracker> tracker, cpp11::external_pointer<StochTree::TreePrior> split_prior, cpp11::external_pointer<std::mt19937> rng, cpp11::integers feature_types, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_model_scale_input, cpp11::doubles variable_weights, double global_variance, int leaf_model_int);
 extern "C" SEXP _stochtree_sample_gfr_one_iteration_cpp(SEXP data, SEXP residual, SEXP forest_samples, SEXP tracker, SEXP split_prior, SEXP rng, SEXP feature_types, SEXP cutpoint_grid_size, SEXP leaf_model_scale_input, SEXP variable_weights, SEXP global_variance, SEXP leaf_model_int) {
@@ -192,6 +199,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_output_dimension_forest_container_cpp", (DL_FUNC) &_stochtree_output_dimension_forest_container_cpp,  1},
     {"_stochtree_predict_forest_cpp",                    (DL_FUNC) &_stochtree_predict_forest_cpp,                     2},
     {"_stochtree_predict_forest_raw_cpp",                (DL_FUNC) &_stochtree_predict_forest_raw_cpp,                 2},
+    {"_stochtree_predict_forest_raw_single_forest_cpp",  (DL_FUNC) &_stochtree_predict_forest_raw_single_forest_cpp,   3},
     {"_stochtree_rng_cpp",                               (DL_FUNC) &_stochtree_rng_cpp,                                1},
     {"_stochtree_sample_gfr_one_iteration_cpp",          (DL_FUNC) &_stochtree_sample_gfr_one_iteration_cpp,          12},
     {"_stochtree_sample_mcmc_one_iteration_cpp",         (DL_FUNC) &_stochtree_sample_mcmc_one_iteration_cpp,         12},
