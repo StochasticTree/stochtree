@@ -39,14 +39,14 @@ linear model).
 
 ```{r data}
 # Generate the data
-n <- 1000
+n <- 500
 p_X <- 10
 p_W <- 1
 X <- matrix(runif(n*p_X), ncol = p_X)
 pi_X <- X[,1]*0.5 + 0.25
 Z <- as.numeric(matrix(rbinom(n, 1, pi_X), ncol = 1))
-mu_X <- (X[,1]*0.5 + 0.25)*5
-tau_X <- X[,2]*3 - X[,3]*1
+mu_X <- (pi_X)*5
+tau_X <- sin(2*pi*X[,2])*1
 f_XX <- mu_X + tau_X*Z
 y <- f_XX + rnorm(n, 0, 1)
 
@@ -72,11 +72,11 @@ b_leaf_mu <- 0.5
 leaf_regression_mu <- F
 
 # Tau forest
-alpha_tau <- 0.75
+alpha_tau <- 0.9
 beta_tau <- 2.0
-min_samples_leaf_tau <- 1
-num_trees_tau <- 50
-cutpoint_grid_size_tau = 100
+min_samples_leaf_tau <- 10
+num_trees_tau <- 200
+cutpoint_grid_size_tau = 50
 tau_init_tau = 0.5
 leaf_prior_scale_tau = matrix(c(tau_init_tau), ncol = 1)
 a_leaf_tau <- 2.
@@ -208,19 +208,21 @@ sigma_samples <- sqrt(global_var_samples)*y_std
 Inspect the XBART results
 
 ```{r xbcf_plot}
-plot(sigma_samples[1:num_warmstart], ylab="sigma^2")
+plot(sigma_samples[1:num_warmstart], ylab="sigma")
 plot(rowMeans(mu_preds[,1:num_warmstart]), mu_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "prognostic term");
 abline(0,1,col="red",lty=2,lwd=2.5)
 plot(rowMeans(tau_preds[,1:num_warmstart]), tau_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "treatment effect term"); abline(0,1,col="red",lty=2,lwd=2.5)
+mean((rowMeans(tau_preds[,1:num_warmstart]) - tau_X)^2)
 ```
 
 Inspect the warm start BART results
 
 ```{r warm_start_plot}
-plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma^2")
+plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma")
 plot(rowMeans(mu_preds[,(num_warmstart+1):num_samples]), mu_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "prognostic term");
 abline(0,1,col="red",lty=2,lwd=2.5)
 plot(rowMeans(tau_preds[,(num_warmstart+1):num_samples]), tau_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "treatment effect term"); abline(0,1,col="red",lty=2,lwd=2.5)
+mean((rowMeans(tau_preds[,(num_warmstart+1):num_samples]) - tau_X)^2)
 ```
 
 ## Can we use this interface to build a more general / flexible version of BCF?
@@ -295,9 +297,6 @@ Prepare to run the sampler (now we must specify initial values for $b_0$ and $b_
 for which we choose -1/2 and 1/2 instead of 0 and 1).
 
 ```{r sampling_container_adaptive}
-num_warmstart <- 10
-num_mcmc <- 100
-num_samples <- num_warmstart + num_mcmc
 global_var_samples <- c(global_variance_init, rep(0, num_samples))
 leaf_scale_samples_mu <- c(tau_init_mu, rep(0, num_samples))
 leaf_scale_samples_tau <- c(tau_init_tau, rep(0, num_samples))
@@ -386,7 +385,9 @@ Predict and rescale samples
 ```{r prediction_adaptive}
 # Forest predictions
 mu_preds <- forest_samples_mu$predict(forest_dataset_mu)*y_std + y_bar
-tau_preds <- forest_samples_tau$predict_raw(forest_dataset_tau)*y_std
+tau_preds_raw <- forest_samples_tau$predict_raw(forest_dataset_tau)
+sampled_inds <- 2:(num_samples+1)
+tau_preds <- t(t(tau_preds_raw) * (b_1_samples[sampled_inds] - b_0_samples[sampled_inds]))*y_std
 
 # Global error variance
 sigma_samples <- sqrt(global_var_samples)*y_std
@@ -395,18 +396,20 @@ sigma_samples <- sqrt(global_var_samples)*y_std
 Inspect the XBART results
 
 ```{r xbcf_plot_adaptive}
-plot(sigma_samples[1:num_warmstart], ylab="sigma^2")
+plot(sigma_samples[1:num_warmstart], ylab="sigma")
 plot(rowMeans(mu_preds[,1:num_warmstart]), mu_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "prognostic term");
 abline(0,1,col="red",lty=2,lwd=2.5)
 plot(rowMeans(tau_preds[,1:num_warmstart]), tau_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "treatment effect term"); abline(0,1,col="red",lty=2,lwd=2.5)
+mean((rowMeans(tau_preds[,1:num_warmstart]) - tau_X)^2)
 ```
 
 Inspect the warm start BART results
 
 ```{r warm_start_plot_adaptive}
-plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma^2")
+plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma")
 plot(rowMeans(mu_preds[,(num_warmstart+1):num_samples]), mu_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "prognostic term");
 abline(0,1,col="red",lty=2,lwd=2.5)
 plot(rowMeans(tau_preds[,(num_warmstart+1):num_samples]), tau_X, pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "treatment effect term"); abline(0,1,col="red",lty=2,lwd=2.5)
+mean((rowMeans(tau_preds[,(num_warmstart+1):num_samples]) - tau_X)^2)
 ```
 

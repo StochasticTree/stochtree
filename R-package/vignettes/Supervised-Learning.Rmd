@@ -142,7 +142,7 @@ scale parameters) with an MCMC sampler
 for (i in (num_warmstart+1):num_samples) {
     forest_model$sample_one_iteration(forest_dataset, outcome, forest_samples, rng, feature_types, 
                                       outcome_model_type, leaf_prior_scale, var_weights, 
-                                      global_var_samples[i], cutpoint_grid_size, gfr = T)
+                                      global_var_samples[i], cutpoint_grid_size, gfr = F)
     global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome, rng, nu, lambda)
     leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples, rng, a_leaf, b_leaf, i-1)
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
@@ -163,7 +163,7 @@ Inspect the XBART results
 
 ```{r xbart_plot}
 # plot(leaf_scale_samples[1:num_warmstart], ylab="tau")
-plot(sigma_samples[1:num_warmstart], ylab="sigma^2")
+plot(sigma_samples[1:num_warmstart], ylab="sigma")
 plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, cex=0.75, xlab = "pred", ylab = "actual"); abline(0,1,col="red",lty=2,lwd=2.5)
 ```
 
@@ -171,6 +171,6 @@ Inspect the warm start BART results
 
 ```{r warm_start_plot}
 # plot(leaf_scale_samples[(num_warmstart+1):num_samples], ylab="tau")
-plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma^2")
+plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma")
 plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, cex=0.75, xlab = "pred", ylab = "actual"); abline(0,1,col="red",lty=2,lwd=2.5)
 ```
