@@ -13,7 +13,8 @@ class Dataset:
         """
         Add covariates to a dataset
         """
-        n, p = covariates.shape
+        covariates_ = np.expand_dims(covariates, 1) if np.ndim(covariates) == 1 else covariates
+        n, p = covariates_.shape
         covariates_rowmajor = np.ascontiguousarray(covariates)
         self.dataset_cpp.AddCovariates(covariates_rowmajor, n, p, True)
     
@@ -21,9 +22,19 @@ class Dataset:
         """
         Add basis matrix to a dataset
         """
-        n, p = basis.shape
-        basis_rowmajor = np.ascontiguousarray(basis)
+        basis_ = np.expand_dims(basis, 1) if np.ndim(basis) == 1 else basis
+        n, p = basis_.shape
+        basis_rowmajor = np.ascontiguousarray(basis_)
         self.dataset_cpp.AddBasis(basis_rowmajor, n, p, True)
+    
+    def update_basis(self, basis: np.array):
+        """
+        Update basis matrix in a dataset
+        """
+        basis_ = np.expand_dims(basis, 1) if np.ndim(basis) == 1 else basis
+        n, p = basis_.shape
+        basis_rowmajor = np.ascontiguousarray(basis_)
+        self.dataset_cpp.UpdateBasis(basis_rowmajor, n, p, True)
     
     def add_variance_weights(self, variance_weights: np.array):
         """

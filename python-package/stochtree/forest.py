@@ -10,6 +10,14 @@ class ForestContainer:
         # Initialize a ForestContainerCpp object
         self.forest_container_cpp = ForestContainerCpp(num_trees, output_dimension, leaf_constant)
     
-    def predict(self, dataset: Dataset) -> None:
+    def predict(self, dataset: Dataset) -> np.array:
         # Predict samples from Dataset
         return self.forest_container_cpp.Predict(dataset.dataset_cpp)
+    
+    def predict_raw(self, dataset: Dataset) -> np.array:
+        # Predict raw leaf values for a specific forest (indexed by forest_num) from Dataset
+        return self.forest_container_cpp.PredictRaw(dataset.dataset_cpp)
+    
+    def predict_raw_single_forest(self, dataset: Dataset, forest_num: int) -> np.array:
+        # Predict raw leaf values for a specific forest (indexed by forest_num) from Dataset
+        return self.forest_container_cpp.PredictRawSingleForest(dataset.dataset_cpp, forest_num)

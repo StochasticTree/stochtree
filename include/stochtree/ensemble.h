@@ -162,7 +162,7 @@ class TreeEnsemble {
           int32_t nidx = EvaluateTree(tree, covariates, i);
           pred += tree.LeafValue(nidx, k);
         }
-        output[i + k + offset] = pred;
+        output[i*output_dimension_ + k + offset] = pred;
       }
     }
   }
