@@ -255,9 +255,7 @@ void RunAPI() {
     global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu*lamb, rng));
   }
 
-
-
-  // Run the GFR sampler
+  // Run the MCMC sampler
   int num_mcmc_samples = 10;
   for (int i = num_gfr_samples; i < num_gfr_samples + num_mcmc_samples; i++) {
     if (i == 0) {
