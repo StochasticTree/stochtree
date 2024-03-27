@@ -6,9 +6,9 @@
 #ifndef STOCHTREE_TREE_H_
 #define STOCHTREE_TREE_H_
 
-#include <stochtree/data.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
+#include <Eigen/Dense>
 
 #include <cstdint>
 #include <set>
@@ -35,6 +35,9 @@ enum FeatureSplitType {
   kOrderedCategoricalSplit,
   kUnorderedCategoricalSplit
 };
+
+/*! \brief Forward declaration of TreeSplit class */
+class TreeSplit;
 
 /*! \brief in-memory representation of a decision tree */
 class Tree {
@@ -75,6 +78,10 @@ class Tree {
   void ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
   /*! \brief Expand a node based on a categorical split rule */
   void ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
+    /*! \brief Expand a node based on a generic split rule */
+  void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, double left_value, double right_value);
+  /*! \brief Expand a node based on a generic split rule */
+  void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
 
   /*!
    * \brief change a non leaf node to a leaf node, delete its children
@@ -92,6 +99,15 @@ class Tree {
     leaves_.push_back(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), nid), leaf_parents_.end());
     internal_nodes_.erase(std::remove(internal_nodes_.begin(), internal_nodes_.end(), nid), internal_nodes_.end());
+
+    // Check if the other child of nid's parent node is also a leaf, if so, add parent back to leaf parents
+    // TODO refactor and add this to the multivariate case as well
+    if (!IsRoot(nid)) {
+      int parent_id = Parent(nid);
+      if ((IsLeaf(LeftChild(parent_id))) && (IsLeaf(RightChild(parent_id)))){
+        leaf_parents_.push_back(parent_id);
+      }
+    }
   }
 
   /*!
@@ -127,6 +143,15 @@ class Tree {
     leaves_.push_back(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), nid), leaf_parents_.end());
     internal_nodes_.erase(std::remove(internal_nodes_.begin(), internal_nodes_.end(), nid), internal_nodes_.end());
+
+    // Check if the other child of nid's parent node is also a leaf, if so, add parent back to leaf parents
+    // TODO refactor and add this to the multivariate case as well
+    if (!IsRoot(nid)) {
+      int parent_id = Parent(nid);
+      if ((IsLeaf(LeftChild(parent_id))) && (IsLeaf(RightChild(parent_id)))){
+        leaf_parents_.push_back(parent_id);
+      }
+    }
   }
   
   /*!
@@ -136,6 +161,7 @@ class Tree {
    */
   void CollapseToLeaf(std::int32_t nid, std::vector<double> value_vector) {
     CHECK_GT(output_dimension_, 1);
+    CHECK_EQ(output_dimension_, value_vector.size());
     if (this->IsLeaf(nid)) return;
     if (!this->IsLeaf(this->LeftChild(nid))) {
       CollapseToLeaf(this->LeftChild(nid), value_vector);
@@ -177,7 +203,9 @@ class Tree {
    */
   void InplacePredictFromNodes(std::vector<double> result, std::vector<std::int32_t> node_indices);
   std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices);
+  std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices, Eigen::MatrixXd& basis);
   double PredictFromNode(std::int32_t node_id);
+  double PredictFromNode(std::int32_t node_id, Eigen::MatrixXd& basis, int row_idx);
 
   /** Getters **/
   /*!
@@ -299,6 +327,38 @@ class Tree {
     return std::vector<double>(&leaf_vector_[offset_begin], &leaf_vector_[offset_end]);
     // Use unsafe access here, since we may need to take the address of one past the last
     // element, to follow with the range semantic of std::vector<>.
+  }
+
+  /*!
+   * \brief sum of squared values for a given node
+   * \param nid ID of node being queried
+   */
+  double SumSquaredNodeValues(std::int32_t nid) const {
+    if (output_dimension_ == 1) {
+      return std::pow(leaf_value_[nid], 2.0);
+    } else {
+      double result = 0.;
+      std::size_t const offset_begin = leaf_vector_begin_[nid];
+      std::size_t const offset_end = leaf_vector_end_[nid];
+      if (offset_begin >= leaf_vector_.size() || offset_end > leaf_vector_.size()) {
+        Log::Fatal("No leaf vector set for node nid");
+      }
+      for (std::size_t i = offset_begin; i < offset_end; i++) {
+        result += std::pow(leaf_vector_[i], 2.0);
+      }
+      return result;
+    }
+  }
+
+  /*!
+   * \brief sum of squared values for all leaves in a tree
+   */
+  double SumSquaredLeafValues() const {
+    double result = 0.;
+    for (auto& leaf : leaves_) {
+      result += SumSquaredNodeValues(leaf);
+    }
+    return result;
   }
   
   /*!
@@ -597,11 +657,11 @@ inline int NextNodeCategorical(double fvalue, std::vector<std::uint32_t> const& 
  *  \param data Dataset used for prediction
  *  \param row Row indexing the prediction observation
  */
-inline int EvaluateTree(Tree const& tree, Dataset* data, int row) {
+inline int EvaluateTree(Tree const& tree, Eigen::MatrixXd& data, int row) {
   int node_id = 0;
   while (!tree.IsLeaf(node_id)) {
     auto const split_index = tree.SplitIndex(node_id);
-    double const fvalue = data->CovariateValue(row, split_index);
+    double const fvalue = data(row, split_index);
     if (std::isnan(fvalue)) {
       node_id = tree.DefaultChild(node_id);
     } else {
@@ -617,26 +677,55 @@ inline int EvaluateTree(Tree const& tree, Dataset* data, int row) {
 }
 
 /*! \brief Determine whether a given observation is "true" at a split proposed by split_index and split_value
- *  \param data Dataset used for prediction
+ *  \param covariates Dataset used for prediction
  *  \param row Row indexing the prediction observation
  *  \param split_index Column of new split
  *  \param split_value Value defining the split
  */
-inline bool RowSplitLeft(Dataset* data, int row, int split_index, double split_value) {
-  double const fvalue = data->CovariateValue(row, split_index);
+inline bool RowSplitLeft(Eigen::MatrixXd& covariates, int row, int split_index, double split_value) {
+  double const fvalue = covariates(row, split_index);
   return SplitTrueNumeric(fvalue, split_value);
 }
 
 /*! \brief Determine whether a given observation is "true" at a split proposed by split_index and split_value
- *  \param data Dataset used for prediction
+ *  \param covariates Dataset used for prediction
  *  \param row Row indexing the prediction observation
  *  \param split_index Column of new split
  *  \param category_list Categories defining the split
  */
-inline bool RowSplitLeft(Dataset* data, int row, int split_index, std::vector<std::uint32_t> const& category_list) {
-  double const fvalue = data->CovariateValue(row, split_index);
+inline bool RowSplitLeft(Eigen::MatrixXd& covariates, int row, int split_index, std::vector<std::uint32_t> const& category_list) {
+  double const fvalue = covariates(row, split_index);
   return SplitTrueCategorical(fvalue, category_list);
 }
+
+class TreeSplit {
+ public:
+  TreeSplit() {}
+  TreeSplit(double split_value) {
+    numeric_ = true;
+    split_value_ = split_value;
+    split_set_ = true;
+  }
+  TreeSplit(std::vector<std::uint32_t>& split_categories) {
+    numeric_ = false;
+    split_categories_ = split_categories;
+    split_set_ = true;
+  }
+  ~TreeSplit() {}
+  bool SplitSet() {return split_set_;}
+  bool NumericSplit() {return numeric_;}
+  bool SplitTrue(double fvalue) {
+    if (numeric_) return SplitTrueNumeric(fvalue, split_value_);
+    else return SplitTrueCategorical(fvalue, split_categories_);
+  }
+  double SplitValue() {return split_value_;}
+  std::vector<std::uint32_t> SplitCategories() {return split_categories_;}
+ private:
+  bool split_set_{false};
+  bool numeric_;
+  double split_value_;
+  std::vector<std::uint32_t> split_categories_;
+};
 
 } // namespace StochTree
 

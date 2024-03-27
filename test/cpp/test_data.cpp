@@ -2,6 +2,7 @@
  * Copyright (c) 2022 Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for license information.
  */
+#include "stochtree/meta.h"
 #include <gtest/gtest.h>
 #include <testutils.h>
 #include <stochtree/log.h>
@@ -10,109 +11,73 @@
 #include <iostream>
 #include <memory>
 
-TEST(Data, ReadFromFileNoTreatment) {
-  // Declare config, training data, and training data loader
-  std::unique_ptr<StochTree::Dataset> dataset;
-  
-  // Define any config parameters that aren't defaults
-  const char* params = "header=true outcome_columns=0";
+TEST(Data, ReadFromSmallDatasetRowMajor) {
+  // Load test data
+  StochTree::TestUtils::TestDataset test_dataset;
+  test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
+  std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
 
-  // Load data from file and check that it has the right dimensions
-  StochTree::TestUtils::LoadDatasetFromDemos("xbart_train/test.csv", params, dataset);
-  EXPECT_EQ(40, dataset->NumObservations()) << "Data size: " << dataset->NumObservations();
-  EXPECT_EQ(3, dataset->NumCovariates()) << "Number of features: " << dataset->NumCovariates();
-  
-  // Compute average value for each feature, compared to their known values
-  std::vector<double> total;
-  std::vector<double> average;
-  total.resize(dataset->NumCovariates(), 0.);
-  average.resize(dataset->NumCovariates(), 0.);
-  for (int i = 0; i < dataset->NumObservations(); i++) {
-    for (int j = 0; j < dataset->NumCovariates(); j++) {
-      total[j] += dataset->CovariateValue(i, j);
-    }
-  }
-  for (int j = 0; j < dataset->NumCovariates(); j++) {
-    average[j] = total[j] / dataset->NumObservations();
-  }
-  EXPECT_NEAR(0.458435078, average[0], 0.0001);
-  EXPECT_NEAR(0.428693069, average[1], 0.0001);
-  EXPECT_NEAR(0.393319613, average[2], 0.0001);
-}
-
-TEST(Data, ReadFromFileWithTreatment) {
-  // Declare unique pointer to training data
-  std::unique_ptr<StochTree::Dataset> dataset;
-  
-  // Define any config parameters that aren't defaults
-  const char* params = "header=true outcome_columns=0 treatment_columns=1";
-
-  // Load data from file and check that it has the right dimensions
-  StochTree::TestUtils::LoadDatasetFromDemos("xbart_train/test.csv", params, dataset);
-  EXPECT_EQ(40, dataset->NumObservations()) << "Data size: " << dataset->NumObservations();
-  EXPECT_EQ(2, dataset->NumCovariates()) << "Number of features: " << dataset->NumCovariates();
+  // Construct datasets
+  using data_size_t = StochTree::data_size_t;
+  data_size_t n = test_dataset.n;
+  int p = test_dataset.x_cols;
+  StochTree::ForestDataset dataset = StochTree::ForestDataset();
+  dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
+  dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
+  StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
   
   // Compute average value for each feature, compared to their known values
   std::vector<double> total;
   std::vector<double> average;
-  total.resize(dataset->NumCovariates(), 0.);
-  average.resize(dataset->NumCovariates(), 0.);
-  for (int i = 0; i < dataset->NumObservations(); i++) {
-    for (int j = 0; j < dataset->NumCovariates(); j++) {
-      total[j] += dataset->CovariateValue(i, j);
+  total.resize(p, 0.);
+  average.resize(p, 0.);
+  for (int j = 0; j < p; j++) {
+    for (data_size_t i = 0; i < n; i++) {  
+      total[j] += dataset.CovariateValue(i, j);
     }
   }
-  for (int j = 0; j < dataset->NumCovariates(); j++) {
-    average[j] = total[j] / dataset->NumObservations();
+  for (int j = 0; j < p; j++) {
+    average[j] = total[j] / static_cast<double>(n);
   }
-  EXPECT_NEAR(0.428693069, average[0], 0.0001);
-  EXPECT_NEAR(0.393319613, average[1], 0.0001);
+  EXPECT_NEAR(0.6051545, average[0], 0.0001);
+  EXPECT_NEAR(0.5343037, average[1], 0.0001);
+  EXPECT_NEAR(0.5894948, average[2], 0.0001);
+  EXPECT_NEAR(0.5405563, average[3], 0.0001);
+  EXPECT_NEAR(0.2526782, average[4], 0.0001);
 }
 
-TEST(Data, ReadFromRowMajor) {
-  // Generate some in-memory data
-  int n = 10;
-  int p = 5;
-  std::mt19937 gen;
-  std::uniform_real_distribution<> d{0.0,1.0};
-  std::unique_ptr<double[]> matrix_data(new double[n*p]);
-  for (int i = 0; i < n*p; i++){
-    matrix_data[i] = d(gen);
-  }
+TEST(Data, ReadFromMediumDatasetRowMajor) {
+  // Load test data
+  StochTree::TestUtils::TestDataset test_dataset;
+  test_dataset = StochTree::TestUtils::LoadMediumDatasetUnivariateBasis();
+  std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
 
-  // Declare unique pointer to training data
-  std::unique_ptr<StochTree::Dataset> dataset;
+  // Construct datasets
+  using data_size_t = StochTree::data_size_t;
+  data_size_t n = test_dataset.n;
+  int p = test_dataset.x_cols;
+  StochTree::ForestDataset dataset = StochTree::ForestDataset();
+  dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
+  dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
+  StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
   
-  // Define any config parameters that aren't defaults
-  const char* params = "header=true outcome_columns=0 treatment_columns=1";
-  auto param = StochTree::Config::Str2Map(params);
-  StochTree::Config config;
-  config.Set(param);
-
-  // Define data loader
-  StochTree::DataLoader dataset_loader(config, 1, nullptr);
-
-  // Load some test data
-  dataset.reset(dataset_loader.ConstructFromMatrix(matrix_data.get(), p, n, true));
-  
-  // Check data dimensions  
-  EXPECT_EQ(10, dataset->NumObservations()) << "Data size: " << dataset->NumObservations();
-  EXPECT_EQ(3, dataset->NumCovariates()) << "Number of features: " << dataset->NumCovariates();
-
   // Compute average value for each feature, compared to their known values
   std::vector<double> total;
   std::vector<double> average;
-  total.resize(dataset->NumCovariates(), 0.);
-  average.resize(dataset->NumCovariates(), 0.);
-  for (int i = 0; i < dataset->NumObservations(); i++) {
-    for (int j = 0; j < dataset->NumCovariates(); j++) {
-      total[j] += dataset->CovariateValue(i, j);
+  total.resize(p, 0.);
+  average.resize(p, 0.);
+  for (int j = 0; j < p; j++) {
+    for (data_size_t i = 0; i < n; i++) {  
+      total[j] += dataset.CovariateValue(i, j);
     }
   }
-  for (int j = 0; j < dataset->NumCovariates(); j++) {
-    average[j] = total[j] / dataset->NumObservations();
+  for (int j = 0; j < p; j++) {
+    average[j] = total[j] / static_cast<double>(n);
   }
-  EXPECT_NEAR(0.5826760, average[0], 0.0001);
-  EXPECT_NEAR(0.5346280, average[1], 0.0001);
-  EXPECT_NEAR(0.565114,  average[2], 0.0001);
+  EXPECT_NEAR(0.5317846, average[0], 0.0001);
+  EXPECT_NEAR(0.5241688, average[1], 0.0001);
+  EXPECT_NEAR(0.4983934, average[2], 0.0001);
+  EXPECT_NEAR(0.4863596, average[3], 0.0001);
+  EXPECT_NEAR(0.4413101, average[4], 0.0001);
 }
+

@@ -1,196 +1,141 @@
 /*!
- * Copyright (c) 2023 randtree authors.
- * 
- * Classes for representing data in-memory and importing data from various formats (CSV file, 
- * R matrix, R dataframe, numpy array, pandas dataframe)
- * 
- * In supervised learning and causal inference problems, there are typically several types of variables
- *   - Covariates: often represented as X in statistics literature
- *   - Outcome: often represented as y in statistics literature
- *   - Treatment: often represented as Z in causal inference literature
- * 
- * Interface and class design inspired heavily by the Dataset and DatasetLoader 
- * classes in LightGBM, which is released under the following copyright:
- * 
- * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
+ * Copyright (c) 2024 stochtree authors. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for license information.
  */
 #ifndef STOCHTREE_DATA_H_
 #define STOCHTREE_DATA_H_
 
-#include <stochtree/config.h>
-#include <stochtree/io.h>
+#include <Eigen/Dense>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
-
-#include <vector>
+#include <memory>
 
 namespace StochTree {
 
-/*! \brief forward declaration of DataLoader class*/
-class DataLoader;
-
-/*! \brief Dataset used for training and predicting from stochastic tree models */
-class Dataset {
+class ColumnMatrix {
  public:
-  // Give DataLoader access to private members of Dataset
-  friend DataLoader;
-
-  /*! \brief Constructor */
-  Dataset() {};
-
-  /*! \brief Destructor */
-  ~Dataset() {};
-
-  /*! \brief Covariate value at a given row and col */
-  double CovariateValue(data_size_t row, int32_t col) {return covariates_[row*num_covariates_ + col];}
-
-  /*! \brief Treatment value at a given row and col */
-  double TreatmentValue(data_size_t row, int32_t col) {return treatment_[row*num_treatment_ + col];}
-
-  /*! \brief Outcome value at a given row and col */
-  double OutcomeValue(data_size_t row, int32_t col) {return outcome_[row*num_outcome_ + col];}
-
-  /*! \brief Residual value at a given row and col */
-  double ResidualValue(data_size_t row, int32_t col) {return residuals_[row*num_outcome_ + col];}
-
-  /*! \brief Outcome value at a given row (assuming a single outcome) */
-  double OutcomeValue(data_size_t row) {return outcome_[row];}
-
-  /*! \brief Residual value at a given row (assuming a single outcome) */
-  double ResidualValue(data_size_t row) {return residuals_[row];}
-
-  /*! \brief Add value to residual */
-  inline void ResidualAdd(data_size_t row, int32_t col, double val) {
-    residuals_[row*num_outcome_ + col] += val;
-  }
-
-  /*! \brief Subtract value from residual */
-  inline void ResidualSubtract(data_size_t row, int32_t col, double val) {
-    residuals_[row*num_outcome_ + col] -= val;
-  }
-
-  /*! \brief Divide residual by value */
-  inline void ResidualDivide(data_size_t row, int32_t col, double val) {
-    residuals_[row*num_outcome_ + col] /= val;
-  }
-
-  /*! \brief Divide residual by value */
-  inline void ResidualMultiply(data_size_t row, int32_t col, double val) {
-    residuals_[row*num_outcome_ + col] *= val;
-  }
-
-  /*! \brief Reset all residuals to raw outcome values */
-  inline void ResidualReset() {
-    if (residuals_.size() != outcome_.size()) {
-      Log::Fatal("Residual vector is a different size than outcome vector");
-    }
-    for (data_size_t i = 0; i < residuals_.size(); i++) {
-      residuals_[i] = outcome_[i];
-    }
-  }
-
-  /*! \brief Number of observations in the dataset */
-  int32_t NumObservations() {return num_observations_;}
-
-  /*! \brief Whether or not a dataset has covariates loaded */
-  bool HasCovariates() {return num_covariates_ > 0;}
-
-  /*! \brief Whether or not a dataset has treatment variable loaded */
-  bool HasTreatment() {return num_treatment_ > 0;}
-
-  /*! \brief Whether or not a dataset has outcome variable loaded */
-  bool HasOutcome() {return num_outcome_ > 0;}
-
-  /*! \brief Number of outcome variables */
-  int32_t NumOutcome() {return num_outcome_;}
-
-  /*! \brief Number of treatment variables */
-  int32_t NumTreatment() {return num_treatment_;}
-
-  /*! \brief Number of Numeric Covariates */
-  int32_t NumCovariates() {return num_covariates_;}
-
-  /*! \brief Number of Numeric Covariates */
-  int32_t NumNumericCovariates() {return num_numeric_covariates_;}
-
-  /*! \brief Number of Ordered Categorical Covariates */
-  int32_t NumOrderedCategoricalCovariates() {return num_ordered_categorical_covariates_;}
-
-  /*! \brief Number of Unordered Categorical Covariates */
-  int32_t NumUnorderedCategoricalCovariates() {return num_unordered_categorical_covariates_;}
-
-  /*! \brief Type of feature j */
-  FeatureType GetFeatureType(int32_t j) {return covariate_types_[j];}
-  
+  ColumnMatrix() {}
+  ColumnMatrix(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
+  ~ColumnMatrix() {}
+  double GetElement(data_size_t row_num, int32_t col_num) {return data_(row_num, col_num);}
+  void SetElement(data_size_t row_num, int32_t col_num, double value) {data_(row_num, col_num) = value;}
+  void LoadData(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
+  inline data_size_t NumRows() {return data_.rows();}
+  inline int NumCols() {return data_.cols();}
+  inline Eigen::MatrixXd& GetData() {return data_;}
  private:
-  // Raw data, stored in row-major format
-  std::vector<double> covariates_;
-  std::vector<double> treatment_;
-  std::vector<double> outcome_;
-  std::vector<double> residuals_;
-  data_size_t num_observations_;
-
-  // Covariate info
-  int32_t num_covariates_{0};
-  int32_t num_numeric_covariates_{0};
-  int32_t num_ordered_categorical_covariates_{0};
-  int32_t num_unordered_categorical_covariates_{0};
-  std::vector<FeatureType> covariate_types_;
-
-  // Treatment info
-  int32_t num_treatment_{0};
-  int32_t num_outcome_{0};
+  Eigen::MatrixXd data_;
 };
 
-/*! \brief Dataset creation class. Can build a training dataset by either:
- *     (1) Parsing CSV files (no other file types supported at present)
- *     (2) Reading contiguous-memory data from an R matrix or numpy array
- */
-class DataLoader {
+class ColumnVector {
  public:
-  DataLoader(const Config& io_config, int num_class, const char* filename);
-
-  ~DataLoader();
-
-  Dataset* LoadFromFile(const char* filename);
-
-  Dataset* ConstructFromMatrix(double* matrix_data, int num_col, 
-                                        data_size_t num_row, bool is_row_major);
-
-  /*! \brief Disable copy */
-  DataLoader& operator=(const DataLoader&) = delete;
-  DataLoader(const DataLoader&) = delete;
-
+  ColumnVector() {}
+  ColumnVector(double* data_ptr, data_size_t num_row);
+  ~ColumnVector() {}
+  double GetElement(data_size_t row_num) {return data_(row_num);}
+  void SetElement(data_size_t row_num, double value) {data_(row_num) = value;}
+  void LoadData(double* data_ptr, data_size_t num_row);
+  inline data_size_t NumRows() {return data_.size();}
+  inline Eigen::VectorXd& GetData() {return data_;}
  private:
-  void LoadHeaderFromMemory(Dataset* dataset, const char* buffer);
+  Eigen::VectorXd data_;
+};
 
-  void SetHeader(const Config& io_config);
+class ForestDataset {
+ public:
+  ForestDataset() {}
+  ~ForestDataset() {}
+  void AddCovariates(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+    covariates_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    num_observations_ = num_row;
+    num_covariates_ = num_col;
+    has_covariates_ = true;
+  }
+  void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+    basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    num_basis_ = num_col;
+    has_basis_ = true;
+  }
+  void AddVarianceWeights(double* data_ptr, data_size_t num_row) {
+    var_weights_ = ColumnVector(data_ptr, num_row);
+    has_var_weights_ = true;
+  }
+  inline bool HasCovariates() {return has_covariates_;}
+  inline bool HasBasis() {return has_basis_;}
+  inline bool HasVarWeights() {return has_var_weights_;}
+  inline data_size_t NumObservations() {return num_observations_;}
+  inline int NumCovariates() {return num_covariates_;}
+  inline int NumBasis() {return num_basis_;}
+  inline double CovariateValue(data_size_t row, int col) {return covariates_.GetElement(row, col);}
+  inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
+  inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
+  inline Eigen::MatrixXd& GetCovariates() {return covariates_.GetData();}
+  inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
+  inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
+  void UpdateBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+    CHECK(has_basis_);
+    CHECK_EQ(num_col, num_basis_);
+    // Copy data from R / Python process memory to Eigen matrix
+    double temp_value;
+    for (data_size_t i = 0; i < num_row; ++i) {
+      for (int j = 0; j < num_col; ++j) {
+        if (is_row_major){
+          // Numpy 2-d arrays are stored in "row major" order
+          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
+        } else {
+          // R matrices are stored in "column major" order
+          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
+        }
+        basis_.SetElement(i, j, temp_value);
+      }
+    }
+  }
+ private:
+  ColumnMatrix covariates_;
+  ColumnMatrix basis_;
+  ColumnVector var_weights_;
+  data_size_t num_observations_{0};
+  int num_covariates_{0};
+  int num_basis_{0};
+  bool has_covariates_{false};
+  bool has_basis_{false};
+  bool has_var_weights_{false};
+};
 
-  void UnpackColumnVectors(std::vector<int32_t>& label_columns, std::vector<int32_t>& outcome_columns, 
-                           std::vector<int32_t>& ordered_categoricals, std::vector<int32_t>& unordered_categoricals);
-
-  void CheckDataset(const Dataset* dataset);
-
-  std::vector<std::string> LoadTextDataToMemory(const char* filename, int* num_global_data);
-
-  /*! \brief Extract local features from memory */
-  void ExtractFeaturesFromMemory(std::vector<std::string>* text_data, const Parser* parser, Dataset* dataset);
-  
-  /*! \brief Config object used to drive prediction*/
-  const Config& config_;
-  /*! \brief store feature names */
-  std::vector<std::string> variable_names_;
-  /*! \brief indices of outcomes in the data */
-  std::vector<int32_t> outcome_columns_;
-  /*! \brief indices of treatment variable in the data */
-  std::vector<int32_t> treatment_columns_;
-  /*! \brief indices of unordered categorical features */
-  std::vector<int32_t> unordered_categoricals_;
-  /*! \brief indices of ordered categorical features */
-  std::vector<int32_t> ordered_categoricals_;
+class RandomEffectsDataset {
+ public:
+  RandomEffectsDataset() {}
+  ~RandomEffectsDataset() {}
+  void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+    basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    has_basis_ = true;
+  }
+  void AddVarianceWeights(double* data_ptr, data_size_t num_row) {
+    var_weights_ = ColumnVector(data_ptr, num_row);
+    has_var_weights_ = true;
+  }
+  void AddGroupLabels(std::vector<int32_t>& group_labels) {
+    group_labels_ = group_labels;
+    has_group_labels_ = true;
+  }
+  inline bool HasBasis() {return has_basis_;}
+  inline bool HasVarWeights() {return has_var_weights_;}
+  inline bool HasGroupLabels() {return has_group_labels_;}
+  inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
+  inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
+  inline int32_t GroupId(data_size_t row) {return group_labels_[row];}
+  inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
+  inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
+  inline std::vector<int32_t>& GetGroupLabels() {return group_labels_;}
+ private:
+  ColumnMatrix basis_;
+  ColumnVector var_weights_;
+  std::vector<int32_t> group_labels_;
+  bool has_basis_{false};
+  bool has_var_weights_{false};
+  bool has_group_labels_{false};
 };
 
 } // namespace StochTree
 
-#endif   // STOCHTREE_DATA_H_
+#endif // STOCHTREE_DATA_H_

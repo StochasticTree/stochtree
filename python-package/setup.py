@@ -15,7 +15,6 @@ PLAT_TO_CMAKE = {
     "win-arm64": "ARM64",
 }
 
-
 # A CMakeExtension needs a sourcedir instead of a file list.
 # The name must be the _single_ output extension from the CMake build.
 # If you need multiple extensions, see scikit-build.
@@ -130,10 +129,10 @@ setup(
     name="stochtree",
     version=__version__,
     author="Drew Herren",
-    author_email="opensourcedrewherren@gmail.com",
+    author_email="drewherrenopensource@gmail.com",
     url="https://github.com/andrewherren/StochasticTree",
-    description="A test project using pybind11 and CMake",
-    long_description="",
+    description="Python Stochastic Tree Ensembles for Machine Learning and Causal Inference",
+    long_description="Python Stochastic Tree Ensembles for Machine Learning and Causal Inference",
     packages=find_packages(),
     ext_modules=[CMakeExtension("stochtree_cpp")],
     cmdclass={"build_ext": CMakeBuild},

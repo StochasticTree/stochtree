@@ -1,288 +1,76 @@
-/*!
- * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See LICENSE file in the project root for
- * license information.
- */
-#include <stochtree/io.h>
+/*! Copyright (c) 2024 by stochtree authors */
+#include <Eigen/Dense>
 #include <stochtree/data.h>
-
-#include <chrono>
-#include <cstdio>
-#include <limits>
-#include <sstream>
-#include <unordered_map>
+#include <iostream>
 
 namespace StochTree {
 
-DataLoader::DataLoader(const Config& io_config, int num_class, const char* filename)
-  :config_(io_config) {
-  UnpackColumnVectors(outcome_columns_, treatment_columns_, ordered_categoricals_, unordered_categoricals_);
+ColumnMatrix::ColumnMatrix(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+  LoadData(data_ptr, num_row, num_col, is_row_major);
 }
 
-DataLoader::~DataLoader() {
-}
+void ColumnMatrix::LoadData(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+  data_.resize(num_row, num_col);
 
-void DataLoader::UnpackColumnVectors(std::vector<int32_t>& outcome_columns, std::vector<int32_t>& treatment_columns, 
-                                     std::vector<int32_t>& ordered_categoricals, std::vector<int32_t>& unordered_categoricals) {
-  // Read label indices from config
-  if (config_.outcome_columns.size() > 0) {
-    outcome_columns = config_.Str2FeatureVec(config_.outcome_columns.c_str());
-  }
-  
-  // Read treatment indices from config
-  if (config_.treatment_columns.size() > 0) {
-    treatment_columns = config_.Str2FeatureVec(config_.treatment_columns.c_str());
-  }
-  
-  // Read ordered categorical variables from config
-  if (config_.ordered_categoricals.size() > 0) {
-    ordered_categoricals = config_.Str2FeatureVec(config_.ordered_categoricals.c_str());
-  }
-
-  // Read unordered categorical variables from config
-  if (config_.unordered_categoricals.size() > 0) {
-    unordered_categoricals = config_.Str2FeatureVec(config_.unordered_categoricals.c_str());
-  }
-}
-
-
-Dataset* DataLoader::LoadFromFile(const char* filename) {
-  auto dataset = std::unique_ptr<Dataset>(new Dataset());
-  data_size_t num_global_data = 0;
-  auto parser = std::unique_ptr<Parser>(Parser::CreateParser(filename, config_.header, 0, config_.precise_float_parser));
-  if (parser == nullptr) {
-    Log::Fatal("Could not recognize data format of %s", filename);
-  }
-  
-  // Determine number of columns in the data file
-  int num_columns = parser->NumFeatures();
-
-  // Read data to memory
-  auto text_data = LoadTextDataToMemory(filename, &num_global_data);
-  dataset->num_observations_ = static_cast<data_size_t>(text_data.size());
-
-  // Check if there are outcome columns
-  int32_t num_outcome = outcome_columns_.size();
-  bool has_outcome = num_outcome > 0;
-  // Resize outcome vector
-  if (has_outcome) {
-    dataset->outcome_.resize(dataset->num_observations_*num_outcome);
-    dataset->residuals_.resize(dataset->num_observations_*num_outcome);
-    dataset->num_outcome_ = num_outcome;
-  }
-
-  // Check if there are treatment columns
-  int32_t num_treatment = treatment_columns_.size();
-  bool has_treatment = num_treatment > 0;
-  // Resize treatment vector
-  if (has_treatment) {
-    dataset->treatment_.resize(dataset->num_observations_*num_treatment);
-    dataset->num_treatment_ = num_treatment;
-  }
-  
-  // Determine the number of features (as opposed to outcome / treatment)
-  int num_features = 0;
-  bool outcome_matched, treatment_matched;
-  for (int i = 0; i < num_columns; i++){
-    outcome_matched = (std::find(outcome_columns_.begin(), outcome_columns_.end(), i)
-                        != outcome_columns_.end());
-    treatment_matched = (std::find(treatment_columns_.begin(), treatment_columns_.end(), i)
-                        != treatment_columns_.end());
-    if (!outcome_matched && !treatment_matched) {
-      num_features += 1;
-    }
-  }
-  Log::Info("Num features = %d", num_features);
-
-  // Resize covariate vector
-  if (num_features > 0) {
-    dataset->covariates_.resize(dataset->num_observations_*num_features);
-  }
-  dataset->num_covariates_ = num_features;
-
-  // Unpack covariate types
-  bool ordered_categorical_matched;
-  bool unordered_categorical_matched;
-  for (int j = 0; j < num_features; j++) {
-    ordered_categorical_matched = (std::find(ordered_categoricals_.begin(), ordered_categoricals_.end(), j)
-                                   != ordered_categoricals_.end());
-    unordered_categorical_matched = (std::find(unordered_categoricals_.begin(), unordered_categoricals_.end(), j)
-                                     != unordered_categoricals_.end());
-    if (ordered_categorical_matched) {
-      dataset->covariate_types_.push_back(FeatureType::kOrderedCategorical);
-      dataset->num_ordered_categorical_covariates_++;
-    } else if (unordered_categorical_matched) {
-      dataset->covariate_types_.push_back(FeatureType::kUnorderedCategorical);
-      dataset->num_unordered_categorical_covariates_++;
-    } else {
-      dataset->covariate_types_.push_back(FeatureType::kNumeric);
-      dataset->num_numeric_covariates_++;
-    }
-  }
-  
-  // Unpack data from file
-  ExtractFeaturesFromMemory(&text_data, parser.get(), dataset.get());
-  text_data.clear();
-  
-  // Make sure an in-memory dataset was successfully created
-  CheckDataset(dataset.get());
-
-  // Release the in memory dataset pointer
-  return dataset.release();
-}
-
-Dataset* DataLoader::ConstructFromMatrix(double* matrix_data, int num_col, data_size_t num_row, bool is_row_major){
-  auto dataset = std::unique_ptr<Dataset>(new Dataset());
-  dataset->num_observations_ = num_row;
-  
-  // Check if there are outcome columns
-  int32_t num_outcome = outcome_columns_.size();
-  bool has_outcome = num_outcome > 0;
-  if (has_outcome) {
-    dataset->outcome_.resize(dataset->num_observations_*num_outcome);
-    dataset->residuals_.resize(dataset->num_observations_*num_outcome);
-    dataset->num_outcome_ = num_outcome;
-  }
-
-  // Check if there are treatment columns
-  int32_t num_treatment = treatment_columns_.size();
-  bool has_treatment = num_treatment > 0;
-  if (has_treatment) {
-    dataset->treatment_.resize(dataset->num_observations_*num_treatment);
-    dataset->num_treatment_ = num_treatment;
-  }
-  
-  // Determine the number of features (as opposed to outcome / treatment)
-  int num_features = 0;
-  bool outcome_matched, treatment_matched;
-  for (int i = 0; i < num_col; i++){
-    outcome_matched = (std::find(outcome_columns_.begin(), outcome_columns_.end(), i)
-                        != outcome_columns_.end());
-    treatment_matched = (std::find(treatment_columns_.begin(), treatment_columns_.end(), i)
-                        != treatment_columns_.end());
-    if (!outcome_matched && !treatment_matched) {
-      num_features += 1;
-    }
-  }
-  Log::Info("Num features = %d", num_features);
-  if (num_features > 0) {
-    dataset->covariates_.resize(dataset->num_observations_*num_features);
-  }
-  dataset->num_covariates_ = num_features;
-
-  // Unpack covariate types
-  bool ordered_categorical_matched;
-  bool unordered_categorical_matched;
-  for (int j = 0; j < num_features; j++) {
-    ordered_categorical_matched = (std::find(ordered_categoricals_.begin(), ordered_categoricals_.end(), j)
-                                   != ordered_categoricals_.end());
-    unordered_categorical_matched = (std::find(unordered_categoricals_.begin(), unordered_categoricals_.end(), j)
-                                     != unordered_categoricals_.end());
-    if (ordered_categorical_matched) {
-      dataset->covariate_types_.push_back(FeatureType::kOrderedCategorical);
-      dataset->num_ordered_categorical_covariates_++;
-    } else if (unordered_categorical_matched) {
-      dataset->covariate_types_.push_back(FeatureType::kUnorderedCategorical);
-      dataset->num_unordered_categorical_covariates_++;
-    } else {
-      dataset->covariate_types_.push_back(FeatureType::kNumeric);
-      dataset->num_numeric_covariates_++;
-    }
-  }
-
+  // Copy data from R / Python process memory to Eigen matrix
   double temp_value;
-  int feature_counter, outcome_counter, treatment_counter;
-  for (data_size_t i = 0; i < dataset->num_observations_; ++i) {
-    feature_counter = 0;
-    outcome_counter = 0;
-    treatment_counter = 0;
+  for (data_size_t i = 0; i < num_row; ++i) {
     for (int j = 0; j < num_col; ++j) {
       if (is_row_major){
         // Numpy 2-d arrays are stored in "row major" order
-        temp_value = static_cast<double>(*(matrix_data + static_cast<data_size_t>(num_col) * i + j));
+        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
       } else {
         // R matrices are stored in "column major" order
-        temp_value = static_cast<double>(*(matrix_data + static_cast<data_size_t>(num_row) * j + i));
+        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
       }
-      
-      // Unpack data into outcome, treatment or covariates
-      outcome_matched = (std::find(outcome_columns_.begin(), outcome_columns_.end(), j)
-                          != outcome_columns_.end());
-      treatment_matched = (std::find(treatment_columns_.begin(), treatment_columns_.end(), j)
-                          != treatment_columns_.end());
-      if (outcome_matched){
-        dataset->outcome_[i*dataset->num_outcome_ + outcome_counter] = temp_value;
-        dataset->residuals_[i*dataset->num_outcome_ + outcome_counter] = temp_value;
-        outcome_counter += 1;
-      } else if (treatment_matched) {
-        dataset->treatment_[i*dataset->num_treatment_ + treatment_counter] = temp_value;
-        treatment_counter += 1;
-      } else {
-        dataset->covariates_[i*dataset->num_covariates_ + feature_counter] = temp_value;
-        feature_counter += 1;
-      }
+      data_(i, j) = temp_value;
     }
   }
-  
-  // Make sure an in-memory dataset was successfully created
-  CheckDataset(dataset.get());
-
-  // Release the in memory dataset pointer
-  return dataset.release();
 }
 
-void DataLoader::CheckDataset(const Dataset* dataset) {
-  if (dataset->num_observations_ <= 0) {
-    Log::Fatal("Data loaded was empty");
+ColumnVector::ColumnVector(double* data_ptr, data_size_t num_row) {
+  LoadData(data_ptr, num_row);
+}
+
+void ColumnVector::LoadData(double* data_ptr, data_size_t num_row) {
+  data_.resize(num_row);
+
+  // Copy data from R / Python process memory to Eigen matrix
+  double temp_value;
+  for (data_size_t i = 0; i < num_row; ++i) {
+    temp_value = static_cast<double>(*(data_ptr + i));
+    data_(i) = temp_value;
   }
 }
 
-std::vector<std::string> DataLoader::LoadTextDataToMemory(const char* filename, int* num_global_data) {
-  TextReader<data_size_t> text_reader(filename, config_.header, config_.file_load_progress_interval_bytes);
-  // read all lines
-  *num_global_data = text_reader.ReadAllLines();
-  return std::move(text_reader.Lines());
-}
+void LoadData(double* data_ptr, int num_row, int num_col, bool is_row_major, Eigen::MatrixXd& data_matrix) {
+  data_matrix.resize(num_row, num_col);
 
-/*! \brief Extract local features from memory */
-void DataLoader::ExtractFeaturesFromMemory(std::vector<std::string>* text_data, const Parser* parser, Dataset* dataset) {
-  std::vector<std::pair<int, double>> oneline_features;
-  auto& ref_text_data = *text_data;
-  int feature_counter, outcome_counter, treatment_counter;
-  bool outcome_matched, treatment_matched;
-  for (data_size_t i = 0; i < dataset->num_observations_; ++i) {
-    // unpack the vector of textlines read from file into a vector of (int, double) tuples
-    oneline_features.clear();
-    parser->ParseOneLine(ref_text_data[i].c_str(), &oneline_features);
-    
-    // free processed line:
-    ref_text_data[i].clear();
-
-    // unload the data from oneline_features vector into the dataset variables containers    
-    feature_counter = 0;
-    outcome_counter = 0;
-    treatment_counter = 0;
-    for (auto& inner_data : oneline_features) {
-      int feature_idx = inner_data.first;
-      outcome_matched = (std::find(outcome_columns_.begin(), outcome_columns_.end(), feature_idx)
-                          != outcome_columns_.end());
-      treatment_matched = (std::find(treatment_columns_.begin(), treatment_columns_.end(), feature_idx)
-                          != treatment_columns_.end());
-      if (outcome_matched){
-        dataset->outcome_[i*dataset->num_outcome_ + outcome_counter] = inner_data.second;
-        dataset->residuals_[i*dataset->num_outcome_ + outcome_counter] = inner_data.second;
-        outcome_counter += 1;
-      } else if (treatment_matched) {
-        dataset->treatment_[i*dataset->num_treatment_ + treatment_counter] = inner_data.second;
-        treatment_counter += 1;
+  // Copy data from R / Python process memory to Eigen matrix
+  double temp_value;
+  for (data_size_t i = 0; i < num_row; ++i) {
+    for (int j = 0; j < num_col; ++j) {
+      if (is_row_major){
+        // Numpy 2-d arrays are stored in "row major" order
+        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
       } else {
-        dataset->covariates_[i*dataset->num_covariates_ + feature_counter] = inner_data.second;
-        feature_counter += 1;
+        // R matrices are stored in "column major" order
+        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
       }
+      data_matrix(i, j) = temp_value;
     }
   }
-  // free text data after use
-  text_data->clear();
 }
 
-}  // namespace StochTree
+void LoadData(double* data_ptr, int num_row, Eigen::VectorXd& data_vector) {
+  data_vector.resize(num_row);
+
+  // Copy data from R / Python process memory to Eigen matrix
+  double temp_value;
+  for (data_size_t i = 0; i < num_row; ++i) {
+    temp_value = static_cast<double>(*(data_ptr + i));
+    data_vector(i) = temp_value;
+  }
+}
+
+} // namespace StochTree

@@ -1,4 +1,4 @@
-Package: stoch.tree
+Package: stochtree
 Title: Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference
 Version: 0.0.0.9000
 Authors@R: 
@@ -16,3 +16,9 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
 LinkingTo: 
     cpp11
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+Imports: 
+    R6

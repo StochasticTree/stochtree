@@ -1,90 +1,229 @@
-/*!
- * End-to-end test of the "grow-from-root" procedure, removing stochastic aspects:
- *   1. Data is fixed so that log-likelihoods can be computed deterministically
- *   2. Variance parameters are fixed
- *   3. Leaf node parameters are set to the posterior mean, rather than sampled
- */
 #include <gtest/gtest.h>
 #include <testutils.h>
-#include <stochtree/data.h>
-#include <stochtree/ensemble.h>
+#include <stochtree/cutpoint_candidates.h>
+#include <stochtree/leaf_model.h>
 #include <stochtree/log.h>
-#include <stochtree/meta.h>
-#include <stochtree/model.h>
-#include <stochtree/model_draw.h>
-#include <stochtree/tree.h>
+#include <stochtree/partition_tracker.h>
 #include <iostream>
 #include <memory>
 #include <vector>
 
-class ModelTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    // Define a common dataset to be used in multiple tests
-    n = 40;
-    p = 3;
-    std::vector<double> data_vector = {
-      554.5587, 0.113703411, 0.55333359, 0.92640048, 
-      652.06658, 0.622299405, 0.64640609, 0.47190972, 
-      314.83592, 0.609274733, 0.31182431, 0.14261534, 
-      624.26646, 0.623379442, 0.6218192, 0.54426976, 
-      334.06715, 0.860915384, 0.32977018, 0.19617465, 
-      506.97611, 0.640310605, 0.50199747, 0.89858049, 
-      676.0034, 0.009495756, 0.67709453, 0.38949978, 
-      487.52182, 0.232550506, 0.48499124, 0.31087078, 
-      248.58881, 0.666083758, 0.24392883, 0.16002866, 
-      768.36752, 0.514251141, 0.76545979, 0.89618585, 
-      77.25473, 0.693591292, 0.07377988, 0.16639378, 
-      311.95601, 0.544974836, 0.3096866, 0.9004246, 
-      718.31889, 0.282733584, 0.71727174, 0.1340782, 
-      509.81137, 0.923433484, 0.50454591, 0.13161413, 
-      156.53081, 0.29231584, 0.15299896, 0.1052875, 
-      507.96657, 0.837295628, 0.50393349, 0.51158358, 
-      494.00134, 0.286223285, 0.49396092, 0.30019905, 
-      751.81072, 0.26682078, 0.7512002, 0.0267169, 
-      175.8417, 0.18672279, 0.17464982, 0.30964743, 
-      849.23648, 0.232225911, 0.84839241, 0.74211966, 
-      866.2391, 0.316612455, 0.86483383, 0.03545673, 
-      43.20075, 0.302693371, 0.04185728, 0.56507611, 
-      316.60508, 0.159046003, 0.31718216, 0.28025778, 
-      13.77613, 0.039995918, 0.01374994, 0.20419632, 
-      240.96996, 0.218799541, 0.23902573, 0.1337389, 
-      711.24522, 0.810598552, 0.70649462, 0.32568192, 
-      311.27324, 0.525697547, 0.30809476, 0.15506197, 
-      512.71812, 0.914658166, 0.50854757, 0.12996214, 
-      55.61175, 0.831345047, 0.05164662, 0.43553106, 
-      563.60416, 0.045770263, 0.56456984, 0.03864265, 
-      123.70749, 0.456091482, 0.12148019, 0.71330156, 
-      894.41751, 0.265186672, 0.89283638, 0.10076904, 
-      17.85658, 0.304672203, 0.01462726, 0.95030494, 
-      786.65915, 0.50730687, 0.7831211, 0.12181776, 
-      90.37123, 0.181096208, 0.08996133, 0.21965662, 
-      523.34388, 0.759670635, 0.51918998, 0.91308777, 
-      384.13832, 0.201248038, 0.38426669, 0.94585312, 
-      72.22475, 0.258809819, 0.0700525, 0.27915622, 
-      326.57809, 0.992150418, 0.32064442, 0.12347109, 
-      674.65328, 0.80735234, 0.6684954, 0.79716046, 
-    };
-    y_bar= 431.229372;
-    
-    // Define any config parameters that aren't defaults
-    const char* params = "label_column=0 num_trees=2 min_data_in_leaf=1 alpha=0.95 beta=1.25";
-    auto param = StochTree::Config::Str2Map(params);
-    config.Set(param);
+TEST(LeafConstantModel, FullEnumeration) {
+  // Load test data
+  StochTree::TestUtils::TestDataset test_dataset;
+  test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
+  std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
 
-    // Define data loader
-    StochTree::DataLoader dataset_loader(config, 1, nullptr);
+  // Construct datasets
+  using data_size_t = StochTree::data_size_t;
+  data_size_t n = test_dataset.n;
+  int p = test_dataset.x_cols;
+  StochTree::ForestDataset dataset = StochTree::ForestDataset();
+  dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
+  StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
 
-    // Load some test data
-    dataset.reset(dataset_loader.ConstructFromMatrix(data_vector.data(), p + 1, n, true));
+  // Construct a ForestTracker
+  int num_trees = 1;
+  StochTree::ForestTracker tracker = StochTree::ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
+
+  // Set sampling parameters
+  double alpha = 0.95;
+  double beta = 1.25;
+  int min_samples_leaf = 1;
+  double global_variance = 1.;
+  double tau = 1.;
+  int cutpoint_grid_size = n;
+  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf);
+
+  // Construct temporary data structures needed to enumerate splits
+  std::vector<double> log_cutpoint_evaluations;
+  std::vector<int> cutpoint_features;
+  std::vector<double> cutpoint_values;
+  std::vector<StochTree::FeatureType> cutpoint_feature_types;
+  StochTree::data_size_t valid_cutpoint_count = 0;
+  StochTree::CutpointGridContainer cutpoint_grid_container(dataset.GetCovariates(), residual.GetData(), cutpoint_grid_size);
+
+  // Initialize a leaf model
+  StochTree::GaussianConstantLeafModel leaf_model = StochTree::GaussianConstantLeafModel(tau);
+
+  // Evaluate all possible cutpoints
+  leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
+                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, feature_types);
+
+  // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
+  ASSERT_EQ(log_cutpoint_evaluations.size(), (n - 2*min_samples_leaf + 1)*p + 1);
+
+  // Check the values of the cutpoint evaluations
+  std::vector<double> expected_split_evals{3.773828, 3.349927, 3.001568, 3.085074, 2.989927, 3.101841, 2.980939, 3.068029, 3.822045, 3.663843, 3.710592, 3.354912, 3.135288,
+                                           3.553728, 2.969388, 3.540838, 3.961885, 3.822045, 4.908861, 4.032006, 4.083473, 4.442268, 5.023573, 4.171735, 3.353457, 3.862124,
+                                           3.323620, 3.998112, 3.425777, 3.096926, 3.131347, 2.947921, 2.935892, 3.224115, 3.144767, 3.213065, 3.863427, 3.792850, 3.146056,
+                                           3.348693, 3.487161, 4.600861, 4.226219, 4.879161, 3.773828, 3.940111};
+  for (int i = 0; i < log_cutpoint_evaluations.size(); i++) {
+    ASSERT_NEAR(log_cutpoint_evaluations[i], expected_split_evals[i], 0.01);
   }
+}
 
-  // void TearDown() override {}
-  std::unique_ptr<StochTree::Dataset> dataset;
-  std::vector<std::vector<StochTree::data_size_t>> tree_observation_indices;
-  StochTree::Config config;
-  double y_bar;
-  int p;
-  StochTree::data_size_t n;
-};
+TEST(LeafConstantModel, CutpointThinning) {
+  // Load test data
+  StochTree::TestUtils::TestDataset test_dataset;
+  test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
+  std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
 
+  // Construct datasets
+  using data_size_t = StochTree::data_size_t;
+  data_size_t n = test_dataset.n;
+  int p = test_dataset.x_cols;
+  StochTree::ForestDataset dataset = StochTree::ForestDataset();
+  dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
+  StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
+
+  // Construct a ForestTracker
+  int num_trees = 1;
+  StochTree::ForestTracker tracker = StochTree::ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
+
+  // Set sampling parameters
+  double alpha = 0.95;
+  double beta = 1.25;
+  int min_samples_leaf = 1;
+  double global_variance = 1.;
+  double tau = 1.;
+  int cutpoint_grid_size = 5;
+  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf);
+
+  // Construct temporary data structures needed to enumerate splits
+  std::vector<double> log_cutpoint_evaluations;
+  std::vector<int> cutpoint_features;
+  std::vector<double> cutpoint_values;
+  std::vector<StochTree::FeatureType> cutpoint_feature_types;
+  StochTree::data_size_t valid_cutpoint_count = 0;
+  StochTree::CutpointGridContainer cutpoint_grid_container(dataset.GetCovariates(), residual.GetData(), cutpoint_grid_size);
+
+  // Initialize a leaf model
+  StochTree::GaussianConstantLeafModel leaf_model = StochTree::GaussianConstantLeafModel(tau);
+
+  // Evaluate all possible cutpoints
+  leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
+                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, feature_types);
+
+  // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
+  ASSERT_EQ(log_cutpoint_evaluations.size(), (cutpoint_grid_size - 1)*p + 1);
+
+  // Check the values of the cutpoint evaluations
+  std::vector<double> expected_split_evals{3.349927, 3.085074, 3.101841, 3.068029, 3.710592, 3.135288, 2.969388, 3.961885, 4.032006, 
+                                           4.442268, 4.171735, 3.862124, 3.425777, 3.131347, 2.935892, 3.144767, 3.792850, 3.348693, 
+                                           4.600861, 4.879161, 3.940111};
+  for (int i = 0; i < log_cutpoint_evaluations.size(); i++) {
+    ASSERT_NEAR(log_cutpoint_evaluations[i], expected_split_evals[i], 0.01);
+  }
+}
+
+TEST(LeafUnivariateRegressionModel, FullEnumeration) {
+  // Load test data
+  StochTree::TestUtils::TestDataset test_dataset;
+  test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
+  std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
+
+  // Construct datasets
+  using data_size_t = StochTree::data_size_t;
+  data_size_t n = test_dataset.n;
+  int p = test_dataset.x_cols;
+  StochTree::ForestDataset dataset = StochTree::ForestDataset();
+  dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
+  dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
+  StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
+
+  // Construct a ForestTracker
+  int num_trees = 1;
+  StochTree::ForestTracker tracker = StochTree::ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
+
+  // Set sampling parameters
+  double alpha = 0.95;
+  double beta = 1.25;
+  int min_samples_leaf = 1;
+  double global_variance = 1.;
+  double tau = 1.;
+  int cutpoint_grid_size = n;
+  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf);
+
+  // Construct temporary data structures needed to enumerate splits
+  std::vector<double> log_cutpoint_evaluations;
+  std::vector<int> cutpoint_features;
+  std::vector<double> cutpoint_values;
+  std::vector<StochTree::FeatureType> cutpoint_feature_types;
+  StochTree::data_size_t valid_cutpoint_count = 0;
+  StochTree::CutpointGridContainer cutpoint_grid_container(dataset.GetCovariates(), residual.GetData(), cutpoint_grid_size);
+
+  // Initialize a leaf model
+  StochTree::GaussianUnivariateRegressionLeafModel leaf_model = StochTree::GaussianUnivariateRegressionLeafModel(tau);
+
+  // Evaluate all possible cutpoints
+  leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
+                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, feature_types);
+
+  // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
+  ASSERT_EQ(log_cutpoint_evaluations.size(), (n - 2*min_samples_leaf + 1)*p + 1);
+
+  // Check the values of the cutpoint evaluations
+  std::vector<double> expected_split_evals{4.978556, 4.067172, 3.823266, 3.850415, 3.796388, 3.791759, 3.864699, 3.970411, 5.105565, 4.886562, 4.812292, 4.450645, 4.180200, 
+                                           4.625754, 3.983956, 4.906961, 5.307099, 5.105565, 6.057032, 5.463854, 5.312733, 5.504701, 5.872222, 4.936127, 4.203568, 4.192258, 
+                                           4.633795, 4.060248, 4.032323, 4.040458, 4.176712, 3.809356, 3.854872, 4.404108, 4.243114, 4.116230, 5.167773, 5.031023, 4.203335, 
+                                           4.094302, 4.280394, 5.557678, 5.394644, 5.945185, 4.978556, 5.069763};
+  for (int i = 0; i < log_cutpoint_evaluations.size(); i++) {
+    ASSERT_NEAR(log_cutpoint_evaluations[i], expected_split_evals[i], 0.01);
+  }
+}
+
+TEST(LeafUnivariateRegressionModel, CutpointThinning) {
+  // Load test data
+  StochTree::TestUtils::TestDataset test_dataset;
+  test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
+  std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
+
+  // Construct datasets
+  using data_size_t = StochTree::data_size_t;
+  data_size_t n = test_dataset.n;
+  int p = test_dataset.x_cols;
+  StochTree::ForestDataset dataset = StochTree::ForestDataset();
+  dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
+  dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
+  StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
+
+  // Construct a ForestTracker
+  int num_trees = 1;
+  StochTree::ForestTracker tracker = StochTree::ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
+
+  // Set sampling parameters
+  double alpha = 0.95;
+  double beta = 1.25;
+  int min_samples_leaf = 1;
+  double global_variance = 1.;
+  double tau = 1.;
+  int cutpoint_grid_size = 5;
+  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf);
+
+  // Construct temporary data structures needed to enumerate splits
+  std::vector<double> log_cutpoint_evaluations;
+  std::vector<int> cutpoint_features;
+  std::vector<double> cutpoint_values;
+  std::vector<StochTree::FeatureType> cutpoint_feature_types;
+  StochTree::data_size_t valid_cutpoint_count = 0;
+  StochTree::CutpointGridContainer cutpoint_grid_container(dataset.GetCovariates(), residual.GetData(), cutpoint_grid_size);
+
+  // Initialize a leaf model
+  StochTree::GaussianUnivariateRegressionLeafModel leaf_model = StochTree::GaussianUnivariateRegressionLeafModel(tau);
+
+  // Evaluate all possible cutpoints
+  leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
+                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, feature_types);
+
+  // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
+  ASSERT_EQ(log_cutpoint_evaluations.size(), (cutpoint_grid_size - 1)*p + 1);
+
+  // Check the values of the cutpoint evaluations
+  std::vector<double> expected_split_evals{4.067172, 3.850415, 3.791759, 3.970411, 4.812292, 4.180200, 3.983956, 5.307099, 5.463854, 
+                                           5.504701, 4.936127, 4.192258, 4.032323, 4.176712, 3.854872, 4.243114, 5.031023, 4.094302, 
+                                           5.557678, 5.945185, 5.069763};
+  for (int i = 0; i < log_cutpoint_evaluations.size(); i++) {
+    ASSERT_NEAR(log_cutpoint_evaluations[i], expected_split_evals[i], 0.01);
+  }
+}

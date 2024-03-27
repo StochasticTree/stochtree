@@ -1,12 +1,11 @@
 # Build options
 option(USE_DEBUG "Set to ON for Debug mode" ON)
-option(USE_SANITIZER "Use santizer flags" ON)
-option(BUILD_CLI "Build the 'lightbgm' command-line interface in addition to lib_lightgbm" ON)
-option(BUILD_CPP_TEST "Build C++ tests with Google Test" ON)
-option(BUILD_CPP_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
+option(USE_SANITIZER "Use santizer flags" OFF)
+option(BUILD_TEST "Build C++ tests with Google Test" ON)
+option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
 
-# GoogleTest requires at least C++14
-set(CMAKE_CXX_STANDARD 14)
+# Require at least C++17
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Default to CMake 3.16
@@ -37,7 +36,7 @@ endif()
 if(UNIX OR MINGW OR CYGWIN)
   set(
     CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} -std=c++11 -pthread -w"
+    "${CMAKE_CXX_FLAGS} -pthread -w"
   )
   if(USE_DEBUG)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
@@ -53,6 +52,9 @@ set(StochTree_HEADER_DIR ${PROJECT_SOURCE_DIR}/include)
 # boost.math header file directory
 set(BOOSTMATH_HEADER_DIR ${PROJECT_SOURCE_DIR}/dependencies/boost_math/include)
 
+# Eigen header file directory
+set(EIGEN_HEADER_DIR ${PROJECT_SOURCE_DIR}/dependencies/eigen)
+
 # Library directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
 
@@ -60,16 +62,14 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
 file(
   GLOB 
   SOURCES 
-  src/config.cpp
+  src/container.cpp
   src/cutpoint_candidates.cpp
   src/data.cpp
-  src/interface.cpp
   src/io.cpp
   src/json11.cpp
-  src/model.cpp
-  src/model_draw.cpp
-  src/optimization.cpp
+  src/leaf_model.cpp
   src/partition_tracker.cpp
+  src/random_effects.cpp
   src/tree.cpp
 )
 
@@ -77,19 +77,13 @@ file(
 add_library(stochtree_objs OBJECT ${SOURCES})
 
 # Include the headers in the source library
-target_include_directories(stochtree_objs PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR})
+target_include_directories(stochtree_objs PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR})
 
 if(APPLE)
   set(CMAKE_SHARED_LIBRARY_SUFFIX ".so")
 endif()
 
-if(BUILD_CLI)
-  add_executable(stochtree src/main.cpp)
-  target_include_directories(stochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR})
-  target_link_libraries(stochtree PRIVATE stochtree_objs)
-endif()
-
-if(BUILD_CPP_TEST)
+if(BUILD_TEST)
   # Download the GoogleTest dependency if necessary
   include(FetchContent)
   FetchContent_Declare(
@@ -107,16 +101,16 @@ if(BUILD_CPP_TEST)
   file(GLOB CPP_TEST_SOURCES test/cpp/*.cpp)
   add_executable(teststochtree ${CPP_TEST_SOURCES})
   set(STOCHTREE_TEST_HEADER_DIR ${PROJECT_SOURCE_DIR}/test/cpp)
-  target_include_directories(teststochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${STOCHTREE_TEST_HEADER_DIR})
+  target_include_directories(teststochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${STOCHTREE_TEST_HEADER_DIR})
   target_link_libraries(teststochtree PRIVATE stochtree_objs GTest::gtest_main)
   gtest_discover_tests(teststochtree)
 endif()
 
-if(BUILD_CPP_DEBUG_TARGETS)
+if(BUILD_DEBUG_TARGETS)
   # Build test suite
-  add_executable(debugstochtree debug/cpp/debug.cpp)
+  add_executable(debugstochtree debug/cpp/api_debug.cpp)
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug/cpp)
-  target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR})
+  target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR})
   target_link_libraries(debugstochtree PRIVATE stochtree_objs)
 endif()
 

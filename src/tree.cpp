@@ -80,6 +80,26 @@ std::vector<double> Tree::PredictFromNodes(std::vector<std::int32_t> node_indice
   return result;
 }
 
+double Tree::PredictFromNode(std::int32_t node_id, Eigen::MatrixXd& basis, int row_idx) {
+  if (!this->IsLeaf(node_id)) {
+    Log::Fatal("Node %d is not a leaf node", node_id);
+  }
+  double pred = 0;
+  for (int32_t k = 0; k < output_dimension_; k++) {
+    pred += LeafValue(node_id, k) * basis(row_idx, k);
+  }
+  return pred;
+}
+
+std::vector<double> Tree::PredictFromNodes(std::vector<std::int32_t> node_indices, Eigen::MatrixXd& basis) {
+  data_size_t n = node_indices.size();
+  std::vector<double> result(n);
+  for (data_size_t i = 0; i < n; i++) {
+    result[i] = PredictFromNode(node_indices[i], basis, i);
+  }
+  return result;
+}
+
 Tree* Tree::Clone() {
   // Create tree with empty vectors / default scalar values
   Tree tree{};
@@ -210,8 +230,8 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, boo
   internal_nodes_.push_back(nid);
 
   // Remove nid's parent node (if applicable) from leaf parents
-  if (!this->IsRoot(nid)){
-    std::int32_t parent_idx = this->Parent(nid);
+  if (!IsRoot(nid)){
+    std::int32_t parent_idx = Parent(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
   }
 
@@ -236,8 +256,8 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
   internal_nodes_.push_back(nid);
 
   // Remove nid's parent node (if applicable) from leaf parents
-  if (this->IsRoot(nid)){
-    std::int32_t parent_idx = this->Parent(nid);
+  if (!IsRoot(nid)){
+    std::int32_t parent_idx = Parent(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
   }
 
@@ -248,6 +268,8 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
 
 void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
   CHECK_GT(output_dimension_, 1);
+  CHECK_EQ(output_dimension_, left_value_vector.size());
+  CHECK_EQ(output_dimension_, right_value_vector.size());
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
   this->SetChildren(nid, pleft, pright);
@@ -262,8 +284,8 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, boo
   internal_nodes_.push_back(nid);
 
   // Remove nid's parent node (if applicable) from leaf parents
-  if (!this->IsRoot(nid)){
-    std::int32_t parent_idx = this->Parent(nid);
+  if (!IsRoot(nid)){
+    std::int32_t parent_idx = Parent(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
   }
 
@@ -274,6 +296,8 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, boo
 
 void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
   CHECK_GT(output_dimension_, 1);
+  CHECK_EQ(output_dimension_, left_value_vector.size());
+  CHECK_EQ(output_dimension_, right_value_vector.size());
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
   this->SetChildren(nid, pleft, pright);
@@ -288,14 +312,32 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
   internal_nodes_.push_back(nid);
 
   // Remove nid's parent node (if applicable) from leaf parents
-  if (this->IsRoot(nid)){
-    std::int32_t parent_idx = this->Parent(nid);
+  if (!IsRoot(nid)){
+    std::int32_t parent_idx = Parent(nid);
     leaf_parents_.erase(std::remove(leaf_parents_.begin(), leaf_parents_.end(), parent_idx), leaf_parents_.end());
   }
 
   // Add pleft and pright to leaves
   leaves_.push_back(pleft);
   leaves_.push_back(pright);
+}
+
+void Tree::ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, double left_value, double right_value) {
+  CHECK_EQ(output_dimension_, 1);
+  if (split.NumericSplit()) {
+    ExpandNode(nid, split_index, split.SplitValue(), default_left, left_value, right_value);
+  } else {
+    ExpandNode(nid, split_index, split.SplitCategories(), default_left, left_value, right_value);
+  }
+}
+
+void Tree::ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
+  CHECK_GT(output_dimension_, 1);
+  if (split.NumericSplit()) {
+    ExpandNode(nid, split_index, split.SplitValue(), default_left, left_value_vector, right_value_vector);
+  } else {
+    ExpandNode(nid, split_index, split.SplitCategories(), default_left, left_value_vector, right_value_vector);
+  }
 }
 
 void Tree::Reset() {
@@ -407,6 +449,7 @@ void Tree::SetLeaf(std::int32_t nid, double value) {
 
 void Tree::SetLeafVector(std::int32_t nid, std::vector<double> const& node_leaf_vector) {
   CHECK_GT(output_dimension_, 1);
+  CHECK_EQ(output_dimension_, node_leaf_vector.size());
   if (HasLeafVector(nid)) {
     if (node_leaf_vector.size() != output_dimension_) {
       Log::Fatal("node_leaf_vector must be same size as the vector output dimension");
