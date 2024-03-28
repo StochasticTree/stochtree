@@ -1,6 +1,7 @@
 /*! Copyright (c) 2024 stochtree authors*/
-#include <stochtree/data.h>
 #include <stochtree/container.h>
+#include <stochtree/data.h>
+#include <stochtree/json11.h>
 #include <stochtree/leaf_model.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
@@ -276,6 +277,17 @@ void RunAPI() {
     // Sample global variance
     global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu*lamb, rng));
   }
+
+  // Quick check: tree json round trip
+  int sample_num = 2;
+  int tree_num = 3;
+  Tree* tree = forest_samples.GetEnsemble(sample_num)->GetTree(tree_num);
+  json11::Json tree_json = tree->to_json();
+  std::cout << tree_json.dump() << std::endl;
+  Tree new_tree = Tree();
+  new_tree.from_json(tree_json);
+  json11::Json new_tree_json = new_tree.to_json();
+  std::cout << new_tree_json.dump() << std::endl;
 }
 
 } // namespace StochTree
