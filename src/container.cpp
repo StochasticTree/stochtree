@@ -107,7 +107,7 @@ void ForestContainer::from_json(const json11::Json& json_forest_container) {
   forests_.resize(this->num_samples_);
   for (int i = 0; i < this->num_samples_; i++) {
     forest_label = "forest_" + std::to_string(i);
-    forests_[i] = std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_);
+    forests_[i] = std::make_unique<TreeEnsemble>();
     forests_[i]->from_json(json_forest_container[forest_label]);
   }
 }
