@@ -1,7 +1,11 @@
 /*! Copyright (c) 2024 stochtree authors*/
 #include <stochtree/data.h>
 #include <stochtree/container.h>
+#include <stochtree/data.h>
+#include <stochtree/io.h>
+#include <stochtree/json11.h>
 #include <stochtree/leaf_model.h>
+#include <stochtree/log.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 
@@ -179,28 +183,57 @@ void RunAPI() {
   // Run GFR ensemble sampler and other parameter samplers in a loop
   int num_gfr_samples = 10;
   for (int i = 0; i < num_gfr_samples; i++) {
-    // Tree ensemble sampler
-    gfr_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance, feature_types);
+    if (i == 0) {
+      global_variance = global_variance_init;
+      leaf_scale = leaf_scale_init;
+    } else {
+      global_variance = global_variance_samples[i-1];
+      leaf_scale = leaf_variance_samples[i-1];
+    }
 
-    // Random effects
-    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init, 
-                           working_parameter_prior_covariance, group_parameter_prior_covariance,
-                           group_parameter_variance_prior_shape, group_parameter_variance_prior_scale, 1);
-    rfx_model.SampleRandomEffects(rfx_samples.GetRandomEffectsTerm(i), rfx_dataset, residual, rfx_tracker, global_variance, gen);
+    // Sample tree ensemble
+    sampleGFR(tracker, tree_prior, forest_samples, dataset, residual, rng, feature_types, variable_weights, 
+              leaf_model_type, leaf_scale_matrix, global_variance, leaf_scale, cutpoint_grid_size);
+
+    // Sample leaf node variance
+    leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, rng));
+
+    // Sample global variance
+    global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu*lamb, rng));
   }
 
-  // Run MCMC ensemble sampler and other parameter samplers in a loop
-  int num_mcmc_samples = 10;
-  for (int i = 0; i < num_mcmc_samples; i++) {
-    // Tree ensemble sampler
-    mcmc_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance);
+  // Run the MCMC sampler
+  int num_mcmc_samples = 100;
+  for (int i = num_gfr_samples; i < num_gfr_samples + num_mcmc_samples; i++) {
+    if (i == 0) {
+      global_variance = global_variance_init;
+      leaf_scale = leaf_scale_init;
+    } else {
+      global_variance = global_variance_samples[i-1];
+      leaf_scale = leaf_variance_samples[i-1];
+    }
 
-    // Random effects
-    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init,
-                           working_parameter_prior_covariance, group_parameter_prior_covariance,
-                           group_parameter_variance_prior_shape, group_parameter_variance_prior_scale, 1);
-    rfx_model.SampleRandomEffects(rfx_samples.GetRandomEffectsTerm(i + num_gfr_samples), rfx_dataset, residual, rfx_tracker, global_variance, gen);
+    // Sample tree ensemble
+    sampleMCMC(tracker, tree_prior, forest_samples, dataset, residual, rng, feature_types, variable_weights, 
+               leaf_model_type, leaf_scale_matrix, global_variance, leaf_scale, cutpoint_grid_size);
+
+    // Sample leaf node variance
+    leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, rng));
+
+    // Sample global variance
+    global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu*lamb, rng));
   }
+
+  // Quick check: tree json round trip
+  int sample_num = 2;
+  int tree_num = 3;
+  Tree* tree = forest_samples.GetEnsemble(sample_num)->GetTree(tree_num);
+  json11::Json tree_json = tree->to_json();
+  std::cout << tree_json.dump() << std::endl;
+  Tree new_tree = Tree();
+  new_tree.from_json(tree_json);
+  json11::Json new_tree_json = new_tree.to_json();
+  std::cout << new_tree_json.dump() << std::endl;
 }
 
 } // namespace StochTree
