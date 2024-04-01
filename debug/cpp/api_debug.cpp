@@ -280,6 +280,29 @@ void RunAPI() {
   new_tree.from_json(tree_json);
   json11::Json new_tree_json = new_tree.to_json();
   std::cout << new_tree_json.dump() << std::endl;
+
+  // Write model to a file
+  std::string filename = "model.json";
+  auto writer = VirtualFileWriter::Make(filename);
+  if (!writer->Init()) {
+    Log::Fatal("Model file %s is not available for writes", filename.c_str());
+  }
+  std::string str_to_write = forest_samples.to_json().dump();
+  auto size = writer->Write(str_to_write.c_str(), str_to_write.size());
+
+  // Read model from a file
+  TextReader<size_t> model_reader(filename.c_str(), false);
+  size_t buffer_len = 0;
+  // auto buffer = model_reader.ReadContent(&buffer_len);
+  model_reader.ReadAllLines();
+  std::string json_model = model_reader.JoinedLines();
+  std::string error_string;
+  std::cout << json_model << std::endl;
+  json11::Json file_tree_json = json11::Json::parse(json_model, &error_string);
+  std::cout << file_tree_json.dump() << std::endl;
+  // json11::Json forest_extracted = file_tree_json["forest_19"];
+  // json11::Json last_tree = forest_extracted["tree_99"];
+  // std::cout << last_tree.dump() << std::endl;
 }
 
 } // namespace StochTree
