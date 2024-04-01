@@ -42,7 +42,7 @@ The CMake build has two primary targets, which are detailed below
 
 `debug/api_debug.cpp` defines a standalone target that can be straightforwardly run with a debugger (i.e. `lldb`, `gdb`) 
 while making non-trivial changes to the C++ code.
-This debugging program is compiled as part of the CMake build if the `USE_DEBUG` option is set to `ON`.
+This debugging program is compiled as part of the CMake build if the `BUILD_DEBUG_TARGETS` option in `CMakeLists.txt` is set to `ON`.
 
 Once the program has been built, it can be run from the command line via `./build/debugstochtree` or attached to a debugger 
 via `lldb ./build/debugstochtree` (clang) or `gdb ./build/debugstochtree` (gcc).
