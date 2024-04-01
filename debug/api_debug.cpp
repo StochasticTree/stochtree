@@ -148,6 +148,7 @@ void RunAPI() {
 
   // Initialize forest sampling machinery
   std::vector<FeatureType> feature_types(x_cols, FeatureType::kNumeric);
+  std::vector<double> variable_weights(x_cols, static_cast<double>(1/x_cols));
   double alpha = 0.99;
   double beta = 1.25;
   int min_samples_leaf = 10;
@@ -180,7 +181,7 @@ void RunAPI() {
   int num_gfr_samples = 10;
   for (int i = 0; i < num_gfr_samples; i++) {
     // Tree ensemble sampler
-    gfr_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance, feature_types);
+    gfr_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types);
 
     // Random effects
     rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init, 
@@ -193,7 +194,7 @@ void RunAPI() {
   int num_mcmc_samples = 10;
   for (int i = 0; i < num_mcmc_samples; i++) {
     // Tree ensemble sampler
-    mcmc_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, global_variance);
+    mcmc_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, variable_weights, global_variance);
 
     // Random effects
     rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init,
