@@ -1,6 +1,6 @@
-[![Build and test](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/test-multi-platform.yml/badge.svg?branch=main)](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/test-multi-platform.yml)
-
 # StochasticTree C++ Core
+
+[![Build and test](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/test-multi-platform.yml/badge.svg?branch=main)](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/test-multi-platform.yml)
 
 This repository hosts the "core" C++ code for defining and sampling stochastic tree ensembles (BART, XBART) for various applications. 
 The [R](https://github.com/StochasticTree/stochtree-r) and [Python](https://github.com/StochasticTree/stochtree-python) 
