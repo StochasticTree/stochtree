@@ -37,21 +37,21 @@
 #pragma intrinsic(_BitScanReverse)
 #endif
 
-#if defined(_MSC_VER)
-#include <malloc.h>
-#elif MM_MALLOC
-#include <mm_malloc.h>
-// https://gcc.gnu.org/onlinedocs/cpp/Common-Predefined-Macros.html
-// https://www.oreilly.com/library/view/mac-os-x/0596003560/ch05s01s02.html
-#elif defined(__GNUC__) && defined(HAVE_MALLOC_H)
-  #include <malloc.h>
-  #define _mm_malloc(a, b) memalign(b, a)
-  #define _mm_free(a) free(a)
-#else
-#include <stdlib.h>
-#define _mm_malloc(a, b) malloc(a)
-#define _mm_free(a) free(a)
-#endif
+// #if defined(_MSC_VER)
+// #include <malloc.h>
+// #elif MM_MALLOC
+// #include <mm_malloc.h>
+// // https://gcc.gnu.org/onlinedocs/cpp/Common-Predefined-Macros.html
+// // https://www.oreilly.com/library/view/mac-os-x/0596003560/ch05s01s02.html
+// #elif defined(__GNUC__) && defined(HAVE_MALLOC_H)
+//   #include <malloc.h>
+//   #define _mm_malloc(a, b) memalign(b, a)
+//   #define _mm_free(a) free(a)
+// #else
+// #include <stdlib.h>
+// #define _mm_malloc(a, b) malloc(a)
+// #define _mm_free(a) free(a)
+// #endif
 
 namespace StochTree {
 
