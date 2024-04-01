@@ -1,6 +1,6 @@
 # Based on the cmake-multi-platform Github Action
 # https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
-name: Build and test stochtree-cpp on multiple platforms
+name: Build and test
 
 on:
   push:
