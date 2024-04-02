@@ -31,6 +31,7 @@
 #include <stochtree/tree.h>
 
 #include <cmath>
+#include <numeric>
 #include <random>
 #include <set>
 #include <string>

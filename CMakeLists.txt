@@ -1,6 +1,6 @@
 # Build options
 option(USE_DEBUG "Set to ON for Debug mode" OFF)
-option(USE_SANITIZER "Use santizer flags" OFF)
+option(USE_SANITIZER "Use santizer flags" ON)
 option(BUILD_TEST "Build C++ tests with Google Test" ON)
 option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
 
@@ -98,9 +98,9 @@ if(BUILD_TEST)
   # Build test suite
   enable_testing()
   include(GoogleTest)
-  file(GLOB CPP_TEST_SOURCES test/cpp/*.cpp)
+  file(GLOB CPP_TEST_SOURCES test/*.cpp)
   add_executable(teststochtree ${CPP_TEST_SOURCES})
-  set(STOCHTREE_TEST_HEADER_DIR ${PROJECT_SOURCE_DIR}/test/cpp)
+  set(STOCHTREE_TEST_HEADER_DIR ${PROJECT_SOURCE_DIR}/test)
   target_include_directories(teststochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${STOCHTREE_TEST_HEADER_DIR})
   target_link_libraries(teststochtree PRIVATE stochtree_objs GTest::gtest_main)
   gtest_discover_tests(teststochtree)
@@ -108,8 +108,8 @@ endif()
 
 if(BUILD_DEBUG_TARGETS)
   # Build test suite
-  add_executable(debugstochtree debug/cpp/api_debug.cpp)
-  set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug/cpp)
+  add_executable(debugstochtree debug/api_debug.cpp)
+  set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/cpp)
   target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR})
   target_link_libraries(debugstochtree PRIVATE stochtree_objs)
 endif()
