@@ -480,6 +480,11 @@ class Tree {
   [[nodiscard]] std::int32_t NumNodes() const noexcept { return num_nodes; }
   
   /**
+   * \brief Get the total number of deleted nodes in this tree.
+   */
+  [[nodiscard]] std::int32_t NumDeletedNodes() const noexcept { return num_deleted_nodes; }
+  
+  /**
    * \brief Get the total number of valid nodes in this tree.
    */
   [[nodiscard]] std::int32_t NumValidNodes() const noexcept {

@@ -46,7 +46,7 @@ class ForestContainer {
   /*! \brief Save to JSON */
   json to_json();
   /*! \brief Load from JSON */
-  void from_json(const json& json_forest_container);
+  void from_json(const json& forest_container_json);
 
  private:
   std::vector<std::unique_ptr<TreeEnsemble>> forests_;

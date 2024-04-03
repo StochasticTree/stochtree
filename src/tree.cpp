@@ -438,13 +438,6 @@ void Tree::SetLeafVector(std::int32_t nid, std::vector<double> const& node_leaf_
   node_type_.at(nid) = TreeNodeType::kLeafNode;
 }
 
-std::string trunc_double(double a) {
-  std::ostringstream steamstr;
-  steamstr << std::setprecision(3) << a;
-  std::string out = steamstr.str();
-  return out;
-}
-
 void TreeNodeVectorsToJson(json& obj, Tree* tree) {
   // Initialize a map with names of the node vectors and empty json arrays
   std::map<std::string, json> tree_array_map;
@@ -459,35 +452,25 @@ void TreeNodeVectorsToJson(json& obj, Tree* tree) {
   tree_array_map.emplace(std::pair("leaf_vector_end", json::array()));
   tree_array_map.emplace(std::pair("category_list_begin", json::array()));
   tree_array_map.emplace(std::pair("category_list_end", json::array()));
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("parent"), std::forward_as_tuple());
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("left"), std::forward_as_tuple());
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("right"), std::forward_as_tuple());
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("split_index"), std::forward_as_tuple());
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("leaf_value"), std::forward_as_tuple());
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("threshold"), std::forward_as_tuple());
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("leaf_vector_begin"), std::forward_as_tuple());
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("leaf_vector_end"), std::forward_as_tuple());
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("category_list_begin"), std::forward_as_tuple());
-  // tree_array_map.emplace(std::piecewise_construct, std::forward_as_tuple("category_list_end"), std::forward_as_tuple());
 
   // Extract only the non-deleted nodes into tree_array_map
-  bool node_deleted;
+//  bool node_deleted;
   for (int i = 0; i < tree->NumNodes(); i++) {
-    node_deleted = (std::find(tree->deleted_nodes_.begin(), tree->deleted_nodes_.end(), i)
-                    != tree->deleted_nodes_.end());
-    if (!node_deleted) {
+//    node_deleted = (std::find(tree->deleted_nodes_.begin(), tree->deleted_nodes_.end(), i)
+//                    != tree->deleted_nodes_.end());
+//    if (!node_deleted) {
       tree_array_map["node_type"].emplace_back(static_cast<int>(tree->node_type_[i]));
       tree_array_map["parent"].emplace_back(tree->parent_[i]);
       tree_array_map["left"].emplace_back(tree->cleft_[i]);
       tree_array_map["right"].emplace_back(tree->cright_[i]);
       tree_array_map["split_index"].emplace_back(tree->split_index_[i]);
-      tree_array_map["leaf_value"].emplace_back(trunc_double(tree->leaf_value_[i]));
-      tree_array_map["threshold"].emplace_back(trunc_double(tree->threshold_[i]));
+      tree_array_map["leaf_value"].emplace_back(tree->leaf_value_[i]);
+      tree_array_map["threshold"].emplace_back(tree->threshold_[i]);
       tree_array_map["leaf_vector_begin"].emplace_back(static_cast<int>(tree->leaf_vector_begin_[i]));
       tree_array_map["leaf_vector_end"].emplace_back(static_cast<int>(tree->leaf_vector_end_[i]));
       tree_array_map["category_list_begin"].emplace_back(static_cast<int>(tree->category_list_begin_[i]));
       tree_array_map["category_list_end"].emplace_back(static_cast<int>(tree->category_list_end_[i]));
-    }
+//    }
   }
   
   // Unpack the map into the reference JSON object
@@ -499,17 +482,17 @@ void TreeNodeVectorsToJson(json& obj, Tree* tree) {
 void MultivariateLeafVectorToJson(json& obj, Tree* tree) {
   json vec = json::array();
   if (tree->leaf_vector_.size() > 0) {
-    bool node_deleted;
+//    bool node_deleted;
     for (int i = 0; i < tree->NumNodes(); i++) {
-      node_deleted = (std::find(tree->deleted_nodes_.begin(), tree->deleted_nodes_.end(), i)
-                      != tree->deleted_nodes_.end());
-      if (!node_deleted) {
+      // node_deleted = (std::find(tree->deleted_nodes_.begin(), tree->deleted_nodes_.end(), i)
+      //                 != tree->deleted_nodes_.end());
+      // if (!node_deleted) {
         if ((tree->leaf_vector_begin_[i] != 0) && (tree->leaf_vector_end_[i] != 0)) {
           for (uint64_t ind = tree->leaf_vector_begin_[i]; ind < tree->leaf_vector_end_[i]; ind++) {
             vec.emplace_back(tree->leaf_vector_[ind]);
           }
         }
-      }
+      // }
     }
   }
   obj.emplace("leaf_vector", vec);
@@ -518,17 +501,17 @@ void MultivariateLeafVectorToJson(json& obj, Tree* tree) {
 void SplitCategoryVectorToJson(json& obj, Tree* tree) {
   json vec = json::array();
   if (tree->leaf_vector_.size() > 0) {
-    bool node_deleted;
+//    bool node_deleted;
     for (int i = 0; i < tree->NumNodes(); i++) {
-      node_deleted = (std::find(tree->deleted_nodes_.begin(), tree->deleted_nodes_.end(), i)
-                      != tree->deleted_nodes_.end());
-      if (!node_deleted) {
+      // node_deleted = (std::find(tree->deleted_nodes_.begin(), tree->deleted_nodes_.end(), i)
+      //                 != tree->deleted_nodes_.end());
+      // if (!node_deleted) {
         if ((tree->category_list_begin_[i] != 0) && (tree->category_list_end_[i] != 0)) {
           for (uint64_t ind = tree->category_list_begin_[i]; ind < tree->category_list_end_[i]; ind++) {
             vec.emplace_back(static_cast<int>(tree->category_list_[ind]));
           }
         }
-      }
+      // }
     }
   }
   obj.emplace("category_list", vec);
@@ -537,7 +520,8 @@ void SplitCategoryVectorToJson(json& obj, Tree* tree) {
 json Tree::to_json() {
   json result_obj;
   // Store the non-array fields in json
-  result_obj.emplace("num_nodes", this->NumValidNodes());
+  result_obj.emplace("num_nodes", this->NumNodes());
+  result_obj.emplace("num_deleted_nodes", this->NumDeletedNodes());
   result_obj.emplace("has_categorical_split", this->has_categorical_split_);
   result_obj.emplace("output_dimension", this->output_dimension_);
 
@@ -550,83 +534,57 @@ json Tree::to_json() {
   return result_obj;
 }
 
-// template <typename T>
-// void UnpackArray(const json11::Json& tree_json, std::vector<T>& vec, const std::string& vec_name) {
-//   vec.clear();
-//   for (const auto& elem : tree_json[vec_name].array_items()) {
-//     vec.push_back(elem.int_value());
-//   }
-// }
+void JsonToTreeNodeVectors(const json& tree_json, Tree* tree) {
+  int num_nodes = tree->NumNodes();
+  for (int i = 0; i < num_nodes; i++) {
+    tree->parent_.push_back(tree_json.at("parent").at(i));
+    tree->cleft_.push_back(tree_json.at("left").at(i));
+    tree->cright_.push_back(tree_json.at("right").at(i));
+    tree->split_index_.push_back(tree_json.at("split_index").at(i));
+    tree->leaf_value_.push_back(tree_json.at("leaf_value").at(i));
+    tree->threshold_.push_back(tree_json.at("threshold").at(i));
+    // Handle type conversions for node_type, leaf_vector_begin/end, and category_list_begin/end
+    tree->node_type_.push_back(static_cast<TreeNodeType>(tree_json.at("node_type").at(i)));
+    tree->leaf_vector_begin_.push_back(static_cast<uint64_t>(tree_json.at("leaf_vector_begin").at(i)));
+    tree->leaf_vector_end_.push_back(static_cast<uint64_t>(tree_json.at("leaf_vector_end").at(i)));
+    tree->category_list_begin_.push_back(static_cast<uint64_t>(tree_json.at("category_list_begin").at(i)));
+    tree->category_list_end_.push_back(static_cast<uint64_t>(tree_json.at("category_list_end").at(i)));
+  }
+}
 
-// template <>
-// void UnpackArray<double>(const json11::Json& tree_json, std::vector<double>& vec, const std::string& vec_name) {
-//   vec.clear();
-//   for (const auto& elem : tree_json[vec_name].array_items()) {
-//     vec.push_back(elem.number_value());
-//   }
-// }
+void JsonToMultivariateLeafVector(const json& tree_json, Tree* tree) {
+  int num_entries = tree_json.at("leaf_vector").size();
+  for (int i = 0; i < num_entries; i++) {
+    tree->leaf_vector_.push_back(tree_json.at("leaf_vector").at(i));
+  }
+}
 
-// template <>
-// void UnpackArray<bool>(const json11::Json& tree_json, std::vector<bool>& vec, const std::string& vec_name) {
-//   vec.clear();
-//   for (const auto& elem : tree_json[vec_name].array_items()) {
-//     vec.push_back(elem.bool_value());
-//   }
-// }
+void JsonToSplitCategoryVector(const json& tree_json, Tree* tree) {
+  int num_entries = tree_json.at("category_list").size();
+  for (int i = 0; i < num_entries; i++) {
+    tree->category_list_.push_back(tree_json.at("category_list").at(i));
+  }
+}
 
-// template <>
-// void UnpackArray<TreeNodeType>(const json11::Json& tree_json, std::vector<TreeNodeType>& vec, const std::string& vec_name) {
-//   vec.clear();
-//   for (const auto& elem : tree_json[vec_name].array_items()) {
-//     vec.push_back(static_cast<TreeNodeType>(elem.int_value()));
-//   }
-// }
-
-// template <>
-// void UnpackArray<uint64_t>(const json11::Json& tree_json, std::vector<uint64_t>& vec, const std::string& vec_name) {
-//   vec.clear();
-//   for (const auto& elem : tree_json[vec_name].array_items()) {
-//     vec.push_back(static_cast<uint64_t>(elem.int_value()));
-//   }
-// }
-
-// template <>
-// void UnpackArray<uint32_t>(const json11::Json& tree_json, std::vector<uint32_t>& vec, const std::string& vec_name) {
-//   vec.clear();
-//   for (const auto& elem : tree_json[vec_name].array_items()) {
-//     vec.push_back(static_cast<uint32_t>(elem.int_value()));
-//   }
-// }
-
-// void Tree::from_json(const json11::Json& tree_json) {
-//   // Unpack non-array fields
-//   this->num_nodes = tree_json["num_nodes"].int_value();
-//   this->num_deleted_nodes = tree_json["num_deleted_nodes"].int_value();
-//   this->has_categorical_split_ = tree_json["has_categorical_split"].bool_value();
-//   this->output_dimension_ = tree_json["output_dimension"].int_value();
-
-//   // Unpack arrays
-//   UnpackArray<TreeNodeType>(tree_json, this->node_type_, "node_type");
-//   UnpackArray<int>(tree_json, this->parent_, "parent");
-//   UnpackArray<int>(tree_json, this->cleft_, "left");
-//   UnpackArray<int>(tree_json, this->cright_, "right");
-//   UnpackArray<int>(tree_json, this->split_index_, "split_index");
-//   UnpackArray<double>(tree_json, this->leaf_value_, "leaf_value");
-//   UnpackArray<double>(tree_json, this->threshold_, "threshold");
-//   UnpackArray<int>(tree_json, this->internal_nodes_, "internal_nodes");
-//   UnpackArray<int>(tree_json, this->leaves_, "leaves");
-//   UnpackArray<int>(tree_json, this->leaf_parents_, "leaf_parents");
-//   UnpackArray<int>(tree_json, this->deleted_nodes_, "deleted_nodes");
-
-//   UnpackArray<double>(tree_json, this->leaf_vector_, "leaf_vector");
-//   UnpackArray<uint64_t>(tree_json, this->leaf_vector_begin_, "leaf_vector_begin");
-//   UnpackArray<uint64_t>(tree_json, this->leaf_vector_end_, "leaf_vector_end");
-//   UnpackArray<uint32_t>(tree_json, this->category_list_, "category_list");
-//   UnpackArray<uint64_t>(tree_json, this->category_list_begin_, "category_list_begin");
-//   UnpackArray<uint64_t>(tree_json, this->category_list_end_, "category_list_end");
-
-//   UnpackArray<uint64_t>(tree_json, this->category_list_begin_, "category_list_begin");
-//   UnpackArray<uint64_t>(tree_json, this->category_list_end_, "category_list_end");
-// }
+void Tree::from_json(const json& tree_json) {
+  // Unpack non-array fields
+  tree_json.at("num_nodes").get_to(this->num_nodes);
+  tree_json.at("num_deleted_nodes").get_to(this->num_deleted_nodes);
+  tree_json.at("has_categorical_split").get_to(this->has_categorical_split_);
+  tree_json.at("output_dimension").get_to(this->output_dimension_);
+  this->num_deleted_nodes = 0;
+  
+  // Unpack the array based fields
+  JsonToTreeNodeVectors(tree_json, this);
+  JsonToMultivariateLeafVector(tree_json, this);
+  JsonToSplitCategoryVector(tree_json, this);
+  
+  // Reconstruct the internal_nodes, leaf_parents, and leaves vectors
+  for (int i = 0; i < this->num_nodes; i++) {
+    if (this->IsLeaf(i)) this->leaves_.push_back(i);
+    else if (this->IsLeafParent(i)) this->leaf_parents_.push_back(i);
+    else this->internal_nodes_.push_back(i);
+  }
+}
 
 } // namespace StochTree

@@ -279,10 +279,18 @@ void RunAPI() {
   std::ofstream o1(filename);
   o1 << model_json << std::endl;
 
-  // Read model from file
+  // Read and parse json from file
   std::ifstream f(filename);
   nlohmann::json file_tree_json = nlohmann::json::parse(f);
-  std::cout << file_tree_json.dump() << std::endl;
+  // std::cout << file_tree_json.dump() << std::endl;
+
+  // Load ensemble container from parsed json
+  ForestContainer forest_samples_parsed = ForestContainer(num_trees, output_dimension, is_leaf_constant);
+  forest_samples_parsed.from_json(file_tree_json);
+  
+  // Make sure we can predict from both the original and parsed forest containers
+  std::vector<double> pred_orig = forest_samples.Predict(dataset);
+  std::vector<double> pred_parsed = forest_samples_parsed.Predict(dataset);
 }
 
 } // namespace StochTree

@@ -93,22 +93,22 @@ json ForestContainer::to_json() {
   return result_obj;
 }
 
-// /*! \brief Load from JSON */
-// void ForestContainer::from_json(const json11::Json& json_forest_container) {
-//   this->num_samples_ = json_forest_container["num_samples"].int_value();
-//   this->num_trees_ = json_forest_container["num_trees"].int_value();
-//   this->output_dimension_ = json_forest_container["output_dimension"].int_value();
-//   this->is_leaf_constant_ = json_forest_container["is_leaf_constant"].bool_value();
-//   this->initialized_ = json_forest_container["initialized"].bool_value();
+/*! \brief Load from JSON */
+void ForestContainer::from_json(const json& forest_container_json) {
+  this->num_samples_ = forest_container_json.at("num_samples");
+  this->num_trees_ = forest_container_json.at("num_trees");
+  this->output_dimension_ = forest_container_json.at("output_dimension");
+  this->is_leaf_constant_ = forest_container_json.at("is_leaf_constant");
+  this->initialized_ = forest_container_json.at("initialized");
 
-//   std::string forest_label;
-//   forests_.clear();
-//   forests_.resize(this->num_samples_);
-//   for (int i = 0; i < this->num_samples_; i++) {
-//     forest_label = "forest_" + std::to_string(i);
-//     forests_[i] = std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_);
-//     forests_[i]->from_json(json_forest_container[forest_label]);
-//   }
-// }
+  std::string forest_label;
+  forests_.clear();
+  forests_.resize(this->num_samples_);
+  for (int i = 0; i < this->num_samples_; i++) {
+    forest_label = "forest_" + std::to_string(i);
+    forests_[i] = std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_);
+    forests_[i]->from_json(forest_container_json.at(forest_label));
+  }
+}
 
 } // namespace StochTree
