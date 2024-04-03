@@ -2,14 +2,17 @@
 #include <stochtree/container.h>
 #include <stochtree/data.h>
 #include <stochtree/io.h>
-#include <stochtree/json11.h>
+#include <nlohmann/json.hpp>
 #include <stochtree/leaf_model.h>
 #include <stochtree/log.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 
+#include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <optional>
 #include <random>
 #include <string>
 #include <unordered_map>
@@ -249,7 +252,7 @@ void RunAPI() {
   }
 
   // Run the MCMC sampler
-  int num_mcmc_samples = 10;
+  int num_mcmc_samples = 100;
   for (int i = num_gfr_samples; i < num_gfr_samples + num_mcmc_samples; i++) {
     if (i == 0) {
       global_variance = global_variance_init;
@@ -270,39 +273,16 @@ void RunAPI() {
     global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu*lamb, rng));
   }
 
-  // Quick check: tree json round trip
-  int sample_num = 2;
-  int tree_num = 3;
-  Tree* tree = forest_samples.GetEnsemble(sample_num)->GetTree(tree_num);
-  json11::Json tree_json = tree->to_json();
-  std::cout << tree_json.dump() << std::endl;
-  Tree new_tree = Tree();
-  new_tree.from_json(tree_json);
-  json11::Json new_tree_json = new_tree.to_json();
-  std::cout << new_tree_json.dump() << std::endl;
-
   // Write model to a file
   std::string filename = "model.json";
-  auto writer = VirtualFileWriter::Make(filename);
-  if (!writer->Init()) {
-    Log::Fatal("Model file %s is not available for writes", filename.c_str());
-  }
-  std::string str_to_write = forest_samples.to_json().dump();
-  auto size = writer->Write(str_to_write.c_str(), str_to_write.size());
+  nlohmann::json model_json = forest_samples.to_json();
+  std::ofstream o1(filename);
+  o1 << model_json << std::endl;
 
-  // Read model from a file
-  TextReader<size_t> model_reader(filename.c_str(), false);
-  size_t buffer_len = 0;
-  // auto buffer = model_reader.ReadContent(&buffer_len);
-  model_reader.ReadAllLines();
-  std::string json_model = model_reader.JoinedLines();
-  std::string error_string;
-  std::cout << json_model << std::endl;
-  json11::Json file_tree_json = json11::Json::parse(json_model, &error_string);
+  // Read model from file
+  std::ifstream f(filename);
+  nlohmann::json file_tree_json = nlohmann::json::parse(f);
   std::cout << file_tree_json.dump() << std::endl;
-  // json11::Json forest_extracted = file_tree_json["forest_19"];
-  // json11::Json last_tree = forest_extracted["tree_99"];
-  // std::cout << last_tree.dump() << std::endl;
 }
 
 } // namespace StochTree

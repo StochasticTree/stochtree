@@ -8,13 +8,17 @@
 
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
+#include <nlohmann/json.hpp>
 #include <stochtree/json11.h>
 #include <stochtree/tree.h>
 
 #include <algorithm>
 #include <deque>
+#include <optional>
 #include <random>
 #include <unordered_map>
+
+using json = nlohmann::json;
 
 namespace StochTree {
 
@@ -40,9 +44,9 @@ class ForestContainer {
   inline bool IsLeafConstant(int ensemble_num) {return forests_[ensemble_num]->IsLeafConstant();}
 
   /*! \brief Save to JSON */
-  json11::Json to_json();
+  json to_json();
   /*! \brief Load from JSON */
-  void from_json(const json11::Json& json_forest_container);
+  void from_json(const json& json_forest_container);
 
  private:
   std::vector<std::unique_ptr<TreeEnsemble>> forests_;

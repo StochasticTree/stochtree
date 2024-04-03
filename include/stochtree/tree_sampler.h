@@ -117,14 +117,14 @@ static void AddSplitToModel(ForestTracker& tracker, ForestDataset& dataset, Tree
   if (dataset.HasBasis()) {
     if (dataset.GetBasis().cols() > 1) {
       std::vector<double> temp_leaf_values(basis_dim, 0.);
-      tree->ExpandNode(leaf_node, feature_split, split, true, temp_leaf_values, temp_leaf_values);
+      tree->ExpandNode(leaf_node, feature_split, split, temp_leaf_values, temp_leaf_values);
     } else {
       double temp_leaf_value = 0.;
-      tree->ExpandNode(leaf_node, feature_split, split, true, temp_leaf_value, temp_leaf_value);
+      tree->ExpandNode(leaf_node, feature_split, split, temp_leaf_value, temp_leaf_value);
     }
   } else {
     double temp_leaf_value = 0.;
-    tree->ExpandNode(leaf_node, feature_split, split, true, temp_leaf_value, temp_leaf_value);
+    tree->ExpandNode(leaf_node, feature_split, split, temp_leaf_value, temp_leaf_value);
   }
   int left_node = tree->LeftChild(leaf_node);
   int right_node = tree->RightChild(leaf_node);

@@ -5,6 +5,7 @@
 #ifndef STOCHTREE_COMMON_H_
 #define STOCHTREE_COMMON_H_
 
+// #include <nlohmann/json.hpp>
 #include <stochtree/json11.h>
 #include <stochtree/log.h>
 
@@ -27,6 +28,9 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+// using json = nlohmann::json;
+using Json = json11::Json;
 
 #define FMT_HEADER_ONLY
 #include "../../dependencies/fast_double_parser/include/fast_double_parser.h"
@@ -57,7 +61,7 @@ namespace StochTree {
 
 namespace Common {
 
-using json11::Json;
+// using json11::Json;
 
 /*!
 * Imbues the stream with the C locale.

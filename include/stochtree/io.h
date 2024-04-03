@@ -19,6 +19,7 @@
 
 #include <stochtree/common.h>
 #include <stochtree/export.h>
+// #include <nlohmann/json.hpp>
 #include <stochtree/json11.h>
 #include <stochtree/meta.h>
 #include <stochtree/log.h>
@@ -37,6 +38,8 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+// using json = nlohmann::json;
 
 namespace StochTree {
 

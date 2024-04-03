@@ -6,15 +6,20 @@
 #ifndef STOCHTREE_TREE_H_
 #define STOCHTREE_TREE_H_
 
-#include <stochtree/json11.h>
+#include <nlohmann/json.hpp>
+// #include <stochtree/json11.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <Eigen/Dense>
 
 #include <cstdint>
+#include <map>
+#include <optional>
 #include <set>
 #include <stack>
 #include <string>
+
+using json = nlohmann::json;
 
 namespace StochTree {
 
@@ -54,8 +59,6 @@ class Tree {
   Tree(Tree&&) noexcept = default;
   Tree& operator=(Tree&&) noexcept = default;
 
-  Tree* Clone();
-
   void CloneFromTree(Tree* tree);
 
   /*! \brief Number of nodes */
@@ -72,22 +75,22 @@ class Tree {
   /*! \brief Deletes node indexed by node ID */
   void DeleteNode(std::int32_t nid);
   /*! \brief Expand a node based on a numeric split rule */
-  void ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, double left_value, double right_value);
+  void ExpandNode(std::int32_t nid, int split_index, double split_value, double left_value, double right_value);
   /*! \brief Expand a node based on a categorical split rule */
-  void ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, double left_value, double right_value);
+  void ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, double left_value, double right_value);
   /*! \brief Expand a node based on a numeric split rule */
-  void ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
+  void ExpandNode(std::int32_t nid, int split_index, double split_value, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
   /*! \brief Expand a node based on a categorical split rule */
-  void ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
+  void ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
     /*! \brief Expand a node based on a generic split rule */
-  void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, double left_value, double right_value);
+  void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, double left_value, double right_value);
   /*! \brief Expand a node based on a generic split rule */
-  void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
+  void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
   
   /*! \brief Save to JSON */
-  json11::Json to_json();
+  json to_json();
   /*! \brief Load from JSON */
-  void from_json(const json11::Json& tree_json);
+  void from_json(const json& tree_json);
 
   /*!
    * \brief change a non leaf node to a leaf node, delete its children
@@ -257,7 +260,7 @@ class Tree {
    * \param nid ID of node being queried
    */
   std::int32_t DefaultChild(std::int32_t nid) const {
-    return default_left_[nid] ? cleft_[nid] : cright_[nid];
+    return cleft_[nid];
   }
   
   /*!
@@ -268,13 +271,6 @@ class Tree {
     return split_index_[nid];
   }
   
-  /*!
-   * \brief Whether to use the left child node, when the feature in the split condition is missing
-   * \param nid ID of node being queried
-   */
-  bool DefaultLeft(std::int32_t nid) const {
-    return default_left_[nid];
-  }
   
   /*!
    * \brief Whether the node is leaf node
@@ -545,21 +541,19 @@ class Tree {
    * \param nid ID of node being updated
    * \param split_index Feature index to split
    * \param threshold Threshold value
-   * \param default_left Default direction when feature is unknown
    */
   void SetNumericSplit(
-      std::int32_t nid, std::int32_t split_index, double threshold, bool default_left);
+      std::int32_t nid, std::int32_t split_index, double threshold);
   
   /*!
    * \brief Create a categorical split
    * \param nid ID of node being updated
    * \param split_index Feature index to split
-   * \param default_left Default direction when feature is unknown
    * \param category_list List of categories to belong to either the right child node or the left
    *                      child node. Set categories_list_right_child parameter to indicate
    *                      which node the category list should represent.
    */
-  void SetCategoricalSplit(std::int32_t nid, std::int32_t split_index, bool default_left,
+  void SetCategoricalSplit(std::int32_t nid, std::int32_t split_index,
       std::vector<std::uint32_t> const& category_list);
   
   /*!
@@ -582,7 +576,6 @@ class Tree {
   std::vector<std::int32_t> cleft_;
   std::vector<std::int32_t> cright_;
   std::vector<std::int32_t> split_index_;
-  std::vector<bool> default_left_;
   std::vector<double> leaf_value_;
   std::vector<double> threshold_;
   std::vector<std::int32_t> internal_nodes_;

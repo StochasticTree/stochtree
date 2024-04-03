@@ -13,12 +13,12 @@ TEST(Tree, UnivariateTreeConstruction) {
   StochTree::Tree tree;
   tree.Init(1);
   ASSERT_EQ(tree.LeafValue(0), 0.);
-  tree.ExpandNode(0, 0, 0., true, 0., 0.);
+  tree.ExpandNode(0, 0, 0., 0., 0.);
   ASSERT_EQ(tree.NumNodes(), 3);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kNumericalSplitNode);
   tree.CollapseToLeaf(0, 0.);
   ASSERT_EQ(tree.NumValidNodes(), 1);
-  tree.ExpandNode(0, 0, 0., true, 0., 0.);
+  tree.ExpandNode(0, 0, 0., 0., 0.);
   ASSERT_EQ(tree.NumValidNodes(), 3);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kNumericalSplitNode);
   ASSERT_EQ(tree.NumLeaves(), 2);
@@ -35,9 +35,9 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   
   // Perform two splits
   split = StochTree::TreeSplit(0.5);
-  tree_1.ExpandNode(0, 0, split, true, 0., 0.);
+  tree_1.ExpandNode(0, 0, split, 0., 0.);
   split = StochTree::TreeSplit(0.75);
-  tree_1.ExpandNode(1, 1, split, true, 0., 0.);
+  tree_1.ExpandNode(1, 1, split, 0., 0.);
   ASSERT_EQ(tree_1.NumValidNodes(), 5);
   ASSERT_EQ(tree_1.NumLeafParents(), 1);
   
@@ -54,7 +54,7 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   
   // Perform another split
   split = StochTree::TreeSplit(0.6);
-  tree_1.ExpandNode(3, 2, split, true, 0., 0.);
+  tree_1.ExpandNode(3, 2, split, 0., 0.);
   ASSERT_EQ(tree_1.NumValidNodes(), 7);
   ASSERT_EQ(tree_1.NumLeaves(), 4);
   ASSERT_EQ(tree_1.NumLeafParents(), 1);
@@ -98,12 +98,12 @@ TEST(Tree, UnivariateTreeCategoricalSplitConstruction) {
   StochTree::Tree tree;
   tree.Init(1);
   ASSERT_EQ(tree.LeafValue(0), 0.);
-  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{1,4,6}, true, 0., 0.);
+  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{1,4,6}, 0., 0.);
   ASSERT_EQ(tree.NumNodes(), 3);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kCategoricalSplitNode);
   tree.CollapseToLeaf(0, 0.);
   ASSERT_EQ(tree.NumValidNodes(), 1);
-  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{2,3,5}, true, 0., 0.);
+  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{2,3,5}, 0., 0.);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kCategoricalSplitNode);
   ASSERT_EQ(tree.NumValidNodes(), 3);
   ASSERT_EQ(tree.NumLeaves(), 2);
@@ -117,15 +117,15 @@ TEST(Tree, MultivariateTreeConstruction) {
   int tree_dim = 2;
   std::vector<double> leaf_values(tree_dim, 0.);
   tree.Init(tree_dim);
-  EXPECT_THROW(tree.ExpandNode(0, 0, 0., true, 0., 0.), std::runtime_error);
+  EXPECT_THROW(tree.ExpandNode(0, 0, 0., 0., 0.), std::runtime_error);
   ASSERT_EQ(tree.LeafVector(0), leaf_values);
-  tree.ExpandNode(0, 0, 0., true, leaf_values, leaf_values);
+  tree.ExpandNode(0, 0, 0., leaf_values, leaf_values);
   ASSERT_EQ(tree.NumNodes(), 3);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kNumericalSplitNode);
   EXPECT_THROW(tree.CollapseToLeaf(0, 0.);, std::runtime_error);
   tree.CollapseToLeaf(0, leaf_values);
   ASSERT_EQ(tree.NumValidNodes(), 1);
-  tree.ExpandNode(0, 0, 0., true, leaf_values, leaf_values);
+  tree.ExpandNode(0, 0, 0., leaf_values, leaf_values);
   ASSERT_EQ(tree.NumValidNodes(), 3);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kNumericalSplitNode);
   ASSERT_EQ(tree.NumLeaves(), 2);
@@ -140,12 +140,12 @@ TEST(Tree, MultivariateTreeCategoricalSplitConstruction) {
   std::vector<double> leaf_values(tree_dim, 0.);
   tree.Init(tree_dim);
   ASSERT_EQ(tree.LeafVector(0), leaf_values);
-  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{1,4,6}, true, leaf_values, leaf_values);
+  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{1,4,6}, leaf_values, leaf_values);
   ASSERT_EQ(tree.NumNodes(), 3);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kCategoricalSplitNode);
   tree.CollapseToLeaf(0, leaf_values);
   ASSERT_EQ(tree.NumValidNodes(), 1);
-  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{2,3,5}, true, leaf_values, leaf_values);
+  tree.ExpandNode(0, 0, std::vector<std::uint32_t>{2,3,5}, leaf_values, leaf_values);
   ASSERT_EQ(tree.NodeType(0), StochTree::TreeNodeType::kCategoricalSplitNode);
   ASSERT_EQ(tree.NumValidNodes(), 3);
   ASSERT_EQ(tree.NumLeaves(), 2);
