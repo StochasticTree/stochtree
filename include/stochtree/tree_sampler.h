@@ -351,8 +351,8 @@ class MCMCForestSampler {
       std::log(p_leaf_parent) - std::log(prob_grow_old) - std::log(p_leaf) + no_split_log_marginal_likelihood - split_log_marginal_likelihood
     );
     // Threshold at 0
-    if (log_mh_ratio > 1) {
-      log_mh_ratio = 1;
+    if (log_mh_ratio > 0) {
+      log_mh_ratio = 0;
     }
 
     // Draw a uniform random variable and accept/reject the proposal on this basis
