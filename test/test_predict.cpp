@@ -33,9 +33,9 @@ TEST(Ensemble, PredictConstant) {
   // Simple split rules on both trees
   auto* tree = ensemble.GetTree(0);
   StochTree::TreeSplit tree_split = StochTree::TreeSplit(0.5);
-  tree->ExpandNode(0, 0, tree_split, true, -5., 5.);
+  tree->ExpandNode(0, 0, tree_split, -5., 5.);
   tree = ensemble.GetTree(1);
-  tree->ExpandNode(0, 1, tree_split, true, -2.5, 2.5);;
+  tree->ExpandNode(0, 1, tree_split, -2.5, 2.5);;
 
   // Run predict on the supplied covariates and check the result
   std::vector<double> result(n*output_dim);
@@ -69,9 +69,9 @@ TEST(Ensemble, PredictUnivariateRegression) {
   // Simple split rules on both trees
   auto* tree = ensemble.GetTree(0);
   StochTree::TreeSplit tree_split = StochTree::TreeSplit(0.5);
-  tree->ExpandNode(0, 0, tree_split, true, -5., 5.);
+  tree->ExpandNode(0, 0, tree_split, -5., 5.);
   tree = ensemble.GetTree(1);
-  tree->ExpandNode(0, 1, tree_split, true, -2.5, 2.5);;
+  tree->ExpandNode(0, 1, tree_split, -2.5, 2.5);;
 
   // Run predict on the supplied covariates and check the result
   std::vector<double> result(n*output_dim);
@@ -104,9 +104,9 @@ TEST(Ensemble, PredictMultivariateRegression) {
   // Simple split rules on both trees
   auto* tree = ensemble.GetTree(0);
   StochTree::TreeSplit tree_split = StochTree::TreeSplit(0.5);
-  tree->ExpandNode(0, 0, 0.5, true, std::vector<double>{-5, -2.5}, std::vector<double>{5, 2.5});
+  tree->ExpandNode(0, 0, 0.5, std::vector<double>{-5, -2.5}, std::vector<double>{5, 2.5});
   tree = ensemble.GetTree(1);
-  tree->ExpandNode(0, 1, 0.5, true, std::vector<double>{-2.5, -1.25}, std::vector<double>{2.5, 1.25});
+  tree->ExpandNode(0, 1, 0.5, std::vector<double>{-2.5, -1.25}, std::vector<double>{2.5, 1.25});
 
   // Run predict on the supplied covariates and basis function and check the result
   std::vector<double> result(n);

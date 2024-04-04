@@ -12,11 +12,15 @@
 
 #include <stochtree/data.h>
 #include <stochtree/tree.h>
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <deque>
+#include <optional>
 #include <random>
 #include <unordered_map>
+
+using json = nlohmann::json;
 
 namespace StochTree {
 
@@ -65,10 +69,6 @@ class TreeEnsemble {
   inline void ResetInitTree(int i) {
     trees_[i].reset(new Tree());
     trees_[i]->Init(output_dimension_);
-  }
-
-  inline void CopyTree(int i, Tree* tree) {
-    return trees_[i].reset(tree->Clone());
   }
 
   inline void CloneFromExistingTree(int i, Tree* tree) {
@@ -193,6 +193,38 @@ class TreeEnsemble {
 
   inline bool IsLeafConstant() {
     return is_leaf_constant_;
+  }
+
+  /*! \brief Save to JSON */
+  json to_json() {
+    json result_obj;
+    result_obj.emplace("num_trees", this->num_trees_);
+    result_obj.emplace("output_dimension", this->output_dimension_);
+    result_obj.emplace("is_leaf_constant", this->is_leaf_constant_);
+
+    std::string tree_label;
+    for (int i = 0; i < trees_.size(); i++) {
+      tree_label = "tree_" + std::to_string(i);
+      result_obj.emplace(tree_label, trees_[i]->to_json());
+    }
+    
+    return result_obj;
+  }
+  
+  /*! \brief Load from JSON */
+  void from_json(const json& ensemble_json) {
+    this->num_trees_ = ensemble_json.at("num_trees");
+    this->output_dimension_ = ensemble_json.at("output_dimension");
+    this->is_leaf_constant_ = ensemble_json.at("is_leaf_constant");
+
+    std::string tree_label;
+    trees_.clear();
+    trees_.resize(this->num_trees_);
+    for (int i = 0; i < this->num_trees_; i++) {
+      tree_label = "tree_" + std::to_string(i);
+      trees_[i] = std::make_unique<Tree>();
+      trees_[i]->from_json(ensemble_json.at(tree_label));
+    }
   }
 
  private:

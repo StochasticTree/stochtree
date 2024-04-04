@@ -1,17 +1,30 @@
 /*! Copyright (c) 2024 stochtree authors*/
-#include <stochtree/data.h>
 #include <stochtree/container.h>
+#include <stochtree/data.h>
+#include <stochtree/io.h>
+#include <nlohmann/json.hpp>
 #include <stochtree/leaf_model.h>
+#include <stochtree/log.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
+#include <stochtree/variance_model.h>
 
+#include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <optional>
 #include <random>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace StochTree{
+
+enum ForestLeafModel {
+    kConstant, 
+    kUnivariateRegression, 
+    kMultivariateRegression
+};
 
 void GenerateRandomData(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, int n, int x_cols, int omega_cols, int y_cols, int rfx_basis_cols) {
   std::mt19937 gen(101);
@@ -83,6 +96,42 @@ void OutcomeOffsetScale(ColumnVector& residual, double& outcome_offset, double& 
   }
 }
 
+void sampleGFR(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& forest_samples, ForestDataset& dataset, 
+               ColumnVector& residual, std::mt19937& rng, std::vector<FeatureType>& feature_types, std::vector<double>& var_weights_vector, 
+               ForestLeafModel leaf_model_type, Eigen::MatrixXd& leaf_scale_matrix, double global_variance, double leaf_scale, int cutpoint_grid_size) {
+  if (leaf_model_type == ForestLeafModel::kConstant) {
+    GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_scale);
+    GFRForestSampler<GaussianConstantLeafModel> sampler = GFRForestSampler<GaussianConstantLeafModel>(cutpoint_grid_size);
+    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types);
+  } else if (leaf_model_type == ForestLeafModel::kUnivariateRegression) {
+    GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_scale);
+    GFRForestSampler<GaussianUnivariateRegressionLeafModel> sampler = GFRForestSampler<GaussianUnivariateRegressionLeafModel>(cutpoint_grid_size);
+    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types);
+  } else if (leaf_model_type == ForestLeafModel::kMultivariateRegression) {
+    GaussianMultivariateRegressionLeafModel leaf_model = GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
+    GFRForestSampler<GaussianMultivariateRegressionLeafModel> sampler = GFRForestSampler<GaussianMultivariateRegressionLeafModel>(cutpoint_grid_size);
+    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types);
+  }
+}
+
+void sampleMCMC(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& forest_samples, ForestDataset& dataset, 
+                ColumnVector& residual, std::mt19937& rng, std::vector<FeatureType>& feature_types, std::vector<double>& var_weights_vector, 
+                ForestLeafModel leaf_model_type, Eigen::MatrixXd& leaf_scale_matrix, double global_variance, double leaf_scale, int cutpoint_grid_size) {
+  if (leaf_model_type == ForestLeafModel::kConstant) {
+    GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_scale);
+    MCMCForestSampler<GaussianConstantLeafModel> sampler = MCMCForestSampler<GaussianConstantLeafModel>();
+    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
+  } else if (leaf_model_type == ForestLeafModel::kUnivariateRegression) {
+    GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_scale);
+    MCMCForestSampler<GaussianUnivariateRegressionLeafModel> sampler = MCMCForestSampler<GaussianUnivariateRegressionLeafModel>();
+    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
+  } else if (leaf_model_type == ForestLeafModel::kMultivariateRegression) {
+    GaussianMultivariateRegressionLeafModel leaf_model = GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
+    MCMCForestSampler<GaussianMultivariateRegressionLeafModel> sampler = MCMCForestSampler<GaussianMultivariateRegressionLeafModel>();
+    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
+  }
+}
+
 void RunAPI() {
   // Data dimensions
   int n = 1000;
@@ -120,10 +169,10 @@ void RunAPI() {
   double outcome_scale;
   OutcomeOffsetScale(residual, outcome_offset, outcome_scale);
 
-  // Construct a random effects dataset
-  RandomEffectsDataset rfx_dataset = RandomEffectsDataset();
-  rfx_dataset.AddBasis(rfx_basis_raw.data(), n, rfx_basis_cols, row_major);
-  rfx_dataset.AddGroupLabels(rfx_groups);
+  // // Construct a random effects dataset
+  // RandomEffectsDataset rfx_dataset = RandomEffectsDataset();
+  // rfx_dataset.AddBasis(rfx_basis_raw.data(), n, rfx_basis_cols, row_major);
+  // rfx_dataset.AddGroupLabels(rfx_groups);
   
   // Initialize an ensemble
   int num_trees = 100;
@@ -136,72 +185,105 @@ void RunAPI() {
   double leaf_prior_scale = 1.;
   GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_prior_scale);
 
-  // // Check consistency
-  // CHECK(ForestModelCompatible(forest_samples, leaf_model));
-
-  // // Initialize a global variance model
-  // double a_global_variance = 1.;
-  // double b_global_variance = 1.;
-  // HomoskedasticVarianceModel global_variance_model = HomoskedasticVarianceModel(a_global_variance, b_global_variance);
-  
-  // Check consistency
-
   // Initialize forest sampling machinery
   std::vector<FeatureType> feature_types(x_cols, FeatureType::kNumeric);
-  std::vector<double> variable_weights(x_cols, static_cast<double>(1/x_cols));
   double alpha = 0.99;
   double beta = 1.25;
   int min_samples_leaf = 10;
-  int cutpoint_grid_size = 500;
+  int cutpoint_grid_size = 100;
   double a_rfx = 1.;
   double b_rfx = 1.;
-  TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf);
-  GFRForestSampler gfr_sampler = GFRForestSampler<GaussianUnivariateRegressionLeafModel>(cutpoint_grid_size);
-  MCMCForestSampler mcmc_sampler = MCMCForestSampler<GaussianUnivariateRegressionLeafModel>();
-  ForestTracker tracker = ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
+  double a_leaf = 2.;
+  double b_leaf = 0.5;
+  double nu = 4.;
+  double lamb = 0.5;
+  ForestLeafModel leaf_model_type = ForestLeafModel::kUnivariateRegression;
 
-  // Initialize random effect sampling machinery
-  RandomEffectsTracker rfx_tracker = RandomEffectsTracker(rfx_groups);
-  RandomEffectsContainer rfx_samples = RandomEffectsContainer();
-  MultivariateRegressionRandomEffectsModel rfx_model = MultivariateRegressionRandomEffectsModel();
-  double rfx_scale = 0.5;
-  Eigen::MatrixXd working_parameter_prior_covariance = Eigen::MatrixXd::Identity(rfx_basis_cols, rfx_basis_cols);
-  Eigen::MatrixXd group_parameter_prior_covariance = Eigen::MatrixXd::Identity(rfx_basis_cols, rfx_basis_cols) * rfx_scale;
-  Eigen::VectorXd working_parameter_init = Eigen::VectorXd::Ones(rfx_basis_cols);
-  Eigen::MatrixXd group_parameter_init = Eigen::MatrixXd::Ones(rfx_basis_cols, rfx_tracker.NumCategories());
-  double group_parameter_variance_prior_shape = 1.;
-  double group_parameter_variance_prior_scale = 1.;
+  // Set leaf model parameters
+  double leaf_scale_init = 1.;
+  Eigen::MatrixXd leaf_scale_matrix, leaf_scale_matrix_init;
+  // leaf_scale_matrix_init << 1.0, 0.0, 0.0, 1.0;
+  double leaf_scale;
+
+  // Set global variance
+  double global_variance_init = 1.0;
+  double global_variance;
+
+  // Set variable weights
+  double const_var_wt = static_cast<double>(1/x_cols);
+  std::vector<double> variable_weights(x_cols, const_var_wt);
+
+  // Initialize tracker and tree prior
+  ForestTracker tracker = ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
+  TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf);
+
+  // Initialize a random number generator
+  int random_seed = 1234;
+  std::mt19937 rng = std::mt19937(random_seed);
   
-  // Run a single iteration of the GFR algorithm
-  int random_seed = 1;
-  std::mt19937 gen = std::mt19937(random_seed);
-  double global_variance = 0.1;
-  
-  // Run GFR ensemble sampler and other parameter samplers in a loop
+  // Initialize variance models
+  GlobalHomoskedasticVarianceModel global_var_model = GlobalHomoskedasticVarianceModel();
+  LeafNodeHomoskedasticVarianceModel leaf_var_model = LeafNodeHomoskedasticVarianceModel();
+
+  // Initialize storage for samples of variance
+  std::vector<double> global_variance_samples{};
+  std::vector<double> leaf_variance_samples{};
+
+  // Run the GFR sampler
   int num_gfr_samples = 10;
   for (int i = 0; i < num_gfr_samples; i++) {
-    // Tree ensemble sampler
-    gfr_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types);
+    if (i == 0) {
+      global_variance = global_variance_init;
+      leaf_scale = leaf_scale_init;
+    } else {
+      global_variance = global_variance_samples[i-1];
+      leaf_scale = leaf_variance_samples[i-1];
+    }
 
-    // Random effects
-    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init, 
-                           working_parameter_prior_covariance, group_parameter_prior_covariance,
-                           group_parameter_variance_prior_shape, group_parameter_variance_prior_scale, 1);
-    rfx_model.SampleRandomEffects(rfx_samples.GetRandomEffectsTerm(i), rfx_dataset, residual, rfx_tracker, global_variance, gen);
+    // Sample tree ensemble
+    sampleGFR(tracker, tree_prior, forest_samples, dataset, residual, rng, feature_types, variable_weights, 
+              leaf_model_type, leaf_scale_matrix, global_variance, leaf_scale, cutpoint_grid_size);
+
+    // Sample leaf node variance
+    leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, rng));
+
+    // Sample global variance
+    global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu*lamb, rng));
   }
 
-  // Run MCMC ensemble sampler and other parameter samplers in a loop
-  int num_mcmc_samples = 10;
-  for (int i = 0; i < num_mcmc_samples; i++) {
-    // Tree ensemble sampler
-    mcmc_sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, gen, variable_weights, global_variance);
+  // Run the MCMC sampler
+  int num_mcmc_samples = 100;
+  for (int i = num_gfr_samples; i < num_gfr_samples + num_mcmc_samples; i++) {
+    if (i == 0) {
+      global_variance = global_variance_init;
+      leaf_scale = leaf_scale_init;
+    } else {
+      global_variance = global_variance_samples[i-1];
+      leaf_scale = leaf_variance_samples[i-1];
+    }
 
-    // Random effects
-    rfx_samples.AddSamples(rfx_dataset, rfx_tracker, working_parameter_init, group_parameter_init,
-                           working_parameter_prior_covariance, group_parameter_prior_covariance,
-                           group_parameter_variance_prior_shape, group_parameter_variance_prior_scale, 1);
-    rfx_model.SampleRandomEffects(rfx_samples.GetRandomEffectsTerm(i + num_gfr_samples), rfx_dataset, residual, rfx_tracker, global_variance, gen);
+    // Sample tree ensemble
+    sampleMCMC(tracker, tree_prior, forest_samples, dataset, residual, rng, feature_types, variable_weights, 
+               leaf_model_type, leaf_scale_matrix, global_variance, leaf_scale, cutpoint_grid_size);
+
+    // Sample leaf node variance
+    leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, rng));
+
+    // Sample global variance
+    global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu*lamb, rng));
   }
+
+  // Write model to a file
+  std::string filename = "model.json";
+  forest_samples.SaveToJsonFile(filename);
+
+  // Read and parse json from file
+  ForestContainer forest_samples_parsed = ForestContainer(num_trees, output_dimension, is_leaf_constant);
+  forest_samples_parsed.LoadFromJsonFile(filename);
+  
+  // Make sure we can predict from both the original and parsed forest containers
+  std::vector<double> pred_orig = forest_samples.Predict(dataset);
+  std::vector<double> pred_parsed = forest_samples_parsed.Predict(dataset);
 }
 
 } // namespace StochTree

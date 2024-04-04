@@ -8,6 +8,8 @@
 #include <stochtree/tree.h>
 
 #include <algorithm>
+#include <cmath>
+#include <type_traits>
 #include <sstream>
 
 namespace StochTree {
@@ -100,41 +102,6 @@ std::vector<double> Tree::PredictFromNodes(std::vector<std::int32_t> node_indice
   return result;
 }
 
-Tree* Tree::Clone() {
-  // Create tree with empty vectors / default scalar values
-  Tree tree{};
-  tree.Reset();
-
-  // Copy vectors from existing tree
-  tree.num_nodes = num_nodes;
-  tree.num_deleted_nodes = num_deleted_nodes;
-
-  tree.node_type_ = node_type_;
-  tree.parent_ = parent_;
-  tree.cleft_ = cleft_;
-  tree.cright_ = cright_;
-  tree.split_index_ = split_index_;
-  tree.default_left_ = default_left_;
-  tree.leaf_value_ = leaf_value_;
-  tree.threshold_ = threshold_;
-  tree.internal_nodes_ = internal_nodes_;
-  tree.leaves_ = leaves_;
-  tree.leaf_parents_ = leaf_parents_;
-  tree.deleted_nodes_ = deleted_nodes_;
-
-  tree.leaf_vector_ = leaf_vector_;
-  tree.leaf_vector_begin_ = leaf_vector_begin_;
-  tree.leaf_vector_end_ = leaf_vector_end_;
-  tree.category_list_ = category_list_;
-  tree.category_list_begin_ = category_list_begin_;
-  tree.category_list_end_ = category_list_end_;
-
-  tree.has_categorical_split_ = has_categorical_split_;
-  tree.output_dimension_ = output_dimension_;
-
-  return &tree;
-}
-
 void Tree::CloneFromTree(Tree* tree) {
   // Copy vectors from existing tree
   num_nodes = tree->num_nodes;
@@ -145,7 +112,6 @@ void Tree::CloneFromTree(Tree* tree) {
   cleft_ = tree->cleft_;
   cright_ = tree->cright_;
   split_index_ = tree->split_index_;
-  default_left_ = tree->default_left_;
   leaf_value_ = tree->leaf_value_;
   threshold_ = tree->threshold_;
   internal_nodes_ = tree->internal_nodes_;
@@ -180,7 +146,6 @@ std::int32_t Tree::AllocNode() {
   cleft_.push_back(kInvalidNodeId);
   cright_.push_back(kInvalidNodeId);
   split_index_.push_back(-1);
-  default_left_.push_back(false);
   leaf_value_.push_back(static_cast<double>(0));
   threshold_.push_back(static_cast<double>(0));
   // THIS is a placeholder, currently set after AllocNode is called ... 
@@ -214,13 +179,13 @@ void Tree::DeleteNode(std::int32_t nid) {
   internal_nodes_.erase(std::remove(internal_nodes_.begin(), internal_nodes_.end(), nid), internal_nodes_.end());
 }
 
-void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, double left_value, double right_value) {
+void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, double left_value, double right_value) {
   CHECK_EQ(output_dimension_, 1);
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
   this->SetChildren(nid, pleft, pright);
   this->SetParents(nid, pleft, pright);
-  this->SetNumericSplit(nid, split_index, split_value, default_left);
+  this->SetNumericSplit(nid, split_index, split_value);
   this->SetLeaf(pleft, left_value);
   this->SetLeaf(pright, right_value);
 
@@ -240,13 +205,13 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, boo
   leaves_.push_back(pright);
 }
 
-void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, double left_value, double right_value) {
+void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, double left_value, double right_value) {
   CHECK_EQ(output_dimension_, 1);
   int pleft = this->AllocNode();
   int pright = this->AllocNode();
   this->SetChildren(nid, pleft, pright);
   this->SetParents(nid, pleft, pright);
-  this->SetCategoricalSplit(nid, split_index, default_left, categorical_indices);
+  this->SetCategoricalSplit(nid, split_index, categorical_indices);
   this->SetLeaf(pleft, left_value);
   this->SetLeaf(pright, right_value);
 
@@ -266,7 +231,7 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
   leaves_.push_back(pright);
 }
 
-void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
+void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
   CHECK_GT(output_dimension_, 1);
   CHECK_EQ(output_dimension_, left_value_vector.size());
   CHECK_EQ(output_dimension_, right_value_vector.size());
@@ -274,7 +239,7 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, boo
   int pright = this->AllocNode();
   this->SetChildren(nid, pleft, pright);
   this->SetParents(nid, pleft, pright);
-  this->SetNumericSplit(nid, split_index, split_value, default_left);
+  this->SetNumericSplit(nid, split_index, split_value);
   this->SetLeafVector(pleft, left_value_vector);
   this->SetLeafVector(pright, right_value_vector);
 
@@ -294,7 +259,7 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, double split_value, boo
   leaves_.push_back(pright);
 }
 
-void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
+void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32_t> const& categorical_indices, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
   CHECK_GT(output_dimension_, 1);
   CHECK_EQ(output_dimension_, left_value_vector.size());
   CHECK_EQ(output_dimension_, right_value_vector.size());
@@ -302,7 +267,7 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
   int pright = this->AllocNode();
   this->SetChildren(nid, pleft, pright);
   this->SetParents(nid, pleft, pright);
-  this->SetCategoricalSplit(nid, split_index, default_left, categorical_indices);
+  this->SetCategoricalSplit(nid, split_index, categorical_indices);
   this->SetLeafVector(pleft, left_value_vector);
   this->SetLeafVector(pright, right_value_vector);
 
@@ -322,21 +287,21 @@ void Tree::ExpandNode(std::int32_t nid, int split_index, std::vector<std::uint32
   leaves_.push_back(pright);
 }
 
-void Tree::ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, double left_value, double right_value) {
+void Tree::ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, double left_value, double right_value) {
   CHECK_EQ(output_dimension_, 1);
   if (split.NumericSplit()) {
-    ExpandNode(nid, split_index, split.SplitValue(), default_left, left_value, right_value);
+    ExpandNode(nid, split_index, split.SplitValue(), left_value, right_value);
   } else {
-    ExpandNode(nid, split_index, split.SplitCategories(), default_left, left_value, right_value);
+    ExpandNode(nid, split_index, split.SplitCategories(), left_value, right_value);
   }
 }
 
-void Tree::ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, bool default_left, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
+void Tree::ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, std::vector<double> left_value_vector, std::vector<double> right_value_vector) {
   CHECK_GT(output_dimension_, 1);
   if (split.NumericSplit()) {
-    ExpandNode(nid, split_index, split.SplitValue(), default_left, left_value_vector, right_value_vector);
+    ExpandNode(nid, split_index, split.SplitValue(), left_value_vector, right_value_vector);
   } else {
-    ExpandNode(nid, split_index, split.SplitCategories(), default_left, left_value_vector, right_value_vector);
+    ExpandNode(nid, split_index, split.SplitCategories(), left_value_vector, right_value_vector);
   }
 }
 
@@ -346,7 +311,6 @@ void Tree::Reset() {
   cleft_.clear();
   cright_.clear();
   split_index_.clear();
-  default_left_.clear();
   leaf_value_.clear();
   threshold_.clear();
   parent_.clear();
@@ -380,7 +344,6 @@ void Tree::Init(std::int32_t output_dimension) {
   cleft_.clear();
   cright_.clear();
   split_index_.clear();
-  default_left_.clear();
   leaf_value_.clear();
   threshold_.clear();
   parent_.clear();
@@ -416,15 +379,13 @@ void Tree::Init(std::int32_t output_dimension) {
   leaves_.push_back(rid);
 }
 
-void Tree::SetNumericSplit(std::int32_t nid, std::int32_t split_index, double threshold, bool default_left) {
+void Tree::SetNumericSplit(std::int32_t nid, std::int32_t split_index, double threshold) {
   split_index_.at(nid) = split_index;
   threshold_.at(nid) = threshold;
-  default_left_.at(nid) = default_left;
   node_type_.at(nid) = TreeNodeType::kNumericalSplitNode;
 }
 
-void Tree::SetCategoricalSplit(std::int32_t nid,
-    std::int32_t split_index, bool default_left, std::vector<std::uint32_t> const& category_list) {
+void Tree::SetCategoricalSplit(std::int32_t nid, std::int32_t split_index, std::vector<std::uint32_t> const& category_list) {
   // CHECK(CategoryList(nid).empty());
   std::size_t const begin = category_list_.size();
   std::size_t const end = begin + category_list.size();
@@ -433,7 +394,6 @@ void Tree::SetCategoricalSplit(std::int32_t nid,
   category_list_end_.at(nid) = end;
 
   split_index_.at(nid) = split_index;
-  default_left_.at(nid) = default_left;
   node_type_.at(nid) = TreeNodeType::kCategoricalSplitNode;
 
   has_categorical_split_ = true;
@@ -476,6 +436,208 @@ void Tree::SetLeafVector(std::int32_t nid, std::vector<double> const& node_leaf_
   cleft_.at(nid) = kInvalidNodeId;
   cright_.at(nid) = kInvalidNodeId;
   node_type_.at(nid) = TreeNodeType::kLeafNode;
+}
+
+void TreeNodeVectorsToJson(json& obj, Tree* tree) {
+  // Initialize a map with names of the node vectors and empty json arrays
+  std::map<std::string, json> tree_array_map;
+  tree_array_map.emplace(std::pair("node_type", json::array()));
+  tree_array_map.emplace(std::pair("parent", json::array()));
+  tree_array_map.emplace(std::pair("left", json::array()));
+  tree_array_map.emplace(std::pair("right", json::array()));
+  tree_array_map.emplace(std::pair("split_index", json::array()));
+  tree_array_map.emplace(std::pair("leaf_value", json::array()));
+  tree_array_map.emplace(std::pair("threshold", json::array()));
+  tree_array_map.emplace(std::pair("leaf_vector_begin", json::array()));
+  tree_array_map.emplace(std::pair("leaf_vector_end", json::array()));
+  tree_array_map.emplace(std::pair("category_list_begin", json::array()));
+  tree_array_map.emplace(std::pair("category_list_end", json::array()));
+
+  // Extract only the non-deleted nodes into tree_array_map
+//  bool node_deleted;
+  for (int i = 0; i < tree->NumNodes(); i++) {
+//    node_deleted = (std::find(tree->deleted_nodes_.begin(), tree->deleted_nodes_.end(), i)
+//                    != tree->deleted_nodes_.end());
+//    if (!node_deleted) {
+      tree_array_map["node_type"].emplace_back(static_cast<int>(tree->node_type_[i]));
+      tree_array_map["parent"].emplace_back(tree->parent_[i]);
+      tree_array_map["left"].emplace_back(tree->cleft_[i]);
+      tree_array_map["right"].emplace_back(tree->cright_[i]);
+      tree_array_map["split_index"].emplace_back(tree->split_index_[i]);
+      tree_array_map["leaf_value"].emplace_back(tree->leaf_value_[i]);
+      tree_array_map["threshold"].emplace_back(tree->threshold_[i]);
+      tree_array_map["leaf_vector_begin"].emplace_back(static_cast<int>(tree->leaf_vector_begin_[i]));
+      tree_array_map["leaf_vector_end"].emplace_back(static_cast<int>(tree->leaf_vector_end_[i]));
+      tree_array_map["category_list_begin"].emplace_back(static_cast<int>(tree->category_list_begin_[i]));
+      tree_array_map["category_list_end"].emplace_back(static_cast<int>(tree->category_list_end_[i]));
+//    }
+  }
+  
+  // Unpack the map into the reference JSON object
+  for (auto& pair : tree_array_map) {
+    obj.emplace(pair);
+  }
+}
+
+void MultivariateLeafVectorToJson(json& obj, Tree* tree) {
+  json vec = json::array();
+  if (tree->leaf_vector_.size() > 0) {
+    for (int i = 0; i < tree->leaf_vector_.size(); i++) {
+      vec.emplace_back(tree->leaf_vector_[i]);
+    }
+  }
+  obj.emplace("leaf_vector", vec);
+}
+
+void SplitCategoryVectorToJson(json& obj, Tree* tree) {
+  json vec = json::array();
+  if (tree->category_list_.size() > 0) {
+    for (int i = 0; i < tree->category_list_.size(); i++) {
+      vec.emplace_back(static_cast<int>(tree->category_list_[i]));
+    }
+  }
+  obj.emplace("category_list", vec);
+}
+
+void NodeListsToJson(json& obj, Tree* tree) {
+  json vec_internal_nodes = json::array();
+  json vec_leaf_parents = json::array();
+  json vec_leaves = json::array();
+  json vec_deleted_nodes = json::array();
+  
+  if (tree->internal_nodes_.size() > 0) {
+    for (int i = 0; i < tree->internal_nodes_.size(); i++) {
+      vec_internal_nodes.emplace_back(tree->internal_nodes_[i]);
+    }
+  }
+
+  if (tree->leaf_parents_.size() > 0) {
+    for (int i = 0; i < tree->leaf_parents_.size(); i++) {
+      vec_leaf_parents.emplace_back(tree->leaf_parents_[i]);
+    }
+  }
+
+  if (tree->leaves_.size() > 0) {
+    for (int i = 0; i < tree->leaves_.size(); i++) {
+      vec_leaves.emplace_back(tree->leaves_[i]);
+    }
+  }
+
+  if (tree->deleted_nodes_.size() > 0) {
+    for (int i = 0; i < tree->deleted_nodes_.size(); i++) {
+      vec_deleted_nodes.emplace_back(tree->deleted_nodes_[i]);
+    }
+  }
+  
+  obj.emplace("internal_nodes", vec_internal_nodes);
+  obj.emplace("leaf_parents", vec_leaf_parents);
+  obj.emplace("leaves", vec_leaves);
+  obj.emplace("deleted_nodes", vec_deleted_nodes);
+}
+
+json Tree::to_json() {
+  json result_obj;
+  // Store the non-array fields in json
+  result_obj.emplace("num_nodes", this->NumNodes());
+  result_obj.emplace("num_deleted_nodes", this->NumDeletedNodes());
+  result_obj.emplace("has_categorical_split", this->has_categorical_split_);
+  result_obj.emplace("output_dimension", this->output_dimension_);
+
+  // Unpack the array based fields
+  TreeNodeVectorsToJson(result_obj, this);
+  MultivariateLeafVectorToJson(result_obj, this);
+  SplitCategoryVectorToJson(result_obj, this);
+  NodeListsToJson(result_obj, this);
+  
+  // Initialize Json from Json::object map and return result
+  return result_obj;
+}
+
+void JsonToTreeNodeVectors(const json& tree_json, Tree* tree) {
+  tree->parent_.clear();
+  tree->cleft_.clear();
+  tree->cright_.clear();
+  tree->split_index_.clear();
+  tree->leaf_value_.clear();
+  tree->threshold_.clear();
+  tree->node_type_.clear();
+  tree->leaf_vector_begin_.clear();
+  tree->leaf_vector_end_.clear();
+  tree->category_list_begin_.clear();
+  tree->category_list_end_.clear();
+
+  int num_nodes = tree->NumNodes();
+  for (int i = 0; i < num_nodes; i++) {
+    tree->parent_.push_back(tree_json.at("parent").at(i));
+    tree->cleft_.push_back(tree_json.at("left").at(i));
+    tree->cright_.push_back(tree_json.at("right").at(i));
+    tree->split_index_.push_back(tree_json.at("split_index").at(i));
+    tree->leaf_value_.push_back(tree_json.at("leaf_value").at(i));
+    tree->threshold_.push_back(tree_json.at("threshold").at(i));
+    // Handle type conversions for node_type, leaf_vector_begin/end, and category_list_begin/end
+    tree->node_type_.push_back(static_cast<TreeNodeType>(tree_json.at("node_type").at(i)));
+    tree->leaf_vector_begin_.push_back(static_cast<uint64_t>(tree_json.at("leaf_vector_begin").at(i)));
+    tree->leaf_vector_end_.push_back(static_cast<uint64_t>(tree_json.at("leaf_vector_end").at(i)));
+    tree->category_list_begin_.push_back(static_cast<uint64_t>(tree_json.at("category_list_begin").at(i)));
+    tree->category_list_end_.push_back(static_cast<uint64_t>(tree_json.at("category_list_end").at(i)));
+  }
+}
+
+void JsonToMultivariateLeafVector(const json& tree_json, Tree* tree) {
+  tree->leaf_vector_.clear();
+  int num_entries = tree_json.at("leaf_vector").size();
+  for (int i = 0; i < num_entries; i++) {
+    tree->leaf_vector_.push_back(tree_json.at("leaf_vector").at(i));
+  }
+}
+
+void JsonToSplitCategoryVector(const json& tree_json, Tree* tree) {
+  tree->category_list_.clear();
+  int num_entries = tree_json.at("category_list").size();
+  for (int i = 0; i < num_entries; i++) {
+    tree->category_list_.push_back(tree_json.at("category_list").at(i));
+  }
+}
+
+void JsonToNodeLists(const json& tree_json, Tree* tree) {
+  tree->internal_nodes_.clear();
+  int num_internal_nodes = tree_json.at("internal_nodes").size();
+  for (int i = 0; i < num_internal_nodes; i++) {
+    tree->internal_nodes_.push_back(tree_json.at("internal_nodes").at(i));
+  }
+
+  tree->leaf_parents_.clear();
+  int num_leaf_parents = tree_json.at("leaf_parents").size();
+  for (int i = 0; i < num_leaf_parents; i++) {
+    tree->leaf_parents_.push_back(tree_json.at("leaf_parents").at(i));
+  }
+
+  tree->leaves_.clear();
+  int num_leaves = tree_json.at("leaves").size();
+  for (int i = 0; i < num_leaves; i++) {
+    tree->leaves_.push_back(tree_json.at("leaves").at(i));
+  }
+
+  tree->deleted_nodes_.clear();
+  int num_deleted_nodes = tree_json.at("deleted_nodes").size();
+  for (int i = 0; i < num_deleted_nodes; i++) {
+    tree->deleted_nodes_.push_back(tree_json.at("deleted_nodes").at(i));
+  }
+}
+
+void Tree::from_json(const json& tree_json) {
+  // Unpack non-array fields
+  tree_json.at("num_nodes").get_to(this->num_nodes);
+  tree_json.at("num_deleted_nodes").get_to(this->num_deleted_nodes);
+  tree_json.at("has_categorical_split").get_to(this->has_categorical_split_);
+  tree_json.at("output_dimension").get_to(this->output_dimension_);
+  this->num_deleted_nodes = 0;
+  
+  // Unpack the array based fields
+  JsonToTreeNodeVectors(tree_json, this);
+  JsonToMultivariateLeafVector(tree_json, this);
+  JsonToSplitCategoryVector(tree_json, this);
+  JsonToNodeLists(tree_json, this);
 }
 
 } // namespace StochTree
