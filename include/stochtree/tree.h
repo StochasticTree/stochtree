@@ -24,11 +24,21 @@ using json = nlohmann::json;
 namespace StochTree {
 
 /*! \brief Tree node type */
-enum class TreeNodeType : std::int8_t {
+enum TreeNodeType {
   kLeafNode = 0,
   kNumericalSplitNode = 1,
   kCategoricalSplitNode = 2
 };
+
+// template<typename T>
+// int enum_to_int(T& input_enum) {
+//   return static_cast<int>(input_enum);
+// }
+
+// template<typename T>
+// T json_to_enum(json& input_json) {
+//   return static_cast<T>(input_json);
+// }
 
 /*! \brief Get string representation of TreeNodeType */
 std::string TreeNodeTypeToString(TreeNodeType type);
@@ -270,7 +280,6 @@ class Tree {
   std::int32_t SplitIndex(std::int32_t nid) const {
     return split_index_[nid];
   }
-  
   
   /*!
    * \brief Whether the node is leaf node
@@ -601,6 +610,31 @@ class Tree {
   bool has_categorical_split_{false};
   int output_dimension_{1};
 };
+
+/*! \brief Comparison operator for trees */
+inline bool operator==(const Tree& lhs, const Tree& rhs) {
+  return (
+    (lhs.has_categorical_split_ == rhs.has_categorical_split_) && 
+    (lhs.output_dimension_ == rhs.output_dimension_) && 
+    (lhs.node_type_ == rhs.node_type_) && 
+    (lhs.parent_ == rhs.parent_) && 
+    (lhs.cleft_ == rhs.cleft_) && 
+    (lhs.cright_ == rhs.cright_) && 
+    (lhs.split_index_ == rhs.split_index_) && 
+    (lhs.leaf_value_ == rhs.leaf_value_) && 
+    (lhs.threshold_ == rhs.threshold_) && 
+    (lhs.internal_nodes_ == rhs.internal_nodes_) && 
+    (lhs.leaves_ == rhs.leaves_) && 
+    (lhs.leaf_parents_ == rhs.leaf_parents_) && 
+    (lhs.deleted_nodes_ == rhs.deleted_nodes_) && 
+    (lhs.leaf_vector_ == rhs.leaf_vector_) && 
+    (lhs.leaf_vector_begin_ == rhs.leaf_vector_begin_) && 
+    (lhs.leaf_vector_end_ == rhs.leaf_vector_end_) && 
+    (lhs.category_list_ == rhs.category_list_) && 
+    (lhs.category_list_begin_ == rhs.category_list_begin_) && 
+    (lhs.category_list_end_ == rhs.category_list_end_)
+  );
+}
 
 /*! \brief Determine whether an observation produces a "true" value in a numeric split node
  *  \param fvalue Value of the split feature for the observation

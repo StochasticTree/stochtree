@@ -482,17 +482,8 @@ void TreeNodeVectorsToJson(json& obj, Tree* tree) {
 void MultivariateLeafVectorToJson(json& obj, Tree* tree) {
   json vec = json::array();
   if (tree->leaf_vector_.size() > 0) {
-//    bool node_deleted;
-    for (int i = 0; i < tree->NumNodes(); i++) {
-      // node_deleted = (std::find(tree->deleted_nodes_.begin(), tree->deleted_nodes_.end(), i)
-      //                 != tree->deleted_nodes_.end());
-      // if (!node_deleted) {
-        if ((tree->leaf_vector_begin_[i] != 0) && (tree->leaf_vector_end_[i] != 0)) {
-          for (uint64_t ind = tree->leaf_vector_begin_[i]; ind < tree->leaf_vector_end_[i]; ind++) {
-            vec.emplace_back(tree->leaf_vector_[ind]);
-          }
-        }
-      // }
+    for (int i = 0; i < tree->leaf_vector_.size(); i++) {
+      vec.emplace_back(tree->leaf_vector_[i]);
     }
   }
   obj.emplace("leaf_vector", vec);
@@ -500,21 +491,48 @@ void MultivariateLeafVectorToJson(json& obj, Tree* tree) {
 
 void SplitCategoryVectorToJson(json& obj, Tree* tree) {
   json vec = json::array();
-  if (tree->leaf_vector_.size() > 0) {
-//    bool node_deleted;
-    for (int i = 0; i < tree->NumNodes(); i++) {
-      // node_deleted = (std::find(tree->deleted_nodes_.begin(), tree->deleted_nodes_.end(), i)
-      //                 != tree->deleted_nodes_.end());
-      // if (!node_deleted) {
-        if ((tree->category_list_begin_[i] != 0) && (tree->category_list_end_[i] != 0)) {
-          for (uint64_t ind = tree->category_list_begin_[i]; ind < tree->category_list_end_[i]; ind++) {
-            vec.emplace_back(static_cast<int>(tree->category_list_[ind]));
-          }
-        }
-      // }
+  if (tree->category_list_.size() > 0) {
+    for (int i = 0; i < tree->category_list_.size(); i++) {
+      vec.emplace_back(static_cast<int>(tree->category_list_[i]));
     }
   }
   obj.emplace("category_list", vec);
+}
+
+void NodeListsToJson(json& obj, Tree* tree) {
+  json vec_internal_nodes = json::array();
+  json vec_leaf_parents = json::array();
+  json vec_leaves = json::array();
+  json vec_deleted_nodes = json::array();
+  
+  if (tree->internal_nodes_.size() > 0) {
+    for (int i = 0; i < tree->internal_nodes_.size(); i++) {
+      vec_internal_nodes.emplace_back(tree->internal_nodes_[i]);
+    }
+  }
+
+  if (tree->leaf_parents_.size() > 0) {
+    for (int i = 0; i < tree->leaf_parents_.size(); i++) {
+      vec_leaf_parents.emplace_back(tree->leaf_parents_[i]);
+    }
+  }
+
+  if (tree->leaves_.size() > 0) {
+    for (int i = 0; i < tree->leaves_.size(); i++) {
+      vec_leaves.emplace_back(tree->leaves_[i]);
+    }
+  }
+
+  if (tree->deleted_nodes_.size() > 0) {
+    for (int i = 0; i < tree->deleted_nodes_.size(); i++) {
+      vec_deleted_nodes.emplace_back(tree->deleted_nodes_[i]);
+    }
+  }
+  
+  obj.emplace("internal_nodes", vec_internal_nodes);
+  obj.emplace("leaf_parents", vec_leaf_parents);
+  obj.emplace("leaves", vec_leaves);
+  obj.emplace("deleted_nodes", vec_deleted_nodes);
 }
 
 json Tree::to_json() {
@@ -529,12 +547,25 @@ json Tree::to_json() {
   TreeNodeVectorsToJson(result_obj, this);
   MultivariateLeafVectorToJson(result_obj, this);
   SplitCategoryVectorToJson(result_obj, this);
+  NodeListsToJson(result_obj, this);
   
   // Initialize Json from Json::object map and return result
   return result_obj;
 }
 
 void JsonToTreeNodeVectors(const json& tree_json, Tree* tree) {
+  tree->parent_.clear();
+  tree->cleft_.clear();
+  tree->cright_.clear();
+  tree->split_index_.clear();
+  tree->leaf_value_.clear();
+  tree->threshold_.clear();
+  tree->node_type_.clear();
+  tree->leaf_vector_begin_.clear();
+  tree->leaf_vector_end_.clear();
+  tree->category_list_begin_.clear();
+  tree->category_list_end_.clear();
+
   int num_nodes = tree->NumNodes();
   for (int i = 0; i < num_nodes; i++) {
     tree->parent_.push_back(tree_json.at("parent").at(i));
@@ -553,6 +584,7 @@ void JsonToTreeNodeVectors(const json& tree_json, Tree* tree) {
 }
 
 void JsonToMultivariateLeafVector(const json& tree_json, Tree* tree) {
+  tree->leaf_vector_.clear();
   int num_entries = tree_json.at("leaf_vector").size();
   for (int i = 0; i < num_entries; i++) {
     tree->leaf_vector_.push_back(tree_json.at("leaf_vector").at(i));
@@ -560,9 +592,36 @@ void JsonToMultivariateLeafVector(const json& tree_json, Tree* tree) {
 }
 
 void JsonToSplitCategoryVector(const json& tree_json, Tree* tree) {
+  tree->category_list_.clear();
   int num_entries = tree_json.at("category_list").size();
   for (int i = 0; i < num_entries; i++) {
     tree->category_list_.push_back(tree_json.at("category_list").at(i));
+  }
+}
+
+void JsonToNodeLists(const json& tree_json, Tree* tree) {
+  tree->internal_nodes_.clear();
+  int num_internal_nodes = tree_json.at("internal_nodes").size();
+  for (int i = 0; i < num_internal_nodes; i++) {
+    tree->internal_nodes_.push_back(tree_json.at("internal_nodes").at(i));
+  }
+
+  tree->leaf_parents_.clear();
+  int num_leaf_parents = tree_json.at("leaf_parents").size();
+  for (int i = 0; i < num_leaf_parents; i++) {
+    tree->leaf_parents_.push_back(tree_json.at("leaf_parents").at(i));
+  }
+
+  tree->leaves_.clear();
+  int num_leaves = tree_json.at("leaves").size();
+  for (int i = 0; i < num_leaves; i++) {
+    tree->leaves_.push_back(tree_json.at("leaves").at(i));
+  }
+
+  tree->deleted_nodes_.clear();
+  int num_deleted_nodes = tree_json.at("deleted_nodes").size();
+  for (int i = 0; i < num_deleted_nodes; i++) {
+    tree->deleted_nodes_.push_back(tree_json.at("deleted_nodes").at(i));
   }
 }
 
@@ -578,13 +637,7 @@ void Tree::from_json(const json& tree_json) {
   JsonToTreeNodeVectors(tree_json, this);
   JsonToMultivariateLeafVector(tree_json, this);
   JsonToSplitCategoryVector(tree_json, this);
-  
-  // Reconstruct the internal_nodes, leaf_parents, and leaves vectors
-  for (int i = 0; i < this->num_nodes; i++) {
-    if (this->IsLeaf(i)) this->leaves_.push_back(i);
-    else if (this->IsLeafParent(i)) this->leaf_parents_.push_back(i);
-    else this->internal_nodes_.push_back(i);
-  }
+  JsonToNodeLists(tree_json, this);
 }
 
 } // namespace StochTree
