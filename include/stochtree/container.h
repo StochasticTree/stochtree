@@ -9,7 +9,6 @@
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <nlohmann/json.hpp>
-#include <stochtree/json11.h>
 #include <stochtree/tree.h>
 
 #include <algorithm>

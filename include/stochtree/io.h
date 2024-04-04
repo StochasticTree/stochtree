@@ -19,8 +19,6 @@
 
 #include <stochtree/common.h>
 #include <stochtree/export.h>
-// #include <nlohmann/json.hpp>
-#include <stochtree/json11.h>
 #include <stochtree/meta.h>
 #include <stochtree/log.h>
 #include <stochtree/random.h>

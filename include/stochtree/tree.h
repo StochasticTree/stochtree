@@ -7,7 +7,6 @@
 #define STOCHTREE_TREE_H_
 
 #include <nlohmann/json.hpp>
-// #include <stochtree/json11.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <Eigen/Dense>

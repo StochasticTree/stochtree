@@ -5,8 +5,6 @@
 #ifndef STOCHTREE_COMMON_H_
 #define STOCHTREE_COMMON_H_
 
-// #include <nlohmann/json.hpp>
-#include <stochtree/json11.h>
 #include <stochtree/log.h>
 
 #include <algorithm>
@@ -28,9 +26,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-// using json = nlohmann::json;
-using Json = json11::Json;
 
 #define FMT_HEADER_ONLY
 #include "../../dependencies/fast_double_parser/include/fast_double_parser.h"
@@ -60,8 +55,6 @@ using Json = json11::Json;
 namespace StochTree {
 
 namespace Common {
-
-// using json11::Json;
 
 /*!
 * Imbues the stream with the C locale.
@@ -199,28 +192,6 @@ inline static std::vector<std::string> Split(const char* c_str, const char* deli
     ret.push_back(str.substr(i));
   }
   return ret;
-}
-
-inline static std::string GetFromParserConfig(std::string config_str, std::string key) {
-  // parser config should follow json format.
-  std::string err;
-  Json config_json = Json::parse(config_str, &err);
-  if (!err.empty()) {
-    Log::Fatal("Invalid parser config: %s. Please check if follow json format.", err.c_str());
-  }
-  return config_json[key].string_value();
-}
-
-inline static std::string SaveToParserConfig(std::string config_str, std::string key, std::string value) {
-  std::string err;
-  Json config_json = Json::parse(config_str, &err);
-  if (!err.empty()) {
-    Log::Fatal("Invalid parser config: %s. Please check if follow json format.", err.c_str());
-  }
-  CHECK(config_json.is_object());
-  std::map<std::string, Json> config_map = config_json.object_items();
-  config_map.insert(std::pair<std::string, Json>(key, Json(value)));
-  return Json(config_map).dump();
 }
 
 template<typename T>
