@@ -182,7 +182,7 @@ class TreeEnsemble {
   inline double SumLeafSquared() {
     double result = 0.;
     for (int i = 0; i < num_trees_; i++) {
-      result += trees_[i]->NumLeaves();
+      result += trees_[i]->SumSquaredLeafValues();
     }
     return result;
   }
