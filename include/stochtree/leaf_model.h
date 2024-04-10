@@ -78,6 +78,7 @@ class GaussianConstantLeafModel {
   double PosteriorParameterVariance(GaussianConstantSuffStat& suff_stat, double global_variance);
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
+  void SetScale(double tau) {tau_ = tau;}
   inline bool RequiresBasis() {return false;}
  private:
   double tau_;
@@ -142,6 +143,7 @@ class GaussianUnivariateRegressionLeafModel {
   double PosteriorParameterVariance(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance);
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
+  void SetScale(double tau) {tau_ = tau;}
   inline bool RequiresBasis() {return true;}
  private:
   double tau_;
@@ -195,7 +197,7 @@ class GaussianMultivariateRegressionSuffStat {
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class GaussianMultivariateRegressionLeafModel {
  public:
-  GaussianMultivariateRegressionLeafModel(Eigen::MatrixXd Sigma_0) {Sigma_0_ = Sigma_0; multivariate_normal_sampler_ = MultivariateNormalSampler();}
+  GaussianMultivariateRegressionLeafModel(Eigen::MatrixXd& Sigma_0) {Sigma_0_ = Sigma_0; multivariate_normal_sampler_ = MultivariateNormalSampler();}
   ~GaussianMultivariateRegressionLeafModel() {}
   std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance);
   std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);
@@ -208,6 +210,7 @@ class GaussianMultivariateRegressionLeafModel {
   Eigen::MatrixXd PosteriorParameterVariance(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance);
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
+  void SetScale(Eigen::MatrixXd& Sigma_0) {Sigma_0_ = Sigma_0;}
   inline bool RequiresBasis() {return true;}
  private:
   Eigen::MatrixXd Sigma_0_;
