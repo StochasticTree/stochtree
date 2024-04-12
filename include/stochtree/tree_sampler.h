@@ -348,7 +348,7 @@ class MCMCForestSampler {
     // Compute the final MH ratio
     double log_mh_ratio = (
       std::log(pg) + std::log(1-pgl) + std::log(1-pgr) - std::log(1-pg) + std::log(prob_prune_new) +
-      std::log(p_leaf_parent) - std::log(prob_grow_old) - std::log(p_leaf) + no_split_log_marginal_likelihood - split_log_marginal_likelihood
+      std::log(p_leaf_parent) - std::log(prob_grow_old) - std::log(p_leaf) - no_split_log_marginal_likelihood + split_log_marginal_likelihood
     );
     // Threshold at 0
     if (log_mh_ratio > 0) {
