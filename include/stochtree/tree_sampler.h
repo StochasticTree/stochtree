@@ -162,18 +162,28 @@ static double ComputeMeanOutcome(ColumnVector& residual) {
   return total_outcome / static_cast<double>(n);
 }
 
-static void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, bool requires_basis, std::function<double(double, double)> op) {
+static void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, bool requires_basis, std::function<double(double, double)> op, bool tree_new) {
   data_size_t n = dataset.GetCovariates().rows();
   double pred_value;
   int32_t leaf_pred;
   double new_resid;
   for (data_size_t i = 0; i < n; i++) {
-    leaf_pred = tracker.GetNodeId(i, tree_num);
-    if (requires_basis) {
-      pred_value = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+    if (tree_new) {
+      // If the tree has been newly sampled or adjusted, we must rerun the prediction 
+      // method and update the SamplePredMapper stored in tracker
+      leaf_pred = tracker.GetNodeId(i, tree_num);
+      if (requires_basis) {
+        pred_value = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+      } else {
+        pred_value = tree->PredictFromNode(leaf_pred);
+      }
+      tracker.SetTreeSamplePrediction(i, tree_num, pred_value);
     } else {
-      pred_value = tree->PredictFromNode(leaf_pred);
+      // If the tree has not yet been modified via a sampling step, 
+      // we can query its prediction directly from the SamplePredMapper stored in tracker
+      pred_value = tracker.GetTreeSamplePrediction(i, tree_num);
     }
+    // Run op (either plus or minus) on the residual and the new prediction
     new_resid = op(residual.GetElement(i), pred_value);
     residual.SetElement(i, new_resid);
   }
@@ -210,7 +220,7 @@ class MCMCForestSampler {
     for (int i = 0; i < num_trees; i++) {
       // Add tree i's predictions back to the residual (thus, training a model on the "partial residual")
       tree = ensemble->GetTree(i);
-      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), plus_op_);
+      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), plus_op_, false);
       
       // Sample tree i
       tree = ensemble->GetTree(i);
@@ -222,7 +232,7 @@ class MCMCForestSampler {
       
       // Subtract tree i's predictions back out of the residual
       tree = ensemble->GetTree(i);
-      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), minus_op_);
+      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), minus_op_, true);
     }
   }
  
@@ -477,7 +487,7 @@ class GFRForestSampler {
     for (int i = 0; i < num_trees; i++) {
       // Add tree i's predictions back to the residual (thus, training a model on the "partial residual")
       Tree* tree = ensemble->GetTree(i);
-      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), plus_op_);
+      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), plus_op_, false);
       
       // Reset the tree and sample trackers
       ensemble->ResetInitTree(i);
@@ -492,7 +502,7 @@ class GFRForestSampler {
       leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
       
       // Subtract tree i's predictions back out of the residual
-      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), minus_op_);
+      UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), minus_op_, true);
     }
   }
 

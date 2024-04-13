@@ -41,6 +41,7 @@ namespace StochTree {
 
 /*! \brief Forward declarations of component classes */
 class SampleNodeMapper;
+class SamplePredMapper;
 class UnsortedNodeSampleTracker;
 class SortedNodeSampleTracker;
 class FeaturePresortRootContainer;
@@ -52,9 +53,13 @@ class ForestTracker {
   ~ForestTracker() {}
   void AssignAllSamplesToRoot();
   void AssignAllSamplesToRoot(int32_t tree_num);
+  void AssignAllSamplesToConstantPrediction(double value);
+  void AssignAllSamplesToConstantPrediction(int32_t tree_num, double value);
   void ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num);
   void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
   void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
+  double GetTreeSamplePrediction(data_size_t sample_id, int tree_id);
+  void SetTreeSamplePrediction(data_size_t sample_id, int tree_id, double value);
   data_size_t GetNodeId(int observation_num, int tree_num);
   data_size_t UnsortedNodeBegin(int tree_id, int node_id);
   data_size_t UnsortedNodeEnd(int tree_id, int node_id);
@@ -66,11 +71,14 @@ class ForestTracker {
   std::vector<data_size_t>::iterator UnsortedNodeEndIterator(int tree_id, int node_id);
   std::vector<data_size_t>::iterator SortedNodeBeginIterator(int node_id, int feature_id);
   std::vector<data_size_t>::iterator SortedNodeEndIterator(int node_id, int feature_id);
+  SamplePredMapper* GetSamplePredMapper() {return sample_pred_mapper_.get();}
   SampleNodeMapper* GetSampleNodeMapper() {return sample_node_mapper_.get();}
   UnsortedNodeSampleTracker* GetUnsortedNodeSampleTracker() {return unsorted_node_sample_tracker_.get();}
   SortedNodeSampleTracker* GetSortedNodeSampleTracker() {return sorted_node_sample_tracker_.get();}
 
  private:
+  /*! \brief Mapper from observations to predicted values for every tree in a forest */
+  std::unique_ptr<SamplePredMapper> sample_pred_mapper_;
   /*! \brief Mapper from observations to leaf node indices for every tree in a forest */
   std::unique_ptr<SampleNodeMapper> sample_node_mapper_;
   /*! \brief Data structure tracking / updating observations available in each node for every tree in a forest
@@ -86,6 +94,47 @@ class ForestTracker {
   int num_trees_;
   int num_observations_;
   int num_features_;
+};
+
+/*! \brief Class storing sample-prediction map for each tree in an ensemble */
+class SamplePredMapper {
+ public:
+  SamplePredMapper(int num_trees, data_size_t num_observations) {
+    num_trees_ = num_trees;
+    num_observations_ = num_observations;
+    // Initialize the vector of vectors of leaf indices for each tree
+    tree_preds_.resize(num_trees_);
+    for (int j = 0; j < num_trees_; j++) {
+      tree_preds_[j].resize(num_observations_);
+    }
+  }
+
+  inline double GetPred(data_size_t sample_id, int tree_id) {
+    CHECK_LT(sample_id, num_observations_);
+    CHECK_LT(tree_id, num_trees_);
+    return tree_preds_[tree_id][sample_id];
+  }
+
+  inline void SetPred(data_size_t sample_id, int tree_id, double value) {
+    CHECK_LT(sample_id, num_observations_);
+    CHECK_LT(tree_id, num_trees_);
+    tree_preds_[tree_id][sample_id] = value;
+  }
+  
+  inline int NumTrees() {return num_trees_;}
+  
+  inline int NumObservations() {return num_observations_;}
+
+  inline void AssignAllSamplesToConstantPrediction(int tree_id, double value) {
+    for (data_size_t i = 0; i < num_observations_; i++) {
+      tree_preds_[tree_id][i] = value;
+    }
+  }
+
+ private:
+  std::vector<std::vector<double>> tree_preds_;
+  int num_trees_;
+  data_size_t num_observations_;
 };
 
 /*! \brief Class storing sample-node map for each tree in an ensemble */

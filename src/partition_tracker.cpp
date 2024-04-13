@@ -15,6 +15,7 @@
 namespace StochTree {
 
 ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations) {
+  sample_pred_mapper_ = std::make_unique<SamplePredMapper>(num_trees, num_observations);
   sample_node_mapper_ = std::make_unique<SampleNodeMapper>(num_trees, num_observations);
   unsorted_node_sample_tracker_ = std::make_unique<UnsortedNodeSampleTracker>(num_observations, num_trees);
   presort_container_ = std::make_unique<FeaturePresortRootContainer>(covariates, feature_types);
@@ -69,6 +70,16 @@ void ForestTracker::AssignAllSamplesToRoot(int32_t tree_num) {
   sample_node_mapper_->AssignAllSamplesToRoot(tree_num);
 }
 
+void ForestTracker::AssignAllSamplesToConstantPrediction(double value) {
+  for (int i = 0; i < num_trees_; i++) {
+    sample_pred_mapper_->AssignAllSamplesToConstantPrediction(i, value);
+  }
+}
+
+void ForestTracker::AssignAllSamplesToConstantPrediction(int32_t tree_num, double value) {
+  sample_pred_mapper_->AssignAllSamplesToConstantPrediction(tree_num, value);
+}
+
 void ForestTracker::AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted) {
   sample_node_mapper_->AddSplit(covariates, split, split_feature, tree_id, split_node_id, left_node_id, right_node_id);
   unsorted_node_sample_tracker_->PartitionTreeNode(covariates, tree_id, split_node_id, left_node_id, right_node_id, split_feature, split);
@@ -81,6 +92,14 @@ void ForestTracker::RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t
   unsorted_node_sample_tracker_->PruneTreeNodeToLeaf(tree_id, split_node_id);
   unsorted_node_sample_tracker_->UpdateObservationMapping(tree, tree_id, sample_node_mapper_.get());
   // TODO: WARN if this is called from the GFR Tree Sampler
+}
+
+double ForestTracker::GetTreeSamplePrediction(data_size_t sample_id, int tree_id) {
+  return sample_pred_mapper_->GetPred(sample_id, tree_id);
+}
+
+void ForestTracker::SetTreeSamplePrediction(data_size_t sample_id, int tree_id, double value) {
+  sample_pred_mapper_->SetPred(sample_id, tree_id, value);
 }
 
 FeatureUnsortedPartition::FeatureUnsortedPartition(data_size_t n) {
