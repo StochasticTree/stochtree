@@ -223,18 +223,21 @@ class MCMCForestSampler {
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double> variable_weights, 
                      double global_variance, bool initialize_leaf = true) {
-    
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
-    // Add new forest to the container
-    forests.AddSamples(1);
     
     if ((prev_num_samples == 0) && initialize_leaf) {
+      // Add new forest to the container
+      forests.AddSamples(1);
+      
       // Set initial value for each leaf in the forest
       double root_pred = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
       TreeEnsemble* ensemble = forests.GetEnsemble(0);
       leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, root_pred);
     } else {
+      // Add new forest to the container
+      forests.AddSamples(1);
+      
       // Copy previous forest
       forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
     }
