@@ -195,6 +195,31 @@ class TreeEnsemble {
     return is_leaf_constant_;
   }
 
+  inline bool AllRoots() {
+    for (int i = 0; i < num_trees_; i++) {
+      if (!trees_[i]->IsRoot()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  inline void SetLeafValue(double leaf_value) {
+    CHECK_EQ(output_dimension_, 1);
+    for (int i = 0; i < num_trees_; i++) {
+      CHECK(trees_[i]->IsRoot());
+      trees_[i]->SetLeaf(0, leaf_value);
+    }
+  }
+
+  inline void SetLeafVector(std::vector<double>& leaf_vector) {
+    CHECK_EQ(output_dimension_, leaf_vector.size());
+    for (int i = 0; i < num_trees_; i++) {
+      CHECK(trees_[i]->IsRoot());
+      trees_[i]->SetLeafVector(0, leaf_vector);
+    }
+  }
+
   /*! \brief Save to JSON */
   json to_json() {
     json result_obj;

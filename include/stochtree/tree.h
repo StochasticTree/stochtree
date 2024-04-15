@@ -95,6 +95,9 @@ class Tree {
   void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, double left_value, double right_value);
   /*! \brief Expand a node based on a generic split rule */
   void ExpandNode(std::int32_t nid, int split_index, TreeSplit& split, std::vector<double> left_value_vector, std::vector<double> right_value_vector);
+
+  /*! \brief Whether or not a tree is a "stump" consisting of a single root node */
+  inline bool IsRoot() {return leaves_.size() == 1;}
   
   /*! \brief Save to JSON */
   json to_json();
