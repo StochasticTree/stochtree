@@ -494,15 +494,19 @@ class GFRForestSampler {
                      double global_variance, std::vector<FeatureType>& feature_types, bool initialize_leaf = true) {
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
-    // Add new forest to the container
-    forests.AddSamples(1);
     
     if ((prev_num_samples == 0) && initialize_leaf) {
+      // Add new forest to the container
+      forests.AddSamples(1);
+      
       // Set initial value for each leaf in the forest
       double root_pred = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
       TreeEnsemble* ensemble = forests.GetEnsemble(0);
       leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, root_pred);
     } else {
+      // Add new forest to the container
+      forests.AddSamples(1);
+      
       // NOTE: only doing this for the simplicity of the partial residual step
       // We could alternatively "reach back" to the tree predictions from a previous
       // sample (whenever there is more than one sample). This is cleaner / quicker
