@@ -222,11 +222,12 @@ class MCMCForestSampler {
   
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double> variable_weights, 
-                     double global_variance, bool initialize_leaf = true) {
+                     double global_variance, bool pre_initialized = false) {
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
+    if ((pre_initialized) && (prev_num_samples == 1)) prev_num_samples = 0;
     
-    if ((prev_num_samples == 0) && initialize_leaf) {
+    if ((prev_num_samples == 0) && (!pre_initialized)) {
       // Add new forest to the container
       forests.AddSamples(1);
       
@@ -491,11 +492,12 @@ class GFRForestSampler {
 
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double> variable_weights, 
-                     double global_variance, std::vector<FeatureType>& feature_types, bool initialize_leaf = true) {
+                     double global_variance, std::vector<FeatureType>& feature_types, bool pre_initialized = false) {
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
+    if ((pre_initialized) && (prev_num_samples == 1)) prev_num_samples = 0;
     
-    if ((prev_num_samples == 0) && initialize_leaf) {
+    if ((prev_num_samples == 0) && (!pre_initialized)) {
       // Add new forest to the container
       forests.AddSamples(1);
       
