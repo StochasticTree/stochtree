@@ -240,6 +240,8 @@ class MCMCForestSampler {
       
       // Copy previous forest
       forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
+    } else {
+      forests.IncrementSampleCount();
     }
     
     // Run the MCMC algorithm for each tree
