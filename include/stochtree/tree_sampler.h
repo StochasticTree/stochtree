@@ -234,7 +234,7 @@ class MCMCForestSampler {
       double root_pred = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
       TreeEnsemble* ensemble = forests.GetEnsemble(0);
       leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, root_pred);
-    } else {
+    } else if (prev_num_samples > 0) {
       // Add new forest to the container
       forests.AddSamples(1);
       
@@ -503,10 +503,10 @@ class GFRForestSampler {
       double root_pred = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
       TreeEnsemble* ensemble = forests.GetEnsemble(0);
       leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, root_pred);
-    } else {
+    } else if (prev_num_samples > 0) {
       // Add new forest to the container
       forests.AddSamples(1);
-      
+
       // NOTE: only doing this for the simplicity of the partial residual step
       // We could alternatively "reach back" to the tree predictions from a previous
       // sample (whenever there is more than one sample). This is cleaner / quicker
