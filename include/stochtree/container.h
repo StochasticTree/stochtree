@@ -26,6 +26,8 @@ class ForestContainer {
   ForestContainer(int num_samples, int num_trees, int output_dimension = 1, bool is_leaf_constant = true);
   ~ForestContainer() {}
 
+  void InitializeRoot(double leaf_value);
+  void InitializeRoot(std::vector<double>& leaf_vector);
   void AddSamples(int num_samples);
   void CopyFromPreviousSample(int new_sample_id, int previous_sample_id);
   std::vector<double> Predict(ForestDataset& dataset);

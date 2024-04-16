@@ -225,7 +225,6 @@ class MCMCForestSampler {
                      double global_variance, bool pre_initialized = false) {
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
-    if ((pre_initialized) && (prev_num_samples == 1)) prev_num_samples = 0;
     
     if ((prev_num_samples == 0) && (!pre_initialized)) {
       // Add new forest to the container
@@ -495,7 +494,6 @@ class GFRForestSampler {
                      double global_variance, std::vector<FeatureType>& feature_types, bool pre_initialized = false) {
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
-    if ((pre_initialized) && (prev_num_samples == 1)) prev_num_samples = 0;
     
     if ((prev_num_samples == 0) && (!pre_initialized)) {
       // Add new forest to the container
