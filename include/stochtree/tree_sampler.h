@@ -512,6 +512,8 @@ class GFRForestSampler {
       // sample (whenever there is more than one sample). This is cleaner / quicker
       // to implement during this refactor.
       forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
+    } else {
+      forests.IncrementSampleCount();
     }
     
     // Run the GFR algorithm for each tree

@@ -46,6 +46,7 @@ class ForestContainer {
   inline bool AllRoots(int ensemble_num) {return forests_[ensemble_num]->AllRoots();}
   inline void SetLeafValue(int ensemble_num, double leaf_value) {forests_[ensemble_num]->SetLeafValue(leaf_value);}
   inline void SetLeafVector(int ensemble_num, std::vector<double>& leaf_vector) {forests_[ensemble_num]->SetLeafVector(leaf_vector);}
+  inline void IncrementSampleCount() {num_samples_++;}
 
   void SaveToJsonFile(std::string filename) {
     nlohmann::json model_json = this->to_json();
