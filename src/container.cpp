@@ -23,10 +23,35 @@ ForestContainer::ForestContainer(int num_samples, int num_trees, int output_dime
   num_trees_ = num_trees;
   output_dimension_ = output_dimension;
   is_leaf_constant_ = is_leaf_constant;
+  initialized_ = true;
 }
 
 void ForestContainer::CopyFromPreviousSample(int new_sample_id, int previous_sample_id) {
   forests_[new_sample_id].reset(new TreeEnsemble(*forests_[previous_sample_id]));
+}
+
+void ForestContainer::InitializeRoot(double leaf_value) {
+  CHECK(initialized_);
+  CHECK_EQ(num_samples_, 0);
+  CHECK_EQ(forests_.size(), 0);
+  forests_.resize(1);
+  forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_));
+  // NOTE: not setting num_samples = 1, since we are just initializing constant root 
+  // nodes and the forest still needs to be sampled by either MCMC or GFR
+  num_samples_ = 0;
+  SetLeafValue(0, leaf_value);
+}
+
+void ForestContainer::InitializeRoot(std::vector<double>& leaf_vector) {
+  CHECK(initialized_);
+  CHECK_EQ(num_samples_, 0);
+  CHECK_EQ(forests_.size(), 0);
+  forests_.resize(1);
+  forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_));
+  // NOTE: not setting num_samples = 1, since we are just initializing constant root 
+  // nodes and the forest still needs to be sampled by either MCMC or GFR
+  num_samples_ = 0;
+  SetLeafVector(0, leaf_vector);
 }
 
 void ForestContainer::AddSamples(int num_samples) {

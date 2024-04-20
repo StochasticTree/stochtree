@@ -162,6 +162,31 @@ static double ComputeMeanOutcome(ColumnVector& residual) {
   return total_outcome / static_cast<double>(n);
 }
 
+static void UpdateResidualEntireForest(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, TreeEnsemble* forest, bool requires_basis, std::function<double(double, double)> op) {
+  data_size_t n = dataset.GetCovariates().rows();
+  double tree_pred = 0.;
+  double pred_value = 0.;
+  double new_resid = 0.;
+  int32_t leaf_pred;
+  for (data_size_t i = 0; i < n; i++) {
+    for (int j = 0; j < forest->NumTrees(); j++) {
+      Tree* tree = forest->GetTree(j);
+      leaf_pred = tracker.GetNodeId(i, j);
+      if (requires_basis) {
+        tree_pred += tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+      } else {
+        tree_pred += tree->PredictFromNode(leaf_pred);
+      }
+      tracker.SetTreeSamplePrediction(i, j, tree_pred);
+      pred_value += tree_pred;
+    }
+    
+    // Run op (either plus or minus) on the residual and the new prediction
+    new_resid = op(residual.GetElement(i), pred_value);
+    residual.SetElement(i, new_resid);
+  }
+}
+
 static void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, bool requires_basis, std::function<double(double, double)> op, bool tree_new) {
   data_size_t n = dataset.GetCovariates().rows();
   double pred_value;
@@ -196,21 +221,27 @@ class MCMCForestSampler {
   ~MCMCForestSampler() {}
   
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
-                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double> variable_weights, double global_variance) {
-    
+                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double> variable_weights, 
+                     double global_variance, bool pre_initialized = false) {
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
-    // Add new forest to the container
-    forests.AddSamples(1);
     
-    if (prev_num_samples == 0) {
+    if ((prev_num_samples == 0) && (!pre_initialized)) {
+      // Add new forest to the container
+      forests.AddSamples(1);
+      
       // Set initial value for each leaf in the forest
       double root_pred = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
       TreeEnsemble* ensemble = forests.GetEnsemble(0);
       leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, root_pred);
-    } else {
+    } else if (prev_num_samples > 0) {
+      // Add new forest to the container
+      forests.AddSamples(1);
+      
       // Copy previous forest
       forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
+    } else {
+      forests.IncrementSampleCount();
     }
     
     // Run the MCMC algorithm for each tree
@@ -462,23 +493,29 @@ class GFRForestSampler {
 
   void SampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double> variable_weights, 
-                     double global_variance, std::vector<FeatureType>& feature_types) {
+                     double global_variance, std::vector<FeatureType>& feature_types, bool pre_initialized = false) {
     // Previous number of samples
     int prev_num_samples = forests.NumSamples();
-    // Add new forest to the container
-    forests.AddSamples(1);
     
-    if (prev_num_samples == 0) {
+    if ((prev_num_samples == 0) && (!pre_initialized)) {
+      // Add new forest to the container
+      forests.AddSamples(1);
+      
       // Set initial value for each leaf in the forest
       double root_pred = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
       TreeEnsemble* ensemble = forests.GetEnsemble(0);
       leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, root_pred);
-    } else {
+    } else if (prev_num_samples > 0) {
+      // Add new forest to the container
+      forests.AddSamples(1);
+
       // NOTE: only doing this for the simplicity of the partial residual step
       // We could alternatively "reach back" to the tree predictions from a previous
       // sample (whenever there is more than one sample). This is cleaner / quicker
       // to implement during this refactor.
       forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
+    } else {
+      forests.IncrementSampleCount();
     }
     
     // Run the GFR algorithm for each tree

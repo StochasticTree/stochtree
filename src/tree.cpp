@@ -19,29 +19,11 @@ constexpr std::int32_t Tree::kDeletedNodeMarker;
 constexpr std::int32_t Tree::kRoot;
 
 std::int32_t Tree::NumLeaves() const {
-  std::int32_t leaves { 0 };
-  auto const& self = *this;
-  this->WalkTree([&leaves, &self](std::int32_t nidx) {
-                   if (self.IsLeaf(nidx)) {
-                     leaves++;
-                   }
-                   return true;
-                 });
-  return leaves;
+  return leaves_.size();
 }
 
 std::int32_t Tree::NumLeafParents() const {
-  std::int32_t leaf_parents { 0 };
-  auto const& self = *this;
-  this->WalkTree([&leaf_parents, &self](std::int32_t nidx) {
-                   if (!self.IsLeaf(nidx)){
-                     if ((self.IsLeaf(self.LeftChild(nidx))) && (self.IsLeaf(self.RightChild(nidx)))){
-                      leaf_parents++;
-                     }
-                   }
-                   return true;
-                 });
-  return leaf_parents;
+  return leaf_parents_.size();
 }
 
 std::int32_t Tree::NumSplitNodes() const {

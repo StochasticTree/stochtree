@@ -26,6 +26,8 @@ class ForestContainer {
   ForestContainer(int num_samples, int num_trees, int output_dimension = 1, bool is_leaf_constant = true);
   ~ForestContainer() {}
 
+  void InitializeRoot(double leaf_value);
+  void InitializeRoot(std::vector<double>& leaf_vector);
   void AddSamples(int num_samples);
   void CopyFromPreviousSample(int new_sample_id, int previous_sample_id);
   std::vector<double> Predict(ForestDataset& dataset);
@@ -39,8 +41,13 @@ class ForestContainer {
   inline int32_t NumLeaves(int ensemble_num) {return forests_[ensemble_num]->NumLeaves();}
   inline int32_t OutputDimension() {return output_dimension_;}
   inline int32_t OutputDimension(int ensemble_num) {return forests_[ensemble_num]->OutputDimension();}
+  inline bool IsLeafConstant() {return is_leaf_constant_;}
   inline bool IsLeafConstant(int ensemble_num) {return forests_[ensemble_num]->IsLeafConstant();}
-  
+  inline bool AllRoots(int ensemble_num) {return forests_[ensemble_num]->AllRoots();}
+  inline void SetLeafValue(int ensemble_num, double leaf_value) {forests_[ensemble_num]->SetLeafValue(leaf_value);}
+  inline void SetLeafVector(int ensemble_num, std::vector<double>& leaf_vector) {forests_[ensemble_num]->SetLeafVector(leaf_vector);}
+  inline void IncrementSampleCount() {num_samples_++;}
+
   void SaveToJsonFile(std::string filename) {
     nlohmann::json model_json = this->to_json();
     std::ofstream output_file(filename);

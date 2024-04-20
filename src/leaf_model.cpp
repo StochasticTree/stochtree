@@ -691,9 +691,10 @@ void GaussianMultivariateRegressionLeafModel::SetEnsembleRootPredictedValue(Fore
     Log::Fatal("For multivariate leaf regression, outcomes should be centered / scaled so that the root coefficients can be initialized to 0");
   }
 
+  std::vector<double> root_pred_vector(ensemble->OutputDimension(), root_pred_value);
   for (int i = 0; i < num_trees; i++) {
     Tree* tree = ensemble->GetTree(i);
-    tree->SetLeaf(0, root_pred_value);
+    tree->SetLeafVector(0, root_pred_vector);
   }
 }
 
