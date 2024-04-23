@@ -107,10 +107,15 @@ if(BUILD_TEST)
 endif()
 
 if(BUILD_DEBUG_TARGETS)
-  # Build test suite
-  add_executable(debugstochtree debug/api_debug.cpp)
+  # Debug basic stochtree interface
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/cpp)
+  add_executable(debugstochtree debug/api_debug.cpp)
   target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR})
   target_link_libraries(debugstochtree PRIVATE stochtree_objs)
+
+  # Debug BCF interface
+  add_executable(debugbcf debug/bcf_debug.cpp)
+  target_include_directories(debugbcf PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR})
+  target_link_libraries(debugbcf PRIVATE stochtree_objs)
 endif()
 
