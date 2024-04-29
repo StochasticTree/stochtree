@@ -51,11 +51,11 @@ double mu1(std::vector<double>& covariates, int n, int x_cols, int i) {
   CHECK_GE(x_cols, 5);
   CHECK_GT(n, i);
   double x1, x2, x3, x4, x5;
-  x1 = covariates[i*x_cols + 0];
-  x2 = covariates[i*x_cols + 1];
-  x3 = covariates[i*x_cols + 2];
-  x4 = covariates[i*x_cols + 3];
-  x5 = covariates[i*x_cols + 4];
+  x1 = covariates[n*0 + i];
+  x2 = covariates[n*1 + i];
+  x3 = covariates[n*2 + i];
+  x4 = covariates[n*3 + i];
+  x5 = covariates[n*4 + i];
   return 1.0 + g(x1,x2,x3,x4,x5) + x1*x3;
 }
 
@@ -63,11 +63,11 @@ double mu2(std::vector<double>& covariates, int n, int x_cols, int i) {
   CHECK_GE(x_cols, 5);
   CHECK_GT(n, i);
   double x1, x2, x3, x4, x5;
-  x1 = covariates[i*x_cols + 0];
-  x2 = covariates[i*x_cols + 1];
-  x3 = covariates[i*x_cols + 2];
-  x4 = covariates[i*x_cols + 3];
-  x5 = covariates[i*x_cols + 4];
+  x1 = covariates[n*0 + i];
+  x2 = covariates[n*1 + i];
+  x3 = covariates[n*2 + i];
+  x4 = covariates[n*3 + i];
+  x5 = covariates[n*4 + i];
   return 1.0 + g(x1,x2,x3,x4,x5) + 6.0*std::abs(x3-1);
 }
 
@@ -79,11 +79,11 @@ double tau2(std::vector<double>& covariates, int n, int x_cols, int i) {
   CHECK_GE(x_cols, 5);
   CHECK_GT(n, i);
   double x1, x2, x3, x4, x5;
-  x1 = covariates[i*x_cols + 0];
-  x2 = covariates[i*x_cols + 1];
-  x3 = covariates[i*x_cols + 2];
-  x4 = covariates[i*x_cols + 3];
-  x5 = covariates[i*x_cols + 4];
+  x1 = covariates[n*0 + i];
+  x2 = covariates[n*1 + i];
+  x3 = covariates[n*2 + i];
+  x4 = covariates[n*3 + i];
+  x5 = covariates[n*4 + i];
   return 1 + 2.0*x2*x4;
 }
 
@@ -232,9 +232,9 @@ void RunAPI() {
   std::vector<double> covariates_pi(n*(x_cols+1));
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates_pi[i*(x_cols+1) + j] = covariates_raw[i*x_cols + j];
+      covariates_pi[n*j + i] = covariates_raw[n*j + i];
     }
-    covariates_pi[i*(x_cols+1) + x_cols] = propensity_raw[i];
+    covariates_pi[n*x_cols + i] = propensity_raw[i];
   }
 
   // Define internal datasets
@@ -282,7 +282,7 @@ void RunAPI() {
   // ForestLeafModel leaf_model_type_mu = ForestLeafModel::kConstant;
   // ForestLeafModel leaf_model_type_tau = ForestLeafModel::kUnivariateRegression;
   int num_gfr_samples = 10;
-  int num_mcmc_samples = 1000;
+  int num_mcmc_samples = 10;
   int num_samples = num_gfr_samples + num_mcmc_samples;
 
   // // Set leaf model parameters

@@ -20,7 +20,8 @@
 
 namespace StochTree {
 
-struct BCFParameters {
+class BCFParameters {
+ public:
   int cutpoint_grid_size;
   double sigma_leaf_mu;
   double sigma_leaf_tau;
@@ -50,75 +51,75 @@ struct BCFParameters {
   double leaf_init_mu;
   double leaf_init_tau;
   
-  BCFParameters(int cutpoint_grid_size, double sigma_leaf_mu, double sigma_leaf_tau, 
-                double alpha_mu, double alpha_tau, double beta_mu, double beta_tau, 
-                int min_samples_leaf_mu, int min_samples_leaf_tau, double nu, double lamb, 
-                double a_leaf_mu, double a_leaf_tau, double b_leaf_mu, double b_leaf_tau, 
-                double sigma2, int num_trees_mu, int num_trees_tau, double b1, double b0, 
-                std::vector<FeatureType>& feature_types_mu, std::vector<FeatureType>& feature_types_tau, 
-                int num_gfr, int num_burnin, int num_mcmc, double leaf_init_mu, double leaf_init_tau) {
-    cutpoint_grid_size = cutpoint_grid_size;
-    sigma_leaf_mu = sigma_leaf_mu;
-    sigma_leaf_tau = sigma_leaf_tau;
-    alpha_mu = alpha_mu;
-    alpha_tau = alpha_tau;
-    beta_mu = beta_mu;
-    beta_tau = beta_tau;
-    min_samples_leaf_mu = min_samples_leaf_mu;
-    min_samples_leaf_tau = min_samples_leaf_tau;
-    nu = nu;
-    lamb = lamb;
-    a_leaf_mu = a_leaf_mu;
-    a_leaf_tau = a_leaf_tau;
-    b_leaf_mu = b_leaf_mu;
-    b_leaf_tau = b_leaf_tau;
-    sigma2 = sigma2;
-    num_trees_mu = num_trees_mu;
-    num_trees_tau = num_trees_tau;
-    b1 = b1;
-    b0 = b0;
-    num_gfr = num_gfr;
-    num_burnin = num_burnin;
-    num_mcmc = num_mcmc;
-    feature_types_mu = feature_types_mu;
-    feature_types_tau = feature_types_tau;
-    leaf_init_mu = leaf_init_mu;
-    leaf_init_tau = leaf_init_tau;
+  BCFParameters(int cutpoint_grid_size_, double sigma_leaf_mu_, double sigma_leaf_tau_,
+                double alpha_mu_, double alpha_tau_, double beta_mu_, double beta_tau_,
+                int min_samples_leaf_mu_, int min_samples_leaf_tau_, double nu_, double lamb_, 
+                double a_leaf_mu_, double a_leaf_tau_, double b_leaf_mu_, double b_leaf_tau_, 
+                double sigma2_, int num_trees_mu_, int num_trees_tau_, double b1_, double b0_, 
+                std::vector<FeatureType>& feature_types_mu_, std::vector<FeatureType>& feature_types_tau_, 
+                int num_gfr_, int num_burnin_, int num_mcmc_, double leaf_init_mu_, double leaf_init_tau_) {
+    cutpoint_grid_size = cutpoint_grid_size_;
+    sigma_leaf_mu = sigma_leaf_mu_;
+    sigma_leaf_tau = sigma_leaf_tau_;
+    alpha_mu = alpha_mu_;
+    alpha_tau = alpha_tau_;
+    beta_mu = beta_mu_;
+    beta_tau = beta_tau_;
+    min_samples_leaf_mu = min_samples_leaf_mu_;
+    min_samples_leaf_tau = min_samples_leaf_tau_;
+    nu = nu_;
+    lamb = lamb_;
+    a_leaf_mu = a_leaf_mu_;
+    a_leaf_tau = a_leaf_tau_;
+    b_leaf_mu = b_leaf_mu_;
+    b_leaf_tau = b_leaf_tau_;
+    sigma2 = sigma2_;
+    num_trees_mu = num_trees_mu_;
+    num_trees_tau = num_trees_tau_;
+    b1 = b1_;
+    b0 = b0_;
+    num_gfr = num_gfr_;
+    num_burnin = num_burnin_;
+    num_mcmc = num_mcmc_;
+    feature_types_mu = feature_types_mu_;
+    feature_types_tau = feature_types_tau_;
+    leaf_init_mu = leaf_init_mu_;
+    leaf_init_tau = leaf_init_tau_;
   }
-  BCFParameters(int cutpoint_grid_size, double sigma_leaf_mu, Eigen::MatrixXd& sigma_leaf_tau, 
-                double alpha_mu, double alpha_tau, double beta_mu, double beta_tau, 
-                int min_samples_leaf_mu, int min_samples_leaf_tau, double nu, double lamb, 
-                double a_leaf_mu, double a_leaf_tau, double b_leaf_mu, double b_leaf_tau, 
-                double sigma2, int num_trees_mu, int num_trees_tau, double b1, double b0, 
-                std::vector<FeatureType>& feature_types_mu, std::vector<FeatureType>& feature_types_tau, 
-                int num_gfr, int num_burnin, int num_mcmc, double leaf_init_mu, double leaf_init_tau) {
-    cutpoint_grid_size = cutpoint_grid_size;
-    sigma_leaf_mu = sigma_leaf_mu;
-    sigma_leaf_tau_mat = sigma_leaf_tau;
-    alpha_mu = alpha_mu;
-    alpha_tau = alpha_tau;
-    beta_mu = beta_mu;
-    beta_tau = beta_tau;
-    min_samples_leaf_mu = min_samples_leaf_mu;
-    min_samples_leaf_tau = min_samples_leaf_tau;
-    nu = nu;
-    lamb = lamb;
-    a_leaf_mu = a_leaf_mu;
-    a_leaf_tau = a_leaf_tau;
-    b_leaf_mu = b_leaf_mu;
-    b_leaf_tau = b_leaf_tau;
-    sigma2 = sigma2;
-    num_trees_mu = num_trees_mu;
-    num_trees_tau = num_trees_tau;
-    b1 = b1;
-    b0 = b0;
-    num_gfr = num_gfr;
-    num_burnin = num_burnin;
-    num_mcmc = num_mcmc;
-    feature_types_mu = feature_types_mu;
-    feature_types_tau = feature_types_tau;
-    leaf_init_mu = leaf_init_mu;
-    leaf_init_tau = leaf_init_tau;
+  BCFParameters(int cutpoint_grid_size_, double sigma_leaf_mu_, Eigen::MatrixXd& sigma_leaf_tau_, 
+                double alpha_mu_, double alpha_tau_, double beta_mu_, double beta_tau_, 
+                int min_samples_leaf_mu_, int min_samples_leaf_tau_, double nu_, double lamb_, 
+                double a_leaf_mu_, double a_leaf_tau_, double b_leaf_mu_, double b_leaf_tau_, 
+                double sigma2_, int num_trees_mu_, int num_trees_tau_, double b1_, double b0_, 
+                std::vector<FeatureType>& feature_types_mu_, std::vector<FeatureType>& feature_types_tau_, 
+                int num_gfr_, int num_burnin_, int num_mcmc_, double leaf_init_mu_, double leaf_init_tau_) {
+    cutpoint_grid_size = cutpoint_grid_size_;
+    sigma_leaf_mu = sigma_leaf_mu_;
+    sigma_leaf_tau_mat = sigma_leaf_tau_;
+    alpha_mu = alpha_mu_;
+    alpha_tau = alpha_tau_;
+    beta_mu = beta_mu_;
+    beta_tau = beta_tau_;
+    min_samples_leaf_mu = min_samples_leaf_mu_;
+    min_samples_leaf_tau = min_samples_leaf_tau_;
+    nu = nu_;
+    lamb = lamb_;
+    a_leaf_mu = a_leaf_mu_;
+    a_leaf_tau = a_leaf_tau_;
+    b_leaf_mu = b_leaf_mu_;
+    b_leaf_tau = b_leaf_tau_;
+    sigma2 = sigma2_;
+    num_trees_mu = num_trees_mu_;
+    num_trees_tau = num_trees_tau_;
+    b1 = b1_;
+    b0 = b0_;
+    num_gfr = num_gfr_;
+    num_burnin = num_burnin_;
+    num_mcmc = num_mcmc_;
+    feature_types_mu = feature_types_mu_;
+    feature_types_tau = feature_types_tau_;
+    leaf_init_mu = leaf_init_mu_;
+    leaf_init_tau = leaf_init_tau_;
   }
 };
 
