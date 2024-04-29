@@ -90,11 +90,11 @@ class TreeEnsemble {
     }
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, data_size_t offset = 0) {
+  inline void PredictInplace(MatrixMap& covariates, MatrixMap& basis, std::vector<double> &output, data_size_t offset = 0) {
     PredictInplace(covariates, basis, output, 0, trees_.size(), offset);
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis, std::vector<double> &output, 
+  inline void PredictInplace(MatrixMap& covariates, MatrixMap& basis, std::vector<double> &output, 
                              int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
     CHECK_EQ(covariates.rows(), basis.rows());
@@ -118,11 +118,11 @@ class TreeEnsemble {
     }
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double> &output, data_size_t offset = 0) {
+  inline void PredictInplace(MatrixMap& covariates, std::vector<double> &output, data_size_t offset = 0) {
     PredictInplace(covariates, output, 0, trees_.size(), offset);
   }
 
-  inline void PredictInplace(Eigen::MatrixXd& covariates, std::vector<double> &output, int tree_begin, int tree_end, data_size_t offset = 0) {
+  inline void PredictInplace(MatrixMap& covariates, std::vector<double> &output, int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
     data_size_t n = covariates.rows();
     data_size_t total_output_size = n;
@@ -147,7 +147,7 @@ class TreeEnsemble {
   inline void PredictRawInplace(ForestDataset& dataset, std::vector<double> &output, 
                              int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
-    Eigen::MatrixXd covariates = dataset.GetCovariates();
+    MatrixMap covariates = dataset.GetCovariates();
     CHECK_EQ(output_dimension_, trees_[0]->OutputDimension());
     data_size_t n = covariates.rows();
     data_size_t total_output_size = n * output_dimension_;

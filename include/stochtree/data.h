@@ -14,7 +14,7 @@ namespace StochTree {
 
 class ColumnMatrix {
  public:
-  ColumnMatrix() {}
+  ColumnMatrix();
   ColumnMatrix(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
   ~ColumnMatrix() {}
   double GetElement(data_size_t row_num, int32_t col_num) {return data_(row_num, col_num);}
@@ -22,9 +22,9 @@ class ColumnMatrix {
   void LoadData(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
   inline data_size_t NumRows() {return data_.rows();}
   inline int NumCols() {return data_.cols();}
-  inline Eigen::MatrixXd& GetData() {return data_;}
+  inline MatrixMap& GetData() {return data_;}
  private:
-  Eigen::MatrixXd data_;
+  MatrixMap data_;
 };
 
 class ColumnVector {
@@ -46,13 +46,15 @@ class ForestDataset {
   ForestDataset() {}
   ~ForestDataset() {}
   void AddCovariates(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
-    covariates_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+//    covariates_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    covariates_.LoadData(data_ptr, num_row, num_col, is_row_major);
     num_observations_ = num_row;
     num_covariates_ = num_col;
     has_covariates_ = true;
   }
   void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
-    basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+//    basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    basis_.LoadData(data_ptr, num_row, num_col, is_row_major);
     num_basis_ = num_col;
     has_basis_ = true;
   }
@@ -69,26 +71,28 @@ class ForestDataset {
   inline double CovariateValue(data_size_t row, int col) {return covariates_.GetElement(row, col);}
   inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
   inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
-  inline Eigen::MatrixXd& GetCovariates() {return covariates_.GetData();}
-  inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
+  inline MatrixMap& GetCovariates() {return covariates_.GetData();}
+  inline MatrixMap& GetBasis() {return basis_.GetData();}
   inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
   void UpdateBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
     CHECK(has_basis_);
     CHECK_EQ(num_col, num_basis_);
-    // Copy data from R / Python process memory to Eigen matrix
-    double temp_value;
-    for (data_size_t i = 0; i < num_row; ++i) {
-      for (int j = 0; j < num_col; ++j) {
-        if (is_row_major){
-          // Numpy 2-d arrays are stored in "row major" order
-          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
-        } else {
-          // R matrices are stored in "column major" order
-          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
-        }
-        basis_.SetElement(i, j, temp_value);
-      }
-    }
+    // Update the map
+    basis_.LoadData(data_ptr, num_row, num_col, is_row_major);
+//    // Copy data from R / Python process memory to Eigen matrix
+//    double temp_value;
+//    for (data_size_t i = 0; i < num_row; ++i) {
+//      for (int j = 0; j < num_col; ++j) {
+//        if (is_row_major){
+//          // Numpy 2-d arrays are stored in "row major" order
+//          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
+//        } else {
+//          // R matrices are stored in "column major" order
+//          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
+//        }
+//        basis_.SetElement(i, j, temp_value);
+//      }
+//    }
   }
  private:
   ColumnMatrix covariates_;
@@ -124,7 +128,7 @@ class RandomEffectsDataset {
   inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
   inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
   inline int32_t GroupId(data_size_t row) {return group_labels_[row];}
-  inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
+  inline MatrixMap& GetBasis() {return basis_.GetData();}
   inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
   inline std::vector<int32_t>& GetGroupLabels() {return group_labels_;}
  private:

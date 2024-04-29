@@ -156,7 +156,7 @@ class RandomEffectsTerm {
   inline int32_t NumGroups() {return num_groups_;}
   
   std::vector<double> Predict(RandomEffectsDataset& rfx_dataset) {
-    Eigen::MatrixXd X = rfx_dataset.GetBasis();
+    MatrixMap X = rfx_dataset.GetBasis();
     std::vector<int32_t> group_labels = rfx_dataset.GetGroupLabels();
     CHECK_EQ(X.rows(), group_labels.size());
     int n = X.rows();

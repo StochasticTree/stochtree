@@ -224,9 +224,9 @@ class Tree {
    */
   void InplacePredictFromNodes(std::vector<double> result, std::vector<std::int32_t> node_indices);
   std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices);
-  std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices, Eigen::MatrixXd& basis);
+  std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices, MatrixMap& basis);
   double PredictFromNode(std::int32_t node_id);
-  double PredictFromNode(std::int32_t node_id, Eigen::MatrixXd& basis, int row_idx);
+  double PredictFromNode(std::int32_t node_id, MatrixMap& basis, int row_idx);
 
   /** Getters **/
   /*!
@@ -697,7 +697,7 @@ inline int NextNodeCategorical(double fvalue, std::vector<std::uint32_t> const& 
  *  \param data Dataset used for prediction
  *  \param row Row indexing the prediction observation
  */
-inline int EvaluateTree(Tree const& tree, Eigen::MatrixXd& data, int row) {
+inline int EvaluateTree(Tree const& tree, MatrixMap& data, int row) {
   int node_id = 0;
   while (!tree.IsLeaf(node_id)) {
     auto const split_index = tree.SplitIndex(node_id);
@@ -722,7 +722,7 @@ inline int EvaluateTree(Tree const& tree, Eigen::MatrixXd& data, int row) {
  *  \param split_index Column of new split
  *  \param split_value Value defining the split
  */
-inline bool RowSplitLeft(Eigen::MatrixXd& covariates, int row, int split_index, double split_value) {
+inline bool RowSplitLeft(MatrixMap& covariates, int row, int split_index, double split_value) {
   double const fvalue = covariates(row, split_index);
   return SplitTrueNumeric(fvalue, split_value);
 }
@@ -733,7 +733,7 @@ inline bool RowSplitLeft(Eigen::MatrixXd& covariates, int row, int split_index, 
  *  \param split_index Column of new split
  *  \param category_list Categories defining the split
  */
-inline bool RowSplitLeft(Eigen::MatrixXd& covariates, int row, int split_index, std::vector<std::uint32_t> const& category_list) {
+inline bool RowSplitLeft(MatrixMap& covariates, int row, int split_index, std::vector<std::uint32_t> const& category_list) {
   double const fvalue = covariates(row, split_index);
   return SplitTrueCategorical(fvalue, category_list);
 }

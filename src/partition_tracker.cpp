@@ -4,6 +4,7 @@
  * license information.
  */
 #include <stochtree/io.h>
+#include <stochtree/meta.h>
 #include <stochtree/partition_tracker.h>
 
 #include <chrono>
@@ -14,7 +15,7 @@
 
 namespace StochTree {
 
-ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations) {
+ForestTracker::ForestTracker(MatrixMap& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations) {
   sample_pred_mapper_ = std::make_unique<SamplePredMapper>(num_trees, num_observations);
   sample_node_mapper_ = std::make_unique<SampleNodeMapper>(num_trees, num_observations);
   unsorted_node_sample_tracker_ = std::make_unique<UnsortedNodeSampleTracker>(num_observations, num_trees);
@@ -27,7 +28,7 @@ ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureTyp
   feature_types_ = feature_types;
 }
 
-void ForestTracker::ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num) {
+void ForestTracker::ResetRoot(MatrixMap& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num) {
   AssignAllSamplesToRoot(tree_num);
   unsorted_node_sample_tracker_->ResetTreeToRoot(tree_num, covariates.rows());
   sorted_node_sample_tracker_.reset(new SortedNodeSampleTracker(presort_container_.get(), covariates, feature_types));
@@ -80,7 +81,7 @@ void ForestTracker::AssignAllSamplesToConstantPrediction(int32_t tree_num, doubl
   sample_pred_mapper_->AssignAllSamplesToConstantPrediction(tree_num, value);
 }
 
-void ForestTracker::AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted) {
+void ForestTracker::AddSplit(MatrixMap& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted) {
   sample_node_mapper_->AddSplit(covariates, split, split_feature, tree_id, split_node_id, left_node_id, right_node_id);
   unsorted_node_sample_tracker_->PartitionTreeNode(covariates, tree_id, split_node_id, left_node_id, right_node_id, split_feature, split);
   if (keep_sorted) {
@@ -88,7 +89,7 @@ void ForestTracker::AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int3
   }
 }
 
-void ForestTracker::RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted) {
+void ForestTracker::RemoveSplit(MatrixMap& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted) {
   unsorted_node_sample_tracker_->PruneTreeNodeToLeaf(tree_id, split_node_id);
   unsorted_node_sample_tracker_->UpdateObservationMapping(tree, tree_id, sample_node_mapper_.get());
   // TODO: WARN if this is called from the GFR Tree Sampler
@@ -138,7 +139,7 @@ int FeatureUnsortedPartition::RightNode(int node_id) {
   return right_nodes_[node_id];
 }
 
-void FeatureUnsortedPartition::PartitionNode(Eigen::MatrixXd& covariates, int node_id, int left_node_id, int right_node_id, int feature_split, TreeSplit& split) {
+void FeatureUnsortedPartition::PartitionNode(MatrixMap& covariates, int node_id, int left_node_id, int right_node_id, int feature_split, TreeSplit& split) {
   // Partition-related values
   data_size_t node_start_idx = node_begin_[node_id];
   data_size_t num_node_elements = node_length_[node_id];
@@ -157,7 +158,7 @@ void FeatureUnsortedPartition::PartitionNode(Eigen::MatrixXd& covariates, int no
   ExpandNodeTrackingVectors(node_id, left_node_id, right_node_id, node_start_idx, num_true, num_false);
 }
 
-void FeatureUnsortedPartition::PartitionNode(Eigen::MatrixXd& covariates, int node_id, int left_node_id, int right_node_id, int feature_split, double split_value) {
+void FeatureUnsortedPartition::PartitionNode(MatrixMap& covariates, int node_id, int left_node_id, int right_node_id, int feature_split, double split_value) {
   // Partition-related values
   data_size_t node_start_idx = node_begin_[node_id];
   data_size_t num_node_elements = node_length_[node_id];
@@ -176,7 +177,7 @@ void FeatureUnsortedPartition::PartitionNode(Eigen::MatrixXd& covariates, int no
   ExpandNodeTrackingVectors(node_id, left_node_id, right_node_id, node_start_idx, num_true, num_false);
 }
 
-void FeatureUnsortedPartition::PartitionNode(Eigen::MatrixXd& covariates, int node_id, int left_node_id, int right_node_id, int feature_split, std::vector<std::uint32_t> const& category_list) {
+void FeatureUnsortedPartition::PartitionNode(MatrixMap& covariates, int node_id, int left_node_id, int right_node_id, int feature_split, std::vector<std::uint32_t> const& category_list) {
   // Partition-related values
   data_size_t node_start_idx = node_begin_[node_id];
   data_size_t num_node_elements = node_length_[node_id];
@@ -309,7 +310,7 @@ void FeaturePresortPartition::AddLeftRightNodes(data_size_t left_node_begin, dat
   node_offset_sizes_.emplace_back(right_node_begin, right_node_size);
 }
 
-void FeaturePresortPartition::SplitFeature(Eigen::MatrixXd& covariates, int32_t node_id, int32_t feature_index, TreeSplit& split) {
+void FeaturePresortPartition::SplitFeature(MatrixMap& covariates, int32_t node_id, int32_t feature_index, TreeSplit& split) {
   // Partition-related values
   data_size_t node_start_idx = NodeBegin(node_id);
   data_size_t node_end_idx = NodeEnd(node_id);
@@ -327,7 +328,7 @@ void FeaturePresortPartition::SplitFeature(Eigen::MatrixXd& covariates, int32_t 
   AddLeftRightNodes(node_start_idx, num_true, node_start_idx + num_true, num_false);
 }
 
-void FeaturePresortPartition::SplitFeatureNumeric(Eigen::MatrixXd& covariates, int32_t node_id, int32_t feature_index, double split_value) {
+void FeaturePresortPartition::SplitFeatureNumeric(MatrixMap& covariates, int32_t node_id, int32_t feature_index, double split_value) {
   // Partition-related values
   data_size_t node_start_idx = NodeBegin(node_id);
   data_size_t node_end_idx = NodeEnd(node_id);
@@ -345,7 +346,7 @@ void FeaturePresortPartition::SplitFeatureNumeric(Eigen::MatrixXd& covariates, i
   AddLeftRightNodes(node_start_idx, num_true, node_start_idx + num_true, num_false);
 }
 
-void FeaturePresortPartition::SplitFeatureCategorical(Eigen::MatrixXd& covariates, int32_t node_id, int32_t feature_index, std::vector<std::uint32_t> const& category_list) {
+void FeaturePresortPartition::SplitFeatureCategorical(MatrixMap& covariates, int32_t node_id, int32_t feature_index, std::vector<std::uint32_t> const& category_list) {
   // Partition-related values
   data_size_t node_start_idx = NodeBegin(node_id);
   data_size_t node_end_idx = NodeEnd(node_id);

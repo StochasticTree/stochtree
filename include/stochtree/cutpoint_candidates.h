@@ -56,16 +56,16 @@ class FeatureCutpointGrid {
   ~FeatureCutpointGrid() {}
 
   /*! \brief Calculate strides */
-  void CalculateStrides(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index, std::vector<FeatureType>& feature_types);
+  void CalculateStrides(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index, std::vector<FeatureType>& feature_types);
 
   /*! \brief Split numeric / ordered categorical feature and update sort indices */
-  void CalculateStridesNumeric(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
+  void CalculateStridesNumeric(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
 
   /*! \brief Split numeric / ordered categorical feature and update sort indices */
-  void CalculateStridesOrderedCategorical(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
+  void CalculateStridesOrderedCategorical(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
 
   /*! \brief Split unordered categorical feature and update sort indices */
-  void CalculateStridesUnorderedCategorical(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
+  void CalculateStridesUnorderedCategorical(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
 
   /*! \brief Number of potential cutpoints enumerated */
   int32_t NumCutpoints() {return node_stride_begin_.size();}
@@ -102,16 +102,16 @@ class FeatureCutpointGrid {
   int32_t cutpoint_grid_size_;
 
   /*! \brief Full enumeration of numeric cutpoints, checking for duplicate value */
-  void EnumerateNumericCutpointsDeduplication(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, data_size_t node_size, int32_t feature_index);
+  void EnumerateNumericCutpointsDeduplication(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, data_size_t node_size, int32_t feature_index);
 
   /*! \brief Calculation of numeric cutpoints, thinning out to ensure that, at most, cutpoint_grid_size_ cutpoints are considered */
-  void ScanNumericCutpoints(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, data_size_t node_size, int32_t feature_index);
+  void ScanNumericCutpoints(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, data_size_t node_size, int32_t feature_index);
 };
 
 /*! \brief Container class for FeatureCutpointGrid objects stored for every feature in a dataset */
 class CutpointGridContainer {
  public:
-  CutpointGridContainer(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, int cutpoint_grid_size) {
+  CutpointGridContainer(MatrixMap& covariates, Eigen::VectorXd& residuals, int cutpoint_grid_size) {
     num_features_ = covariates.cols();
     feature_cutpoint_grid_.resize(num_features_);
     for (int i = 0; i < num_features_; i++) {
@@ -122,7 +122,7 @@ class CutpointGridContainer {
 
   ~CutpointGridContainer() {}
 
-  void Reset(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, int cutpoint_grid_size) {
+  void Reset(MatrixMap& covariates, Eigen::VectorXd& residuals, int cutpoint_grid_size) {
     num_features_ = covariates.cols();
     feature_cutpoint_grid_.resize(num_features_);
     for (int i = 0; i < num_features_; i++) {
@@ -132,7 +132,7 @@ class CutpointGridContainer {
   }
 
   /*! \brief Calculate strides */
-  void CalculateStrides(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index, std::vector<FeatureType>& feature_types) {
+  void CalculateStrides(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index, std::vector<FeatureType>& feature_types) {
     feature_cutpoint_grid_[feature_index]->CalculateStrides(covariates, residuals, feature_node_sort_tracker, node_id, node_begin, node_end, feature_index, feature_types);
   }
 
@@ -177,13 +177,13 @@ class NodeCutpointTracker {
   ~NodeCutpointTracker() {}
 
   /*! \brief Calculate strides */
-  void CalculateStrides(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
+  void CalculateStrides(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
 
   /*! \brief Split numeric / ordered categorical feature and update sort indices */
-  void CalculateStridesNumeric(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
+  void CalculateStridesNumeric(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
 
   /*! \brief Split unordered categorical feature and update sort indices */
-  void CalculateStridesCategorical(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
+  void CalculateStridesCategorical(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
 
   /*! \brief Number of potential cutpoints enumerated */
   int32_t NumCutpoints() {return node_stride_begin_.size();}

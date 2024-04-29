@@ -150,7 +150,7 @@ void GaussianConstantLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset
   double no_split_log_ml = NoSplitLogMarginalLikelihood(node_suff_stat, global_variance);
 
   // Unpack data
-  Eigen::MatrixXd covariates = dataset.GetCovariates();
+  MatrixMap covariates = dataset.GetCovariates();
   Eigen::VectorXd outcome = residual.GetData();
   Eigen::VectorXd var_weights;
   bool has_weights = dataset.HasVarWeights();
@@ -346,7 +346,7 @@ void GaussianUnivariateRegressionLeafModel::EvaluateAllPossibleSplits(ForestData
   double no_split_log_ml = NoSplitLogMarginalLikelihood(node_suff_stat, global_variance);
 
   // Unpack data
-  Eigen::MatrixXd covariates = dataset.GetCovariates();
+  MatrixMap covariates = dataset.GetCovariates();
   Eigen::VectorXd outcome = residual.GetData();
   Eigen::VectorXd var_weights;
   bool has_weights = dataset.HasVarWeights();
@@ -545,7 +545,7 @@ void GaussianMultivariateRegressionLeafModel::EvaluateAllPossibleSplits(ForestDa
   double no_split_log_ml = NoSplitLogMarginalLikelihood(node_suff_stat, global_variance);
 
   // Unpack data
-  Eigen::MatrixXd covariates = dataset.GetCovariates();
+  MatrixMap covariates = dataset.GetCovariates();
   Eigen::VectorXd outcome = residual.GetData();
   Eigen::VectorXd var_weights;
   bool has_weights = dataset.HasVarWeights();

@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <Eigen/Dense>
 
 #if (defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_AMD64))) || defined(__INTEL_COMPILER) || MM_PREFETCH
   #include <xmmintrin.h>
@@ -62,6 +63,14 @@ enum RandomEffectsType {
   kConstantRandomEffect,
   kRegressionRandomEffect
 };
+
+/*! \brief Eigen Map objects that expose matrix / vector operations directly on raw buffers without copying data */
+typedef Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> MatrixObject;
+typedef Eigen::Matrix<double,Eigen::Dynamic,1> VectorObject;
+
+/*! \brief Eigen Map objects that expose matrix / vector operations directly on raw buffers without copying data */
+typedef Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic>> MatrixMap;
+typedef Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,1>> VectorMap;
 
 /*! \brief Type of data size */
 typedef int32_t data_size_t;

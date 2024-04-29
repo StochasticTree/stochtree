@@ -38,15 +38,15 @@ void GenerateRandomData(std::vector<double>& covariates, std::vector<double>& ba
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[j*n + i] = uniform_dist(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[j*n + i] = uniform_dist(gen);
     }
     
     for (int j = 0; j < rfx_basis_cols; j++) {
-      rfx_basis[i*rfx_basis_cols + j] = 1;
+      rfx_basis[j*n + i] = 1;
     }
     
     if (i % 2 == 0) {

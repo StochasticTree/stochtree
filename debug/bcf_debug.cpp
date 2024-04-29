@@ -122,7 +122,8 @@ void GenerateRandomData(std::vector<double>& covariates, std::vector<double>& pr
       } else {
         x_val = std_normal_dist(gen);
       }
-      covariates[i*x_cols + j] = x_val;
+      // Store in column-major format
+      covariates[j*n + i] = x_val;
     }
 
     // Prognostic function
@@ -242,7 +243,7 @@ void RunAPI() {
   }
 
   // Define internal datasets
-  bool row_major = true;
+  bool row_major = false;
 
   // Construct datasets for training, include pi(x) as a covariate in the prognostic forest
   ForestDataset tau_dataset = ForestDataset();
@@ -383,6 +384,8 @@ void RunAPI() {
 
     // Sample global variance
     global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu*lamb, rng));
+    
+    // Estimatw
   }
 }
 
