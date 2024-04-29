@@ -31,6 +31,12 @@
 
 namespace StochTree {
 
+enum ForestLeafModel {
+    kConstant, 
+    kUnivariateRegression, 
+    kMultivariateRegression
+};
+
 enum FeatureType {
   kNumeric,
   kOrderedCategorical,

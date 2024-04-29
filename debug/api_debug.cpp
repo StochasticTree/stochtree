@@ -20,11 +20,11 @@
 
 namespace StochTree{
 
-enum ForestLeafModel {
-    kConstant, 
-    kUnivariateRegression, 
-    kMultivariateRegression
-};
+// enum ForestLeafModel {
+//     kConstant, 
+//     kUnivariateRegression, 
+//     kMultivariateRegression
+// };
 
 void GenerateRandomData(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, int n, int x_cols, int omega_cols, int y_cols, int rfx_basis_cols) {
   std::mt19937 gen(101);
