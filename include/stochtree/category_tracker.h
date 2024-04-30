@@ -79,6 +79,7 @@ class SampleCategoryMapper {
  */
 class CategorySampleTracker {
  public:
+  CategorySampleTracker() {}
   CategorySampleTracker(const std::vector<int32_t>& group_indices) {
     int n = group_indices.size();
     indices_ = std::vector<data_size_t>(n);
@@ -127,6 +128,18 @@ class CategorySampleTracker {
   /*! \brief Number of data points contained in node_id */
   inline data_size_t CategorySize(int category_id) {
     return category_length_[category_id_map_[category_id]];
+  }
+
+  std::vector<data_size_t>::iterator CategoryBeginIterator(int category_id) {
+    data_size_t category_begin = CategoryBegin(category_id);
+    auto begin_iter = indices_.begin();
+    return begin_iter + category_begin;
+  }
+
+  std::vector<data_size_t>::iterator CategoryEndIterator(int category_id) {
+    data_size_t category_end = CategoryEnd(category_id);
+    auto begin_iter = indices_.begin();
+    return begin_iter + category_end;
   }
 
   /*! \brief Number of total categories stored */

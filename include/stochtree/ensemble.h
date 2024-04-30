@@ -145,7 +145,7 @@ class TreeEnsemble {
   }
 
   inline void PredictRawInplace(ForestDataset& dataset, std::vector<double> &output, 
-                             int tree_begin, int tree_end, data_size_t offset = 0) {
+                                int tree_begin, int tree_end, data_size_t offset = 0) {
     double pred;
     MatrixMap covariates = dataset.GetCovariates();
     CHECK_EQ(output_dimension_, trees_[0]->OutputDimension());
@@ -163,6 +163,68 @@ class TreeEnsemble {
           pred += tree.LeafValue(nidx, k);
         }
         output[i*output_dimension_ + k + offset] = pred;
+      }
+    }
+  }
+
+  /*! \brief Predict the "raw" output of an ensemble in column-major format */
+  inline void PredictRawInplace(ForestDataset& dataset, VectorMap& output, data_size_t offset = 0) {
+    PredictRawInplace(dataset, output, 0, trees_.size(), offset);
+  }
+
+  /*! \brief Predict the "raw" output of an ensemble in column-major format beginning with `tree_begin` and ending with `tree_end` */
+  inline void PredictRawInplace(ForestDataset& dataset, VectorMap& output, 
+                                int tree_begin, int tree_end, data_size_t offset = 0) {
+    double pred;
+    MatrixMap covariates = dataset.GetCovariates();
+    CHECK_EQ(output_dimension_, trees_[0]->OutputDimension());
+    data_size_t n = covariates.rows();
+    data_size_t total_output_size = n * output_dimension_;
+    if (output.size() < total_output_size + offset) {
+      Log::Fatal("Mismatched size of raw prediction vector and training data");
+    }
+    for (data_size_t i = 0; i < n; i++) {
+      for (int32_t k = 0; k < output_dimension_; k++) {
+        pred = 0.0;
+        for (size_t j = tree_begin; j < tree_end; j++) {
+          auto &tree = *trees_[j];
+          int32_t nidx = EvaluateTree(tree, covariates, i);
+          pred += tree.LeafValue(nidx, k);
+        }
+        output(offset + n*k + i) = pred;
+      }
+    }
+  }
+
+  /*! \brief Predict the "raw" output of an ensemble in column-major format, multiplying every observation by a scalar_multiple 
+   *         which is assumed to be constant over all observations 
+   */
+  inline void PredictRawInplace(ForestDataset& dataset, VectorMap& output, double scalar_multiple, data_size_t offset = 0) {
+    PredictRawInplace(dataset, output, scalar_multiple, 0, trees_.size(), offset);
+  }
+
+  /*! \brief Predict the "raw" output of an ensemble in column-major format beginning with `tree_begin` and ending with `tree_end`, 
+   *         multiplying every observation by a scalar multiple which is assumed to be constant over all observations 
+   */
+  inline void PredictRawInplace(ForestDataset& dataset, VectorMap& output, double scalar_multiple, 
+                                int tree_begin, int tree_end, data_size_t offset = 0) {
+    double pred;
+    MatrixMap covariates = dataset.GetCovariates();
+    CHECK_EQ(output_dimension_, trees_[0]->OutputDimension());
+    data_size_t n = covariates.rows();
+    data_size_t total_output_size = n * output_dimension_;
+    if (output.size() < total_output_size + offset) {
+      Log::Fatal("Mismatched size of raw prediction vector and training data");
+    }
+    for (data_size_t i = 0; i < n; i++) {
+      for (int32_t k = 0; k < output_dimension_; k++) {
+        pred = 0.0;
+        for (size_t j = tree_begin; j < tree_end; j++) {
+          auto &tree = *trees_[j];
+          int32_t nidx = EvaluateTree(tree, covariates, i);
+          pred += tree.LeafValue(nidx, k);
+        }
+        output(offset + n*k + i) = pred * scalar_multiple;
       }
     }
   }

@@ -73,10 +73,14 @@ enum RandomEffectsType {
 /*! \brief Eigen Map objects that expose matrix / vector operations directly on raw buffers without copying data */
 typedef Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> MatrixObject;
 typedef Eigen::Matrix<double,Eigen::Dynamic,1> VectorObject;
+typedef Eigen::Matrix<int32_t,Eigen::Dynamic,Eigen::Dynamic> IntMatrixObject;
+typedef Eigen::Matrix<int32_t,Eigen::Dynamic,1> IntVectorObject;
 
 /*! \brief Eigen Map objects that expose matrix / vector operations directly on raw buffers without copying data */
-typedef Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic>> MatrixMap;
-typedef Eigen::Map<Eigen::Matrix<double,Eigen::Dynamic,1>> VectorMap;
+typedef Eigen::Map<MatrixObject> MatrixMap;
+typedef Eigen::Map<VectorObject> VectorMap;
+typedef Eigen::Map<IntMatrixObject> IntMatrixMap;
+typedef Eigen::Map<IntVectorObject> IntVectorMap;
 
 /*! \brief Type of data size */
 typedef int32_t data_size_t;

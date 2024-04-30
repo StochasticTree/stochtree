@@ -33,6 +33,12 @@ class ForestContainer {
   std::vector<double> Predict(ForestDataset& dataset);
   std::vector<double> PredictRaw(ForestDataset& dataset);
   std::vector<double> PredictRaw(ForestDataset& dataset, int forest_num);
+  void PredictRawInplace(ForestDataset& dataset, VectorMap& output);
+  void PredictRawInplace(ForestDataset& dataset, VectorMap& output, int forest_num);
+  void PredictRawInplace(ForestDataset& dataset, VectorMap& output, VectorMap& scalar_multiple);
+  void PredictRawInplace(ForestDataset& dataset, VectorMap& output, VectorMap& scalar_multiple, int forest_num);
+  void PredictRawInplace(ForestDataset& dataset, VectorMap& output, VectorMap& scalar_multiple_minuend, VectorMap& scalar_multiple_subtrahend);
+  void PredictRawInplace(ForestDataset& dataset, VectorMap& output, VectorMap& scalar_multiple_minuend, VectorMap& scalar_multiple_subtrahend, int forest_num);
   
   inline TreeEnsemble* GetEnsemble(int i) {return forests_[i].get();}
   inline int32_t NumSamples() {return num_samples_;}

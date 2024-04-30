@@ -301,6 +301,15 @@ void RunAPI() {
   // Initialize storage for samples of variance
   std::vector<double> global_variance_samples(num_samples);
   std::vector<double> leaf_variance_samples_mu(num_samples);
+  
+  // Storage for samples of b1 and b0
+  std::vector<double> b1_samples(num_samples);
+  std::vector<double> b0_samples(num_samples);
+  
+  // Storage for samples of muhat, tauhat, and yhat
+  MatrixObject muhat_samples(n, num_samples);
+  MatrixObject yhat_samples(n, num_samples);
+  VectorObject tauhat_samples(n*num_samples*1);
 
   // Initialize the BCF sampler
   BCFModel bcf = BCFModel<GaussianUnivariateRegressionLeafModel>();
@@ -308,6 +317,9 @@ void RunAPI() {
                 covariates_raw.data(), x_cols, treatment_raw.data(), 1, true);
   bcf.ResetGlobalVarSamples(global_variance_samples.data(), num_samples);
   bcf.ResetPrognosticLeafVarSamples(leaf_variance_samples_mu.data(), num_samples);
+  bcf.ResetTreatedCodingSamples(b1_samples.data(), num_samples);
+  bcf.ResetControlCodingSamples(b0_samples.data(), num_samples);
+  bcf.ResetTrainPredictionSamples(muhat_samples.data(), tauhat_samples.data(), yhat_samples.data(), n, num_samples, 1);
 
   // Run the BCF sampler
   bcf.SampleBCF(&forest_samples_mu, &forest_samples_tau, &rng, cutpoint_grid_size, 
@@ -315,6 +327,18 @@ void RunAPI() {
                 min_samples_leaf_mu, min_samples_leaf_tau, nu, lamb, a_leaf_mu, a_leaf_tau, b_leaf_mu, b_leaf_tau, 
                 sigma2, num_trees_mu, num_trees_tau, b1, b0, feature_types_mu, feature_types_tau, 
                 num_gfr_samples, 0, num_mcmc_samples, 0.0, 0.0);
+  
+  // Analysis predictions
+  double ssr = 0;
+  for (int i = 0; i < n; i++) {
+    double yhat_mean = 0;
+    for (int j = num_gfr_samples; j < num_samples; j++) {
+      yhat_mean += yhat_samples(i, j) / (num_samples - num_gfr_samples);
+    }
+    ssr += (outcome_raw.at(i) - yhat_mean)*(outcome_raw.at(i) - yhat_mean);
+  }
+  double rmse = std::sqrt(ssr / n);
+  std::cout << "Train set RMSE = " << rmse << std::endl;
 }
 
 } // namespace StochTree
