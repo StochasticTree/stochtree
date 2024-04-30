@@ -312,7 +312,8 @@ void RunAPI() {
   VectorObject tauhat_samples(n*num_samples*1);
 
   // Initialize the BCF sampler
-  BCFModel bcf = BCFModel<GaussianUnivariateRegressionLeafModel>();
+  // BCFModel bcf = BCFModel<GaussianUnivariateRegressionLeafModel>();
+  BCFModelWrapper bcf = BCFModelWrapper(true);
   bcf.LoadTrain(outcome_raw.data(), n, covariates_pi.data(), x_cols+1, 
                 covariates_raw.data(), x_cols, treatment_raw.data(), 1, true);
   bcf.ResetGlobalVarSamples(global_variance_samples.data(), num_samples);

@@ -811,6 +811,175 @@ class BCFModel {
   }
 };
 
+class BCFModelWrapper {
+ private: 
+  bool univariate_{true};
+  BCFModel<GaussianUnivariateRegressionLeafModel> bcf_univariate_;
+  BCFModel<GaussianMultivariateRegressionLeafModel> bcf_multivariate_;
+ public:
+  BCFModelWrapper(bool univariate = true){
+//    BCFModel<GaussianUnivariateRegressionLeafModel> bcf_univariate_{};
+//    BCFModel<GaussianMultivariateRegressionLeafModel> bcf_multivariate_{};
+//    bcf_univariate_ = BCFModel<GaussianUnivariateRegressionLeafModel>();
+//    bcf_multivariate_ = BCFModel<GaussianMultivariateRegressionLeafModel>();
+    if (univariate) univariate_ = true;
+    else univariate_ = false;
+  }
+  ~BCFModelWrapper(){}
+  void SampleBCF(ForestContainer* forest_samples_mu, ForestContainer* forest_samples_tau, std::mt19937* rng, 
+                 int cutpoint_grid_size, double sigma_leaf_mu, double sigma_leaf_tau, 
+                 double alpha_mu, double alpha_tau, double beta_mu, double beta_tau, 
+                 int min_samples_leaf_mu, int min_samples_leaf_tau, double nu, double lamb, 
+                 double a_leaf_mu, double a_leaf_tau, double b_leaf_mu, double b_leaf_tau, 
+                 double sigma2, int num_trees_mu, int num_trees_tau, double b1, double b0, 
+                 std::vector<FeatureType>& feature_types_mu, std::vector<FeatureType>& feature_types_tau, 
+                 int num_gfr, int num_burnin, int num_mcmc, double leaf_init_mu, double leaf_init_tau) {
+    if (univariate_) {
+      bcf_univariate_.SampleBCF(
+        forest_samples_mu, forest_samples_tau, rng, cutpoint_grid_size, sigma_leaf_mu, sigma_leaf_tau, 
+        alpha_mu, alpha_tau, beta_mu, beta_tau, min_samples_leaf_mu, min_samples_leaf_tau, nu, lamb, 
+        a_leaf_mu, a_leaf_tau, b_leaf_mu, b_leaf_tau, sigma2, num_trees_mu, num_trees_tau, b1, b0, 
+        feature_types_mu, feature_types_tau, num_gfr, num_burnin, num_mcmc, leaf_init_mu, leaf_init_tau
+      );
+    } else {
+      bcf_multivariate_.SampleBCF(
+        forest_samples_mu, forest_samples_tau, rng, cutpoint_grid_size, sigma_leaf_mu, sigma_leaf_tau, 
+        alpha_mu, alpha_tau, beta_mu, beta_tau, min_samples_leaf_mu, min_samples_leaf_tau, nu, lamb, 
+        a_leaf_mu, a_leaf_tau, b_leaf_mu, b_leaf_tau, sigma2, num_trees_mu, num_trees_tau, b1, b0, 
+        feature_types_mu, feature_types_tau, num_gfr, num_burnin, num_mcmc, leaf_init_mu, leaf_init_tau
+      );
+    }
+  }
+
+  void SampleBCF(ForestContainer* forest_samples_mu, ForestContainer* forest_samples_tau, std::mt19937* rng, 
+                 int cutpoint_grid_size, double sigma_leaf_mu, Eigen::MatrixXd& sigma_leaf_tau, 
+                 double alpha_mu, double alpha_tau, double beta_mu, double beta_tau, 
+                 int min_samples_leaf_mu, int min_samples_leaf_tau, double nu, double lamb, 
+                 double a_leaf_mu, double a_leaf_tau, double b_leaf_mu, double b_leaf_tau, 
+                 double sigma2, int num_trees_mu, int num_trees_tau, double b1, double b0, 
+                 std::vector<FeatureType>& feature_types_mu, std::vector<FeatureType>& feature_types_tau, 
+                 int num_gfr, int num_burnin, int num_mcmc, double leaf_init_mu, double leaf_init_tau) {
+    if (univariate_) {
+      bcf_univariate_.SampleBCF(
+        forest_samples_mu, forest_samples_tau, rng, cutpoint_grid_size, sigma_leaf_mu, sigma_leaf_tau, 
+        alpha_mu, alpha_tau, beta_mu, beta_tau, min_samples_leaf_mu, min_samples_leaf_tau, nu, lamb, 
+        a_leaf_mu, a_leaf_tau, b_leaf_mu, b_leaf_tau, sigma2, num_trees_mu, num_trees_tau, b1, b0, 
+        feature_types_mu, feature_types_tau, num_gfr, num_burnin, num_mcmc, leaf_init_mu, leaf_init_tau
+      );
+    } else {
+      bcf_multivariate_.SampleBCF(
+        forest_samples_mu, forest_samples_tau, rng, cutpoint_grid_size, sigma_leaf_mu, sigma_leaf_tau, 
+        alpha_mu, alpha_tau, beta_mu, beta_tau, min_samples_leaf_mu, min_samples_leaf_tau, nu, lamb, 
+        a_leaf_mu, a_leaf_tau, b_leaf_mu, b_leaf_tau, sigma2, num_trees_mu, num_trees_tau, b1, b0, 
+        feature_types_mu, feature_types_tau, num_gfr, num_burnin, num_mcmc, leaf_init_mu, leaf_init_tau
+      );
+    }
+  }
+
+  void LoadTrain(double* residual_data_ptr, int num_rows, double* prognostic_covariate_data_ptr, int num_prognostic_covariates, 
+                 double* treatment_covariate_data_ptr, int num_treatment_covariates, double* treatment_data_ptr, 
+                 int num_treatment, bool treatment_binary) {
+    if (univariate_) {
+      bcf_univariate_.LoadTrain(
+        residual_data_ptr, num_rows, prognostic_covariate_data_ptr, num_prognostic_covariates, 
+        treatment_covariate_data_ptr, num_treatment_covariates, treatment_data_ptr, num_treatment, treatment_binary
+      );
+    } else {
+      bcf_multivariate_.LoadTrain(
+        residual_data_ptr, num_rows, prognostic_covariate_data_ptr, num_prognostic_covariates, 
+        treatment_covariate_data_ptr, num_treatment_covariates, treatment_data_ptr, num_treatment, treatment_binary
+      );
+    }
+  }
+  
+  void LoadTrain(double* residual_data_ptr, int num_rows, double* prognostic_covariate_data_ptr, int num_prognostic_covariates, 
+                 double* treatment_covariate_data_ptr, int num_treatment_covariates, double* treatment_data_ptr, 
+                 int num_treatment, bool treatment_binary, double* weights_data_ptr) {
+    if (univariate_) {
+      bcf_univariate_.LoadTrain(
+        residual_data_ptr, num_rows, prognostic_covariate_data_ptr, num_prognostic_covariates, 
+        treatment_covariate_data_ptr, num_treatment_covariates, treatment_data_ptr, num_treatment, treatment_binary, weights_data_ptr
+      );
+    } else {
+      bcf_multivariate_.LoadTrain(
+        residual_data_ptr, num_rows, prognostic_covariate_data_ptr, num_prognostic_covariates, 
+        treatment_covariate_data_ptr, num_treatment_covariates, treatment_data_ptr, num_treatment, treatment_binary, weights_data_ptr
+      );
+    }
+  }
+  
+  void LoadTest(double* prognostic_covariate_data_ptr, int num_rows, int num_prognostic_covariates, 
+                double* treatment_covariate_data_ptr, int num_treatment_covariates, double* treatment_data_ptr, int num_treatment) {
+    if (univariate_) {
+      bcf_univariate_.LoadTest(
+        prognostic_covariate_data_ptr, num_rows, num_prognostic_covariates, treatment_covariate_data_ptr,
+        num_treatment_covariates, treatment_data_ptr, num_treatment
+      );
+    } else {
+      bcf_multivariate_.LoadTest(
+        prognostic_covariate_data_ptr, num_rows, num_prognostic_covariates, treatment_covariate_data_ptr,
+        num_treatment_covariates, treatment_data_ptr, num_treatment
+      );
+    }
+  }
+  
+  void ResetGlobalVarSamples(double* data_ptr, int num_samples) {
+    if (univariate_) {
+      bcf_univariate_.ResetGlobalVarSamples(data_ptr, num_samples);
+    } else {
+      bcf_multivariate_.ResetGlobalVarSamples(data_ptr, num_samples);
+    }
+  }
+
+  void ResetPrognosticLeafVarSamples(double* data_ptr, int num_samples) {
+    if (univariate_) {
+      bcf_univariate_.ResetPrognosticLeafVarSamples(data_ptr, num_samples);
+    } else {
+      bcf_multivariate_.ResetPrognosticLeafVarSamples(data_ptr, num_samples);
+    }
+  }
+  
+  void ResetTreatmentLeafVarSamples(double* data_ptr, int num_samples) {
+    if (univariate_) {
+      bcf_univariate_.ResetTreatmentLeafVarSamples(data_ptr, num_samples);
+    } else {
+      bcf_multivariate_.ResetTreatmentLeafVarSamples(data_ptr, num_samples);
+    }
+  }
+  
+  void ResetTreatedCodingSamples(double* data_ptr, int num_samples) {
+    if (univariate_) {
+      bcf_univariate_.ResetTreatedCodingSamples(data_ptr, num_samples);
+    } else {
+      bcf_multivariate_.ResetTreatedCodingSamples(data_ptr, num_samples);
+    }
+  }
+  
+  void ResetControlCodingSamples(double* data_ptr, int num_samples) {
+    if (univariate_) {
+      bcf_univariate_.ResetControlCodingSamples(data_ptr, num_samples);
+    } else {
+      bcf_multivariate_.ResetControlCodingSamples(data_ptr, num_samples);
+    }
+  }
+  
+  void ResetTrainPredictionSamples(double* muhat_data_ptr, double* tauhat_data_ptr, double* yhat_data_ptr, int num_obs, int num_samples, int treatment_dim) {
+    if (univariate_) {
+      bcf_univariate_.ResetTrainPredictionSamples(muhat_data_ptr, tauhat_data_ptr, yhat_data_ptr, num_obs, num_samples, treatment_dim);
+    } else {
+      bcf_multivariate_.ResetTrainPredictionSamples(muhat_data_ptr, tauhat_data_ptr, yhat_data_ptr, num_obs, num_samples, treatment_dim);
+    }
+  }
+  
+  void ResetTestPredictionSamples(double* muhat_data_ptr, double* tauhat_data_ptr, double* yhat_data_ptr, int num_obs, int num_samples, int treatment_dim) {
+    if (univariate_) {
+      bcf_univariate_.ResetTestPredictionSamples(muhat_data_ptr, tauhat_data_ptr, yhat_data_ptr, num_obs, num_samples, treatment_dim);
+    } else {
+      bcf_multivariate_.ResetTestPredictionSamples(muhat_data_ptr, tauhat_data_ptr, yhat_data_ptr, num_obs, num_samples, treatment_dim);
+    }
+  }
+};
+
 } // namespace StochTree
 
 #endif // STOCHTREE_CPP_API_H_
