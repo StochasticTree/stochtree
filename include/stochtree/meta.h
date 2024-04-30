@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <Eigen/Dense>
 
 #if (defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_AMD64))) || defined(__INTEL_COMPILER) || MM_PREFETCH
   #include <xmmintrin.h>
@@ -29,6 +30,12 @@
 #endif
 
 namespace StochTree {
+
+enum ForestLeafModel {
+    kConstant, 
+    kUnivariateRegression, 
+    kMultivariateRegression
+};
 
 enum FeatureType {
   kNumeric,
@@ -62,6 +69,18 @@ enum RandomEffectsType {
   kConstantRandomEffect,
   kRegressionRandomEffect
 };
+
+/*! \brief Eigen Map objects that expose matrix / vector operations directly on raw buffers without copying data */
+typedef Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> MatrixObject;
+typedef Eigen::Matrix<double,Eigen::Dynamic,1> VectorObject;
+typedef Eigen::Matrix<int32_t,Eigen::Dynamic,Eigen::Dynamic> IntMatrixObject;
+typedef Eigen::Matrix<int32_t,Eigen::Dynamic,1> IntVectorObject;
+
+/*! \brief Eigen Map objects that expose matrix / vector operations directly on raw buffers without copying data */
+typedef Eigen::Map<MatrixObject> MatrixMap;
+typedef Eigen::Map<VectorObject> VectorMap;
+typedef Eigen::Map<IntMatrixObject> IntMatrixMap;
+typedef Eigen::Map<IntVectorObject> IntVectorMap;
 
 /*! \brief Type of data size */
 typedef int32_t data_size_t;

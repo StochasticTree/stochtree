@@ -5,6 +5,7 @@
  * Copyright 2017-2021 by [treelite] Contributors
  */
 #include <stochtree/common.h>
+#include <stochtree/meta.h>
 #include <stochtree/tree.h>
 
 #include <algorithm>
@@ -64,7 +65,7 @@ std::vector<double> Tree::PredictFromNodes(std::vector<std::int32_t> node_indice
   return result;
 }
 
-double Tree::PredictFromNode(std::int32_t node_id, Eigen::MatrixXd& basis, int row_idx) {
+double Tree::PredictFromNode(std::int32_t node_id, MatrixMap& basis, int row_idx) {
   if (!this->IsLeaf(node_id)) {
     Log::Fatal("Node %d is not a leaf node", node_id);
   }
@@ -75,7 +76,7 @@ double Tree::PredictFromNode(std::int32_t node_id, Eigen::MatrixXd& basis, int r
   return pred;
 }
 
-std::vector<double> Tree::PredictFromNodes(std::vector<std::int32_t> node_indices, Eigen::MatrixXd& basis) {
+std::vector<double> Tree::PredictFromNodes(std::vector<std::int32_t> node_indices, MatrixMap& basis) {
   data_size_t n = node_indices.size();
   std::vector<double> result(n);
   for (data_size_t i = 0; i < n; i++) {

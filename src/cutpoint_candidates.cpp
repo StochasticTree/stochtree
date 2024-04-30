@@ -6,7 +6,7 @@
 
 namespace StochTree {
 
-void FeatureCutpointGrid::CalculateStrides(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index, std::vector<FeatureType>& feature_types) {
+void FeatureCutpointGrid::CalculateStrides(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index, std::vector<FeatureType>& feature_types) {
   // Reset the stride vectors
   node_stride_begin_.clear();
   node_stride_length_.clear();
@@ -23,7 +23,7 @@ void FeatureCutpointGrid::CalculateStrides(Eigen::MatrixXd& covariates, Eigen::V
   }
 }
 
-void FeatureCutpointGrid::CalculateStridesNumeric(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index) {
+void FeatureCutpointGrid::CalculateStridesNumeric(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index) {
   data_size_t node_size = node_end - node_begin;
   // Check if node has fewer observations than cutpoint_grid_size
   if (node_size <= cutpoint_grid_size_) {
@@ -41,7 +41,7 @@ void FeatureCutpointGrid::CalculateStridesNumeric(Eigen::MatrixXd& covariates, E
   }
 }
 
-void FeatureCutpointGrid::CalculateStridesOrderedCategorical(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index) {
+void FeatureCutpointGrid::CalculateStridesOrderedCategorical(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index) {
   data_size_t node_size = node_end - node_begin;
   
   // Edge case 1: single observation
@@ -103,7 +103,7 @@ void FeatureCutpointGrid::CalculateStridesOrderedCategorical(Eigen::MatrixXd& co
   }
 }
 
-void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index) {
+void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index) {
   // TODO: refactor so that this initial code is shared between ordered and unordered categorical cutpoint calculation
   data_size_t node_size = node_end - node_begin;
   std::vector<double> bin_sums;
@@ -199,7 +199,7 @@ void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(Eigen::MatrixXd& 
   }
 }
 
-void FeatureCutpointGrid::EnumerateNumericCutpointsDeduplication(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, data_size_t node_size, int32_t feature_index) {
+void FeatureCutpointGrid::EnumerateNumericCutpointsDeduplication(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, data_size_t node_size, int32_t feature_index) {
   // Edge case 1: single observation
   double single_value;
   if (node_end - node_begin == 1) {
@@ -258,7 +258,7 @@ void FeatureCutpointGrid::EnumerateNumericCutpointsDeduplication(Eigen::MatrixXd
   }
 }
 
-void FeatureCutpointGrid::ScanNumericCutpoints(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, data_size_t node_size, int32_t feature_index) {
+void FeatureCutpointGrid::ScanNumericCutpoints(MatrixMap& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, data_size_t node_size, int32_t feature_index) {
   // Edge case 1: single observation
   double single_value;
   if (node_end - node_begin == 1) {

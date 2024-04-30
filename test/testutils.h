@@ -6,6 +6,7 @@
 #define STOCHTREE_TESTUTILS_H_
 
 #include <Eigen/Dense>
+#include <stochtree/meta.h>
 #include <stochtree/random.h>
 #include <vector>
 
@@ -14,16 +15,16 @@ namespace StochTree {
 namespace TestUtils {
 
 struct TestDataset {
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> covariates;
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> omega;
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> rfx_basis;
+  std::vector<double> covariates;
+  std::vector<double> omega;
+  std::vector<double> rfx_basis;
   Eigen::VectorXd outcome;
   std::vector<int32_t> rfx_groups;
   int n;
   int x_cols;
   int omega_cols;
   int rfx_basis_cols;
-  bool row_major{true};
+  bool row_major{false};
 };
 
 /*! Creates a small dataset (10 observations) */

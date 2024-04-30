@@ -100,6 +100,78 @@ std::vector<double> ForestContainer::PredictRaw(ForestDataset& dataset, int fore
   return output;
 }
 
+void ForestContainer::PredictRawInplace(ForestDataset& dataset, VectorMap& output) {
+  data_size_t n = dataset.NumObservations();
+  // data_size_t total_output_size = n * output_dimension_ * num_samples_;
+  // std::vector<double> output(total_output_size);
+  data_size_t offset = 0;
+  for (int i = 0; i < num_samples_; i++) {
+    auto num_trees = forests_[i]->NumTrees();
+    forests_[i]->PredictRawInplace(dataset, output, 0, num_trees, offset);
+    offset += n * output_dimension_;
+  }
+}
+
+void ForestContainer::PredictRawInplace(ForestDataset& dataset, VectorMap& output, int forest_num) {
+  data_size_t n = dataset.NumObservations();
+  // data_size_t total_output_size = n * output_dimension_;
+  // std::vector<double> output(total_output_size);
+  data_size_t offset = 0;
+  auto num_trees = forests_[forest_num]->NumTrees();
+  forests_[forest_num]->PredictRawInplace(dataset, output, 0, num_trees, offset);
+}
+
+void ForestContainer::PredictRawInplace(ForestDataset& dataset, VectorMap& output, VectorMap& scalar_multiple) {
+  CHECK_EQ(scalar_multiple.size(), num_samples_);
+  data_size_t n = dataset.NumObservations();
+  // data_size_t total_output_size = n * output_dimension_ * num_samples_;
+  // std::vector<double> output(total_output_size);
+  data_size_t offset = 0;
+  for (int i = 0; i < num_samples_; i++) {
+    auto num_trees = forests_[i]->NumTrees();
+    forests_[i]->PredictRawInplace(dataset, output, scalar_multiple(i), 0, num_trees, offset);
+    offset += n * output_dimension_;
+  }
+}
+
+void ForestContainer::PredictRawInplace(ForestDataset& dataset, VectorMap& output, VectorMap& scalar_multiple, int forest_num) {
+  CHECK_EQ(scalar_multiple.size(), num_samples_);
+  data_size_t n = dataset.NumObservations();
+  // data_size_t total_output_size = n * output_dimension_;
+  // std::vector<double> output(total_output_size);
+  data_size_t offset = 0;
+  auto num_trees = forests_[forest_num]->NumTrees();
+  forests_[forest_num]->PredictRawInplace(dataset, output, scalar_multiple(forest_num), 0, num_trees, offset);
+}
+
+void ForestContainer::PredictRawInplace(ForestDataset& dataset, VectorMap& output, VectorMap& scalar_multiple_minuend, VectorMap& scalar_multiple_subtrahend) {
+  CHECK_EQ(scalar_multiple_minuend.size(), num_samples_);
+  CHECK_EQ(scalar_multiple_subtrahend.size(), num_samples_);
+  data_size_t n = dataset.NumObservations();
+  // data_size_t total_output_size = n * output_dimension_ * num_samples_;
+  // std::vector<double> output(total_output_size);
+  data_size_t offset = 0;
+  double mult;
+  for (int i = 0; i < num_samples_; i++) {
+    mult = scalar_multiple_minuend(i) - scalar_multiple_subtrahend(i);
+    auto num_trees = forests_[i]->NumTrees();
+    forests_[i]->PredictRawInplace(dataset, output, mult, 0, num_trees, offset);
+    offset += n * output_dimension_;
+  }
+}
+
+void ForestContainer::PredictRawInplace(ForestDataset& dataset, VectorMap& output, VectorMap& scalar_multiple_minuend, VectorMap& scalar_multiple_subtrahend, int forest_num) {
+  CHECK_EQ(scalar_multiple_minuend.size(), num_samples_);
+  CHECK_EQ(scalar_multiple_subtrahend.size(), num_samples_);
+  data_size_t n = dataset.NumObservations();
+  // data_size_t total_output_size = n * output_dimension_;
+  // std::vector<double> output(total_output_size);
+  data_size_t offset = 0;
+  double mult = scalar_multiple_minuend(forest_num) - scalar_multiple_subtrahend(forest_num);
+  auto num_trees = forests_[forest_num]->NumTrees();
+  forests_[forest_num]->PredictRawInplace(dataset, output, mult, 0, num_trees, offset);
+}
+
 /*! \brief Save to JSON */
 json ForestContainer::to_json() {
   json result_obj;
