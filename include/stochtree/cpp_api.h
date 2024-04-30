@@ -818,10 +818,6 @@ class BCFModelWrapper {
   BCFModel<GaussianMultivariateRegressionLeafModel> bcf_multivariate_;
  public:
   BCFModelWrapper(bool univariate = true){
-//    BCFModel<GaussianUnivariateRegressionLeafModel> bcf_univariate_{};
-//    BCFModel<GaussianMultivariateRegressionLeafModel> bcf_multivariate_{};
-//    bcf_univariate_ = BCFModel<GaussianUnivariateRegressionLeafModel>();
-//    bcf_multivariate_ = BCFModel<GaussianMultivariateRegressionLeafModel>();
     if (univariate) univariate_ = true;
     else univariate_ = false;
   }
