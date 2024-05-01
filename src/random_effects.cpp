@@ -1,8 +1,4 @@
-/*!
- * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See LICENSE file in the project root for
- * license information.
- */
+/*! Copyright (c) 2024 StochasticTree authors */
 #include <stochtree/random_effects.h>
 
 namespace StochTree {
@@ -153,6 +149,54 @@ double MultivariateRegressionRandomEffectsModel::VarianceComponentScale(RandomEf
     output += xi(component_id, i)*xi(component_id, i);
   }
   return output;
+}
+
+void RandomEffectsContainer::AddSample(MultivariateRegressionRandomEffectsModel& model){
+  // Increment number of samples
+  int sample_ind = num_samples_;
+  num_samples_++;
+
+  // Add alpha
+  alpha_.resize(num_samples_*num_components_);
+  for (int i = 0; i < num_components_; i++) {
+    alpha_.at(sample_ind*num_components_ + i) = model.GetWorkingParameter()(i);
+  }
+
+  // Add xi and beta
+  xi_.resize(num_samples_*num_components_*num_groups_);
+  beta_.resize(num_samples_*num_components_*num_groups_);
+  for (int i = 0; i < num_components_; i++) {
+    for (int j = 0; j < num_groups_; j++) {
+      xi_.at(sample_ind*num_groups_*num_components_ + j*num_components_ + i) = model.GetGroupParameters()(i,j);
+      beta_.at(sample_ind*num_groups_*num_components_ + j*num_components_ + i) = xi_.at(sample_ind*num_groups_*num_components_ + j*num_components_ + i) * alpha_.at(sample_ind*num_components_ + i);
+    }
+  }
+
+  // Add sigma
+  sigma_xi_.resize(num_samples_*num_components_);
+  for (int i = 0; i < num_components_; i++) {
+    sigma_xi_.at(sample_ind*num_components_ + i) = model.GetGroupParameterCovariance()(i,i);
+  }
+}
+
+void RandomEffectsContainer::Predict(RandomEffectsDataset& dataset, LabelMapper& label_mapper, std::vector<double>& output) {
+  Eigen::MatrixXd X = dataset.GetBasis();
+  std::vector<int32_t> group_labels = dataset.GetGroupLabels();
+  CHECK_EQ(X.rows(), group_labels.size());
+  int n = X.rows();
+  CHECK_EQ(n*num_samples_, output.size());
+  std::int32_t group_ind;
+  double pred;
+  for (int i = 0; i < n; i++) {
+    group_ind = label_mapper.CategoryNumber(group_labels[i]);
+    for (int j = 0; j < num_samples_; j++) {
+      pred = 0;
+      for (int k = 0; k < num_components_; k++) {
+        pred += X(i,k) * alpha_.at(j*num_components_ + k) * beta_.at(j*num_groups_*num_components_ + group_ind*num_components_ + k);
+      }
+      output.at(j*n + i) = pred;
+    }
+  }
 }
 
 }  // namespace StochTree
