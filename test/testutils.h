@@ -23,6 +23,7 @@ struct TestDataset {
   int x_cols;
   int omega_cols;
   int rfx_basis_cols;
+  int rfx_num_groups;
   bool row_major{true};
 };
 

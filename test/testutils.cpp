@@ -48,13 +48,14 @@ TestDataset LoadSmallDatasetUnivariateBasis() {
   output.rfx_basis << 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
   
   // Random effects group labels
-  for (int i = 0; i < output.n/2; i++) {
+  for (int i = 0; i < output.n; i++) {
     if (i % 2 == 0) {
       output.rfx_groups[i] = 1;
     } else {
       output.rfx_groups[i] = 2;
     }
   }
+  output.rfx_num_groups = 2;
 
   return output;
 }
@@ -105,13 +106,14 @@ TestDataset LoadSmallDatasetMultivariateBasis() {
   output.rfx_basis << 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
   
   // Random effects group labels
-  for (int i = 0; i < output.n/2; i++) {
+  for (int i = 0; i < output.n; i++) {
     if (i % 2 == 0) {
       output.rfx_groups[i] = 1;
     } else {
       output.rfx_groups[i] = 2;
     }
   }
+  output.rfx_num_groups = 2;
 
   return output;
 }
@@ -272,13 +274,14 @@ TestDataset LoadMediumDatasetUnivariateBasis() {
                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
   
   // Random effects group labels
-  for (int i = 0; i < output.n/2; i++) {
+  for (int i = 0; i < output.n; i++) {
     if (i % 2 == 0) {
       output.rfx_groups[i] = 1;
     } else {
       output.rfx_groups[i] = 2;
     }
   }
+  output.rfx_num_groups = 2;
 
   return output;
 }

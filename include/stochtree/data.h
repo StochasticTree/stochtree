@@ -118,6 +118,7 @@ class RandomEffectsDataset {
     group_labels_ = group_labels;
     has_group_labels_ = true;
   }
+  inline data_size_t NumObservations() {return basis_.NumRows();}
   inline bool HasBasis() {return has_basis_;}
   inline bool HasVarWeights() {return has_var_weights_;}
   inline bool HasGroupLabels() {return has_group_labels_;}

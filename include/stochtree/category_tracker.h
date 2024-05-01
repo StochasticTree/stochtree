@@ -115,6 +115,11 @@ class CategorySampleTracker {
     }
   }
 
+  /*! \brief Zero-indexed numeric index that category_id is remapped to internally */
+  inline int32_t CategoryNumber(int category_id) {
+    return category_id_map_[category_id];
+  }
+
   /*! \brief First index of data points contained in node_id */
   inline data_size_t CategoryBegin(int category_id) {return category_begin_[category_id_map_[category_id]];}
 
