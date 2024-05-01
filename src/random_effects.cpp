@@ -192,7 +192,7 @@ void RandomEffectsContainer::Predict(RandomEffectsDataset& dataset, LabelMapper&
     for (int j = 0; j < num_samples_; j++) {
       pred = 0;
       for (int k = 0; k < num_components_; k++) {
-        pred += X(i,k) * alpha_.at(j*num_components_ + k) * beta_.at(j*num_groups_*num_components_ + group_ind*num_components_ + k);
+        pred += X(i,k) * beta_.at(j*num_groups_*num_components_ + group_ind*num_components_ + k);
       }
       output.at(j*n + i) = pred;
     }

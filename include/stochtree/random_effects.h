@@ -88,6 +88,10 @@ class MultivariateRegressionRandomEffectsModel {
     ig_sampler_ = InverseGammaSampler();
     num_components_ = num_components;
     num_groups_ = num_groups;
+    working_parameter_ = Eigen::VectorXd(num_components_);
+    group_parameters_ = Eigen::MatrixXd(num_components_, num_groups_);
+    group_parameter_covariance_ = Eigen::MatrixXd(num_components_, num_components_);
+    working_parameter_covariance_ = Eigen::VectorXd(num_components_, num_components_);
   }
   ~MultivariateRegressionRandomEffectsModel() {}
   

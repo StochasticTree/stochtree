@@ -60,7 +60,7 @@ TEST(RandomEffects, Construction) {
   xi << 2, 4;
   Eigen::VectorXd xi0 = xi(Eigen::all, 0);
   Eigen::VectorXd xi1 = xi(Eigen::all, 1);
-  sigma << 1, 0, 0, 1;
+  sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
   model.SetGroupParameter(xi1, 1);
@@ -74,7 +74,7 @@ TEST(RandomEffects, Construction) {
   xi << 1, 3;
   xi0 = xi(Eigen::all, 0);
   xi1 = xi(Eigen::all, 1);
-  sigma << 1, 0, 0, 1;
+  sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
   model.SetGroupParameter(xi1, 1);
@@ -125,7 +125,7 @@ TEST(RandomEffects, Predict) {
   xi << 2, 4;
   Eigen::VectorXd xi0 = xi(Eigen::all, 0);
   Eigen::VectorXd xi1 = xi(Eigen::all, 1);
-  sigma << 1, 0, 0, 1;
+  sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
   model.SetGroupParameter(xi1, 1);
@@ -139,7 +139,7 @@ TEST(RandomEffects, Predict) {
   xi << 1, 3;
   xi0 = xi(Eigen::all, 0);
   xi1 = xi(Eigen::all, 1);
-  sigma << 1, 0, 0, 1;
+  sigma << 1;
   model.SetWorkingParameter(alpha);
   model.SetGroupParameter(xi0, 0);
   model.SetGroupParameter(xi1, 1);
@@ -153,8 +153,8 @@ TEST(RandomEffects, Predict) {
 
   // Check predictions
   std::vector<double> output_expected {
-    3, 6, 3, 6, 3, 6, 3, 6, 3, 6, 3, 6, 
-    2, 6, 2, 6, 2, 6, 2, 6, 2, 6, 2, 6
+    3, 6, 3, 6, 3, 6, 3, 6, 3, 6, 
+    2, 6, 2, 6, 2, 6, 2, 6, 2, 6, 
   };
   for (int i = 0; i < output.size(); i++) {
     ASSERT_EQ(output[i], output_expected[i]);
