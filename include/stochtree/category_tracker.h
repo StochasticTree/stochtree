@@ -149,6 +149,16 @@ class CategorySampleTracker {
     // return output;
     return node_index_vector_[id];
   }
+  
+  /*! \brief Data indices for a given node */
+  std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) {
+//    int32_t id = category_id_map_[category_id];
+    // std::vector<data_size_t>::iterator start = indices_.begin() + category_begin_[id];
+    // std::vector<data_size_t>::iterator end = indices_.begin() + category_begin_[id] + category_length_[id];
+    // std::vector<data_size_t> output(start, end);
+    // return output;
+    return node_index_vector_[internal_category_id];
+  }
 
   /*! \brief Returns label index map */
   std::map<int32_t, int32_t>& GetLabelMap() {return category_id_map_;}

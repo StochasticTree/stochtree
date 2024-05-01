@@ -44,6 +44,7 @@ class RandomEffectsTracker {
   std::vector<data_size_t>::iterator UnsortedNodeEndIterator(int category_id);
   std::map<int32_t, int32_t>& GetLabelMap() {return category_sample_tracker_->GetLabelMap();}
   std::vector<data_size_t>& NodeIndices(int category_id) {return category_sample_tracker_->NodeIndices(category_id);}
+  std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) {return category_sample_tracker_->NodeIndicesInternalIndex(internal_category_id);}
   double GetPrediction(data_size_t observation_num) {return rfx_predictions_.at(observation_num);}
   void SetPrediction(data_size_t observation_num, double pred) {rfx_predictions_.at(observation_num) = pred;}
 
@@ -195,6 +196,7 @@ class MultivariateRegressionRandomEffectsModel {
       new_pred = X(i, Eigen::all) * alpha_diag * group_parameters_(Eigen::all, group_ind);
       new_resid = residual.GetElement(i) - new_pred;
       residual.SetElement(i, new_resid);
+      tracker.SetPrediction(i, new_pred);
     }
   }
  private:

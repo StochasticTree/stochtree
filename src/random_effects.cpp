@@ -72,7 +72,7 @@ Eigen::VectorXd MultivariateRegressionRandomEffectsModel::WorkingParameterMean(R
   Eigen::VectorXd y = residual.GetData();
   Eigen::MatrixXd xi = group_parameters_;
   for (int i = 0; i < num_groups; i++) {
-    observation_indices = rfx_tracker.NodeIndices(i);
+    observation_indices = rfx_tracker.NodeIndicesInternalIndex(i);
     X_group = X(observation_indices, Eigen::all);
     y_group = y(observation_indices, Eigen::all);
     xi_group = xi(Eigen::all, i);
@@ -95,7 +95,7 @@ Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::WorkingParameterVarian
   Eigen::VectorXd y = residual.GetData();
   Eigen::MatrixXd xi = group_parameters_;
   for (int i = 0; i < num_groups; i++) {
-    observation_indices = rfx_tracker.NodeIndices(i);
+    observation_indices = rfx_tracker.NodeIndicesInternalIndex(i);
     X_group = X(observation_indices, Eigen::all);
     y_group = y(observation_indices, Eigen::all);
     xi_group = xi(Eigen::all, i);
@@ -113,7 +113,7 @@ Eigen::VectorXd MultivariateRegressionRandomEffectsModel::GroupParameterMean(Ran
   Eigen::VectorXd alpha = working_parameter_;
   Eigen::MatrixXd posterior_denominator = group_parameter_covariance_.inverse();
   Eigen::VectorXd posterior_numerator = Eigen::VectorXd::Zero(num_components);
-  std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndices(group_id);
+  std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndicesInternalIndex(group_id);
   Eigen::MatrixXd X_group = X(observation_indices, Eigen::all);
   Eigen::VectorXd y_group = y(observation_indices, Eigen::all);
   posterior_denominator += (alpha).asDiagonal() * X_group.transpose() * X_group * (alpha).asDiagonal();
@@ -128,12 +128,12 @@ Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::GroupParameterVariance
   Eigen::VectorXd y = residual.GetData();
   Eigen::VectorXd alpha = working_parameter_;
   Eigen::MatrixXd posterior_denominator = group_parameter_covariance_.inverse();
-  Eigen::VectorXd posterior_numerator = Eigen::VectorXd::Zero(num_components);
-  std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndices(group_id);
+//  Eigen::VectorXd posterior_numerator = Eigen::VectorXd::Zero(num_components);
+  std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndicesInternalIndex(group_id);
   Eigen::MatrixXd X_group = X(observation_indices, Eigen::all);
-  Eigen::VectorXd y_group = y(observation_indices, Eigen::all);
+//  Eigen::VectorXd y_group = y(observation_indices, Eigen::all);
   posterior_denominator += (alpha).asDiagonal() * X_group.transpose() * X_group * (alpha).asDiagonal();
-  posterior_numerator += (alpha).asDiagonal() * X_group.transpose() * y_group;
+//  posterior_numerator += (alpha).asDiagonal() * X_group.transpose() * y_group;
   return posterior_denominator.inverse();
 }
 
