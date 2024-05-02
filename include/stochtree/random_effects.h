@@ -43,6 +43,7 @@ class RandomEffectsTracker {
   std::vector<data_size_t>::iterator UnsortedNodeBeginIterator(int category_id);
   std::vector<data_size_t>::iterator UnsortedNodeEndIterator(int category_id);
   std::map<int32_t, int32_t>& GetLabelMap() {return category_sample_tracker_->GetLabelMap();}
+  std::vector<int32_t>& GetUniqueGroupIds() {return category_sample_tracker_->GetUniqueGroupIds();}
   std::vector<data_size_t>& NodeIndices(int category_id) {return category_sample_tracker_->NodeIndices(category_id);}
   std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) {return category_sample_tracker_->NodeIndicesInternalIndex(internal_category_id);}
   double GetPrediction(data_size_t observation_num) {return rfx_predictions_.at(observation_num);}
@@ -248,6 +249,9 @@ class RandomEffectsContainer {
   ~RandomEffectsContainer() {}
   void AddSample(MultivariateRegressionRandomEffectsModel& model);
   void Predict(RandomEffectsDataset& dataset, LabelMapper& label_mapper, std::vector<double>& output);
+  int NumSamples() {return num_samples_;}
+  int NumComponents() {return num_components_;}
+  int NumGroups() {return num_groups_;}
   std::vector<double> GetBeta() {return beta_;}
   std::vector<double> GetAlpha() {return alpha_;}
   std::vector<double> GetXi() {return xi_;}

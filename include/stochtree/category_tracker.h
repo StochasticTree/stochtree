@@ -96,6 +96,7 @@ class CategorySampleTracker {
       if (i > 0) new_group_cond = group_indices[indices_[i]] != group_indices[indices_[i-1]];
       if (start_cond || new_group_cond) {
         category_id_map_.insert({group_indices[indices_[i]], category_count_});
+        unique_category_ids_.push_back(group_indices[indices_[i]]);
         node_index_vector_.emplace_back();
         if (i == 0) {
           category_begin_.push_back(i);
@@ -163,11 +164,14 @@ class CategorySampleTracker {
   /*! \brief Returns label index map */
   std::map<int32_t, int32_t>& GetLabelMap() {return category_id_map_;}
 
+  std::vector<int32_t>& GetUniqueGroupIds() {return unique_category_ids_;}
+
  private:
   // Vectors tracking indices in each node
   std::vector<data_size_t> category_begin_;
   std::vector<data_size_t> category_length_;
   std::map<int32_t, int32_t> category_id_map_;
+  std::vector<int32_t> unique_category_ids_;
   std::vector<std::vector<data_size_t>> node_index_vector_;
   int32_t category_count_;
 };
