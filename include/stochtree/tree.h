@@ -7,6 +7,7 @@
 #define STOCHTREE_TREE_H_
 
 #include <nlohmann/json.hpp>
+#include <stochtree/data.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <Eigen/Dense>
@@ -585,6 +586,25 @@ class Tree {
    * \param leaf_vector Leaf vector
    */
   void SetLeafVector(std::int32_t nid, std::vector<double> const& leaf_vector);
+
+  /*!
+   * \brief Obtain a 0-based leaf index for each observation in a ForestDataset.
+   *        Internally, trees are stored as essentially vectors of node information, 
+   *        and the leaves_ vector gives us node IDs for every leaf in the tree.
+   *        Here, we would like to know, for every observation in a dataset, 
+   *        which leaf number it is mapped to. Since the leaf numbers themselves 
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
+   *
+   *        Note: this is a tree-level helper function for an ensemble-level function. 
+   *        It assumes the creation of: 
+   *           (a) a vector of column indices of size `dataset.NumObservations()` x `ensemble.NumTrees()`, and
+   *           (b) a running counter of the number of tree-observations already indexed in the ensemble  
+   *               (used as offsets for the leaf number computed and returned here)
+   *        Users running this function for a single tree may simply pre-allocate an output vector as 
+   *        std::vector<int32_t> output(dataset->NumObservations()) and set the offset to 0.
+   * \param dataset Dataset with which to predict leaf indices from the tree
+   */
+  void PredictLeafIndexInplace(ForestDataset* dataset, std::vector<int32_t>& output, int32_t offset);
 
   // Node info
   std::vector<TreeNodeType> node_type_;
