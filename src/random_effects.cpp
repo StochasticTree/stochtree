@@ -1,8 +1,4 @@
-/*!
- * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See LICENSE file in the project root for
- * license information.
- */
+/*! Copyright (c) 2024 StochasticTree authors */
 #include <stochtree/random_effects.h>
 
 namespace StochTree {
@@ -11,84 +7,72 @@ RandomEffectsTracker::RandomEffectsTracker(std::vector<int32_t>& group_indices) 
   sample_category_mapper_ = std::make_unique<SampleCategoryMapper>(group_indices);
   category_sample_tracker_ = std::make_unique<CategorySampleTracker>(group_indices);
   num_categories_ = category_sample_tracker_->NumCategories();
+  num_observations_ = group_indices.size();
+  rfx_predictions_.resize(num_observations_, 0.);
 }
 
-void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffectsTerm* rfx, RandomEffectsDataset& dataset, ColumnVector& residual, 
-                                                                   RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
+void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
+                                                                   double global_variance, std::mt19937& gen) {
   // Update partial residual to add back in the random effects
-  std::vector<double> rfx_pred = rfx->Predict(dataset);
-  int32_t n = dataset.GetBasis().rows();
-  double resid_value;
-  for (int i = 0; i < n; i++) {
-    resid_value = residual.GetElement(i);
-    residual.SetElement(i, resid_value + rfx_pred[i]);
-  }
+  AddCurrentPredictionToResidual(dataset, rfx_tracker, residual);
   
   // Sample random effects
-  SampleWorkingParameter(rfx, dataset, residual, rfx_tracker, global_variance, gen);
-  SampleGroupParameters(rfx, dataset, residual, rfx_tracker, global_variance, gen);
-  SampleVarianceComponents(rfx, dataset, residual, rfx_tracker, global_variance, gen);
+  SampleWorkingParameter(dataset, residual, rfx_tracker, global_variance, gen);
+  SampleGroupParameters(dataset, residual, rfx_tracker, global_variance, gen);
+  SampleVarianceComponents(dataset, residual, rfx_tracker, global_variance, gen);
 
   // Update partial residual to remove the random effects
-  rfx_pred = rfx->Predict(dataset);
-  for (int i = 0; i < n; i++) {
-    resid_value = residual.GetElement(i);
-    residual.SetElement(i, resid_value + rfx_pred[i]);
-  }
+  SubtractNewPredictionFromResidual(dataset, rfx_tracker, residual);
 }
 
-void MultivariateRegressionRandomEffectsModel::SampleWorkingParameter(RandomEffectsTerm* rfx, RandomEffectsDataset& dataset, ColumnVector& residual, 
+void MultivariateRegressionRandomEffectsModel::SampleWorkingParameter(RandomEffectsDataset& dataset, ColumnVector& residual, 
                                                                       RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
-  Eigen::VectorXd posterior_mean = WorkingParameterMean(dataset, residual, rfx_tracker, *rfx, global_variance);
-  Eigen::MatrixXd posterior_covariance = WorkingParameterVariance(dataset, residual, rfx_tracker, *rfx, global_variance);
-  Eigen::VectorXd output = normal_sampler_.SampleEigen(posterior_mean, posterior_covariance, gen);
-  rfx->SetWorkingParameter(output);
+  Eigen::VectorXd posterior_mean = WorkingParameterMean(dataset, residual, rfx_tracker, global_variance);
+  Eigen::MatrixXd posterior_covariance = WorkingParameterVariance(dataset, residual, rfx_tracker, global_variance);
+  working_parameter_ = normal_sampler_.SampleEigen(posterior_mean, posterior_covariance, gen);
 }
 
-void MultivariateRegressionRandomEffectsModel::SampleGroupParameters(RandomEffectsTerm* rfx, RandomEffectsDataset& dataset, ColumnVector& residual, 
+void MultivariateRegressionRandomEffectsModel::SampleGroupParameters(RandomEffectsDataset& dataset, ColumnVector& residual, 
                                                                      RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
-  int32_t num_groups = rfx->NumGroups();
+  int32_t num_groups = num_groups_;
   Eigen::VectorXd posterior_mean;
   Eigen::MatrixXd posterior_covariance;
   Eigen::VectorXd output;
   for (int i = 0; i < num_groups; i++) {
-    posterior_mean = GroupParameterMean(dataset, residual, rfx_tracker, *rfx, global_variance, i);
-    posterior_covariance = GroupParameterVariance(dataset, residual, rfx_tracker, *rfx, global_variance, i);
-    output = normal_sampler_.SampleEigen(posterior_mean, posterior_covariance, gen);
-    rfx->SetGroupParameter(output, i);
+    posterior_mean = GroupParameterMean(dataset, residual, rfx_tracker, global_variance, i);
+    posterior_covariance = GroupParameterVariance(dataset, residual, rfx_tracker, global_variance, i);
+    group_parameters_(Eigen::all, i) = normal_sampler_.SampleEigen(posterior_mean, posterior_covariance, gen);
   }  
 }
 
-void MultivariateRegressionRandomEffectsModel::SampleVarianceComponents(RandomEffectsTerm* rfx, RandomEffectsDataset& dataset, ColumnVector& residual, 
+void MultivariateRegressionRandomEffectsModel::SampleVarianceComponents(RandomEffectsDataset& dataset, ColumnVector& residual, 
                                                                         RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
-  // int32_t num_groups = rfx->NumGroups();
-  int32_t num_components = rfx->NumComponents();
+  int32_t num_components = num_components_;
   double posterior_shape;
   double posterior_scale;
   double output;
   for (int i = 0; i < num_components; i++) {
-    posterior_shape = VarianceComponentShape(dataset, residual, rfx_tracker, *rfx, global_variance, i);
-    posterior_scale = VarianceComponentScale(dataset, residual, rfx_tracker, *rfx, global_variance, i);
-    output = ig_sampler_.Sample(posterior_shape, posterior_scale, gen);
-    rfx->SetGroupParameterVarianceComponent(output, i);
+    posterior_shape = VarianceComponentShape(dataset, residual, rfx_tracker, global_variance, i);
+    posterior_scale = VarianceComponentScale(dataset, residual, rfx_tracker, global_variance, i);
+    group_parameter_covariance_(i, i) = ig_sampler_.Sample(posterior_shape, posterior_scale, gen);
   }
 }
 
 Eigen::VectorXd MultivariateRegressionRandomEffectsModel::WorkingParameterMean(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
-                                                                               RandomEffectsTerm& rfx_term, double global_variance){
-  int32_t num_components = rfx_term.NumComponents();
-  int32_t num_groups = rfx_term.NumGroups();
+                                                                               double global_variance){
+  int32_t num_components = num_components_;
+  int32_t num_groups = num_groups_;
   std::vector<data_size_t> observation_indices;
   Eigen::MatrixXd X_group;
   Eigen::VectorXd y_group;
   Eigen::MatrixXd xi_group;
-  Eigen::MatrixXd posterior_denominator = rfx_term.GetWorkingParameterCovariance().inverse();
+  Eigen::MatrixXd posterior_denominator = working_parameter_covariance_.inverse();
   Eigen::VectorXd posterior_numerator = Eigen::VectorXd::Zero(num_components);
   Eigen::MatrixXd X = dataset.GetBasis();
   Eigen::VectorXd y = residual.GetData();
-  Eigen::MatrixXd xi = rfx_term.GetGroupParameters();
+  Eigen::MatrixXd xi = group_parameters_;
   for (int i = 0; i < num_groups; i++) {
-    observation_indices = rfx_tracker.NodeIndices(i);
+    observation_indices = rfx_tracker.NodeIndicesInternalIndex(i);
     X_group = X(observation_indices, Eigen::all);
     y_group = y(observation_indices, Eigen::all);
     xi_group = xi(Eigen::all, i);
@@ -98,21 +82,20 @@ Eigen::VectorXd MultivariateRegressionRandomEffectsModel::WorkingParameterMean(R
   return posterior_denominator.inverse() * posterior_numerator;
 }
 
-Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::WorkingParameterVariance(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
-                                                                                   RandomEffectsTerm& rfx_term, double global_variance){
-  int32_t num_components = rfx_term.NumComponents();
-  int32_t num_groups = rfx_term.NumGroups();
+Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::WorkingParameterVariance(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance){
+  int32_t num_components = num_components_;
+  int32_t num_groups = num_groups_;
   std::vector<data_size_t> observation_indices;
   Eigen::MatrixXd X_group;
   Eigen::VectorXd y_group;
   Eigen::MatrixXd xi_group;
-  Eigen::MatrixXd posterior_denominator = rfx_term.GetWorkingParameterCovariance().inverse();
+  Eigen::MatrixXd posterior_denominator = working_parameter_covariance_.inverse();
   Eigen::VectorXd posterior_numerator = Eigen::VectorXd::Zero(num_components);
   Eigen::MatrixXd X = dataset.GetBasis();
   Eigen::VectorXd y = residual.GetData();
-  Eigen::MatrixXd xi = rfx_term.GetGroupParameters();
+  Eigen::MatrixXd xi = group_parameters_;
   for (int i = 0; i < num_groups; i++) {
-    observation_indices = rfx_tracker.NodeIndices(i);
+    observation_indices = rfx_tracker.NodeIndicesInternalIndex(i);
     X_group = X(observation_indices, Eigen::all);
     y_group = y(observation_indices, Eigen::all);
     xi_group = xi(Eigen::all, i);
@@ -122,16 +105,15 @@ Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::WorkingParameterVarian
   return posterior_denominator.inverse();
 }
 
-Eigen::VectorXd MultivariateRegressionRandomEffectsModel::GroupParameterMean(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
-                                                                             RandomEffectsTerm& rfx_term, double global_variance, int32_t group_id) {
-  int32_t num_components = rfx_term.NumComponents();
-  int32_t num_groups = rfx_term.NumGroups();
+Eigen::VectorXd MultivariateRegressionRandomEffectsModel::GroupParameterMean(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t group_id) {
+  int32_t num_components = num_components_;
+  int32_t num_groups = num_groups_;
   Eigen::MatrixXd X = dataset.GetBasis();
   Eigen::VectorXd y = residual.GetData();
-  Eigen::VectorXd alpha = rfx_term.GetWorkingParameter();
-  Eigen::MatrixXd posterior_denominator = rfx_term.GetGroupParameterCovariance().inverse();
+  Eigen::VectorXd alpha = working_parameter_;
+  Eigen::MatrixXd posterior_denominator = group_parameter_covariance_.inverse();
   Eigen::VectorXd posterior_numerator = Eigen::VectorXd::Zero(num_components);
-  std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndices(group_id);
+  std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndicesInternalIndex(group_id);
   Eigen::MatrixXd X_group = X(observation_indices, Eigen::all);
   Eigen::VectorXd y_group = y(observation_indices, Eigen::all);
   posterior_denominator += (alpha).asDiagonal() * X_group.transpose() * X_group * (alpha).asDiagonal();
@@ -139,37 +121,82 @@ Eigen::VectorXd MultivariateRegressionRandomEffectsModel::GroupParameterMean(Ran
   return posterior_denominator.inverse() * posterior_numerator;
 }
 
-Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::GroupParameterVariance(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
-                                                                                   RandomEffectsTerm& rfx_term, double global_variance, int32_t group_id){
-  int32_t num_components = rfx_term.NumComponents();
-  int32_t num_groups = rfx_term.NumGroups();
+Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::GroupParameterVariance(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t group_id){
+  int32_t num_components = num_components_;
+  int32_t num_groups = num_groups_;
   Eigen::MatrixXd X = dataset.GetBasis();
   Eigen::VectorXd y = residual.GetData();
-  Eigen::VectorXd alpha = rfx_term.GetWorkingParameter();
-  Eigen::MatrixXd posterior_denominator = rfx_term.GetGroupParameterCovariance().inverse();
-  Eigen::VectorXd posterior_numerator = Eigen::VectorXd::Zero(num_components);
-  std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndices(group_id);
+  Eigen::VectorXd alpha = working_parameter_;
+  Eigen::MatrixXd posterior_denominator = group_parameter_covariance_.inverse();
+//  Eigen::VectorXd posterior_numerator = Eigen::VectorXd::Zero(num_components);
+  std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndicesInternalIndex(group_id);
   Eigen::MatrixXd X_group = X(observation_indices, Eigen::all);
-  Eigen::VectorXd y_group = y(observation_indices, Eigen::all);
+//  Eigen::VectorXd y_group = y(observation_indices, Eigen::all);
   posterior_denominator += (alpha).asDiagonal() * X_group.transpose() * X_group * (alpha).asDiagonal();
-  posterior_numerator += (alpha).asDiagonal() * X_group.transpose() * y_group;
+//  posterior_numerator += (alpha).asDiagonal() * X_group.transpose() * y_group;
   return posterior_denominator.inverse();
 }
 
-double MultivariateRegressionRandomEffectsModel::VarianceComponentShape(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
-                                                                        RandomEffectsTerm& rfx_term, double global_variance, int32_t component_id) {
-  return static_cast<double>(rfx_term.GetVariancePriorShape() + rfx_term.NumGroups());
+double MultivariateRegressionRandomEffectsModel::VarianceComponentShape(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t component_id) {
+  return static_cast<double>(variance_prior_shape_ + num_groups_);
 }
 
-double MultivariateRegressionRandomEffectsModel::VarianceComponentScale(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
-                                                                        RandomEffectsTerm& rfx_term, double global_variance, int32_t component_id) {
-  int32_t num_groups = rfx_term.NumGroups();
-  Eigen::MatrixXd xi = rfx_term.GetGroupParameters();
-  double output = rfx_term.GetVariancePriorScale();
+double MultivariateRegressionRandomEffectsModel::VarianceComponentScale(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t component_id) {
+  int32_t num_groups = num_groups_;
+  Eigen::MatrixXd xi = group_parameters_;
+  double output = variance_prior_scale_;
   for (int i = 0; i < num_groups; i++) {
     output += xi(component_id, i)*xi(component_id, i);
   }
   return output;
+}
+
+void RandomEffectsContainer::AddSample(MultivariateRegressionRandomEffectsModel& model){
+  // Increment number of samples
+  int sample_ind = num_samples_;
+  num_samples_++;
+
+  // Add alpha
+  alpha_.resize(num_samples_*num_components_);
+  for (int i = 0; i < num_components_; i++) {
+    alpha_.at(sample_ind*num_components_ + i) = model.GetWorkingParameter()(i);
+  }
+
+  // Add xi and beta
+  xi_.resize(num_samples_*num_components_*num_groups_);
+  beta_.resize(num_samples_*num_components_*num_groups_);
+  for (int i = 0; i < num_components_; i++) {
+    for (int j = 0; j < num_groups_; j++) {
+      xi_.at(sample_ind*num_groups_*num_components_ + j*num_components_ + i) = model.GetGroupParameters()(i,j);
+      beta_.at(sample_ind*num_groups_*num_components_ + j*num_components_ + i) = xi_.at(sample_ind*num_groups_*num_components_ + j*num_components_ + i) * alpha_.at(sample_ind*num_components_ + i);
+    }
+  }
+
+  // Add sigma
+  sigma_xi_.resize(num_samples_*num_components_);
+  for (int i = 0; i < num_components_; i++) {
+    sigma_xi_.at(sample_ind*num_components_ + i) = model.GetGroupParameterCovariance()(i,i);
+  }
+}
+
+void RandomEffectsContainer::Predict(RandomEffectsDataset& dataset, LabelMapper& label_mapper, std::vector<double>& output) {
+  Eigen::MatrixXd X = dataset.GetBasis();
+  std::vector<int32_t> group_labels = dataset.GetGroupLabels();
+  CHECK_EQ(X.rows(), group_labels.size());
+  int n = X.rows();
+  CHECK_EQ(n*num_samples_, output.size());
+  std::int32_t group_ind;
+  double pred;
+  for (int i = 0; i < n; i++) {
+    group_ind = label_mapper.CategoryNumber(group_labels[i]);
+    for (int j = 0; j < num_samples_; j++) {
+      pred = 0;
+      for (int k = 0; k < num_components_; k++) {
+        pred += X(i,k) * beta_.at(j*num_groups_*num_components_ + group_ind*num_components_ + k);
+      }
+      output.at(j*n + i) = pred;
+    }
+  }
 }
 
 }  // namespace StochTree
