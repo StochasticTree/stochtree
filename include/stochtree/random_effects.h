@@ -76,7 +76,8 @@ class LabelMapper {
   bool CategoryNumber(int32_t category_id) {
     return label_map_[category_id];
   }
-  std::vector<int32_t> Keys() {return keys_;}
+  std::vector<int32_t>& Keys() {return keys_;}
+  std::map<int32_t, int32_t>& Map() {return label_map_;}
  private:
   std::map<int32_t, int32_t> label_map_;
   std::vector<int32_t> keys_;
@@ -252,10 +253,10 @@ class RandomEffectsContainer {
   int NumSamples() {return num_samples_;}
   int NumComponents() {return num_components_;}
   int NumGroups() {return num_groups_;}
-  std::vector<double> GetBeta() {return beta_;}
-  std::vector<double> GetAlpha() {return alpha_;}
-  std::vector<double> GetXi() {return xi_;}
-  std::vector<double> GetSigma() {return sigma_xi_;}
+  std::vector<double>& GetBeta() {return beta_;}
+  std::vector<double>& GetAlpha() {return alpha_;}
+  std::vector<double>& GetXi() {return xi_;}
+  std::vector<double>& GetSigma() {return sigma_xi_;}
  private:
   int num_samples_;
   int num_components_;
