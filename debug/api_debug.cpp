@@ -169,10 +169,34 @@ void RunAPI() {
   double outcome_scale;
   OutcomeOffsetScale(residual, outcome_offset, outcome_scale);
 
-  // // Construct a random effects dataset
-  // RandomEffectsDataset rfx_dataset = RandomEffectsDataset();
-  // rfx_dataset.AddBasis(rfx_basis_raw.data(), n, rfx_basis_cols, row_major);
-  // rfx_dataset.AddGroupLabels(rfx_groups);
+  // Construct a random effects dataset
+  RandomEffectsDataset rfx_dataset = RandomEffectsDataset();
+  rfx_dataset.AddBasis(rfx_basis_raw.data(), n, rfx_basis_cols, true);
+  rfx_dataset.AddGroupLabels(rfx_groups);
+
+  // Construct random effects tracker / model / container
+  RandomEffectsTracker rfx_tracker = RandomEffectsTracker(rfx_groups);
+  MultivariateRegressionRandomEffectsModel rfx_model = MultivariateRegressionRandomEffectsModel(rfx_basis_cols, num_rfx_groups);
+  RandomEffectsContainer rfx_container = RandomEffectsContainer(rfx_basis_cols, num_rfx_groups);
+  LabelMapper label_mapper = LabelMapper(rfx_tracker.GetLabelMap());
+
+  // Set random effects model parameters
+  Eigen::VectorXd working_param_init(rfx_basis_cols);
+  Eigen::MatrixXd group_param_init(rfx_basis_cols, num_rfx_groups);
+  Eigen::MatrixXd working_param_cov_init(rfx_basis_cols, rfx_basis_cols);
+  Eigen::MatrixXd group_param_cov_init(rfx_basis_cols, rfx_basis_cols);
+  double variance_prior_shape = 1.;
+  double variance_prior_scale = 1.;
+  working_param_init << 1.;
+  group_param_init << 1., 1.;
+  working_param_cov_init << 1;
+  group_param_cov_init << 1;
+  rfx_model.SetWorkingParameter(working_param_init);
+  rfx_model.SetGroupParameters(group_param_init);
+  rfx_model.SetWorkingParameterCovariance(working_param_cov_init);
+  rfx_model.SetGroupParameterCovariance(group_param_cov_init);
+  rfx_model.SetVariancePriorShape(variance_prior_shape);
+  rfx_model.SetVariancePriorScale(variance_prior_scale);
   
   // Initialize an ensemble
   int num_trees = 100;
@@ -244,6 +268,10 @@ void RunAPI() {
     sampleGFR(tracker, tree_prior, forest_samples, dataset, residual, rng, feature_types, variable_weights, 
               leaf_model_type, leaf_scale_matrix, global_variance, leaf_scale, cutpoint_grid_size);
 
+    // Sample random effects
+    rfx_model.SampleRandomEffects(rfx_dataset, residual, rfx_tracker, global_variance, rng);
+    rfx_container.AddSample(rfx_model);
+
     // Sample leaf node variance
     leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, rng));
 
@@ -266,6 +294,10 @@ void RunAPI() {
     sampleMCMC(tracker, tree_prior, forest_samples, dataset, residual, rng, feature_types, variable_weights, 
                leaf_model_type, leaf_scale_matrix, global_variance, leaf_scale, cutpoint_grid_size);
 
+    // Sample random effects
+    rfx_model.SampleRandomEffects(rfx_dataset, residual, rfx_tracker, global_variance, rng);
+    rfx_container.AddSample(rfx_model);
+
     // Sample leaf node variance
     leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, rng));
 
@@ -273,17 +305,25 @@ void RunAPI() {
     global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu*lamb, rng));
   }
 
-  // Write model to a file
-  std::string filename = "model.json";
-  forest_samples.SaveToJsonFile(filename);
-
-  // Read and parse json from file
-  ForestContainer forest_samples_parsed = ForestContainer(num_trees, output_dimension, is_leaf_constant);
-  forest_samples_parsed.LoadFromJsonFile(filename);
-  
-  // Make sure we can predict from both the original and parsed forest containers
+  // Predict from the tree ensemble
   std::vector<double> pred_orig = forest_samples.Predict(dataset);
-  std::vector<double> pred_parsed = forest_samples_parsed.Predict(dataset);
+
+  // Predict from the random effects dataset
+  int num_samples = num_gfr_samples + num_mcmc_samples;
+  std::vector<double> rfx_predictions(n*num_samples);
+  rfx_container.Predict(rfx_dataset, label_mapper, rfx_predictions);
+
+  // // Write model to a file
+  // std::string filename = "model.json";
+  // forest_samples.SaveToJsonFile(filename);
+
+  // // Read and parse json from file
+  // ForestContainer forest_samples_parsed = ForestContainer(num_trees, output_dimension, is_leaf_constant);
+  // forest_samples_parsed.LoadFromJsonFile(filename);
+  
+  // // Make sure we can predict from both the original and parsed forest containers
+  // std::vector<double> pred_orig = forest_samples.Predict(dataset);
+  // std::vector<double> pred_parsed = forest_samples_parsed.Predict(dataset);
 }
 
 } // namespace StochTree
