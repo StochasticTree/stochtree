@@ -172,7 +172,7 @@ TEST(Tree, SparseLeafRepresentation) {
 
   // Predict leaf indices of each observation in `dataset`
   std::vector<int32_t> leaf_index_preds(n);
-  tree.PredictLeafIndexInplace(&dataset, leaf_index_preds, 0);
+  tree.PredictLeafIndexInplace(&dataset, leaf_index_preds, 0, 0);
   std::vector<int32_t> leaf_index_expected{1,1,0,1,1,1,1,1,0,0};
   ASSERT_EQ(leaf_index_expected, leaf_index_preds);
 }
