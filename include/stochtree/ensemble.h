@@ -220,6 +220,99 @@ class TreeEnsemble {
     }
   }
 
+  /*!
+   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each 
+   *        observation in a ForestDataset. Internally, trees are stored as essentially 
+   *        vectors of node information, and the leaves_ vector gives us node IDs for every 
+   *        leaf in the tree. Here, we would like to know, for every observation in a dataset, 
+   *        which leaf number it is mapped to. Since the leaf numbers themselves 
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
+   *        We compute this at the tree-level and coordinate this computation at the 
+   *        ensemble level.
+   *
+   *        Note: this assumes the creation of a vector of column indices of size 
+   *        `dataset.NumObservations()` x `ensemble.NumTrees()`
+   * \param ForestDataset Dataset with which to predict leaf indices from the tree
+   * \param output Vector of length num_trees*n which stores the leaf node prediction
+   * \param num_trees Number of trees in an ensemble
+   * \param n Size of dataset
+   */
+  void PredictLeafIndicesInplace(ForestDataset* dataset, std::vector<int32_t>& output, int num_trees, data_size_t n) {
+    PredictLeafIndicesInplace(dataset->GetCovariates(), output, num_trees, n);
+  }
+
+  /*!
+   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each 
+   *        observation in a ForestDataset. Internally, trees are stored as essentially 
+   *        vectors of node information, and the leaves_ vector gives us node IDs for every 
+   *        leaf in the tree. Here, we would like to know, for every observation in a dataset, 
+   *        which leaf number it is mapped to. Since the leaf numbers themselves 
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
+   *        We compute this at the tree-level and coordinate this computation at the 
+   *        ensemble level.
+   *
+   *        Note: this assumes the creation of a vector of column indices of size 
+   *        `dataset.NumObservations()` x `ensemble.NumTrees()`
+   * \param ForestDataset Dataset with which to predict leaf indices from the tree
+   * \param output Vector of length num_trees*n which stores the leaf node prediction
+   * \param num_trees Number of trees in an ensemble
+   * \param n Size of dataset
+   */
+  void PredictLeafIndicesInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, std::vector<int32_t>& output, int num_trees, data_size_t n) {
+    CHECK_GE(output.size(), num_trees*n);
+    int offset = 0;
+    int max_leaf = 0;
+    for (int j = 0; j < num_trees; j++) {
+      auto &tree = *trees_[j];
+      int num_leaves = tree.NumLeaves();
+      tree.PredictLeafIndexInplace(covariates, output, offset, max_leaf);
+      offset += n;
+      max_leaf += num_leaves;
+    }
+  }
+
+  /*!
+   * \brief Obtain a 0-based leaf index for every tree in an ensemble and for each 
+   *        observation in a ForestDataset. Internally, trees are stored as essentially 
+   *        vectors of node information, and the leaves_ vector gives us node IDs for every 
+   *        leaf in the tree. Here, we would like to know, for every observation in a dataset, 
+   *        which leaf number it is mapped to. Since the leaf numbers themselves 
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
+   *        We compute this at the tree-level and coordinate this computation at the 
+   *        ensemble level.
+   *
+   *        Note: this assumes the creation of a vector of column indices of size 
+   *        `dataset.NumObservations()` x `ensemble.NumTrees()`
+   * \param ForestDataset Dataset with which to predict leaf indices from the tree
+   * \param output Vector of length num_trees*n which stores the leaf node prediction
+   * \param num_trees Number of trees in an ensemble
+   * \param n Size of dataset
+   */
+  void PredictLeafIndicesInplace(Eigen::MatrixXd& covariates, std::vector<int32_t>& output, int num_trees, data_size_t n) {
+    CHECK_GE(output.size(), num_trees*n);
+    int offset = 0;
+    int max_leaf = 0;
+    for (int j = 0; j < num_trees; j++) {
+      auto &tree = *trees_[j];
+      int num_leaves = tree.NumLeaves();
+      tree.PredictLeafIndexInplace(covariates, output, offset, max_leaf);
+      offset += n;
+      max_leaf += num_leaves;
+    }
+  }
+
+  /*!
+   * \brief Same as `PredictLeafIndicesInplace` but assumes responsibility for allocating and returning output vector.
+   * \param ForestDataset Dataset with which to predict leaf indices from the tree
+   */
+  std::vector<int32_t> PredictLeafIndices(ForestDataset* dataset) {
+    int num_trees = num_trees_;
+    data_size_t n = dataset->NumObservations();
+    std::vector<int32_t> output(n*num_trees);
+    PredictLeafIndicesInplace(dataset, output, num_trees, n);
+    return output;
+  }
+
   /*! \brief Save to JSON */
   json to_json() {
     json result_obj;

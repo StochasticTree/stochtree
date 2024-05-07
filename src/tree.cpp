@@ -420,6 +420,38 @@ void Tree::SetLeafVector(std::int32_t nid, std::vector<double> const& node_leaf_
   node_type_.at(nid) = TreeNodeType::kLeafNode;
 }
 
+void Tree::PredictLeafIndexInplace(ForestDataset* dataset, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf) {
+  PredictLeafIndexInplace(dataset->GetCovariates(), output, offset, max_leaf);
+}
+
+void Tree::PredictLeafIndexInplace(Eigen::MatrixXd& covariates, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf) {
+  int n = covariates.rows();
+  CHECK_GE(output.size(), offset + n);
+  std::map<int32_t,int32_t> renumber_map;
+  for (int i = 0; i < leaves_.size(); i++) {
+    renumber_map.insert({leaves_[i], i});
+  }
+  int32_t node_id, remapped_node;
+  for (int i = 0; i < n; i++) {
+    node_id = EvaluateTree(*this, covariates, i);
+    output.at(offset + i) = max_leaf + renumber_map.at(node_id);
+  }
+}
+
+void Tree::PredictLeafIndexInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf) {
+  int n = covariates.rows();
+  CHECK_GE(output.size(), offset + n);
+  std::map<int32_t,int32_t> renumber_map;
+  for (int i = 0; i < leaves_.size(); i++) {
+    renumber_map.insert({leaves_[i], i});
+  }
+  int32_t node_id, remapped_node;
+  for (int i = 0; i < n; i++) {
+    node_id = EvaluateTree(*this, covariates, i);
+    output.at(offset + i) = max_leaf + renumber_map.at(node_id);
+  }
+}
+
 void TreeNodeVectorsToJson(json& obj, Tree* tree) {
   // Initialize a map with names of the node vectors and empty json arrays
   std::map<std::string, json> tree_array_map;

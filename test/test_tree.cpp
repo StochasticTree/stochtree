@@ -4,6 +4,7 @@
  */
 #include <gtest/gtest.h>
 #include <testutils.h>
+#include <stochtree/data.h>
 #include <stochtree/log.h>
 #include <stochtree/tree.h>
 #include <iostream>
@@ -152,4 +153,26 @@ TEST(Tree, MultivariateTreeCategoricalSplitConstruction) {
   ASSERT_FALSE(tree.IsLeaf(0));
   ASSERT_TRUE(tree.IsLeaf(1));
   ASSERT_TRUE(tree.IsLeaf(2));
+}
+
+TEST(Tree, SparseLeafRepresentation) {
+  // Construct small tree
+  StochTree::Tree tree;
+  tree.Init(1);
+  tree.ExpandNode(0, 0, 0.5, 0., 0.);
+  
+  // Load test data
+  StochTree::TestUtils::TestDataset test_dataset;
+  test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
+
+  // Construct datasets
+  int n = test_dataset.n;
+  StochTree::ForestDataset dataset = StochTree::ForestDataset();
+  dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
+
+  // Predict leaf indices of each observation in `dataset`
+  std::vector<int32_t> leaf_index_preds(n);
+  tree.PredictLeafIndexInplace(&dataset, leaf_index_preds, 0, 0);
+  std::vector<int32_t> leaf_index_expected{1,1,0,1,1,1,1,1,0,0};
+  ASSERT_EQ(leaf_index_expected, leaf_index_preds);
 }
