@@ -604,7 +604,45 @@ class Tree {
    *        std::vector<int32_t> output(dataset->NumObservations()) and set the offset to 0.
    * \param dataset Dataset with which to predict leaf indices from the tree
    */
-  void PredictLeafIndexInplace(ForestDataset* dataset, std::vector<int32_t>& output, int32_t offset);
+  void PredictLeafIndexInplace(ForestDataset* dataset, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf);
+
+  /*!
+   * \brief Obtain a 0-based leaf index for each observation in a ForestDataset.
+   *        Internally, trees are stored as essentially vectors of node information, 
+   *        and the leaves_ vector gives us node IDs for every leaf in the tree.
+   *        Here, we would like to know, for every observation in a dataset, 
+   *        which leaf number it is mapped to. Since the leaf numbers themselves 
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
+   *
+   *        Note: this is a tree-level helper function for an ensemble-level function. 
+   *        It assumes the creation of: 
+   *           (a) a vector of column indices of size `dataset.NumObservations()` x `ensemble.NumTrees()`, and
+   *           (b) a running counter of the number of tree-observations already indexed in the ensemble  
+   *               (used as offsets for the leaf number computed and returned here)
+   *        Users running this function for a single tree may simply pre-allocate an output vector as 
+   *        std::vector<int32_t> output(dataset->NumObservations()) and set the offset to 0.
+   * \param covariates Eigen matrix with which to predict leaf indices
+   */
+  void PredictLeafIndexInplace(Eigen::MatrixXd& covariates, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf);
+
+  /*!
+   * \brief Obtain a 0-based leaf index for each observation in a ForestDataset.
+   *        Internally, trees are stored as essentially vectors of node information, 
+   *        and the leaves_ vector gives us node IDs for every leaf in the tree.
+   *        Here, we would like to know, for every observation in a dataset, 
+   *        which leaf number it is mapped to. Since the leaf numbers themselves 
+   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
+   *
+   *        Note: this is a tree-level helper function for an ensemble-level function. 
+   *        It assumes the creation of: 
+   *           (a) a vector of column indices of size `dataset.NumObservations()` x `ensemble.NumTrees()`, and
+   *           (b) a running counter of the number of tree-observations already indexed in the ensemble  
+   *               (used as offsets for the leaf number computed and returned here)
+   *        Users running this function for a single tree may simply pre-allocate an output vector as 
+   *        std::vector<int32_t> output(dataset->NumObservations()) and set the offset to 0.
+   * \param covariates Eigen matrix with which to predict leaf indices
+   */
+  void PredictLeafIndexInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf);
 
   // Node info
   std::vector<TreeNodeType> node_type_;
@@ -718,6 +756,30 @@ inline int NextNodeCategorical(double fvalue, std::vector<std::uint32_t> const& 
  *  \param row Row indexing the prediction observation
  */
 inline int EvaluateTree(Tree const& tree, Eigen::MatrixXd& data, int row) {
+  int node_id = 0;
+  while (!tree.IsLeaf(node_id)) {
+    auto const split_index = tree.SplitIndex(node_id);
+    double const fvalue = data(row, split_index);
+    if (std::isnan(fvalue)) {
+      node_id = tree.DefaultChild(node_id);
+    } else {
+      if (tree.NodeType(node_id) == StochTree::TreeNodeType::kCategoricalSplitNode) {
+        node_id = NextNodeCategorical(fvalue, tree.CategoryList(node_id),
+            tree.LeftChild(node_id), tree.RightChild(node_id));
+      } else {
+        node_id = NextNodeNumeric(fvalue, tree.Threshold(node_id), tree.LeftChild(node_id), tree.RightChild(node_id));
+      }
+    }
+  }
+  return node_id;
+}
+
+/*! \brief Determine the node at which a tree places a given observation
+ *  \param tree Tree object used for prediction
+ *  \param data Dataset used for prediction
+ *  \param row Row indexing the prediction observation
+ */
+inline int EvaluateTree(Tree const& tree, Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& data, int row) {
   int node_id = 0;
   while (!tree.IsLeaf(node_id)) {
     auto const split_index = tree.SplitIndex(node_id);
