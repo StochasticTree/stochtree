@@ -14,6 +14,7 @@
 #include <stochtree/normal_sampler.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/prior.h>
+#include <nlohmann/json.hpp>
 #include <Eigen/Dense>
 
 #include <cmath>
@@ -247,6 +248,11 @@ class RandomEffectsContainer {
     num_groups_ = num_groups;
     num_samples_ = 0;
   }
+  RandomEffectsContainer() {
+    num_components_ = 0;
+    num_groups_ = 0;
+    num_samples_ = 0;
+  }
   ~RandomEffectsContainer() {}
   void AddSample(MultivariateRegressionRandomEffectsModel& model);
   void Predict(RandomEffectsDataset& dataset, LabelMapper& label_mapper, std::vector<double>& output);
@@ -257,6 +263,8 @@ class RandomEffectsContainer {
   std::vector<double>& GetAlpha() {return alpha_;}
   std::vector<double>& GetXi() {return xi_;}
   std::vector<double>& GetSigma() {return sigma_xi_;}
+  nlohmann::json to_json();
+  void from_json(const nlohmann::json& rfx_container_json);
  private:
   int num_samples_;
   int num_components_;
