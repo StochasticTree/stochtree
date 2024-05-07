@@ -199,4 +199,72 @@ void RandomEffectsContainer::Predict(RandomEffectsDataset& dataset, LabelMapper&
   }
 }
 
+nlohmann::json RandomEffectsContainer::to_json() {
+  json result_obj;
+  // Store the non-array fields in json
+  result_obj.emplace("num_samples", num_samples_);
+  result_obj.emplace("num_components", num_components_);
+  result_obj.emplace("num_groups", num_groups_);
+
+  // Store some meta-level information about the containers
+  int beta_size = num_groups_*num_components_*num_samples_;
+  int alpha_size = num_components_*num_samples_;
+  result_obj.emplace("beta_size", beta_size);
+  result_obj.emplace("alpha_size", alpha_size);
+
+  // Initialize a map with names of the node vectors and empty json arrays
+  std::map<std::string, json> tree_array_map;
+  tree_array_map.emplace(std::pair("beta", json::array()));
+  tree_array_map.emplace(std::pair("xi", json::array()));
+  tree_array_map.emplace(std::pair("alpha", json::array()));
+  tree_array_map.emplace(std::pair("sigma_xi", json::array()));
+
+  // Unpack beta and xi into json arrays
+  for (int i = 0; i < beta_size; i++) {
+    tree_array_map["beta"].emplace_back(beta_.at(i));
+    tree_array_map["xi"].emplace_back(xi_.at(i));
+  }
+
+  // Unpack alpha and sigma into json arrays
+  for (int i = 0; i < alpha_size; i++) {
+    tree_array_map["alpha"].emplace_back(alpha_.at(i));
+    tree_array_map["sigma_xi"].emplace_back(sigma_xi_.at(i));
+  }
+
+  // Unpack the map into the reference JSON object
+  for (auto& pair : tree_array_map) {
+    result_obj.emplace(pair);
+  }
+
+return result_obj;
+}
+
+void RandomEffectsContainer::from_json(const nlohmann::json& rfx_container_json) {
+  int beta_size = rfx_container_json.at("beta_size");
+  int alpha_size = rfx_container_json.at("alpha_size");
+
+  // Clear all internal arrays
+  beta_.clear();
+  xi_.clear();
+  alpha_.clear();
+  sigma_xi_.clear();
+
+  // Unpack internal counts
+  this->num_samples_ = rfx_container_json.at("num_samples");
+  this->num_components_ = rfx_container_json.at("num_components");
+  this->num_groups_ = rfx_container_json.at("num_groups");
+  
+  // Unpack beta and xi
+  for (int i = 0; i < beta_size; i++) {
+    beta_.push_back(rfx_container_json.at("beta").at(i));
+    xi_.push_back(rfx_container_json.at("xi").at(i));
+  }
+  
+  // Unpack alpha and sigma_xi
+  for (int i = 0; i < alpha_size; i++) {
+    alpha_.push_back(rfx_container_json.at("alpha").at(i));
+    sigma_xi_.push_back(rfx_container_json.at("sigma_xi").at(i));
+  }
+}
+
 }  // namespace StochTree

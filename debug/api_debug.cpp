@@ -280,7 +280,7 @@ void RunAPI() {
   }
 
   // Run the MCMC sampler
-  int num_mcmc_samples = 100;
+  int num_mcmc_samples = 10;
   for (int i = num_gfr_samples; i < num_gfr_samples + num_mcmc_samples; i++) {
     if (i == 0) {
       global_variance = global_variance_init;
@@ -313,17 +313,16 @@ void RunAPI() {
   std::vector<double> rfx_predictions(n*num_samples);
   rfx_container.Predict(rfx_dataset, label_mapper, rfx_predictions);
 
-  // // Write model to a file
-  // std::string filename = "model.json";
-  // forest_samples.SaveToJsonFile(filename);
+  // Write model to a file
+  std::string filename = "model.json";
+  forest_samples.SaveToJsonFile(filename);
 
-  // // Read and parse json from file
-  // ForestContainer forest_samples_parsed = ForestContainer(num_trees, output_dimension, is_leaf_constant);
-  // forest_samples_parsed.LoadFromJsonFile(filename);
+  // Read and parse json from file
+  ForestContainer forest_samples_parsed = ForestContainer(num_trees, output_dimension, is_leaf_constant);
+  forest_samples_parsed.LoadFromJsonFile(filename);
   
-  // // Make sure we can predict from both the original and parsed forest containers
-  // std::vector<double> pred_orig = forest_samples.Predict(dataset);
-  // std::vector<double> pred_parsed = forest_samples_parsed.Predict(dataset);
+  // Make sure we can predict from both the original (above) and parsed forest containers
+  std::vector<double> pred_parsed = forest_samples_parsed.Predict(dataset);
 }
 
 } // namespace StochTree
