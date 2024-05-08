@@ -263,6 +263,15 @@ class RandomEffectsContainer {
   int NumSamples() {return num_samples_;}
   int NumComponents() {return num_components_;}
   int NumGroups() {return num_groups_;}
+  void Reset() {
+    num_samples_ = 0;
+    num_components_ = 0;
+    num_groups_ = 0;
+    beta_.clear();
+    alpha_.clear();
+    xi_.clear();
+    sigma_xi_.clear();
+  }
   std::vector<double>& GetBeta() {return beta_;}
   std::vector<double>& GetAlpha() {return alpha_;}
   std::vector<double>& GetXi() {return xi_;}
