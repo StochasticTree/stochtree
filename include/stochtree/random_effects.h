@@ -79,6 +79,9 @@ class LabelMapper {
   }
   std::vector<int32_t>& Keys() {return keys_;}
   std::map<int32_t, int32_t>& Map() {return label_map_;}
+  void Reset() {label_map_.clear(); keys_.clear();}
+  nlohmann::json to_json();
+  void from_json(const nlohmann::json& rfx_label_mapper_json);
  private:
   std::map<int32_t, int32_t> label_map_;
   std::vector<int32_t> keys_;

@@ -11,6 +11,32 @@ RandomEffectsTracker::RandomEffectsTracker(std::vector<int32_t>& group_indices) 
   rfx_predictions_.resize(num_observations_, 0.);
 }
 
+nlohmann::json LabelMapper::to_json() {
+  json output_obj;
+  // Initialize a map with names of the node vectors and empty json arrays
+  std::map<std::string, json> label_map_arrays;
+  label_map_arrays.emplace(std::pair("keys", json::array()));
+  label_map_arrays.emplace(std::pair("values", json::array()));
+  for (const auto& [key, value] : label_map_) {
+    label_map_arrays["keys"].emplace_back(key);
+    label_map_arrays["values"].emplace_back(value);
+  }
+  for (auto& pair : label_map_arrays) {
+    output_obj.emplace(pair);
+  }
+  return output_obj;
+}
+
+void LabelMapper::from_json(const nlohmann::json& rfx_label_mapper_json) {
+  int num_keys = rfx_label_mapper_json.at("keys").size();
+  int num_values = rfx_label_mapper_json.at("values").size();
+  CHECK_EQ(num_keys, num_values);
+  for (int i = 0; i < num_keys; i++) {
+    keys_.push_back(rfx_label_mapper_json.at("keys").at(i));
+    label_map_.insert({rfx_label_mapper_json.at("keys").at(i), rfx_label_mapper_json.at("values").at(i)});
+  }
+}
+
 void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
                                                                    double global_variance, std::mt19937& gen) {
   // Update partial residual to add back in the random effects
