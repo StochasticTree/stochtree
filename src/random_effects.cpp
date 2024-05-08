@@ -32,8 +32,10 @@ void LabelMapper::from_json(const nlohmann::json& rfx_label_mapper_json) {
   int num_values = rfx_label_mapper_json.at("values").size();
   CHECK_EQ(num_keys, num_values);
   for (int i = 0; i < num_keys; i++) {
-    keys_.push_back(rfx_label_mapper_json.at("keys").at(i));
-    label_map_.insert({rfx_label_mapper_json.at("keys").at(i), rfx_label_mapper_json.at("values").at(i)});
+    int32_t key = rfx_label_mapper_json.at("keys").at(i);
+    int32_t value = rfx_label_mapper_json.at("values").at(i);
+    keys_.push_back(key);
+    label_map_.insert({key, value});
   }
 }
 
