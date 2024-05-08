@@ -65,6 +65,7 @@ class RandomEffectsTracker {
 /*! \brief Standalone container for the map from category IDs to 0-based indices */
 class LabelMapper {
  public:
+  LabelMapper() {}
   LabelMapper(std::map<int32_t, int32_t> label_map) {
     label_map_ = label_map;
     for (const auto& [key, value] : label_map) keys_.push_back(key);
