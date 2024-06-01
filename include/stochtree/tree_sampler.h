@@ -314,15 +314,16 @@ class MCMCForestSampler {
     bool accept;
     
     if (step_chosen == 0) {
-      GrowTreeOneIter(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, variable_weights,global_variance, prob_grow);
+      GrowTreeOneIter(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, variable_weights, variable_split_counts, global_variance, prob_grow);
     } else {
       PruneTreeOneIter(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance);
     }
   }
 
   void GrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, 
-                       TreePrior& tree_prior, std::mt19937& gen, int tree_num, std::vector<double> variable_weights,
-                        double global_variance, double prob_grow_old) {
+                       TreePrior& tree_prior, std::mt19937& gen, int tree_num, std::vector<double> variable_weights, 
+                       std::vector<int32_t>& variable_split_counts,
+                       double global_variance, double prob_grow_old) {
     // Extract dataset information
     data_size_t n = dataset.GetCovariates().rows();
     int basis_dim = 1;
