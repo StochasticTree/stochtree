@@ -316,7 +316,7 @@ class MCMCForestSampler {
     if (step_chosen == 0) {
       GrowTreeOneIter(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, variable_weights, variable_split_counts, global_variance, prob_grow);
     } else {
-      PruneTreeOneIter(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance);
+      PruneTreeOneIter(tree, tracker, leaf_model, dataset, residual, tree_prior, variable_split_counts, gen, tree_num, global_variance);
     }
   }
 
@@ -344,7 +344,8 @@ class MCMCForestSampler {
     // std::fill(var_weights.begin(), var_weights.end(), 1.0/p);
     std::discrete_distribution<> var_dist(variable_weights.begin(), variable_weights.end());
     int var_chosen = var_dist(gen);
-
+    variable_split_counts.at(var_chosen)++;
+    
     // Determine the range of possible cutpoints
     // TODO: specialize this for binary / ordered categorical / unordered categorical variables
     double var_min, var_max;
@@ -406,6 +407,7 @@ class MCMCForestSampler {
     double log_acceptance_prob = std::log(mh_accept(gen));
     if (log_acceptance_prob <= log_mh_ratio) {
       accept = true;
+      variable_split_counts.at(var_chosen)++;
       AddSplitToModel(tracker, dataset, tree_prior, split, gen, tree, tree_num, leaf_chosen, var_chosen, false);
     } else {
       accept = false;
@@ -413,7 +415,7 @@ class MCMCForestSampler {
   }
 
   void PruneTreeOneIter(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, 
-                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance) {
+                        TreePrior& tree_prior, std::vector<int32_t>& variable_split_counts, std::mt19937& gen, int tree_num, double global_variance) {
     // Choose a "leaf parent" node at random
     int num_leaves = tree->NumLeaves();
     int num_leaf_parents = tree->NumLeafParents();
@@ -481,6 +483,7 @@ class MCMCForestSampler {
     double log_acceptance_prob = std::log(mh_accept(gen));
     if (log_acceptance_prob <= log_mh_ratio) {
       accept = true;
+      variable_split_counts.at(feature_split)--;
       RemoveSplitFromModel(tracker, dataset, tree_prior, gen, tree, tree_num, leaf_parent_chosen, left_node, right_node, false);
     } else {
       accept = false;
