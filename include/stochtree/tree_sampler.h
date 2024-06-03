@@ -344,7 +344,7 @@ class MCMCForestSampler {
     // std::fill(var_weights.begin(), var_weights.end(), 1.0/p);
     std::discrete_distribution<> var_dist(variable_weights.begin(), variable_weights.end());
     int var_chosen = var_dist(gen);
-    variable_split_counts.at(var_chosen)++;
+    
     
     // Determine the range of possible cutpoints
     // TODO: specialize this for binary / ordered categorical / unordered categorical variables
