@@ -32,8 +32,8 @@ project directory at your command line (i.e. `cd /path/to/stochtree-cpp`) and
 running the following code 
 
 ```{bash}
-rm -rf build             
-mkdir build     
+rm -rf build
+mkdir build
 cmake -S . -B build
 cmake --build build
 ```
