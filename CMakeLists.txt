@@ -109,7 +109,7 @@ endif()
 if(BUILD_DEBUG_TARGETS)
   # Build test suite
   add_executable(debugstochtree debug/api_debug.cpp)
-  set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/cpp)
+  set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug)
   target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR})
   target_link_libraries(debugstochtree PRIVATE stochtree_objs)
 endif()
