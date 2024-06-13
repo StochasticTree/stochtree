@@ -3,6 +3,7 @@ option(USE_DEBUG "Set to ON for Debug mode" OFF)
 option(USE_SANITIZER "Use santizer flags" ON)
 option(BUILD_TEST "Build C++ tests with Google Test" ON)
 option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
+option(BUILD_PYTHON "Build Shared Library for Python Package" OFF)
 
 # Require at least C++17
 set(CMAKE_CXX_STANDARD 17)
@@ -83,6 +84,22 @@ if(APPLE)
   set(CMAKE_SHARED_LIBRARY_SUFFIX ".so")
 endif()
 
+# Python shared library
+if (BUILD_PYTHON)
+  # Add pybind11 module
+  add_subdirectory(dependencies/pybind11)
+  pybind11_add_module(stochtree_cpp src/py_stochtree.cpp)
+
+  # Link to C++ source and headers
+  target_include_directories(stochtree_cpp PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR})
+  target_link_libraries(stochtree_cpp PRIVATE stochtree_objs)
+
+  # EXAMPLE_VERSION_INFO is defined by setup.py and passed into the C++ code as a
+  # define (VERSION_INFO) here.
+  target_compile_definitions(stochtree_cpp PRIVATE VERSION_INFO=${EXAMPLE_VERSION_INFO})
+endif()
+
+# Build C++ test program
 if(BUILD_TEST)
   # Download the GoogleTest dependency if necessary
   include(FetchContent)
@@ -106,6 +123,7 @@ if(BUILD_TEST)
   gtest_discover_tests(teststochtree)
 endif()
 
+# Standalone C++ Program for Debugging
 if(BUILD_DEBUG_TARGETS)
   # Build test suite
   add_executable(debugstochtree debug/api_debug.cpp)
