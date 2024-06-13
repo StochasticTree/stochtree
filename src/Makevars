@@ -1,0 +1,23 @@
+# package root
+PKGROOT=..
+
+PKG_CPPFLAGS= -I$(PKGROOT)/include -I$(PKGROOT)/dependencies/boost_math/include -I$(PKGROOT)/dependencies/eigen
+
+CXX_STD=CXX17
+
+OBJECTS = \
+    forest.o \
+    kernel.o \
+    R_data.o \
+    R_random_effects.o \
+    sampler.o \
+    serialization.o \
+    cpp11.o \
+	container.o \
+    cutpoint_candidates.o \
+	data.o \
+	io.o \
+	leaf_model.o \
+	partition_tracker.o \
+	random_effects.o \
+	tree.o
