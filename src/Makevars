@@ -1,7 +1,7 @@
 # package root
 PKGROOT=..
 
-PKG_CPPFLAGS= -I$(PKGROOT)/include -I$(PKGROOT)/dependencies/boost_math/include -I$(PKGROOT)/dependencies/eigen
+PKG_CPPFLAGS= -I$(PKGROOT)/include -I$(PKGROOT)/deps/boost_math/include -I$(PKGROOT)/deps/eigen
 
 CXX_STD=CXX17
 

@@ -51,10 +51,10 @@ endif()
 set(StochTree_HEADER_DIR ${PROJECT_SOURCE_DIR}/include)
 
 # boost.math header file directory
-set(BOOSTMATH_HEADER_DIR ${PROJECT_SOURCE_DIR}/dependencies/boost_math/include)
+set(BOOSTMATH_HEADER_DIR ${PROJECT_SOURCE_DIR}/deps/boost_math/include)
 
 # Eigen header file directory
-set(EIGEN_HEADER_DIR ${PROJECT_SOURCE_DIR}/dependencies/eigen)
+set(EIGEN_HEADER_DIR ${PROJECT_SOURCE_DIR}/deps/eigen)
 
 # Library directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
@@ -87,7 +87,7 @@ endif()
 # Python shared library
 if (BUILD_PYTHON)
   # Add pybind11 module
-  add_subdirectory(dependencies/pybind11)
+  add_subdirectory(deps/pybind11)
   pybind11_add_module(stochtree_cpp src/py_stochtree.cpp)
 
   # Link to C++ source and headers
