@@ -11,6 +11,9 @@ xcode/
 
 ## R gitignore
 
+# One off R dev scripts that don't need to be tracked in git
+tools/oneoffs
+
 # History files
 .Rhistory
 .Rapp.history
