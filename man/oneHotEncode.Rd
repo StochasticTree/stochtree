@@ -27,7 +27,7 @@ categories not in \code{unique_levels} will all be mapped to the last column of
 this matrix
 }
 \examples{
-x <- sample(1:8, 100, T)
-x_test <- sample(1:9, 10, T)
+x <- sample(1:8, 100, TRUE)
+x_test <- sample(1:9, 10, TRUE)
 x_onehot <- oneHotEncode(x_test, levels(factor(x)))
 }

@@ -31,7 +31,7 @@ simulation_function = function(n, mu=mu1, tau=tau2, gfr_iter=10, burnin_iter=100
     x2 <- rnorm(n)
     x3 <- rnorm(n)
     x4 <- as.numeric(rbinom(n,1,0.5))
-    x5 <- as.numeric(sample(1:3,n,replace=T))
+    x5 <- as.numeric(sample(1:3,n,replace=TRUE))
     X <- cbind(x1,x2,x3,x4,x5)
     p <- ncol(X)
     mu_x <- mu(X)
@@ -41,8 +41,8 @@ simulation_function = function(n, mu=mu1, tau=tau2, gfr_iter=10, burnin_iter=100
     E_XZ <- mu_x + Z*tau_x
     y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
     X <- as.data.frame(X)
-    X$x4 <- factor(X$x4, ordered = T)
-    X$x5 <- factor(X$x5, ordered = T)
+    X$x4 <- factor(X$x4, ordered = TRUE)
+    X$x5 <- factor(X$x5, ordered = TRUE)
     
     # Split data into test and train sets
     test_set_pct <- 0.5
@@ -188,7 +188,7 @@ write.csv(result_fixed, snapshot_file_fixed, row.names=F)
 result_random <- foreach(i = 1:n_sim, .combine = rbind, .packages = c("stochtree", "multibart")) %dopar% {
     set.seed(i)
     simulation_function(n, mu=mu2, tau=tau2, gfr_iter=20, burnin_iter=2000,
-                        mcmc_iter=1000, alpha=0.05, snr=3, sample_tau=T)
+                        mcmc_iter=1000, alpha=0.05, snr=3, sample_tau=TRUE)
 }
 
 # Save results

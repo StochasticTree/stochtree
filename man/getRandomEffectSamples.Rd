@@ -6,6 +6,11 @@
 \usage{
 getRandomEffectSamples(object, ...)
 }
+\arguments{
+\item{object}{Fitted model object from which to extract random effects}
+
+\item{...}{Other parameters to be used in random effects extraction}
+}
 \value{
 List of random effect samples
 }

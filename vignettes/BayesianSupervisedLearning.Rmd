@@ -223,7 +223,7 @@ snr <- 3
 X <- matrix(runif(n*p_x), ncol = p_x)
 W <- matrix(runif(n*p_w), ncol = p_w)
 group_ids <- rep(c(1,2), n %/% 2)
-rfx_coefs <- matrix(c(-5, -3, 5, 3),nrow=2,byrow=T)
+rfx_coefs <- matrix(c(-5, -3, 5, 3), nrow=2, byrow=TRUE)
 rfx_basis <- cbind(1, runif(n, -1, 1))
 f_XW <- (
     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5*W[,1]) + 

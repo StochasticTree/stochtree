@@ -6,6 +6,9 @@
 \usage{
 createCppJsonFile(json_filename)
 }
+\arguments{
+\item{json_filename}{Name of file to read. Must end in \code{.json}.}
+}
 \value{
 \code{CppJson} object
 }

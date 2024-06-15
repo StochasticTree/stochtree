@@ -369,6 +369,7 @@ createCppJson <- function() {
 
 #' Create a C++ Json object from a Json file
 #'
+#' @param json_filename Name of file to read. Must end in `.json`.
 #' @return `CppJson` object
 #' @export
 createCppJsonFile <- function(json_filename) {

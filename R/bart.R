@@ -24,12 +24,11 @@
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
-#' @param variable_weights Vector of length `ncol(X_train)` indicating a "weight" placed on each 
-#' variable for sampling purposes. Default: `rep(1/ncol(X_train),ncol(X_train))`.
 #' @param cutpoint_grid_size Maximum size of the "grid" of potential cutpoints to consider. Default: 100.
 #' @param tau_init Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
 #' @param alpha Prior probability of splitting for a tree of depth 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
 #' @param beta Exponent that decreases split probabilities for nodes of depth > 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
+#' @param leaf_model Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.
 #' @param min_samples_leaf Minimum allowable size of a leaf, in terms of training samples. Default: 5.
 #' @param nu Shape parameter in the `IG(nu, nu*lambda)` global error variance model. Default: 3.
 #' @param lambda Component of the scale parameter in the `IG(nu, nu*lambda)` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
@@ -298,7 +297,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Variable selection weights
     variable_weights <- rep(1/ncol(X_train), ncol(X_train))
-    
+
     # Run GFR (warm start) if specified
     if (num_gfr > 0){
         gfr_indices = 1:num_gfr
@@ -611,7 +610,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
 #' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
-#'
+#' @param ... Other parameters to be used in random effects extraction
 #' @return List of arrays. The alpha array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`.
 #' The xi and beta arrays have dimension (`num_components`, `num_groups`, `num_samples`) and is simply a matrix if `num_components = 1`.
 #' The sigma array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`.
@@ -629,7 +628,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
 #' )
 #' snr <- 3
 #' group_ids <- rep(c(1,2), n %/% 2)
-#' rfx_coefs <- matrix(c(-1, -1, 1, 1),nrow=2,byrow=T)
+#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
 #' E_y <- f_XW + rfx_term
@@ -652,7 +651,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
 #' bart_model <- bart(X_train = X_train, y_train = y_train, 
 #'                    group_ids_train = group_ids_train, rfx_basis_train = rfx_basis_train, 
 #'                    X_test = X_test, group_ids_test = group_ids_test, rfx_basis_test = rfx_basis_test, 
-#'                    num_gfr = 100, num_burnin = 0, num_mcmc = 100, sample_tau = T)
+#'                    num_gfr = 100, num_burnin = 0, num_mcmc = 100, sample_tau = TRUE)
 #' rfx_samples <- getRandomEffectSamples(bart_model)
 getRandomEffectSamples.bartmodel <- function(object, ...){
     result = list()

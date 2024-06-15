@@ -162,7 +162,7 @@ x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
 x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=T))
+x5 <- as.numeric(sample(1:3,n,replace=TRUE))
 X <- cbind(x1,x2,x3,x4,x5)
 p <- ncol(X)
 g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
@@ -178,8 +178,8 @@ E_XZ <- mu_x + Z*tau_x
 snr <- 4
 y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
 X <- as.data.frame(X)
-X$x4 <- factor(X$x4, ordered = T)
-X$x5 <- factor(X$x5, ordered = T)
+X$x4 <- factor(X$x4, ordered = TRUE)
+X$x5 <- factor(X$x5, ordered = TRUE)
 test_set_pct <- 0.2
 n_test <- round(test_set_pct*n)
 n_train <- n - n_test

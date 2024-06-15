@@ -69,7 +69,7 @@ if (all(file.exists(pkg_core_files))) {
 # Overwrite PKG_CPPFLAGS in src/Makevars
 cran_makevars <- file.path(cran_dir, "src/Makevars")
 makevars_lines <- readLines(cran_makevars)
-makevars_lines[grep("^(PKG_CPPFLAGS)", makevars_lines)] <- "PKG_CPPFLAGS= -I$(PKGROOT)/src/include"
+makevars_lines[grep("^(PKG_CPPFLAGS)", makevars_lines)] <- "PKG_CPPFLAGS= -I$(PKGROOT)/src/include $(STOCHTREE_CPPFLAGS)"
 writeLines(makevars_lines, cran_makevars)
 
 # Copy fast_double_parser header to an include/ subdirectory of src/

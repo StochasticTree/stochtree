@@ -190,7 +190,7 @@ dbarts_analysis <- function(resid_train, resid_test, y_train, y_test, X_train, X
     beta <- 2.0
     if (!is.null(W_train)) {X_train <- cbind(X_train, W_train)}
     if (!is.null(W_test)) {X_test <- cbind(X_test, W_test)}
-    bartFit = dbarts::bart(X_train,y_train,X_test,power=beta,base=alpha,ntree=ntree,nskip=num_burnin,ndpost=num_mcmc_retained,keeptrees=T)
+    bartFit = dbarts::bart(X_train,y_train,X_test,power=beta,base=alpha,ntree=ntree,nskip=num_burnin,ndpost=num_mcmc_retained,keeptrees=TRUE)
     
     # End timer and measure run time
     end_time <- proc.time()

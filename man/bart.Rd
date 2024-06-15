@@ -82,6 +82,8 @@ that were not in the training set.}
 
 \item{min_samples_leaf}{Minimum allowable size of a leaf, in terms of training samples. Default: 5.}
 
+\item{leaf_model}{Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.}
+
 \item{nu}{Shape parameter in the \code{IG(nu, nu*lambda)} global error variance model. Default: 3.}
 
 \item{lambda}{Component of the scale parameter in the \code{IG(nu, nu*lambda)} global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).}
@@ -113,9 +115,6 @@ that were not in the training set.}
 \item{keep_gfr}{Whether or not "grow-from-root" samples should be included in cached predictions. Default TRUE. Ignored if num_mcmc = 0.}
 
 \item{verbose}{Whether or not to print progress during the sampling loops. Default: FALSE.}
-
-\item{variable_weights}{Vector of length \code{ncol(X_train)} indicating a "weight" placed on each
-variable for sampling purposes. Default: \code{rep(1/ncol(X_train),ncol(X_train))}.}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).

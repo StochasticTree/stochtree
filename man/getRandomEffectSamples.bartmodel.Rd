@@ -8,6 +8,8 @@
 }
 \arguments{
 \item{object}{Object of type \code{bcf} containing draws of a Bayesian causal forest model and associated sampling outputs.}
+
+\item{...}{Other parameters to be used in random effects extraction}
 }
 \value{
 List of arrays. The alpha array has dimension (\code{num_components}, \code{num_samples}) and is simply a vector if \code{num_components = 1}.
@@ -29,7 +31,7 @@ f_XW <- (
 )
 snr <- 3
 group_ids <- rep(c(1,2), n \%/\% 2)
-rfx_coefs <- matrix(c(-1, -1, 1, 1),nrow=2,byrow=T)
+rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 rfx_basis <- cbind(1, runif(n, -1, 1))
 rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
 E_y <- f_XW + rfx_term
@@ -52,6 +54,6 @@ rfx_term_train <- rfx_term[train_inds]
 bart_model <- bart(X_train = X_train, y_train = y_train, 
                    group_ids_train = group_ids_train, rfx_basis_train = rfx_basis_train, 
                    X_test = X_test, group_ids_test = group_ids_test, rfx_basis_test = rfx_basis_test, 
-                   num_gfr = 100, num_burnin = 0, num_mcmc = 100, sample_tau = T)
+                   num_gfr = 100, num_burnin = 0, num_mcmc = 100, sample_tau = TRUE)
 rfx_samples <- getRandomEffectSamples(bart_model)
 }

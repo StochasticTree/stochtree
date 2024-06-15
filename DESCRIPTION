@@ -9,7 +9,7 @@ Authors@R:
     person("Carlos", "Carvalho", role = "aut"),
     person("Jingyu", "He", role = "aut")
   )
-Description: Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference
+Description: Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -29,6 +29,7 @@ Suggests:
 VignetteBuilder: knitr
 SystemRequirements: C++17
 Imports: 
-    R6
+    R6,
+    stats
 URL: https://stochastictree.github.io/stochtree-r/
 Config/testthat/edition: 3

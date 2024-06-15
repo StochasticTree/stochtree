@@ -7,7 +7,7 @@ x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
 x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=T))
+x5 <- as.numeric(sample(1:3,n,replace=TRUE))
 X <- cbind(x1,x2,x3,x4,x5)
 p <- ncol(X)
 g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}

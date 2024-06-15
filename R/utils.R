@@ -40,7 +40,8 @@ preprocessTrainData <- function(input_data) {
 #'
 #' @examples
 #' cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
-#' metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, num_numeric_vars = 3)
+#' metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, 
+#'                  num_numeric_vars = 3, numeric_vars = c("x1", "x2", "x3"))
 #' X_preprocessed <- preprocessPredictionData(cov_df, metadata)
 preprocessPredictionData <- function(input_data, metadata) {
     # Input checks
@@ -108,7 +109,7 @@ preprocessTrainMatrix <- function(input_matrix) {
 
 #' Preprocess a matrix of covariate values, assuming all columns are numeric.
 #'
-#' @param input_df Covariate matrix.
+#' @param input_matrix Covariate matrix.
 #' @param metadata List containing information on variables, including train set 
 #' categories for categorical variables
 #'
@@ -116,9 +117,10 @@ preprocessTrainMatrix <- function(input_matrix) {
 #' @export
 #'
 #' @examples
-#' cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
-#' metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, num_numeric_vars = 3)
-#' X_preprocessed <- preprocessPredictionDataFrame(cov_df, metadata)
+#' cov_mat <- matrix(c(1:5, 5:1, 6:10), ncol = 3)
+#' metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, 
+#'                  num_numeric_vars = 3, numeric_vars = c("x1", "x2", "x3"))
+#' X_preprocessed <- preprocessPredictionMatrix(cov_mat, metadata)
 preprocessPredictionMatrix <- function(input_matrix, metadata) {
     # Input checks
     if (!is.matrix(input_matrix)) {
@@ -261,7 +263,8 @@ preprocessTrainDataFrame <- function(input_df) {
 #'
 #' @examples
 #' cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
-#' metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, num_numeric_vars = 3)
+#' metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, 
+#'                  num_numeric_vars = 3, numeric_vars = c("x1", "x2", "x3"))
 #' X_preprocessed <- preprocessPredictionDataFrame(cov_df, metadata)
 preprocessPredictionDataFrame <- function(input_df, metadata) {
     if (!is.data.frame(input_df)) {
@@ -455,7 +458,8 @@ createForestCovariates <- function(input_data, ordered_cat_vars = NULL, unordere
 #'
 #' @examples
 #' cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
-#' metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, num_numeric_vars = 3)
+#' metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, 
+#'                  num_numeric_vars = 3, numeric_vars = c("x1", "x2", "x3"))
 #' X_preprocessed <- createForestCovariatesFromMetadata(cov_df, metadata)
 createForestCovariatesFromMetadata <- function(input_data, metadata) {
     if (is.matrix(input_data)) {
@@ -572,8 +576,8 @@ oneHotInitializeAndEncode <- function(x_input) {
 #' @export
 #'
 #' @examples
-#' x <- sample(1:8, 100, T)
-#' x_test <- sample(1:9, 10, T)
+#' x <- sample(1:8, 100, TRUE)
+#' x_test <- sample(1:9, 10, TRUE)
 #' x_onehot <- oneHotEncode(x_test, levels(factor(x)))
 oneHotEncode <- function(x_input, unique_levels) {
     stopifnot((is.null(dim(x_input)) && length(x_input) > 0))
@@ -620,7 +624,7 @@ orderedCatInitializeAndPreprocess <- function(x_input) {
         x_preprocessed <- as.integer(x_input)
         unique_levels <- levels(x_input)
     } else {
-        x_factor <- factor(x_input, ordered = T)
+        x_factor <- factor(x_input, ordered = TRUE)
         x_preprocessed <- as.integer(x_factor)
         unique_levels <- levels(x_factor)
     }
@@ -634,6 +638,8 @@ orderedCatInitializeAndPreprocess <- function(x_input) {
 #' @param x_input Vector of ordered categorical data. If the data is not already 
 #' stored as an ordered factor, it will be converted to one using the default 
 #' sort order.
+#' @param unique_levels Vector of unique levels for a categorical feature.
+#' @param var_name (Optional) Name of variable.
 #'
 #' @return List containing a preprocessed vector of integer-converted ordered 
 #' categorical observations and the unique level of the original ordered 
@@ -658,11 +664,11 @@ orderedCatPreprocess <- function(x_input, unique_levels, var_name = NULL) {
         }
         # Preprocessing
         x_string <- as.character(x_input)
-        x_factor <- factor(x_string, unique_levels, ordered = T)
+        x_factor <- factor(x_string, unique_levels, ordered = TRUE)
         x_preprocessed <- as.integer(x_factor)
         x_preprocessed[is.na(x_preprocessed)] <- length(unique_levels) + 1
     } else {
-        x_factor <- factor(x_input, ordered = T)
+        x_factor <- factor(x_input, ordered = TRUE)
         # Run time checks
         levels_not_in_reflist <- !(levels(x_factor) %in% unique_levels)
         if (sum(levels_not_in_reflist) > 0) {
@@ -672,7 +678,7 @@ orderedCatPreprocess <- function(x_input, unique_levels, var_name = NULL) {
         }
         # Preprocessing
         x_string <- as.character(x_input)
-        x_factor <- factor(x_string, unique_levels, ordered = T)
+        x_factor <- factor(x_string, unique_levels, ordered = TRUE)
         x_preprocessed <- as.integer(x_factor)
         x_preprocessed[is.na(x_preprocessed)] <- length(unique_levels) + 1
     }

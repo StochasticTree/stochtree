@@ -12,6 +12,10 @@ orderedCatPreprocess(x_input, unique_levels, var_name = NULL)
 \item{x_input}{Vector of ordered categorical data. If the data is not already
 stored as an ordered factor, it will be converted to one using the default
 sort order.}
+
+\item{unique_levels}{Vector of unique levels for a categorical feature.}
+
+\item{var_name}{(Optional) Name of variable.}
 }
 \value{
 List containing a preprocessed vector of integer-converted ordered

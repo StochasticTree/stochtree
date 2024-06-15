@@ -6,7 +6,7 @@
 \alias{stochtree-package}
 \title{stochtree: Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference}
 \description{
-Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference
+Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference.
 }
 \seealso{
 Useful links:

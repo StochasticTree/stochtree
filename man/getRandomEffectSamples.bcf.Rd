@@ -8,6 +8,8 @@
 }
 \arguments{
 \item{object}{Object of type \code{bcf} containing draws of a Bayesian causal forest model and associated sampling outputs.}
+
+\item{...}{Other parameters to be used in random effects extraction}
 }
 \value{
 List of arrays. The alpha array has dimension (\code{num_components}, \code{num_samples}) and is simply a vector if \code{num_components = 1}.
@@ -23,7 +25,7 @@ x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
 x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=T))
+x5 <- as.numeric(sample(1:3,n,replace=TRUE))
 X <- cbind(x1,x2,x3,x4,x5)
 p <- ncol(X)
 g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
@@ -38,13 +40,13 @@ Z <- rbinom(n,1,pi_x)
 E_XZ <- mu_x + Z*tau_x
 snr <- 3
 group_ids <- rep(c(1,2), n \%/\% 2)
-rfx_coefs <- matrix(c(-1, -1, 1, 1),nrow=2,byrow=T)
+rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 rfx_basis <- cbind(1, runif(n, -1, 1))
 rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
 y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
 X <- as.data.frame(X)
-X$x4 <- factor(X$x4, ordered = T)
-X$x5 <- factor(X$x5, ordered = T)
+X$x4 <- factor(X$x4, ordered = TRUE)
+X$x5 <- factor(X$x5, ordered = TRUE)
 test_set_pct <- 0.2
 n_test <- round(test_set_pct*n)
 n_train <- n - n_test
@@ -74,6 +76,6 @@ bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
                  rfx_basis_test = rfx_basis_test, 
                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
-                 sample_sigma_leaf_mu = T, sample_sigma_leaf_tau = F)
+                 sample_sigma_leaf_mu = TRUE, sample_sigma_leaf_tau = FALSE)
 rfx_samples <- getRandomEffectSamples(bcf_model)
 }

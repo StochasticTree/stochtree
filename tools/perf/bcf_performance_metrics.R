@@ -28,7 +28,7 @@ simulation_function = function(n, mu=mu1, tau=tau2, gfr_iter=10, burnin_iter=100
     x2 <- rnorm(n)
     x3 <- rnorm(n)
     x4 <- as.numeric(rbinom(n,1,0.5))
-    x5 <- as.numeric(sample(1:3,n,replace=T))
+    x5 <- as.numeric(sample(1:3,n,replace=TRUE))
     X <- cbind(x1,x2,x3,x4,x5)
     p <- ncol(X)
     mu_x <- mu(X)
@@ -38,8 +38,8 @@ simulation_function = function(n, mu=mu1, tau=tau2, gfr_iter=10, burnin_iter=100
     E_XZ <- mu_x + Z*tau_x
     y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
     X <- as.data.frame(X)
-    X$x4 <- factor(X$x4, ordered = T)
-    X$x5 <- factor(X$x5, ordered = T)
+    X$x4 <- factor(X$x4, ordered = TRUE)
+    X$x5 <- factor(X$x5, ordered = TRUE)
     
     # Split data into test and train sets
     test_set_pct <- 0.5
