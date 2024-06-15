@@ -38,7 +38,7 @@ generate_data <- function(dgp_name, n, p_x, p_w = NULL, snr = NULL, test_set_pct
     # Run test / train split
     n_test <- round(test_set_pct*n)
     n_train <- n - n_test
-    test_inds <- sort(sample(1:n, n_test, replace = F))
+    test_inds <- sort(sample(1:n, n_test, replace = FALSE))
     train_inds <- (1:n)[!((1:n) %in% test_inds)]
     
     # Split data into test and train sets

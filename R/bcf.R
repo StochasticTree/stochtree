@@ -85,7 +85,7 @@
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]
@@ -787,7 +787,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]
@@ -965,7 +965,7 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]
@@ -1051,7 +1051,7 @@ getRandomEffectSamples.bcf <- function(object, ...){
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]
@@ -1182,7 +1182,7 @@ convertBCFModelToJson <- function(object){
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]
@@ -1254,7 +1254,7 @@ saveBCFModelToJsonFile <- function(object, filename){
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]
@@ -1390,7 +1390,7 @@ createBCFModelFromJson <- function(json_object){
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]

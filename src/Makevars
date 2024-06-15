@@ -1,7 +1,7 @@
 # package root
 PKGROOT=..
 
-PKG_CPPFLAGS= -I$(PKGROOT)/include -I$(PKGROOT)/deps/boost_math/include -I$(PKGROOT)/deps/eigen
+PKG_CPPFLAGS= -I$(PKGROOT)/include -I$(PKGROOT)/deps/eigen -I$(PKGROOT)/deps/fmt/include -I$(PKGROOT)/deps/fast_double_parser/include
 
 CXX_STD=CXX17
 
@@ -13,11 +13,11 @@ OBJECTS = \
     sampler.o \
     serialization.o \
     cpp11.o \
-	container.o \
+    container.o \
     cutpoint_candidates.o \
-	data.o \
-	io.o \
-	leaf_model.o \
-	partition_tracker.o \
-	random_effects.o \
-	tree.o
+    data.o \
+    io.o \
+    leaf_model.o \
+    partition_tracker.o \
+    random_effects.o \
+    tree.o

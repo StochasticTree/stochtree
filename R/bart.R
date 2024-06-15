@@ -66,7 +66,7 @@
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]
@@ -511,7 +511,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]
@@ -637,7 +637,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = F))
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 #' train_inds <- (1:n)[!((1:n) %in% test_inds)]
 #' X_test <- X[test_inds,]
 #' X_train <- X[train_inds,]

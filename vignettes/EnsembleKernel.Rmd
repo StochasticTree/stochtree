@@ -137,7 +137,7 @@ We can use the `tgp` package to model this data with a classical Gaussian Proces
 # Generate the data, add many "noise variables"
 n <- 100
 friedman.df <- friedman.1.data(n=n)
-train_inds <- sort(sample(1:n, floor(0.8*n), replace = F))
+train_inds <- sort(sample(1:n, floor(0.8*n), replace = FALSE))
 test_inds <- (1:n)[!((1:n) %in% train_inds)]
 X <- as.matrix(friedman.df)[,1:10]
 X <- cbind(X, matrix(runif(n*10), ncol = 10))
