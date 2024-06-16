@@ -333,9 +333,9 @@ loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
 #' @export
 loadVectorJson <- function(json_object, json_vector_label, subfolder_name = NULL) {
     if (is.null(subfolder_name)) {
-        output <- jsonobj$get_vector(json_vector_label, subfolder_name)
+        output <- json_object$get_vector(json_vector_label, subfolder_name)
     } else {
-        output <- jsonobj$get_vector(json_vector_label, subfolder_name)
+        output <- json_object$get_vector(json_vector_label, subfolder_name)
     }
     return(output)
 }
@@ -350,9 +350,9 @@ loadVectorJson <- function(json_object, json_vector_label, subfolder_name = NULL
 #' @export
 loadScalarJson <- function(json_object, json_scalar_label, subfolder_name = NULL) {
     if (is.null(subfolder_name)) {
-        output <- jsonobj$get_vector(json_scalar_label, subfolder_name)
+        output <- json_object$get_vector(json_scalar_label, subfolder_name)
     } else {
-        output <- jsonobj$get_vector(json_scalar_label, subfolder_name)
+        output <- json_object$get_vector(json_scalar_label, subfolder_name)
     }
     return(output)
 }

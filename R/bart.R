@@ -599,7 +599,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
         result <- list(
             "forest_predictions" = forest_predictions, 
             "rfx_predictions" = rfx_predictions, 
-            "y_hat" = y_hat, 
+            "y_hat" = y_hat
         )
         return(result)
     } else {

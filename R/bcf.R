@@ -887,7 +887,7 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
         tau_hat_test_raw <- bcf$forests_tau$predict_raw(prediction_dataset_tau)
         tau_hat_test <- t(t(tau_hat_test_raw) * (bcf$b_1_samples - bcf$b_0_samples))*y_std
     } else {
-        tau_hat_test <- bcf$forests_tau$predict_raw(forest_dataset_tau_test)*y_std
+        tau_hat_test <- bcf$forests_tau$predict_raw(prediction_dataset_tau)*y_std
     }
     
     # Compute rfx predictions (if needed)
@@ -1138,8 +1138,8 @@ convertBCFModelToJson <- function(object){
     }
 
     # Add random effects (if present)
-    if (bcf_model$model_params$has_rfx) {
-        jsonobj$add_random_effects(bcf_model$rfx_samples)
+    if (object$model_params$has_rfx) {
+        jsonobj$add_random_effects(object$rfx_samples)
         jsonobj$add_string_vector("rfx_unique_group_ids", object$rfx_unique_group_ids)
     }
     
