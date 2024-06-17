@@ -39,7 +39,7 @@ class CovariateTransformer:
     
     def _process_ordered_categorical(self, covariate: pd.Series) -> int:
         num_ord = len(self._ordinal_encoders)
-        category_list = [covariate.array.categories.to_list()]
+        category_list = covariate.array.categories.to_list()
         enc = OrdinalEncoder(categories=[category_list])
         enc.fit(pd.DataFrame(covariate))
         self._ordinal_encoders.append(enc)
@@ -104,19 +104,19 @@ class CovariateTransformer:
                 else:
                     onehot_index = self._process_unordered_categorical(covariate)
                     self._onehot_feature_index[i] = onehot_index
-                    self._processed_feature_types.append([1 for j in range(len(self._onehot_encoders[onehot_index].categories_))])
+                    feature_ones = np.repeat(1, len(covariate.array.categories)).tolist()
+                    self._processed_feature_types.extend(feature_ones)
             elif string_types.iloc[i]:
                 self._original_feature_types[i] = "string"
                 onehot_index = self._process_unordered_categorical(covariate)
                 self._onehot_feature_index[i] = onehot_index
-                self._processed_feature_types.append([1 for j in range(len(self._onehot_encoders[onehot_index].categories_))])
+                feature_ones = np.repeat(1, len(self._onehot_encoders[onehot_index].categories_[0])).tolist()
+                self._processed_feature_types.extend(feature_ones)
             elif bool_types.iloc[i]:
                 self._original_feature_types[i] = "boolean"
-                covariate = covariate*1.0
                 self._processed_feature_types.append(1)
             elif integer_types.iloc[i]:
                 self._original_feature_types[i] = "integer"
-                covariate = covariate*1.0
                 self._processed_feature_types.append(0)
             elif float_types.iloc[i]:
                 self._original_feature_types[i] = "float"
@@ -173,14 +173,16 @@ class CovariateTransformer:
         for i in range(covariates.shape[1]):
             covariate = covariates.iloc[:,i]
             if self._original_feature_types[i] == "category" or self._original_feature_types[i] == "string":
-                if self._onehot_feature_index[i] != -1:
-                    covariate_transformed = self._ordinal_encoders[i].transform(pd.DataFrame(covariate))
-                    output_array[:,output_iter] = covariate_transformed
+                if self._ordinal_feature_index[i] != -1:
+                    ord_ind = self._ordinal_feature_index[i]
+                    covariate_transformed = self._ordinal_encoders[ord_ind].transform(pd.DataFrame(covariate))
+                    output_array[:,output_iter] = np.squeeze(covariate_transformed)
                     output_iter += 1
                 else:
-                    covariate_transformed = self._onehot_encoders[i].transform(pd.DataFrame(covariate))
+                    onehot_ind = self._onehot_feature_index[i]
+                    covariate_transformed = self._onehot_encoders[onehot_ind].transform(pd.DataFrame(covariate))
                     output_dim = covariate_transformed.shape[1]
-                    output_array[:,output_iter:(output_iter + output_dim)] = covariate_transformed
+                    output_array[:,np.arange(output_iter, output_iter + output_dim)] = np.squeeze(covariate_transformed)
                     output_iter += output_dim
             
             elif self._original_feature_types[i] == "boolean":

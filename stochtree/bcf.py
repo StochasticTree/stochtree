@@ -11,6 +11,7 @@ from scipy.stats import gamma
 from .bart import BARTModel
 from .data import Dataset, Residual
 from .forest import ForestContainer
+from .preprocessing import CovariateTransformer
 from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
 from .utils import NotSampledError
 
@@ -27,7 +28,7 @@ class BCFModel:
         return self.sampled
     
     def sample(self, X_train: np.array, Z_train: np.array, y_train: np.array, pi_train: np.array = None, 
-               X_test: np.array = None, Z_test: np.array = None, pi_test: np.array = None, feature_types: np.array = None, 
+               X_test: np.array = None, Z_test: np.array = None, pi_test: np.array = None, 
                cutpoint_grid_size = 100, sigma_leaf_mu: float = None, sigma_leaf_tau: float = None, 
                alpha_mu: float = 0.95, alpha_tau: float = 0.25, beta_mu: float = 2.0, beta_tau: float = 3.0, 
                min_samples_leaf_mu: int = 5, min_samples_leaf_tau: int = 5, nu: float = 3, lamb: float = None, 
@@ -57,9 +58,6 @@ class BCFModel:
             Must be provided if ``X_test`` is provided.
         pi_test : :obj:`np.array`, optional
             Optional test set vector of propensity scores. If not provided (but ``X_test`` and ``Z_test`` are), this will be estimated from the data.
-        feature_types : :obj:`np.array`, optional
-            Indicators of feature type (0 = numeric, 1 = ordered categorical, 2 = unordered categorical). 
-            If omitted, all covariates are assumed to be numeric.
         cutpoint_grid_size : :obj:`int`, optional
             Maximum number of cutpoints to consider for each feature. Defaults to ``100``.
         sigma_leaf_mu : :obj:`float`, optional
@@ -185,7 +183,7 @@ class BCFModel:
         X_train_processed = self._covariate_transformer.transform(X_train)
         if X_test is not None:
             X_test_processed = self._covariate_transformer.transform(X_test)
-        feature_types = self._covariate_transformer._processed_feature_types
+        feature_types = np.asarray(self._covariate_transformer._processed_feature_types)
 
         # Determine whether a test set is provided
         self.has_test = X_test is not None
@@ -193,7 +191,7 @@ class BCFModel:
         # Unpack data dimensions
         self.n_train = y_train.shape[0]
         self.n_test = X_test.shape[0] if self.has_test else 0
-        self.p_x = X_train.shape[1]
+        self.p_x = X_train_processed.shape[1]
 
         # Check whether treatment is binary
         self.binary_treatment = np.unique(Z_train).size == 2
@@ -208,50 +206,46 @@ class BCFModel:
             self.bart_propensity_model = BARTModel()
             if self.has_test:
                 pi_test = np.mean(self.bart_propensity_model.y_hat_test, axis = 1, keepdims = True)
-                self.bart_propensity_model.sample(X_train=X_train, y_train=Z_train, X_test=X_test, num_gfr=10, num_mcmc=10)
+                self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, X_test=X_test_processed, num_gfr=10, num_mcmc=10)
                 pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
                 pi_test = np.mean(self.bart_propensity_model.y_hat_test, axis = 1, keepdims = True)
             else:
-                self.bart_propensity_model.sample(X_train=X_train, y_train=Z_train, num_gfr=10, num_mcmc=10)
+                self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, num_gfr=10, num_mcmc=10)
                 pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
             self.internal_propensity_model = True
         else:
             self.internal_propensity_model = False
         
-        # Set feature type defaults if not provided
-        if feature_types is None:
-            feature_types = np.zeros(self.p_x)
-        
         # Update covariates to include propensities if requested
         if propensity_covariate == "mu":
             feature_types_mu = np.append(feature_types, 0).astype('int')
             feature_types_tau = feature_types.astype('int')
-            X_train_mu = np.c_[X_train, pi_train]
-            X_train_tau = X_train
+            X_train_mu = np.c_[X_train_processed, pi_train]
+            X_train_tau = X_train_processed
             if self.has_test:
                 X_test_mu = np.c_[X_test, pi_test]
                 X_test_tau = X_test
         elif propensity_covariate == "tau":
             feature_types_tau = np.append(feature_types, 0).astype('int')
             feature_types_mu = feature_types.astype('int')
-            X_train_tau = np.c_[X_train, pi_train]
-            X_train_mu = X_train
+            X_train_tau = np.c_[X_train_processed, pi_train]
+            X_train_mu = X_train_processed
             if self.has_test:
                 X_test_tau = np.c_[X_test, pi_test]
                 X_test_mu = X_test
         elif propensity_covariate == "both":
             feature_types_tau = np.append(feature_types, 0).astype('int')
             feature_types_mu = np.append(feature_types, 0).astype('int')
-            X_train_tau = np.c_[X_train, pi_train]
-            X_train_mu = np.c_[X_train, pi_train]
+            X_train_tau = np.c_[X_train_processed, pi_train]
+            X_train_mu = np.c_[X_train_processed, pi_train]
             if self.has_test:
                 X_test_tau = np.c_[X_test, pi_test]
                 X_test_mu = np.c_[X_test, pi_test]
         elif propensity_covariate == "none":
             feature_types_tau = feature_types.astype('int')
             feature_types_mu = feature_types.astype('int')
-            X_train_tau = X_train
-            X_train_mu = X_train
+            X_train_tau = X_train_processed
+            X_train_mu = X_train_processed
             if self.has_test:
                 X_test_tau = X_test
                 X_test_mu = X_test
@@ -272,7 +266,7 @@ class BCFModel:
 
         # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau
         if lamb is None:
-            reg_basis = np.c_[np.ones(self.n_train),X_train]
+            reg_basis = np.c_[np.ones(self.n_train),X_train_processed]
             reg_soln = lstsq(reg_basis, np.squeeze(resid_train))
             sigma2hat = reg_soln[1] / self.n_train
             quantile_cutoff = q

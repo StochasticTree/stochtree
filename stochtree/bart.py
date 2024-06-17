@@ -24,11 +24,10 @@ class BARTModel:
         return self.sampled
     
     def sample(self, X_train: np.array, y_train: np.array, basis_train: np.array = None, X_test: np.array = None, basis_test: np.array = None, 
-               feature_types: np.array = None, cutpoint_grid_size = 100, sigma_leaf: float = None, alpha: float = 0.95, beta: float = 2.0, 
-               min_samples_leaf: int = 5, nu: float = 3, lamb: float = None, a_leaf: float = 3, b_leaf: float = None, q: float = 0.9, 
-               sigma2: float = None, num_trees: int = 200, num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, 
-               sample_sigma_global: bool = True, sample_sigma_leaf: bool = True, random_seed: int = -1, 
-               keep_burnin: bool = False, keep_gfr: bool = False) -> None:
+               cutpoint_grid_size = 100, sigma_leaf: float = None, alpha: float = 0.95, beta: float = 2.0, min_samples_leaf: int = 5, 
+               nu: float = 3, lamb: float = None, a_leaf: float = 3, b_leaf: float = None, q: float = 0.9, sigma2: float = None, 
+               num_trees: int = 200, num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, sample_sigma_global: bool = True, 
+               sample_sigma_leaf: bool = True, random_seed: int = -1, keep_burnin: bool = False, keep_gfr: bool = False) -> None:
         """Runs a BART sampler on provided training set. Predictions will be cached for the training set and (if provided) the test set. 
         Does not require a leaf regression basis. 
 
@@ -45,9 +44,6 @@ class BARTModel:
         basis_test : :obj:`np.array`, optional
             Optional test set basis vector used to define a regression to be run in the leaves of each tree. 
             Must be included / omitted consistently (i.e. if basis_train is provided, then basis_test must be provided alongside X_test).
-        feature_types : :obj:`np.array`, optional
-            Indicators of feature type (0 = numeric, 1 = ordered categorical, 2 = unordered categorical). 
-            If omitted, all covariates are assumed to be numeric.
         cutpoint_grid_size : :obj:`int`, optional
             Maximum number of cutpoints to consider for each feature. Defaults to ``100``.
         sigma_leaf : :obj:`float`, optional
@@ -151,7 +147,7 @@ class BARTModel:
         X_train_processed = self._covariate_transformer.transform(X_train)
         if X_test is not None:
             X_test_processed = self._covariate_transformer.transform(X_test)
-        feature_types = self._covariate_transformer._processed_feature_types
+        feature_types = np.asarray(self._covariate_transformer._processed_feature_types)
 
         # Determine whether a test set is provided
         self.has_test = X_test is not None
@@ -161,16 +157,12 @@ class BARTModel:
 
         # Unpack data dimensions
         self.n_train = y_train.shape[0]
-        self.n_test = X_test.shape[0] if self.has_test else 0
-        self.num_covariates = X_train.shape[1]
+        self.n_test = X_test_processed.shape[0] if self.has_test else 0
+        self.num_covariates = X_train_processed.shape[1]
         self.num_basis = basis_train.shape[1] if self.has_basis else 0
-
-        # Set feature type defaults if not provided
-        if feature_types is None:
-            feature_types = np.zeros(self.num_covariates)
         
         # Set variable weights for the prognostic and treatment effect forests
-        variable_weights = np.repeat(1.0/X_train.shape[1], X_train.shape[1])
+        variable_weights = np.repeat(1.0/self.num_covariates, self.num_covariates)
 
         # Scale outcome
         self.y_bar = np.squeeze(np.mean(y_train))
@@ -179,7 +171,7 @@ class BARTModel:
 
         # Calibrate priors for global sigma^2 and sigma_leaf
         if lamb is None:
-            reg_basis = np.c_[np.ones(self.n_train),X_train]
+            reg_basis = np.c_[np.ones(self.n_train),X_train_processed]
             reg_soln = lstsq(reg_basis, np.squeeze(resid_train))
             sigma2hat = reg_soln[1] / self.n_train
             quantile_cutoff = q
@@ -204,12 +196,12 @@ class BARTModel:
         
         # Forest Dataset (covariates and optional basis)
         forest_dataset_train = Dataset()
-        forest_dataset_train.add_covariates(X_train)
+        forest_dataset_train.add_covariates(X_train_processed)
         if self.has_basis:
             forest_dataset_train.add_basis(basis_train)
         if self.has_test:
             forest_dataset_test = Dataset()
-            forest_dataset_test.add_covariates(X_test)
+            forest_dataset_test.add_covariates(X_test_processed)
             if self.has_basis:
                 forest_dataset_test.add_basis(basis_test)
 
