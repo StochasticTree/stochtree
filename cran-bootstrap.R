@@ -24,6 +24,7 @@ if (!dir.exists(cran_dir)) {
 
 # Copy the "core" package files to CRAN folder
 src_files <- list.files("src", recursive = TRUE, full.names = TRUE)
+cat("Source files: ", src_files)
 pybind_src_files <- list.files("src", pattern = "^(py_)", recursive = TRUE, full.names = TRUE)
 r_src_files <- src_files[!(src_files %in% pybind_src_files)]
 pkg_core_files <- c(
