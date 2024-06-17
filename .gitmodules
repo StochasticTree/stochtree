@@ -1,0 +1,15 @@
+[submodule "dependencies/fast_double_parser"]
+	path = deps/fast_double_parser
+	url = https://github.com/lemire/fast_double_parser/
+[submodule "dependencies/fmt"]
+	path = deps/fmt
+	url = https://github.com/fmtlib/fmt/
+[submodule "dependencies/boost_math"]
+	path = deps/boost_math
+	url = https://github.com/boostorg/math
+[submodule "dependencies/eigen"]
+	path = deps/eigen
+	url = https://gitlab.com/libeigen/eigen
+[submodule "dependencies/pybind11"]
+	path = deps/pybind11
+	url = https://github.com/pybind/pybind11
