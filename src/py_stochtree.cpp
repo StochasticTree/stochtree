@@ -147,7 +147,7 @@ class ForestContainerCpp {
     std::vector<double> output_raw = forest_samples_->Predict(*data_ptr);
 
     // Convert result to a matrix
-    auto result = py::array_t<double>(py::detail::any_container<ssize_t>({n, num_samples}));
+    auto result = py::array_t<double>(py::detail::any_container<size_t>({n, num_samples}));
     auto accessor = result.mutable_unchecked<2>();
     // py::buffer_info buf = result.request();
     // double *ptr = static_cast<double *>(buf.ptr);
@@ -171,7 +171,7 @@ class ForestContainerCpp {
     std::vector<double> output_raw = forest_samples_->PredictRaw(*data_ptr);
 
     // Convert result to 3 dimensional array (n x num_samples x output_dim)
-    auto result = py::array_t<double>(py::detail::any_container<ssize_t>({n, num_samples, output_dim}));
+    auto result = py::array_t<double>(py::detail::any_container<size_t>({n, num_samples, output_dim}));
     auto accessor = result.mutable_unchecked<3>();
     // py::buffer_info buf = result.request();
     // double *ptr = static_cast<double *>(buf.ptr);
@@ -196,7 +196,7 @@ class ForestContainerCpp {
     std::vector<double> output_raw = forest_samples_->PredictRaw(*data_ptr, forest_num);
 
     // Convert result to a matrix
-    auto result = py::array_t<double>(py::detail::any_container<ssize_t>({n, output_dim}));
+    auto result = py::array_t<double>(py::detail::any_container<size_t>({n, output_dim}));
     auto accessor = result.mutable_unchecked<2>();
     // py::buffer_info buf = result.request();
     // double *ptr = static_cast<double *>(buf.ptr);
@@ -629,8 +629,8 @@ class JsonCpp {
 
   py::array_t<double> ExtractDoubleVector(std::string field_name) {
     auto json_vec = json_->at(field_name);
-    ssize_t json_vec_length = json_->at(field_name).size();
-    auto result = py::array_t<double>(py::detail::any_container<ssize_t>({json_vec_length}));
+    size_t json_vec_length = json_->at(field_name).size();
+    auto result = py::array_t<double>(py::detail::any_container<size_t>({json_vec_length}));
     auto accessor = result.mutable_unchecked<1>();
     for (size_t i = 0; i < json_vec_length; i++) {
       accessor(i) = json_vec.at(i);
@@ -640,8 +640,8 @@ class JsonCpp {
 
   py::array_t<double> ExtractDoubleVectorSubfolder(std::string subfolder_name, std::string field_name) {
     auto json_vec = json_->at(subfolder_name).at(field_name);
-    ssize_t json_vec_length = json_->at(subfolder_name).at(field_name).size();
-    auto result = py::array_t<double>(py::detail::any_container<ssize_t>({json_vec_length}));
+    size_t json_vec_length = json_->at(subfolder_name).at(field_name).size();
+    auto result = py::array_t<double>(py::detail::any_container<size_t>({json_vec_length}));
     auto accessor = result.mutable_unchecked<1>();
     for (size_t i = 0; i < json_vec_length; i++) {
       accessor(i) = json_vec.at(i);
@@ -651,7 +651,7 @@ class JsonCpp {
 
   std::vector<std::string> ExtractStringVector(std::string field_name) {
     auto json_vec = json_->at(field_name);
-    ssize_t json_vec_length = json_->at(field_name).size();
+    size_t json_vec_length = json_->at(field_name).size();
     auto result = std::vector<std::string>(json_vec_length);
     for (size_t i = 0; i < json_vec_length; i++) {
       result.at(i) = json_vec.at(i);
@@ -661,7 +661,7 @@ class JsonCpp {
 
   std::vector<std::string> ExtractStringVectorSubfolder(std::string subfolder_name, std::string field_name) {
     auto json_vec = json_->at(subfolder_name).at(field_name);
-    ssize_t json_vec_length = json_->at(subfolder_name).at(field_name).size();
+    size_t json_vec_length = json_->at(subfolder_name).at(field_name).size();
     auto result = std::vector<std::string>(json_vec_length);
     for (size_t i = 0; i < json_vec_length; i++) {
       result.at(i) = json_vec.at(i);
