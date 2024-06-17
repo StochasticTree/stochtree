@@ -40,5 +40,5 @@ jobs:
           extra-packages: any::testthat, any::decor, local::stochtree_cran
 
       - name: Run unit tests
-        run: testthat::test_local("stochtree_cran", load_package = "installed")
+        run: testthat::test_local("stochtree_cran")
         shell: Rscript {0}
