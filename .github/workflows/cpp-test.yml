@@ -1,6 +1,6 @@
 # Based on the cmake-multi-platform Github Action
 # https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
-name: Build and test
+name: C++ Unit Tests
 
 on:
   push:

@@ -9,7 +9,7 @@ on:
     types: [published]
   workflow_dispatch:
 
-name: testthat
+name: R Package Unit Tests
 
 jobs:
   testing:
