@@ -31,14 +31,12 @@ jobs:
         with:
           use-public-rspm: true
 
-      - name: Organize package files in a local subfolder of the repo
-        run: source("./cran-bootstrap.R")
-        shell: Rscript {0}
-      
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::testthat, any::decor, local::stochtree_cran
+          extra-packages: any::testthat, any::decor
 
       - name: Run unit tests
-        run: testthat::test_package("stochtree")
+        run: 
+          source("./cran-bootstrap.R")
+          testthat::test_local("stochtree_cran")
         shell: Rscript {0}
