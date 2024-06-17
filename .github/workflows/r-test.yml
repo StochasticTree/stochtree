@@ -36,6 +36,6 @@ jobs:
           extra-packages: any::testthat, any::decor
 
       - name: Run unit tests
-        run: 
+        run: |
           Rscript cran-bootstrap.R
           Rscript -e 'testthat::test_local("stochtree_cran")'
