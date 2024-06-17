@@ -24,7 +24,6 @@ if (!dir.exists(cran_dir)) {
 
 # Copy the "core" package files to CRAN folder
 src_files <- list.files("src", recursive = TRUE, full.names = TRUE)
-cat("Source files: ", src_files)
 pybind_src_files <- list.files("src", pattern = "^(py_)", recursive = TRUE, full.names = TRUE)
 r_src_files <- src_files[!(src_files %in% pybind_src_files)]
 pkg_core_files <- c(
@@ -42,8 +41,6 @@ pkg_core_files_dst <- file.path(cran_dir, pkg_core_files)
 # Handle tests separately (move from test/R/ folder to tests/ folder)
 test_files_src <- list.files("test/R", recursive = TRUE, full.names = TRUE)
 test_files_dst <- file.path(cran_dir, gsub("test/R", "tests", test_files_src))
-cat("Test files source: ", paste(test_files_src, "\n"))
-cat("Test files destination: ", paste(test_files_dst, "\n"))
 pkg_core_files <- c(pkg_core_files, test_files_src)
 pkg_core_files_dst <- c(pkg_core_files_dst, test_files_dst)
 if (all(file.exists(pkg_core_files))) {
