@@ -37,6 +37,5 @@ jobs:
 
       - name: Run unit tests
         run: 
-          source("./cran-bootstrap.R")
-          testthat::test_local("stochtree_cran")
-        shell: Rscript {0}
+          Rscript cran-bootstrap.R
+          Rscript -e 'testthat::test_local("stochtree_cran")'
