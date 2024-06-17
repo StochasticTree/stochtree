@@ -1,0 +1,42 @@
+name: Python Package Unit Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  testing:
+    name: Build Documentation
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: Setup Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+        cache: "pip"
+
+    - name: Install Package with Relevant Dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install .
+
+    - name: Run Pytest
+      run: |
+        pytest test/python
