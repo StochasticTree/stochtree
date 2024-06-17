@@ -41,6 +41,8 @@ pkg_core_files_dst <- file.path(cran_dir, pkg_core_files)
 # Handle tests separately (move from test/r/ folder to tests/ folder)
 test_files_src <- list.files("test/r", recursive = TRUE, full.names = TRUE)
 test_files_dst <- file.path(cran_dir, gsub("test/r", "tests", test_files_src))
+cat("Test files source: ", paste(test_files_src, "\n"))
+cat("Test files destination: ", paste(test_files_dst, "\n"))
 pkg_core_files <- c(pkg_core_files, test_files_src)
 pkg_core_files_dst <- c(pkg_core_files_dst, test_files_dst)
 if (all(file.exists(pkg_core_files))) {
