@@ -35,10 +35,14 @@ pkg_core_files <- c(
     "NAMESPACE",
     list.files("R", recursive = TRUE, full.names = TRUE),
     r_src_files, 
-    list.files("test/r", recursive = TRUE, full.names = TRUE),
     list.files("vignettes", recursive = TRUE, full.names = TRUE)
 )
 pkg_core_files_dst <- file.path(cran_dir, pkg_core_files)
+# Handle tests separately (move from test/r/ folder to tests/ folder)
+test_files_src <- list.files("test/r", recursive = TRUE, full.names = TRUE)
+test_files_dst <- file.path(cran_dir, gsub("test/r", "tests", test_files_src))
+pkg_core_files <- c(pkg_core_files, test_files_src)
+pkg_core_files_dst <- c(pkg_core_files_dst, test_files_dst)
 if (all(file.exists(pkg_core_files))) {
     n_removed <- suppressWarnings(sum(file.remove(pkg_core_files_dst)))
     if (n_removed > 0) {
