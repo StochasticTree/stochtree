@@ -13,6 +13,7 @@ name: R Package Unit Tests
 
 jobs:
   testing:
+    name: test-r
     runs-on: ${{ matrix.os }}
     
     strategy:

@@ -10,6 +10,7 @@ on:
 
 jobs:
   build:
+    name: test-cpp
     runs-on: ${{ matrix.os }}
 
     strategy:

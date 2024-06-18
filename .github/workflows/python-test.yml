@@ -11,7 +11,7 @@ on:
 
 jobs:
   testing:
-    name: Build Documentation
+    name: test-python
     runs-on: ${{ matrix.os }}
 
     strategy:
