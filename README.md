@@ -27,7 +27,7 @@ Without worrying about virtual environments (detailed further below), `stochtree
 
 ```
 pip install numpy scipy pytest pandas scikit-learn pybind11
-pip install git+https://github.com/StochasticTree/stochtree-cpp.git@repo_reconsolidation
+pip install git+https://github.com/StochasticTree/stochtree-cpp.git
 ```
 
 ## Virtual environment installation
