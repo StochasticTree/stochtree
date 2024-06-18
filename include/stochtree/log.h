@@ -20,7 +20,7 @@
 #include <stdexcept>
 #include <string>
 
-#ifdef LGB_R_BUILD
+#ifdef STOCHTREE_R_BUILD
 #define R_NO_REMAP
 #define R_USE_C99_IN_CXX
 #include <R_ext/Print.h>
@@ -126,7 +126,7 @@ class Log {
 
 // R code should write back to R's error stream,
 // otherwise to stderr
-#ifndef LGB_R_BUILD
+#ifndef STOCHTREE_R_BUILD
     fprintf(stderr, "[StochTree] [Fatal] %s\n", str_buf);
     fflush(stderr);
 #else
@@ -142,7 +142,7 @@ class Log {
     if (level <= GetLevel()) {  // omit the message with low level
 // R code should write back to R's output stream,
 // otherwise to stdout
-#ifndef LGB_R_BUILD
+#ifndef STOCHTREE_R_BUILD
       if (GetLogCallBack() == nullptr) {
         printf("[StochTree] [%s] ", level_str);
         vprintf(format, val);

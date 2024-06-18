@@ -1,0 +1,111 @@
+url: https://stochastictree.github.io/stochtree-r/
+template:
+  bootstrap: 5
+
+reference:
+- title: Supervised learning
+  desc: >
+    High-level functionality for training supervised Bayesian tree ensembles (BART, XBART)
+  contents:
+  - bart
+  - predict.bartmodel
+
+- title: Causal inference
+  desc: >
+    High-level functionality for estimating causal effects using Bayesian tree ensembles (BCF, XBCF)
+  contents:
+  - bcf
+  - predict.bcf
+  - saveBCFModelToJsonFile
+  - createBCFModelFromJsonFile
+  - convertBCFModelToJson
+  - createBCFModelFromJson
+
+- title: Low-level functionality
+
+- subtitle: Serialization
+  desc: >
+    Classes and functions for converting sampling artifacts to JSON and saving to disk
+  contents:
+  - CppJson
+  - createCppJson
+  - loadForestContainerJson
+  - loadRandomEffectSamplesJson
+  - loadVectorJson
+  - loadScalarJson
+  - createCppJsonFile
+
+- subtitle: Data
+  desc: >
+    Classes and functions for preparing data for sampling algorithms
+  contents:
+  - ForestDataset
+  - createForestDataset
+  - Outcome
+  - createOutcome
+  - RandomEffectsDataset
+  - createRandomEffectsDataset
+  - preprocessTrainData
+  - preprocessPredictionData
+  - preprocessTrainDataFrame
+  - preprocessPredictionDataFrame
+  - preprocessTrainMatrix
+  - preprocessPredictionMatrix
+  - createForestCovariates
+  - createForestCovariatesFromMetadata
+  - oneHotEncode
+  - oneHotInitializeAndEncode
+  - orderedCatPreprocess
+  - orderedCatInitializeAndPreprocess
+
+- subtitle: Forest
+  desc: >
+    Classes and functions for constructing and persisting forests
+  contents:
+  - ForestModel
+  - createForestModel
+  - ForestSamples
+  - createForestContainer
+  - ForestKernel
+  - createForestKernel
+  - CppRNG
+  - createRNG
+
+- subtitle: Random Effects
+  desc: >
+    Classes and functions for constructing and persisting random effects terms
+  contents:
+  - RandomEffectSamples
+  - createRandomEffectSamples
+  - RandomEffectsModel
+  - createRandomEffectsModel
+  - RandomEffectsTracker
+  - createRandomEffectsTracker
+  - getRandomEffectSamples
+  - getRandomEffectSamples.bartmodel
+  - getRandomEffectSamples.bcf
+  - sample_sigma2_one_iteration
+  - sample_tau_one_iteration
+  - sample_tau_one_iteration
+  - computeForestKernels
+  - computeForestLeafIndices
+
+- title: Package info
+  desc: >
+    High-level package details
+  contents:
+  - stochtree-package
+
+articles:
+- title: High-Level Interface
+  navbar: High-Level Interface
+  contents:
+  - BayesianSupervisedLearning
+  - CausalInference
+  - ModelSerialization
+
+- title: Prototype Interface
+  navbar: Prototype Interface
+  contents:
+  - CustomSamplingRoutine
+  - EnsembleKernel

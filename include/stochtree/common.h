@@ -28,8 +28,8 @@
 #include <vector>
 
 #define FMT_HEADER_ONLY
-#include "../../dependencies/fast_double_parser/include/fast_double_parser.h"
-#include "../../dependencies/fmt/include/fmt/format.h"
+#include <fast_double_parser.h>
+#include <fmt/format.h>
 
 #ifdef _MSC_VER
 #include <intrin.h>

@@ -1,6 +1,6 @@
 # Based on the cmake-multi-platform Github Action
 # https://github.com/actions/starter-workflows/blob/main/ci/cmake-multi-platform.yml
-name: Build and test
+name: C++ Unit Tests
 
 on:
   push:
@@ -10,6 +10,7 @@ on:
 
 jobs:
   build:
+    name: test-cpp
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -45,7 +46,7 @@ jobs:
             c_compiler: cl
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: 'recursive'
 

@@ -1,12 +1,20 @@
-[submodule "dependencies/fast_double_parser"]
-	path = dependencies/fast_double_parser
+[submodule "deps/fast_double_parser"]
+	path = deps/fast_double_parser
 	url = https://github.com/lemire/fast_double_parser/
-[submodule "dependencies/fmt"]
-	path = dependencies/fmt
+	branch = master
+[submodule "deps/fmt"]
+	path = deps/fmt
 	url = https://github.com/fmtlib/fmt/
-[submodule "dependencies/boost_math"]
-	path = dependencies/boost_math
+	branch = master
+[submodule "deps/boost_math"]
+	path = deps/boost_math
 	url = https://github.com/boostorg/math
-[submodule "dependencies/eigen"]
-	path = dependencies/eigen
+	branch = master
+[submodule "deps/eigen"]
+	path = deps/eigen
 	url = https://gitlab.com/libeigen/eigen
+	branch = 3.4
+[submodule "deps/pybind11"]
+	path = deps/pybind11
+	url = https://github.com/pybind/pybind11
+	branch = v2.12

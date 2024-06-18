@@ -3,6 +3,7 @@ option(USE_DEBUG "Set to ON for Debug mode" OFF)
 option(USE_SANITIZER "Use santizer flags" ON)
 option(BUILD_TEST "Build C++ tests with Google Test" ON)
 option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
+option(BUILD_PYTHON "Build Shared Library for Python Package" OFF)
 
 # Require at least C++17
 set(CMAKE_CXX_STANDARD 17)
@@ -46,14 +47,45 @@ if(UNIX OR MINGW OR CYGWIN)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas -Wno-unused-private-field")
 endif()
 
+if(MSVC)
+    set(
+      variables
+        CMAKE_C_FLAGS_DEBUG
+        CMAKE_C_FLAGS_MINSIZEREL
+        CMAKE_C_FLAGS_RELEASE
+        CMAKE_C_FLAGS_RELWITHDEBINFO
+        CMAKE_CXX_FLAGS_DEBUG
+        CMAKE_CXX_FLAGS_MINSIZEREL
+        CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_RELWITHDEBINFO
+    )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /MP /utf-8")
+    if(USE_DEBUG)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Od")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2 /Ob2 /Oi /Ot /Oy")
+    endif()
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+    if(NOT USE_DEBUG)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops")
+    endif()
+endif()
+
 # Header file directory
 set(StochTree_HEADER_DIR ${PROJECT_SOURCE_DIR}/include)
 
 # boost.math header file directory
-set(BOOSTMATH_HEADER_DIR ${PROJECT_SOURCE_DIR}/dependencies/boost_math/include)
+set(BOOSTMATH_HEADER_DIR ${PROJECT_SOURCE_DIR}/deps/boost_math/include)
 
 # Eigen header file directory
-set(EIGEN_HEADER_DIR ${PROJECT_SOURCE_DIR}/dependencies/eigen)
+set(EIGEN_HEADER_DIR ${PROJECT_SOURCE_DIR}/deps/eigen)
+
+# fast_double_parser header file directory
+set(FAST_DOUBLE_PARSER_HEADER_DIR ${PROJECT_SOURCE_DIR}/deps/fast_double_parser/include)
+
+# fmt header file directory
+set(FMT_HEADER_DIR ${PROJECT_SOURCE_DIR}/deps/fmt/include)
 
 # Library directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
@@ -77,12 +109,28 @@ file(
 add_library(stochtree_objs OBJECT ${SOURCES})
 
 # Include the headers in the source library
-target_include_directories(stochtree_objs PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR})
+target_include_directories(stochtree_objs PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
 
 if(APPLE)
   set(CMAKE_SHARED_LIBRARY_SUFFIX ".so")
 endif()
 
+# Python shared library
+if (BUILD_PYTHON)
+  # Add pybind11 module
+  add_subdirectory(deps/pybind11)
+  pybind11_add_module(stochtree_cpp src/py_stochtree.cpp)
+
+  # Link to C++ source and headers
+  target_include_directories(stochtree_cpp PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+  target_link_libraries(stochtree_cpp PRIVATE stochtree_objs)
+
+  # EXAMPLE_VERSION_INFO is defined by setup.py and passed into the C++ code as a
+  # define (VERSION_INFO) here.
+  target_compile_definitions(stochtree_cpp PRIVATE VERSION_INFO=${EXAMPLE_VERSION_INFO})
+endif()
+
+# Build C++ test program
 if(BUILD_TEST)
   # Download the GoogleTest dependency if necessary
   include(FetchContent)
@@ -98,19 +146,20 @@ if(BUILD_TEST)
   # Build test suite
   enable_testing()
   include(GoogleTest)
-  file(GLOB CPP_TEST_SOURCES test/*.cpp)
+  file(GLOB CPP_TEST_SOURCES test/cpp/*.cpp)
   add_executable(teststochtree ${CPP_TEST_SOURCES})
-  set(STOCHTREE_TEST_HEADER_DIR ${PROJECT_SOURCE_DIR}/test)
-  target_include_directories(teststochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${STOCHTREE_TEST_HEADER_DIR})
+  set(STOCHTREE_TEST_HEADER_DIR ${PROJECT_SOURCE_DIR}/test/cpp)
+  target_include_directories(teststochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${STOCHTREE_TEST_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
   target_link_libraries(teststochtree PRIVATE stochtree_objs GTest::gtest_main)
   gtest_discover_tests(teststochtree)
 endif()
 
+# Standalone C++ Program for Debugging
 if(BUILD_DEBUG_TARGETS)
   # Build test suite
   add_executable(debugstochtree debug/api_debug.cpp)
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug)
-  target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR})
+  target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
   target_link_libraries(debugstochtree PRIVATE stochtree_objs)
 endif()
 
