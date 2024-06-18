@@ -45,23 +45,25 @@ conda create -n stochtree-dev -c conda-forge python=3.10 numpy scipy pytest pand
 conda activate stochtree-dev
 ```
 
-Then, navigate to the main `stochtree-python` project folder (i.e. `cd /path/to/stochtree-python`) and install the package locally via pip
+Then install the package from github via pip
 
 ```{bash}
-pip install .
+pip install git+https://github.com/StochasticTree/stochtree-cpp.git
 ```
 
-(*Note*: if you'd also like to run the notebook examples in the `demo/` subfolder, you will also need jupyterlab, seaborn, and matplotlib)
+(*Note*: if you'd also like to run `stochtree`'s notebook examples, you will also need jupyterlab, seaborn, and matplotlib)
 
 ```{bash}
 conda install matplotlib seaborn
 pip install jupyterlab
 ```
 
+With these dependencies installed, you can [clone the repo](###cloning-the-repository) and run the `demo/` examples.
+
 ### Venv
 
-You could also use venv for environment management. First, navigate to the main `stochtree-python` project folder 
-(i.e. `cd /path/to/stochtree-python`) and create and activate a virtual environment as a subfolder of the repo:
+You could also use venv for environment management. First, navigate to the folder in which you usually store virtual environments 
+(i.e. `cd /path/to/envs`) and create and activate a virtual environment as a subfolder of the repo:
 
 ```{bash}
 python -m venv venv
@@ -77,10 +79,10 @@ pip install numpy scipy pytest pandas scikit-learn pybind11
 Then install stochtree via
 
 ```{bash}
-pip install .
+pip install git+https://github.com/StochasticTree/stochtree-cpp.git
 ```
 
-(As above, if you'd like to run the notebook examples in the `demo/` subfolder, you will also need jupyterlab, seaborn, and matplotlib)
+As above, if you'd like to run the notebook examples in the `demo/` subfolder, you will also need jupyterlab, seaborn, and matplotli and you will have to [clone the repo](###cloning-the-repository)
 
 ```{bash}
 pip install matplotlib seaborn jupyterlab
