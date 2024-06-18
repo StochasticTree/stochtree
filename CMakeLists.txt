@@ -37,7 +37,7 @@ endif()
 if(UNIX OR MINGW OR CYGWIN)
   set(
     CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} -pthread -w -fPIC"
+    "${CMAKE_CXX_FLAGS} -pthread -w"
   )
   if(USE_DEBUG)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
@@ -45,6 +45,31 @@ if(UNIX OR MINGW OR CYGWIN)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
   endif()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas -Wno-unused-private-field")
+endif()
+
+if(MSVC)
+    set(
+      variables
+        CMAKE_C_FLAGS_DEBUG
+        CMAKE_C_FLAGS_MINSIZEREL
+        CMAKE_C_FLAGS_RELEASE
+        CMAKE_C_FLAGS_RELWITHDEBINFO
+        CMAKE_CXX_FLAGS_DEBUG
+        CMAKE_CXX_FLAGS_MINSIZEREL
+        CMAKE_CXX_FLAGS_RELEASE
+        CMAKE_CXX_FLAGS_RELWITHDEBINFO
+    )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /MP /utf-8")
+    if(USE_DEBUG)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Od")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2 /Ob2 /Oi /Ot /Oy")
+    endif()
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+    if(NOT USE_DEBUG)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops")
+    endif()
 endif()
 
 # Header file directory
