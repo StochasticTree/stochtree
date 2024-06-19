@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.model_selection import GridSearchCV, KFold
+from sklearn.utils import check_scalar
 from typing import Optional
 from scipy.linalg import lstsq
 from scipy.stats import gamma
@@ -43,13 +44,13 @@ class BCFModel:
 
         Parameters
         ----------
-        X_train : np.array or pd.DataFrame
+        X_train : :obj:`np.array` or :obj:`pd.DataFrame`
             Covariates used to split trees in the ensemble. Can be passed as either a matrix or dataframe.
-        Z_train : np.array
-            Array of (continuous or binary) treatment assignments.
-        y_train : np.array
+        Z_train : :obj:`np.array`
+            Array of (continuous or binary; univariate or multivariate) treatment assignments.
+        y_train : :obj:`np.array`
             Outcome to be modeled by the ensemble.
-        pi_train : np.array
+        pi_train : :obj:`np.array`
             Optional vector of propensity scores. If not provided, this will be estimated from the data.
         X_test : :obj:`np.array`, optional
             Optional test set of covariates used to define "out of sample" evaluation data.
@@ -62,8 +63,13 @@ class BCFModel:
             Maximum number of cutpoints to consider for each feature. Defaults to ``100``.
         sigma_leaf_mu : :obj:`float`, optional
             Starting value of leaf node scale parameter for the prognostic forest. Calibrated internally as ``2/num_trees_mu`` if not set here.
-        sigma_leaf_tau : :obj:`float`, optional
-            Starting value of leaf node scale parameter for the treatment effect forest. Calibrated internally as ``1/num_trees_mu`` if not set here.
+        sigma_leaf_tau : :obj:`float` or :obj:`np.array`, optional
+            Starting value of leaf node scale parameter for the treatment effect forest. 
+            When treatment (``Z_train``) is multivariate, this can be either a ``float`` or a square 2-dimensional ``np.array`` 
+            with ``sigma_leaf_tau.shape[0] == Z_train.shape[1]`` and ``sigma_leaf_tau.shape[1] == Z_train.shape[1]``.
+            If ``sigma_leaf_tau`` is provided as a float for multivariate treatment, the leaf scale term will be set as a 
+            diagonal matrix with ``sigma_leaf_tau`` on every diagonal. If not passed as an argument, this parameter is 
+            calibrated internally as ``1/num_trees_tau`` (and propagated to a diagonal matrix if necessary).
         alpha_mu : :obj:`float`, optional
             Prior probability of splitting for a tree of depth 0 for the prognostic forest. 
             Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``.
@@ -136,19 +142,43 @@ class BCFModel:
         self : BCFModel
             Sampled BCF Model.
         """
+        # Check data inputs
+        if not isinstance(X_train, pd.DataFrame) and not isinstance(X_train, np.ndarray):
+            raise ValueError("X_train must be a pandas dataframe or numpy array")
+        if not isinstance(Z_train, np.ndarray):
+            raise ValueError("Z_train must be a numpy array")
+        if pi_train is not None:
+            if not isinstance(pi_train, np.ndarray):
+                raise ValueError("pi_train must be a numpy array")
+        if not isinstance(y_train, np.ndarray):
+            raise ValueError("y_train must be a numpy array")
+        if X_test is not None:
+            if not isinstance(X_test, pd.DataFrame) and not isinstance(X_test, np.ndarray):
+                raise ValueError("X_test must be a pandas dataframe or numpy array")
+        if Z_test is not None:
+            if not isinstance(Z_test, np.ndarray):
+                raise ValueError("Z_test must be a numpy array")
+        if pi_test is not None:
+            if not isinstance(pi_test, np.ndarray):
+                raise ValueError("pi_test must be a numpy array")
+
+        
         # Convert everything to standard shape (2-dimensional)
-        if X_train.ndim == 1:
-            X_train = np.expand_dims(X_train, 1)
-        if Z_train.ndim == 1:
-            Z_train = np.expand_dims(Z_train, 1)
-        if y_train.ndim == 1:
-            y_train = np.expand_dims(y_train, 1)
+        if isinstance(X_train, np.ndarray):
+            if X_train.ndim == 1:
+                X_train = np.expand_dims(X_train, 1)
+        if Z_train is not None:
+            if Z_train.ndim == 1:
+                Z_train = np.expand_dims(Z_train, 1)
         if pi_train is not None:
             if pi_train.ndim == 1:
                 pi_train = np.expand_dims(pi_train, 1)
+        if y_train.ndim == 1:
+            y_train = np.expand_dims(y_train, 1)
         if X_test is not None:
-            if X_train.ndim == 1:
-                X_train = np.expand_dims(X_train, 1)
+            if isinstance(X_test, np.ndarray):
+                if X_test.ndim == 1:
+                    X_test = np.expand_dims(X_test, 1)
         if Z_test is not None:
             if Z_test.ndim == 1:
                 Z_test = np.expand_dims(Z_test, 1)
@@ -177,6 +207,110 @@ class BCFModel:
             if X_test.shape[0] != pi_test.shape[0]:
                 raise ValueError("X_test and pi_test must have the same number of rows")
         
+        # Treatment details
+        self.treatment_dim = Z_train.shape[1]
+        self.multivariate_treatment = True if self.treatment_dim > 1 else False
+        treatment_leaf_model = 2 if self.multivariate_treatment else 1
+        
+        # Check parameters
+        if sigma_leaf_tau is not None:
+            if not isinstance(sigma_leaf_tau, float) and not isinstance(sigma_leaf_tau, np.ndarray):
+                raise ValueError("sigma_leaf_tau must be a float or numpy array")
+            if self.multivariate_treatment:
+                if sigma_leaf_tau is not None:
+                    if isinstance(sigma_leaf_tau, np.ndarray):
+                        if sigma_leaf_tau.ndim != 2:
+                            raise ValueError("sigma_leaf_tau must be 2-dimensional if passed as a np.array")
+                        if self.treatment_dim != sigma_leaf_tau.shape[0] or self.treatment_dim != sigma_leaf_tau.shape[1]:
+                            raise ValueError("sigma_leaf_tau must have the same number of rows and columns, which must match Z_train.shape[1]")
+        if sigma_leaf_mu is not None:
+            sigma_leaf_mu = check_scalar(x=sigma_leaf_mu, name="sigma_leaf_mu", target_type=float, 
+                                        min_val=0., max_val=None, include_boundaries="neither")
+        if cutpoint_grid_size is not None:
+            cutpoint_grid_size = check_scalar(x=cutpoint_grid_size, name="cutpoint_grid_size", target_type=int, 
+                                            min_val=1, max_val=None, include_boundaries="left")
+        if min_samples_leaf_mu is not None:
+            min_samples_leaf_mu = check_scalar(x=min_samples_leaf_mu, name="min_samples_leaf_mu", target_type=int, 
+                                               min_val=1, max_val=None, include_boundaries="left")
+        if min_samples_leaf_tau is not None:
+            min_samples_leaf_tau = check_scalar(x=min_samples_leaf_tau, name="min_samples_leaf_tau", target_type=int, 
+                                                min_val=1, max_val=None, include_boundaries="left")
+        if num_trees_mu is not None:
+            num_trees_mu = check_scalar(x=num_trees_mu, name="num_trees_mu", target_type=int, 
+                                        min_val=1, max_val=None, include_boundaries="left")
+        if num_trees_tau is not None:
+            num_trees_tau = check_scalar(x=num_trees_tau, name="num_trees_tau", target_type=int, 
+                                         min_val=1, max_val=None, include_boundaries="left")
+        num_gfr = check_scalar(x=num_gfr, name="num_gfr", target_type=int, 
+                                min_val=0, max_val=None, include_boundaries="left")
+        num_burnin = check_scalar(x=num_burnin, name="num_burnin", target_type=int, 
+                                min_val=0, max_val=None, include_boundaries="left")
+        num_mcmc = check_scalar(x=num_mcmc, name="num_mcmc", target_type=int, 
+                                min_val=0, max_val=None, include_boundaries="left")
+        num_samples = num_gfr + num_burnin + num_mcmc
+        num_samples = check_scalar(x=num_samples, name="num_samples", target_type=int, 
+                                   min_val=1, max_val=None, include_boundaries="left")
+        if random_seed is not None:
+            random_seed = check_scalar(x=random_seed, name="random_seed", target_type=int, 
+                                       min_val=-1, max_val=None, include_boundaries="left")
+        if alpha_mu is not None:
+            alpha_mu = check_scalar(x=alpha_mu, name="alpha_mu", target_type=(float,int), 
+                                    min_val=0, max_val=1, include_boundaries="neither")
+        if alpha_tau is not None:
+            alpha_tau = check_scalar(x=alpha_tau, name="alpha_tau", target_type=(float,int), 
+                                    min_val=0, max_val=1, include_boundaries="neither")
+        if beta_mu is not None:
+            beta_mu = check_scalar(x=beta_mu, name="beta_mu", target_type=(float,int), 
+                                min_val=1, max_val=None, include_boundaries="left")
+        if beta_tau is not None:
+            beta_tau = check_scalar(x=beta_tau, name="beta_tau", target_type=(float,int), 
+                                    min_val=1, max_val=None, include_boundaries="left")
+        if nu is not None:
+            nu = check_scalar(x=nu, name="nu", target_type=(float,int), 
+                            min_val=0, max_val=None, include_boundaries="neither")
+        if lamb is not None:
+            lamb = check_scalar(x=lamb, name="lamb", target_type=(float,int), 
+                                min_val=0, max_val=None, include_boundaries="neither")
+        if a_leaf_mu is not None:
+            a_leaf_mu = check_scalar(x=a_leaf_mu, name="a_leaf_mu", target_type=(float,int), 
+                                    min_val=0, max_val=None, include_boundaries="neither")
+        if a_leaf_tau is not None:
+            a_leaf_tau = check_scalar(x=a_leaf_tau, name="a_leaf_tau", target_type=(float,int), 
+                                    min_val=0, max_val=None, include_boundaries="neither")
+        if b_leaf_mu is not None:
+            b_leaf_mu = check_scalar(x=b_leaf_mu, name="b_leaf_mu", target_type=(float,int), 
+                                    min_val=0, max_val=None, include_boundaries="neither")
+        if b_leaf_tau is not None:
+            b_leaf_tau = check_scalar(x=b_leaf_tau, name="b_leaf_tau", target_type=(float,int), 
+                                    min_val=0, max_val=None, include_boundaries="neither")
+        if q is not None:
+            q = check_scalar(x=q, name="q", target_type=float, 
+                            min_val=0, max_val=1, include_boundaries="neither")
+        if sigma2 is not None:
+            sigma2 = check_scalar(x=sigma2, name="sigma2", target_type=(float,int), 
+                                min_val=0, max_val=None, include_boundaries="neither")
+        if sample_sigma_leaf_mu is not None:
+            if not isinstance(sample_sigma_leaf_mu, bool):
+                raise ValueError("sample_sigma_leaf_mu must be a bool")
+        if sample_sigma_leaf_tau is not None:
+            if not isinstance(sample_sigma_leaf_tau, bool):
+                raise ValueError("sample_sigma_leaf_tau must be a bool")
+        if propensity_covariate is not None:
+            if propensity_covariate not in ["mu", "tau", "both", "none"]:
+                raise ValueError("propensity_covariate must be one of 'mu', 'tau', 'both', or 'none'")
+        if b_0 is not None:
+            b_0 = check_scalar(x=b_0, name="b_0", target_type=(float,int), 
+                            min_val=None, max_val=None, include_boundaries="neither")
+        if b_1 is not None:
+            b_1 = check_scalar(x=b_1, name="b_1", target_type=(float,int), 
+                            min_val=None, max_val=None, include_boundaries="neither")
+        if keep_burnin is not None:
+            if not isinstance(keep_burnin, bool):
+                raise ValueError("keep_burnin must be a bool")
+        if keep_gfr is not None:
+            if not isinstance(keep_gfr, bool):
+                raise ValueError("keep_gfr must be a bool")
+        
         # Covariate preprocessing
         self._covariate_transformer = CovariateTransformer()
         self._covariate_transformer.fit(X_train)
@@ -200,6 +334,12 @@ class BCFModel:
         self.adaptive_coding = adaptive_coding
         if adaptive_coding and not self.binary_treatment:
             self.adaptive_coding = False
+        if adaptive_coding and self.multivariate_treatment:
+            self.adaptive_coding = False
+
+        # Sampling sigma_leaf_tau will be ignored for multivariate treatments
+        if sample_sigma_leaf_tau and self.multivariate_treatment:
+            sample_sigma_leaf_tau = False
 
         # Check if user has provided propensities that are needed in the model
         if pi_train is None and propensity_covariate != "none":
@@ -249,8 +389,6 @@ class BCFModel:
             if self.has_test:
                 X_test_tau = X_test
                 X_test_mu = X_test
-        else:
-            raise ValueError("propensity_covariate must be one of 'mu', 'tau', 'both', or 'none'")
         
         # Store propensity score requirements of the BCF forests
         self.propensity_covariate = propensity_covariate
@@ -276,9 +414,15 @@ class BCFModel:
         b_leaf_tau = np.squeeze(np.var(resid_train)) / (2*num_trees_tau) if b_leaf_tau is None else b_leaf_tau
         sigma_leaf_mu = np.squeeze(np.var(resid_train)) / num_trees_mu if sigma_leaf_mu is None else sigma_leaf_mu
         sigma_leaf_tau = np.squeeze(np.var(resid_train)) / (2*num_trees_tau) if sigma_leaf_tau is None else sigma_leaf_tau
+        if self.multivariate_treatment:
+            if not isinstance(sigma_leaf_tau, np.ndarray):
+                sigma_leaf_tau = np.diagflat(np.repeat(sigma_leaf_tau, self.treatment_dim))
         current_sigma2 = sigma2
         current_leaf_scale_mu = np.array([[sigma_leaf_mu]])
-        current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
+        if not isinstance(sigma_leaf_tau, np.ndarray):
+            current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
+        else:
+            current_leaf_scale_tau = sigma_leaf_tau
 
         # Container of variance parameter samples
         self.num_gfr = num_gfr
@@ -360,7 +504,10 @@ class BCFModel:
         forest_sampler_mu.update_residual(forest_dataset_mu_train, residual_train, self.forest_container_mu, False, 0, True)
 
         # Initialize the leaves of each tree in the treatment forest
-        self.forest_container_tau.set_root_leaves(0, 0.)
+        if self.multivariate_treatment:
+            self.forest_container_tau.set_root_leaves(0, np.zeros(self.treatment_dim))
+        else:
+            self.forest_container_tau.set_root_leaves(0, 0.)
         forest_sampler_tau.update_residual(forest_dataset_tau_train, residual_train, self.forest_container_tau, True, 0, True)
 
         # Run GFR (warm start) if specified
@@ -384,7 +531,7 @@ class BCFModel:
                 # Sample the treatment forest
                 forest_sampler_tau.sample_one_iteration(
                     self.forest_container_tau, forest_dataset_tau_train, residual_train, cpp_rng, feature_types_tau, 
-                    cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, current_sigma2, 1, True, True
+                    cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, current_sigma2, treatment_leaf_model, True, True
                 )
                 
                 # Sample variance parameters (if requested)
@@ -440,7 +587,7 @@ class BCFModel:
                 # Sample the treatment forest
                 forest_sampler_tau.sample_one_iteration(
                     self.forest_container_tau, forest_dataset_tau_train, residual_train, cpp_rng, feature_types_tau, 
-                    cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, current_sigma2, 1, False, True
+                    cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, current_sigma2, treatment_leaf_model, False, True
                 )
                 
                 # Sample variance parameters (if requested)
@@ -499,21 +646,31 @@ class BCFModel:
         # Store predictions
         mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_mu_train.dataset_cpp)
         self.mu_hat_train = mu_raw[:,self.keep_indices]*self.y_std + self.y_bar
-        tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau_train.dataset_cpp)
-        self.tau_hat_train = tau_raw[:,self.keep_indices]*self.y_std
+        tau_raw_train = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau_train.dataset_cpp)
+        self.tau_hat_train = tau_raw_train[:,self.keep_indices]
         if self.adaptive_coding:
             adaptive_coding_weights = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
             self.tau_hat_train = self.tau_hat_train*adaptive_coding_weights
-        self.y_hat_train = self.mu_hat_train + Z_train*np.squeeze(self.tau_hat_train)
+        self.tau_hat_train = self.tau_hat_train*self.y_std
+        if self.multivariate_treatment:
+            treatment_term_train = np.multiply(np.atleast_3d(Z_train).swapaxes(1,2),self.tau_hat_train).sum(axis=2)
+        else:
+            treatment_term_train = Z_train*np.squeeze(self.tau_hat_train)
+        self.y_hat_train = self.mu_hat_train + treatment_term_train
         if self.has_test:
             mu_raw_test = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_mu_test.dataset_cpp)
             self.mu_hat_test = mu_raw_test[:,self.keep_indices]*self.y_std + self.y_bar
             tau_raw_test = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau_test.dataset_cpp)
-            self.tau_hat_test = tau_raw_test[:,self.keep_indices]*self.y_std
+            self.tau_hat_test = tau_raw_test[:,self.keep_indices]
             if self.adaptive_coding:
                 adaptive_coding_weights_test = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
                 self.tau_hat_test = self.tau_hat_test*adaptive_coding_weights_test
-            self.y_hat_test = self.mu_hat_test + Z_test*np.squeeze(self.tau_hat_test)
+            self.tau_hat_test = self.tau_hat_test*self.y_std
+            if self.multivariate_treatment:
+                treatment_term_test = np.multiply(np.atleast_3d(Z_test).swapaxes(1,2),self.tau_hat_test).sum(axis=2)
+            else:
+                treatment_term_test = Z_test*np.squeeze(self.tau_hat_test)
+            self.y_hat_test = self.mu_hat_test + treatment_term_test
     
     def predict_tau(self, X: np.array, Z: np.array, propensity: np.array = None) -> np.array:
         """Predict CATE function for every provided observation.
@@ -660,9 +817,9 @@ class BCFModel:
         
         # Estimate treatment effect
         tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau.dataset_cpp)
-        tau_raw = tau_raw*self.y_std
         if self.adaptive_coding:
             tau_raw = tau_raw*np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
+        tau_raw = tau_raw*self.y_std
         tau_x = tau_raw[:,self.keep_indices]
 
         # Outcome predictions

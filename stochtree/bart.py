@@ -108,16 +108,18 @@ class BARTModel:
                 raise ValueError("X_test must be a numpy array")
         
         # Convert everything to standard shape (2-dimensional)
-        if X_train.ndim == 1:
-            X_train = np.expand_dims(X_train, 1)
+        if isinstance(X_train, np.ndarray):
+            if X_train.ndim == 1:
+                X_train = np.expand_dims(X_train, 1)
         if basis_train is not None:
             if basis_train.ndim == 1:
                 basis_train = np.expand_dims(basis_train, 1)
         if y_train.ndim == 1:
             y_train = np.expand_dims(y_train, 1)
         if X_test is not None:
-            if X_train.ndim == 1:
-                X_train = np.expand_dims(X_train, 1)
+            if isinstance(X_test, np.ndarray):
+                if X_test.ndim == 1:
+                    X_test = np.expand_dims(X_test, 1)
         if basis_test is not None:
             if basis_test.ndim == 1:
                 basis_test = np.expand_dims(basis_test, 1)

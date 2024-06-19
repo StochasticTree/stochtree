@@ -178,7 +178,7 @@ class ForestContainerCpp {
     for (size_t i = 0; i < n; i++) {
       for (int j = 0; j < output_dim; j++) {
         for (int k = 0; k < num_samples; k++) {
-          accessor(i,j,k) = output_raw[k*(output_dim*n) + i*output_dim + j];
+          accessor(i,k,j) = output_raw[k*(output_dim*n) + i*output_dim + j];
           // ptr[i*(output_dim*num_samples) + j*output_dim + k] = output_raw[k*(output_dim*n) + i*output_dim + j];
         }
       }
