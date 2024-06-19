@@ -23,7 +23,7 @@ if (!dir.exists(cran_dir)) {
 }
 
 # Copy the "core" package files to CRAN folder
-src_files <- list.files("src", recursive = TRUE, full.names = TRUE)
+src_files <- list.files("src", pattern = ".[^o]$", recursive = TRUE, full.names = TRUE)
 pybind_src_files <- list.files("src", pattern = "^(py_)", recursive = TRUE, full.names = TRUE)
 r_src_files <- src_files[!(src_files %in% pybind_src_files)]
 pkg_core_files <- c(
@@ -35,7 +35,7 @@ pkg_core_files <- c(
     "NAMESPACE",
     list.files("R", recursive = TRUE, full.names = TRUE),
     r_src_files, 
-    list.files("vignettes", recursive = TRUE, full.names = TRUE)
+    list.files("vignettes", pattern = ".(Rmd|bib)$", recursive = TRUE, full.names = TRUE)
 )
 pkg_core_files_dst <- file.path(cran_dir, pkg_core_files)
 # Handle tests separately (move from test/R/ folder to tests/ folder)
