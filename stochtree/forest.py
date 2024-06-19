@@ -27,7 +27,7 @@ class ForestContainer:
     def set_root_leaves(self, forest_num: int, leaf_value: Union[float, np.array]) -> None:
         # Predict raw leaf values for a specific forest (indexed by forest_num) from Dataset
         if not isinstance(leaf_value, np.ndarray) and not isinstance(leaf_value, float):
-            raise ValueError("leaf_value must be either a floating point number or a numpy array")
+            raise ValueError("leaf_value must be either a float or np.array")
         if isinstance(leaf_value, np.ndarray):
             leaf_value = np.squeeze(leaf_value)
             if len(leaf_value.shape) != 1:

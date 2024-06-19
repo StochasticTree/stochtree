@@ -113,9 +113,9 @@ static inline bool NodeNonConstant(ForestDataset& dataset, ForestTracker& tracke
 
 static inline void AddSplitToModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, TreeSplit& split, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int feature_split, bool keep_sorted = false) {
   // Use zeros as a "temporary" leaf values since we draw leaf parameters after tree sampling is complete
-  int basis_dim = 1;
+  int basis_dim = dataset.NumBasis();
   if (dataset.HasBasis()) {
-    if (dataset.GetBasis().cols() > 1) {
+    if (basis_dim > 1) {
       std::vector<double> temp_leaf_values(basis_dim, 0.);
       tree->ExpandNode(leaf_node, feature_split, split, temp_leaf_values, temp_leaf_values);
     } else {
@@ -135,9 +135,9 @@ static inline void AddSplitToModel(ForestTracker& tracker, ForestDataset& datase
 
 static inline void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, std::mt19937& gen, Tree* tree, int tree_num, int leaf_node, int left_node, int right_node, bool keep_sorted = false) {
   // Use zeros as a "temporary" leaf values since we draw leaf parameters after tree sampling is complete
-  int basis_dim = 1;
+  int basis_dim = dataset.NumBasis();
   if (dataset.HasBasis()) {
-    if (dataset.GetBasis().cols() > 1) {
+    if (basis_dim > 1) {
       std::vector<double> temp_leaf_values(basis_dim, 0.);
       tree->CollapseToLeaf(leaf_node, temp_leaf_values);
     } else {
@@ -322,7 +322,6 @@ class MCMCForestSampler {
                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, std::vector<double> variable_weights, double global_variance, double prob_grow_old) {
     // Extract dataset information
     data_size_t n = dataset.GetCovariates().rows();
-    int basis_dim = 1;
 
     // Choose a leaf node at random
     int num_leaves = tree->NumLeaves();

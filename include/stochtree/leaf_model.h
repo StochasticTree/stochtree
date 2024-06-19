@@ -160,23 +160,23 @@ class GaussianMultivariateRegressionSuffStat {
   GaussianMultivariateRegressionSuffStat(int basis_dim) {
     n = 0;
     XtWX = Eigen::MatrixXd::Zero(basis_dim, basis_dim);
-    ytWX = Eigen::MatrixXd::Zero(basis_dim, 1);
+    ytWX = Eigen::MatrixXd::Zero(1, basis_dim);
     p = basis_dim;
   }
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, data_size_t row_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
       XtWX += dataset.GetBasis()(row_idx, Eigen::all).transpose()*dataset.GetBasis()(row_idx, Eigen::all)/dataset.VarWeightValue(row_idx);
-      ytWX += dataset.GetBasis()(row_idx, Eigen::all).transpose()*outcome(row_idx, 0)/dataset.VarWeightValue(row_idx);
+      ytWX += (outcome(row_idx, 0)*(dataset.GetBasis()(row_idx, Eigen::all)))/dataset.VarWeightValue(row_idx);
     } else {
       XtWX += dataset.GetBasis()(row_idx, Eigen::all).transpose()*dataset.GetBasis()(row_idx, Eigen::all);
-      ytWX += dataset.GetBasis()(row_idx, Eigen::all).transpose()*outcome(row_idx, 0);
+      ytWX += (outcome(row_idx, 0)*(dataset.GetBasis()(row_idx, Eigen::all)));
     }
   }
   void ResetSuffStat() {
     n = 0;
     XtWX = Eigen::MatrixXd::Zero(p, p);
-    ytWX = Eigen::MatrixXd::Zero(p, 1);
+    ytWX = Eigen::MatrixXd::Zero(1, p);
   }
   void SubtractSuffStat(GaussianMultivariateRegressionSuffStat& lhs, GaussianMultivariateRegressionSuffStat& rhs) {
     n = lhs.n - rhs.n;
