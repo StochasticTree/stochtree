@@ -189,8 +189,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             }
             variable_subset_tau <- keep_vars_tau
         }
-    }
-    if ((is.null(keep_vars_tau)) && (!is.null(drop_vars_tau))) {
+    } else if ((is.null(keep_vars_tau)) && (!is.null(drop_vars_tau))) {
         if (is.character(drop_vars_tau)) {
             if (!all(drop_vars_tau %in% names(X_train))) {
                 stop("drop_vars_tau includes some variable names that are not in X_train")
@@ -304,7 +303,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     variable_weights_tau <- variable_weights_mu <- variable_weights
     variable_weights_mu[!(original_var_indices %in% variable_subset_mu)] <- 0
     variable_weights_tau[!(original_var_indices %in% variable_subset_tau)] <- 0
-    
+
     # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided 
     has_basis_rfx <- F
     num_basis_rfx <- 0
@@ -375,14 +374,14 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         feature_types <- as.integer(c(feature_types,0))
         X_train <- cbind(X_train, pi_train)
         if (propensity_covariate == "mu") {
-            variable_weights_mu <- c(variable_weights_mu, 1./num_cov_orig)
+            variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(pi_train)))
             variable_weights_tau <- c(variable_weights_tau, 0)
         } else if (propensity_covariate == "tau") {
             variable_weights_mu <- c(variable_weights_mu, 0)
-            variable_weights_tau <- c(variable_weights_tau, 1./num_cov_orig)
+            variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(pi_train)))
         } else if (propensity_covariate == "both") {
-            variable_weights_mu <- c(variable_weights_mu, 1./num_cov_orig)
-            variable_weights_tau <- c(variable_weights_tau, 1./num_cov_orig)
+            variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(pi_train)))
+            variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(pi_train)))
         }
         if (has_test) X_test <- cbind(X_test, pi_test)
     }
