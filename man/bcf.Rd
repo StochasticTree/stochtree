@@ -33,6 +33,11 @@ bcf(
   b_leaf_tau = NULL,
   q = 0.9,
   sigma2 = NULL,
+  variable_weights = NULL,
+  keep_vars_mu = NULL,
+  drop_vars_mu = NULL,
+  keep_vars_tau = NULL,
+  drop_vars_tau = NULL,
   num_trees_mu = 250,
   num_trees_tau = 50,
   num_gfr = 5,
@@ -117,6 +122,16 @@ that were not in the training set.}
 \item{q}{Quantile used to calibrated \code{lambda} as in Sparapani et al (2021). Default: 0.9.}
 
 \item{sigma2}{Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.}
+
+\item{variable_weights}{Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to \code{1/ncol(X_train)}. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in \code{X_train} and then set \code{propensity_covariate} to \code{'none'} adjust \code{keep_vars_mu} and \code{keep_vars_tau} accordingly.}
+
+\item{keep_vars_mu}{Vector of variable names or column indices denoting variables that should be included in the prognostic (\code{mu(X)}) forest. Default: NULL.}
+
+\item{drop_vars_mu}{Vector of variable names or column indices denoting variables that should be excluded from the prognostic (\code{mu(X)}) forest. Default: NULL. If both \code{drop_vars_mu} and \code{keep_vars_mu} are set, \code{drop_vars_mu} will be ignored.}
+
+\item{keep_vars_tau}{Vector of variable names or column indices denoting variables that should be included in the treatment effect (\code{tau(X)}) forest. Default: NULL.}
+
+\item{drop_vars_tau}{Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (\code{tau(X)}) forest. Default: NULL. If both \code{drop_vars_tau} and \code{keep_vars_tau} are set, \code{drop_vars_tau} will be ignored.}
 
 \item{num_trees_mu}{Number of trees in the prognostic forest. Default: 200.}
 
