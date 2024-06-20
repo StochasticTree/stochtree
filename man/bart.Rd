@@ -26,6 +26,7 @@ bart(
   b_leaf = NULL,
   q = 0.9,
   sigma2_init = NULL,
+  variable_weights = NULL,
   num_trees = 200,
   num_gfr = 5,
   num_burnin = 0,
@@ -90,11 +91,13 @@ that were not in the training set.}
 
 \item{a_leaf}{Shape parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model. Default: 3.}
 
-\item{b_leaf}{Scale parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model. Calibrated internally as 0.5/num_trees if not set here.}
+\item{b_leaf}{Scale parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.}
 
 \item{q}{Quantile used to calibrated \code{lambda} as in Sparapani et al (2021). Default: 0.9.}
 
 \item{sigma2_init}{Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.}
+
+\item{variable_weights}{Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.}
 
 \item{num_trees}{Number of trees in the ensemble. Default: 200.}
 
