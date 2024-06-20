@@ -81,12 +81,11 @@ class TreeEnsemble {
 
   inline void PredictInplace(ForestDataset& dataset, std::vector<double> &output, 
                              int tree_begin, int tree_end, data_size_t offset = 0) {
-    if (dataset.HasBasis()) {
-      CHECK(!is_leaf_constant_);
-      PredictInplace(dataset.GetCovariates(), dataset.GetBasis(), output, tree_begin, tree_end, offset);
-    } else {
-      CHECK(is_leaf_constant_);
+    if (is_leaf_constant_) {
       PredictInplace(dataset.GetCovariates(), output, tree_begin, tree_end, offset);
+    } else {
+      CHECK(dataset.HasBasis());
+      PredictInplace(dataset.GetCovariates(), dataset.GetBasis(), output, tree_begin, tree_end, offset);
     }
   }
 

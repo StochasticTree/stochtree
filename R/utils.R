@@ -2,6 +2,7 @@
 #' types. Matrices will be passed through assuming all columns are numeric.
 #'
 #' @param input_data Covariates, provided as either a dataframe or a matrix
+#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable
 #'
 #' @return List with preprocessed (unmodified) data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
@@ -63,6 +64,7 @@ preprocessPredictionData <- function(input_data, metadata) {
 #' Returns a list including a matrix of preprocessed covariate values and associated tracking.
 #'
 #' @param input_matrix Covariate matrix.
+#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable
 #'
 #' @return List with preprocessed (unmodified) data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
@@ -97,7 +99,8 @@ preprocessTrainMatrix <- function(input_matrix) {
         num_ordered_cat_vars = num_ordered_cat_vars, 
         num_unordered_cat_vars = num_unordered_cat_vars, 
         num_numeric_vars = num_numeric_vars, 
-        numeric_vars = numeric_vars
+        numeric_vars = numeric_vars, 
+        original_var_indices = 1:num_numeric_vars
     )
     output <- list(
         data = X, 
@@ -139,6 +142,7 @@ preprocessPredictionMatrix <- function(input_matrix, metadata) {
 #'
 #' @param input_df Dataframe of covariates. Users must pre-process any 
 #' categorical variables as factors (ordered for ordered categorical).
+#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable
 #'
 #' @return List with preprocessed data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
@@ -164,6 +168,7 @@ preprocessTrainDataFrame <- function(input_df) {
     ordered_mask <- sapply(input_df, is.ordered)
     ordered_cat_matches <- factor_mask & ordered_mask
     ordered_cat_vars <- df_vars[ordered_cat_matches]
+    ordered_cat_var_inds <- unname(which(ordered_cat_matches))
     num_ordered_cat_vars <- length(ordered_cat_vars)
     if (num_ordered_cat_vars > 0) ordered_cat_df <- input_df[,ordered_cat_vars,drop=F]
     
@@ -173,12 +178,14 @@ preprocessTrainDataFrame <- function(input_df) {
     character_mask <- sapply(input_df, is.character)
     unordered_cat_matches <- (factor_mask & (!ordered_mask)) | character_mask
     unordered_cat_vars <- df_vars[unordered_cat_matches]
+    unordered_cat_var_inds <- unname(which(unordered_cat_matches))
     num_unordered_cat_vars <- length(unordered_cat_vars)
     if (num_unordered_cat_vars > 0) unordered_cat_df <- input_df[,unordered_cat_vars,drop=F]
     
     # Numeric variables
     numeric_matches <- (!ordered_cat_matches) & (!unordered_cat_matches)
     numeric_vars <- df_vars[numeric_matches]
+    numeric_var_inds <- unname(which(numeric_matches))
     num_numeric_vars <- length(numeric_vars)
     if (num_numeric_vars > 0) numeric_df <- input_df[,numeric_vars,drop=F]
     
@@ -187,6 +194,7 @@ preprocessTrainDataFrame <- function(input_df) {
     unordered_unique_levels <- list()
     ordered_unique_levels <- list()
     feature_types <- integer(0)
+    original_var_indices <- integer(0)
     
     # First, extract the numeric covariates
     if (num_numeric_vars > 0) {
@@ -197,6 +205,7 @@ preprocessTrainDataFrame <- function(input_df) {
         }
         X <- cbind(X, unname(Xnum))
         feature_types <- c(feature_types, rep(0, ncol(Xnum)))
+        original_var_indices <- c(original_var_indices, numeric_var_inds)
     }
     
     # Next, run some simple preprocessing on the ordered categorical covariates
@@ -210,6 +219,7 @@ preprocessTrainDataFrame <- function(input_df) {
         }
         X <- cbind(X, unname(Xordcat))
         feature_types <- c(feature_types, rep(1, ncol(Xordcat)))
+        original_var_indices <- c(original_var_indices, ordered_cat_var_inds)
     }
     
     # Finally, one-hot encode the unordered categorical covariates
@@ -220,6 +230,8 @@ preprocessTrainDataFrame <- function(input_df) {
             encode_list <- oneHotInitializeAndEncode(unordered_cat_df[,i])
             unordered_unique_levels[[var_name]] <- encode_list$unique_levels
             one_hot_mats[[var_name]] <- encode_list$Xtilde
+            one_hot_var <- rep(unordered_cat_var_inds[i], ncol(encode_list$Xtilde))
+            original_var_indices <- c(original_var_indices, one_hot_var)
         }
         Xcat <- do.call(cbind, one_hot_mats)
         X <- cbind(X, unname(Xcat))
@@ -231,7 +243,8 @@ preprocessTrainDataFrame <- function(input_df) {
         feature_types = feature_types, 
         num_ordered_cat_vars = num_ordered_cat_vars, 
         num_unordered_cat_vars = num_unordered_cat_vars, 
-        num_numeric_vars = num_numeric_vars
+        num_numeric_vars = num_numeric_vars, 
+        original_var_indices = original_var_indices
     )
     if (num_ordered_cat_vars > 0) {
         metadata[["ordered_cat_vars"]] = ordered_cat_vars

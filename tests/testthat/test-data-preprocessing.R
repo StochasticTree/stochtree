@@ -148,6 +148,7 @@ test_that("Preprocessing of all-numeric covariate dataset works", {
     expect_equal(preprocess_list$metadata$num_numeric_vars, 3)
     expect_equal(preprocess_list$metadata$num_ordered_cat_vars, 0)
     expect_equal(preprocess_list$metadata$num_unordered_cat_vars, 0)
+    expect_equal(preprocess_list$metadata$original_var_indices, 1:3)
     expect_equal(preprocess_list$metadata$numeric_vars, c("x1","x2","x3"))
 })
 
@@ -170,6 +171,8 @@ test_that("Preprocessing of all-unordered-categorical covariate dataset works", 
     expect_equal(preprocess_list$metadata$num_ordered_cat_vars, 0)
     expect_equal(preprocess_list$metadata$num_unordered_cat_vars, 3)
     expect_equal(preprocess_list$metadata$unordered_cat_vars, c("x1","x2","x3"))
+    expected_var_indices <- c(rep(1,6),rep(2,6),rep(3,6))
+    expect_equal(preprocess_list$metadata$original_var_indices, expected_var_indices)
     expect_equal(preprocess_list$metadata$unordered_unique_levels, 
                  list(x1=c("1","2","3","4","5"), 
                       x2=c("1","2","3","4","5"), 
@@ -194,6 +197,7 @@ test_that("Preprocessing of all-ordered-categorical covariate dataset works", {
     expect_equal(preprocess_list$metadata$num_ordered_cat_vars, 3)
     expect_equal(preprocess_list$metadata$num_unordered_cat_vars, 0)
     expect_equal(preprocess_list$metadata$ordered_cat_vars, c("x1","x2","x3"))
+    expect_equal(preprocess_list$metadata$original_var_indices, 1:3)
     expect_equal(preprocess_list$metadata$ordered_unique_levels, 
                  list(x1=c("1","2","3","4","5"), 
                       x2=c("1","2","3","4","5"), 
@@ -220,6 +224,8 @@ test_that("Preprocessing of mixed-covariate dataset works", {
     expect_equal(preprocess_list$metadata$num_unordered_cat_vars, 1)
     expect_equal(preprocess_list$metadata$ordered_cat_vars, c("x2"))
     expect_equal(preprocess_list$metadata$unordered_cat_vars, c("x3"))
+    expected_var_indices <- c(1,2,rep(3,6))
+    expect_equal(preprocess_list$metadata$original_var_indices, expected_var_indices)
     expect_equal(preprocess_list$metadata$ordered_unique_levels, list(x2=c("1","2","3","4","5")))
     expect_equal(preprocess_list$metadata$unordered_unique_levels, list(x3=c("6","7","8","9","10")))
 })
@@ -229,6 +235,7 @@ test_that("Preprocessing of out-of-sample mixed-covariate dataset works", {
         num_numeric_vars = 1, 
         num_ordered_cat_vars = 1, 
         num_unordered_cat_vars = 1, 
+        original_var_indices = c(1, 2, 3, 3, 3, 3, 3, 3),
         numeric_vars = c("x1"), 
         ordered_cat_vars = c("x2"), 
         unordered_cat_vars = c("x3"), 
@@ -236,6 +243,7 @@ test_that("Preprocessing of out-of-sample mixed-covariate dataset works", {
         unordered_unique_levels = list(x3=c("6","7","8","9","10"))
     )
     cov_df <- data.frame(x1 = c(1:5,1), x2 = c(5:1,5), x3 = 6:11)
+    var_weights <- rep(1./3., 3)
     cov_mat <- matrix(c(
         1,5,1,0,0,0,0,0,
         2,4,0,1,0,0,0,0,

@@ -33,9 +33,10 @@
 #' @param nu Shape parameter in the `IG(nu, nu*lambda)` global error variance model. Default: 3.
 #' @param lambda Component of the scale parameter in the `IG(nu, nu*lambda)` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
 #' @param a_leaf Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: 3.
-#' @param b_leaf Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as 0.5/num_trees if not set here.
+#' @param b_leaf Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
 #' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
 #' @param sigma2_init Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
+#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
 #' @param num_trees Number of trees in the ensemble. Default: 200.
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
@@ -80,10 +81,19 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                  cutpoint_grid_size = 100, tau_init = NULL, alpha = 0.95, 
                  beta = 2.0, min_samples_leaf = 5, leaf_model = 0, 
                  nu = 3, lambda = NULL, a_leaf = 3, b_leaf = NULL, 
-                 q = 0.9, sigma2_init = NULL, num_trees = 200, num_gfr = 5, 
-                 num_burnin = 0, num_mcmc = 100, sample_sigma = T, 
-                 sample_tau = T, random_seed = -1, keep_burnin = F, 
-                 keep_gfr = F, verbose = F){
+                 q = 0.9, sigma2_init = NULL, variable_weights = NULL, 
+                 num_trees = 200, num_gfr = 5, num_burnin = 0, 
+                 num_mcmc = 100, sample_sigma = T, sample_tau = T, 
+                 random_seed = -1, keep_burnin = F, keep_gfr = F, 
+                 verbose = F){
+    # Variable weight preprocessing (and initialization if necessary)
+    if (is.null(variable_weights)) {
+        variable_weights = rep(1/ncol(X_train), ncol(X_train))
+    }
+    if (any(variable_weights < 0)) {
+        stop("variable_weights cannot have any negative weights")
+    }
+    
     # Preprocess covariates
     if ((!is.data.frame(X_train)) && (!is.matrix(X_train))) {
         stop("X_train must be a matrix or dataframe")
@@ -93,11 +103,19 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             stop("X_test must be a matrix or dataframe")
         }
     }
+    if (ncol(X_train) != length(variable_weights)) {
+        stop("length(variable_weights) must equal ncol(X_train)")
+    }
     train_cov_preprocess_list <- preprocessTrainData(X_train)
     X_train_metadata <- train_cov_preprocess_list$metadata
     X_train <- train_cov_preprocess_list$data
+    original_var_indices <- X_train_metadata$original_var_indices
     feature_types <- X_train_metadata$feature_types
     if (!is.null(X_test)) X_test <- preprocessPredictionData(X_test, X_train_metadata)
+    
+    # Update variable weights
+    variable_weights_adj <- 1/sapply(original_var_indices, function(x) sum(original_var_indices == x))
+    variable_weights <- variable_weights[original_var_indices]*variable_weights_adj
     
     # Convert all input data to matrices if not already converted
     if ((is.null(dim(W_train))) && (!is.null(W_train))) {
@@ -295,9 +313,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if (sample_sigma) global_var_samples <- rep(0, num_samples)
     if (sample_tau) leaf_scale_samples <- rep(0, num_samples)
     
-    # Variable selection weights
-    variable_weights <- rep(1/ncol(X_train), ncol(X_train))
-
     # Run GFR (warm start) if specified
     if (num_gfr > 0){
         gfr_indices = 1:num_gfr
