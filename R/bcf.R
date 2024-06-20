@@ -768,7 +768,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         "b_leaf_tau" = b_leaf_tau,
         "outcome_mean" = y_bar_train,
         "outcome_scale" = y_std_train, 
-        "num_covariates" = ncol(X_train),
+        "num_covariates" = num_cov_orig,
         "num_prognostic_covariates" = sum(variable_weights_mu > 0),
         "num_treatment_covariates" = sum(variable_weights_tau > 0),
         "treatment_dim" = ncol(Z_train), 
