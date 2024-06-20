@@ -13,6 +13,7 @@ TEST(LeafConstantModel, FullEnumeration) {
   StochTree::TestUtils::TestDataset test_dataset;
   test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
   std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
+  std::vector<double> variable_weights(test_dataset.x_cols, 1./test_dataset.x_cols);
 
   // Construct datasets
   using data_size_t = StochTree::data_size_t;
@@ -48,7 +49,8 @@ TEST(LeafConstantModel, FullEnumeration) {
 
   // Evaluate all possible cutpoints
   leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
-                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, feature_types);
+                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, 
+                                       feature_types);
 
   // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
   ASSERT_EQ(log_cutpoint_evaluations.size(), (n - 2*min_samples_leaf + 1)*p + 1);
@@ -68,6 +70,7 @@ TEST(LeafConstantModel, CutpointThinning) {
   StochTree::TestUtils::TestDataset test_dataset;
   test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
   std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
+  std::vector<double> variable_weights(test_dataset.x_cols, 1./test_dataset.x_cols);
 
   // Construct datasets
   using data_size_t = StochTree::data_size_t;
@@ -103,7 +106,8 @@ TEST(LeafConstantModel, CutpointThinning) {
 
   // Evaluate all possible cutpoints
   leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
-                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, feature_types);
+                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, 
+                                       feature_types);
 
   // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
   ASSERT_EQ(log_cutpoint_evaluations.size(), (cutpoint_grid_size - 1)*p + 1);
@@ -122,6 +126,7 @@ TEST(LeafUnivariateRegressionModel, FullEnumeration) {
   StochTree::TestUtils::TestDataset test_dataset;
   test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
   std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
+  std::vector<double> variable_weights(test_dataset.x_cols, 1./test_dataset.x_cols);
 
   // Construct datasets
   using data_size_t = StochTree::data_size_t;
@@ -158,7 +163,8 @@ TEST(LeafUnivariateRegressionModel, FullEnumeration) {
 
   // Evaluate all possible cutpoints
   leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
-                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, feature_types);
+                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, 
+                                       feature_types);
 
   // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
   ASSERT_EQ(log_cutpoint_evaluations.size(), (n - 2*min_samples_leaf + 1)*p + 1);
@@ -178,6 +184,7 @@ TEST(LeafUnivariateRegressionModel, CutpointThinning) {
   StochTree::TestUtils::TestDataset test_dataset;
   test_dataset = StochTree::TestUtils::LoadSmallDatasetUnivariateBasis();
   std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
+  std::vector<double> variable_weights(test_dataset.x_cols, 1./test_dataset.x_cols);
 
   // Construct datasets
   using data_size_t = StochTree::data_size_t;
@@ -214,7 +221,8 @@ TEST(LeafUnivariateRegressionModel, CutpointThinning) {
 
   // Evaluate all possible cutpoints
   leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
-                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, feature_types);
+                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, 
+                                       feature_types);
 
   // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
   ASSERT_EQ(log_cutpoint_evaluations.size(), (cutpoint_grid_size - 1)*p + 1);

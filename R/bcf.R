@@ -38,6 +38,11 @@
 #' @param b_leaf_tau Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the treatment effect forest. Calibrated internally as 0.5/num_trees if not set here.
 #' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
 #' @param sigma2 Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
+#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/ncol(X_train)`. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in `X_train` and then set `propensity_covariate` to `'none'` adjust `keep_vars_mu` and `keep_vars_tau` accordingly.
+#' @param keep_vars_mu Vector of variable names or column indices denoting variables that should be included in the prognostic (`mu(X)`) forest. Default: NULL.
+#' @param drop_vars_mu Vector of variable names or column indices denoting variables that should be excluded from the prognostic (`mu(X)`) forest. Default: NULL. If both `drop_vars_mu` and `keep_vars_mu` are set, `drop_vars_mu` will be ignored.
+#' @param keep_vars_tau Vector of variable names or column indices denoting variables that should be included in the treatment effect (`tau(X)`) forest. Default: NULL.
+#' @param drop_vars_tau Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (`tau(X)`) forest. Default: NULL. If both `drop_vars_tau` and `keep_vars_tau` are set, `drop_vars_tau` will be ignored.
 #' @param num_trees_mu Number of trees in the prognostic forest. Default: 200.
 #' @param num_trees_tau Number of trees in the treatment effect forest. Default: 50.
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
@@ -111,11 +116,20 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 sigma_leaf_mu = NULL, sigma_leaf_tau = NULL, alpha_mu = 0.95, alpha_tau = 0.25, 
                 beta_mu = 2.0, beta_tau = 3.0, min_samples_leaf_mu = 5, min_samples_leaf_tau = 5, 
                 nu = 3, lambda = NULL, a_leaf_mu = 3, a_leaf_tau = 3, b_leaf_mu = NULL, b_leaf_tau = NULL, 
-                q = 0.9, sigma2 = NULL, num_trees_mu = 250, num_trees_tau = 50, num_gfr = 5, 
-                num_burnin = 0, num_mcmc = 100, sample_sigma_global = T, sample_sigma_leaf_mu = T, 
+                q = 0.9, sigma2 = NULL, variable_weights = NULL, keep_vars_mu = NULL, drop_vars_mu = NULL, 
+                keep_vars_tau = NULL, drop_vars_tau = NULL, num_trees_mu = 250, num_trees_tau = 50, 
+                num_gfr = 5, num_burnin = 0, num_mcmc = 100, sample_sigma_global = T, sample_sigma_leaf_mu = T, 
                 sample_sigma_leaf_tau = F, propensity_covariate = "mu", adaptive_coding = T,
                 b_0 = -0.5, b_1 = 0.5, random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F) {
-    # Preprocess covariates
+    # Variable weight preprocessing (and initialization if necessary)
+    if (is.null(variable_weights)) {
+        variable_weights = rep(1/ncol(X_train), ncol(X_train))
+    }
+    if (any(variable_weights < 0)) {
+        stop("variable_weights cannot have any negative weights")
+    }
+    
+    # Check covariates are matrix or dataframe
     if ((!is.data.frame(X_train)) && (!is.matrix(X_train))) {
         stop("X_train must be a matrix or dataframe")
     }
@@ -124,10 +138,83 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             stop("X_test must be a matrix or dataframe")
         }
     }
+    num_cov_orig <- ncol(X_train)
+    
+    # Standardize the keep variable lists to numeric indices
+    if (!is.null(keep_vars_mu)) {
+        if (is.character(keep_vars_mu)) {
+            if (!all(keep_vars_mu %in% names(X_train))) {
+                stop("keep_vars_mu includes some variable names that are not in X_train")
+            }
+            variable_subset_mu <- unname(which(names(X_train) %in% keep_vars_mu))
+        } else {
+            if (any(keep_vars_mu > ncol(X_train))) {
+                stop("keep_vars_mu includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(keep_vars_mu < 0)) {
+                stop("keep_vars_mu includes some negative variable indices")
+            }
+            variable_subset_mu <- keep_vars_mu
+        }
+    } else if ((is.null(keep_vars_mu)) && (!is.null(drop_vars_mu))) {
+        if (is.character(drop_vars_mu)) {
+            if (!all(drop_vars_mu %in% names(X_train))) {
+                stop("drop_vars_mu includes some variable names that are not in X_train")
+            }
+            variable_subset_mu <- unname(which(!(names(X_train) %in% drop_vars_mu)))
+        } else {
+            if (any(drop_vars_mu > ncol(X_train))) {
+                stop("drop_vars_mu includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(drop_vars_mu < 0)) {
+                stop("drop_vars_mu includes some negative variable indices")
+            }
+            variable_subset_mu <- (1:ncol(X_train))[!(1:ncol(X_train) %in% drop_vars_mu)]
+        }
+    } else {
+        variable_subset_mu <- 1:ncol(X_train)
+    }
+    if (!is.null(keep_vars_tau)) {
+        if (is.character(keep_vars_tau)) {
+            if (!all(keep_vars_tau %in% names(X_train))) {
+                stop("keep_vars_tau includes some variable names that are not in X_train")
+            }
+            variable_subset_tau <- unname(which(names(X_train) %in% keep_vars_tau))
+        } else {
+            if (any(keep_vars_tau > ncol(X_train))) {
+                stop("keep_vars_tau includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(keep_vars_tau < 0)) {
+                stop("keep_vars_tau includes some negative variable indices")
+            }
+            variable_subset_tau <- keep_vars_tau
+        }
+    }
+    if ((is.null(keep_vars_tau)) && (!is.null(drop_vars_tau))) {
+        if (is.character(drop_vars_tau)) {
+            if (!all(drop_vars_tau %in% names(X_train))) {
+                stop("drop_vars_tau includes some variable names that are not in X_train")
+            }
+            variable_subset_tau <- unname(which(!(names(X_train) %in% drop_vars_tau)))
+        } else {
+            if (any(drop_vars_tau > ncol(X_train))) {
+                stop("drop_vars_tau includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(drop_vars_tau < 0)) {
+                stop("drop_vars_tau includes some negative variable indices")
+            }
+            variable_subset_tau <- (1:ncol(X_train))[!(1:ncol(X_train) %in% drop_vars_tau)]
+        }
+    } else {
+        variable_subset_tau <- 1:ncol(X_train)
+    }
+    
+    # Preprocess covariates
     train_cov_preprocess_list <- preprocessTrainData(X_train)
     X_train_metadata <- train_cov_preprocess_list$metadata
     X_train_raw <- X_train
     X_train <- train_cov_preprocess_list$data
+    original_var_indices <- X_train_metadata$original_var_indices
     feature_types <- X_train_metadata$feature_types
     X_test_raw <- X_test
     if (!is.null(X_test)) X_test <- preprocessPredictionData(X_test, X_train_metadata)
@@ -209,6 +296,15 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         }
     }
     
+    # Update variable weights
+    variable_weights_adj <- 1/sapply(original_var_indices, function(x) sum(original_var_indices == x))
+    variable_weights <- variable_weights[original_var_indices]*variable_weights_adj
+    
+    # Create mu and tau specific variable weights with weights zeroed out for excluded variables
+    variable_weights_tau <- variable_weights_mu <- variable_weights
+    variable_weights_mu[!(original_var_indices %in% variable_subset_mu)] <- 0
+    variable_weights_tau[!(original_var_indices %in% variable_subset_tau)] <- 0
+    
     # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided 
     has_basis_rfx <- F
     num_basis_rfx <- 0
@@ -254,6 +350,11 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         adaptive_coding <- F
     }
     
+    # Check if propensity_covariate is one of the required inputs
+    if (!(propensity_covariate %in% c("mu","tau","both","none"))) {
+        stop("propensity_covariate must equal one of 'none', 'mu', 'tau', or 'both'")
+    }
+    
     # Estimate if pre-estimated propensity score is not provided
     if ((is.null(pi_train)) && (propensity_covariate != "none")) {
         # Estimate using the last of several iterations of GFR BART
@@ -266,52 +367,29 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     }
 
     if (has_test) {
-        if (is.null(pi_test)) stop("Propensity score must be provided for the test set as well")
+        if (is.null(pi_test)) stop("Propensity score must be provided for the test set if provided for the training set")
     }
     
-    if (propensity_covariate == "mu") {
-        feature_types_mu <- as.integer(c(feature_types,0))
-        feature_types_tau <- as.integer(feature_types)
-        X_train_mu <- cbind(X_train, pi_train)
-        X_train_tau <- X_train
-        if (has_test) {
-            X_test_mu <- cbind(X_test, pi_test)
-            X_test_tau <- X_test
+    # Update feature_types and covariates
+    if (propensity_covariate != "none") {
+        feature_types <- as.integer(c(feature_types,0))
+        X_train <- cbind(X_train, pi_train)
+        if (propensity_covariate == "mu") {
+            variable_weights_mu <- c(variable_weights_mu, 1./num_cov_orig)
+            variable_weights_tau <- c(variable_weights_tau, 0)
+        } else if (propensity_covariate == "tau") {
+            variable_weights_mu <- c(variable_weights_mu, 0)
+            variable_weights_tau <- c(variable_weights_tau, 1./num_cov_orig)
+        } else if (propensity_covariate == "both") {
+            variable_weights_mu <- c(variable_weights_mu, 1./num_cov_orig)
+            variable_weights_tau <- c(variable_weights_tau, 1./num_cov_orig)
         }
-    } else if (propensity_covariate == "tau") {
-        feature_types_mu <- as.integer(feature_types)
-        feature_types_tau <- as.integer(c(feature_types,0))
-        X_train_mu <- X_train
-        X_train_tau <- cbind(X_train, pi_train)
-        if (has_test) {
-            X_test_mu <- X_test
-            X_test_tau <- cbind(X_test, pi_test)
-        }
-    } else if (propensity_covariate == "both") {
-        feature_types_mu <- as.integer(c(feature_types,0))
-        feature_types_tau <- as.integer(c(feature_types,0))
-        X_train_mu <- cbind(X_train, pi_train)
-        X_train_tau <- cbind(X_train, pi_train)
-        if (has_test) {
-            X_test_mu <- cbind(X_test, pi_test)
-            X_test_tau <- cbind(X_test, pi_test)
-        }
-    } else if (propensity_covariate == "none") {
-        feature_types_mu <- as.integer(feature_types)
-        feature_types_tau <- as.integer(feature_types)
-        X_train_mu <- X_train
-        X_train_tau <- X_train
-        if (has_test) {
-            X_test_mu <- X_test
-            X_test_tau <- X_test
-        }
-    } else {
-        stop("propensity_covariate must equal one of 'none', 'mu', 'tau', or 'both'")
+        if (has_test) X_test <- cbind(X_test, pi_test)
     }
     
-    # Set variable weights for the prognostic and treatment effect forests
-    variable_weights_mu = rep(1/ncol(X_train_mu), ncol(X_train_mu))
-    variable_weights_tau = rep(1/ncol(X_train_tau), ncol(X_train_tau))
+    # Renormalize variable weights
+    variable_weights_mu <- variable_weights_mu / sum(variable_weights_mu)
+    variable_weights_tau <- variable_weights_tau / sum(variable_weights_tau)
     
     # Standardize outcome separately for test and train
     y_bar_train <- mean(y_train)
@@ -387,10 +465,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     }
     
     # Data
-    forest_dataset_mu_train <- createForestDataset(X_train_mu)
-    forest_dataset_tau_train <- createForestDataset(X_train_tau, tau_basis_train)
-    if (has_test) forest_dataset_mu_test <- createForestDataset(X_test_mu)
-    if (has_test) forest_dataset_tau_test <- createForestDataset(X_test_tau, tau_basis_test)
+    forest_dataset_train <- createForestDataset(X_train, tau_basis_train)
+    if (has_test) forest_dataset_test <- createForestDataset(X_test, tau_basis_test)
     outcome_train <- createOutcome(resid_train)
     
     # Random number generator (std::mt19937)
@@ -398,8 +474,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     rng <- createRNG(random_seed)
     
     # Sampling data structures
-    forest_model_mu <- createForestModel(forest_dataset_mu_train, feature_types_mu, num_trees_mu, nrow(X_train_mu), alpha_mu, beta_mu, min_samples_leaf_mu)
-    forest_model_tau <- createForestModel(forest_dataset_tau_train, feature_types_tau, num_trees_tau, nrow(X_train_tau), alpha_tau, beta_tau, min_samples_leaf_tau)
+    forest_model_mu <- createForestModel(forest_dataset_train, feature_types, num_trees_mu, nrow(X_train), alpha_mu, beta_mu, min_samples_leaf_mu)
+    forest_model_tau <- createForestModel(forest_dataset_train, feature_types, num_trees_tau, nrow(X_train), alpha_tau, beta_tau, min_samples_leaf_tau)
     
     # Container of forest samples
     forest_samples_mu <- createForestContainer(num_trees_mu, 1, T)
@@ -407,13 +483,13 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     
     # Initialize the leaves of each tree in the prognostic forest
     forest_samples_mu$set_root_leaves(0, mean(resid_train) / num_trees_mu)
-    update_residual_forest_container_cpp(forest_dataset_mu_train$data_ptr, outcome_train$data_ptr, 
+    update_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
                                          forest_samples_mu$forest_container_ptr, forest_model_mu$tracker_ptr, 
                                          F, 0, F)
     
     # Initialize the leaves of each tree in the treatment effect forest
     forest_samples_tau$set_root_leaves(0, 0.)
-    update_residual_forest_container_cpp(forest_dataset_tau_train$data_ptr, outcome_train$data_ptr, 
+    update_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
                                          forest_samples_tau$forest_container_ptr, forest_model_tau$tracker_ptr, 
                                          T, 0, F)
 
@@ -430,7 +506,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample the prognostic forest
             forest_model_mu$sample_one_iteration(
-                forest_dataset_mu_train, outcome_train, forest_samples_mu, rng, feature_types_mu, 
+                forest_dataset_train, outcome_train, forest_samples_mu, rng, feature_types, 
                 0, current_leaf_scale_mu, variable_weights_mu, 
                 current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
             )
@@ -447,7 +523,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample the treatment forest
             forest_model_tau$sample_one_iteration(
-                forest_dataset_tau_train, outcome_train, forest_samples_tau, rng, feature_types_tau, 
+                forest_dataset_train, outcome_train, forest_samples_tau, rng, feature_types, 
                 1, current_leaf_scale_tau, variable_weights_tau, 
                 current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
             )
@@ -455,8 +531,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             # Sample coding parameters (if requested)
             if (adaptive_coding) {
                 # Estimate mu(X) and tau(X) and compute y - mu(X)
-                mu_x_raw_train <- forest_samples_mu$predict_raw_single_forest(forest_dataset_mu_train, i-1)
-                tau_x_raw_train <- forest_samples_tau$predict_raw_single_forest(forest_dataset_tau_train, i-1)
+                mu_x_raw_train <- forest_samples_mu$predict_raw_single_forest(forest_dataset_train, i-1)
+                tau_x_raw_train <- forest_samples_tau$predict_raw_single_forest(forest_dataset_train, i-1)
                 partial_resid_mu_train <- resid_train - mu_x_raw_train
                 if (has_rfx) {
                     rfx_preds_train <- rfx_model$predict(rfx_dataset_train, rfx_tracker_train)
@@ -475,12 +551,12 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 
                 # Update basis for the leaf regression
                 tau_basis_train <- (1-Z_train)*current_b_0 + Z_train*current_b_1
-                forest_dataset_tau_train$update_basis(tau_basis_train)
+                forest_dataset_train$update_basis(tau_basis_train)
                 b_0_samples[i] <- current_b_0
                 b_1_samples[i] <- current_b_1
                 if (has_test) {
                     tau_basis_test <- (1-Z_test)*current_b_0 + Z_test*current_b_1
-                    forest_dataset_tau_test$update_basis(tau_basis_test)
+                    forest_dataset_test$update_basis(tau_basis_test)
                 }
                 
                 # TODO Update leaf predictions and residual
@@ -528,7 +604,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample the prognostic forest
             forest_model_mu$sample_one_iteration(
-                forest_dataset_mu_train, outcome_train, forest_samples_mu, rng, feature_types_mu, 
+                forest_dataset_train, outcome_train, forest_samples_mu, rng, feature_types, 
                 0, current_leaf_scale_mu, variable_weights_mu, 
                 current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
             )
@@ -545,7 +621,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample the treatment forest
             forest_model_tau$sample_one_iteration(
-                forest_dataset_tau_train, outcome_train, forest_samples_tau, rng, feature_types_tau, 
+                forest_dataset_train, outcome_train, forest_samples_tau, rng, feature_types, 
                 1, current_leaf_scale_tau, variable_weights_tau, 
                 current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
             )
@@ -553,8 +629,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             # Sample coding parameters (if requested)
             if (adaptive_coding) {
                 # Estimate mu(X) and tau(X) and compute y - mu(X)
-                mu_x_raw_train <- forest_samples_mu$predict_raw_single_forest(forest_dataset_mu_train, i-1)
-                tau_x_raw_train <- forest_samples_tau$predict_raw_single_forest(forest_dataset_tau_train, i-1)
+                mu_x_raw_train <- forest_samples_mu$predict_raw_single_forest(forest_dataset_train, i-1)
+                tau_x_raw_train <- forest_samples_tau$predict_raw_single_forest(forest_dataset_train, i-1)
                 partial_resid_mu_train <- resid_train - mu_x_raw_train
                 if (has_rfx) {
                     rfx_preds_train <- rfx_model$predict(rfx_dataset_train, rfx_tracker_train)
@@ -573,12 +649,12 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 
                 # Update basis for the leaf regression
                 tau_basis_train <- (1-Z_train)*current_b_0 + Z_train*current_b_1
-                forest_dataset_tau_train$update_basis(tau_basis_train)
+                forest_dataset_train$update_basis(tau_basis_train)
                 b_0_samples[i] <- current_b_0
                 b_1_samples[i] <- current_b_1
                 if (has_test) {
                     tau_basis_test <- (1-Z_test)*current_b_0 + Z_test*current_b_1
-                    forest_dataset_tau_test$update_basis(tau_basis_test)
+                    forest_dataset_test$update_basis(tau_basis_test)
                 }
                 
                 # TODO Update leaf predictions and residual
@@ -603,21 +679,21 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     }
     
     # Forest predictions
-    mu_hat_train <- forest_samples_mu$predict(forest_dataset_mu_train)*y_std_train + y_bar_train
+    mu_hat_train <- forest_samples_mu$predict(forest_dataset_train)*y_std_train + y_bar_train
     if (adaptive_coding) {
-        tau_hat_train_raw <- forest_samples_tau$predict_raw(forest_dataset_tau_train)
+        tau_hat_train_raw <- forest_samples_tau$predict_raw(forest_dataset_train)
         tau_hat_train <- t(t(tau_hat_train_raw) * (b_1_samples - b_0_samples))*y_std_train
     } else {
-        tau_hat_train <- forest_samples_tau$predict_raw(forest_dataset_tau_train)*y_std_train
+        tau_hat_train <- forest_samples_tau$predict_raw(forest_dataset_train)*y_std_train
     }
     y_hat_train <- mu_hat_train + tau_hat_train * as.numeric(Z_train)
     if (has_test) {
-        mu_hat_test <- forest_samples_mu$predict(forest_dataset_mu_test)*y_std_train + y_bar_train
+        mu_hat_test <- forest_samples_mu$predict(forest_dataset_test)*y_std_train + y_bar_train
         if (adaptive_coding) {
-            tau_hat_test_raw <- forest_samples_tau$predict_raw(forest_dataset_tau_test)
+            tau_hat_test_raw <- forest_samples_tau$predict_raw(forest_dataset_test)
             tau_hat_test <- t(t(tau_hat_test_raw) * (b_1_samples - b_0_samples))*y_std_train
         } else {
-            tau_hat_test <- forest_samples_tau$predict_raw(forest_dataset_tau_test)*y_std_train
+            tau_hat_test <- forest_samples_tau$predict_raw(forest_dataset_test)*y_std_train
         }
         y_hat_test <- mu_hat_test + tau_hat_test * as.numeric(Z_test)
     }
