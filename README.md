@@ -93,7 +93,7 @@ pip install matplotlib seaborn jupyterlab
 The package can be installed in R via
 
 ```
-remotes::install_github("StochasticTree/stochtree-cpp")
+remotes::install_github("StochasticTree/stochtree-cpp", ref="r-dev")
 ```
 
 # C++ Core
