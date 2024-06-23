@@ -50,6 +50,7 @@ bcf(
   adaptive_coding = T,
   b_0 = -0.5,
   b_1 = 0.5,
+  rfx_prior_var = NULL,
   random_seed = -1,
   keep_burnin = F,
   keep_gfr = F,
@@ -156,6 +157,8 @@ that were not in the training set.}
 \item{b_0}{Initial value of the "control" group coding parameter. This is ignored when Z is not binary. Default: -0.5.}
 
 \item{b_1}{Initial value of the "treatment" group coding parameter. This is ignored when Z is not binary. Default: 0.5.}
+
+\item{rfx_prior_var}{Prior on the (diagonals of the) covariance of the additive group-level random regression coefficients. Must be a vector of length \code{ncol(rfx_basis_train)}. Default: \code{rep(1, ncol(rfx_basis_train))}}
 
 \item{random_seed}{Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to \code{std::random_device}.}
 
