@@ -99,6 +99,63 @@ TEST(RandomEffects, Construction) {
   }
 }
 
+TEST(RandomEffects, Computation) {
+  // Load test data
+  StochTree::TestUtils::TestDataset test_dataset;
+  test_dataset = StochTree::TestUtils::LoadSmallRFXDatasetMultivariateBasis();
+  std::vector<StochTree::FeatureType> feature_types(test_dataset.x_cols, StochTree::FeatureType::kNumeric);
+
+  // Construct dataset
+  int n = test_dataset.n;
+  StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), test_dataset.n);
+  StochTree::RandomEffectsDataset dataset = StochTree::RandomEffectsDataset();
+  dataset.AddBasis(test_dataset.rfx_basis.data(), test_dataset.n, test_dataset.rfx_basis_cols, test_dataset.row_major);
+  dataset.AddGroupLabels(test_dataset.rfx_groups);
+  
+  // Construct tracker, model state, and container
+  StochTree::RandomEffectsTracker tracker = StochTree::RandomEffectsTracker(test_dataset.rfx_groups);
+  StochTree::MultivariateRegressionRandomEffectsModel model = StochTree::MultivariateRegressionRandomEffectsModel(test_dataset.rfx_basis_cols, test_dataset.rfx_num_groups);
+  StochTree::RandomEffectsContainer container = StochTree::RandomEffectsContainer(test_dataset.rfx_basis_cols, test_dataset.rfx_num_groups);
+  StochTree::LabelMapper label_mapper = StochTree::LabelMapper(tracker.GetLabelMap());
+
+  // Set the values of alpha, xi and sigma in the model state (rather than simulating)
+  Eigen::VectorXd alpha(test_dataset.rfx_basis_cols);
+  Eigen::MatrixXd xi(test_dataset.rfx_basis_cols, test_dataset.rfx_num_groups);
+  Eigen::MatrixXd sigma(test_dataset.rfx_basis_cols, test_dataset.rfx_basis_cols);
+  alpha << 1., 1.;
+  xi << 1., 1., 1., 1., 1., 1.;
+  Eigen::VectorXd xi0 = xi(Eigen::all, 0);
+  Eigen::VectorXd xi1 = xi(Eigen::all, 1);
+  Eigen::VectorXd xi2 = xi(Eigen::all, 2);
+  sigma << 1, 0, 0, 1;
+  model.SetWorkingParameter(alpha);
+  model.SetGroupParameter(xi0, 0);
+  model.SetGroupParameter(xi1, 1);
+  model.SetGroupParameter(xi2, 2);
+  model.SetGroupParameterCovariance(sigma);
+  double sigma2 = 1.;
+  
+  // Compute the posterior mean for the group parameters
+  Eigen::VectorXd xi0_mean = model.GroupParameterMean(dataset, residual, tracker, sigma2, 0);
+  Eigen::VectorXd xi1_mean = model.GroupParameterMean(dataset, residual, tracker, sigma2, 1);
+  Eigen::VectorXd xi2_mean = model.GroupParameterMean(dataset, residual, tracker, sigma2, 2);
+
+  // Check data in the container
+  std::vector<double> xi_mean_expected(test_dataset.rfx_basis_cols);
+  xi_mean_expected = {0.6979496, 0.3316027};
+  for (int i = 0; i < xi_mean_expected.size(); i++) {
+    ASSERT_NEAR(xi0_mean(i), xi_mean_expected[i], 0.001);
+  }
+  xi_mean_expected = {0.65744523, 0.00639347};
+  for (int i = 0; i < xi_mean_expected.size(); i++) {
+    ASSERT_NEAR(xi1_mean(i), xi_mean_expected[i], 0.001);
+  }
+  xi_mean_expected = {0.8763421, 0.3414047};
+  for (int i = 0; i < xi_mean_expected.size(); i++) {
+    ASSERT_NEAR(xi2_mean(i), xi_mean_expected[i], 0.001);
+  }
+}
+
 TEST(RandomEffects, Predict) {
   // Load test data
   StochTree::TestUtils::TestDataset test_dataset;

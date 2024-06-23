@@ -55,6 +55,7 @@
 #' @param adaptive_coding Whether or not to use an "adaptive coding" scheme in which a binary treatment variable is not coded manually as (0,1) or (-1,1) but learned via parameters `b_0` and `b_1` that attach to the outcome model `[b_0 (1-Z) + b_1 Z] tau(X)`. This is ignored when Z is not binary. Default: T.
 #' @param b_0 Initial value of the "control" group coding parameter. This is ignored when Z is not binary. Default: -0.5.
 #' @param b_1 Initial value of the "treatment" group coding parameter. This is ignored when Z is not binary. Default: 0.5.
+#' @param rfx_prior_var Prior (diagonals of the) covariance of the random effects model. Must be a vector of length `ncol(rfx_basis_train)`. Default: `rep(1, ncol(rfx_basis_train))`
 #' @param random_seed Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
 #' @param keep_burnin Whether or not "burnin" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.
 #' @param keep_gfr Whether or not "grow-from-root" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.
@@ -119,8 +120,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 q = 0.9, sigma2 = NULL, variable_weights = NULL, keep_vars_mu = NULL, drop_vars_mu = NULL, 
                 keep_vars_tau = NULL, drop_vars_tau = NULL, num_trees_mu = 250, num_trees_tau = 50, 
                 num_gfr = 5, num_burnin = 0, num_mcmc = 100, sample_sigma_global = T, sample_sigma_leaf_mu = T, 
-                sample_sigma_leaf_tau = F, propensity_covariate = "mu", adaptive_coding = T,
-                b_0 = -0.5, b_1 = 0.5, random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F) {
+                sample_sigma_leaf_tau = F, propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, 
+                b_1 = 0.5, rfx_prior_var = NULL, random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F) {
     # Variable weight preprocessing (and initialization if necessary)
     if (is.null(variable_weights)) {
         variable_weights = rep(1/ncol(X_train), ncol(X_train))
@@ -294,6 +295,16 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             }
         }
     }
+
+    # Random effects covariance prior
+    if (has_rfx) {
+        if (is.null(rfx_prior_var)) {
+            rfx_prior_var <- rep(1, ncol(rfx_basis_train))
+        } else {
+            if ((!is.integer(rfx_prior_var)) && (!is.numeric(rfx_prior_var))) stop("rfx_prior_var must be a numeric vector")
+            if (length(rfx_prior_var) != ncol(rfx_basis_train)) stop("length(rfx_prior_var) must equal ncol(rfx_basis_train)")
+        }
+    }
     
     # Update variable weights
     variable_weights_adj <- 1/sapply(original_var_indices, function(x) sum(original_var_indices == x))
@@ -342,7 +353,10 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     
     # Check whether treatment is binary (specifically 0-1 binary)
     binary_treatment <- length(unique(Z_train)) == 2
-    if (!(all(sort(unique(Z_train)) == c(0,1)))) binary_treatment <- F
+    if (binary_treatment) {
+        unique_treatments <- sort(unique(Z_train))
+        if (!(all(unique_treatments == c(0,1)))) binary_treatment <- F
+    }
     
     # Adaptive coding will be ignored for continuous / ordered categorical treatments
     if ((!binary_treatment) && (adaptive_coding)) {
@@ -413,16 +427,22 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     
     # Random effects prior parameters
     if (has_rfx) {
-        if (num_rfx_components == 1) {
-            alpha_init <- c(1)
-        } else if (num_rfx_components > 1) {
-            alpha_init <- c(1,rep(0,num_rfx_components-1))
-        } else {
+        # Initialize the working parameter to 1
+        if (num_rfx_components < 1) {
             stop("There must be at least 1 random effect component")
         }
-        xi_init <- matrix(rep(alpha_init, num_rfx_groups),num_rfx_components,num_rfx_groups)
+        alpha_init <- rep(1,num_rfx_components)
+        # Initialize each group parameter based on a regression of outcome on basis in that grou
+        xi_init <- matrix(0,num_rfx_components,num_rfx_groups)
+        for (i in 1:num_rfx_groups) {
+            group_subset_indices <- group_ids_train == i
+            basis_group <- rfx_basis_train[group_subset_indices,]
+            resid_group <- resid_train[group_subset_indices]
+            rfx_group_model <- lm(resid_group ~ 0+basis_group)
+            xi_init[,i] <- unname(coef(rfx_group_model))
+        }
         sigma_alpha_init <- diag(1,num_rfx_components,num_rfx_components)
-        sigma_xi_init <- diag(1,num_rfx_components,num_rfx_components)
+        sigma_xi_init <- diag(rfx_prior_var)
         sigma_xi_shape <- 1
         sigma_xi_scale <- 1
     }
