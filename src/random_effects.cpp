@@ -45,8 +45,8 @@ void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffects
   AddCurrentPredictionToResidual(dataset, rfx_tracker, residual);
   
   // Sample random effects
-  SampleWorkingParameter(dataset, residual, rfx_tracker, global_variance, gen);
   SampleGroupParameters(dataset, residual, rfx_tracker, global_variance, gen);
+  SampleWorkingParameter(dataset, residual, rfx_tracker, global_variance, gen);
   SampleVarianceComponents(dataset, residual, rfx_tracker, global_variance, gen);
 
   // Update partial residual to remove the random effects
@@ -104,8 +104,8 @@ Eigen::VectorXd MultivariateRegressionRandomEffectsModel::WorkingParameterMean(R
     X_group = X(observation_indices, Eigen::all);
     y_group = y(observation_indices, Eigen::all);
     xi_group = xi(Eigen::all, i);
-    posterior_denominator += (xi_group).asDiagonal() * X_group.transpose() * X_group * (xi_group).asDiagonal();
-    posterior_numerator += (xi_group).asDiagonal() * X_group.transpose() * y_group;
+    posterior_denominator += ((xi_group).asDiagonal() * X_group.transpose() * X_group * (xi_group).asDiagonal()) / global_variance;
+    posterior_numerator += (xi_group).asDiagonal() * X_group.transpose() * y_group / global_variance;
   }
   return posterior_denominator.inverse() * posterior_numerator;
 }
@@ -127,8 +127,7 @@ Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::WorkingParameterVarian
     X_group = X(observation_indices, Eigen::all);
     y_group = y(observation_indices, Eigen::all);
     xi_group = xi(Eigen::all, i);
-    posterior_denominator += (xi_group).asDiagonal() * X_group.transpose() * X_group * (xi_group).asDiagonal();
-    posterior_numerator += (xi_group).asDiagonal() * X_group.transpose() * y_group;
+    posterior_denominator += ((xi_group).asDiagonal() * X_group.transpose() * X_group * (xi_group).asDiagonal()) / (global_variance);
   }
   return posterior_denominator.inverse();
 }
@@ -144,8 +143,8 @@ Eigen::VectorXd MultivariateRegressionRandomEffectsModel::GroupParameterMean(Ran
   std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndicesInternalIndex(group_id);
   Eigen::MatrixXd X_group = X(observation_indices, Eigen::all);
   Eigen::VectorXd y_group = y(observation_indices, Eigen::all);
-  posterior_denominator += (alpha).asDiagonal() * X_group.transpose() * X_group * (alpha).asDiagonal();
-  posterior_numerator += (alpha).asDiagonal() * X_group.transpose() * y_group;
+  posterior_denominator += ((alpha).asDiagonal() * X_group.transpose() * X_group * (alpha).asDiagonal()) / (global_variance);
+  posterior_numerator += (alpha).asDiagonal() * X_group.transpose() * y_group / global_variance;
   return posterior_denominator.inverse() * posterior_numerator;
 }
 
@@ -160,7 +159,7 @@ Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::GroupParameterVariance
   std::vector<data_size_t> observation_indices = rfx_tracker.NodeIndicesInternalIndex(group_id);
   Eigen::MatrixXd X_group = X(observation_indices, Eigen::all);
 //  Eigen::VectorXd y_group = y(observation_indices, Eigen::all);
-  posterior_denominator += (alpha).asDiagonal() * X_group.transpose() * X_group * (alpha).asDiagonal();
+  posterior_denominator += ((alpha).asDiagonal() * X_group.transpose() * X_group * (alpha).asDiagonal()) / (global_variance);
 //  posterior_numerator += (alpha).asDiagonal() * X_group.transpose() * y_group;
   return posterior_denominator.inverse();
 }

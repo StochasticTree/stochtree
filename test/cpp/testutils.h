@@ -33,6 +33,9 @@ TestDataset LoadSmallDatasetUnivariateBasis();
 /*! Creates a small dataset (10 observations) with a multivariate basis for leaf regression applications */
 TestDataset LoadSmallDatasetMultivariateBasis();
 
+/*! Creates a small dataset (10 observations) with a multivariate basis and several random effects terms */
+TestDataset LoadSmallRFXDatasetMultivariateBasis();
+
 /*! Creates a modest dataset (100 observations) */
 TestDataset LoadMediumDatasetUnivariateBasis();
 

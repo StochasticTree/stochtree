@@ -75,7 +75,7 @@ class LabelMapper {
     auto pos = label_map_.find(category_id);
     return pos != label_map_.end();
   }
-  bool CategoryNumber(int32_t category_id) {
+  int32_t CategoryNumber(int32_t category_id) {
     return label_map_[category_id];
   }
   std::vector<int32_t>& Keys() {return keys_;}
@@ -99,7 +99,7 @@ class MultivariateRegressionRandomEffectsModel {
     working_parameter_ = Eigen::VectorXd(num_components_);
     group_parameters_ = Eigen::MatrixXd(num_components_, num_groups_);
     group_parameter_covariance_ = Eigen::MatrixXd(num_components_, num_components_);
-    working_parameter_covariance_ = Eigen::VectorXd(num_components_, num_components_);
+    working_parameter_covariance_ = Eigen::MatrixXd(num_components_, num_components_);
   }
   ~MultivariateRegressionRandomEffectsModel() {}
   
@@ -206,7 +206,7 @@ class MultivariateRegressionRandomEffectsModel {
       tracker.SetPrediction(i, new_pred);
     }
   }
- private:
+
   /*! \brief Compute the posterior mean of the working parameter, conditional on the group parameters and the variance components */
   Eigen::VectorXd WorkingParameterMean(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance);
   /*! \brief Compute the posterior covariance of the working parameter, conditional on the group parameters and the variance components */
@@ -219,7 +219,8 @@ class MultivariateRegressionRandomEffectsModel {
   double VarianceComponentShape(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t component_id);
   /*! \brief Compute the posterior scale of the group variance component, conditional on the working and group parameters */
   double VarianceComponentScale(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t component_id);
-  
+
+ private:
   /*! \brief Samplers */
   MultivariateNormalSampler normal_sampler_;
   InverseGammaSampler ig_sampler_;
