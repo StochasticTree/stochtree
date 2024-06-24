@@ -803,9 +803,9 @@ We draw from a modified "demo 1" DGP
 
 ```{r}
 mu <- function(x) {1+g(x)+x[,1]*x[,3]-x[,2]+3*x[,3]}
-tau <- function(x) {1+0.5*x[,1]}
+tau <- function(x) {1 - 2*x[,1] + 2*x[,2] + 1*x[,1]*x[,2]}
 n <- 500
-snr <- 2
+snr <- 4
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
@@ -829,7 +829,7 @@ X$x4 <- factor(X$x4, ordered = TRUE)
 X$x5 <- factor(X$x5, ordered = TRUE)
 
 # Split data into test and train sets
-test_set_pct <- 0.2
+test_set_pct <- 0.5
 n_test <- round(test_set_pct*n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
@@ -857,7 +857,7 @@ Here we simulate from the model with the original MCMC sampler, using all of the
 ```{r}
 num_gfr <- 0
 num_burnin <- 1000
-num_mcmc <- 100
+num_mcmc <- 1000
 num_samples <- num_gfr + num_burnin + num_mcmc
 bcf_model_mcmc <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, pi_train = pi_train, 
@@ -878,9 +878,6 @@ plot(rowMeans(bcf_model_mcmc$tau_hat_test), tau_test,
 abline(0,1,col="red",lty=3,lwd=3)
 plot(rowMeans(bcf_model_mcmc$y_hat_test), y_test, 
      xlab = "predicted", ylab = "actual", main = "Outcome")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_mcmc$y_hat_test-bcf_model_mcmc$mu_hat_test), tau_test*Z_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect term")
 abline(0,1,col="red",lty=3,lwd=3)
 sigma_observed <- var(y-E_XZ)
 plot_bounds <- c(min(c(bcf_model_mcmc$sigma2_samples, sigma_observed)), 
@@ -918,14 +915,14 @@ Here we simulate from the model with the original MCMC sampler, using only covar
 ```{r}
 num_gfr <- 0
 num_burnin <- 1000
-num_mcmc <- 100
+num_mcmc <- 1000
 num_samples <- num_gfr + num_burnin + num_mcmc
 bcf_model_mcmc <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, pi_train = pi_train, 
     X_test = X_test, Z_test = Z_test, pi_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     sample_sigma_leaf_mu = F, sample_sigma_leaf_tau = F, 
-    keep_vars_tau = c("x1")
+    keep_vars_tau = c("x1","x2")
 )
 ```
 
@@ -940,9 +937,6 @@ plot(rowMeans(bcf_model_mcmc$tau_hat_test), tau_test,
 abline(0,1,col="red",lty=3,lwd=3)
 plot(rowMeans(bcf_model_mcmc$y_hat_test), y_test, 
      xlab = "predicted", ylab = "actual", main = "Outcome")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_mcmc$y_hat_test-bcf_model_mcmc$mu_hat_test), tau_test*Z_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect term")
 abline(0,1,col="red",lty=3,lwd=3)
 sigma_observed <- var(y-E_XZ)
 plot_bounds <- c(min(c(bcf_model_mcmc$sigma2_samples, sigma_observed)), 
@@ -980,7 +974,7 @@ Here we simulate from the model with the warm-start sampler, using all of the co
 ```{r}
 num_gfr <- 10
 num_burnin <- 0
-num_mcmc <- 100
+num_mcmc <- 1000
 num_samples <- num_gfr + num_burnin + num_mcmc
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, pi_train = pi_train, 
@@ -1001,9 +995,6 @@ plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test,
 abline(0,1,col="red",lty=3,lwd=3)
 plot(rowMeans(bcf_model_warmstart$y_hat_test), y_test, 
      xlab = "predicted", ylab = "actual", main = "Outcome")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$y_hat_test - bcf_model_warmstart$mu_hat_test), tau_test*Z_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect term")
 abline(0,1,col="red",lty=3,lwd=3)
 sigma_observed <- var(y-E_XZ)
 plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_samples, sigma_observed)), 
@@ -1041,14 +1032,14 @@ Here we simulate from the model with the warm-start sampler, using only covariat
 ```{r}
 num_gfr <- 10
 num_burnin <- 0
-num_mcmc <- 100
+num_mcmc <- 1000
 num_samples <- num_gfr + num_burnin + num_mcmc
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, pi_train = pi_train, 
     X_test = X_test, Z_test = Z_test, pi_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     sample_sigma_leaf_mu = F, sample_sigma_leaf_tau = F, 
-    keep_vars_tau = c("x1"), random_seed = 2
+    keep_vars_tau = c("x1", "x2")
 )
 ```
 
@@ -1063,9 +1054,6 @@ plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test,
 abline(0,1,col="red",lty=3,lwd=3)
 plot(rowMeans(bcf_model_warmstart$y_hat_test), y_test, 
      xlab = "predicted", ylab = "actual", main = "Outcome")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$y_hat_test-bcf_model_warmstart$mu_hat_test), tau_test*Z_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect term")
 abline(0,1,col="red",lty=3,lwd=3)
 sigma_observed <- var(y-E_XZ)
 plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_samples, sigma_observed)), 
