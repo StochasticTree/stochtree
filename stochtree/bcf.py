@@ -368,13 +368,13 @@ class BCFModel:
                 if all(isinstance(i, str) for i in drop_vars_mu):
                     if not np.all(np.isin(drop_vars_mu, X_train.columns)):
                         raise ValueError("drop_vars_mu includes some variable names that are not in X_train")
-                    variable_subset_mu = [i for i in X_train.shape[1] if drop_vars_mu.count(X_train.columns.array[i]) == 0]
+                    variable_subset_mu = [i for i in range(X_train.shape[1]) if drop_vars_mu.count(X_train.columns.array[i]) == 0]
                 elif all(isinstance(i, int) for i in drop_vars_mu):
                     if any(i >= X_train.shape[1] for i in drop_vars_mu):
                         raise ValueError("drop_vars_mu includes some variable indices that exceed the number of columns in X_train")
                     if any(i < 0 for i in drop_vars_mu):
                         raise ValueError("drop_vars_mu includes some negative variable indices")
-                    variable_subset_mu = [i for i in X_train.shape[1] if drop_vars_mu.count(i) == 0]
+                    variable_subset_mu = [i for i in range(X_train.shape[1]) if drop_vars_mu.count(i) == 0]
                 else:
                     raise ValueError("drop_vars_mu must be a list of variable names (str) or column indices (int)")
             elif isinstance(drop_vars_mu, np.ndarray):
@@ -399,7 +399,7 @@ class BCFModel:
                 if all(isinstance(i, str) for i in keep_vars_tau):
                     if not np.all(np.isin(keep_vars_tau, X_train.columns)):
                         raise ValueError("keep_vars_tau includes some variable names that are not in X_train")
-                    variable_subset_tau = [i for i in X_train.shape[1] if keep_vars_tau.count(X_train.columns.array[i]) > 0]
+                    variable_subset_tau = [i for i in range(X_train.shape[1]) if keep_vars_tau.count(X_train.columns.array[i]) > 0]
                 elif all(isinstance(i, int) for i in keep_vars_tau):
                     if any(i >= X_train.shape[1] for i in keep_vars_tau):
                         raise ValueError("keep_vars_tau includes some variable indices that exceed the number of columns in X_train")
@@ -412,7 +412,7 @@ class BCFModel:
                 if keep_vars_tau.dtype == np.str_:
                     if not np.all(np.isin(keep_vars_tau, X_train.columns)):
                         raise ValueError("keep_vars_tau includes some variable names that are not in X_train")
-                    variable_subset_tau = [i for i in X_train.shape[1] if keep_vars_tau.count(X_train.columns.array[i]) > 0]
+                    variable_subset_tau = [i for i in range(X_train.shape[1]) if keep_vars_tau.count(X_train.columns.array[i]) > 0]
                 else:
                     if np.any(keep_vars_tau >= X_train.shape[1]):
                         raise ValueError("keep_vars_tau includes some variable indices that exceed the number of columns in X_train")
@@ -426,13 +426,13 @@ class BCFModel:
                 if all(isinstance(i, str) for i in drop_vars_tau):
                     if not np.all(np.isin(drop_vars_tau, X_train.columns)):
                         raise ValueError("drop_vars_tau includes some variable names that are not in X_train")
-                    variable_subset_tau = [i for i in X_train.shape[1] if drop_vars_tau.count(X_train.columns.array[i]) == 0]
+                    variable_subset_tau = [i for i in range(X_train.shape[1]) if drop_vars_tau.count(X_train.columns.array[i]) == 0]
                 elif all(isinstance(i, int) for i in drop_vars_tau):
                     if any(i >= X_train.shape[1] for i in drop_vars_tau):
                         raise ValueError("drop_vars_tau includes some variable indices that exceed the number of columns in X_train")
                     if any(i < 0 for i in drop_vars_tau):
                         raise ValueError("drop_vars_tau includes some negative variable indices")
-                    variable_subset_tau = [i for i in X_train.shape[1] if drop_vars_tau.count(i) == 0]
+                    variable_subset_tau = [i for i in range(X_train.shape[1]) if drop_vars_tau.count(i) == 0]
                 else:
                     raise ValueError("drop_vars_tau must be a list of variable names (str) or column indices (int)")
             elif isinstance(drop_vars_tau, np.ndarray):
