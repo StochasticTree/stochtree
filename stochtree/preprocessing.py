@@ -180,7 +180,7 @@ class CovariateTransformer:
                     covariate_transformed = self._ordinal_encoders[ord_ind].transform(pd.DataFrame(covariate))
                     output_array[:,output_iter] = np.squeeze(covariate_transformed)
                     output_iter += 1
-                    self._original_feature_indices.extend(i)
+                    self._original_feature_indices.append(i)
                 else:
                     onehot_ind = self._onehot_feature_index[i]
                     covariate_transformed = self._onehot_encoders[onehot_ind].transform(pd.DataFrame(covariate))
@@ -192,12 +192,12 @@ class CovariateTransformer:
             elif self._original_feature_types[i] == "boolean":
                 output_array[:,output_iter] = (covariate*1.0).to_numpy()
                 output_iter += 1
-                self._original_feature_indices.extend(i)
+                self._original_feature_indices.append(i)
             
             elif self._original_feature_types[i] == "integer" or self._original_feature_types[i] == "float":
                 output_array[:,output_iter] = (covariate).to_numpy()
                 output_iter += 1
-                self._original_feature_indices.extend(i)
+                self._original_feature_indices.append(i)
         
         return output_array
 
