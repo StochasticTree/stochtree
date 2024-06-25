@@ -64,7 +64,6 @@ preprocessPredictionData <- function(input_data, metadata) {
 #' Returns a list including a matrix of preprocessed covariate values and associated tracking.
 #'
 #' @param input_matrix Covariate matrix.
-#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable
 #'
 #' @return List with preprocessed (unmodified) data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
@@ -142,7 +141,6 @@ preprocessPredictionMatrix <- function(input_matrix, metadata) {
 #'
 #' @param input_df Dataframe of covariates. Users must pre-process any 
 #' categorical variables as factors (ordered for ordered categorical).
-#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable
 #'
 #' @return List with preprocessed data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
