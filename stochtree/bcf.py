@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.model_selection import GridSearchCV, KFold
 from sklearn.utils import check_scalar
-from typing import Optional
+from typing import Optional, Union
 from scipy.linalg import lstsq
 from scipy.stats import gamma
 from .bart import BARTModel
@@ -28,17 +28,19 @@ class BCFModel:
     def is_sampled(self) -> bool:
         return self.sampled
     
-    def sample(self, X_train: np.array, Z_train: np.array, y_train: np.array, pi_train: np.array = None, 
-               X_test: np.array = None, Z_test: np.array = None, pi_test: np.array = None, 
+    def sample(self, X_train: Union[pd.DataFrame, np.array], Z_train: np.array, y_train: np.array, pi_train: np.array = None, 
+               X_test: Union[pd.DataFrame, np.array] = None, Z_test: np.array = None, pi_test: np.array = None, 
                cutpoint_grid_size = 100, sigma_leaf_mu: float = None, sigma_leaf_tau: float = None, 
                alpha_mu: float = 0.95, alpha_tau: float = 0.25, beta_mu: float = 2.0, beta_tau: float = 3.0, 
                min_samples_leaf_mu: int = 5, min_samples_leaf_tau: int = 5, nu: float = 3, lamb: float = None, 
                a_leaf_mu: float = 3, a_leaf_tau: float = 3, b_leaf_mu: float = None, b_leaf_tau: float = None, 
-               q: float = 0.9, sigma2: float = None, num_trees_mu: int = 200, num_trees_tau: int = 50, 
-               num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, sample_sigma_global: bool = True, 
-               sample_sigma_leaf_mu: bool = True, sample_sigma_leaf_tau: bool = False, propensity_covariate: str = "mu", 
-               adaptive_coding: bool = True, b_0: float = -0.5, b_1: float = 0.5, random_seed: int = -1, 
-               keep_burnin: bool = False, keep_gfr: bool = False) -> None:
+               q: float = 0.9, sigma2: float = None, variable_weights: np.array = None, 
+               keep_vars_mu: Union[list, np.array] = None, drop_vars_mu: Union[list, np.array] = None, 
+               keep_vars_tau: Union[list, np.array] = None, drop_vars_tau: Union[list, np.array] = None, 
+               num_trees_mu: int = 200, num_trees_tau: int = 50, num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, 
+               sample_sigma_global: bool = True, sample_sigma_leaf_mu: bool = True, sample_sigma_leaf_tau: bool = False, 
+               propensity_covariate: str = "mu", adaptive_coding: bool = True, b_0: float = -0.5, b_1: float = 0.5, 
+               random_seed: int = -1, keep_burnin: bool = False, keep_gfr: bool = False) -> None:
         """Runs a BCF sampler on provided training set. Outcome predictions and estimates of the prognostic and treatment effect functions 
         will be cached for the training set and (if provided) the test set.
 
@@ -102,6 +104,16 @@ class BCFModel:
             Quantile used to calibrated ``lamb`` as in Sparapani et al (2021). Defaults to ``0.9``.
         sigma2 : :obj:`float`, optional
             Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
+        variable_weights : :obj:`np.array`, optional
+            Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to ``np.repeat(1/X_train.shape[1], X_train.shape[1])`` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to ``1/X_train.shape[1]``. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in ``X_train`` and then set ``propensity_covariate`` to ``'none'`` and adjust ``keep_vars_mu`` and ``keep_vars_tau`` accordingly.
+        keep_vars_mu : obj:`list` or :obj:`np.array`, optional
+            Vector of variable names or column indices denoting variables that should be included in the prognostic (``mu(X)``) forest. Defaults to ``None``.
+        drop_vars_mu : obj:`list` or :obj:`np.array`, optional
+            Vector of variable names or column indices denoting variables that should be excluded from the prognostic (``mu(X)``) forest. Defaults to ``None``. If both ``drop_vars_mu`` and ``keep_vars_mu`` are set, ``drop_vars_mu`` will be ignored.
+        keep_vars_tau : obj:`list` or :obj:`np.array`, optional
+            Vector of variable names or column indices denoting variables that should be included in the treatment effect (``tau(X)``) forest. Defaults to ``None``.
+        drop_vars_tau : obj:`list` or :obj:`np.array`, optional
+            Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (``tau(X)``) forest. Defaults to ``None``. If both ``drop_vars_tau`` and ``keep_vars_tau`` are set, ``drop_vars_tau`` will be ignored.
         num_trees_mu : :obj:`int`, optional
             Number of trees in the prognostic forest. Defaults to ``200``.
         num_trees_tau : :obj:`int`, optional
@@ -142,6 +154,15 @@ class BCFModel:
         self : BCFModel
             Sampled BCF Model.
         """
+        # Variable weight preprocessing (and initialization if necessary)
+        if variable_weights is None:
+            if X_train.ndim > 1:
+                variable_weights = np.repeat(1/X_train.shape[1], X_train.shape[1])
+            else:
+                variable_weights = np.repeat(1., 1)
+        if np.any(variable_weights < 0):
+            raise ValueError("variable_weights cannot have any negative weights")
+        
         # Check data inputs
         if not isinstance(X_train, pd.DataFrame) and not isinstance(X_train, np.ndarray):
             raise ValueError("X_train must be a pandas dataframe or numpy array")
@@ -185,6 +206,9 @@ class BCFModel:
         if pi_test is not None:
             if pi_test.ndim == 1:
                 pi_test = np.expand_dims(pi_test, 1)
+
+        # Original number of covariates
+        num_cov_orig = X_train.shape[1]
         
         # Data checks
         if X_test is not None:
@@ -311,6 +335,124 @@ class BCFModel:
             if not isinstance(keep_gfr, bool):
                 raise ValueError("keep_gfr must be a bool")
         
+        # Standardize the keep variable lists to numeric indices
+        if keep_vars_mu is not None:
+            if isinstance(keep_vars_mu, list):
+                if all(isinstance(i, str) for i in keep_vars_mu):
+                    if not np.all(np.isin(keep_vars_mu, X_train.columns)):
+                        raise ValueError("keep_vars_mu includes some variable names that are not in X_train")
+                    variable_subset_mu = [i for i in X_train.shape[1] if keep_vars_mu.count(X_train.columns.array[i]) > 0]
+                elif all(isinstance(i, int) for i in keep_vars_mu):
+                    if any(i >= X_train.shape[1] for i in keep_vars_mu):
+                        raise ValueError("keep_vars_mu includes some variable indices that exceed the number of columns in X_train")
+                    if any(i < 0 for i in keep_vars_mu):
+                        raise ValueError("keep_vars_mu includes some negative variable indices")
+                    variable_subset_mu = keep_vars_mu
+                else:
+                    raise ValueError("keep_vars_mu must be a list of variable names (str) or column indices (int)")
+            elif isinstance(keep_vars_mu, np.ndarray):
+                if keep_vars_mu.dtype == np.str_:
+                    if not np.all(np.isin(keep_vars_mu, X_train.columns)):
+                        raise ValueError("keep_vars_mu includes some variable names that are not in X_train")
+                    variable_subset_mu = [i for i in X_train.shape[1] if keep_vars_mu.count(X_train.columns.array[i]) > 0]
+                else:
+                    if np.any(keep_vars_mu >= X_train.shape[1]):
+                        raise ValueError("keep_vars_mu includes some variable indices that exceed the number of columns in X_train")
+                    if np.any(keep_vars_mu < 0):
+                        raise ValueError("keep_vars_mu includes some negative variable indices")
+                    variable_subset_mu = [i for i in keep_vars_mu]
+            else:
+                raise ValueError("keep_vars_mu must be a list or np.array")
+        elif keep_vars_mu is None and drop_vars_mu is not None:
+            if isinstance(drop_vars_mu, list):
+                if all(isinstance(i, str) for i in drop_vars_mu):
+                    if not np.all(np.isin(drop_vars_mu, X_train.columns)):
+                        raise ValueError("drop_vars_mu includes some variable names that are not in X_train")
+                    variable_subset_mu = [i for i in X_train.shape[1] if drop_vars_mu.count(X_train.columns.array[i]) == 0]
+                elif all(isinstance(i, int) for i in drop_vars_mu):
+                    if any(i >= X_train.shape[1] for i in drop_vars_mu):
+                        raise ValueError("drop_vars_mu includes some variable indices that exceed the number of columns in X_train")
+                    if any(i < 0 for i in drop_vars_mu):
+                        raise ValueError("drop_vars_mu includes some negative variable indices")
+                    variable_subset_mu = [i for i in X_train.shape[1] if drop_vars_mu.count(i) == 0]
+                else:
+                    raise ValueError("drop_vars_mu must be a list of variable names (str) or column indices (int)")
+            elif isinstance(drop_vars_mu, np.ndarray):
+                if drop_vars_mu.dtype == np.str_:
+                    if not np.all(np.isin(drop_vars_mu, X_train.columns)):
+                        raise ValueError("drop_vars_mu includes some variable names that are not in X_train")
+                    keep_inds = ~np.isin(X_train.columns.array, drop_vars_mu)
+                    variable_subset_mu = [i for i in keep_inds]
+                else:
+                    if np.any(drop_vars_mu >= X_train.shape[1]):
+                        raise ValueError("drop_vars_mu includes some variable indices that exceed the number of columns in X_train")
+                    if np.any(drop_vars_mu < 0):
+                        raise ValueError("drop_vars_mu includes some negative variable indices")
+                    keep_inds = ~np.isin(np.arange(X_train.shape[1]), drop_vars_mu)
+                    variable_subset_mu = [i for i in keep_inds]
+            else:
+                raise ValueError("drop_vars_mu must be a list or np.array")
+        else:
+            variable_subset_mu = [i for i in range(X_train.shape[1])]
+        if keep_vars_tau is not None:
+            if isinstance(keep_vars_tau, list):
+                if all(isinstance(i, str) for i in keep_vars_tau):
+                    if not np.all(np.isin(keep_vars_tau, X_train.columns)):
+                        raise ValueError("keep_vars_tau includes some variable names that are not in X_train")
+                    variable_subset_tau = [i for i in X_train.shape[1] if keep_vars_tau.count(X_train.columns.array[i]) > 0]
+                elif all(isinstance(i, int) for i in keep_vars_tau):
+                    if any(i >= X_train.shape[1] for i in keep_vars_tau):
+                        raise ValueError("keep_vars_tau includes some variable indices that exceed the number of columns in X_train")
+                    if any(i < 0 for i in keep_vars_tau):
+                        raise ValueError("keep_vars_tau includes some negative variable indices")
+                    variable_subset_tau = keep_vars_tau
+                else:
+                    raise ValueError("keep_vars_tau must be a list of variable names (str) or column indices (int)")
+            elif isinstance(keep_vars_tau, np.ndarray):
+                if keep_vars_tau.dtype == np.str_:
+                    if not np.all(np.isin(keep_vars_tau, X_train.columns)):
+                        raise ValueError("keep_vars_tau includes some variable names that are not in X_train")
+                    variable_subset_tau = [i for i in X_train.shape[1] if keep_vars_tau.count(X_train.columns.array[i]) > 0]
+                else:
+                    if np.any(keep_vars_tau >= X_train.shape[1]):
+                        raise ValueError("keep_vars_tau includes some variable indices that exceed the number of columns in X_train")
+                    if np.any(keep_vars_tau < 0):
+                        raise ValueError("keep_vars_tau includes some negative variable indices")
+                    variable_subset_tau = [i for i in keep_vars_tau]
+            else:
+                raise ValueError("keep_vars_tau must be a list or np.array")
+        elif keep_vars_tau is None and drop_vars_tau is not None:
+            if isinstance(drop_vars_tau, list):
+                if all(isinstance(i, str) for i in drop_vars_tau):
+                    if not np.all(np.isin(drop_vars_tau, X_train.columns)):
+                        raise ValueError("drop_vars_tau includes some variable names that are not in X_train")
+                    variable_subset_tau = [i for i in X_train.shape[1] if drop_vars_tau.count(X_train.columns.array[i]) == 0]
+                elif all(isinstance(i, int) for i in drop_vars_tau):
+                    if any(i >= X_train.shape[1] for i in drop_vars_tau):
+                        raise ValueError("drop_vars_tau includes some variable indices that exceed the number of columns in X_train")
+                    if any(i < 0 for i in drop_vars_tau):
+                        raise ValueError("drop_vars_tau includes some negative variable indices")
+                    variable_subset_tau = [i for i in X_train.shape[1] if drop_vars_tau.count(i) == 0]
+                else:
+                    raise ValueError("drop_vars_tau must be a list of variable names (str) or column indices (int)")
+            elif isinstance(drop_vars_tau, np.ndarray):
+                if drop_vars_tau.dtype == np.str_:
+                    if not np.all(np.isin(drop_vars_tau, X_train.columns)):
+                        raise ValueError("drop_vars_tau includes some variable names that are not in X_train")
+                    keep_inds = ~np.isin(X_train.columns.array, drop_vars_tau)
+                    variable_subset_tau = [i for i in keep_inds]
+                else:
+                    if np.any(drop_vars_tau >= X_train.shape[1]):
+                        raise ValueError("drop_vars_tau includes some variable indices that exceed the number of columns in X_train")
+                    if np.any(drop_vars_tau < 0):
+                        raise ValueError("drop_vars_tau includes some negative variable indices")
+                    keep_inds = ~np.isin(np.arange(X_train.shape[1]), drop_vars_tau)
+                    variable_subset_tau = [i for i in keep_inds]
+            else:
+                raise ValueError("drop_vars_tau must be a list or np.array")
+        else:
+            variable_subset_tau = [i for i in range(X_train.shape[1])]
+        
         # Covariate preprocessing
         self._covariate_transformer = CovariateTransformer()
         self._covariate_transformer.fit(X_train)
@@ -318,6 +460,7 @@ class BCFModel:
         if X_test is not None:
             X_test_processed = self._covariate_transformer.transform(X_test)
         feature_types = np.asarray(self._covariate_transformer._processed_feature_types)
+        original_var_indices = self._covariate_transformer.fetch_original_feature_indices()
 
         # Determine whether a test set is provided
         self.has_test = X_test is not None
@@ -355,47 +498,6 @@ class BCFModel:
             self.internal_propensity_model = True
         else:
             self.internal_propensity_model = False
-        
-        # Update covariates to include propensities if requested
-        if propensity_covariate == "mu":
-            feature_types_mu = np.append(feature_types, 0).astype('int')
-            feature_types_tau = feature_types.astype('int')
-            X_train_mu = np.c_[X_train_processed, pi_train]
-            X_train_tau = X_train_processed
-            if self.has_test:
-                X_test_mu = np.c_[X_test, pi_test]
-                X_test_tau = X_test
-        elif propensity_covariate == "tau":
-            feature_types_tau = np.append(feature_types, 0).astype('int')
-            feature_types_mu = feature_types.astype('int')
-            X_train_tau = np.c_[X_train_processed, pi_train]
-            X_train_mu = X_train_processed
-            if self.has_test:
-                X_test_tau = np.c_[X_test, pi_test]
-                X_test_mu = X_test
-        elif propensity_covariate == "both":
-            feature_types_tau = np.append(feature_types, 0).astype('int')
-            feature_types_mu = np.append(feature_types, 0).astype('int')
-            X_train_tau = np.c_[X_train_processed, pi_train]
-            X_train_mu = np.c_[X_train_processed, pi_train]
-            if self.has_test:
-                X_test_tau = np.c_[X_test, pi_test]
-                X_test_mu = np.c_[X_test, pi_test]
-        elif propensity_covariate == "none":
-            feature_types_tau = feature_types.astype('int')
-            feature_types_mu = feature_types.astype('int')
-            X_train_tau = X_train_processed
-            X_train_mu = X_train_processed
-            if self.has_test:
-                X_test_tau = X_test
-                X_test_mu = X_test
-        
-        # Store propensity score requirements of the BCF forests
-        self.propensity_covariate = propensity_covariate
-        
-        # Set variable weights for the prognostic and treatment effect forests
-        variable_weights_mu = np.repeat(1.0/X_train_mu.shape[1], X_train_mu.shape[1])
-        variable_weights_tau = np.repeat(1.0/X_train_tau.shape[1], X_train_tau.shape[1])
 
         # Scale outcome
         self.y_bar = np.squeeze(np.mean(y_train))
@@ -423,6 +525,42 @@ class BCFModel:
             current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
         else:
             current_leaf_scale_tau = sigma_leaf_tau
+
+        # Update variable weights
+        variable_counts = [original_var_indices.count(i) for i in original_var_indices]
+        variable_weights_adj = [1/i for i in variable_counts]
+        variable_weights = variable_weights[original_var_indices]*variable_weights_adj
+
+        # Create mu and tau specific variable weights with weights zeroed out for excluded variables
+        variable_weights_tau = variable_weights
+        variable_weights_mu = variable_weights
+        variable_weights_mu[[variable_subset_mu.count(i) == 0 for i in original_var_indices]] = 0
+        variable_weights_tau[[variable_subset_tau.count(i) == 0 for i in original_var_indices]] <- 0
+        
+        # Update covariates to include propensities if requested
+        if propensity_covariate not in ["none", "mu", "tau", "both"]:
+            raise ValueError("propensity_covariate must equal one of 'none', 'mu', 'tau', or 'both'")
+        if propensity_covariate != "none":
+            feature_types = np.append(feature_types, 0).astype('int')
+            X_train_processed = np.c_[X_train_processed, pi_train]
+            if self.has_test:
+                X_test_processed = np.c_[X_test_processed, pi_test]
+            if propensity_covariate == "mu":
+                variable_weights_mu = np.append(variable_weights_mu, np.repeat(1/num_cov_orig, pi_train.shape[1]))
+                variable_weights_tau = np.append(variable_weights_tau, np.repeat(0., pi_train.shape[1]))
+            elif propensity_covariate == "tau":
+                variable_weights_mu = np.append(variable_weights_mu, np.repeat(0., pi_train.shape[1]))
+                variable_weights_tau = np.append(variable_weights_tau, np.repeat(1/num_cov_orig, pi_train.shape[1]))
+            elif propensity_covariate == "both":
+                variable_weights_mu = np.append(variable_weights_mu, np.repeat(1/num_cov_orig, pi_train.shape[1]))
+                variable_weights_tau = np.append(variable_weights_tau, np.repeat(1/num_cov_orig, pi_train.shape[1]))
+        
+        # Renormalize variable weights
+        variable_weights_mu = variable_weights_mu / np.sum(variable_weights_mu)
+        variable_weights_tau = variable_weights_tau / np.sum(variable_weights_tau)
+        
+        # Store propensity score requirements of the BCF forests
+        self.propensity_covariate = propensity_covariate
 
         # Container of variance parameter samples
         self.num_gfr = num_gfr
@@ -458,20 +596,13 @@ class BCFModel:
                 tau_basis_test = Z_test
 
         # Prognostic Forest Dataset (covariates)
-        forest_dataset_mu_train = Dataset()
-        forest_dataset_mu_train.add_covariates(X_train_mu)
+        forest_dataset_train = Dataset()
+        forest_dataset_train.add_covariates(X_train_processed)
+        forest_dataset_train.add_basis(tau_basis_train)
         if self.has_test:
-            forest_dataset_mu_test = Dataset()
-            forest_dataset_mu_test.add_covariates(X_test_mu)
-
-        # Treatment Forest Dataset (covariates and treatment variable)
-        forest_dataset_tau_train = Dataset()
-        forest_dataset_tau_train.add_covariates(X_train_tau)
-        forest_dataset_tau_train.add_basis(tau_basis_train)
-        if self.has_test:
-            forest_dataset_tau_test = Dataset()
-            forest_dataset_tau_test.add_covariates(X_test_tau)
-            forest_dataset_tau_test.add_basis(tau_basis_test)
+            forest_dataset_test = Dataset()
+            forest_dataset_test.add_covariates(X_test_processed)
+            forest_dataset_test.add_basis(tau_basis_test)
 
         # Residual
         residual_train = Residual(resid_train)
@@ -483,8 +614,8 @@ class BCFModel:
             cpp_rng = RNG(random_seed)
         
         # Sampling data structures
-        forest_sampler_mu = ForestSampler(forest_dataset_mu_train, feature_types_mu, num_trees_mu, self.n_train, alpha_mu, beta_mu, min_samples_leaf_mu)
-        forest_sampler_tau = ForestSampler(forest_dataset_tau_train, feature_types_tau, num_trees_tau, self.n_train, alpha_tau, beta_tau, min_samples_leaf_tau)
+        forest_sampler_mu = ForestSampler(forest_dataset_train, feature_types, num_trees_mu, self.n_train, alpha_mu, beta_mu, min_samples_leaf_mu)
+        forest_sampler_tau = ForestSampler(forest_dataset_train, feature_types, num_trees_tau, self.n_train, alpha_tau, beta_tau, min_samples_leaf_tau)
 
         # Container of forest samples
         self.forest_container_mu = ForestContainer(num_trees_mu, 1, True)
@@ -501,14 +632,14 @@ class BCFModel:
         # Initialize the leaves of each tree in the prognostic forest
         init_mu = np.squeeze(np.mean(resid_train)) / num_trees_mu
         self.forest_container_mu.set_root_leaves(0, init_mu)
-        forest_sampler_mu.update_residual(forest_dataset_mu_train, residual_train, self.forest_container_mu, False, 0, True)
+        forest_sampler_mu.update_residual(forest_dataset_train, residual_train, self.forest_container_mu, False, 0, True)
 
         # Initialize the leaves of each tree in the treatment forest
         if self.multivariate_treatment:
             self.forest_container_tau.set_root_leaves(0, np.zeros(self.treatment_dim))
         else:
             self.forest_container_tau.set_root_leaves(0, 0.)
-        forest_sampler_tau.update_residual(forest_dataset_tau_train, residual_train, self.forest_container_tau, True, 0, True)
+        forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, True, 0, True)
 
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
@@ -516,7 +647,7 @@ class BCFModel:
             for i in range(self.num_gfr):
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
-                    self.forest_container_mu, forest_dataset_mu_train, residual_train, cpp_rng, feature_types_mu, 
+                    self.forest_container_mu, forest_dataset_train, residual_train, cpp_rng, feature_types, 
                     cutpoint_grid_size, current_leaf_scale_mu, variable_weights_mu, current_sigma2, 0, True, True
                 )
 
@@ -530,7 +661,7 @@ class BCFModel:
                 
                 # Sample the treatment forest
                 forest_sampler_tau.sample_one_iteration(
-                    self.forest_container_tau, forest_dataset_tau_train, residual_train, cpp_rng, feature_types_tau, 
+                    self.forest_container_tau, forest_dataset_train, residual_train, cpp_rng, feature_types, 
                     cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, current_sigma2, treatment_leaf_model, True, True
                 )
                 
@@ -544,8 +675,8 @@ class BCFModel:
                 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
-                    mu_x = self.forest_container_mu.predict_raw_single_forest(forest_dataset_mu_train, i)
-                    tau_x = np.squeeze(self.forest_container_tau.predict_raw_single_forest(forest_dataset_tau_train, i))
+                    mu_x = self.forest_container_mu.predict_raw_single_forest(forest_dataset_train, i)
+                    tau_x = np.squeeze(self.forest_container_tau.predict_raw_single_forest(forest_dataset_train, i))
                     s_tt0 = np.sum(tau_x*tau_x*(np.squeeze(Z_train)==0))
                     s_tt1 = np.sum(tau_x*tau_x*(np.squeeze(Z_train)==1))
                     partial_resid_mu = np.squeeze(resid_train - mu_x)
@@ -556,10 +687,10 @@ class BCFModel:
                     current_b_1 = self.rng.normal(loc = (s_ty1/(s_tt1 + 2*current_sigma2)), 
                                              scale = np.sqrt(current_sigma2/(s_tt1 + 2*current_sigma2)), size = 1)
                     tau_basis_train = (1-np.squeeze(Z_train))*current_b_0 + np.squeeze(Z_train)*current_b_1
-                    forest_dataset_tau_train.update_basis(tau_basis_train)
+                    forest_dataset_train.update_basis(tau_basis_train)
                     if self.has_test:
                         tau_basis_test = (1-np.squeeze(Z_test))*current_b_0 + np.squeeze(Z_test)*current_b_1
-                        forest_dataset_tau_test.update_basis(tau_basis_test)
+                        forest_dataset_test.update_basis(tau_basis_test)
                     self.b0_samples[i] = current_b_0
                     self.b1_samples[i] = current_b_1
         
@@ -572,7 +703,7 @@ class BCFModel:
             for i in range(self.num_gfr, self.num_samples):
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
-                    self.forest_container_mu, forest_dataset_mu_train, residual_train, cpp_rng, feature_types_mu, 
+                    self.forest_container_mu, forest_dataset_train, residual_train, cpp_rng, feature_types, 
                     cutpoint_grid_size, current_leaf_scale_mu, variable_weights_mu, current_sigma2, 0, False, True
                 )
 
@@ -586,7 +717,7 @@ class BCFModel:
                 
                 # Sample the treatment forest
                 forest_sampler_tau.sample_one_iteration(
-                    self.forest_container_tau, forest_dataset_tau_train, residual_train, cpp_rng, feature_types_tau, 
+                    self.forest_container_tau, forest_dataset_train, residual_train, cpp_rng, feature_types, 
                     cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, current_sigma2, treatment_leaf_model, False, True
                 )
                 
@@ -600,8 +731,8 @@ class BCFModel:
                 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
-                    mu_x = self.forest_container_mu.predict_raw_single_forest(forest_dataset_mu_train, i)
-                    tau_x = np.squeeze(self.forest_container_tau.predict_raw_single_forest(forest_dataset_tau_train, i))
+                    mu_x = self.forest_container_mu.predict_raw_single_forest(forest_dataset_train, i)
+                    tau_x = np.squeeze(self.forest_container_tau.predict_raw_single_forest(forest_dataset_train, i))
                     s_tt0 = np.sum(tau_x*tau_x*(np.squeeze(Z_train)==0))
                     s_tt1 = np.sum(tau_x*tau_x*(np.squeeze(Z_train)==1))
                     partial_resid_mu = np.squeeze(resid_train - mu_x)
@@ -612,10 +743,10 @@ class BCFModel:
                     current_b_1 = self.rng.normal(loc = (s_ty1/(s_tt1 + 2*current_sigma2)), 
                                              scale = np.sqrt(current_sigma2/(s_tt1 + 2*current_sigma2)), size = 1)
                     tau_basis_train = (1-np.squeeze(Z_train))*current_b_0 + np.squeeze(Z_train)*current_b_1
-                    forest_dataset_tau_train.update_basis(tau_basis_train)
+                    forest_dataset_train.update_basis(tau_basis_train)
                     if self.has_test:
                         tau_basis_test = (1-np.squeeze(Z_test))*current_b_0 + np.squeeze(Z_test)*current_b_1
-                        forest_dataset_tau_test.update_basis(tau_basis_test)
+                        forest_dataset_test.update_basis(tau_basis_test)
                     self.b0_samples[i] = current_b_0
                     self.b1_samples[i] = current_b_1
         
@@ -644,9 +775,9 @@ class BCFModel:
                 raise RuntimeError("There are no samples to retain!")
         
         # Store predictions
-        mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_mu_train.dataset_cpp)
+        mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)
         self.mu_hat_train = mu_raw[:,self.keep_indices]*self.y_std + self.y_bar
-        tau_raw_train = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau_train.dataset_cpp)
+        tau_raw_train = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_train.dataset_cpp)
         self.tau_hat_train = tau_raw_train[:,self.keep_indices]
         if self.adaptive_coding:
             adaptive_coding_weights = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
@@ -658,9 +789,9 @@ class BCFModel:
             treatment_term_train = Z_train*np.squeeze(self.tau_hat_train)
         self.y_hat_train = self.mu_hat_train + treatment_term_train
         if self.has_test:
-            mu_raw_test = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_mu_test.dataset_cpp)
+            mu_raw_test = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_test.dataset_cpp)
             self.mu_hat_test = mu_raw_test[:,self.keep_indices]*self.y_std + self.y_bar
-            tau_raw_test = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau_test.dataset_cpp)
+            tau_raw_test = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_test.dataset_cpp)
             self.tau_hat_test = tau_raw_test[:,self.keep_indices]
             if self.adaptive_coding:
                 adaptive_coding_weights_test = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
