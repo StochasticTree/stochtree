@@ -22,6 +22,7 @@ class CovariateTransformer:
         self._onehot_feature_index = []
         self._processed_feature_types = []
         self._original_feature_types = []
+        self._original_feature_indices = []
     
     def _check_is_numeric_dtype(self, dtype: np.dtype) -> bool:
         if dtype.kind == "b" or dtype.kind == "i" or dtype.kind == "u" or dtype.kind == "f":
@@ -169,7 +170,8 @@ class CovariateTransformer:
             raise ValueError("Attempting to call transform from a CovariateTransformer that was fit on a dataset with different dimensionality")
         
         output_array = np.empty((covariates.shape[0], len(self._processed_feature_types)), dtype=np.float64)
-        output_iter = 0        
+        output_iter = 0
+        self._original_feature_indices = []
         for i in range(covariates.shape[1]):
             covariate = covariates.iloc[:,i]
             if self._original_feature_types[i] == "category" or self._original_feature_types[i] == "string":
@@ -178,20 +180,24 @@ class CovariateTransformer:
                     covariate_transformed = self._ordinal_encoders[ord_ind].transform(pd.DataFrame(covariate))
                     output_array[:,output_iter] = np.squeeze(covariate_transformed)
                     output_iter += 1
+                    self._original_feature_indices.append(i)
                 else:
                     onehot_ind = self._onehot_feature_index[i]
                     covariate_transformed = self._onehot_encoders[onehot_ind].transform(pd.DataFrame(covariate))
                     output_dim = covariate_transformed.shape[1]
                     output_array[:,np.arange(output_iter, output_iter + output_dim)] = np.squeeze(covariate_transformed)
                     output_iter += output_dim
+                    self._original_feature_indices.extend([i for _ in range(output_dim)])
             
             elif self._original_feature_types[i] == "boolean":
                 output_array[:,output_iter] = (covariate*1.0).to_numpy()
                 output_iter += 1
+                self._original_feature_indices.append(i)
             
             elif self._original_feature_types[i] == "integer" or self._original_feature_types[i] == "float":
                 output_array[:,output_iter] = (covariate).to_numpy()
                 output_iter += 1
+                self._original_feature_indices.append(i)
         
         return output_array
 
@@ -202,7 +208,7 @@ class CovariateTransformer:
             raise ValueError("Covariates passed as a numpy array must be 1d or 2d")
         if self._num_original_features != covariates.shape[1]:
             raise ValueError("Attempting to call transform from a CovariateTransformer that was fit on a dataset with different dimensionality")
-        
+        self._original_feature_indices = [i for i in range(covariates.shape[1])]
         return covariates
 
     def _transform(self, covariates: Union[pd.DataFrame, np.array]) -> np.array:
@@ -247,7 +253,7 @@ class CovariateTransformer:
 
         Parameters
         ----------
-        covariates : np.array or pd.DataFrame
+        covariates : :obj:`np.array` or :obj:`pd.DataFrame`
             Covariates to be preprocessed.
         
         Returns
@@ -264,3 +270,6 @@ class CovariateTransformer:
     def fit_transform(self, covariates: Union[pd.DataFrame, np.array]) -> np.array:
         self._fit(covariates)
         return self._transform(covariates)
+    
+    def fetch_original_feature_indices(self) -> list:
+        return self._original_feature_indices
