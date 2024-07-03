@@ -1,3 +1,6 @@
+# Include cmake build instructions
+include CMakeLists.txt
+
 # Vendor package header files
 recursive-include include *.h
 recursive-include include *.hpp
@@ -10,8 +13,13 @@ exclude src/R_data.cpp src/R_random_effects.cpp
 # Remove the CRAN extensionless LICENSE file
 exclude LICENSE
 
-# Vendor pybind11 header files in PyPI source distribution
+# Vendor pybind11 dependencies in PyPI source distribution
 recursive-include deps/pybind11/include/pybind11 *.h
+recursive-include deps/pybind11/tools *
+include deps/pybind11/CMakeLists.txt
+include deps/pybind11/pyproject.toml
+include deps/pybind11/setup.cfg
+include deps/pybind11/setup.py
 
 # Vendor fmt header files in PyPI source distribution
 recursive-include deps/fmt/include/fmt *.h
