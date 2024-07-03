@@ -1,0 +1,58 @@
+# Vendor package header files
+recursive-include include *.h
+recursive-include include *.hpp
+
+# Vendor package source files (excluding R-specific)
+recursive-include src *.cpp
+recursive-include src *.h
+exclude src/R_data.cpp src/R_random_effects.cpp
+
+# Remove the CRAN extensionless LICENSE file
+exclude LICENSE
+
+# Vendor pybind11 header files in PyPI source distribution
+recursive-include deps/pybind11/include/pybind11 *.h
+
+# Vendor fmt header files in PyPI source distribution
+recursive-include deps/fmt/include/fmt *.h
+
+# Vendor fast_double_parser header file in PyPI source distribution
+include deps/fast_double_parser/include/fast_double_parser.h
+
+# Vendor Eigen header files in PyPI source distribution
+include deps/eigen/Eigen/Cholesky
+include deps/eigen/Eigen/Core
+include deps/eigen/Eigen/Dense
+include deps/eigen/Eigen/Eigenvalues
+include deps/eigen/Eigen/Geometry
+include deps/eigen/Eigen/Householder
+include deps/eigen/Eigen/IterativeLinearSolvers
+include deps/eigen/Eigen/Jacobi
+include deps/eigen/Eigen/LU
+include deps/eigen/Eigen/OrderingMethods
+include deps/eigen/Eigen/QR
+include deps/eigen/Eigen/SVD
+include deps/eigen/Eigen/Sparse
+include deps/eigen/Eigen/SparseCholesky
+include deps/eigen/Eigen/SparseCore
+include deps/eigen/Eigen/SparseQR
+include deps/eigen/Eigen/misc
+include deps/eigen/Eigen/plugins
+recursive-include deps/eigen/Eigen/src/Cholesky *.h
+recursive-include deps/eigen/Eigen/src/Core *.h
+recursive-include deps/eigen/Eigen/src/Dense *.h
+recursive-include deps/eigen/Eigen/src/Eigenvalues *.h
+recursive-include deps/eigen/Eigen/src/Geometry *.h
+recursive-include deps/eigen/Eigen/src/Householder *.h
+recursive-include deps/eigen/Eigen/src/IterativeLinearSolvers *.h
+recursive-include deps/eigen/Eigen/src/Jacobi *.h
+recursive-include deps/eigen/Eigen/src/LU *.h
+recursive-include deps/eigen/Eigen/src/OrderingMethods *.h
+recursive-include deps/eigen/Eigen/src/QR *.h
+recursive-include deps/eigen/Eigen/src/SVD *.h
+recursive-include deps/eigen/Eigen/src/Sparse *.h
+recursive-include deps/eigen/Eigen/src/SparseCholesky *.h
+recursive-include deps/eigen/Eigen/src/SparseCore *.h
+recursive-include deps/eigen/Eigen/src/SparseQR *.h
+recursive-include deps/eigen/Eigen/src/misc *.h
+recursive-include deps/eigen/Eigen/src/plugins *.h
