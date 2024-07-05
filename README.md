@@ -1,8 +1,8 @@
 # StochasticTree
 
-[![C++ Tests](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/cpp-test.yml/badge.svg)](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/cpp-test.yml)
-[![Python Tests](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/python-test.yml/badge.svg)](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/python-test.yml)
-[![R Tests](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/r-test.yml/badge.svg)](https://github.com/StochasticTree/stochtree-cpp/actions/workflows/r-test.yml)
+[![C++ Tests](https://github.com/StochasticTree/stochtree/actions/workflows/cpp-test.yml/badge.svg)](https://github.com/StochasticTree/stochtree/actions/workflows/cpp-test.yml)
+[![Python Tests](https://github.com/StochasticTree/stochtree/actions/workflows/python-test.yml/badge.svg)](https://github.com/StochasticTree/stochtree/actions/workflows/python-test.yml)
+[![R Tests](https://github.com/StochasticTree/stochtree/actions/workflows/r-test.yml/badge.svg)](https://github.com/StochasticTree/stochtree/actions/workflows/r-test.yml)
 
 Software for building stochastic tree ensembles (i.e. BART, XBART) for supervised learning and causal inference.
 
@@ -27,7 +27,7 @@ Without worrying about virtual environments (detailed further below), `stochtree
 
 ```
 pip install numpy scipy pytest pandas scikit-learn pybind11
-pip install git+https://github.com/StochasticTree/stochtree-cpp.git
+pip install git+https://github.com/StochasticTree/stochtree.git
 ```
 
 ## Virtual environment installation
@@ -48,7 +48,7 @@ conda activate stochtree-dev
 Then install the package from github via pip
 
 ```{bash}
-pip install git+https://github.com/StochasticTree/stochtree-cpp.git
+pip install git+https://github.com/StochasticTree/stochtree.git
 ```
 
 (*Note*: if you'd also like to run `stochtree`'s notebook examples, you will also need jupyterlab, seaborn, and matplotlib)
@@ -79,7 +79,7 @@ pip install numpy scipy pytest pandas scikit-learn pybind11
 Then install stochtree via
 
 ```{bash}
-pip install git+https://github.com/StochasticTree/stochtree-cpp.git
+pip install git+https://github.com/StochasticTree/stochtree.git
 ```
 
 As above, if you'd like to run the notebook examples in the `demo/` subfolder, you will also need jupyterlab, seaborn, and matplotli and you will have to [clone the repo](###cloning-the-repository)
@@ -93,14 +93,14 @@ pip install matplotlib seaborn jupyterlab
 The package can be installed in R via
 
 ```
-remotes::install_github("StochasticTree/stochtree-cpp", ref="r-dev")
+remotes::install_github("StochasticTree/stochtree", ref="r-dev")
 ```
 
 # C++ Core
 
 While the C++ core links to both R and Python for a performant, high-level interface, 
 the C++ code can be compiled and unit-tested and compiled into a standalone 
-[debug program](https://github.com/StochasticTree/stochtree-cpp/tree/main/debug).
+[debug program](https://github.com/StochasticTree/stochtree/tree/main/debug).
 
 ## Compilation
 
@@ -111,7 +111,7 @@ To clone the repository, you must have git installed, which you can do following
 Once git is available at the command line, navigate to the folder that will store this project (in bash / zsh, this is done by running `cd` followed by the path to the directory). 
 Then, clone the `StochasticTree` repo as a subfolder by running
 ```{bash}
-git clone --recursive https://github.com/andrewherren/StochasticTree.git
+git clone --recursive https://github.com/StochasticTree/stochtree.git
 ```
 
 *NOTE*: this project incorporates several dependencies as [git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules), 
@@ -124,7 +124,7 @@ The C++ project can be built independently from the R / Python packages using `c
 See [here](https://cmake.org/install/) for details on installing cmake (alternatively, 
 on MacOS, `cmake` can be installed using [homebrew](https://formulae.brew.sh/formula/cmake)).
 Once `cmake` is installed, you can build the CLI by navigating to the main 
-project directory at your command line (i.e. `cd /path/to/stochtree-cpp`) and 
+project directory at your command line (i.e. `cd /path/to/stochtree`) and 
 running the following code 
 
 ```{bash}
@@ -147,7 +147,7 @@ via `lldb ./build/debugstochtree` (clang) or `gdb ./build/debugstochtree` (gcc).
 
 #### Unit Tests
 
-We test `stochtree-cpp` using the [GoogleTest](https://google.github.io/googletest/) framework.
+We test `stochtree` using the [GoogleTest](https://google.github.io/googletest/) framework.
 Unit tests are compiled into a single target as part of the CMake build if the `BUILD_TEST` option is set to `ON` 
 and the test suite can be run after compilation via `./build/teststochtree`
 
