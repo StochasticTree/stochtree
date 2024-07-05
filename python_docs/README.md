@@ -2,13 +2,15 @@
 
 ## Building Documentation Locally
 
-The online documentation is built automatically upon successful PR merge (see [here](https://github.com/StochasticTree/stochtree-python/blob/main/.github/workflows/docs.yml) for the Github workflow).
-To build the documentation locally, first ensure that you have [Sphinx](https://www.sphinx-doc.org/en/master/) installed, then navigate to the python package's main directory (i.e. `cd [path/to/stochtree-python]`), 
+The online documentation is built in the doc-specific `StochasticTree/stochtree-python` repo (see [here](https://github.com/StochasticTree/stochtree-python/blob/main/.github/workflows/docs.yml) for the Github workflow).
+To build the documentation locally, first ensure that you have [Sphinx](https://www.sphinx-doc.org/en/master/) installed, then navigate to the python package's main directory (i.e. `cd [path/to/stochtree]`), 
 install the package, and run `sphinx-build` as below
 
 ```
+pip install --upgrade pip
+pip install -r docs/requirements.txt
 pip install .
-sphinx-build -M html docs/source/ docs/build/
+sphinx-build -M html python_docs/source/ python_docs/build/
 ```
 
 ## Documentation Style

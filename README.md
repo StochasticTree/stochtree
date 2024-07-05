@@ -63,7 +63,7 @@ With these dependencies installed, you can [clone the repo](###cloning-the-repos
 ### Venv
 
 You could also use venv for environment management. First, navigate to the folder in which you usually store virtual environments 
-(i.e. `cd /path/to/envs`) and create and activate a virtual environment as a subfolder of the repo:
+(i.e. `cd /path/to/envs`) and create and activate a virtual environment:
 
 ```{bash}
 python -m venv venv
@@ -82,7 +82,7 @@ Then install stochtree via
 pip install git+https://github.com/StochasticTree/stochtree.git
 ```
 
-As above, if you'd like to run the notebook examples in the `demo/` subfolder, you will also need jupyterlab, seaborn, and matplotli and you will have to [clone the repo](###cloning-the-repository)
+As above, if you'd like to run the notebook examples in the `demo/` subfolder, you will also need jupyterlab, seaborn, and matplotlib and you will have to [clone the repo](###cloning-the-repository)
 
 ```{bash}
 pip install matplotlib seaborn jupyterlab
@@ -109,14 +109,16 @@ the C++ code can be compiled and unit-tested and compiled into a standalone
 To clone the repository, you must have git installed, which you can do following [these instructions](https://learn.microsoft.com/en-us/devops/develop/git/install-and-set-up-git). 
 
 Once git is available at the command line, navigate to the folder that will store this project (in bash / zsh, this is done by running `cd` followed by the path to the directory). 
-Then, clone the `StochasticTree` repo as a subfolder by running
+Then, clone the `stochtree` repo as a subfolder by running
 ```{bash}
 git clone --recursive https://github.com/StochasticTree/stochtree.git
 ```
 
 *NOTE*: this project incorporates several dependencies as [git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules), 
 which is why the `--recursive` flag is necessary (some systems may perform a recursive clone without this flag, but 
-`--recursive` ensures this behavior on all platforms).
+`--recursive` ensures this behavior on all platforms). If you have already cloned the repo without the `--recursive` flag, 
+you can retrieve the submodules recursively by running `git submodule update --init --recursive` in the main repo directory.
+
 
 ### CMake Build
 
