@@ -21,11 +21,11 @@ release = '0.0.1'
 extensions = [
    'sphinx.ext.autodoc',
    'sphinx.ext.autosummary',
-   'numpydoc'
 ]
 
 templates_path = ['_templates']
 exclude_patterns = []
+
 
 
 # -- Options for HTML output -------------------------------------------------
