@@ -305,6 +305,12 @@ std::string json_add_rfx_groupids_cpp(cpp11::external_pointer<nlohmann::json> js
 }
 
 [[cpp11::register]]
+std::string json_forest_to_string_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
+    nlohmann::json forest_json = forest_samples->to_json();
+    return forest_json.dump();
+}
+
+[[cpp11::register]]
 void json_save_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string filename) {
     std::ofstream output_file(filename);
     output_file << *json_ptr << std::endl;
