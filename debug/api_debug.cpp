@@ -234,7 +234,7 @@ void RunAPI() {
   double global_variance;
 
   // Set variable weights
-  double const_var_wt = static_cast<double>(1/x_cols);
+  double const_var_wt = static_cast<double>(1./x_cols);
   std::vector<double> variable_weights(x_cols, const_var_wt);
 
   // Initialize tracker and tree prior

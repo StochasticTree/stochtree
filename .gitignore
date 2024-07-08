@@ -8,6 +8,7 @@ build/
 .vscode/
 xcode/
 *.json
+.vs/
 
 ## R gitignore
 
