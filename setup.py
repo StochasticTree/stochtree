@@ -3,9 +3,10 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-
 from setuptools import Extension, setup, find_packages
 from setuptools.command.build_ext import build_ext
+from setuptools.command.sdist import sdist as _sdist
+from setuptools.command.egg_info import egg_info as _egg_info
 
 # Convert distutils Windows platform specifiers to CMake -A arguments
 PLAT_TO_CMAKE = {
@@ -126,6 +127,28 @@ class CMakeBuild(build_ext):
             ["cmake", "--build", ".", *build_args], cwd=build_temp, check=True
         )
 
+def remove_sources_txt(egg_info_dir):
+    sources_file = os.path.join(egg_info_dir, 'SOURCES.txt')
+    if os.path.exists(sources_file):
+        os.remove(sources_file)
+
+class CustomEggInfo(_egg_info):
+    def run(self):
+        super().run()
+        remove_sources_txt(self.egg_info)
+
+class CustomSDist(_sdist):
+    def make_release_tree(self, base_dir, files):
+        super().make_release_tree(base_dir, files)
+        egg_info_dir = os.path.join(base_dir, 'stochtree.egg-info')
+        remove_sources_txt(egg_info_dir)
+
+class CustomBuildPy(build_ext):
+    def run(self):
+        super().run()
+        egg_info_dir = os.path.join(self.build_lib, 'stochtree.egg-info')
+        remove_sources_txt(egg_info_dir)
+
 # The information here can also be placed in setup.cfg - better separation of
 # logic and declaration, and simpler if you include description/version in a file.
 __version__ = "0.0.1"
@@ -140,7 +163,11 @@ setup(
     long_description="Stochastic Tree Ensembles for Machine Learning and Causal Inference",
     packages=find_packages(),
     ext_modules=[CMakeExtension("stochtree_cpp")],
-    cmdclass={"build_ext": CMakeBuild},
+    cmdclass={
+        "build_ext": CMakeBuild,
+        "egg_info": CustomEggInfo,
+        "sdist": CustomSDist,
+    },
     zip_safe=False,
     extras_require={"test": ["pytest>=6.0"]},
     python_requires=">=3.8",

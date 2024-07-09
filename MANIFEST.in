@@ -14,7 +14,7 @@ exclude src/R_data.cpp src/R_random_effects.cpp
 exclude LICENSE
 
 # Remove egg info
-exclude *.egg-info
+prune stochtree.egg-info
 
 # Vendor pybind11 dependencies in PyPI source distribution
 recursive-include deps/pybind11/include/pybind11 *.h
