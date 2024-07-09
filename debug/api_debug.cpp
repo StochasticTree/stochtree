@@ -400,7 +400,7 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
   }
 
   // Initialize an ensemble
-  int num_trees = 100;
+  int num_trees = 50;
   ForestContainer forest_samples = ForestContainer(num_trees, output_dimension, is_leaf_constant);
 
   // Initialize a leaf model
@@ -408,9 +408,9 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
   double leaf_prior_scale = 1.;
   
   // Initialize forest sampling machinery
-  double alpha = 0.99;
-  double beta = 1.25;
-  int min_samples_leaf = 10;
+  double alpha = 1;
+  double beta = 0.1;
+  int min_samples_leaf = 1;
   int cutpoint_grid_size = 100;
   double a_rfx = 1.;
   double b_rfx = 1.;
