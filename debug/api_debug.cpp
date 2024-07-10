@@ -364,7 +364,8 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
   OutcomeOffsetScale(residual, outcome_offset, outcome_scale);
 
   RandomEffectsDataset rfx_dataset;
-  RandomEffectsTracker rfx_tracker = RandomEffectsTracker(std::vector<int>(n, 0));
+  std::vector<int> rfx_init(n, 0);
+  RandomEffectsTracker rfx_tracker = RandomEffectsTracker(rfx_init);
   MultivariateRegressionRandomEffectsModel rfx_model = MultivariateRegressionRandomEffectsModel(1, 1);
   RandomEffectsContainer rfx_container;
   LabelMapper label_mapper;

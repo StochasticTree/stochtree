@@ -109,9 +109,9 @@ the C++ code can be compiled and unit-tested and compiled into a standalone
 To clone the repository, you must have git installed, which you can do following [these instructions](https://learn.microsoft.com/en-us/devops/develop/git/install-and-set-up-git). 
 
 Once git is available at the command line, navigate to the folder that will store this project (in bash / zsh, this is done by running `cd` followed by the path to the directory). 
-Then, clone the `StochasticTree` repo as a subfolder by running
+Then, clone the `stochtree` repo as a subfolder by running
 ```{bash}
-git clone --recursive https://github.com/andrewherren/StochasticTree.git
+git clone --recursive https://github.com/StochasticTree/stochtree.git
 ```
 
 *NOTE*: this project incorporates several dependencies as [git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules), 
@@ -124,7 +124,7 @@ The C++ project can be built independently from the R / Python packages using `c
 See [here](https://cmake.org/install/) for details on installing cmake (alternatively, 
 on MacOS, `cmake` can be installed using [homebrew](https://formulae.brew.sh/formula/cmake)).
 Once `cmake` is installed, you can build the CLI by navigating to the main 
-project directory at your command line (i.e. `cd /path/to/stochtree-cpp`) and 
+project directory at your command line (i.e. `cd /path/to/stochtree`) and 
 running the following code 
 
 ```{bash}
@@ -166,7 +166,7 @@ To generate an XCode project based on the build targets and specifications defin
 rm -rf xcode/
 mkdir xcode
 cd xcode
-cmake -G Xcode .. -DCMAKE_C_COMPILER=cc -DCMAKE_CXX_COMPILER=c++
+cmake -G Xcode .. -DCMAKE_C_COMPILER=cc -DCMAKE_CXX_COMPILER=c++ -DUSE_SANITIZER=OFF -DUSE_DEBUG=OFF
 cd ..
 ```
 
