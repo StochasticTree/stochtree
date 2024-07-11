@@ -85,8 +85,8 @@ void AccumulateCutpointBinSuffStat(SuffStatType& left_suff_stat, ForestTracker& 
 
   // Cutpoint specific iterators
   // TODO: fix the hack of having to subtract off node_begin, probably by cleaning up the CutpointGridContainer interface
-  auto cutpoint_begin_iter = node_begin_iter + current_bin_begin - node_begin;
-  auto cutpoint_end_iter = node_begin_iter + next_bin_begin - node_begin;
+  auto cutpoint_begin_iter = node_begin_iter + (current_bin_begin - node_begin);
+  auto cutpoint_end_iter = node_begin_iter + (next_bin_begin - node_begin);
 
   // Accumulate sufficient statistics
   for (auto i = cutpoint_begin_iter; i != cutpoint_end_iter; i++) {
