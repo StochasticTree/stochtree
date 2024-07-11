@@ -168,7 +168,7 @@ To generate an XCode project based on the build targets and specifications defin
 rm -rf xcode/
 mkdir xcode
 cd xcode
-cmake -G Xcode .. -DCMAKE_C_COMPILER=cc -DCMAKE_CXX_COMPILER=c++
+cmake -G Xcode .. -DCMAKE_C_COMPILER=cc -DCMAKE_CXX_COMPILER=c++ -DUSE_SANITIZER=OFF -DUSE_DEBUG=OFF
 cd ..
 ```
 
