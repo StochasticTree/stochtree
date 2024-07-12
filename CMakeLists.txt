@@ -94,6 +94,7 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
 file(
   GLOB 
   SOURCES 
+  src/bart.cpp
   src/container.cpp
   src/cutpoint_candidates.cpp
   src/data.cpp

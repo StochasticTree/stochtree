@@ -1,4 +1,5 @@
 /*! Copyright (c) 2024 stochtree authors*/
+#include <stochtree/bart.h>
 #include <stochtree/container.h>
 #include <stochtree/data.h>
 #include <stochtree/io.h>
@@ -265,6 +266,27 @@ void OutcomeOffsetScale(ColumnVector& residual, double& outcome_offset, double& 
   }
 }
 
+void OutcomeOffsetScale(std::vector<double>& residual, double& outcome_offset, double& outcome_scale) {
+  data_size_t n = residual.size();
+  double outcome_val = 0.0;
+  double outcome_sum = 0.0;
+  double outcome_sum_squares = 0.0;
+  double var_y = 0.0;
+  for (data_size_t i = 0; i < n; i++){
+    outcome_val = residual.at(i);
+    outcome_sum += outcome_val;
+    outcome_sum_squares += std::pow(outcome_val, 2.0);
+  }
+  var_y = outcome_sum_squares / static_cast<double>(n) - std::pow(outcome_sum / static_cast<double>(n), 2.0);
+  outcome_scale = std::sqrt(var_y);
+  outcome_offset = outcome_sum / static_cast<double>(n);
+  double previous_residual;
+  for (data_size_t i = 0; i < n; i++){
+    previous_residual = residual.at(i);
+    residual.at(i) = (previous_residual - outcome_offset) / outcome_scale;
+  }
+}
+
 void sampleGFR(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& forest_samples, ForestDataset& dataset, 
                ColumnVector& residual, std::mt19937& rng, std::vector<FeatureType>& feature_types, std::vector<double>& var_weights_vector, 
                ForestLeafModel leaf_model_type, Eigen::MatrixXd& leaf_scale_matrix, double global_variance, double leaf_scale, int cutpoint_grid_size) {
@@ -301,7 +323,7 @@ void sampleMCMC(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& 
   }
 }
 
-void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int num_mcmc = 100, int random_seed = -1) {
+void RunDebugDeconstructed(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int num_burnin = 0, int num_mcmc = 100, int random_seed = -1) {
   // Flag the data as row-major
   bool row_major = true;
 
@@ -528,32 +550,150 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
   std::vector<double> pred_parsed = forest_samples_parsed.Predict(dataset);
 }
 
+void RunDebugLoop(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int num_burnin = 0, int num_mcmc = 100, int random_seed = -1) {
+  // Flag the data as row-major
+  bool row_major = true;
+
+  // Random number generation
+  std::mt19937 gen;
+  if (random_seed == -1) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+  }
+  else {
+    std::mt19937 gen(random_seed);
+  }
+
+  // Empty data containers and dimensions (filled in by calling a specific DGP simulation function below)
+  int n;
+  int x_cols;
+  int omega_cols;
+  int y_cols;
+  int num_rfx_groups;
+  int rfx_basis_cols;
+  std::vector<double> covariates_raw;
+  std::vector<double> basis_raw;
+  std::vector<double> rfx_basis_raw;
+  std::vector<double> residual_raw;
+  std::vector<int32_t> rfx_groups;
+  std::vector<FeatureType> feature_types;
+
+  // Generate the data
+  int output_dimension;
+  bool is_leaf_constant;
+  ForestLeafModel leaf_model_type;
+  if (dgp_num == 0) {
+    GenerateDGP1(covariates_raw, basis_raw, residual_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+    output_dimension = 1;
+    is_leaf_constant = true;
+    leaf_model_type = ForestLeafModel::kConstant;
+  }
+  else if (dgp_num == 1) {
+    GenerateDGP2(covariates_raw, basis_raw, residual_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+    output_dimension = 1;
+    is_leaf_constant = true;
+    leaf_model_type = ForestLeafModel::kConstant;
+  }
+  else {
+    Log::Fatal("Invalid dgp_num");
+  }
+
+  // Center and scale the data
+  double outcome_offset;
+  double outcome_scale;
+  OutcomeOffsetScale(residual_raw, outcome_offset, outcome_scale);
+
+  // Construct loop sampling objects (override is_leaf_constant if necessary)
+  int num_trees = 50;
+  output_dimension = 1;
+  is_leaf_constant = true;
+  BARTDispatcher bart_dispatcher{};
+  BARTResult bart_result = bart_dispatcher.CreateOutputObject(num_trees, output_dimension, is_leaf_constant);
+
+  // Add covariates to sampling loop
+  bart_dispatcher.AddDataset(covariates_raw.data(), n, x_cols, row_major, true);
+
+  // Add outcome to sampling loop
+  bart_dispatcher.AddTrainOutcome(residual_raw.data(), n);
+
+  // Forest sampling parameters
+  double alpha = 0.9;
+  double beta = 2;
+  int min_samples_leaf = 1;
+  int cutpoint_grid_size = 100;
+  double a_leaf = 3.;
+  double b_leaf = 0.5 / num_trees;
+  double nu = 3.;
+  double lamb = 0.5;
+  double leaf_variance_init = 1. / num_trees;
+  double global_variance_init = 1.0;
+
+  // Set variable weights
+  double const_var_wt = static_cast<double>(1. / x_cols);
+  std::vector<double> variable_weights(x_cols, const_var_wt);
+
+  // Run the BART sampling loop
+  bart_dispatcher.RunSampler(bart_result, feature_types, variable_weights, num_trees, num_gfr, num_burnin, num_mcmc, 
+                             global_variance_init, leaf_variance_init, alpha, beta, nu, lamb, a_leaf, b_leaf, 
+                             min_samples_leaf, cutpoint_grid_size);
+}
+
+void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int num_burnin = 0, int num_mcmc = 100, int random_seed = -1, bool run_bart_loop = true) {
+  if (run_bart_loop) {
+    RunDebugLoop(dgp_num, rfx_included, num_gfr, num_burnin, num_mcmc, random_seed);
+  } else {
+    RunDebugDeconstructed(dgp_num, rfx_included, num_gfr, num_burnin, num_mcmc, random_seed);
+  }
+}
+
 } // namespace StochTree
 
 int main(int argc, char* argv[]) {
-  // Unpack command line arguments
-  int dgp_num = std::stoi(argv[1]);
-  if ((dgp_num != 0) && (dgp_num != 1)) {
-    StochTree::Log::Fatal("The first command line argument must be 0 or 1");
-  }
-  int rfx_int = std::stoi(argv[2]);
-  if ((rfx_int != 0) && (rfx_int != 1)) {
-    StochTree::Log::Fatal("The second command line argument must be 0 or 1");
-  }
-  bool rfx_included = static_cast<bool>(rfx_int);
-  int num_gfr = std::stoi(argv[3]);
-  if (num_gfr < 0) {
-    StochTree::Log::Fatal("The third command line argument must be >= 0");
-  }
-  int num_mcmc = std::stoi(argv[4]);
-  if (num_mcmc < 0) {
-    StochTree::Log::Fatal("The fourth command line argument must be >= 0");
-  }
-  int random_seed = std::stoi(argv[5]);
-  if (random_seed < -1) {
-    StochTree::Log::Fatal("The fifth command line argument must be >= -0");
+  int dgp_num, num_gfr, num_burnin, num_mcmc, random_seed;
+  bool rfx_included, run_bart_loop;
+  if (argc > 1) {
+    if (argc < 8) StochTree::Log::Fatal("Must provide 7 command line arguments");
+    // Unpack command line arguments
+    dgp_num = std::stoi(argv[1]);
+    if ((dgp_num != 0) && (dgp_num != 1)) {
+      StochTree::Log::Fatal("The first command line argument must be 0 or 1");
+    }
+    int rfx_int = std::stoi(argv[2]);
+    if ((rfx_int != 0) && (rfx_int != 1)) {
+      StochTree::Log::Fatal("The second command line argument must be 0 or 1");
+    }
+    rfx_included = static_cast<bool>(rfx_int);
+    num_gfr = std::stoi(argv[3]);
+    if (num_gfr < 0) {
+      StochTree::Log::Fatal("The third command line argument must be >= 0");
+    }
+    num_burnin = std::stoi(argv[4]);
+    if (num_burnin < 0) {
+      StochTree::Log::Fatal("The fourth command line argument must be >= 0");
+    }
+    num_mcmc = std::stoi(argv[5]);
+    if (num_mcmc < 0) {
+      StochTree::Log::Fatal("The fifth command line argument must be >= 0");
+    }
+    random_seed = std::stoi(argv[6]);
+    if (random_seed < -1) {
+      StochTree::Log::Fatal("The sixth command line argument must be >= -1");
+    }
+    int run_bart_loop_int = std::stoi(argv[7]);
+    if ((run_bart_loop_int != 0) && (run_bart_loop_int != 1)) {
+      StochTree::Log::Fatal("The seventh command line argument must be 0 or 1");
+    }
+    run_bart_loop = static_cast<bool>(run_bart_loop_int);
+  } else {
+    dgp_num = 1;
+    rfx_included = false;
+    num_gfr = 10;
+    num_burnin = 0;
+    num_mcmc = 10;
+    random_seed = -1;
+    run_bart_loop = true;
   }
 
   // Run the debug program
-  StochTree::RunDebug(dgp_num, rfx_included, num_gfr, num_mcmc);
+  StochTree::RunDebug(dgp_num, rfx_included, num_gfr, num_burnin, num_mcmc, random_seed, run_bart_loop);
 }
