@@ -356,7 +356,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             if (verbose) {
                 if (num_burnin > 0) {
                     if (((i - num_gfr) %% 100 == 0) || ((i - num_gfr) == num_burnin)) {
-                        cat("Sampling", i - num_gfr, "out of", num_gfr, "BART burn-in draws\n")
+                        cat("Sampling", i - num_gfr, "out of", num_burnin, "BART burn-in draws\n")
                     }
                 }
                 if (num_mcmc > 0) {
