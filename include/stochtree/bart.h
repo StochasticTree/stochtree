@@ -3,7 +3,6 @@
 #define STOCHTREE_BART_H_
 
 #include <stochtree/container.h>
-#include <stochtree/controllers.h>
 #include <stochtree/data.h>
 #include <stochtree/io.h>
 #include <nlohmann/json.hpp>
