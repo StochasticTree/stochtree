@@ -1,3 +1,4 @@
+#include <stochtree/bart.h>
 #include <stochtree/container.h>
 #include <stochtree/data.h>
 #include <stochtree/kernel.h>
