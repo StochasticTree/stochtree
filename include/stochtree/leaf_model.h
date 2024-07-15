@@ -66,6 +66,12 @@ class GaussianConstantSuffStat {
 class GaussianConstantLeafModel {
  public:
   GaussianConstantLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
+  GaussianConstantLeafModel(Eigen::MatrixXd& tau) {
+    CHECK_EQ(tau.rows(), 1);
+    CHECK_EQ(tau.cols(), 1);
+    tau_ = tau(0,0);
+    normal_sampler_ = UnivariateNormalSampler();
+  }
   ~GaussianConstantLeafModel() {}
   std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance);
   std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);
@@ -132,6 +138,12 @@ class GaussianUnivariateRegressionSuffStat {
 class GaussianUnivariateRegressionLeafModel {
  public:
   GaussianUnivariateRegressionLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
+  GaussianUnivariateRegressionLeafModel(Eigen::MatrixXd& tau) {
+    CHECK_EQ(tau.rows(), 1);
+    CHECK_EQ(tau.cols(), 1);
+    tau_ = tau(0,0);
+    normal_sampler_ = UnivariateNormalSampler();
+  }
   ~GaussianUnivariateRegressionLeafModel() {}
   std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance);
   std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);

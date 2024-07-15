@@ -755,8 +755,8 @@ bart_specialized <- function(
     }
     if (is.null(sigma2_init)) sigma2_init <- sigma2hat
     if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees)
-    if (is.null(tau_init)) tau_init <- var(resid_train)/(num_trees)
-    current_leaf_scale <- as.matrix(tau_init)
+    if (is.null(tau_init)) tau_init <- as.matrix(var(resid_train)/(num_trees))
+    current_leaf_scale <- tau_init
     current_sigma2 <- sigma2_init
     
     # Determine leaf model type

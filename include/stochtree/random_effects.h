@@ -32,23 +32,23 @@ namespace StochTree {
 class RandomEffectsTracker {
  public:
   RandomEffectsTracker(std::vector<int32_t>& group_indices);
+  RandomEffectsTracker();
   ~RandomEffectsTracker() {}
-  inline data_size_t GetCategoryId(int observation_num) {return sample_category_mapper_->GetCategoryId(observation_num);}
-  inline data_size_t CategoryBegin(int category_id) {return category_sample_tracker_->CategoryBegin(category_id);}
-  inline data_size_t CategoryEnd(int category_id) {return category_sample_tracker_->CategoryEnd(category_id);}
-  inline data_size_t CategorySize(int category_id) {return category_sample_tracker_->CategorySize(category_id);}
-  inline int32_t NumCategories() {return num_categories_;}
-  inline int32_t CategoryNumber(int32_t category_id) {return category_sample_tracker_->CategoryNumber(category_id);}
-  SampleCategoryMapper* GetSampleCategoryMapper() {return sample_category_mapper_.get();}
-  CategorySampleTracker* GetCategorySampleTracker() {return category_sample_tracker_.get();}
-  std::vector<data_size_t>::iterator UnsortedNodeBeginIterator(int category_id);
-  std::vector<data_size_t>::iterator UnsortedNodeEndIterator(int category_id);
-  std::map<int32_t, int32_t>& GetLabelMap() {return category_sample_tracker_->GetLabelMap();}
-  std::vector<int32_t>& GetUniqueGroupIds() {return category_sample_tracker_->GetUniqueGroupIds();}
-  std::vector<data_size_t>& NodeIndices(int category_id) {return category_sample_tracker_->NodeIndices(category_id);}
-  std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) {return category_sample_tracker_->NodeIndicesInternalIndex(internal_category_id);}
-  double GetPrediction(data_size_t observation_num) {return rfx_predictions_.at(observation_num);}
-  void SetPrediction(data_size_t observation_num, double pred) {rfx_predictions_.at(observation_num) = pred;}
+  void Reset(std::vector<int32_t>& group_indices);
+  inline data_size_t GetCategoryId(int observation_num) {CHECK(initialized_); return sample_category_mapper_->GetCategoryId(observation_num);}
+  inline data_size_t CategoryBegin(int category_id) {CHECK(initialized_); return category_sample_tracker_->CategoryBegin(category_id);}
+  inline data_size_t CategoryEnd(int category_id) {CHECK(initialized_); return category_sample_tracker_->CategoryEnd(category_id);}
+  inline data_size_t CategorySize(int category_id) {CHECK(initialized_); return category_sample_tracker_->CategorySize(category_id);}
+  inline int32_t NumCategories() {CHECK(initialized_); return num_categories_;}
+  inline int32_t CategoryNumber(int32_t category_id) {CHECK(initialized_); return category_sample_tracker_->CategoryNumber(category_id);}
+  SampleCategoryMapper* GetSampleCategoryMapper() {CHECK(initialized_); return sample_category_mapper_.get();}
+  CategorySampleTracker* GetCategorySampleTracker() {CHECK(initialized_); return category_sample_tracker_.get();}
+  std::map<int32_t, int32_t>& GetLabelMap() {CHECK(initialized_); return category_sample_tracker_->GetLabelMap();}
+  std::vector<int32_t>& GetUniqueGroupIds() {CHECK(initialized_); return category_sample_tracker_->GetUniqueGroupIds();}
+  std::vector<data_size_t>& NodeIndices(int category_id) {CHECK(initialized_); return category_sample_tracker_->NodeIndices(category_id);}
+  std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) {CHECK(initialized_); return category_sample_tracker_->NodeIndicesInternalIndex(internal_category_id);}
+  double GetPrediction(data_size_t observation_num) {CHECK(initialized_); return rfx_predictions_.at(observation_num);}
+  void SetPrediction(data_size_t observation_num, double pred) {CHECK(initialized_); rfx_predictions_.at(observation_num) = pred;}
 
  private:
   /*! \brief Mapper from observations to category indices */
@@ -60,6 +60,7 @@ class RandomEffectsTracker {
   /*! \brief Some high-level details of the random effects structure */
   int num_categories_;
   int num_observations_;
+  bool initialized_{false};
 };
 
 /*! \brief Standalone container for the map from category IDs to 0-based indices */
@@ -100,8 +101,23 @@ class MultivariateRegressionRandomEffectsModel {
     group_parameters_ = Eigen::MatrixXd(num_components_, num_groups_);
     group_parameter_covariance_ = Eigen::MatrixXd(num_components_, num_components_);
     working_parameter_covariance_ = Eigen::MatrixXd(num_components_, num_components_);
+    initialized_ = true;
+  }
+  MultivariateRegressionRandomEffectsModel() {
+    normal_sampler_ = MultivariateNormalSampler();
+    ig_sampler_ = InverseGammaSampler();
+    initialized_ = false;
   }
   ~MultivariateRegressionRandomEffectsModel() {}
+  void Reset(int num_components, int num_groups) {
+    num_components_ = num_components;
+    num_groups_ = num_groups;
+    working_parameter_ = Eigen::VectorXd(num_components_);
+    group_parameters_ = Eigen::MatrixXd(num_components_, num_groups_);
+    group_parameter_covariance_ = Eigen::MatrixXd(num_components_, num_components_);
+    working_parameter_covariance_ = Eigen::MatrixXd(num_components_, num_components_);
+    initialized_ = true;
+  }
   
   /*! \brief Samplers */
   void SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, std::mt19937& gen);
@@ -228,6 +244,7 @@ class MultivariateRegressionRandomEffectsModel {
   /*! \brief Random effects structure details */
   int num_components_;
   int num_groups_;
+  bool initialized_;
   
   /*! \brief Group mean parameters, decomposed into "working parameter" and individual parameters
    *  under the "redundant" parameterization of Gelman et al (2008)

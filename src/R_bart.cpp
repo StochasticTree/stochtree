@@ -18,7 +18,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp(
     cpp11::doubles variable_weights, int num_rows, int num_covariates, int num_trees, 
     int output_dimension, bool is_leaf_constant, double alpha, double beta, 
     int min_samples_leaf, int cutpoint_grid_size, double a_leaf, double b_leaf, 
-    double nu, double lamb, double leaf_variance_init, double global_variance_init, 
+    double nu, double lamb, cpp11::doubles_matrix<> leaf_cov_init, double global_variance_init, 
     int num_gfr, int num_burnin, int num_mcmc, int random_seed, int leaf_model_int
 ) {
     // Create smart pointer to newly allocated object
@@ -36,6 +36,17 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp(
         feature_types_vector[i] = static_cast<StochTree::FeatureType>(feature_types[i]);
     }
     
+    // Convert leaf covariance to Eigen::MatrixXd
+    int leaf_dim = leaf_cov_init.nrow();
+    Eigen::MatrixXd leaf_cov(leaf_cov_init.nrow(), leaf_cov_init.ncol());
+    for (int i = 0; i < leaf_cov_init.nrow(); i++) {
+        leaf_cov(i,i) = leaf_cov_init(i,i);
+        for (int j = 0; j < i; j++) {
+            leaf_cov(i,j) = leaf_cov_init(i,j);
+            leaf_cov(j,i) = leaf_cov_init(j,i);
+        }
+    }
+    
     // Create BART dispatcher and add data
     double* covariate_data_ptr = REAL(PROTECT(covariates));
     double* outcome_data_ptr = REAL(PROTECT(outcome));
@@ -47,8 +58,9 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp(
         // Run the sampling loop
         bart_dispatcher.RunSampler(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
-            num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_variance_init, 
-            alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size
+            num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
+            alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
+            true, false, -1
         );
     } else if (leaf_model_int == 1) {
         // Create the dispatcher and load the data
@@ -58,8 +70,9 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp(
         // Run the sampling loop
         bart_dispatcher.RunSampler(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
-            num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_variance_init, 
-            alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size
+            num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
+            alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size, 
+            true, false, -1
         );
     }
     // // TODO: Figure out dispatch here
@@ -71,8 +84,9 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp(
     //     // Run the sampling loop
     //     bart_dispatcher.RunSampler(
     //         *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
-    //         num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_variance_init, 
-    //         alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size
+    //         num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
+    //         alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size, 
+    //         true, false, -1
     //     );
     // }
     

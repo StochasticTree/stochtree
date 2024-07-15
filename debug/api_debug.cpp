@@ -625,7 +625,8 @@ void RunDebugLoop(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, 
   double b_leaf = 0.5 / num_trees;
   double nu = 3.;
   double lamb = 0.5;
-  double leaf_variance_init = 1. / num_trees;
+  Eigen::MatrixXd leaf_cov_init(1,1);
+  leaf_cov_init(0,0) = 1. / num_trees;
   double global_variance_init = 1.0;
 
   // Set variable weights
@@ -634,8 +635,8 @@ void RunDebugLoop(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, 
 
   // Run the BART sampling loop
   bart_dispatcher.RunSampler(bart_result, feature_types, variable_weights, num_trees, num_gfr, num_burnin, num_mcmc, 
-                             global_variance_init, leaf_variance_init, alpha, beta, nu, lamb, a_leaf, b_leaf, 
-                             min_samples_leaf, cutpoint_grid_size);
+                             global_variance_init, leaf_cov_init, alpha, beta, nu, lamb, a_leaf, b_leaf, 
+                             min_samples_leaf, cutpoint_grid_size, true, false, -1);
 }
 
 void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int num_burnin = 0, int num_mcmc = 100, int random_seed = -1, bool run_bart_loop = true) {

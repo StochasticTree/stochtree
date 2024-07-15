@@ -23,26 +23,41 @@ class BARTResult {
   }
   ~BARTResult() {}
   ForestContainer* GetForests() {return forest_samples_.get();}
-  std::vector<double>& GetTrainPreds() {return raw_preds_train_;}
-  std::vector<double>& GetTestPreds() {return raw_preds_test_;}
-  std::vector<double>& GetVarianceSamples() {return sigma_samples_;}
+  ForestContainer* ReleaseForests() {return forest_samples_.release();}
+  RandomEffectsContainer* GetRFXContainer() {return rfx_container_.get();}
+  RandomEffectsContainer* ReleaseRFXContainer() {return rfx_container_.release();}
+  LabelMapper* GetRFXLabelMapper() {return rfx_label_mapper_.get();}
+  LabelMapper* ReleaseRFXLabelMapper() {return rfx_label_mapper_.release();}
+  std::vector<double>& GetTrainPreds() {return outcome_preds_train_;}
+  std::vector<double>& GetTestPreds() {return outcome_preds_test_;}
+  std::vector<double>& GetGlobalVarianceSamples() {return sigma_samples_;}
+  std::vector<double>& GetLeafVarianceSamples() {return tau_samples_;}
   int NumGFRSamples() {return num_gfr_;}
   int NumBurninSamples() {return num_burnin_;}
   int NumMCMCSamples() {return num_mcmc_;}
   int NumTrainObservations() {return num_train_;}
   int NumTestObservations() {return num_test_;}
+  bool IsGlobalVarRandom() {return is_global_var_random_;}
+  bool IsLeafVarRandom() {return is_leaf_var_random_;}
   bool HasTestSet() {return has_test_set_;}
+  bool HasRFX() {return has_rfx_;}
  private:
   std::unique_ptr<ForestContainer> forest_samples_;
-  std::vector<double> raw_preds_train_;
-  std::vector<double> raw_preds_test_;
+  std::unique_ptr<RandomEffectsContainer> rfx_container_;
+  std::unique_ptr<LabelMapper> rfx_label_mapper_;
+  std::vector<double> outcome_preds_train_;
+  std::vector<double> outcome_preds_test_;
   std::vector<double> sigma_samples_;
+  std::vector<double> tau_samples_;
   int num_gfr_{0};
   int num_burnin_{0};
   int num_mcmc_{0};
   int num_train_{0};
   int num_test_{0};
+  bool is_global_var_random_{true};
+  bool is_leaf_var_random_{false};
   bool has_test_set_{false};
+  bool has_rfx_{false};
 };
 
 template <typename ModelType>
@@ -83,6 +98,23 @@ class BARTDispatcher {
     }
   }
 
+  void AddRFXTerm(double* rfx_basis, std::vector<int>& rfx_group_indices, data_size_t num_row, int num_groups, int num_basis, bool is_row_major, bool train) {
+    if (train) {
+      rfx_train_dataset_ = RandomEffectsDataset();
+      rfx_train_dataset_.AddBasis(rfx_basis, num_row, num_basis, is_row_major);
+      rfx_train_dataset_.AddGroupLabels(rfx_group_indices);
+      rfx_tracker_.Reset(rfx_group_indices);
+      rfx_model_.Reset(num_basis, num_groups);
+      num_rfx_groups_ = num_groups;
+      num_rfx_basis_ = num_basis;
+      has_rfx_ = true;
+    } else {
+      rfx_test_dataset_ = RandomEffectsDataset();
+      rfx_test_dataset_.AddBasis(rfx_basis, num_row, num_basis, is_row_major);
+      rfx_test_dataset_.AddGroupLabels(rfx_group_indices);
+    }
+  }
+
   void AddTrainOutcome(double* outcome, data_size_t num_row) {
     train_outcome_ = ColumnVector();
     train_outcome_.LoadData(outcome, num_row);
@@ -90,9 +122,9 @@ class BARTDispatcher {
 
   void RunSampler(
     BARTResult& output, std::vector<FeatureType>& feature_types, std::vector<double>& variable_weights, 
-    int num_trees, int num_gfr, int num_burnin, int num_mcmc, double global_var_init, double leaf_var_init, 
-    double alpha, double beta, double nu, double lamb, double a_leaf, double b_leaf, int min_samples_leaf, 
-    int cutpoint_grid_size, int random_seed = -1
+    int num_trees, int num_gfr, int num_burnin, int num_mcmc, double global_var_init, Eigen::MatrixXd& leaf_cov_init, 
+    double alpha, double beta, double nu, double lamb, double a_leaf, double b_leaf, int min_samples_leaf, int cutpoint_grid_size, 
+    bool sample_global_var, bool sample_leaf_var, int random_seed = -1
   ) {
     // Unpack sampling details
     num_gfr_ = num_gfr;
@@ -112,7 +144,8 @@ class BARTDispatcher {
 
     // Obtain references to forest / parameter samples and predictions in BARTResult
     ForestContainer* forest_samples = output.GetForests();
-    std::vector<double>& sigma2_samples = output.GetVarianceSamples();
+    std::vector<double>& sigma2_samples = output.GetGlobalVarianceSamples();
+    std::vector<double>& tau_samples = output.GetLeafVarianceSamples();
     std::vector<double>& train_preds = output.GetTrainPreds();
     std::vector<double>& test_preds = output.GetTestPreds();
 
@@ -128,13 +161,16 @@ class BARTDispatcher {
     ForestTracker tracker = ForestTracker(train_dataset_.GetCovariates(), feature_types, num_trees, num_train_);
     TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf);
 
-    // Initialize variance model
+    // Initialize global variance model
     GlobalHomoskedasticVarianceModel global_var_model = GlobalHomoskedasticVarianceModel();
+
+    // Initialize leaf variance model
+    LeafNodeHomoskedasticVarianceModel leaf_var_model = LeafNodeHomoskedasticVarianceModel();
 
     // Initialize leaf model and samplers
     // TODO: add template specialization for GaussianMultivariateRegressionLeafModel which takes Eigen::MatrixXd&
     // as initialization parameter instead of double
-    ModelType leaf_model = ModelType(leaf_var_init);
+    ModelType leaf_model = ModelType(leaf_cov_init);
     GFRForestSampler<ModelType> gfr_sampler = GFRForestSampler<ModelType>(cutpoint_grid_size);
     MCMCForestSampler<ModelType> mcmc_sampler = MCMCForestSampler<ModelType>();
 
@@ -149,9 +185,11 @@ class BARTDispatcher {
         gfr_sampler.SampleOneIter(tracker, *forest_samples, leaf_model, train_dataset_, train_outcome_, tree_prior, 
                                   rng, variable_weights, global_var, feature_types, false);
         
-        // Sample the global outcome
-        global_var = global_var_model.SampleVarianceParameter(train_outcome_.GetData(), nu, lamb, rng);
-        sigma2_samples.at(iter) = global_var;
+        if (sample_global_var) {
+          // Sample the global outcome
+          global_var = global_var_model.SampleVarianceParameter(train_outcome_.GetData(), nu, lamb, rng);
+          sigma2_samples.at(iter) = global_var;
+        }
 
         // Increment sample counter
         iter++;
@@ -165,9 +203,11 @@ class BARTDispatcher {
         mcmc_sampler.SampleOneIter(tracker, *forest_samples, leaf_model, train_dataset_, train_outcome_, tree_prior, 
                                   rng, variable_weights, global_var, true);
         
-        // Sample the global outcome
-        global_var = global_var_model.SampleVarianceParameter(train_outcome_.GetData(), nu, lamb, rng);
-        sigma2_samples.at(iter) = global_var;
+        if (sample_global_var) {
+          // Sample the global outcome
+          global_var = global_var_model.SampleVarianceParameter(train_outcome_.GetData(), nu, lamb, rng);
+          sigma2_samples.at(iter) = global_var;
+        }
 
         // Increment sample counter
         iter++;
@@ -180,18 +220,29 @@ class BARTDispatcher {
   }
  
  private:
-  // Sampling details
+  // "Core" BART / XBART sampling objects
+  // Dimensions
   int num_gfr_{0};
   int num_burnin_{0};
   int num_mcmc_{0};
   int num_train_{0};
   int num_test_{0};
   bool has_test_set_{false};
-
-  // Sampling data objects
+  // Data objects
   ForestDataset train_dataset_;
   ForestDataset test_dataset_;
   ColumnVector train_outcome_;
+
+  // (Optional) random effect sampling details
+  // Dimensions
+  int num_rfx_groups_{0};
+  int num_rfx_basis_{0};
+  bool has_rfx_{false};
+  // Data objects
+  RandomEffectsDataset rfx_train_dataset_;
+  RandomEffectsDataset rfx_test_dataset_;
+  RandomEffectsTracker rfx_tracker_;
+  MultivariateRegressionRandomEffectsModel rfx_model_;
 };
 
 } // namespace StochTree
