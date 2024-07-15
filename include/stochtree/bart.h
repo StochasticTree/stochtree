@@ -45,6 +45,7 @@ class BARTResult {
   bool has_test_set_{false};
 };
 
+template <typename ModelType>
 class BARTDispatcher {
  public:
   BARTDispatcher() {}
@@ -62,6 +63,21 @@ class BARTDispatcher {
     } else {
       test_dataset_ = ForestDataset();
       test_dataset_.AddCovariates(covariates, num_row, num_col, is_row_major);
+      has_test_set_ = true;
+      num_test_ = num_row;
+    }
+  }
+
+  void AddDataset(double* covariates, double* basis, data_size_t num_row, int num_covariates, int num_basis, bool is_row_major, bool train) {
+    if (train) {
+      train_dataset_ = ForestDataset();
+      train_dataset_.AddCovariates(covariates, num_row, num_covariates, is_row_major);
+      train_dataset_.AddBasis(basis, num_row, num_basis, is_row_major);
+      num_train_ = num_row;
+    } else {
+      test_dataset_ = ForestDataset();
+      test_dataset_.AddCovariates(covariates, num_row, num_covariates, is_row_major);
+      test_dataset_.AddBasis(basis, num_row, num_basis, is_row_major);
       has_test_set_ = true;
       num_test_ = num_row;
     }
@@ -116,9 +132,11 @@ class BARTDispatcher {
     GlobalHomoskedasticVarianceModel global_var_model = GlobalHomoskedasticVarianceModel();
 
     // Initialize leaf model and samplers
-    GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_var_init);
-    GFRForestSampler<GaussianConstantLeafModel> gfr_sampler = GFRForestSampler<GaussianConstantLeafModel>(cutpoint_grid_size);
-    MCMCForestSampler<GaussianConstantLeafModel> mcmc_sampler = MCMCForestSampler<GaussianConstantLeafModel>();
+    // TODO: add template specialization for GaussianMultivariateRegressionLeafModel which takes Eigen::MatrixXd&
+    // as initialization parameter instead of double
+    ModelType leaf_model = ModelType(leaf_var_init);
+    GFRForestSampler<ModelType> gfr_sampler = GFRForestSampler<ModelType>(cutpoint_grid_size);
+    MCMCForestSampler<ModelType> mcmc_sampler = MCMCForestSampler<ModelType>();
 
     // Running variable for current sampled value of global outcome variance parameter
     double global_var = global_var_init;

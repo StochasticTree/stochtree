@@ -775,7 +775,7 @@ bart_specialized <- function(
         as.numeric(X_train), y_train, feature_types, variable_weights, nrow(X_train), 
         ncol(X_train), num_trees, output_dimension, is_leaf_constant, alpha, beta, 
         min_samples_leaf, cutpoint_grid_size, a_leaf, b_leaf, nu, lambda, 
-        tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed
+        tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, 0
     )
 # 
 #     # Forest predictions

@@ -19,7 +19,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp(
     int output_dimension, bool is_leaf_constant, double alpha, double beta, 
     int min_samples_leaf, int cutpoint_grid_size, double a_leaf, double b_leaf, 
     double nu, double lamb, double leaf_variance_init, double global_variance_init, 
-    int num_gfr, int num_burnin, int num_mcmc, int random_seed
+    int num_gfr, int num_burnin, int num_mcmc, int random_seed, int leaf_model_int
 ) {
     // Create smart pointer to newly allocated object
     std::unique_ptr<StochTree::BARTResult> bart_result_ptr_ = std::make_unique<StochTree::BARTResult>(num_trees, output_dimension, is_leaf_constant);
@@ -37,18 +37,44 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp(
     }
     
     // Create BART dispatcher and add data
-    StochTree::BARTDispatcher bart_dispatcher{};
     double* covariate_data_ptr = REAL(PROTECT(covariates));
     double* outcome_data_ptr = REAL(PROTECT(outcome));
-    bart_dispatcher.AddDataset(covariate_data_ptr, num_rows, num_covariates, false, true);
-    bart_dispatcher.AddTrainOutcome(outcome_data_ptr, num_rows);
-    
-    // Run the BART sampling loop
-    bart_dispatcher.RunSampler(
-        *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
-        num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_variance_init, 
-        alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size
-    );
+    if (leaf_model_int == 0) {
+        // Create the dispatcher and load the data
+        StochTree::BARTDispatcher<StochTree::GaussianConstantLeafModel> bart_dispatcher{};
+        bart_dispatcher.AddDataset(covariate_data_ptr, num_rows, num_covariates, false, true);
+        bart_dispatcher.AddTrainOutcome(outcome_data_ptr, num_rows);
+        // Run the sampling loop
+        bart_dispatcher.RunSampler(
+            *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
+            num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_variance_init, 
+            alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size
+        );
+    } else if (leaf_model_int == 1) {
+        // Create the dispatcher and load the data
+        StochTree::BARTDispatcher<StochTree::GaussianUnivariateRegressionLeafModel> bart_dispatcher{};
+        bart_dispatcher.AddDataset(covariate_data_ptr, num_rows, num_covariates, false, true);
+        bart_dispatcher.AddTrainOutcome(outcome_data_ptr, num_rows);
+        // Run the sampling loop
+        bart_dispatcher.RunSampler(
+            *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
+            num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_variance_init, 
+            alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size
+        );
+    }
+    // // TODO: Figure out dispatch here
+    // else {
+    //     // Create the dispatcher and load the data
+    //     StochTree::BARTDispatcher<StochTree::GaussianMultivariateRegressionLeafModel> bart_dispatcher{};
+    //     bart_dispatcher.AddDataset(covariate_data_ptr, num_rows, num_covariates, false, true);
+    //     bart_dispatcher.AddTrainOutcome(outcome_data_ptr, num_rows);
+    //     // Run the sampling loop
+    //     bart_dispatcher.RunSampler(
+    //         *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
+    //         num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_variance_init, 
+    //         alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size
+    //     );
+    // }
     
     // Unprotect pointers to R data
     UNPROTECT(2);
@@ -56,4 +82,3 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp(
     // Release management of the pointer to R session
     return cpp11::external_pointer<StochTree::BARTResult>(bart_result_ptr_.release());
 }
-

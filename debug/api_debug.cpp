@@ -607,7 +607,7 @@ void RunDebugLoop(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, 
   int num_trees = 50;
   output_dimension = 1;
   is_leaf_constant = true;
-  BARTDispatcher bart_dispatcher{};
+  BARTDispatcher<GaussianConstantLeafModel> bart_dispatcher{};
   BARTResult bart_result = bart_dispatcher.CreateOutputObject(num_trees, output_dimension, is_leaf_constant);
 
   // Add covariates to sampling loop
