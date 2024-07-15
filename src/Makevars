@@ -16,7 +16,6 @@ OBJECTS = \
     sampler.o \
     serialization.o \
     cpp11.o \
-    bart.o \
     container.o \
     cutpoint_candidates.o \
     data.o \
