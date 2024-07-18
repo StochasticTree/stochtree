@@ -747,6 +747,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
     } else {
         num_rows_test <- 0
     }
+    num_samples <- num_gfr + num_burnin + num_mcmc
     
     # Update variable weights
     variable_weights_adj <- 1/sapply(original_var_indices, function(x) sum(original_var_indices == x))
