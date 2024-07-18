@@ -7,12 +7,19 @@
 bart_specialized(
   X_train,
   y_train,
+  W_train = NULL,
+  group_ids_train = NULL,
+  rfx_basis_train = NULL,
   X_test = NULL,
+  W_test = NULL,
+  group_ids_test = NULL,
+  rfx_basis_test = NULL,
   cutpoint_grid_size = 100,
   tau_init = NULL,
   alpha = 0.95,
   beta = 2,
   min_samples_leaf = 5,
+  leaf_model = 0,
   nu = 3,
   lambda = NULL,
   a_leaf = 3,
@@ -24,10 +31,14 @@ bart_specialized(
   num_gfr = 5,
   num_burnin = 0,
   num_mcmc = 100,
+  sample_sigma = T,
+  sample_tau = T,
   random_seed = -1,
   keep_burnin = F,
   keep_gfr = F,
-  verbose = F
+  verbose = F,
+  sample_global_var = T,
+  sample_leaf_var = F
 )
 }
 \arguments{
@@ -39,9 +50,30 @@ that the column is ordered categorical).}
 
 \item{y_train}{Outcome to be modeled by the ensemble.}
 
+\item{W_train}{(Optional) Bases used to define a regression model \code{y ~ W} in
+each leaf of each regression tree. By default, BART assumes constant leaf node
+parameters, implicitly regressing on a constant basis of ones (i.e. \code{y ~ 1}).}
+
+\item{group_ids_train}{(Optional) Group labels used for an additive random effects model.}
+
+\item{rfx_basis_train}{(Optional) Basis for "random-slope" regression in an additive random effects model.
+If \code{group_ids_train} is provided with a regression basis, an intercept-only random effects model
+will be estimated.}
+
 \item{X_test}{(Optional) Test set of covariates used to define "out of sample" evaluation data.
 May be provided either as a dataframe or a matrix, but the format of \code{X_test} must be consistent with
 that of \code{X_train}.}
+
+\item{W_test}{(Optional) Test set of bases used to define "out of sample" evaluation data.
+While a test set is optional, the structure of any provided test set must match that
+of the training set (i.e. if both X_train and W_train are provided, then a test set must
+consist of X_test and W_test with the same number of columns).}
+
+\item{group_ids_test}{(Optional) Test set group labels used for an additive random effects model.
+We do not currently support (but plan to in the near future), test set evaluation for group labels
+that were not in the training set.}
+
+\item{rfx_basis_test}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
 
 \item{cutpoint_grid_size}{Maximum size of the "grid" of potential cutpoints to consider. Default: 100.}
 
@@ -52,6 +84,8 @@ that of \code{X_train}.}
 \item{beta}{Exponent that decreases split probabilities for nodes of depth > 0. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}.}
 
 \item{min_samples_leaf}{Minimum allowable size of a leaf, in terms of training samples. Default: 5.}
+
+\item{leaf_model}{Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.}
 
 \item{nu}{Shape parameter in the \code{IG(nu, nu*lambda)} global error variance model. Default: 3.}
 
@@ -75,6 +109,10 @@ that of \code{X_train}.}
 
 \item{num_mcmc}{Number of "retained" iterations of the MCMC sampler. Default: 100.}
 
+\item{sample_sigma}{Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(nu, nu*lambda)}. Default: T.}
+
+\item{sample_tau}{Whether or not to update the \code{tau} leaf scale variance parameter based on \code{IG(a_leaf, b_leaf)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: T.}
+
 \item{random_seed}{Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to \code{std::random_device}.}
 
 \item{keep_burnin}{Whether or not "burnin" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.}
@@ -83,7 +121,9 @@ that of \code{X_train}.}
 
 \item{verbose}{Whether or not to print progress during the sampling loops. Default: FALSE.}
 
-\item{leaf_model}{Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.}
+\item{sample_global_var}{Whether or not global variance parameter should be sampled. Default: TRUE.}
+
+\item{sample_leaf_var}{Whether or not leaf model variance parameter should be sampled. Default: FALSE.}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).

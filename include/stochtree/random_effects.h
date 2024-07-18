@@ -67,11 +67,17 @@ class RandomEffectsTracker {
 class LabelMapper {
  public:
   LabelMapper() {}
-  LabelMapper(std::map<int32_t, int32_t> label_map) {
+  LabelMapper(std::map<int32_t, int32_t>& label_map) {
     label_map_ = label_map;
     for (const auto& [key, value] : label_map) keys_.push_back(key);
   }
   ~LabelMapper() {}
+  void Initialize(std::map<int32_t, int32_t>& label_map) {
+    label_map_.clear(); 
+    keys_.clear();
+    label_map_ = label_map;
+    for (const auto& [key, value] : label_map) keys_.push_back(key);
+  }
   bool ContainsLabel(int32_t category_id) {
     auto pos = label_map_.find(category_id);
     return pos != label_map_.end();
@@ -276,6 +282,11 @@ class RandomEffectsContainer {
     num_samples_ = 0;
   }
   ~RandomEffectsContainer() {}
+  void Initialize(int num_components, int num_groups) {
+    num_components_ = num_components;
+    num_groups_ = num_groups;
+    num_samples_ = 0;
+  }
   void AddSample(MultivariateRegressionRandomEffectsModel& model);
   void Predict(RandomEffectsDataset& dataset, LabelMapper& label_mapper, std::vector<double>& output);
   int NumSamples() {return num_samples_;}

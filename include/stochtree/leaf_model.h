@@ -86,6 +86,7 @@ class GaussianConstantLeafModel {
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetScale(double tau) {tau_ = tau;}
+  void SetScale(Eigen::MatrixXd& tau) {tau_ = tau(0,0);}
   inline bool RequiresBasis() {return false;}
  private:
   double tau_;
@@ -158,6 +159,7 @@ class GaussianUnivariateRegressionLeafModel {
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetScale(double tau) {tau_ = tau;}
+  void SetScale(Eigen::MatrixXd& tau) {tau_ = tau(0,0);}
   inline bool RequiresBasis() {return true;}
  private:
   double tau_;
