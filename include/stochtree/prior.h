@@ -42,22 +42,26 @@ class RandomEffectsRegressionGaussianPrior : public RandomEffectsGaussianPrior {
 
 class TreePrior {
  public:
-  TreePrior(double alpha, double beta, int32_t min_samples_in_leaf) {
+  TreePrior(double alpha, double beta, int32_t min_samples_in_leaf, int32_t max_depth = -1) {
     alpha_ = alpha;
     beta_ = beta;
     min_samples_in_leaf_ = min_samples_in_leaf;
+    max_depth_ = max_depth;
   }
   ~TreePrior() {}
   double GetAlpha() {return alpha_;}
   double GetBeta() {return beta_;}
   int32_t GetMinSamplesLeaf() {return min_samples_in_leaf_;}
+  int32_t GetMaxDepth() {return max_depth_;}
   void SetAlpha(double alpha) {alpha_ = alpha;}
   void SetBeta(double beta) {beta_ = beta;}
   void SetMinSamplesLeaf(int32_t min_samples_in_leaf) {min_samples_in_leaf_ = min_samples_in_leaf;}
+  void SetMaxDepth(int32_t max_depth) {max_depth_ = max_depth;}
  private:
   double alpha_;
   double beta_;
   int32_t min_samples_in_leaf_;
+  int32_t max_depth_;
 };
 
 class IGVariancePrior {

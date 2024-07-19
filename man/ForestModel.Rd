@@ -37,7 +37,8 @@ Create a new ForestModel object.
   n,
   alpha,
   beta,
-  min_samples_leaf
+  min_samples_leaf,
+  max_depth
 )}\if{html}{\out{</div>}}
 }
 
@@ -57,6 +58,8 @@ Create a new ForestModel object.
 \item{\code{beta}}{Depth prior penalty in tree prior}
 
 \item{\code{min_samples_leaf}}{Minimum number of samples in a tree leaf}
+
+\item{\code{max_depth}}{Maximum depth of any tree in an ensemble}
 }
 \if{html}{\out{</div>}}
 }

@@ -25,7 +25,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_test_rfx(
     int num_rfx_basis_test, int num_rfx_groups_test, cpp11::integers feature_types, 
     cpp11::doubles variable_weights, int num_trees, int output_dimension, bool is_leaf_constant, 
     double alpha, double beta, double a_leaf, double b_leaf, double nu, double lamb, 
-    int min_samples_leaf, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
+    int min_samples_leaf, int max_depth, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
     double global_variance_init, int num_gfr, int num_burnin, int num_mcmc, int random_seed, 
     int leaf_model_int, bool sample_global_var, bool sample_leaf_var, 
     cpp11::doubles rfx_alpha_init, cpp11::doubles_matrix<> rfx_xi_init, 
@@ -147,7 +147,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_test_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else if (leaf_model_int == 1) {
         // Create the dispatcher and load the data
@@ -169,7 +169,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_test_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else {
         // Create the dispatcher and load the data
@@ -191,7 +191,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_test_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     }
     
@@ -211,7 +211,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_test_norfx(
         cpp11::integers feature_types, cpp11::doubles variable_weights, 
         int num_trees, int output_dimension, bool is_leaf_constant, 
         double alpha, double beta, double a_leaf, double b_leaf, double nu, double lamb, 
-        int min_samples_leaf, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
+        int min_samples_leaf, int max_depth, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
         double global_variance_init, int num_gfr, int num_burnin, int num_mcmc, int random_seed, 
         int leaf_model_int, bool sample_global_var, bool sample_leaf_var
 ) {
@@ -271,7 +271,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_test_norfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else if (leaf_model_int == 1) {
         // Create the dispatcher and load the data
@@ -286,7 +286,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_test_norfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else {
         // Create the dispatcher and load the data
@@ -301,7 +301,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_test_norfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     }
     
@@ -321,7 +321,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_notest_rfx(
         cpp11::integers feature_types, cpp11::doubles variable_weights, 
         int num_trees, int output_dimension, bool is_leaf_constant, 
         double alpha, double beta, double a_leaf, double b_leaf, double nu, double lamb, 
-        int min_samples_leaf, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
+        int min_samples_leaf, int max_depth, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
         double global_variance_init, int num_gfr, int num_burnin, int num_mcmc, int random_seed, 
         int leaf_model_int, bool sample_global_var, bool sample_leaf_var, 
         cpp11::doubles rfx_alpha_init, cpp11::doubles_matrix<> rfx_xi_init, 
@@ -418,7 +418,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_notest_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else if (leaf_model_int == 1) {
         // Create the dispatcher and load the data
@@ -435,7 +435,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_notest_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else {
         // Create the dispatcher and load the data
@@ -452,7 +452,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_notest_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     }
     
@@ -470,7 +470,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_notest_norfx(
         cpp11::integers feature_types, cpp11::doubles variable_weights, 
         int num_trees, int output_dimension, bool is_leaf_constant, 
         double alpha, double beta, double a_leaf, double b_leaf, double nu, double lamb, 
-        int min_samples_leaf, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
+        int min_samples_leaf, int max_depth, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
         double global_variance_init, int num_gfr, int num_burnin, int num_mcmc, int random_seed, 
         int leaf_model_int, bool sample_global_var, bool sample_leaf_var
 ) {
@@ -520,7 +520,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_notest_norfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else if (leaf_model_int == 1) {
         // Create the dispatcher and load the data
@@ -533,7 +533,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_notest_norfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else {
         // Create the dispatcher and load the data
@@ -546,7 +546,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_basis_notest_norfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     }
     
@@ -569,7 +569,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_test_rfx(
         int num_rfx_basis_test, int num_rfx_groups_test, cpp11::integers feature_types, 
         cpp11::doubles variable_weights, int num_trees, int output_dimension, bool is_leaf_constant, 
         double alpha, double beta, double a_leaf, double b_leaf, double nu, double lamb, 
-        int min_samples_leaf, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
+        int min_samples_leaf, int max_depth, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
         double global_variance_init, int num_gfr, int num_burnin, int num_mcmc, int random_seed, 
         int leaf_model_int, bool sample_global_var, bool sample_leaf_var, 
         cpp11::doubles rfx_alpha_init, cpp11::doubles_matrix<> rfx_xi_init, 
@@ -686,7 +686,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_test_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else if (leaf_model_int == 1) {
         // Create the dispatcher and load the data
@@ -708,7 +708,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_test_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else {
         // Create the dispatcher and load the data
@@ -730,7 +730,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_test_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     }
     
@@ -750,7 +750,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_test_norfx(
         cpp11::integers feature_types, cpp11::doubles variable_weights, 
         int num_trees, int output_dimension, bool is_leaf_constant, 
         double alpha, double beta, double a_leaf, double b_leaf, double nu, double lamb, 
-        int min_samples_leaf, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
+        int min_samples_leaf, int max_depth, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
         double global_variance_init, int num_gfr, int num_burnin, int num_mcmc, int random_seed, 
         int leaf_model_int, bool sample_global_var, bool sample_leaf_var
 ) {
@@ -805,7 +805,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_test_norfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else if (leaf_model_int == 1) {
         // Create the dispatcher and load the data
@@ -820,7 +820,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_test_norfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else {
         // Create the dispatcher and load the data
@@ -835,7 +835,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_test_norfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     }
     
@@ -855,7 +855,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_notest_rfx(
         cpp11::integers feature_types, cpp11::doubles variable_weights, 
         int num_trees, int output_dimension, bool is_leaf_constant, 
         double alpha, double beta, double a_leaf, double b_leaf, double nu, double lamb, 
-        int min_samples_leaf, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
+        int min_samples_leaf, int max_depth, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
         double global_variance_init, int num_gfr, int num_burnin, int num_mcmc, int random_seed, 
         int leaf_model_int, bool sample_global_var, bool sample_leaf_var, 
         cpp11::doubles rfx_alpha_init, cpp11::doubles_matrix<> rfx_xi_init, 
@@ -951,7 +951,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_notest_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else if (leaf_model_int == 1) {
         // Create the dispatcher and load the data
@@ -968,7 +968,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_notest_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else {
         // Create the dispatcher and load the data
@@ -985,7 +985,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_notest_rfx(
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     }
     
@@ -1003,7 +1003,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_notest_norfx
         cpp11::integers feature_types, cpp11::doubles variable_weights, 
         int num_trees, int output_dimension, bool is_leaf_constant, 
         double alpha, double beta, double a_leaf, double b_leaf, double nu, double lamb, 
-        int min_samples_leaf, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
+        int min_samples_leaf, int max_depth, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_cov_init, 
         double global_variance_init, int num_gfr, int num_burnin, int num_mcmc, int random_seed, 
         int leaf_model_int, bool sample_global_var, bool sample_leaf_var
 ) {
@@ -1052,7 +1052,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_notest_norfx
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else if (leaf_model_int == 1) {
         // Create the dispatcher and load the data
@@ -1065,7 +1065,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_notest_norfx
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     } else {
         // Create the dispatcher and load the data
@@ -1078,7 +1078,7 @@ cpp11::external_pointer<StochTree::BARTResult> run_bart_cpp_nobasis_notest_norfx
             *bart_result_ptr_.get(), feature_types_vector, var_weights_vector, 
             num_trees, num_gfr, num_burnin, num_mcmc, global_variance_init, leaf_cov, 
             alpha, beta, nu, lamb, a_leaf, b_leaf, min_samples_leaf, cutpoint_grid_size,
-            sample_global_var, sample_leaf_var, random_seed
+            sample_global_var, sample_leaf_var, random_seed, max_depth
         );
     }
     

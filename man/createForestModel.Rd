@@ -11,7 +11,8 @@ createForestModel(
   n,
   alpha,
   beta,
-  min_samples_leaf
+  min_samples_leaf,
+  max_depth
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ createForestModel(
 \item{beta}{Depth prior penalty in tree prior}
 
 \item{min_samples_leaf}{Minimum number of samples in a tree leaf}
+
+\item{max_depth}{Maximum depth of any tree in an ensemble}
 }
 \value{
 \code{ForestModel} object

@@ -24,7 +24,7 @@ class BARTModel:
         return self.sampled
     
     def sample(self, X_train: np.array, y_train: np.array, basis_train: np.array = None, X_test: np.array = None, basis_test: np.array = None, 
-               cutpoint_grid_size = 100, sigma_leaf: float = None, alpha: float = 0.95, beta: float = 2.0, min_samples_leaf: int = 5, 
+               cutpoint_grid_size = 100, sigma_leaf: float = None, alpha: float = 0.95, beta: float = 2.0, min_samples_leaf: int = 5, max_depth: int = 10, 
                nu: float = 3, lamb: float = None, a_leaf: float = 3, b_leaf: float = None, q: float = 0.9, sigma2: float = None, 
                num_trees: int = 200, num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, sample_sigma_global: bool = True, 
                sample_sigma_leaf: bool = True, random_seed: int = -1, keep_burnin: bool = False, keep_gfr: bool = False) -> None:
@@ -56,6 +56,8 @@ class BARTModel:
             Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``.
         min_samples_leaf : :obj:`int`, optional
             Minimum allowable size of a leaf, in terms of training samples. Defaults to ``5``.
+        max_depth : :obj:`int`, optional
+            Maximum depth of any tree in the ensemble. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
         nu : :obj:`float`, optional
             Shape parameter in the ``IG(nu, nu*lamb)`` global error variance model. Defaults to ``3``.
         lamb : :obj:`float`, optional
@@ -217,7 +219,7 @@ class BARTModel:
             cpp_rng = RNG(random_seed)
         
         # Sampling data structures
-        forest_sampler = ForestSampler(forest_dataset_train, feature_types, num_trees, self.n_train, alpha, beta, min_samples_leaf)
+        forest_sampler = ForestSampler(forest_dataset_train, feature_types, num_trees, self.n_train, alpha, beta, min_samples_leaf, max_depth)
 
         # Determine the leaf model
         if not self.has_basis:

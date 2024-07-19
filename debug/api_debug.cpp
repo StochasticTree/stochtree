@@ -434,6 +434,7 @@ void RunDebugDeconstructed(int dgp_num = 0, bool rfx_included = false, int num_g
   double alpha = 1;
   double beta = 0.1;
   int min_samples_leaf = 1;
+  int max_depth = 10;
   int cutpoint_grid_size = 100;
   double a_rfx = 1.;
   double b_rfx = 1.;
@@ -458,7 +459,7 @@ void RunDebugDeconstructed(int dgp_num = 0, bool rfx_included = false, int num_g
 
   // Initialize tracker and tree prior
   ForestTracker tracker = ForestTracker(dataset.GetCovariates(), feature_types, num_trees, n);
-  TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf);
+  TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf, max_depth);
 
   // Initialize variance models
   GlobalHomoskedasticVarianceModel global_var_model = GlobalHomoskedasticVarianceModel();

@@ -255,7 +255,7 @@ class ForestContainerCpp {
 
 class ForestSamplerCpp {
  public:
-  ForestSamplerCpp(ForestDatasetCpp& dataset, py::array_t<int> feature_types, int num_trees, data_size_t num_obs, double alpha, double beta, int min_samples_leaf) {
+  ForestSamplerCpp(ForestDatasetCpp& dataset, py::array_t<int> feature_types, int num_trees, data_size_t num_obs, double alpha, double beta, int min_samples_leaf, int max_depth = -1) {
     // Convert vector of integers to std::vector of enum FeatureType
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
     for (int i = 0; i < feature_types.size(); i++) {
@@ -265,7 +265,7 @@ class ForestSamplerCpp {
     // Initialize pointer to C++ ForestTracker and TreePrior classes
     StochTree::ForestDataset* dataset_ptr = dataset.GetDataset();
     tracker_ = std::make_unique<StochTree::ForestTracker>(dataset_ptr->GetCovariates(), feature_types_, num_trees, num_obs);
-    split_prior_ = std::make_unique<StochTree::TreePrior>(alpha, beta, min_samples_leaf);
+    split_prior_ = std::make_unique<StochTree::TreePrior>(alpha, beta, min_samples_leaf, max_depth);
   }
   ~ForestSamplerCpp() {}
 

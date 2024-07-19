@@ -30,6 +30,7 @@
 #' @param beta Exponent that decreases split probabilities for nodes of depth > 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
 #' @param leaf_model Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.
 #' @param min_samples_leaf Minimum allowable size of a leaf, in terms of training samples. Default: 5.
+#' @param max_depth Maximum depth of any tree in the ensemble. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
 #' @param nu Shape parameter in the `IG(nu, nu*lambda)` global error variance model. Default: 3.
 #' @param lambda Component of the scale parameter in the `IG(nu, nu*lambda)` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
 #' @param a_leaf Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: 3.
@@ -79,7 +80,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                  rfx_basis_train = NULL, X_test = NULL, W_test = NULL, 
                  group_ids_test = NULL, rfx_basis_test = NULL, 
                  cutpoint_grid_size = 100, tau_init = NULL, alpha = 0.95, 
-                 beta = 2.0, min_samples_leaf = 5, leaf_model = 0, 
+                 beta = 2.0, min_samples_leaf = 5, max_depth = 10, leaf_model = 0, 
                  nu = 3, lambda = NULL, a_leaf = 3, b_leaf = NULL, 
                  q = 0.9, sigma2_init = NULL, variable_weights = NULL, 
                  num_trees = 200, num_gfr = 5, num_burnin = 0, 
@@ -130,7 +131,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if ((is.null(dim(rfx_basis_test))) && (!is.null(rfx_basis_test))) {
         rfx_basis_test <- as.matrix(rfx_basis_test)
     }
-    
+
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
     has_rfx <- F
     has_rfx_test <- F
@@ -273,7 +274,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Sampling data structures
     feature_types <- as.integer(feature_types)
-    forest_model <- createForestModel(forest_dataset_train, feature_types, num_trees, nrow(X_train), alpha, beta, min_samples_leaf)
+    forest_model <- createForestModel(forest_dataset_train, feature_types, num_trees, nrow(X_train), alpha, beta, min_samples_leaf, max_depth)
     
     # Container of forest samples
     forest_samples <- createForestContainer(num_trees, output_dimension, is_leaf_constant)
@@ -654,6 +655,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
 #' @param beta Exponent that decreases split probabilities for nodes of depth > 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
 #' @param leaf_model Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.
 #' @param min_samples_leaf Minimum allowable size of a leaf, in terms of training samples. Default: 5.
+#' @param max_depth Maximum depth of any tree in the ensemble. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
 #' @param nu Shape parameter in the `IG(nu, nu*lambda)` global error variance model. Default: 3.
 #' @param lambda Component of the scale parameter in the `IG(nu, nu*lambda)` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
 #' @param a_leaf Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: 3.
@@ -705,7 +707,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
                              rfx_basis_train = NULL, X_test = NULL, W_test = NULL, 
                              group_ids_test = NULL, rfx_basis_test = NULL, 
                              cutpoint_grid_size = 100, tau_init = NULL, alpha = 0.95, 
-                             beta = 2.0, min_samples_leaf = 5, leaf_model = 0, 
+                             beta = 2.0, min_samples_leaf = 5, max_depth = 10, leaf_model = 0, 
                              nu = 3, lambda = NULL, a_leaf = 3, b_leaf = NULL, 
                              q = 0.9, sigma2_init = NULL, variable_weights = NULL, 
                              num_trees = 200, num_gfr = 5, num_burnin = 0, 
@@ -929,7 +931,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
             as.numeric(rfx_basis_train), group_ids_train, num_basis_rfx, num_rfx_groups, 
             as.numeric(rfx_basis_test), group_ids_test, num_basis_rfx, num_rfx_groups, 
             feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
-            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, cutpoint_grid_size, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
             tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
             sample_global_var, sample_leaf_var, alpha_init, xi_init, sigma_alpha_init, 
             sigma_xi_init, sigma_xi_shape, sigma_xi_scale
@@ -940,7 +942,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
             num_rows_train, num_cov_train, num_basis_train, 
             as.numeric(X_test), as.numeric(W_test), num_rows_test, num_cov_test, num_basis_test, 
             feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
-            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, cutpoint_grid_size, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
             tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
             sample_global_var, sample_leaf_var
         )
@@ -950,7 +952,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
             num_rows_train, num_cov_train, num_basis_train, 
             as.numeric(rfx_basis_train), group_ids_train, num_basis_rfx, num_rfx_groups, 
             feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
-            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, cutpoint_grid_size, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
             tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
             sample_global_var, sample_leaf_var, alpha_init, xi_init, sigma_alpha_init, 
             sigma_xi_init, sigma_xi_shape, sigma_xi_scale
@@ -960,7 +962,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
             as.numeric(X_train), as.numeric(W_train), resid_train, 
             num_rows_train, num_cov_train, num_basis_train, 
             feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
-            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, cutpoint_grid_size, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
             tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
             sample_global_var, sample_leaf_var
         )
@@ -972,7 +974,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
             as.numeric(rfx_basis_train), group_ids_train, num_basis_rfx, num_rfx_groups, 
             as.numeric(rfx_basis_test), group_ids_test, num_basis_rfx, num_rfx_groups, 
             feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
-            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, cutpoint_grid_size, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
             tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
             sample_global_var, sample_leaf_var, alpha_init, xi_init, sigma_alpha_init, 
             sigma_xi_init, sigma_xi_shape, sigma_xi_scale
@@ -983,7 +985,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
             num_rows_train, num_cov_train, 
             as.numeric(X_test), num_rows_test, num_cov_test, 
             feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
-            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, cutpoint_grid_size, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
             tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
             sample_global_var, sample_leaf_var
         )
@@ -993,7 +995,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
             num_rows_train, num_cov_train, 
             as.numeric(rfx_basis_train), group_ids_train, num_basis_rfx, num_rfx_groups, 
             feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
-            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, cutpoint_grid_size, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
             tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
             sample_global_var, sample_leaf_var, alpha_init, xi_init, sigma_alpha_init, 
             sigma_xi_init, sigma_xi_shape, sigma_xi_scale
@@ -1003,7 +1005,7 @@ bart_specialized <- function(X_train, y_train, W_train = NULL, group_ids_train =
             as.numeric(X_train), resid_train, 
             num_rows_train, num_cov_train, 
             feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
-            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, cutpoint_grid_size, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
             tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
             sample_global_var, sample_leaf_var
         )

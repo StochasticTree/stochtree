@@ -142,7 +142,7 @@ class BARTDispatcher {
     BARTResult& output, std::vector<FeatureType>& feature_types, std::vector<double>& variable_weights, 
     int num_trees, int num_gfr, int num_burnin, int num_mcmc, double global_var_init, Eigen::MatrixXd& leaf_cov_init, 
     double alpha, double beta, double nu, double lamb, double a_leaf, double b_leaf, int min_samples_leaf, int cutpoint_grid_size, 
-    bool sample_global_var, bool sample_leaf_var, int random_seed = -1
+    bool sample_global_var, bool sample_leaf_var, int random_seed = -1, int max_depth = -1
   ) {
     // Unpack sampling details
     num_gfr_ = num_gfr;
@@ -209,7 +209,7 @@ class BARTDispatcher {
     
     // Initialize tracker and tree prior
     ForestTracker tracker = ForestTracker(train_dataset_.GetCovariates(), feature_types, num_trees, num_train_);
-    TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf);
+    TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf, max_depth);
 
     // Initialize global variance model
     GlobalHomoskedasticVarianceModel global_var_model = GlobalHomoskedasticVarianceModel();

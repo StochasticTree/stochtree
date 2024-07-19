@@ -50,11 +50,12 @@ ForestModel <- R6::R6Class(
         #' @param alpha Root node split probability in tree prior
         #' @param beta Depth prior penalty in tree prior
         #' @param min_samples_leaf Minimum number of samples in a tree leaf
+        #' @param max_depth Maximum depth of any tree in an ensemble
         #' @return A new `ForestModel` object.
-        initialize = function(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf) {
+        initialize = function(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth) {
             stopifnot(!is.null(forest_dataset$data_ptr))
             self$tracker_ptr <- forest_tracker_cpp(forest_dataset$data_ptr, feature_types, num_trees, n)
-            self$tree_prior_ptr <- tree_prior_cpp(alpha, beta, min_samples_leaf)
+            self$tree_prior_ptr <- tree_prior_cpp(alpha, beta, min_samples_leaf, max_depth)
         }, 
         
         #' @description
@@ -115,12 +116,13 @@ createRNG <- function(random_seed = -1){
 #' @param alpha Root node split probability in tree prior
 #' @param beta Depth prior penalty in tree prior
 #' @param min_samples_leaf Minimum number of samples in a tree leaf
+#' @param max_depth Maximum depth of any tree in an ensemble
 #'
 #' @return `ForestModel` object
 #' @export
-createForestModel <- function(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf) {
+createForestModel <- function(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth) {
     return(invisible((
-        ForestModel$new(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf)
+        ForestModel$new(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
     )))
 }
 

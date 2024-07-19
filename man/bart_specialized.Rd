@@ -19,6 +19,7 @@ bart_specialized(
   alpha = 0.95,
   beta = 2,
   min_samples_leaf = 5,
+  max_depth = 10,
   leaf_model = 0,
   nu = 3,
   lambda = NULL,
@@ -84,6 +85,8 @@ that were not in the training set.}
 \item{beta}{Exponent that decreases split probabilities for nodes of depth > 0. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}.}
 
 \item{min_samples_leaf}{Minimum allowable size of a leaf, in terms of training samples. Default: 5.}
+
+\item{max_depth}{Maximum depth of any tree in the ensemble. Default: 10. Can be overriden with \code{-1} which does not enforce any depth limits on trees.}
 
 \item{leaf_model}{Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.}
 
