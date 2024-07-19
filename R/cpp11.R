@@ -32,6 +32,10 @@ run_bart_cpp_nobasis_notest_norfx <- function(covariates_train, outcome_train, n
   .Call(`_stochtree_run_bart_cpp_nobasis_notest_norfx`, covariates_train, outcome_train, num_rows_train, num_covariates_train, feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, alpha, beta, a_leaf, b_leaf, nu, lamb, min_samples_leaf, max_depth, cutpoint_grid_size, leaf_cov_init, global_variance_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model_int, sample_global_var, sample_leaf_var)
 }
 
+run_bart_specialized_cpp <- function(covariates, outcome, feature_types, variable_weights, num_rows, num_covariates, num_trees, output_dimension, is_leaf_constant, alpha, beta, min_samples_leaf, cutpoint_grid_size, a_leaf, b_leaf, nu, lamb, leaf_variance_init, global_variance_init, num_gfr, num_burnin, num_mcmc, random_seed, max_depth) {
+  .Call(`_stochtree_run_bart_specialized_cpp`, covariates, outcome, feature_types, variable_weights, num_rows, num_covariates, num_trees, output_dimension, is_leaf_constant, alpha, beta, min_samples_leaf, cutpoint_grid_size, a_leaf, b_leaf, nu, lamb, leaf_variance_init, global_variance_init, num_gfr, num_burnin, num_mcmc, random_seed, max_depth)
+}
+
 create_forest_dataset_cpp <- function() {
   .Call(`_stochtree_create_forest_dataset_cpp`)
 }
