@@ -75,7 +75,7 @@ if (dgp_num == 1) {
 # (2) the "generalized" C++ sampling loop, and 
 # (3) the "streamlined" / "specialized" C++ sampling loop that only samples trees
 # and sigma^2 (error variance parameter)
-sampler_choice <- 3
+sampler_choice <- 1
 system.time({
     if (sampler_choice == 1) {
         bart_obj <- stochtree::bart(

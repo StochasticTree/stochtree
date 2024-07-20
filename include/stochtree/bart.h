@@ -406,7 +406,7 @@ class BARTDispatcherSimplified {
     
     // Initialize tracker and tree prior
     ForestTracker tracker = ForestTracker(train_dataset_.GetCovariates(), feature_types, num_trees, num_train_);
-    TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf);
+    TreePrior tree_prior = TreePrior(alpha, beta, min_samples_leaf, max_depth);
 
     // Initialize variance model
     GlobalHomoskedasticVarianceModel global_var_model = GlobalHomoskedasticVarianceModel();

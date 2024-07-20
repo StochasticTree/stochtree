@@ -1118,7 +1118,7 @@ bart_cpp_loop_generalized <- function(
 bart_cpp_loop_specialized <- function(
         X_train, y_train, X_test = NULL, cutpoint_grid_size = 100, 
         tau_init = NULL, alpha = 0.95, beta = 2.0, min_samples_leaf = 5, 
-        max_depth = -1, nu = 3, lambda = NULL, a_leaf = 3, b_leaf = NULL, 
+        max_depth = 10, nu = 3, lambda = NULL, a_leaf = 3, b_leaf = NULL, 
         q = 0.9, sigma2_init = NULL, variable_weights = NULL, 
         num_trees = 200, num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
         random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F
