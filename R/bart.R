@@ -1205,7 +1205,7 @@ bart_cpp_loop_specialized <- function(
     
     # Run the BART sampler
     bart_result_ptr <- run_bart_specialized_cpp(
-        as.numeric(X_train), y_train, feature_types, variable_weights, nrow(X_train), 
+        as.numeric(X_train), resid_train, feature_types, variable_weights, nrow(X_train), 
         ncol(X_train), num_trees, output_dimension, is_leaf_constant, alpha, beta, 
         min_samples_leaf, cutpoint_grid_size, a_leaf, b_leaf, nu, lambda, 
         tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, max_depth
