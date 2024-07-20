@@ -28,6 +28,9 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-num_samples}{\code{ForestSamples$num_samples()}}
 \item \href{#method-ForestSamples-num_trees}{\code{ForestSamples$num_trees()}}
 \item \href{#method-ForestSamples-output_dimension}{\code{ForestSamples$output_dimension()}}
+\item \href{#method-ForestSamples-ensemble_tree_max_depth}{\code{ForestSamples$ensemble_tree_max_depth()}}
+\item \href{#method-ForestSamples-average_ensemble_max_depth}{\code{ForestSamples$average_ensemble_max_depth()}}
+\item \href{#method-ForestSamples-average_max_depth}{\code{ForestSamples$average_max_depth()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -273,6 +276,61 @@ Return output dimension of trees in a \code{ForestContainer} object
 
 \subsection{Returns}{
 Leaf node parameter size
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-ensemble_tree_max_depth"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-ensemble_tree_max_depth}{}}}
+\subsection{Method \code{ensemble_tree_max_depth()}}{
+Maximum depth of a specific tree in a specific ensemble in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$ensemble_tree_max_depth(ensemble_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{ensemble_num}}{Ensemble number}
+
+\item{\code{tree_num}}{Tree index within ensemble \code{ensemble_num}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Maximum leaf depth
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-average_ensemble_max_depth"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-average_ensemble_max_depth}{}}}
+\subsection{Method \code{average_ensemble_max_depth()}}{
+Average the maximum depth of each tree in a given ensemble in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$average_ensemble_max_depth(ensemble_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{ensemble_num}}{Ensemble number}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Average maximum depth
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-average_max_depth"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-average_max_depth}{}}}
+\subsection{Method \code{average_max_depth()}}{
+Average the maximum depth of each tree in each ensemble in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$average_max_depth()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Average maximum depth
 }
 }
 }

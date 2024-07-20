@@ -162,6 +162,30 @@ ForestSamples <- R6::R6Class(
         #' @return Leaf node parameter size
         output_dimension = function() {
             return(output_dimension_forest_container_cpp(self$forest_container_ptr))
+        }, 
+        
+        #' @description
+        #' Maximum depth of a specific tree in a specific ensemble in a `ForestContainer` object
+        #' @param ensemble_num Ensemble number
+        #' @param tree_num Tree index within ensemble `ensemble_num`
+        #' @return Maximum leaf depth
+        ensemble_tree_max_depth = function(ensemble_num, tree_num) {
+            return(ensemble_tree_max_depth_forest_container_cpp(self$forest_container_ptr, ensemble_num, tree_num))
+        }, 
+        
+        #' @description
+        #' Average the maximum depth of each tree in a given ensemble in a `ForestContainer` object
+        #' @param ensemble_num Ensemble number
+        #' @return Average maximum depth
+        average_ensemble_max_depth = function(ensemble_num) {
+            return(ensemble_average_max_depth_forest_container_cpp(self$forest_container_ptr, ensemble_num))
+        }, 
+        
+        #' @description
+        #' Average the maximum depth of each tree in each ensemble in a `ForestContainer` object
+        #' @return Average maximum depth
+        average_max_depth = function() {
+            return(average_max_depth_forest_container_cpp(self$forest_container_ptr))
         }
     )
 )

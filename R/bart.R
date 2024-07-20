@@ -1041,6 +1041,7 @@ bart_cpp_loop_generalized <- function(
     )
     result <- list(
         # "forests" = forest_samples, 
+        "bart_result" = bart_result_ptr, 
         "model_params" = model_params
         # "y_hat_train" = y_hat_train, 
         # "train_set_metadata" = X_train_metadata,
@@ -1238,6 +1239,7 @@ bart_cpp_loop_specialized <- function(
         "sample_tau" = F
     )
     result <- list( 
+        "bart_result" = bart_result_ptr, 
         "model_params" = model_params
     )
     class(result) <- "bartcppsimplified"
@@ -1309,4 +1311,24 @@ getRandomEffectSamples.bartmodel <- function(object, ...){
     result$sigma_samples <- result$sigma_samples*(object$model_params$outcome_scale^2)
     
     return(result)
+}
+
+#' Return the average max depth of all trees and all ensembles in a container of samples
+#'
+#' @param bart_result External pointer to a bart result object
+#'
+#' @return Average maximum depth
+#' @export
+average_max_depth_bart_generalized <- function(bart_result) {
+    average_max_depth_bart_generalized_cpp(bart_result)
+}
+
+#' Return the average max depth of all trees and all ensembles in a container of samples
+#'
+#' @param bart_result External pointer to a bart result object
+#'
+#' @return Average maximum depth
+#' @export
+average_max_depth_bart_specialized <- function(bart_result) {
+    average_max_depth_bart_specialized_cpp(bart_result)
 }

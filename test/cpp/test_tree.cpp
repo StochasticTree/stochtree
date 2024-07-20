@@ -33,12 +33,17 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   StochTree::Tree tree_2;
   StochTree::TreeSplit split;
   tree_1.Init(1);
+
+  // Check max depth
+  ASSERT_EQ(tree_1.MaxLeafDepth(), 0);
   
   // Perform two splits
   split = StochTree::TreeSplit(0.5);
   tree_1.ExpandNode(0, 0, split, 0., 0.);
+  ASSERT_EQ(tree_1.MaxLeafDepth(), 1);
   split = StochTree::TreeSplit(0.75);
   tree_1.ExpandNode(1, 1, split, 0., 0.);
+  ASSERT_EQ(tree_1.MaxLeafDepth(), 2);
   ASSERT_EQ(tree_1.NumValidNodes(), 5);
   ASSERT_EQ(tree_1.NumLeafParents(), 1);
   
@@ -56,6 +61,7 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   // Perform another split
   split = StochTree::TreeSplit(0.6);
   tree_1.ExpandNode(3, 2, split, 0., 0.);
+  ASSERT_EQ(tree_1.MaxLeafDepth(), 3);
   ASSERT_EQ(tree_1.NumValidNodes(), 7);
   ASSERT_EQ(tree_1.NumLeaves(), 4);
   ASSERT_EQ(tree_1.NumLeafParents(), 1);
@@ -73,6 +79,7 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
 
   // Prune node 3 to a leaf
   tree_1.CollapseToLeaf(3, 0.);
+  ASSERT_EQ(tree_1.MaxLeafDepth(), 2);
   ASSERT_EQ(tree_1.NumValidNodes(), 5);
   ASSERT_EQ(tree_1.NumLeaves(), 3);
   ASSERT_EQ(tree_1.NumLeafParents(), 1);

@@ -42,6 +42,21 @@ int num_samples_forest_container_cpp(cpp11::external_pointer<StochTree::ForestCo
 }
 
 [[cpp11::register]]
+int ensemble_tree_max_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int ensemble_num, int tree_num) {
+    return forest_samples->EnsembleTreeMaxDepth(ensemble_num, tree_num);
+}
+
+[[cpp11::register]]
+double ensemble_average_max_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int ensemble_num) {
+    return forest_samples->EnsembleAverageMaxDepth(ensemble_num);
+}
+
+[[cpp11::register]]
+double average_max_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
+    return forest_samples->AverageMaxDepth();
+}
+
+[[cpp11::register]]
 int num_trees_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
     return forest_samples->NumTrees();
 }

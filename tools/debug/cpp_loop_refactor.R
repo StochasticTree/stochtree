@@ -26,7 +26,7 @@ sample_sigma <- T
 # Generate data, choice of DGPs:
 # (1) the "deep interaction" classification DGP
 # (2) partitioned linear model (with split variables and basis included as BART covariates)
-dgp_num <- 1
+dgp_num <- 2
 if (dgp_num == 1) {
     # Initial DGP setup
     n0 <- 50
@@ -76,27 +76,34 @@ if (dgp_num == 1) {
 # (3) the "streamlined" / "specialized" C++ sampling loop that only samples trees
 # and sigma^2 (error variance parameter)
 sampler_choice <- 1
-if (sampler_choice == 1) {
-    bart_obj <- stochtree::bart(
-        X_train = X, y_train = y, alpha = alpha, beta = beta, 
-        min_samples_leaf = min_samples_leaf, nu = nu, lambda = lambda, q = q, 
-        sigma2_init = sigma2_init, num_trees = ntree, num_gfr = num_gfr, 
-        num_burnin = num_burnin, num_mcmc = num_mcmc, sample_tau = sample_tau, 
-        sample_sigma = sample_sigma, random_seed = random_seed
-    )
-} else if (sampler_choice == 2) {
-    bart_obj <- stochtree::bart_cpp_loop_generalized(
-        X_train = X, y_train = y, alpha = alpha, beta = beta, 
-        min_samples_leaf = min_samples_leaf, nu = nu, lambda = lambda, q = q, 
-        sigma2_init = sigma2_init, num_trees = ntree, num_gfr = num_gfr, 
-        num_burnin = num_burnin, num_mcmc = num_mcmc, sample_leaf_var = sample_tau, 
-        sample_global_var = sample_sigma, random_seed = random_seed
-    )
-} else if (sampler_choice == 3) {
-    bart_obj <- stochtree::bart_cpp_loop_specialized(
-        X_train = X, y_train = y, alpha = alpha, beta = beta, 
-        min_samples_leaf = min_samples_leaf, nu = nu, lambda = lambda, q = q, 
-        sigma2_init = sigma2_init, num_trees = ntree, num_gfr = num_gfr, 
-        num_burnin = num_burnin, num_mcmc = num_mcmc, random_seed = random_seed
-    )
-} else stop("sampler_choice must be 1, 2, or 3")
+system.time({
+    if (sampler_choice == 1) {
+        bart_obj <- stochtree::bart(
+            X_train = X, y_train = y, alpha = alpha, beta = beta, 
+            min_samples_leaf = min_samples_leaf, nu = nu, lambda = lambda, q = q, 
+            sigma2_init = sigma2_init, num_trees = ntree, num_gfr = num_gfr, 
+            num_burnin = num_burnin, num_mcmc = num_mcmc, sample_tau = sample_tau, 
+            sample_sigma = sample_sigma, random_seed = random_seed
+        )
+        avg_md <- bart_obj$forests$average_max_depth()
+    } else if (sampler_choice == 2) {
+        bart_obj <- stochtree::bart_cpp_loop_generalized(
+            X_train = X, y_train = y, alpha = alpha, beta = beta, 
+            min_samples_leaf = min_samples_leaf, nu = nu, lambda = lambda, q = q, 
+            sigma2_init = sigma2_init, num_trees = ntree, num_gfr = num_gfr, 
+            num_burnin = num_burnin, num_mcmc = num_mcmc, sample_leaf_var = sample_tau, 
+            sample_global_var = sample_sigma, random_seed = random_seed
+        )
+        avg_md <- average_max_depth_bart_generalized(bart_obj$bart_result)
+    } else if (sampler_choice == 3) {
+        bart_obj <- stochtree::bart_cpp_loop_specialized(
+            X_train = X, y_train = y, alpha = alpha, beta = beta, 
+            min_samples_leaf = min_samples_leaf, nu = nu, lambda = lambda, q = q, 
+            sigma2_init = sigma2_init, num_trees = ntree, num_gfr = num_gfr, 
+            num_burnin = num_burnin, num_mcmc = num_mcmc, random_seed = random_seed
+        )
+        avg_md <- average_max_depth_bart_specialized(bart_obj$bart_result)
+    } else stop("sampler_choice must be 1, 2, or 3")
+})
+
+avg_md

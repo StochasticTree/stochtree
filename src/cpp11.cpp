@@ -68,6 +68,20 @@ extern "C" SEXP _stochtree_run_bart_specialized_cpp(SEXP covariates, SEXP outcom
     return cpp11::as_sexp(run_bart_specialized_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(covariates), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(outcome), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(feature_types), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(variable_weights), cpp11::as_cpp<cpp11::decay_t<int>>(num_rows), cpp11::as_cpp<cpp11::decay_t<int>>(num_covariates), cpp11::as_cpp<cpp11::decay_t<int>>(num_trees), cpp11::as_cpp<cpp11::decay_t<int>>(output_dimension), cpp11::as_cpp<cpp11::decay_t<bool>>(is_leaf_constant), cpp11::as_cpp<cpp11::decay_t<double>>(alpha), cpp11::as_cpp<cpp11::decay_t<double>>(beta), cpp11::as_cpp<cpp11::decay_t<int>>(min_samples_leaf), cpp11::as_cpp<cpp11::decay_t<int>>(cutpoint_grid_size), cpp11::as_cpp<cpp11::decay_t<double>>(a_leaf), cpp11::as_cpp<cpp11::decay_t<double>>(b_leaf), cpp11::as_cpp<cpp11::decay_t<double>>(nu), cpp11::as_cpp<cpp11::decay_t<double>>(lamb), cpp11::as_cpp<cpp11::decay_t<double>>(leaf_variance_init), cpp11::as_cpp<cpp11::decay_t<double>>(global_variance_init), cpp11::as_cpp<cpp11::decay_t<int>>(num_gfr), cpp11::as_cpp<cpp11::decay_t<int>>(num_burnin), cpp11::as_cpp<cpp11::decay_t<int>>(num_mcmc), cpp11::as_cpp<cpp11::decay_t<int>>(random_seed), cpp11::as_cpp<cpp11::decay_t<int>>(max_depth)));
   END_CPP11
 }
+// R_bart.cpp
+double average_max_depth_bart_generalized_cpp(cpp11::external_pointer<StochTree::BARTResult> bart_result);
+extern "C" SEXP _stochtree_average_max_depth_bart_generalized_cpp(SEXP bart_result) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(average_max_depth_bart_generalized_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BARTResult>>>(bart_result)));
+  END_CPP11
+}
+// R_bart.cpp
+double average_max_depth_bart_specialized_cpp(cpp11::external_pointer<StochTree::BARTResultSimplified> bart_result);
+extern "C" SEXP _stochtree_average_max_depth_bart_specialized_cpp(SEXP bart_result) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(average_max_depth_bart_specialized_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::BARTResultSimplified>>>(bart_result)));
+  END_CPP11
+}
 // R_data.cpp
 cpp11::external_pointer<StochTree::ForestDataset> create_forest_dataset_cpp();
 extern "C" SEXP _stochtree_create_forest_dataset_cpp() {
@@ -409,6 +423,27 @@ int num_samples_forest_container_cpp(cpp11::external_pointer<StochTree::ForestCo
 extern "C" SEXP _stochtree_num_samples_forest_container_cpp(SEXP forest_samples) {
   BEGIN_CPP11
     return cpp11::as_sexp(num_samples_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples)));
+  END_CPP11
+}
+// forest.cpp
+int ensemble_tree_max_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int ensemble_num, int tree_num);
+extern "C" SEXP _stochtree_ensemble_tree_max_depth_forest_container_cpp(SEXP forest_samples, SEXP ensemble_num, SEXP tree_num) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(ensemble_tree_max_depth_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(ensemble_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num)));
+  END_CPP11
+}
+// forest.cpp
+double ensemble_average_max_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int ensemble_num);
+extern "C" SEXP _stochtree_ensemble_average_max_depth_forest_container_cpp(SEXP forest_samples, SEXP ensemble_num) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(ensemble_average_max_depth_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(ensemble_num)));
+  END_CPP11
+}
+// forest.cpp
+double average_max_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples);
+extern "C" SEXP _stochtree_average_max_depth_forest_container_cpp(SEXP forest_samples) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(average_max_depth_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples)));
   END_CPP11
 }
 // forest.cpp
@@ -838,6 +873,9 @@ extern "C" {
 static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_add_sample_forest_container_cpp",                   (DL_FUNC) &_stochtree_add_sample_forest_container_cpp,                    1},
     {"_stochtree_all_roots_forest_container_cpp",                    (DL_FUNC) &_stochtree_all_roots_forest_container_cpp,                     2},
+    {"_stochtree_average_max_depth_bart_generalized_cpp",            (DL_FUNC) &_stochtree_average_max_depth_bart_generalized_cpp,             1},
+    {"_stochtree_average_max_depth_bart_specialized_cpp",            (DL_FUNC) &_stochtree_average_max_depth_bart_specialized_cpp,             1},
+    {"_stochtree_average_max_depth_forest_container_cpp",            (DL_FUNC) &_stochtree_average_max_depth_forest_container_cpp,             1},
     {"_stochtree_create_column_vector_cpp",                          (DL_FUNC) &_stochtree_create_column_vector_cpp,                           1},
     {"_stochtree_create_forest_dataset_cpp",                         (DL_FUNC) &_stochtree_create_forest_dataset_cpp,                          0},
     {"_stochtree_create_rfx_dataset_cpp",                            (DL_FUNC) &_stochtree_create_rfx_dataset_cpp,                             0},
@@ -846,6 +884,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_dataset_num_basis_cpp",                             (DL_FUNC) &_stochtree_dataset_num_basis_cpp,                              1},
     {"_stochtree_dataset_num_covariates_cpp",                        (DL_FUNC) &_stochtree_dataset_num_covariates_cpp,                         1},
     {"_stochtree_dataset_num_rows_cpp",                              (DL_FUNC) &_stochtree_dataset_num_rows_cpp,                               1},
+    {"_stochtree_ensemble_average_max_depth_forest_container_cpp",   (DL_FUNC) &_stochtree_ensemble_average_max_depth_forest_container_cpp,    2},
+    {"_stochtree_ensemble_tree_max_depth_forest_container_cpp",      (DL_FUNC) &_stochtree_ensemble_tree_max_depth_forest_container_cpp,       3},
     {"_stochtree_forest_container_cpp",                              (DL_FUNC) &_stochtree_forest_container_cpp,                               3},
     {"_stochtree_forest_container_from_json_cpp",                    (DL_FUNC) &_stochtree_forest_container_from_json_cpp,                     2},
     {"_stochtree_forest_dataset_add_basis_cpp",                      (DL_FUNC) &_stochtree_forest_dataset_add_basis_cpp,                       2},

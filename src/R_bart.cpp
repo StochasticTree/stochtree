@@ -1135,3 +1135,12 @@ cpp11::external_pointer<StochTree::BARTResultSimplified> run_bart_specialized_cp
     return cpp11::external_pointer<StochTree::BARTResultSimplified>(bart_result_ptr_.release());
 }
 
+[[cpp11::register]]
+double average_max_depth_bart_generalized_cpp(cpp11::external_pointer<StochTree::BARTResult> bart_result) {
+    return bart_result->GetForests()->AverageMaxDepth();
+}
+
+[[cpp11::register]]
+double average_max_depth_bart_specialized_cpp(cpp11::external_pointer<StochTree::BARTResultSimplified> bart_result) {
+    return (bart_result->GetForests()).AverageMaxDepth();
+}
