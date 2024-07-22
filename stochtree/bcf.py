@@ -632,14 +632,14 @@ class BCFModel:
         # Initialize the leaves of each tree in the prognostic forest
         init_mu = np.squeeze(np.mean(resid_train)) / num_trees_mu
         self.forest_container_mu.set_root_leaves(0, init_mu)
-        forest_sampler_mu.update_residual(forest_dataset_train, residual_train, self.forest_container_mu, False, 0, True)
+        forest_sampler_mu.adjust_residual(forest_dataset_train, residual_train, self.forest_container_mu, False, 0, True)
 
         # Initialize the leaves of each tree in the treatment forest
         if self.multivariate_treatment:
             self.forest_container_tau.set_root_leaves(0, np.zeros(self.treatment_dim))
         else:
             self.forest_container_tau.set_root_leaves(0, 0.)
-        forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, True, 0, True)
+        forest_sampler_tau.adjust_residual(forest_dataset_train, residual_train, self.forest_container_tau, True, 0, True)
 
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
@@ -693,6 +693,9 @@ class BCFModel:
                         forest_dataset_test.update_basis(tau_basis_test)
                     self.b0_samples[i] = current_b_0
                     self.b1_samples[i] = current_b_1
+
+                    # Update residual to reflect adjusted basis
+                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
@@ -749,6 +752,9 @@ class BCFModel:
                         forest_dataset_test.update_basis(tau_basis_test)
                     self.b0_samples[i] = current_b_0
                     self.b1_samples[i] = current_b_1
+
+                    # Update residual to reflect adjusted basis
+                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Mark the model as sampled
         self.sampled = True

@@ -239,7 +239,7 @@ class BARTModel:
         # Initialize the leaves of each tree in the prognostic forest
         init_root = np.squeeze(np.mean(resid_train)) / num_trees
         self.forest_container.set_root_leaves(0, init_root)
-        forest_sampler.update_residual(forest_dataset_train, residual_train, self.forest_container, False, 0, True)
+        forest_sampler.adjust_residual(forest_dataset_train, residual_train, self.forest_container, False, 0, True)
 
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:

@@ -92,6 +92,21 @@ class ResidualCpp {
     return residual_.get();
   }
 
+  py::array_t<double> GetResidualArray() {
+    // Obtain a reference to the underlying Eigen::VectorXd
+    Eigen::VectorXd& resid_vector = residual_->GetData();
+    
+    // Initialize n x 1 numpy array to store the residual
+    data_size_t n = residual_->NumRows();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, 1}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (size_t i = 0; i < n; i++) {
+      accessor(i,0) = resid_vector(i);
+    }
+
+    return result;
+  }
+
  private:
   std::unique_ptr<StochTree::ColumnVector> residual_;
 };
@@ -222,7 +237,9 @@ class ForestContainerCpp {
     forest_samples_->InitializeRoot(leaf_vector_converted);
   }
 
-  void UpdateResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, int forest_num, bool add);
+  void AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, int forest_num, bool add);
+
+  void UpdateResidualNewBasis(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, int forest_num);
 
   void SaveToJsonFile(std::string json_filename) {
     forest_samples_->SaveToJsonFile(json_filename);
@@ -398,7 +415,7 @@ class LeafVarianceModelCpp {
   StochTree::LeafNodeHomoskedasticVarianceModel var_model_;
 };
 
-void ForestContainerCpp::UpdateResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, int forest_num, bool add) {
+void ForestContainerCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, int forest_num, bool add) {
   // Determine whether or not we are adding forest_num to the residuals
   std::function<double(double, double)> op;
   if (add) op = std::plus<double>();
@@ -406,6 +423,11 @@ void ForestContainerCpp::UpdateResidual(ForestDatasetCpp& dataset, ResidualCpp& 
   
   // Perform the update (addition / subtraction) operation
   StochTree::UpdateResidualEntireForest(*(sampler.GetTracker()), *(dataset.GetDataset()), *(residual.GetData()), forest_samples_->GetEnsemble(forest_num), requires_basis, op);
+}
+
+void ForestContainerCpp::UpdateResidualNewBasis(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, int forest_num) {
+  // Perform the update operation
+  StochTree::UpdateResidualNewBasis(*(sampler.GetTracker()), *(dataset.GetDataset()), *(residual.GetData()), forest_samples_->GetEnsemble(forest_num));
 }
 
 class JsonCpp {
@@ -723,7 +745,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("NumRows", &ForestDatasetCpp::NumRows);
 
   py::class_<ResidualCpp>(m, "ResidualCpp")
-    .def(py::init<py::array_t<double>,data_size_t>());
+    .def(py::init<py::array_t<double>,data_size_t>())
+    .def("GetResidualArray", &ResidualCpp::GetResidualArray);
 
   py::class_<RngCpp>(m, "RngCpp")
     .def(py::init<int>());
@@ -737,7 +760,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("PredictRawSingleForest", &ForestContainerCpp::PredictRawSingleForest)
     .def("SetRootValue", &ForestContainerCpp::SetRootValue)
     .def("SetRootVector", &ForestContainerCpp::SetRootVector)
-    .def("UpdateResidual", &ForestContainerCpp::UpdateResidual)
+    .def("AdjustResidual", &ForestContainerCpp::AdjustResidual)
+    .def("UpdateResidualNewBasis", &ForestContainerCpp::UpdateResidualNewBasis)
     .def("SaveToJsonFile", &ForestContainerCpp::SaveToJsonFile)
     .def("LoadFromJsonFile", &ForestContainerCpp::LoadFromJsonFile)
     .def("LoadFromJson", &ForestContainerCpp::LoadFromJson);
