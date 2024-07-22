@@ -44,6 +44,10 @@ create_column_vector_cpp <- function(outcome) {
   .Call(`_stochtree_create_column_vector_cpp`, outcome)
 }
 
+get_residual_cpp <- function(vector_ptr) {
+  .Call(`_stochtree_get_residual_cpp`, vector_ptr)
+}
+
 create_rfx_dataset_cpp <- function() {
   .Call(`_stochtree_create_rfx_dataset_cpp`)
 }

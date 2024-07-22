@@ -87,6 +87,13 @@ extern "C" SEXP _stochtree_create_column_vector_cpp(SEXP outcome) {
   END_CPP11
 }
 // R_data.cpp
+cpp11::writable::doubles get_residual_cpp(cpp11::external_pointer<StochTree::ColumnVector> vector_ptr);
+extern "C" SEXP _stochtree_get_residual_cpp(SEXP vector_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_residual_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(vector_ptr)));
+  END_CPP11
+}
+// R_data.cpp
 cpp11::external_pointer<StochTree::RandomEffectsDataset> create_rfx_dataset_cpp();
 extern "C" SEXP _stochtree_create_rfx_dataset_cpp() {
   BEGIN_CPP11
@@ -806,6 +813,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_forest_kernel_get_test_leaf_indices_cpp",           (DL_FUNC) &_stochtree_forest_kernel_get_test_leaf_indices_cpp,            1},
     {"_stochtree_forest_kernel_get_train_leaf_indices_cpp",          (DL_FUNC) &_stochtree_forest_kernel_get_train_leaf_indices_cpp,           1},
     {"_stochtree_forest_tracker_cpp",                                (DL_FUNC) &_stochtree_forest_tracker_cpp,                                 4},
+    {"_stochtree_get_residual_cpp",                                  (DL_FUNC) &_stochtree_get_residual_cpp,                                   1},
     {"_stochtree_init_json_cpp",                                     (DL_FUNC) &_stochtree_init_json_cpp,                                      0},
     {"_stochtree_is_leaf_constant_forest_container_cpp",             (DL_FUNC) &_stochtree_is_leaf_constant_forest_container_cpp,              1},
     {"_stochtree_json_add_bool_cpp",                                 (DL_FUNC) &_stochtree_json_add_bool_cpp,                                  3},
