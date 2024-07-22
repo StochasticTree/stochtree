@@ -72,7 +72,7 @@ class TestResidual:
         forest_dataset.update_basis(W_update)
 
         # Update residual to reflect adjusted basis
-        forest_sampler.update_residual(forest_dataset, residual, forest_container, 0)
+        forest_sampler.adjust_residual(forest_dataset, residual, forest_container, 0)
 
         # Get updated prediction from the tree ensemble
         updated_yhat = forest_container.predict(forest_dataset)

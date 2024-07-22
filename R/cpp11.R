@@ -224,8 +224,12 @@ set_leaf_vector_forest_container_cpp <- function(forest_samples, leaf_vector) {
   invisible(.Call(`_stochtree_set_leaf_vector_forest_container_cpp`, forest_samples, leaf_vector))
 }
 
-update_residual_forest_container_cpp <- function(data, residual, forest_samples, tracker, requires_basis, forest_num, add) {
-  invisible(.Call(`_stochtree_update_residual_forest_container_cpp`, data, residual, forest_samples, tracker, requires_basis, forest_num, add))
+adjust_residual_forest_container_cpp <- function(data, residual, forest_samples, tracker, requires_basis, forest_num, add) {
+  invisible(.Call(`_stochtree_adjust_residual_forest_container_cpp`, data, residual, forest_samples, tracker, requires_basis, forest_num, add))
+}
+
+update_residual_forest_container_cpp <- function(data, residual, forest_samples, tracker, forest_num) {
+  invisible(.Call(`_stochtree_update_residual_forest_container_cpp`, data, residual, forest_samples, tracker, forest_num))
 }
 
 predict_forest_cpp <- function(forest_samples, dataset) {

@@ -108,14 +108,42 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
-        #' Updates residual based on the predictions of a forest 
+        #' Adjusts residual based on the predictions of a forest 
+        #' 
+        #' This is typically run just once at the beginning of a forest sampling algorithm. 
+        #' After trees are initialized with constant root node predictions, their root predictions are subtracted out of the residual.
         #' @param dataset `ForestDataset` object storing the covariates and bases for a given forest
         #' @param outcome `Outcome` object storing the residuals to be updated based on forest predictions
         #' @param forest_model `ForestModel` object storing tracking structures used in training / sampling
         #' @param requires_basis Whether or not a forest requires a basis for prediction
         #' @param forest_num Index of forest used to update residuals
         #' @param add Whether forest predictions should be added to or subtracted from residuals
-        update_residual = function(dataset, outcome, forest_model, requires_basis, forest_num, add) {
+        adjust_residual = function(dataset, outcome, forest_model, requires_basis, forest_num, add) {
+            stopifnot(!is.null(dataset$data_ptr))
+            stopifnot(!is.null(outcome$data_ptr))
+            stopifnot(!is.null(forest_model$tracker_ptr))
+            stopifnot(!is.null(self$forest_container_ptr))
+            
+            adjust_residual_forest_container_cpp(
+                dataset$data_ptr, outcome$data_ptr, self$forest_container_ptr, 
+                forest_model$tracker_ptr, requires_basis, forest_num, add
+            )
+        }, 
+        
+        #' @description
+        #' Updates the residual used for training tree ensembles by iteratively 
+        #' (a) adding back in the previous prediction of each tree, (b) recomputing predictions 
+        #' for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
+        #' 
+        #' This is useful in cases where a basis (for e.g. leaf regression) is updated outside 
+        #' of a tree sampler (as with e.g. adaptive coding for binary treatment BCF). 
+        #' Once a basis has been updated, the overall "function" represented by a tree model has 
+        #' changed and this should be reflected through to the residual before the next sampling loop is run.
+        #' @param dataset `ForestDataset` object storing the covariates and bases for a given forest
+        #' @param outcome `Outcome` object storing the residuals to be updated based on forest predictions
+        #' @param forest_model `ForestModel` object storing tracking structures used in training / sampling
+        #' @param forest_num Index of forest used to update residuals (starting at 1, in R style)
+        update_residual = function(dataset, outcome, forest_model, forest_num) {
             stopifnot(!is.null(dataset$data_ptr))
             stopifnot(!is.null(outcome$data_ptr))
             stopifnot(!is.null(forest_model$tracker_ptr))
@@ -123,7 +151,7 @@ ForestSamples <- R6::R6Class(
             
             update_residual_forest_container_cpp(
                 dataset$data_ptr, outcome$data_ptr, self$forest_container_ptr, 
-                forest_model$tracker_ptr, requires_basis, forest_num, add
+                forest_model$tracker_ptr, forest_num - 1
             )
         }, 
         

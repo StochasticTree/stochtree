@@ -695,7 +695,7 @@ class BCFModel:
                     self.b1_samples[i] = current_b_1
 
                     # Update residual to reflect adjusted basis
-                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
+                    forest_sampler_tau.adjust_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
@@ -754,7 +754,7 @@ class BCFModel:
                     self.b1_samples[i] = current_b_1
 
                     # Update residual to reflect adjusted basis
-                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
+                    forest_sampler_tau.adjust_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Mark the model as sampled
         self.sampled = True
@@ -873,7 +873,7 @@ class BCFModel:
             tau_raw = tau_raw*np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
         tau_x = tau_raw[:,self.keep_indices]
 
-        # Return result matrices as a tuple
+        # Return result matrix
         return tau_x
     
     def predict(self, X: np.array, Z: np.array, propensity: np.array = None) -> np.array:
@@ -957,10 +957,19 @@ class BCFModel:
         if self.adaptive_coding:
             tau_raw = tau_raw*np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
         tau_raw = tau_raw*self.y_std
-        tau_x = tau_raw[:,self.keep_indices]
+        tau_x = np.squeeze(tau_raw[:,self.keep_indices])
 
         # Outcome predictions
-        yhat_x = mu_x + Z*tau_x
+        if Z.ndim == 1:
+            yhat_x = mu_x + Z*tau_x
+        elif Z.ndim == 2:
+            if Z.shape[1] > 1:
+                yhat_x = mu_x + Z*np.transpose(tau_x, (0,2,1))
+            else:
+                yhat_x = mu_x + Z*tau_x
+        else:
+            raise ValueError("treatment must have 1 or 2 dimensions")
+
 
         # Return result matrices as a tuple
         return (tau_x, mu_x, yhat_x)
