@@ -29,6 +29,13 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-num_samples}{\code{ForestSamples$num_samples()}}
 \item \href{#method-ForestSamples-num_trees}{\code{ForestSamples$num_trees()}}
 \item \href{#method-ForestSamples-output_dimension}{\code{ForestSamples$output_dimension()}}
+\item \href{#method-ForestSamples-add_forest_with_constant_leaves}{\code{ForestSamples$add_forest_with_constant_leaves()}}
+\item \href{#method-ForestSamples-add_numeric_split_tree}{\code{ForestSamples$add_numeric_split_tree()}}
+\item \href{#method-ForestSamples-get_tree_leaves}{\code{ForestSamples$get_tree_leaves()}}
+\item \href{#method-ForestSamples-get_tree_split_counts}{\code{ForestSamples$get_tree_split_counts()}}
+\item \href{#method-ForestSamples-get_forest_split_counts}{\code{ForestSamples$get_forest_split_counts()}}
+\item \href{#method-ForestSamples-get_aggregate_split_counts}{\code{ForestSamples$get_aggregate_split_counts()}}
+\item \href{#method-ForestSamples-get_granular_split_counts}{\code{ForestSamples$get_granular_split_counts()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -307,6 +314,154 @@ Return output dimension of trees in a \code{ForestContainer} object
 
 \subsection{Returns}{
 Leaf node parameter size
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-add_forest_with_constant_leaves"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-add_forest_with_constant_leaves}{}}}
+\subsection{Method \code{add_forest_with_constant_leaves()}}{
+Add a new all-root ensemble to the container, with all of the leaves
+set to the value / vector provided
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$add_forest_with_constant_leaves(leaf_value)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{leaf_value}}{Value (or vector of values) to initialize root nodes in tree}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-add_numeric_split_tree"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-add_numeric_split_tree}{}}}
+\subsection{Method \code{add_numeric_split_tree()}}{
+Add a numeric (i.e. X\link{,i} <= c) split to a given tree in the ensemble
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$add_numeric_split_tree(
+  forest_num,
+  tree_num,
+  leaf_num,
+  feature_num,
+  split_threshold,
+  left_leaf_value,
+  right_leaf_value
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest which contains the tree to be split}
+
+\item{\code{tree_num}}{Index of the tree to be split}
+
+\item{\code{leaf_num}}{Leaf to be split}
+
+\item{\code{feature_num}}{Feature that defines the new split}
+
+\item{\code{split_threshold}}{Value that defines the cutoff of the new split}
+
+\item{\code{left_leaf_value}}{Value (or vector of values) to assign to the newly created left node}
+
+\item{\code{right_leaf_value}}{Value (or vector of values) to assign to the newly created right node}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-get_tree_leaves"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_tree_leaves}{}}}
+\subsection{Method \code{get_tree_leaves()}}{
+Retrieve a vector of indices of leaf nodes for a given tree in a given forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_tree_leaves(forest_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest which contains tree \code{tree_num}}
+
+\item{\code{tree_num}}{Index of the tree for which leaf indices will be retrieved}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-get_tree_split_counts"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_tree_split_counts}{}}}
+\subsection{Method \code{get_tree_split_counts()}}{
+Retrieve a vector of split counts for every training set variable in a given tree in a given forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_tree_split_counts(forest_num, tree_num, num_features)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest which contains tree \code{tree_num}}
+
+\item{\code{tree_num}}{Index of the tree for which split counts will be retrieved}
+
+\item{\code{num_features}}{Total number of features in the training set}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-get_forest_split_counts"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_forest_split_counts}{}}}
+\subsection{Method \code{get_forest_split_counts()}}{
+Retrieve a vector of split counts for every training set variable in a given forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_forest_split_counts(forest_num, num_features)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest for which split counts will be retrieved}
+
+\item{\code{num_features}}{Total number of features in the training set}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-get_aggregate_split_counts"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_aggregate_split_counts}{}}}
+\subsection{Method \code{get_aggregate_split_counts()}}{
+Retrieve a vector of split counts for every training set variable in a given forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_aggregate_split_counts(num_features)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{num_features}}{Total number of features in the training set}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-get_granular_split_counts"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_granular_split_counts}{}}}
+\subsection{Method \code{get_granular_split_counts()}}{
+Retrieve a vector of split counts for every training set variable in a given forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_granular_split_counts(num_features)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{num_features}}{Total number of features in the training set}
+}
+\if{html}{\out{</div>}}
 }
 }
 }

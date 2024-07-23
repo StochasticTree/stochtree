@@ -59,14 +59,13 @@ ForestSamples <- R6::R6Class(
             
             # Predict leaf values from forest
             predictions <- predict_forest_raw_cpp(self$forest_container_ptr, forest_dataset$data_ptr)
-            
-            # Extract results
             if (output_dim > 1) {
-                output <- aperm(array(predictions, c(output_dim, n, num_samples)), c(2,1,3))
+                dim(predictions) <- c(n, output_dim, num_samples)
             } else {
-                output <- predictions
+                predictions <- as.matrix(predictions, nrow = n, byrow = F)
             }
-            return(output)
+            
+            return(predictions)
         }, 
         
         #' @description
@@ -151,7 +150,7 @@ ForestSamples <- R6::R6Class(
             
             update_residual_forest_container_cpp(
                 dataset$data_ptr, outcome$data_ptr, self$forest_container_ptr, 
-                forest_model$tracker_ptr, forest_num - 1
+                forest_model$tracker_ptr, forest_num
             )
         }, 
         
@@ -190,6 +189,78 @@ ForestSamples <- R6::R6Class(
         #' @return Leaf node parameter size
         output_dimension = function() {
             return(output_dimension_forest_container_cpp(self$forest_container_ptr))
+        }, 
+        
+        #' @description
+        #' Add a new all-root ensemble to the container, with all of the leaves 
+        #' set to the value / vector provided
+        #' @param leaf_value Value (or vector of values) to initialize root nodes in tree
+        add_forest_with_constant_leaves = function(leaf_value) {
+            if (length(leaf_value) > 1) {
+                add_sample_vector_forest_container_cpp(self$forest_container_ptr, leaf_value)
+            } else {
+                add_sample_value_forest_container_cpp(self$forest_container_ptr, leaf_value)
+            }
+        }, 
+        
+        #' @description
+        #' Add a numeric (i.e. X[,i] <= c) split to a given tree in the ensemble
+        #' @param forest_num Index of the forest which contains the tree to be split
+        #' @param tree_num Index of the tree to be split
+        #' @param leaf_num Leaf to be split
+        #' @param feature_num Feature that defines the new split
+        #' @param split_threshold Value that defines the cutoff of the new split
+        #' @param left_leaf_value Value (or vector of values) to assign to the newly created left node
+        #' @param right_leaf_value Value (or vector of values) to assign to the newly created right node
+        add_numeric_split_tree = function(forest_num, tree_num, leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value) {
+            if (length(left_leaf_value) > 1) {
+                add_numeric_split_tree_vector_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value)
+            } else {
+                add_numeric_split_tree_value_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value)
+            }
+        }, 
+        
+        #' @description
+        #' Retrieve a vector of indices of leaf nodes for a given tree in a given forest
+        #' @param forest_num Index of the forest which contains tree `tree_num`
+        #' @param tree_num Index of the tree for which leaf indices will be retrieved
+        get_tree_leaves = function(forest_num, tree_num) {
+            return(get_tree_leaves_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num))
+        }, 
+        
+        #' @description
+        #' Retrieve a vector of split counts for every training set variable in a given tree in a given forest
+        #' @param forest_num Index of the forest which contains tree `tree_num`
+        #' @param tree_num Index of the tree for which split counts will be retrieved
+        #' @param num_features Total number of features in the training set
+        get_tree_split_counts = function(forest_num, tree_num, num_features) {
+            return(get_tree_split_counts_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, num_features))
+        }, 
+        
+        #' @description
+        #' Retrieve a vector of split counts for every training set variable in a given forest
+        #' @param forest_num Index of the forest for which split counts will be retrieved
+        #' @param num_features Total number of features in the training set
+        get_forest_split_counts = function(forest_num, num_features) {
+            return(get_forest_split_counts_forest_container_cpp(self$forest_container_ptr, forest_num, num_features))
+        }, 
+        
+        #' @description
+        #' Retrieve a vector of split counts for every training set variable in a given forest
+        #' @param num_features Total number of features in the training set
+        get_aggregate_split_counts = function(num_features) {
+            return(get_overall_split_counts_forest_container_cpp(self$forest_container_ptr, num_features))
+        }, 
+        
+        #' @description
+        #' Retrieve a vector of split counts for every training set variable in a given forest
+        #' @param num_features Total number of features in the training set
+        get_granular_split_counts = function(num_features) {
+            n_samples <- self$num_samples()
+            n_trees <- self$num_trees()
+            output <- get_granular_split_count_array_forest_container_cpp(self$forest_container_ptr, num_features)
+            dim(output) <- c(n_trees, num_features, n_samples)
+            return(output)
         }
     )
 )
