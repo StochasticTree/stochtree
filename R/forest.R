@@ -246,14 +246,14 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
-        #' Retrieve a vector of split counts for every training set variable in a given forest
+        #' Retrieve a vector of split counts for every training set variable in a given forest, aggregated across ensembles and trees
         #' @param num_features Total number of features in the training set
         get_aggregate_split_counts = function(num_features) {
             return(get_overall_split_counts_forest_container_cpp(self$forest_container_ptr, num_features))
         }, 
         
         #' @description
-        #' Retrieve a vector of split counts for every training set variable in a given forest
+        #' Retrieve a vector of split counts for every training set variable in a given forest, reported separately for each ensemble and tree
         #' @param num_features Total number of features in the training set
         get_granular_split_counts = function(num_features) {
             n_samples <- self$num_samples()

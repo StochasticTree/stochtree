@@ -84,7 +84,7 @@ void set_leaf_value_forest_container_cpp(cpp11::external_pointer<StochTree::Fore
 [[cpp11::register]]
 void add_sample_value_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, double leaf_value) {
     if (forest_samples->OutputDimension() != 1) {
-        cpp11::stop("leaf_vector must match forest leaf dimension");
+        cpp11::stop("leaf_value must match forest leaf dimension");
     }
     int num_samples = forest_samples->NumSamples();
     forest_samples->AddSamples(1);

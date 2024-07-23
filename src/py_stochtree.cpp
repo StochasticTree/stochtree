@@ -263,6 +263,169 @@ class ForestContainerCpp {
     return forest_samples_->to_json();
   }
 
+  void AddSampleValue(double leaf_value) {
+    if (forest_samples_->OutputDimension() != 1) {
+      StochTree::Log::Fatal("leaf_value must match forest leaf dimension");
+    }
+    int num_samples = forest_samples_->NumSamples();
+    forest_samples_->AddSamples(1);
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(num_samples);
+    int num_trees = ensemble->NumTrees();
+    for (int i = 0; i < num_trees; i++) {
+        StochTree::Tree* tree = ensemble->GetTree(i);
+        tree->SetLeaf(0, leaf_value);
+    }
+  }
+
+  void AddSampleVector(py::array_t<double> leaf_vector) {
+    if (forest_samples_->OutputDimension() != leaf_vector.size()) {
+      StochTree::Log::Fatal("leaf_vector must match forest leaf dimension");
+    }
+    int num_samples = forest_samples_->NumSamples();
+    std::vector<double> leaf_vector_cast(leaf_vector.size());
+    for (int i = 0; i < leaf_vector.size(); i++) leaf_vector_cast.at(i) = leaf_vector.at(i);
+    forest_samples_->AddSamples(1);
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(num_samples);
+    int num_trees = ensemble->NumTrees();
+    for (int i = 0; i < num_trees; i++) {
+        StochTree::Tree* tree = ensemble->GetTree(i);
+        tree->SetLeafVector(0, leaf_vector_cast);
+    }
+  }
+
+  void AddNumericSplitVector(int forest_num, int tree_num, int leaf_num, int feature_num, 
+                             double split_threshold, py::array_t<double> left_leaf_vector, 
+                             py::array_t<double> right_leaf_vector) {
+    if (forest_samples_->OutputDimension() != left_leaf_vector.size()) {
+      StochTree::Log::Fatal("left_leaf_vector must match forest leaf dimension");
+    }
+    if (forest_samples_->OutputDimension() != right_leaf_vector.size()) {
+      StochTree::Log::Fatal("right_leaf_vector must match forest leaf dimension");
+    }
+    std::vector<double> left_leaf_vector_cast(left_leaf_vector.size());
+    std::vector<double> right_leaf_vector_cast(right_leaf_vector.size());
+    for (int i = 0; i < left_leaf_vector.size(); i++) left_leaf_vector_cast.at(i) = left_leaf_vector.at(i);
+    for (int i = 0; i < right_leaf_vector.size(); i++) right_leaf_vector_cast.at(i) = right_leaf_vector.at(i);
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    if (!tree->IsLeaf(leaf_num)) {
+      StochTree::Log::Fatal("leaf_num is not a leaf");
+    }
+    tree->ExpandNode(leaf_num, feature_num, split_threshold, left_leaf_vector_cast, right_leaf_vector_cast);
+  }
+
+  void AddNumericSplitValue(int forest_num, int tree_num, int leaf_num, int feature_num, 
+                             double split_threshold, double left_leaf_value, double right_leaf_value) {
+    if (forest_samples_->OutputDimension() != 1) {
+      StochTree::Log::Fatal("left_leaf_value must match forest leaf dimension");
+    }
+    if (forest_samples_->OutputDimension() != 1) {
+      StochTree::Log::Fatal("right_leaf_value must match forest leaf dimension");
+    }
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    if (!tree->IsLeaf(leaf_num)) {
+      StochTree::Log::Fatal("leaf_num is not a leaf");
+    }
+    tree->ExpandNode(leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value);
+  }
+
+  py::array_t<int> GetTreeLeaves(int forest_num, int tree_num) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    std::vector<int32_t> leaves_raw = tree->GetLeaves();
+    int num_leaves = leaves_raw.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_leaves}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < num_leaves; i++) {
+      accessor(i) = leaves_raw.at(i);
+    }
+    return result;
+  }
+
+  py::array_t<int> GetTreeSplitCounts(int forest_num, int tree_num, int num_features) {
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_features}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < num_features; i++) {
+      accessor(i) = 0;
+    }
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+    for (int i = 0; i < split_nodes.size(); i++) {
+        auto split_feature = split_nodes.at(i);
+        accessor(split_feature)++;
+    }
+    return result;
+  }
+
+  py::array_t<int> GetForestSplitCounts(int forest_num, int num_features) {
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_features}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < num_features; i++) {
+      accessor(i) = 0;
+    }
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_num);
+    int num_trees = ensemble->NumTrees();
+    for (int i = 0; i < num_trees; i++) {
+      StochTree::Tree* tree = ensemble->GetTree(i);
+      std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+      for (int j = 0; j < split_nodes.size(); j++) {
+        auto split_feature = split_nodes.at(j);
+        accessor(split_feature)++;
+      }
+    }
+    return result;
+  }
+
+  py::array_t<int> GetOverallSplitCounts(int num_features) {
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_features}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < num_features; i++) {
+      accessor(i) = 0;
+    }
+    int num_samples = forest_samples_->NumSamples();
+    int num_trees = forest_samples_->NumTrees();
+    for (int i = 0; i < num_samples; i++) {
+      StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(i);
+      for (int j = 0; j < num_trees; j++) {
+        StochTree::Tree* tree = ensemble->GetTree(j);
+        std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+        for (int k = 0; k < split_nodes.size(); k++) {
+          auto split_feature = split_nodes.at(k);
+          accessor(split_feature)++;
+        }
+      }
+    }
+    return result;
+  }
+
+  py::array_t<int> GetGranularSplitCounts(int num_features) {
+    int num_samples = forest_samples_->NumSamples();
+    int num_trees = forest_samples_->NumTrees();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_trees,num_features,num_samples}));
+    auto accessor = result.mutable_unchecked<3>();
+    for (int i = 0; i < num_trees; i++) {
+      for (int j = 0; j < num_features; j++) {
+        for (int k = 0; k < num_samples; k++) {
+          accessor(i,j,k) = 0;
+        }
+      }
+    }
+    for (int i = 0; i < num_samples; i++) {
+      StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(i);
+      for (int j = 0; j < num_trees; j++) {
+        StochTree::Tree* tree = ensemble->GetTree(j);
+        std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+        for (int k = 0; k < split_nodes.size(); k++) {
+          auto split_feature = split_nodes.at(k);
+          accessor(j,split_feature,i)++;
+        }
+      }
+    }
+    return result;
+  }
+
  private:
   std::unique_ptr<StochTree::ForestContainer> forest_samples_;
   int num_trees_;
@@ -764,7 +927,16 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("UpdateResidualNewBasis", &ForestContainerCpp::UpdateResidualNewBasis)
     .def("SaveToJsonFile", &ForestContainerCpp::SaveToJsonFile)
     .def("LoadFromJsonFile", &ForestContainerCpp::LoadFromJsonFile)
-    .def("LoadFromJson", &ForestContainerCpp::LoadFromJson);
+    .def("LoadFromJson", &ForestContainerCpp::LoadFromJson)
+    .def("AddSampleValue", &ForestContainerCpp::AddSampleValue)
+    .def("AddSampleVector", &ForestContainerCpp::AddSampleVector)
+    .def("AddNumericSplitValue", &ForestContainerCpp::AddNumericSplitValue)
+    .def("AddNumericSplitVector", &ForestContainerCpp::AddNumericSplitVector)
+    .def("GetTreeLeaves", &ForestContainerCpp::GetTreeLeaves)
+    .def("GetTreeSplitCounts", &ForestContainerCpp::GetTreeSplitCounts)
+    .def("GetForestSplitCounts", &ForestContainerCpp::GetForestSplitCounts)
+    .def("GetOverallSplitCounts", &ForestContainerCpp::GetOverallSplitCounts)
+    .def("GetGranularSplitCounts", &ForestContainerCpp::GetGranularSplitCounts);
 
   py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
     .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int>())
