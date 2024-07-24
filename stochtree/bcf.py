@@ -32,8 +32,8 @@ class BCFModel:
                X_test: Union[pd.DataFrame, np.array] = None, Z_test: np.array = None, pi_test: np.array = None, 
                cutpoint_grid_size = 100, sigma_leaf_mu: float = None, sigma_leaf_tau: float = None, 
                alpha_mu: float = 0.95, alpha_tau: float = 0.25, beta_mu: float = 2.0, beta_tau: float = 3.0, 
-               min_samples_leaf_mu: int = 5, min_samples_leaf_tau: int = 5, nu: float = 3, lamb: float = None, 
-               a_leaf_mu: float = 3, a_leaf_tau: float = 3, b_leaf_mu: float = None, b_leaf_tau: float = None, 
+               min_samples_leaf_mu: int = 5, min_samples_leaf_tau: int = 5, max_depth_mu: int = 10, max_depth_tau: int = 5, 
+               nu: float = 3, lamb: float = None, a_leaf_mu: float = 3, a_leaf_tau: float = 3, b_leaf_mu: float = None, b_leaf_tau: float = None, 
                q: float = 0.9, sigma2: float = None, variable_weights: np.array = None, 
                keep_vars_mu: Union[list, np.array] = None, drop_vars_mu: Union[list, np.array] = None, 
                keep_vars_tau: Union[list, np.array] = None, drop_vars_tau: Union[list, np.array] = None, 
@@ -88,6 +88,10 @@ class BCFModel:
             Minimum allowable size of a leaf, in terms of training samples, for the prognostic forest. Defaults to ``5``.
         min_samples_leaf_tau : :obj:`int`, optional
             Minimum allowable size of a leaf, in terms of training samples, for the treatment effect forest. Defaults to ``5``.
+        max_depth_mu : :obj:`int`, optional
+            Maximum depth of any tree in the mu ensemble. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+        max_depth_tau : :obj:`int`, optional
+            Maximum depth of any tree in the tau ensemble. Defaults to ``5``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
         nu : :obj:`float`, optional
             Shape parameter in the ``IG(nu, nu*lamb)`` global error variance model. Defaults to ``3``.
         lamb : :obj:`float`, optional
@@ -616,8 +620,8 @@ class BCFModel:
             cpp_rng = RNG(random_seed)
         
         # Sampling data structures
-        forest_sampler_mu = ForestSampler(forest_dataset_train, feature_types, num_trees_mu, self.n_train, alpha_mu, beta_mu, min_samples_leaf_mu)
-        forest_sampler_tau = ForestSampler(forest_dataset_train, feature_types, num_trees_tau, self.n_train, alpha_tau, beta_tau, min_samples_leaf_tau)
+        forest_sampler_mu = ForestSampler(forest_dataset_train, feature_types, num_trees_mu, self.n_train, alpha_mu, beta_mu, min_samples_leaf_mu, max_depth_mu)
+        forest_sampler_tau = ForestSampler(forest_dataset_train, feature_types, num_trees_tau, self.n_train, alpha_tau, beta_tau, min_samples_leaf_tau, max_depth_tau)
 
         # Container of forest samples
         self.forest_container_mu = ForestContainer(num_trees_mu, 1, True)

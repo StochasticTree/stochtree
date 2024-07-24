@@ -25,6 +25,8 @@ bcf(
   beta_tau = 3,
   min_samples_leaf_mu = 5,
   min_samples_leaf_tau = 5,
+  max_depth_mu = 10,
+  max_depth_tau = 5,
   nu = 3,
   lambda = NULL,
   a_leaf_mu = 3,
@@ -107,6 +109,10 @@ that were not in the training set.}
 \item{min_samples_leaf_mu}{Minimum allowable size of a leaf, in terms of training samples, for the prognostic forest. Default: 5.}
 
 \item{min_samples_leaf_tau}{Minimum allowable size of a leaf, in terms of training samples, for the treatment effect forest. Default: 5.}
+
+\item{max_depth_mu}{Maximum depth of any tree in the mu ensemble. Default: 10. Can be overriden with \code{-1} which does not enforce any depth limits on trees.}
+
+\item{max_depth_tau}{Maximum depth of any tree in the tau ensemble. Default: 5. Can be overriden with \code{-1} which does not enforce any depth limits on trees.}
 
 \item{nu}{Shape parameter in the \code{IG(nu, nu*lambda)} global error variance model. Default: 3.}
 

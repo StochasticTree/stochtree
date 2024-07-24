@@ -299,7 +299,15 @@ class Tree {
   bool IsRoot(std::int32_t nid) const {
     return parent_[nid] == kInvalidNodeId;
   }
-  
+
+  /*!
+   * \brief Whether the node has been deleted
+   * \param nid ID of node being queried
+   */
+  bool IsDeleted(std::int32_t nid) const {
+    return node_deleted_[nid];
+  }
+
   /*!
    * \brief Get leaf value of the leaf node
    * \param nid ID of node being queried
@@ -326,7 +334,40 @@ class Tree {
       return leaf_vector_[offset_begin + dim_id];
     }
   }
-  
+
+  /*!
+   * \brief Get maximum depth of all of the leaf nodes
+   */
+  std::int32_t MaxLeafDepth() const {
+    std::int32_t max_depth = 0;
+    std::stack<std::int32_t> nodes;
+    std::stack<std::int32_t> node_depths;
+    nodes.push(kRoot);
+    node_depths.push(0);
+    auto &self = *this;
+    while (!nodes.empty()) {
+      auto nidx = nodes.top();
+      nodes.pop();
+      auto node_depth = node_depths.top();
+      node_depths.pop();
+      bool valid_node = !self.IsDeleted(nidx);
+      if (valid_node) {
+        if (node_depth > max_depth) max_depth = node_depth;
+        auto left = self.LeftChild(nidx);
+        auto right = self.RightChild(nidx);
+        if (left != Tree::kInvalidNodeId) {
+          nodes.push(left);
+          node_depths.push(node_depth+1);
+        }
+        if (right != Tree::kInvalidNodeId) {
+          nodes.push(right);
+          node_depths.push(node_depth+1);
+        }
+      }
+    }
+    return max_depth;
+  }
+
   /*!
    * \brief get leaf vector of the leaf node; useful for multi-output trees
    * \param nid ID of node being queried
@@ -652,6 +693,7 @@ class Tree {
   std::vector<std::int32_t> split_index_;
   std::vector<double> leaf_value_;
   std::vector<double> threshold_;
+  std::vector<bool> node_deleted_;
   std::vector<std::int32_t> internal_nodes_;
   std::vector<std::int32_t> leaves_;
   std::vector<std::int32_t> leaf_parents_;
