@@ -55,19 +55,6 @@ class ForestContainer {
     }
     return numerator / denominator;
   }
-  inline int32_t EnsembleTreeMaxDepth(int ensemble_num, int tree_num) {return forests_[ensemble_num]->TreeMaxDepth(tree_num);}
-  inline double EnsembleAverageMaxDepth(int ensemble_num) {return forests_[ensemble_num]->AverageMaxDepth();}
-  inline double AverageMaxDepth() {
-    double numerator = 0.;
-    double denominator = 0.;
-    for (int i = 0; i < num_samples_; i++) {
-      for (int j = 0; j < num_trees_; j++) {
-        numerator += static_cast<double>(forests_[i]->TreeMaxDepth(j));
-        denominator += 1.;
-      }
-    }
-    return numerator / denominator;
-  }
   inline int32_t OutputDimension() {return output_dimension_;}
   inline int32_t OutputDimension(int ensemble_num) {return forests_[ensemble_num]->OutputDimension();}
   inline bool IsLeafConstant() {return is_leaf_constant_;}
