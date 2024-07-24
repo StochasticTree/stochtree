@@ -111,6 +111,21 @@ cpp11::external_pointer<StochTree::ColumnVector> create_column_vector_cpp(cpp11:
 }
 
 [[cpp11::register]]
+cpp11::writable::doubles get_residual_cpp(cpp11::external_pointer<StochTree::ColumnVector> vector_ptr) {
+    // Initialize output vector
+    StochTree::data_size_t n = vector_ptr->NumRows();
+    cpp11::writable::doubles output(n);
+    
+    // Unpack data
+    for (StochTree::data_size_t i = 0; i < n; i++) {
+        output.at(i) = vector_ptr->GetElement(i);
+    }
+    
+    // Release management of the pointer to R session
+    return output;
+}
+
+[[cpp11::register]]
 cpp11::external_pointer<StochTree::RandomEffectsDataset> create_rfx_dataset_cpp() {
     // Create smart pointer to newly allocated object
     std::unique_ptr<StochTree::RandomEffectsDataset> dataset_ptr_ = std::make_unique<StochTree::RandomEffectsDataset>();

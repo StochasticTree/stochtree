@@ -11,8 +11,6 @@ preprocessTrainDataFrame(input_df)
 \arguments{
 \item{input_df}{Dataframe of covariates. Users must pre-process any
 categorical variables as factors (ordered for ordered categorical).}
-
-\item{variable_weights}{Numeric weights reflecting the relative probability of splitting on each variable}
 }
 \value{
 List with preprocessed data and details on the number of each type

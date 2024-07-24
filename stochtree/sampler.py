@@ -27,8 +27,25 @@ class ForestSampler:
                                                    feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, 
                                                    global_variance, leaf_model_int, gfr, pre_initialized)
     
-    def update_residual(self, dataset: Dataset, residual: Residual, forest_container: ForestContainer, requires_basis: bool, forest_num: int, add: bool) -> None:
-        forest_container.forest_container_cpp.UpdateResidual(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, requires_basis, forest_num, add)
+    def adjust_residual(self, dataset: Dataset, residual: Residual, forest_container: ForestContainer, requires_basis: bool, forest_num: int, add: bool) -> None:
+        """
+        Method that "adjusts" the residual used for training tree ensembles by either adding or subtracting the prediction of each tree to the existing residual. 
+        
+        This is typically run just once at the beginning of a forest sampling algorithm --- after trees are initialized with constant root node predictions, their 
+        root predictions are subtracted out of the residual.
+        """
+        forest_container.forest_container_cpp.AdjustResidual(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, requires_basis, forest_num, add)
+    
+    def update_residual(self, dataset: Dataset, residual: Residual, forest_container: ForestContainer, forest_num: int) -> None:
+        """
+        Method that updates the residual used for training tree ensembles by iteratively (a) adding back in the previous prediction of each tree, (b) recomputing predictions 
+        for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
+
+        This is useful in cases where a basis (for e.g. leaf regression) is updated outside of a tree sampler (as with e.g. adaptive coding for binary treatment BCF). 
+        Once a basis has been updated, the overall "function" represented by a tree model has changed and this should be reflected through to the residual before the 
+        next sampling loop is run.
+        """
+        forest_container.forest_container_cpp.UpdateResidualNewBasis(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, forest_num)
 
 
 class GlobalVarianceModel:

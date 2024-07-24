@@ -202,6 +202,37 @@ static inline void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dat
   }
 }
 
+static inline void UpdateResidualNewBasis(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, TreeEnsemble* forest) {
+  CHECK(dataset.HasBasis());
+  data_size_t n = dataset.GetCovariates().rows();
+  int num_trees = forest->NumTrees();
+  double prev_tree_pred;
+  double new_tree_pred;
+  int32_t leaf_pred;
+  double new_resid;
+  for (int tree_num = 0; tree_num < num_trees; tree_num++) {
+    Tree* tree = forest->GetTree(tree_num);
+    for (data_size_t i = 0; i < n; i++) {
+      // Add back the currently stored tree prediction
+      prev_tree_pred = tracker.GetTreeSamplePrediction(i, tree_num);
+      new_resid = residual.GetElement(i) + prev_tree_pred;
+
+      // Compute new prediction based on updated basis
+      leaf_pred = tracker.GetNodeId(i, tree_num);
+      new_tree_pred = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+      
+      // Cache the new prediction in the tracker
+      tracker.SetTreeSamplePrediction(i, tree_num, new_tree_pred);
+
+      // Subtract out the updated tree prediction
+      new_resid -= new_tree_pred;
+      
+      // Propagate the change back to the residual
+      residual.SetElement(i, new_resid);
+    }
+  }
+}
+
 template <typename LeafModel>
 class MCMCForestSampler {
  public:
