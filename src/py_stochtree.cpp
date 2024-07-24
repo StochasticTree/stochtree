@@ -939,7 +939,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("GetGranularSplitCounts", &ForestContainerCpp::GetGranularSplitCounts);
 
   py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
-    .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int>())
+    .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
     .def("SampleOneIteration", &ForestSamplerCpp::SampleOneIteration);
 
   py::class_<GlobalVarianceModelCpp>(m, "GlobalVarianceModelCpp")
