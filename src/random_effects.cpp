@@ -1,4 +1,4 @@
-/*! Copyright (c) 2024 StochasticTree authors */
+/*! Copyright (c) 2024 stochtree authors */
 #include <stochtree/random_effects.h>
 
 namespace StochTree {

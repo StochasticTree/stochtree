@@ -62,7 +62,7 @@ ForestSamples <- R6::R6Class(
             if (output_dim > 1) {
                 dim(predictions) <- c(n, output_dim, num_samples)
             } else {
-                predictions <- as.matrix(predictions, nrow = n, byrow = F)
+                dim(predictions) <- c(n, num_samples)
             }
             
             return(predictions)
@@ -261,6 +261,30 @@ ForestSamples <- R6::R6Class(
             output <- get_granular_split_count_array_forest_container_cpp(self$forest_container_ptr, num_features)
             dim(output) <- c(n_trees, num_features, n_samples)
             return(output)
+        }, 
+
+        #' @description
+        #' Maximum depth of a specific tree in a specific ensemble in a `ForestContainer` object
+        #' @param ensemble_num Ensemble number
+        #' @param tree_num Tree index within ensemble `ensemble_num`
+        #' @return Maximum leaf depth
+        ensemble_tree_max_depth = function(ensemble_num, tree_num) {
+            return(ensemble_tree_max_depth_forest_container_cpp(self$forest_container_ptr, ensemble_num, tree_num))
+        }, 
+
+        #' @description
+        #' Average the maximum depth of each tree in a given ensemble in a `ForestContainer` object
+        #' @param ensemble_num Ensemble number
+        #' @return Average maximum depth
+        average_ensemble_max_depth = function(ensemble_num) {
+            return(ensemble_average_max_depth_forest_container_cpp(self$forest_container_ptr, ensemble_num))
+        }, 
+
+        #' @description
+        #' Average the maximum depth of each tree in each ensemble in a `ForestContainer` object
+        #' @return Average maximum depth
+        average_max_depth = function() {
+            return(average_max_depth_forest_container_cpp(self$forest_container_ptr))
         }
     )
 )

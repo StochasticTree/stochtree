@@ -28,12 +28,13 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     current_sigma2 = 1.
     current_leaf_scale = as.matrix(1./num_trees,nrow=1,ncol=1)
     cutpoint_grid_size = 100
+    max_depth = 10
     
     # RNG
     cpp_rng = createRNG(-1)
     
     # Create forest sampler and forest container
-    forest_model = createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf)
+    forest_model = createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
     forest_samples = createForestContainer(num_trees, 1, F)
     
     # Initialize the leaves of each tree in the prognostic forest

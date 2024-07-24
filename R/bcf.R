@@ -30,6 +30,8 @@
 #' @param beta_tau Exponent that decreases split probabilities for nodes of depth > 0 for the treatment effect forest. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: 3.0.
 #' @param min_samples_leaf_mu Minimum allowable size of a leaf, in terms of training samples, for the prognostic forest. Default: 5.
 #' @param min_samples_leaf_tau Minimum allowable size of a leaf, in terms of training samples, for the treatment effect forest. Default: 5.
+#' @param max_depth_mu Maximum depth of any tree in the mu ensemble. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+#' @param max_depth_tau Maximum depth of any tree in the tau ensemble. Default: 5. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
 #' @param nu Shape parameter in the `IG(nu, nu*lambda)` global error variance model. Default: 3.
 #' @param lambda Component of the scale parameter in the `IG(nu, nu*lambda)` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
 #' @param a_leaf_mu Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the prognostic forest. Default: 3.
@@ -116,12 +118,13 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 group_ids_test = NULL, rfx_basis_test = NULL, cutpoint_grid_size = 100, 
                 sigma_leaf_mu = NULL, sigma_leaf_tau = NULL, alpha_mu = 0.95, alpha_tau = 0.25, 
                 beta_mu = 2.0, beta_tau = 3.0, min_samples_leaf_mu = 5, min_samples_leaf_tau = 5, 
-                nu = 3, lambda = NULL, a_leaf_mu = 3, a_leaf_tau = 3, b_leaf_mu = NULL, b_leaf_tau = NULL, 
-                q = 0.9, sigma2 = NULL, variable_weights = NULL, keep_vars_mu = NULL, drop_vars_mu = NULL, 
-                keep_vars_tau = NULL, drop_vars_tau = NULL, num_trees_mu = 250, num_trees_tau = 50, 
-                num_gfr = 5, num_burnin = 0, num_mcmc = 100, sample_sigma_global = T, sample_sigma_leaf_mu = T, 
-                sample_sigma_leaf_tau = F, propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, 
-                b_1 = 0.5, rfx_prior_var = NULL, random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F) {
+                max_depth_mu = 10, max_depth_tau = 5, nu = 3, lambda = NULL, a_leaf_mu = 3, a_leaf_tau = 3, 
+                b_leaf_mu = NULL, b_leaf_tau = NULL, q = 0.9, sigma2 = NULL, variable_weights = NULL, 
+                keep_vars_mu = NULL, drop_vars_mu = NULL, keep_vars_tau = NULL, drop_vars_tau = NULL, 
+                num_trees_mu = 250, num_trees_tau = 50, num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
+                sample_sigma_global = T, sample_sigma_leaf_mu = T, sample_sigma_leaf_tau = F, 
+                propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, b_1 = 0.5, 
+                rfx_prior_var = NULL, random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F) {
     # Variable weight preprocessing (and initialization if necessary)
     if (is.null(variable_weights)) {
         variable_weights = rep(1/ncol(X_train), ncol(X_train))
@@ -493,8 +496,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     rng <- createRNG(random_seed)
     
     # Sampling data structures
-    forest_model_mu <- createForestModel(forest_dataset_train, feature_types, num_trees_mu, nrow(X_train), alpha_mu, beta_mu, min_samples_leaf_mu)
-    forest_model_tau <- createForestModel(forest_dataset_train, feature_types, num_trees_tau, nrow(X_train), alpha_tau, beta_tau, min_samples_leaf_tau)
+    forest_model_mu <- createForestModel(forest_dataset_train, feature_types, num_trees_mu, nrow(X_train), alpha_mu, beta_mu, min_samples_leaf_mu, max_depth_mu)
+    forest_model_tau <- createForestModel(forest_dataset_train, feature_types, num_trees_tau, nrow(X_train), alpha_tau, beta_tau, min_samples_leaf_tau, max_depth_tau)
     
     # Container of forest samples
     forest_samples_mu <- createForestContainer(num_trees_mu, 1, T)
@@ -502,15 +505,17 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     
     # Initialize the leaves of each tree in the prognostic forest
     forest_samples_mu$set_root_leaves(0, mean(resid_train) / num_trees_mu)
-    adjust_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
-                                         forest_samples_mu$forest_container_ptr, forest_model_mu$tracker_ptr, 
-                                         F, 0, F)
+    forest_samples_mu$adjust_residual(forest_dataset_train, outcome_train, forest_model_mu, F, 0, F)
+    # adjust_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
+    #                                      forest_samples_mu$forest_container_ptr, forest_model_mu$tracker_ptr, 
+    #                                      F, 0, F)
     
     # Initialize the leaves of each tree in the treatment effect forest
     forest_samples_tau$set_root_leaves(0, 0.)
-    adjust_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
-                                         forest_samples_tau$forest_container_ptr, forest_model_tau$tracker_ptr, 
-                                         T, 0, F)
+    forest_samples_tau$adjust_residual(forest_dataset_train, outcome_train, forest_model_tau, T, 0, F)
+    # adjust_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
+    #                                      forest_samples_tau$forest_container_ptr, forest_model_tau$tracker_ptr, 
+    #                                      T, 0, F)
 
     # Run GFR (warm start) if specified
     if (num_gfr > 0){

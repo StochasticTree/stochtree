@@ -194,6 +194,20 @@ class TreeEnsemble {
     return is_leaf_constant_;
   }
 
+  inline int32_t TreeMaxDepth(int tree_num) {
+    return trees_[tree_num]->MaxLeafDepth();
+  }
+
+  inline double AverageMaxDepth() {
+    double numerator = 0.;
+    double denominator = 0.;
+    for (int i = 0; i < num_trees_; i++) {
+      numerator += static_cast<double>(TreeMaxDepth(i));
+      denominator += 1.;
+    }
+    return numerator / denominator;
+  }
+
   inline bool AllRoots() {
     for (int i = 0; i < num_trees_; i++) {
       if (!trees_[i]->IsRoot()) {

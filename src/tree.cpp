@@ -96,6 +96,7 @@ void Tree::CloneFromTree(Tree* tree) {
   split_index_ = tree->split_index_;
   leaf_value_ = tree->leaf_value_;
   threshold_ = tree->threshold_;
+  node_deleted_ = tree->node_deleted_;
   internal_nodes_ = tree->internal_nodes_;
   leaves_ = tree->leaves_;
   leaf_parents_ = tree->leaf_parents_;
@@ -116,6 +117,7 @@ std::int32_t Tree::AllocNode() {
   // Reuse a "deleted" node if available
   if (num_deleted_nodes != 0) {
     std::int32_t nid = deleted_nodes_.back();
+    node_deleted_[nid] = false;
     deleted_nodes_.pop_back();
     --num_deleted_nodes;
     return nid;
@@ -130,6 +132,7 @@ std::int32_t Tree::AllocNode() {
   split_index_.push_back(-1);
   leaf_value_.push_back(static_cast<double>(0));
   threshold_.push_back(static_cast<double>(0));
+  node_deleted_.push_back(false);
   // THIS is a placeholder, currently set after AllocNode is called ... 
   // ... to be refactored ...
   parent_.push_back(static_cast<double>(0));
@@ -154,6 +157,7 @@ void Tree::DeleteNode(std::int32_t nid) {
 
   deleted_nodes_.push_back(nid);
   ++num_deleted_nodes;
+  node_deleted_[nid] = true;
 
   // Remove from vectors that track leaves, leaf parents, internal nodes, etc...
   leaves_.erase(std::remove(leaves_.begin(), leaves_.end(), nid), leaves_.end());
@@ -296,6 +300,7 @@ void Tree::Reset() {
   leaf_value_.clear();
   threshold_.clear();
   parent_.clear();
+  node_deleted_.clear();
 
   num_nodes = 0;
   has_categorical_split_ = false;
@@ -329,6 +334,7 @@ void Tree::Init(std::int32_t output_dimension) {
   leaf_value_.clear();
   threshold_.clear();
   parent_.clear();
+  node_deleted_.clear();
 
   num_nodes = 0;
   has_categorical_split_ = false;
@@ -462,6 +468,7 @@ void TreeNodeVectorsToJson(json& obj, Tree* tree) {
   tree_array_map.emplace(std::pair("split_index", json::array()));
   tree_array_map.emplace(std::pair("leaf_value", json::array()));
   tree_array_map.emplace(std::pair("threshold", json::array()));
+  tree_array_map.emplace(std::pair("node_deleted", json::array()));
   tree_array_map.emplace(std::pair("leaf_vector_begin", json::array()));
   tree_array_map.emplace(std::pair("leaf_vector_end", json::array()));
   tree_array_map.emplace(std::pair("category_list_begin", json::array()));
@@ -480,6 +487,7 @@ void TreeNodeVectorsToJson(json& obj, Tree* tree) {
       tree_array_map["split_index"].emplace_back(tree->split_index_[i]);
       tree_array_map["leaf_value"].emplace_back(tree->leaf_value_[i]);
       tree_array_map["threshold"].emplace_back(tree->threshold_[i]);
+      tree_array_map["node_deleted"].emplace_back(tree->node_deleted_[i]);
       tree_array_map["leaf_vector_begin"].emplace_back(static_cast<int>(tree->leaf_vector_begin_[i]));
       tree_array_map["leaf_vector_end"].emplace_back(static_cast<int>(tree->leaf_vector_end_[i]));
       tree_array_map["category_list_begin"].emplace_back(static_cast<int>(tree->category_list_begin_[i]));
@@ -575,6 +583,7 @@ void JsonToTreeNodeVectors(const json& tree_json, Tree* tree) {
   tree->leaf_value_.clear();
   tree->threshold_.clear();
   tree->node_type_.clear();
+  tree->node_deleted_.clear();
   tree->leaf_vector_begin_.clear();
   tree->leaf_vector_end_.clear();
   tree->category_list_begin_.clear();
@@ -588,6 +597,7 @@ void JsonToTreeNodeVectors(const json& tree_json, Tree* tree) {
     tree->split_index_.push_back(tree_json.at("split_index").at(i));
     tree->leaf_value_.push_back(tree_json.at("leaf_value").at(i));
     tree->threshold_.push_back(tree_json.at("threshold").at(i));
+    tree->node_deleted_.push_back(tree_json.at("node_deleted").at(i));
     // Handle type conversions for node_type, leaf_vector_begin/end, and category_list_begin/end
     tree->node_type_.push_back(static_cast<TreeNodeType>(tree_json.at("node_type").at(i)));
     tree->leaf_vector_begin_.push_back(static_cast<uint64_t>(tree_json.at("leaf_vector_begin").at(i)));

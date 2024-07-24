@@ -68,12 +68,7 @@ std::vector<double> ForestContainer::Predict(ForestDataset& dataset) {
   data_size_t n = dataset.NumObservations();
   data_size_t total_output_size = n*num_samples_;
   std::vector<double> output(total_output_size);
-  data_size_t offset = 0;
-  for (int i = 0; i < num_samples_; i++) {
-    auto num_trees = forests_[i]->NumTrees();
-    forests_[i]->PredictInplace(dataset, output, 0, num_trees, offset);
-    offset += n;
-  }
+  PredictInPlace(dataset, output);
   return output;
 }
 
@@ -81,12 +76,7 @@ std::vector<double> ForestContainer::PredictRaw(ForestDataset& dataset) {
   data_size_t n = dataset.NumObservations();
   data_size_t total_output_size = n * output_dimension_ * num_samples_;
   std::vector<double> output(total_output_size);
-  data_size_t offset = 0;
-  for (int i = 0; i < num_samples_; i++) {
-    auto num_trees = forests_[i]->NumTrees();
-    forests_[i]->PredictRawInplace(dataset, output, 0, num_trees, offset);
-    offset += n * output_dimension_;
-  }
+  PredictRawInPlace(dataset, output);
   return output;
 }
 
@@ -94,10 +84,41 @@ std::vector<double> ForestContainer::PredictRaw(ForestDataset& dataset, int fore
   data_size_t n = dataset.NumObservations();
   data_size_t total_output_size = n * output_dimension_;
   std::vector<double> output(total_output_size);
+  PredictRawInPlace(dataset, forest_num, output);
+  return output;
+}
+
+void ForestContainer::PredictInPlace(ForestDataset& dataset, std::vector<double>& output) {
+  data_size_t n = dataset.NumObservations();
+  data_size_t total_output_size = n*num_samples_;
+  CHECK_EQ(total_output_size, output.size());
+  data_size_t offset = 0;
+  for (int i = 0; i < num_samples_; i++) {
+    auto num_trees = forests_[i]->NumTrees();
+    forests_[i]->PredictInplace(dataset, output, 0, num_trees, offset);
+    offset += n;
+  }
+}
+
+void ForestContainer::PredictRawInPlace(ForestDataset& dataset, std::vector<double>& output) {
+  data_size_t n = dataset.NumObservations();
+  data_size_t total_output_size = n * output_dimension_ * num_samples_;
+  CHECK_EQ(total_output_size, output.size());
+  data_size_t offset = 0;
+  for (int i = 0; i < num_samples_; i++) {
+    auto num_trees = forests_[i]->NumTrees();
+    forests_[i]->PredictRawInplace(dataset, output, 0, num_trees, offset);
+    offset += n * output_dimension_;
+  }
+}
+
+void ForestContainer::PredictRawInPlace(ForestDataset& dataset, int forest_num, std::vector<double>& output) {
+  data_size_t n = dataset.NumObservations();
+  data_size_t total_output_size = n * output_dimension_;
+  CHECK_EQ(total_output_size, output.size());
   data_size_t offset = 0;
   auto num_trees = forests_[forest_num]->NumTrees();
   forests_[forest_num]->PredictRawInplace(dataset, output, 0, num_trees, offset);
-  return output;
 }
 
 /*! \brief Save to JSON */
