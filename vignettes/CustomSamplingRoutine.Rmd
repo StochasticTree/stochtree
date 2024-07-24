@@ -99,6 +99,7 @@ Set some parameters that inform the forest and variance parameter samplers
 alpha <- 0.9
 beta <- 1.25
 min_samples_leaf <- 1
+max_depth <- 10
 num_trees <- 100
 cutpoint_grid_size = 100
 global_variance_init = 1.
@@ -131,7 +132,8 @@ rng <- createRNG()
 
 # Sampling data structures
 forest_model <- createForestModel(forest_dataset, feature_types, 
-                                  num_trees, n, alpha, beta, min_samples_leaf)
+                                  num_trees, n, alpha, beta, 
+                                  min_samples_leaf, max_depth)
 
 # Container of forest samples
 if (leaf_regression) {
@@ -271,6 +273,7 @@ Set some parameters that inform the forest and variance parameter samplers
 alpha <- 0.9
 beta <- 1.25
 min_samples_leaf <- 1
+max_depth <- 10
 num_trees <- 100
 cutpoint_grid_size = 100
 global_variance_init = 1.
@@ -314,7 +317,8 @@ rng <- createRNG()
 
 # Sampling data structures
 forest_model <- createForestModel(forest_dataset, feature_types, 
-                                  num_trees, n, alpha, beta, min_samples_leaf)
+                                  num_trees, n, alpha, beta, 
+                                  min_samples_leaf, max_depth)
 
 # Container of forest samples
 if (leaf_regression) {
@@ -498,6 +502,7 @@ Set some parameters that inform the forest and variance parameter samplers
 alpha <- 0.9
 beta <- 1.25
 min_samples_leaf <- 1
+max_depth <- 10
 num_trees <- 100
 cutpoint_grid_size = 100
 global_variance_init = 1.
@@ -541,7 +546,8 @@ rng <- createRNG()
 
 # Sampling data structures
 forest_model <- createForestModel(forest_dataset, feature_types, 
-                                  num_trees, n, alpha, beta, min_samples_leaf)
+                                  num_trees, n, alpha, beta, 
+                                  min_samples_leaf, max_depth)
 
 # Container of forest samples
 if (leaf_regression) {
@@ -801,6 +807,7 @@ Set some parameters that inform the forest and variance parameter samplers
 alpha_mu <- 0.95
 beta_mu <- 2.0
 min_samples_leaf_mu <- 5
+max_depth_mu <- 10
 num_trees_mu <- 250
 cutpoint_grid_size_mu = 100
 tau_init_mu = 1/num_trees_mu
@@ -815,6 +822,7 @@ current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
 alpha_tau <- 0.25
 beta_tau <- 3.0
 min_samples_leaf_tau <- 5
+max_depth_tau <- 10
 num_trees_tau <- 50
 cutpoint_grid_size_tau = 100
 a_leaf_tau <- 3.
@@ -878,11 +886,11 @@ rng <- createRNG()
 # Sampling data structures
 forest_model_mu <- createForestModel(
     forest_dataset_mu, feature_types_mu, num_trees_mu, nrow(X_mu), 
-    alpha_mu, beta_mu, min_samples_leaf_mu
+    alpha_mu, beta_mu, min_samples_leaf_mu, max_depth_mu
 )
 forest_model_tau <- createForestModel(
     forest_dataset_tau, feature_types_tau, num_trees_tau, nrow(X_tau), 
-    alpha_tau, beta_tau, min_samples_leaf_tau
+    alpha_tau, beta_tau, min_samples_leaf_tau, max_depth_tau
 )
 
 # Container of forest samples

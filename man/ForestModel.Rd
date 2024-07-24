@@ -39,6 +39,8 @@ Create a new ForestModel object.
   beta,
   min_samples_leaf,
   max_depth = -1
+  min_samples_leaf,
+  max_depth = -1
 )}\if{html}{\out{</div>}}
 }
 

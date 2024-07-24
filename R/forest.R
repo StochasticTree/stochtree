@@ -62,7 +62,7 @@ ForestSamples <- R6::R6Class(
             if (output_dim > 1) {
                 dim(predictions) <- c(n, output_dim, num_samples)
             } else {
-                predictions <- as.matrix(predictions, nrow = n, byrow = F)
+                dim(predictions) <- c(n, num_samples)
             }
             
             return(predictions)
