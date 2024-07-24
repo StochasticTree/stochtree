@@ -11,7 +11,8 @@ createForestModel(
   n,
   alpha,
   beta,
-  min_samples_leaf
+  min_samples_leaf,
+  max_depth
 )
 }
 \arguments{

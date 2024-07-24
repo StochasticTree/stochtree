@@ -1,4 +1,4 @@
-# StochasticTree
+# StochTree
 
 [![C++ Tests](https://github.com/StochasticTree/stochtree/actions/workflows/cpp-test.yml/badge.svg)](https://github.com/StochasticTree/stochtree/actions/workflows/cpp-test.yml)
 [![Python Tests](https://github.com/StochasticTree/stochtree/actions/workflows/python-test.yml/badge.svg)](https://github.com/StochasticTree/stochtree/actions/workflows/python-test.yml)
@@ -8,7 +8,7 @@ Software for building stochastic tree ensembles (i.e. BART, XBART) for supervise
 
 # Getting Started
 
-`StochasticTree` is composed of a C++ "core" and R / Python interfaces to that core. 
+`stochtree` is composed of a C++ "core" and R / Python interfaces to that core.
 Details on installation and use are available below:
 
 * [Python](#python-package)

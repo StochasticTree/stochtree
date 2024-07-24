@@ -192,6 +192,18 @@ num_samples_forest_container_cpp <- function(forest_samples) {
   .Call(`_stochtree_num_samples_forest_container_cpp`, forest_samples)
 }
 
+ensemble_tree_max_depth_forest_container_cpp <- function(forest_samples, ensemble_num, tree_num) {
+  .Call(`_stochtree_ensemble_tree_max_depth_forest_container_cpp`, forest_samples, ensemble_num, tree_num)
+}
+
+ensemble_average_max_depth_forest_container_cpp <- function(forest_samples, ensemble_num) {
+  .Call(`_stochtree_ensemble_average_max_depth_forest_container_cpp`, forest_samples, ensemble_num)
+}
+
+average_max_depth_forest_container_cpp <- function(forest_samples) {
+  .Call(`_stochtree_average_max_depth_forest_container_cpp`, forest_samples)
+}
+
 num_trees_forest_container_cpp <- function(forest_samples) {
   .Call(`_stochtree_num_trees_forest_container_cpp`, forest_samples)
 }
@@ -332,8 +344,8 @@ rng_cpp <- function(random_seed) {
   .Call(`_stochtree_rng_cpp`, random_seed)
 }
 
-tree_prior_cpp <- function(alpha, beta, min_samples_leaf) {
-  .Call(`_stochtree_tree_prior_cpp`, alpha, beta, min_samples_leaf)
+tree_prior_cpp <- function(alpha, beta, min_samples_leaf, max_depth) {
+  .Call(`_stochtree_tree_prior_cpp`, alpha, beta, min_samples_leaf, max_depth)
 }
 
 forest_tracker_cpp <- function(data, feature_types, num_trees, n) {

@@ -31,10 +31,11 @@ TEST(LeafConstantModel, FullEnumeration) {
   double alpha = 0.95;
   double beta = 1.25;
   int min_samples_leaf = 1;
+  int max_depth = -1;
   double global_variance = 1.;
   double tau = 1.;
   int cutpoint_grid_size = n;
-  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf);
+  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf, max_depth);
 
   // Construct temporary data structures needed to enumerate splits
   std::vector<double> log_cutpoint_evaluations;
@@ -88,10 +89,11 @@ TEST(LeafConstantModel, CutpointThinning) {
   double alpha = 0.95;
   double beta = 1.25;
   int min_samples_leaf = 1;
+  int max_depth = -1;
   double global_variance = 1.;
   double tau = 1.;
   int cutpoint_grid_size = 5;
-  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf);
+  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf, max_depth);
 
   // Construct temporary data structures needed to enumerate splits
   std::vector<double> log_cutpoint_evaluations;
@@ -145,10 +147,11 @@ TEST(LeafUnivariateRegressionModel, FullEnumeration) {
   double alpha = 0.95;
   double beta = 1.25;
   int min_samples_leaf = 1;
+  int max_depth = -1;
   double global_variance = 1.;
   double tau = 1.;
   int cutpoint_grid_size = n;
-  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf);
+  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf, max_depth);
 
   // Construct temporary data structures needed to enumerate splits
   std::vector<double> log_cutpoint_evaluations;
@@ -203,10 +206,11 @@ TEST(LeafUnivariateRegressionModel, CutpointThinning) {
   double alpha = 0.95;
   double beta = 1.25;
   int min_samples_leaf = 1;
+  int max_depth = -1;
   double global_variance = 1.;
   double tau = 1.;
   int cutpoint_grid_size = 5;
-  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf);
+  StochTree::TreePrior tree_prior = StochTree::TreePrior(alpha, beta, min_samples_leaf, max_depth);
 
   // Construct temporary data structures needed to enumerate splits
   std::vector<double> log_cutpoint_evaluations;

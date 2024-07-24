@@ -173,9 +173,9 @@ cpp11::external_pointer<std::mt19937> rng_cpp(int random_seed = -1) {
 }
 
 [[cpp11::register]]
-cpp11::external_pointer<StochTree::TreePrior> tree_prior_cpp(double alpha, double beta, int min_samples_leaf) {
+cpp11::external_pointer<StochTree::TreePrior> tree_prior_cpp(double alpha, double beta, int min_samples_leaf, int max_depth = -1) {
     // Create smart pointer to newly allocated object
-    std::unique_ptr<StochTree::TreePrior> prior_ptr_ = std::make_unique<StochTree::TreePrior>(alpha, beta, min_samples_leaf);
+    std::unique_ptr<StochTree::TreePrior> prior_ptr_ = std::make_unique<StochTree::TreePrior>(alpha, beta, min_samples_leaf, max_depth);
     
     // Release management of the pointer to R session
     return cpp11::external_pointer<StochTree::TreePrior>(prior_ptr_.release());
