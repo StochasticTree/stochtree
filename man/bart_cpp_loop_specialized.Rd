@@ -13,7 +13,7 @@ bart_cpp_loop_specialized(
   alpha = 0.95,
   beta = 2,
   min_samples_leaf = 5,
-  max_depth = -1,
+  max_depth = 10,
   nu = 3,
   lambda = NULL,
   a_leaf = 3,

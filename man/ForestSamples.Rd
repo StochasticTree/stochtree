@@ -36,6 +36,9 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-get_forest_split_counts}{\code{ForestSamples$get_forest_split_counts()}}
 \item \href{#method-ForestSamples-get_aggregate_split_counts}{\code{ForestSamples$get_aggregate_split_counts()}}
 \item \href{#method-ForestSamples-get_granular_split_counts}{\code{ForestSamples$get_granular_split_counts()}}
+\item \href{#method-ForestSamples-ensemble_tree_max_depth}{\code{ForestSamples$ensemble_tree_max_depth()}}
+\item \href{#method-ForestSamples-average_ensemble_max_depth}{\code{ForestSamples$average_ensemble_max_depth()}}
+\item \href{#method-ForestSamples-average_max_depth}{\code{ForestSamples$average_max_depth()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -434,7 +437,7 @@ Retrieve a vector of split counts for every training set variable in a given for
 \if{html}{\out{<a id="method-ForestSamples-get_aggregate_split_counts"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-get_aggregate_split_counts}{}}}
 \subsection{Method \code{get_aggregate_split_counts()}}{
-Retrieve a vector of split counts for every training set variable in a given forest
+Retrieve a vector of split counts for every training set variable in a given forest, aggregated across ensembles and trees
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_aggregate_split_counts(num_features)}\if{html}{\out{</div>}}
 }
@@ -451,7 +454,7 @@ Retrieve a vector of split counts for every training set variable in a given for
 \if{html}{\out{<a id="method-ForestSamples-get_granular_split_counts"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-get_granular_split_counts}{}}}
 \subsection{Method \code{get_granular_split_counts()}}{
-Retrieve a vector of split counts for every training set variable in a given forest
+Retrieve a vector of split counts for every training set variable in a given forest, reported separately for each ensemble and tree
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_granular_split_counts(num_features)}\if{html}{\out{</div>}}
 }
@@ -462,6 +465,61 @@ Retrieve a vector of split counts for every training set variable in a given for
 \item{\code{num_features}}{Total number of features in the training set}
 }
 \if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-ensemble_tree_max_depth"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-ensemble_tree_max_depth}{}}}
+\subsection{Method \code{ensemble_tree_max_depth()}}{
+Maximum depth of a specific tree in a specific ensemble in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$ensemble_tree_max_depth(ensemble_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{ensemble_num}}{Ensemble number}
+
+\item{\code{tree_num}}{Tree index within ensemble \code{ensemble_num}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Maximum leaf depth
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-average_ensemble_max_depth"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-average_ensemble_max_depth}{}}}
+\subsection{Method \code{average_ensemble_max_depth()}}{
+Average the maximum depth of each tree in a given ensemble in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$average_ensemble_max_depth(ensemble_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{ensemble_num}}{Ensemble number}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Average maximum depth
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-average_max_depth"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-average_max_depth}{}}}
+\subsection{Method \code{average_max_depth()}}{
+Average the maximum depth of each tree in each ensemble in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$average_max_depth()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Average maximum depth
 }
 }
 }

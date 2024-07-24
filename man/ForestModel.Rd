@@ -38,7 +38,7 @@ Create a new ForestModel object.
   alpha,
   beta,
   min_samples_leaf,
-  max_depth
+  max_depth = -1
 )}\if{html}{\out{</div>}}
 }
 
@@ -59,7 +59,7 @@ Create a new ForestModel object.
 
 \item{\code{min_samples_leaf}}{Minimum number of samples in a tree leaf}
 
-\item{\code{max_depth}}{Maximum depth of any tree in an ensemble}
+\item{\code{max_depth}}{Maximum depth of any tree in an ensemble. Default: \code{-1}.}
 }
 \if{html}{\out{</div>}}
 }
