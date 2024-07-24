@@ -22,15 +22,20 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-predict_raw}{\code{ForestSamples$predict_raw()}}
 \item \href{#method-ForestSamples-predict_raw_single_forest}{\code{ForestSamples$predict_raw_single_forest()}}
 \item \href{#method-ForestSamples-set_root_leaves}{\code{ForestSamples$set_root_leaves()}}
+\item \href{#method-ForestSamples-adjust_residual}{\code{ForestSamples$adjust_residual()}}
 \item \href{#method-ForestSamples-update_residual}{\code{ForestSamples$update_residual()}}
 \item \href{#method-ForestSamples-save_json}{\code{ForestSamples$save_json()}}
 \item \href{#method-ForestSamples-load_json}{\code{ForestSamples$load_json()}}
 \item \href{#method-ForestSamples-num_samples}{\code{ForestSamples$num_samples()}}
 \item \href{#method-ForestSamples-num_trees}{\code{ForestSamples$num_trees()}}
 \item \href{#method-ForestSamples-output_dimension}{\code{ForestSamples$output_dimension()}}
-\item \href{#method-ForestSamples-ensemble_tree_max_depth}{\code{ForestSamples$ensemble_tree_max_depth()}}
-\item \href{#method-ForestSamples-average_ensemble_max_depth}{\code{ForestSamples$average_ensemble_max_depth()}}
-\item \href{#method-ForestSamples-average_max_depth}{\code{ForestSamples$average_max_depth()}}
+\item \href{#method-ForestSamples-add_forest_with_constant_leaves}{\code{ForestSamples$add_forest_with_constant_leaves()}}
+\item \href{#method-ForestSamples-add_numeric_split_tree}{\code{ForestSamples$add_numeric_split_tree()}}
+\item \href{#method-ForestSamples-get_tree_leaves}{\code{ForestSamples$get_tree_leaves()}}
+\item \href{#method-ForestSamples-get_tree_split_counts}{\code{ForestSamples$get_tree_split_counts()}}
+\item \href{#method-ForestSamples-get_forest_split_counts}{\code{ForestSamples$get_forest_split_counts()}}
+\item \href{#method-ForestSamples-get_aggregate_split_counts}{\code{ForestSamples$get_aggregate_split_counts()}}
+\item \href{#method-ForestSamples-get_granular_split_counts}{\code{ForestSamples$get_granular_split_counts()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -170,12 +175,15 @@ Stops program if any tree is more than a root node.
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestSamples-update_residual"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestSamples-update_residual}{}}}
-\subsection{Method \code{update_residual()}}{
-Updates residual based on the predictions of a forest
+\if{html}{\out{<a id="method-ForestSamples-adjust_residual"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-adjust_residual}{}}}
+\subsection{Method \code{adjust_residual()}}{
+Adjusts residual based on the predictions of a forest
+
+This is typically run just once at the beginning of a forest sampling algorithm.
+After trees are initialized with constant root node predictions, their root predictions are subtracted out of the residual.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$update_residual(
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$adjust_residual(
   dataset,
   outcome,
   forest_model,
@@ -199,6 +207,36 @@ Updates residual based on the predictions of a forest
 \item{\code{forest_num}}{Index of forest used to update residuals}
 
 \item{\code{add}}{Whether forest predictions should be added to or subtracted from residuals}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-update_residual"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-update_residual}{}}}
+\subsection{Method \code{update_residual()}}{
+Updates the residual used for training tree ensembles by iteratively
+(a) adding back in the previous prediction of each tree, (b) recomputing predictions
+for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
+
+This is useful in cases where a basis (for e.g. leaf regression) is updated outside
+of a tree sampler (as with e.g. adaptive coding for binary treatment BCF).
+Once a basis has been updated, the overall "function" represented by a tree model has
+changed and this should be reflected through to the residual before the next sampling loop is run.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$update_residual(dataset, outcome, forest_model, forest_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dataset}}{\code{ForestDataset} object storing the covariates and bases for a given forest}
+
+\item{\code{outcome}}{\code{Outcome} object storing the residuals to be updated based on forest predictions}
+
+\item{\code{forest_model}}{\code{ForestModel} object storing tracking structures used in training / sampling}
+
+\item{\code{forest_num}}{Index of forest used to update residuals (starting at 1, in R style)}
 }
 \if{html}{\out{</div>}}
 }
@@ -279,58 +317,151 @@ Leaf node parameter size
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestSamples-ensemble_tree_max_depth"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestSamples-ensemble_tree_max_depth}{}}}
-\subsection{Method \code{ensemble_tree_max_depth()}}{
-Maximum depth of a specific tree in a specific ensemble in a \code{ForestContainer} object
+\if{html}{\out{<a id="method-ForestSamples-add_forest_with_constant_leaves"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-add_forest_with_constant_leaves}{}}}
+\subsection{Method \code{add_forest_with_constant_leaves()}}{
+Add a new all-root ensemble to the container, with all of the leaves
+set to the value / vector provided
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$ensemble_tree_max_depth(ensemble_num, tree_num)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$add_forest_with_constant_leaves(leaf_value)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{ensemble_num}}{Ensemble number}
-
-\item{\code{tree_num}}{Tree index within ensemble \code{ensemble_num}}
+\item{\code{leaf_value}}{Value (or vector of values) to initialize root nodes in tree}
 }
 \if{html}{\out{</div>}}
 }
-\subsection{Returns}{
-Maximum leaf depth
-}
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestSamples-average_ensemble_max_depth"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestSamples-average_ensemble_max_depth}{}}}
-\subsection{Method \code{average_ensemble_max_depth()}}{
-Average the maximum depth of each tree in a given ensemble in a \code{ForestContainer} object
+\if{html}{\out{<a id="method-ForestSamples-add_numeric_split_tree"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-add_numeric_split_tree}{}}}
+\subsection{Method \code{add_numeric_split_tree()}}{
+Add a numeric (i.e. X\link{,i} <= c) split to a given tree in the ensemble
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$average_ensemble_max_depth(ensemble_num)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$add_numeric_split_tree(
+  forest_num,
+  tree_num,
+  leaf_num,
+  feature_num,
+  split_threshold,
+  left_leaf_value,
+  right_leaf_value
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{ensemble_num}}{Ensemble number}
+\item{\code{forest_num}}{Index of the forest which contains the tree to be split}
+
+\item{\code{tree_num}}{Index of the tree to be split}
+
+\item{\code{leaf_num}}{Leaf to be split}
+
+\item{\code{feature_num}}{Feature that defines the new split}
+
+\item{\code{split_threshold}}{Value that defines the cutoff of the new split}
+
+\item{\code{left_leaf_value}}{Value (or vector of values) to assign to the newly created left node}
+
+\item{\code{right_leaf_value}}{Value (or vector of values) to assign to the newly created right node}
 }
 \if{html}{\out{</div>}}
 }
-\subsection{Returns}{
-Average maximum depth
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-get_tree_leaves"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_tree_leaves}{}}}
+\subsection{Method \code{get_tree_leaves()}}{
+Retrieve a vector of indices of leaf nodes for a given tree in a given forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_tree_leaves(forest_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest which contains tree \code{tree_num}}
+
+\item{\code{tree_num}}{Index of the tree for which leaf indices will be retrieved}
+}
+\if{html}{\out{</div>}}
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestSamples-average_max_depth"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestSamples-average_max_depth}{}}}
-\subsection{Method \code{average_max_depth()}}{
-Average the maximum depth of each tree in each ensemble in a \code{ForestContainer} object
+\if{html}{\out{<a id="method-ForestSamples-get_tree_split_counts"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_tree_split_counts}{}}}
+\subsection{Method \code{get_tree_split_counts()}}{
+Retrieve a vector of split counts for every training set variable in a given tree in a given forest
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$average_max_depth()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_tree_split_counts(forest_num, tree_num, num_features)}\if{html}{\out{</div>}}
 }
 
-\subsection{Returns}{
-Average maximum depth
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest which contains tree \code{tree_num}}
+
+\item{\code{tree_num}}{Index of the tree for which split counts will be retrieved}
+
+\item{\code{num_features}}{Total number of features in the training set}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-get_forest_split_counts"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_forest_split_counts}{}}}
+\subsection{Method \code{get_forest_split_counts()}}{
+Retrieve a vector of split counts for every training set variable in a given forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_forest_split_counts(forest_num, num_features)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest for which split counts will be retrieved}
+
+\item{\code{num_features}}{Total number of features in the training set}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-get_aggregate_split_counts"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_aggregate_split_counts}{}}}
+\subsection{Method \code{get_aggregate_split_counts()}}{
+Retrieve a vector of split counts for every training set variable in a given forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_aggregate_split_counts(num_features)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{num_features}}{Total number of features in the training set}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-get_granular_split_counts"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-get_granular_split_counts}{}}}
+\subsection{Method \code{get_granular_split_counts()}}{
+Retrieve a vector of split counts for every training set variable in a given forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$get_granular_split_counts(num_features)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{num_features}}{Total number of features in the training set}
+}
+\if{html}{\out{</div>}}
 }
 }
 }

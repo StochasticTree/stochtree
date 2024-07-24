@@ -490,16 +490,18 @@ class BCFModel:
 
         # Check if user has provided propensities that are needed in the model
         if pi_train is None and propensity_covariate != "none":
-            self.bart_propensity_model = BARTModel()
-            if self.has_test:
-                pi_test = np.mean(self.bart_propensity_model.y_hat_test, axis = 1, keepdims = True)
-                self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, X_test=X_test_processed, num_gfr=10, num_mcmc=10)
-                pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
-                pi_test = np.mean(self.bart_propensity_model.y_hat_test, axis = 1, keepdims = True)
+            if self.multivariate_treatment:
+                raise ValueError("Propensities must be provided (via pi_train and / or pi_test parameters) or omitted by setting propensity_covariate = 'none' for multivariate treatments")
             else:
-                self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, num_gfr=10, num_mcmc=10)
-                pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
-            self.internal_propensity_model = True
+                self.bart_propensity_model = BARTModel()
+                if self.has_test:
+                    self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, X_test=X_test_processed, num_gfr=10, num_mcmc=10)
+                    pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
+                    pi_test = np.mean(self.bart_propensity_model.y_hat_test, axis = 1, keepdims = True)
+                else:
+                    self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, num_gfr=10, num_mcmc=10)
+                    pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
+                self.internal_propensity_model = True
         else:
             self.internal_propensity_model = False
 
@@ -636,14 +638,14 @@ class BCFModel:
         # Initialize the leaves of each tree in the prognostic forest
         init_mu = np.squeeze(np.mean(resid_train)) / num_trees_mu
         self.forest_container_mu.set_root_leaves(0, init_mu)
-        forest_sampler_mu.update_residual(forest_dataset_train, residual_train, self.forest_container_mu, False, 0, True)
+        forest_sampler_mu.adjust_residual(forest_dataset_train, residual_train, self.forest_container_mu, False, 0, True)
 
         # Initialize the leaves of each tree in the treatment forest
         if self.multivariate_treatment:
             self.forest_container_tau.set_root_leaves(0, np.zeros(self.treatment_dim))
         else:
             self.forest_container_tau.set_root_leaves(0, 0.)
-        forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, True, 0, True)
+        forest_sampler_tau.adjust_residual(forest_dataset_train, residual_train, self.forest_container_tau, True, 0, True)
 
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
@@ -697,6 +699,9 @@ class BCFModel:
                         forest_dataset_test.update_basis(tau_basis_test)
                     self.b0_samples[i] = current_b_0
                     self.b1_samples[i] = current_b_1
+
+                    # Update residual to reflect adjusted basis
+                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
@@ -753,6 +758,9 @@ class BCFModel:
                         forest_dataset_test.update_basis(tau_basis_test)
                     self.b0_samples[i] = current_b_0
                     self.b1_samples[i] = current_b_1
+
+                    # Update residual to reflect adjusted basis
+                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Mark the model as sampled
         self.sampled = True
@@ -782,11 +790,11 @@ class BCFModel:
         mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)
         self.mu_hat_train = mu_raw[:,self.keep_indices]*self.y_std + self.y_bar
         tau_raw_train = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_train.dataset_cpp)
-        self.tau_hat_train = tau_raw_train[:,self.keep_indices]
+        self.tau_hat_train = tau_raw_train[:,self.keep_indices,:]
         if self.adaptive_coding:
             adaptive_coding_weights = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
             self.tau_hat_train = self.tau_hat_train*adaptive_coding_weights
-        self.tau_hat_train = self.tau_hat_train*self.y_std
+        self.tau_hat_train = np.squeeze(self.tau_hat_train*self.y_std)
         if self.multivariate_treatment:
             treatment_term_train = np.multiply(np.atleast_3d(Z_train).swapaxes(1,2),self.tau_hat_train).sum(axis=2)
         else:
@@ -796,11 +804,11 @@ class BCFModel:
             mu_raw_test = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_test.dataset_cpp)
             self.mu_hat_test = mu_raw_test[:,self.keep_indices]*self.y_std + self.y_bar
             tau_raw_test = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_test.dataset_cpp)
-            self.tau_hat_test = tau_raw_test[:,self.keep_indices]
+            self.tau_hat_test = tau_raw_test[:,self.keep_indices,:]
             if self.adaptive_coding:
                 adaptive_coding_weights_test = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
                 self.tau_hat_test = self.tau_hat_test*adaptive_coding_weights_test
-            self.tau_hat_test = self.tau_hat_test*self.y_std
+            self.tau_hat_test = np.squeeze(self.tau_hat_test*self.y_std)
             if self.multivariate_treatment:
                 treatment_term_test = np.multiply(np.atleast_3d(Z_test).swapaxes(1,2),self.tau_hat_test).sum(axis=2)
             else:
@@ -836,6 +844,9 @@ class BCFModel:
             X = np.expand_dims(X, 1)
         if Z.ndim == 1:
             Z = np.expand_dims(Z, 1)
+        else:
+            if Z.ndim != 2:
+                raise ValueError("treatment must have 1 or 2 dimensions")
         if propensity is not None:
             if propensity.ndim == 1:
                 propensity = np.expand_dims(propensity, 1)
@@ -871,7 +882,14 @@ class BCFModel:
             tau_raw = tau_raw*np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
         tau_x = tau_raw[:,self.keep_indices]
 
-        # Return result matrices as a tuple
+        tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau.dataset_cpp)
+        tau_raw = tau_raw[:,self.keep_indices,:]
+        if self.adaptive_coding:
+            adaptive_coding_weights = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
+            tau_raw = tau_raw*adaptive_coding_weights
+        tau_x = np.squeeze(tau_raw*self.y_std)
+
+        # Return result matrix
         return tau_x
     
     def predict(self, X: np.array, Z: np.array, propensity: np.array = None) -> np.array:
@@ -906,6 +924,9 @@ class BCFModel:
             X = np.expand_dims(X, 1)
         if Z.ndim == 1:
             Z = np.expand_dims(Z, 1)
+        else:
+            if Z.ndim != 2:
+                raise ValueError("treatment must have 1 or 2 dimensions")
         if propensity is not None:
             if propensity.ndim == 1:
                 propensity = np.expand_dims(propensity, 1)
@@ -946,19 +967,20 @@ class BCFModel:
         forest_dataset_tau.add_covariates(X_tau)
         forest_dataset_tau.add_basis(Z)
         
-        # Estimate prognostic term
-        mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_mu.dataset_cpp)
+        # Compute predicted outcome and decomposed outcome model terms
+        mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_tau.dataset_cpp)
         mu_x = mu_raw[:,self.keep_indices]*self.y_std + self.y_bar
-        
-        # Estimate treatment effect
         tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau.dataset_cpp)
+        tau_raw = tau_raw[:,self.keep_indices,:]
         if self.adaptive_coding:
-            tau_raw = tau_raw*np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
-        tau_raw = tau_raw*self.y_std
-        tau_x = tau_raw[:,self.keep_indices]
-
-        # Outcome predictions
-        yhat_x = mu_x + Z*tau_x
-
+            adaptive_coding_weights = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
+            tau_raw = tau_raw*adaptive_coding_weights
+        tau_x = np.squeeze(tau_raw*self.y_std)
+        if Z.shape[1] > 1:
+            treatment_term = np.multiply(np.atleast_3d(Z).swapaxes(1,2),tau_x).sum(axis=2)
+        else:
+            treatment_term = Z*np.squeeze(tau_x)
+        yhat_x = mu_x + treatment_term
+        
         # Return result matrices as a tuple
         return (tau_x, mu_x, yhat_x)

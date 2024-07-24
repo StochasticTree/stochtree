@@ -48,3 +48,9 @@ class Residual:
         # Initialize a ResidualCpp object
         n = residual.size
         self.residual_cpp = ResidualCpp(residual, n)
+    
+    def get_residual(self) -> np.array:
+        """
+        Extract the current values of the residual as a numpy array
+        """
+        return self.residual_cpp.GetResidualArray()
