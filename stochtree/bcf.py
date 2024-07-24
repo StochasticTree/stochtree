@@ -487,14 +487,10 @@ class BCFModel:
         # Check if user has provided propensities that are needed in the model
         if pi_train is None and propensity_covariate != "none":
             self.bart_propensity_model = BARTModel()
+            self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, X_test=X_test_processed, num_gfr=10, num_mcmc=10)
+            pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
             if self.has_test:
                 pi_test = np.mean(self.bart_propensity_model.y_hat_test, axis = 1, keepdims = True)
-                self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, X_test=X_test_processed, num_gfr=10, num_mcmc=10)
-                pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
-                pi_test = np.mean(self.bart_propensity_model.y_hat_test, axis = 1, keepdims = True)
-            else:
-                self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, num_gfr=10, num_mcmc=10)
-                pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
             self.internal_propensity_model = True
         else:
             self.internal_propensity_model = False
