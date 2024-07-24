@@ -891,13 +891,13 @@ forest_samples_tau <- createForestContainer(num_trees_tau, 1, F)
 
 # Initialize the leaves of each tree in the prognostic forest
 forest_samples_mu$set_root_leaves(0, mean(resid) / num_trees_mu)
-forest_samples_mu$update_residual(
+forest_samples_mu$adjust_residual(
     forest_dataset_mu, outcome, forest_model_mu, F, 0, F
 )
 
 # Initialize the leaves of each tree in the treatment effect forest
 forest_samples_tau$set_root_leaves(0, 0.)
-forest_samples_tau$update_residual(
+forest_samples_tau$adjust_residual(
     forest_dataset_tau, outcome, forest_model_tau, T, 0, F
 )
 ```

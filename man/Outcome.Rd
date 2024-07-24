@@ -22,6 +22,7 @@ of the outcome minus the predictions of every other model term
 \subsection{Public methods}{
 \itemize{
 \item \href{#method-Outcome-new}{\code{Outcome$new()}}
+\item \href{#method-Outcome-get_data}{\code{Outcome$get_data()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -42,6 +43,19 @@ Create a new Outcome object.
 }
 \subsection{Returns}{
 A new \code{Outcome} object.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Outcome-get_data"></a>}}
+\if{latex}{\out{\hypertarget{method-Outcome-get_data}{}}}
+\subsection{Method \code{get_data()}}{
+Extract raw data in R from the underlying C++ object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Outcome$get_data()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+R vector containing (copy of) the values in \code{Outcome} object
 }
 }
 }

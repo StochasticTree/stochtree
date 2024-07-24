@@ -502,13 +502,13 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     
     # Initialize the leaves of each tree in the prognostic forest
     forest_samples_mu$set_root_leaves(0, mean(resid_train) / num_trees_mu)
-    update_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
+    adjust_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
                                          forest_samples_mu$forest_container_ptr, forest_model_mu$tracker_ptr, 
                                          F, 0, F)
     
     # Initialize the leaves of each tree in the treatment effect forest
     forest_samples_tau$set_root_leaves(0, 0.)
-    update_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
+    adjust_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
                                          forest_samples_tau$forest_container_ptr, forest_model_tau$tracker_ptr, 
                                          T, 0, F)
 
@@ -578,7 +578,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                     forest_dataset_test$update_basis(tau_basis_test)
                 }
                 
-                # TODO Update leaf predictions and residual
+                # Update leaf predictions and residual
+                forest_samples_tau$update_residual(forest_dataset_train, outcome_train, forest_model_tau, i-1)
             }
             
             # Sample variance parameters (if requested)
@@ -676,8 +677,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                     forest_dataset_test$update_basis(tau_basis_test)
                 }
                 
-                # TODO Update leaf predictions and residual
-                
+                # Update leaf predictions and residual
+                forest_samples_tau$update_residual(forest_dataset_train, outcome_train, forest_model_tau, i-1)
             }
             
             # Sample variance parameters (if requested)

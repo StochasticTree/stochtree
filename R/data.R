@@ -99,6 +99,13 @@ Outcome <- R6::R6Class(
         #' @return A new `Outcome` object.
         initialize = function(outcome) {
             self$data_ptr <- create_column_vector_cpp(outcome)
+        },
+        
+        #' @description
+        #' Extract raw data in R from the underlying C++ object
+        #' @return R vector containing (copy of) the values in `Outcome` object
+        get_data = function() {
+            return(get_residual_cpp(self$data_ptr))
         }
     )
 )
