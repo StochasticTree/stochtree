@@ -487,10 +487,13 @@ class BCFModel:
         # Check if user has provided propensities that are needed in the model
         if pi_train is None and propensity_covariate != "none":
             self.bart_propensity_model = BARTModel()
-            self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, X_test=X_test_processed, num_gfr=10, num_mcmc=10)
-            pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
             if self.has_test:
+                self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, X_test=X_test_processed, num_gfr=10, num_mcmc=10)
+                pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
                 pi_test = np.mean(self.bart_propensity_model.y_hat_test, axis = 1, keepdims = True)
+            else:
+                self.bart_propensity_model.sample(X_train=X_train_processed, y_train=Z_train, num_gfr=10, num_mcmc=10)
+                pi_train = np.mean(self.bart_propensity_model.y_hat_train, axis = 1, keepdims = True)
             self.internal_propensity_model = True
         else:
             self.internal_propensity_model = False
@@ -691,7 +694,7 @@ class BCFModel:
                     self.b1_samples[i] = current_b_1
 
                     # Update residual to reflect adjusted basis
-                    forest_sampler_tau.adjust_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
+                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
@@ -750,7 +753,7 @@ class BCFModel:
                     self.b1_samples[i] = current_b_1
 
                     # Update residual to reflect adjusted basis
-                    forest_sampler_tau.adjust_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
+                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Mark the model as sampled
         self.sampled = True
@@ -780,11 +783,11 @@ class BCFModel:
         mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)
         self.mu_hat_train = mu_raw[:,self.keep_indices]*self.y_std + self.y_bar
         tau_raw_train = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_train.dataset_cpp)
-        self.tau_hat_train = tau_raw_train[:,self.keep_indices]
+        self.tau_hat_train = tau_raw_train[:,self.keep_indices,:]
         if self.adaptive_coding:
             adaptive_coding_weights = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
             self.tau_hat_train = self.tau_hat_train*adaptive_coding_weights
-        self.tau_hat_train = self.tau_hat_train*self.y_std
+        self.tau_hat_train = np.squeeze(self.tau_hat_train*self.y_std)
         if self.multivariate_treatment:
             treatment_term_train = np.multiply(np.atleast_3d(Z_train).swapaxes(1,2),self.tau_hat_train).sum(axis=2)
         else:
@@ -794,11 +797,11 @@ class BCFModel:
             mu_raw_test = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_test.dataset_cpp)
             self.mu_hat_test = mu_raw_test[:,self.keep_indices]*self.y_std + self.y_bar
             tau_raw_test = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_test.dataset_cpp)
-            self.tau_hat_test = tau_raw_test[:,self.keep_indices]
+            self.tau_hat_test = tau_raw_test[:,self.keep_indices,:]
             if self.adaptive_coding:
                 adaptive_coding_weights_test = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
                 self.tau_hat_test = self.tau_hat_test*adaptive_coding_weights_test
-            self.tau_hat_test = self.tau_hat_test*self.y_std
+            self.tau_hat_test = np.squeeze(self.tau_hat_test*self.y_std)
             if self.multivariate_treatment:
                 treatment_term_test = np.multiply(np.atleast_3d(Z_test).swapaxes(1,2),self.tau_hat_test).sum(axis=2)
             else:
