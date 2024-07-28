@@ -378,7 +378,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         num_total <- 50
         bart_model_propensity <- bart(X_train = X_train_raw, y_train = as.numeric(Z_train), X_test = X_test_raw, 
                                       num_gfr = num_total, num_burnin = 0, num_mcmc = 0)
-        pi_train <- rowMeans(bart_model_propensity$y_hat_train[(num_burnin+1):num_total])
+        pi_train <- rowMeans(bart_model_propensity$y_hat_train[,(num_burnin+1):num_total])
         if (has_test) pi_test <- rowMeans(bart_model_propensity$y_hat_test[,(num_burnin+1):num_total])
     }
 
