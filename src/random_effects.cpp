@@ -9,6 +9,20 @@ RandomEffectsTracker::RandomEffectsTracker(std::vector<int32_t>& group_indices) 
   num_categories_ = category_sample_tracker_->NumCategories();
   num_observations_ = group_indices.size();
   rfx_predictions_.resize(num_observations_, 0.);
+  initialized_ = true;
+}
+
+RandomEffectsTracker::RandomEffectsTracker() {
+  initialized_ = false;
+}
+
+void RandomEffectsTracker::Reset(std::vector<int32_t>& group_indices) {
+  sample_category_mapper_ = std::make_unique<SampleCategoryMapper>(group_indices);
+  category_sample_tracker_ = std::make_unique<CategorySampleTracker>(group_indices);
+  num_categories_ = category_sample_tracker_->NumCategories();
+  num_observations_ = group_indices.size();
+  rfx_predictions_.resize(num_observations_, 0.);
+  initialized_ = true;
 }
 
 nlohmann::json LabelMapper::to_json() {
@@ -41,6 +55,7 @@ void LabelMapper::from_json(const nlohmann::json& rfx_label_mapper_json) {
 
 void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
                                                                    double global_variance, std::mt19937& gen) {
+  CHECK(initialized_);
   // Update partial residual to add back in the random effects
   AddCurrentPredictionToResidual(dataset, rfx_tracker, residual);
   
@@ -55,6 +70,7 @@ void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffects
 
 void MultivariateRegressionRandomEffectsModel::SampleWorkingParameter(RandomEffectsDataset& dataset, ColumnVector& residual, 
                                                                       RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
+  CHECK(initialized_);
   Eigen::VectorXd posterior_mean = WorkingParameterMean(dataset, residual, rfx_tracker, global_variance);
   Eigen::MatrixXd posterior_covariance = WorkingParameterVariance(dataset, residual, rfx_tracker, global_variance);
   working_parameter_ = normal_sampler_.SampleEigen(posterior_mean, posterior_covariance, gen);
@@ -62,6 +78,7 @@ void MultivariateRegressionRandomEffectsModel::SampleWorkingParameter(RandomEffe
 
 void MultivariateRegressionRandomEffectsModel::SampleGroupParameters(RandomEffectsDataset& dataset, ColumnVector& residual, 
                                                                      RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
+  CHECK(initialized_);
   int32_t num_groups = num_groups_;
   Eigen::VectorXd posterior_mean;
   Eigen::MatrixXd posterior_covariance;
@@ -75,6 +92,7 @@ void MultivariateRegressionRandomEffectsModel::SampleGroupParameters(RandomEffec
 
 void MultivariateRegressionRandomEffectsModel::SampleVarianceComponents(RandomEffectsDataset& dataset, ColumnVector& residual, 
                                                                         RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
+  CHECK(initialized_);
   int32_t num_components = num_components_;
   double posterior_shape;
   double posterior_scale;
@@ -88,6 +106,7 @@ void MultivariateRegressionRandomEffectsModel::SampleVarianceComponents(RandomEf
 
 Eigen::VectorXd MultivariateRegressionRandomEffectsModel::WorkingParameterMean(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
                                                                                double global_variance){
+  CHECK(initialized_);
   int32_t num_components = num_components_;
   int32_t num_groups = num_groups_;
   std::vector<data_size_t> observation_indices;
@@ -111,6 +130,7 @@ Eigen::VectorXd MultivariateRegressionRandomEffectsModel::WorkingParameterMean(R
 }
 
 Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::WorkingParameterVariance(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance){
+  CHECK(initialized_);
   int32_t num_components = num_components_;
   int32_t num_groups = num_groups_;
   std::vector<data_size_t> observation_indices;
@@ -133,6 +153,7 @@ Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::WorkingParameterVarian
 }
 
 Eigen::VectorXd MultivariateRegressionRandomEffectsModel::GroupParameterMean(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t group_id) {
+  CHECK(initialized_);
   int32_t num_components = num_components_;
   int32_t num_groups = num_groups_;
   Eigen::MatrixXd X = dataset.GetBasis();
@@ -149,6 +170,7 @@ Eigen::VectorXd MultivariateRegressionRandomEffectsModel::GroupParameterMean(Ran
 }
 
 Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::GroupParameterVariance(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t group_id){
+  CHECK(initialized_);
   int32_t num_components = num_components_;
   int32_t num_groups = num_groups_;
   Eigen::MatrixXd X = dataset.GetBasis();
@@ -165,10 +187,12 @@ Eigen::MatrixXd MultivariateRegressionRandomEffectsModel::GroupParameterVariance
 }
 
 double MultivariateRegressionRandomEffectsModel::VarianceComponentShape(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t component_id) {
+  CHECK(initialized_);
   return static_cast<double>(variance_prior_shape_ + num_groups_);
 }
 
 double MultivariateRegressionRandomEffectsModel::VarianceComponentScale(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, double global_variance, int32_t component_id) {
+  CHECK(initialized_);
   int32_t num_groups = num_groups_;
   Eigen::MatrixXd xi = group_parameters_;
   double output = variance_prior_scale_;

@@ -59,7 +59,7 @@ Create a new ForestModel object.
 
 \item{\code{min_samples_leaf}}{Minimum number of samples in a tree leaf}
 
-\item{\code{max_depth}}{Maximum depth that any tree can reach}
+\item{\code{max_depth}}{Maximum depth of any tree in an ensemble. Default: \code{-1}.}
 }
 \if{html}{\out{</div>}}
 }

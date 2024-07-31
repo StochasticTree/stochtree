@@ -33,6 +33,9 @@ TEST(Tree, UnivariateTreeCopyConstruction) {
   StochTree::Tree tree_2;
   StochTree::TreeSplit split;
   tree_1.Init(1);
+
+  // Check max depth
+  ASSERT_EQ(tree_1.MaxLeafDepth(), 0);
   
   // Check max depth
   ASSERT_EQ(tree_1.MaxLeafDepth(), 0);

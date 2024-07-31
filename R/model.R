@@ -50,7 +50,7 @@ ForestModel <- R6::R6Class(
         #' @param alpha Root node split probability in tree prior
         #' @param beta Depth prior penalty in tree prior
         #' @param min_samples_leaf Minimum number of samples in a tree leaf
-        #' @param max_depth Maximum depth that any tree can reach
+        #' @param max_depth Maximum depth of any tree in an ensemble. Default: `-1`.
         #' @return A new `ForestModel` object.
         initialize = function(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth = -1) {
             stopifnot(!is.null(forest_dataset$data_ptr))
@@ -116,6 +116,7 @@ createRNG <- function(random_seed = -1){
 #' @param alpha Root node split probability in tree prior
 #' @param beta Depth prior penalty in tree prior
 #' @param min_samples_leaf Minimum number of samples in a tree leaf
+#' @param max_depth Maximum depth of any tree in an ensemble
 #'
 #' @return `ForestModel` object
 #' @export

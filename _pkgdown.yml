@@ -70,6 +70,10 @@ reference:
   - createForestKernel
   - CppRNG
   - createRNG
+  - average_max_depth_bart_generalized
+  - average_max_depth_bart_specialized
+  - bart_cpp_loop_generalized
+  - bart_cpp_loop_specialized
 
 - subtitle: Random Effects
   desc: >
