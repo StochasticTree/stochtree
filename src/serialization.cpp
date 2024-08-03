@@ -305,15 +305,25 @@ std::string json_add_rfx_groupids_cpp(cpp11::external_pointer<nlohmann::json> js
 }
 
 [[cpp11::register]]
-void json_save_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string filename) {
+std::string get_json_string_cpp(cpp11::external_pointer<nlohmann::json> json_ptr) {
+    return json_ptr->dump();
+}
+
+[[cpp11::register]]
+void json_save_file_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string filename) {
     std::ofstream output_file(filename);
     output_file << *json_ptr << std::endl;
 }
 
 [[cpp11::register]]
-void json_load_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string filename) {
+void json_load_file_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string filename) {
     std::ifstream f(filename);
     // nlohmann::json file_json = nlohmann::json::parse(f);
     *json_ptr = nlohmann::json::parse(f);
     // json_ptr.reset(&file_json);
+}
+
+[[cpp11::register]]
+void json_load_string_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string json_string) {
+    *json_ptr = nlohmann::json::parse(json_string);
 }

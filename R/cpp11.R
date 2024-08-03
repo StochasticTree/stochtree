@@ -464,10 +464,18 @@ json_add_rfx_groupids_cpp <- function(json_ptr, groupids) {
   .Call(`_stochtree_json_add_rfx_groupids_cpp`, json_ptr, groupids)
 }
 
-json_save_cpp <- function(json_ptr, filename) {
-  invisible(.Call(`_stochtree_json_save_cpp`, json_ptr, filename))
+get_json_string_cpp <- function(json_ptr) {
+  .Call(`_stochtree_get_json_string_cpp`, json_ptr)
 }
 
-json_load_cpp <- function(json_ptr, filename) {
-  invisible(.Call(`_stochtree_json_load_cpp`, json_ptr, filename))
+json_save_file_cpp <- function(json_ptr, filename) {
+  invisible(.Call(`_stochtree_json_save_file_cpp`, json_ptr, filename))
+}
+
+json_load_file_cpp <- function(json_ptr, filename) {
+  invisible(.Call(`_stochtree_json_load_file_cpp`, json_ptr, filename))
+}
+
+json_load_string_cpp <- function(json_ptr, json_string) {
+  invisible(.Call(`_stochtree_json_load_string_cpp`, json_ptr, json_string))
 }

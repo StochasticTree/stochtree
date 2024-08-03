@@ -277,11 +277,18 @@ CppJson <- R6::R6Class(
         }, 
         
         #' @description
+        #' Convert a JSON object to in-memory string
+        #' @return JSON string
+        return_json_string = function() {
+            return(get_json_string_cpp(self$json_ptr))
+        }, 
+        
+        #' @description
         #' Save a json object to file
         #' @param filename String of filepath, must end in ".json"
         #' @return NULL
         save_file = function(filename) {
-            json_save_cpp(self$json_ptr, filename)
+            json_save_file_cpp(self$json_ptr, filename)
         }, 
         
         #' @description
@@ -289,7 +296,15 @@ CppJson <- R6::R6Class(
         #' @param filename String of filepath, must end in ".json"
         #' @return NULL
         load_from_file = function(filename) {
-            json_load_cpp(self$json_ptr, filename)
+            json_load_file_cpp(self$json_ptr, filename)
+        }, 
+        
+        #' @description
+        #' Load a json object from string
+        #' @param json_string JSON string dump
+        #' @return NULL
+        load_from_string = function(json_string) {
+            json_load_string_cpp(self$json_ptr, json_string)
         }
     )
 )
@@ -377,5 +392,18 @@ createCppJsonFile <- function(json_filename) {
         output <- CppJson$new()
     ))
     output$load_from_file(json_filename)
+    return(output)
+}
+
+#' Create a C++ Json object from a Json string
+#'
+#' @param json_string JSON string dump
+#' @return `CppJson` object
+#' @export
+createCppJsonString <- function(json_string) {
+    invisible((
+        output <- CppJson$new()
+    ))
+    output$load_from_string(json_string)
     return(output)
 }
