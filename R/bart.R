@@ -1022,7 +1022,8 @@ createBARTModelFromJsonFile <- function(json_filename){
 #' # bart_json <- saveBARTModelToJsonString(bart_model)
 #' # bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
 #' # y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X_train)$y_hat)
-#' # plot(rowMeans(bart_model$y_hat_train), y_hat_mean_roundtrip)
+#' # plot(rowMeans(bart_model$y_hat_train), y_hat_mean_roundtrip, 
+#' #      xlab = "original", ylab = "roundtrip")
 createBARTModelFromJsonString <- function(json_string){
     # Load a `CppJson` object from string
     bart_json <- createCppJsonString(json_string)
