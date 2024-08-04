@@ -688,3 +688,347 @@ getRandomEffectSamples.bartmodel <- function(object, ...){
     
     return(result)
 }
+
+#' Convert the persistent aspects of a BART model to (in-memory) JSON
+#'
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
+#'
+#' @return Object of type `CppJson`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json <- convertBARTModelToJson(bart_model)
+convertBARTModelToJson <- function(object){
+    jsonobj <- createCppJson()
+    
+    if (is.null(object$model_params)) {
+        stop("This BCF model has not yet been sampled")
+    }
+
+    # Add the forests
+    jsonobj$add_forest(object$forests)
+
+    # Add metadata
+    jsonobj$add_scalar("num_numeric_vars", object$train_set_metadata$num_numeric_vars)
+    jsonobj$add_scalar("num_ordered_cat_vars", object$train_set_metadata$num_ordered_cat_vars)
+    jsonobj$add_scalar("num_unordered_cat_vars", object$train_set_metadata$num_unordered_cat_vars)
+    if (object$train_set_metadata$num_numeric_vars > 0) {
+        jsonobj$add_string_vector("numeric_vars", object$train_set_metadata$numeric_vars)
+    }
+    if (object$train_set_metadata$num_ordered_cat_vars > 0) {
+        jsonobj$add_string_vector("ordered_cat_vars", object$train_set_metadata$ordered_cat_vars)
+        jsonobj$add_string_list("ordered_unique_levels", object$train_set_metadata$ordered_unique_levels)
+    }
+    if (object$train_set_metadata$num_unordered_cat_vars > 0) {
+        jsonobj$add_string_vector("unordered_cat_vars", object$train_set_metadata$unordered_cat_vars)
+        jsonobj$add_string_list("unordered_unique_levels", object$train_set_metadata$unordered_unique_levels)
+    }
+    
+    # Add global parameters
+    jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
+    jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
+    jsonobj$add_boolean("sample_sigma", object$model_params$sample_sigma)
+    jsonobj$add_boolean("sample_tau", object$model_params$sample_tau)
+    jsonobj$add_boolean("has_rfx", object$model_params$has_rfx)
+    jsonobj$add_boolean("has_rfx_basis", object$model_params$has_rfx_basis)
+    jsonobj$add_scalar("num_rfx_basis", object$model_params$num_rfx_basis)
+    jsonobj$add_scalar("num_gfr", object$model_params$num_gfr)
+    jsonobj$add_scalar("num_burnin", object$model_params$num_burnin)
+    jsonobj$add_scalar("num_mcmc", object$model_params$num_mcmc)
+    jsonobj$add_scalar("num_samples", object$model_params$num_samples)
+    jsonobj$add_scalar("num_covariates", object$model_params$num_covariates)
+    jsonobj$add_scalar("num_basis", object$model_params$num_basis)
+    jsonobj$add_boolean("requires_basis", object$model_params$requires_basis)
+    jsonobj$add_vector("keep_indices", object$keep_indices)
+    if (object$model_params$sample_sigma) {
+        jsonobj$add_vector("sigma2_samples", object$sigma2_samples, "parameters")
+    }
+    if (object$model_params$sample_tau) {
+        jsonobj$add_vector("tau_samples", object$tau_samples, "parameters")
+    }
+
+    # Add random effects (if present)
+    if (object$model_params$has_rfx) {
+        jsonobj$add_random_effects(object$rfx_samples)
+        jsonobj$add_string_vector("rfx_unique_group_ids", object$rfx_unique_group_ids)
+    }
+    
+    return(jsonobj)
+}
+
+#' Convert the persistent aspects of a BART model to (in-memory) JSON and save to a file
+#'
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
+#' @param filename String of filepath, must end in ".json"
+#'
+#' @return NULL
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # saveBARTModelToJsonFile(bart_model, "test.json")
+saveBARTModelToJsonFile <- function(object, filename){
+    # Convert to Json
+    jsonobj <- convertBARTModelToJson(object)
+    
+    # Save to file
+    jsonobj$save_file(filename)
+}
+
+#' Convert the persistent aspects of a BART model to (in-memory) JSON string
+#'
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
+#' @return JSON string
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # saveBARTModelToJsonString(bart_model)
+saveBARTModelToJsonString <- function(object){
+    # Convert to Json
+    jsonobj <- convertBARTModelToJson(object)
+    
+    # Dump to string
+    return(jsonobj$return_json_string())
+}
+
+#' Convert an (in-memory) JSON representation of a BART model to a BART model object 
+#' which can be used for prediction, etc...
+#'
+#' @param json_object Object of type `CppJson` containing Json representation of a BART model
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json <- convertBARTModelToJson(bart_model)
+#' # bart_model_roundtrip <- createBARTModelFromJson(bart_json)
+createBARTModelFromJson <- function(json_object){
+    # Initialize the BCF model
+    output <- list()
+    
+    # Unpack the forests
+    output[["forests"]] <- loadForestContainerJson(json_object, "forest_0")
+
+    # Unpack metadata
+    train_set_metadata = list()
+    train_set_metadata[["num_numeric_vars"]] <- json_object$get_scalar("num_numeric_vars")
+    train_set_metadata[["num_ordered_cat_vars"]] <- json_object$get_scalar("num_ordered_cat_vars")
+    train_set_metadata[["num_unordered_cat_vars"]] <- json_object$get_scalar("num_unordered_cat_vars")
+    if (train_set_metadata[["num_numeric_vars"]] > 0) {
+        train_set_metadata[["numeric_vars"]] <- json_object$get_string_vector("numeric_vars")
+    }
+    if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
+        train_set_metadata[["ordered_cat_vars"]] <- json_object$get_string_vector("ordered_cat_vars")
+        train_set_metadata[["ordered_unique_levels"]] <- json_object$get_string_list("ordered_unique_levels", train_set_metadata[["ordered_cat_vars"]])
+    }
+    if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
+        train_set_metadata[["unordered_cat_vars"]] <- json_object$get_string_vector("unordered_cat_vars")
+        train_set_metadata[["unordered_unique_levels"]] <- json_object$get_string_list("unordered_unique_levels", train_set_metadata[["unordered_cat_vars"]])
+    }
+    output[["train_set_metadata"]] <- train_set_metadata
+    output[["keep_indices"]] <- json_object$get_vector("keep_indices")
+    
+    # Unpack model params
+    model_params = list()
+    model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
+    model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
+    model_params[["sample_sigma"]] <- json_object$get_boolean("sample_sigma")
+    model_params[["sample_tau"]] <- json_object$get_boolean("sample_tau")
+    model_params[["has_rfx"]] <- json_object$get_boolean("has_rfx")
+    model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
+    model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
+    model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
+    model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
+    model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
+    model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
+    model_params[["num_covariates"]] <- json_object$get_scalar("num_covariates")
+    model_params[["num_basis"]] <- json_object$get_scalar("num_basis")
+    model_params[["requires_basis"]] <- json_object$get_boolean("requires_basis")
+    output[["model_params"]] <- model_params
+    
+    # Unpack sampled parameters
+    if (model_params[["sample_sigma"]]) {
+        output[["sigma2_samples"]] <- json_object$get_vector("sigma2_samples", "parameters")
+    }
+    if (model_params[["sample_tau"]]) {
+        output[["tau_samples"]] <- json_object$get_vector("tau_samples", "parameters")
+    }
+
+    # Unpack random effects
+    if (model_params[["has_rfx"]]) {
+        output[["rfx_unique_group_ids"]] <- json_object$get_string_vector("rfx_unique_group_ids")
+        output[["rfx_samples"]] <- loadRandomEffectSamplesJson(json_object, 0)
+    }
+    
+    class(output) <- "bartmodel"
+    return(output)
+}
+
+#' Convert a JSON file containing sample information on a trained BART model 
+#' to a BART model object which can be used for prediction, etc...
+#'
+#' @param json_filename String of filepath, must end in ".json"
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # saveBARTModelToJsonFile(bart_model, "test.json")
+#' # bart_model_roundtrip <- createBARTModelFromJsonFile("test.json")
+createBARTModelFromJsonFile <- function(json_filename){
+    # Load a `CppJson` object from file
+    bart_json <- createCppJsonFile(json_filename)
+    
+    # Create and return the BCF object
+    bart_object <- createBARTModelFromJson(bart_json)
+    
+    return(bart_object)
+}
+
+#' Convert a JSON string containing sample information on a trained BART model 
+#' to a BART model object which can be used for prediction, etc...
+#'
+#' @param json_string JSON string dump
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json <- saveBARTModelToJsonString(bart_model)
+#' # bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
+#' # y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X_train)$y_hat)
+#' # plot(rowMeans(bart_model$y_hat_train), y_hat_mean_roundtrip)
+createBARTModelFromJsonString <- function(json_string){
+    # Load a `CppJson` object from string
+    bart_json <- createCppJsonString(json_string)
+    
+    # Create and return the BCF object
+    bart_object <- createBARTModelFromJson(bart_json)
+    
+    return(bart_object)
+}
