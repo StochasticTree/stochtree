@@ -18,6 +18,9 @@ Wrapper around a C++ container of tree ensembles
 \itemize{
 \item \href{#method-ForestSamples-new}{\code{ForestSamples$new()}}
 \item \href{#method-ForestSamples-load_from_json}{\code{ForestSamples$load_from_json()}}
+\item \href{#method-ForestSamples-append_from_json}{\code{ForestSamples$append_from_json()}}
+\item \href{#method-ForestSamples-load_from_json_string}{\code{ForestSamples$load_from_json_string()}}
+\item \href{#method-ForestSamples-append_from_json_string}{\code{ForestSamples$append_from_json_string()}}
 \item \href{#method-ForestSamples-predict}{\code{ForestSamples$predict()}}
 \item \href{#method-ForestSamples-predict_raw}{\code{ForestSamples$predict_raw()}}
 \item \href{#method-ForestSamples-predict_raw_single_forest}{\code{ForestSamples$predict_raw_single_forest()}}
@@ -69,7 +72,7 @@ A new \code{ForestContainer} object.
 \if{html}{\out{<a id="method-ForestSamples-load_from_json"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-load_from_json}{}}}
 \subsection{Method \code{load_from_json()}}{
-Create a new ForestContainer object from a json object
+Create a new \code{ForestContainer} object from a json object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$load_from_json(json_object, json_forest_label)}\if{html}{\out{</div>}}
 }
@@ -85,6 +88,72 @@ Create a new ForestContainer object from a json object
 }
 \subsection{Returns}{
 A new \code{ForestContainer} object.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-append_from_json"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-append_from_json}{}}}
+\subsection{Method \code{append_from_json()}}{
+Append to a \code{ForestContainer} object from a json object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$append_from_json(json_object, json_forest_label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_object}}{Object of class \code{CppJson}}
+
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-load_from_json_string"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-load_from_json_string}{}}}
+\subsection{Method \code{load_from_json_string()}}{
+Create a new \code{ForestContainer} object from a json object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$load_from_json_string(json_string, json_forest_label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_string}}{JSON string which parses into object of class \code{CppJson}}
+
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+A new \code{ForestContainer} object.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-append_from_json_string"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-append_from_json_string}{}}}
+\subsection{Method \code{append_from_json_string()}}{
+Append to a \code{ForestContainer} object from a json object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$append_from_json_string(json_string, json_forest_label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_string}}{JSON string which parses into object of class \code{CppJson}}
+
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
 }
 }
 \if{html}{\out{<hr>}}

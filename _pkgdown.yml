@@ -30,12 +30,14 @@ reference:
   contents:
   - CppJson
   - createCppJson
+  - createCppJsonFile
+  - createCppJsonString
   - loadForestContainerJson
+  - loadForestContainerCombinedJson
+  - loadForestContainerCombinedJsonString
   - loadRandomEffectSamplesJson
   - loadVectorJson
   - loadScalarJson
-  - createCppJsonFile
-  - createCppJsonString
 
 - subtitle: Data
   desc: >
@@ -104,6 +106,7 @@ articles:
   contents:
   - BayesianSupervisedLearning
   - CausalInference
+  - MultiChain
   - ModelSerialization
 
 - title: Prototype Interface

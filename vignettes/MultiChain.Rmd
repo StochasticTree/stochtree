@@ -1,0 +1,140 @@
+---
+title: "Running Multiple Chains (Sequentially or in Parallel) in StochTree"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Prototype-Interface}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+bibliography: vignettes.bib
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Motivation
+
+Mixing of an MCMC sampler is a perennial concern for complex Bayesian models, 
+and BART is no exception. On common way to address such concerns is to run 
+multiple independent "chains" of an MCMC sampler, so that if each chain gets 
+stuck in a different region of the posterior, their combined samples attain 
+better coverage of the full posterior.
+
+This idea works with the classic "from-root" MCMC sampler of @chipman2010bart, 
+but a key insight of @he2023stochastic is that the XBART algorithm may be used 
+to warm-start initialize multiple chains of the BART MCMC sampler. 
+
+Operationally, the above two approaches have the same implementation (setting 
+`num_gfr` > 0 if warm-start initialization is desired), so this vignette will 
+demonstrate how to run a multi-chain sampler sequentially or in parallel.
+
+To begin, load the `stochtree` package
+
+```{r setup}
+library(stochtree)
+```
+
+# Demo 1: Supervised Learning, Sequential Multi Chain Sampler
+
+## Simulation
+
+Simulate a simple partitioned linear model
+
+```{r}
+# Generate the data
+n <- 500
+p_x <- 10
+p_w <- 1
+snr <- 3
+X <- matrix(runif(n*p_x), ncol = p_x)
+W <- matrix(runif(n*p_w), ncol = p_w)
+f_XW <- (
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5*W[,1]) + 
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5*W[,1]) + 
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5*W[,1]) + 
+    ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5*W[,1])
+)
+noise_sd <- sd(f_XW) / snr
+y <- f_XW + rnorm(n, 0, 1)*noise_sd
+
+# Split data into test and train sets
+test_set_pct <- 0.2
+n_test <- round(test_set_pct*n)
+n_train <- n - n_test
+test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+train_inds <- (1:n)[!((1:n) %in% test_inds)]
+X_test <- as.data.frame(X[test_inds,])
+X_train <- as.data.frame(X[train_inds,])
+W_test <- W[test_inds,]
+W_train <- W[train_inds,]
+y_test <- y[test_inds]
+y_train <- y[train_inds]
+```
+
+## Sampling
+
+Define some high-level parameters, including number of chains to run and number of 
+samples per chain. Here we run 4 independent chains with 5 warm-start iterations 
+and 100 MCMC iterations each.
+
+```{r}
+num_chains <- 4
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 100
+num_trees <- 100
+```
+
+Run the sampler, storing the resulting BART objects in a list
+
+```{r}
+bart_models <- list()
+for (i in 1:num_chains) {
+    bart_models[[i]] <- stochtree::bart(
+        X_train = X_train, W_train = W_train, y_train = y_train, 
+        X_test = X_test, W_test = W_test, num_trees = num_trees, 
+        num_gfr = num_gfr, num_burnin = num_burnin, 
+        num_mcmc = num_mcmc, sample_sigma = T, sample_tau = T
+    )
+}
+```
+
+Now, if we want to combine the forests from each of these BART models into a 
+single forest, we can do so as follows
+
+```{r}
+json_string_list <- list()
+for (i in 1:num_chains) {
+    json_string_list[[i]] <- saveBARTModelToJsonString(bart_models[[i]])
+}
+combined_forests <- loadForestContainerCombinedJsonString(json_string_list, "forest_0")
+```
+
+We can predict from this combined forest as follows
+
+```{r}
+test_dataset <- createForestDataset(as.matrix(X_test), W_test)
+yhat_combined <- combined_forests$predict(test_dataset)
+```
+
+Compare to the original $\hat{y}$ values
+
+```{r}
+num_samples <- num_gfr+num_burnin+num_mcmc
+for (i in 1:num_chains) {
+    offset <- (i-1)*num_samples
+    inds_start <- offset + 1 + num_burnin + num_gfr
+    inds_end <- offset + num_samples
+    plot(rowMeans(bart_models[[i]]$y_hat_test), 
+         rowMeans(yhat_combined[,inds_start:inds_end]))
+}
+```
+
+
+# References

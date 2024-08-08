@@ -322,6 +322,46 @@ loadForestContainerJson <- function(json_object, json_forest_label) {
     return(output)
 }
 
+#' Combine multiple JSON model objects containing forests (with the same hierarchy / schema) into a single forest_container
+#'
+#' @param json_object_list List of objects of class `CppJson`
+#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in the list)
+#'
+#' @return `ForestSamples` object
+#' @export
+loadForestContainerCombinedJson <- function(json_object_list, json_forest_label) {
+    invisible(output <- ForestSamples$new(0,1,T))
+    for (i in 1:length(json_object_list)) {
+        json_object <- json_object_list[i]
+        if (i == 1) {
+            output$load_from_json(json_object, json_forest_label)
+        } else {
+            output$append_from_json(json_object, json_forest_label)
+        }
+    }
+    return(output)
+}
+
+#' Combine multiple JSON strings representing model objects containing forests (with the same hierarchy / schema) into a single forest_container
+#'
+#' @param json_string_list List of strings that parse into objects of type `CppJson`
+#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in the list)
+#'
+#' @return `ForestSamples` object
+#' @export
+loadForestContainerCombinedJsonString <- function(json_string_list, json_forest_label) {
+    invisible(output <- ForestSamples$new(0,1,T))
+    for (i in 1:length(json_string_list)) {
+        json_string <- json_string_list[[i]]
+        if (i == 1) {
+            output$load_from_json_string(json_string, json_forest_label)
+        } else {
+            output$append_from_json_string(json_string, json_forest_label)
+        }
+    }
+    return(output)
+}
+
 #' Load a container of random effect samples from json
 #'
 #' @param json_object Object of class `CppJson`
