@@ -279,6 +279,7 @@ class RandomEffectsContainer {
   std::vector<double>& GetSigma() {return sigma_xi_;}
   nlohmann::json to_json();
   void from_json(const nlohmann::json& rfx_container_json);
+  void append_from_json(const nlohmann::json& rfx_container_json);
  private:
   int num_samples_;
   int num_components_;

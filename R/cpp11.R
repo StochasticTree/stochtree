@@ -96,6 +96,26 @@ rfx_group_ids_from_json_cpp <- function(json_ptr, rfx_label) {
   .Call(`_stochtree_rfx_group_ids_from_json_cpp`, json_ptr, rfx_label)
 }
 
+rfx_container_append_from_json_cpp <- function(rfx_container_ptr, json_ptr, rfx_label) {
+  invisible(.Call(`_stochtree_rfx_container_append_from_json_cpp`, rfx_container_ptr, json_ptr, rfx_label))
+}
+
+rfx_container_from_json_string_cpp <- function(json_string, rfx_label) {
+  .Call(`_stochtree_rfx_container_from_json_string_cpp`, json_string, rfx_label)
+}
+
+rfx_label_mapper_from_json_string_cpp <- function(json_string, rfx_label) {
+  .Call(`_stochtree_rfx_label_mapper_from_json_string_cpp`, json_string, rfx_label)
+}
+
+rfx_group_ids_from_json_string_cpp <- function(json_string, rfx_label) {
+  .Call(`_stochtree_rfx_group_ids_from_json_string_cpp`, json_string, rfx_label)
+}
+
+rfx_container_append_from_json_string_cpp <- function(rfx_container_ptr, json_string, rfx_label) {
+  invisible(.Call(`_stochtree_rfx_container_append_from_json_string_cpp`, rfx_container_ptr, json_string, rfx_label))
+}
+
 rfx_model_cpp <- function(num_components, num_groups) {
   .Call(`_stochtree_rfx_model_cpp`, num_components, num_groups)
 }
