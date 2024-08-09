@@ -408,7 +408,7 @@ loadRandomEffectSamplesCombinedJson <- function(json_object_list, json_rfx_num) 
 #'
 #' @return `RandomEffectSamples` object
 #' @export
-loadRandomEffectSamplesCombinedJson <- function(json_string_list, json_rfx_num) {
+loadRandomEffectSamplesCombinedJsonString <- function(json_string_list, json_rfx_num) {
     json_rfx_container_label <- paste0("random_effect_container_", json_rfx_num)
     json_rfx_mapper_label <- paste0("random_effect_label_mapper_", json_rfx_num)
     json_rfx_groupids_label <- paste0("random_effect_groupids_", json_rfx_num)
@@ -416,9 +416,9 @@ loadRandomEffectSamplesCombinedJson <- function(json_string_list, json_rfx_num) 
     for (i in 1:length(json_object_list)) {
         json_string <- json_string_list[[i]]
         if (i == 1) {
-            output$load_from_json(json_object, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)
+            output$load_from_json_string(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)
         } else {
-            output$append_from_json(json_object, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)
+            output$append_from_json_string(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)
         }
     }
     return(output)

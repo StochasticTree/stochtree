@@ -1033,3 +1033,271 @@ createBARTModelFromJsonString <- function(json_string){
     
     return(bart_object)
 }
+
+#' Convert a list of (in-memory) JSON representations of a BART model to a single combined BART model object 
+#' which can be used for prediction, etc...
+#'
+#' @param json_object_list List of objects of type `CppJson` containing Json representation of a BART model
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json <- list(convertBARTModelToJson(bart_model))
+#' # bart_model_roundtrip <- createBARTModelFromCombinedJson(bart_json)
+createBARTModelFromCombinedJson <- function(json_object_list){
+    # Initialize the BCF model
+    output <- list()
+    
+    # Unpack the forests
+    output[["forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+    
+    # For scalar / preprocessing details which aren't sample-dependent, 
+    # defer to the first json
+    json_object_default <- json_object_list[[1]]
+    
+    # Unpack metadata
+    train_set_metadata = list()
+    train_set_metadata[["num_numeric_vars"]] <- json_object_default$get_scalar("num_numeric_vars")
+    train_set_metadata[["num_ordered_cat_vars"]] <- json_object_default$get_scalar("num_ordered_cat_vars")
+    train_set_metadata[["num_unordered_cat_vars"]] <- json_object_default$get_scalar("num_unordered_cat_vars")
+    if (train_set_metadata[["num_numeric_vars"]] > 0) {
+        train_set_metadata[["numeric_vars"]] <- json_object_default$get_string_vector("numeric_vars")
+    }
+    if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
+        train_set_metadata[["ordered_cat_vars"]] <- json_object_default$get_string_vector("ordered_cat_vars")
+        train_set_metadata[["ordered_unique_levels"]] <- json_object_default$get_string_list("ordered_unique_levels", train_set_metadata[["ordered_cat_vars"]])
+    }
+    if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
+        train_set_metadata[["unordered_cat_vars"]] <- json_object_default$get_string_vector("unordered_cat_vars")
+        train_set_metadata[["unordered_unique_levels"]] <- json_object_default$get_string_list("unordered_unique_levels", train_set_metadata[["unordered_cat_vars"]])
+    }
+    output[["train_set_metadata"]] <- train_set_metadata
+
+    # Unpack model params
+    model_params = list()
+    model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
+    model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
+    model_params[["sample_sigma"]] <- json_object_default$get_boolean("sample_sigma")
+    model_params[["sample_tau"]] <- json_object_default$get_boolean("sample_tau")
+    model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
+    model_params[["has_rfx_basis"]] <- json_object_default$get_boolean("has_rfx_basis")
+    model_params[["num_rfx_basis"]] <- json_object_default$get_scalar("num_rfx_basis")
+    model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
+    model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
+    model_params[["requires_basis"]] <- json_object_default$get_boolean("requires_basis")
+
+    # Combine values that are sample-specific
+    keep_index_offset <- 0
+    keep_indices <- c()
+    for (i in 1:length(json_object_list)) {
+        json_object <- json_object_list[[i]]
+        if (i == 1) {
+            model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
+            keep_indices <- c(keep_indices, keep_index_offset + json_object$get_vector("keep_indices"))
+        } else {
+            prev_json <- json_object_list[[i-1]]
+            model_params[["num_gfr"]] <- model_params[["num_gfr"]] + json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- model_params[["num_burnin"]] + json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- model_params[["num_mcmc"]] + json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- model_params[["num_samples"]] + json_object$get_scalar("num_samples")
+            keep_index_offset <- keep_index_offset + prev_json$get_scalar("num_samples")
+            keep_indices <- c(keep_indices, keep_index_offset + json_object$get_vector("keep_indices"))
+        }
+    }
+    output[["keep_indices"]] <- keep_indices
+    output[["model_params"]] <- model_params
+    
+    # Unpack sampled parameters
+    if (model_params[["sample_sigma"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma2_samples"]] <- json_object$get_vector("sigma2_samples", "parameters")
+            } else {
+                output[["sigma2_samples"]] <- c(output[["sigma2_samples"]], json_object$get_vector("sigma2_samples", "parameters"))
+            }
+        }
+    }
+    if (model_params[["sample_tau"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["tau_samples"]] <- json_object$get_vector("tau_samples", "parameters")
+            } else {
+                output[["tau_samples"]] <- c(output[["tau_samples"]], json_object$get_vector("tau_samples", "parameters"))
+            }
+        }
+    }
+    
+    # Unpack random effects
+    if (model_params[["has_rfx"]]) {
+        output[["rfx_unique_group_ids"]] <- json_object_default$get_string_vector("rfx_unique_group_ids")
+        output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(json_object_list, 0)
+    }
+    
+    class(output) <- "bartmodel"
+    return(output)
+}
+
+#' Convert a list of (in-memory) JSON strings that represent BART models to a single combined BART model object 
+#' which can be used for prediction, etc...
+#'
+#' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BART model
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json_string_list <- list(saveBARTModelToJsonString(bart_model))
+#' # bart_model_roundtrip <- createBARTModelFromCombinedJsonString(bart_json_string_list)
+createBARTModelFromCombinedJsonString <- function(json_string_list){
+    # Initialize the BCF model
+    output <- list()
+    
+    # Convert JSON strings
+    json_object_list <- list()
+    for (i in 1:length(json_string_list)) {
+        json_string <- json_string_list[[i]]
+        json_object_list[[i]] <- createCppJsonString(json_string)
+    }
+    
+    # Unpack the forests
+    output[["forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+    
+    # For scalar / preprocessing details which aren't sample-dependent, 
+    # defer to the first json
+    json_object_default <- json_object_list[[1]]
+    
+    # Unpack metadata
+    train_set_metadata = list()
+    train_set_metadata[["num_numeric_vars"]] <- json_object_default$get_scalar("num_numeric_vars")
+    train_set_metadata[["num_ordered_cat_vars"]] <- json_object_default$get_scalar("num_ordered_cat_vars")
+    train_set_metadata[["num_unordered_cat_vars"]] <- json_object_default$get_scalar("num_unordered_cat_vars")
+    if (train_set_metadata[["num_numeric_vars"]] > 0) {
+        train_set_metadata[["numeric_vars"]] <- json_object_default$get_string_vector("numeric_vars")
+    }
+    if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
+        train_set_metadata[["ordered_cat_vars"]] <- json_object_default$get_string_vector("ordered_cat_vars")
+        train_set_metadata[["ordered_unique_levels"]] <- json_object_default$get_string_list("ordered_unique_levels", train_set_metadata[["ordered_cat_vars"]])
+    }
+    if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
+        train_set_metadata[["unordered_cat_vars"]] <- json_object_default$get_string_vector("unordered_cat_vars")
+        train_set_metadata[["unordered_unique_levels"]] <- json_object_default$get_string_list("unordered_unique_levels", train_set_metadata[["unordered_cat_vars"]])
+    }
+    output[["train_set_metadata"]] <- train_set_metadata
+    output[["keep_indices"]] <- json_object_default$get_vector("keep_indices")
+    
+    # Unpack model params
+    model_params = list()
+    model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
+    model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
+    model_params[["sample_sigma"]] <- json_object_default$get_boolean("sample_sigma")
+    model_params[["sample_tau"]] <- json_object_default$get_boolean("sample_tau")
+    model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
+    model_params[["has_rfx_basis"]] <- json_object_default$get_boolean("has_rfx_basis")
+    model_params[["num_rfx_basis"]] <- json_object_default$get_scalar("num_rfx_basis")
+    model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
+    model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
+    model_params[["requires_basis"]] <- json_object_default$get_boolean("requires_basis")
+    
+    # Combine values that are sample-specific
+    keep_index_offset <- 0
+    keep_indices <- c()
+    for (i in 1:length(json_object_list)) {
+        json_object <- json_object_list[[i]]
+        if (i == 1) {
+            model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
+            keep_indices <- c(keep_indices, keep_index_offset + json_object$get_vector("keep_indices"))
+        } else {
+            prev_json <- json_object_list[[i-1]]
+            model_params[["num_gfr"]] <- model_params[["num_gfr"]] + json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- model_params[["num_burnin"]] + json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- model_params[["num_mcmc"]] + json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- model_params[["num_samples"]] + json_object$get_scalar("num_samples")
+            keep_index_offset <- keep_index_offset + prev_json$get_scalar("num_samples")
+            keep_indices <- c(keep_indices, keep_index_offset + json_object$get_vector("keep_indices"))
+        }
+    }
+    output[["keep_indices"]] <- keep_indices
+    output[["model_params"]] <- model_params
+    
+    # Unpack sampled parameters
+    if (model_params[["sample_sigma"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma2_samples"]] <- json_object$get_vector("sigma2_samples", "parameters")
+            } else {
+                output[["sigma2_samples"]] <- c(output[["sigma2_samples"]], json_object$get_vector("sigma2_samples", "parameters"))
+            }
+        }
+    }
+    if (model_params[["sample_tau"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["tau_samples"]] <- json_object$get_vector("tau_samples", "parameters")
+            } else {
+                output[["tau_samples"]] <- c(output[["tau_samples"]], json_object$get_vector("tau_samples", "parameters"))
+            }
+        }
+    }
+    
+    # Unpack random effects
+    if (model_params[["has_rfx"]]) {
+        output[["rfx_unique_group_ids"]] <- json_object_default$get_string_vector("rfx_unique_group_ids")
+        output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(json_object_list, 0)
+    }
+    
+    class(output) <- "bartmodel"
+    return(output)
+}

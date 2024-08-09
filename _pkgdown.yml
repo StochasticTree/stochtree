@@ -38,6 +38,17 @@ reference:
   - loadRandomEffectSamplesJson
   - loadVectorJson
   - loadScalarJson
+  - convertBARTModelToJson
+  - createBARTModelFromCombinedJson
+  - createBARTModelFromCombinedJsonString
+  - createBARTModelFromJson
+  - createBARTModelFromJsonFile
+  - createBARTModelFromJsonString
+  - loadRandomEffectSamplesCombinedJson
+  - loadRandomEffectSamplesCombinedJsonString
+  - saveBARTModelToJsonFile
+  - saveBARTModelToJsonString
+  - saveBCFModelToJsonString
 
 - subtitle: Data
   desc: >

@@ -4,24 +4,16 @@
 \alias{loadRandomEffectSamplesCombinedJson}
 \title{Combine multiple JSON model objects containing random effects (with the same hierarchy / schema) into a single container}
 \usage{
-loadRandomEffectSamplesCombinedJson(json_string_list, json_rfx_num)
-
-loadRandomEffectSamplesCombinedJson(json_string_list, json_rfx_num)
+loadRandomEffectSamplesCombinedJson(json_object_list, json_rfx_num)
 }
 \arguments{
-\item{json_string_list}{List of objects of class \code{CppJson}}
+\item{json_object_list}{List of objects of class \code{CppJson}}
 
 \item{json_rfx_num}{Integer index indicating the position of the random effects term to be unpacked}
-
-\item{json_object_list}{List of objects of class \code{CppJson}}
 }
 \value{
-\code{RandomEffectSamples} object
-
 \code{RandomEffectSamples} object
 }
 \description{
 Combine multiple JSON model objects containing random effects (with the same hierarchy / schema) into a single container
-
-Combine multiple JSON strings representing model objects containing random effects (with the same hierarchy / schema) into a single container
 }
