@@ -34,15 +34,17 @@ Operationally, the above two approaches have the same implementation (setting
 `num_gfr` > 0 if warm-start initialization is desired), so this vignette will 
 demonstrate how to run a multi-chain sampler sequentially or in parallel.
 
-To begin, load the `stochtree` package
+To begin, load `stochtree` and other necessary packages
 
 ```{r setup}
 library(stochtree)
+library(foreach)
+library(doParallel)
 ```
 
-# Demo 1: Supervised Learning, Sequential Multi Chain Sampler
+# Demo 1: Supervised Learning
 
-## Simulation
+## Data Simulation
 
 Simulate a simple partitioned linear model
 
@@ -77,7 +79,7 @@ y_test <- y[test_inds]
 y_train <- y[train_inds]
 ```
 
-## Sampling
+## Sampling Multiple Chains Sequentially
 
 Define some high-level parameters, including number of chains to run and number of 
 samples per chain. Here we run 4 independent chains with 5 warm-start iterations 
@@ -136,5 +138,78 @@ for (i in 1:num_chains) {
 }
 ```
 
+## Sampling Multiple Chains in Parallel
+
+We use the same high-level parameters as in the sequential demo. 
+
+```{r}
+num_chains <- 4
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 100
+num_trees <- 100
+```
+
+In order to run this sampler in parallel, a parallel backend must be registered in your R environment. 
+The code below will register a parallel backend with access to as many cores are available on your machine.
+Note that we do not **evaluate** the code snippet below in order to interact nicely with CRAN / Github Actions environments.
+
+```{r, eval=FALSE}
+ncores <- parallel::detectCores()
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+```
+
+Run the sampler, storing the resulting BART objects in a list
+
+```{r}
+bart_models <- foreach (i = 1:num_chains) %dopar% {
+  random_seed <- i
+  stochtree::bart(
+    X_train = X_train, W_train = W_train, y_train = y_train, 
+    X_test = X_test, W_test = W_test, num_trees = num_trees, 
+    num_gfr = num_gfr, num_burnin = num_burnin, 
+    num_mcmc = num_mcmc, sample_sigma = T, sample_tau = T,
+    random_seed = random_seed
+  )
+}
+```
+
+Close the parallel cluster (not evaluated here, as explained above).
+
+```{r, eval=FALSE}
+stopCluster(cl)
+```
+
+Now, if we want to combine the forests from each of these BART models into a 
+single forest, we can do so as follows
+
+```{r}
+json_string_list <- list()
+for (i in 1:num_chains) {
+    json_string_list[[i]] <- saveBARTModelToJsonString(bart_models[[i]])
+}
+combined_forests <- loadForestContainerCombinedJsonString(json_string_list, "forest_0")
+```
+
+We can predict from this combined forest as follows
+
+```{r}
+test_dataset <- createForestDataset(as.matrix(X_test), W_test)
+yhat_combined <- combined_forests$predict(test_dataset)
+```
+
+Compare to the original $\hat{y}$ values
+
+```{r}
+num_samples <- num_gfr+num_burnin+num_mcmc
+for (i in 1:num_chains) {
+    offset <- (i-1)*num_samples
+    inds_start <- offset + 1 + num_burnin + num_gfr
+    inds_end <- offset + num_samples
+    plot(rowMeans(bart_models[[i]]$y_hat_test), 
+         rowMeans(yhat_combined[,inds_start:inds_end]))
+}
+```
 
 # References
