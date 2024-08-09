@@ -45,8 +45,10 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-CppJson-get_string_vector}{\code{CppJson$get_string_vector()}}
 \item \href{#method-CppJson-get_numeric_list}{\code{CppJson$get_numeric_list()}}
 \item \href{#method-CppJson-get_string_list}{\code{CppJson$get_string_list()}}
+\item \href{#method-CppJson-return_json_string}{\code{CppJson$return_json_string()}}
 \item \href{#method-CppJson-save_file}{\code{CppJson$save_file()}}
 \item \href{#method-CppJson-load_from_file}{\code{CppJson$load_from_file()}}
+\item \href{#method-CppJson-load_from_string}{\code{CppJson$load_from_string()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -421,6 +423,19 @@ NULL
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CppJson-return_json_string"></a>}}
+\if{latex}{\out{\hypertarget{method-CppJson-return_json_string}{}}}
+\subsection{Method \code{return_json_string()}}{
+Convert a JSON object to in-memory string
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$return_json_string()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+JSON string
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CppJson-save_file"></a>}}
 \if{latex}{\out{\hypertarget{method-CppJson-save_file}{}}}
 \subsection{Method \code{save_file()}}{
@@ -453,6 +468,26 @@ Load a json object from file
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{filename}}{String of filepath, must end in ".json"}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-CppJson-load_from_string"></a>}}
+\if{latex}{\out{\hypertarget{method-CppJson-load_from_string}{}}}
+\subsection{Method \code{load_from_string()}}{
+Load a json object from string
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{CppJson$load_from_string(json_string)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_string}}{JSON string dump}
 }
 \if{html}{\out{</div>}}
 }

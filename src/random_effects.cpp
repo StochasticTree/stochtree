@@ -294,4 +294,27 @@ void RandomEffectsContainer::from_json(const nlohmann::json& rfx_container_json)
   }
 }
 
+void RandomEffectsContainer::append_from_json(const nlohmann::json& rfx_container_json) {
+  CHECK_EQ(this->num_components_, rfx_container_json.at("num_components"));
+  CHECK_EQ(this->num_groups_, rfx_container_json.at("num_groups"));
+  
+  // Update internal sample count and extract size of parameter vectors
+  int new_num_samples = rfx_container_json.at("num_samples");
+  this->num_samples_ += new_num_samples;
+  int beta_size = rfx_container_json.at("beta_size");
+  int alpha_size = rfx_container_json.at("alpha_size");
+  
+  // Unpack beta and xi
+  for (int i = 0; i < beta_size; i++) {
+    beta_.push_back(rfx_container_json.at("beta").at(i));
+    xi_.push_back(rfx_container_json.at("xi").at(i));
+  }
+  
+  // Unpack alpha and sigma_xi
+  for (int i = 0; i < alpha_size; i++) {
+    alpha_.push_back(rfx_container_json.at("alpha").at(i));
+    sigma_xi_.push_back(rfx_container_json.at("sigma_xi").at(i));
+  }
+}
+
 }  // namespace StochTree

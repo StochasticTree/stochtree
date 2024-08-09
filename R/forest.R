@@ -22,12 +22,39 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
-        #' Create a new ForestContainer object from a json object
+        #' Create a new `ForestContainer` object from a json object
         #' @param json_object Object of class `CppJson`
         #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
         #' @return A new `ForestContainer` object.
         load_from_json = function(json_object, json_forest_label) {
             self$forest_container_ptr <- forest_container_from_json_cpp(json_object$json_ptr, json_forest_label)
+        }, 
+        
+        #' @description
+        #' Append to a `ForestContainer` object from a json object
+        #' @param json_object Object of class `CppJson`
+        #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
+        #' @return NULL
+        append_from_json = function(json_object, json_forest_label) {
+            forest_container_append_from_json_cpp(self$forest_container_ptr, json_object$json_ptr, json_forest_label)
+        }, 
+        
+        #' @description
+        #' Create a new `ForestContainer` object from a json object
+        #' @param json_string JSON string which parses into object of class `CppJson`
+        #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
+        #' @return A new `ForestContainer` object.
+        load_from_json_string = function(json_string, json_forest_label) {
+            self$forest_container_ptr <- forest_container_from_json_string_cpp(json_string, json_forest_label)
+        }, 
+        
+        #' @description
+        #' Append to a `ForestContainer` object from a json object
+        #' @param json_string JSON string which parses into object of class `CppJson`
+        #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
+        #' @return NULL
+        append_from_json_string = function(json_string, json_forest_label) {
+            forest_container_append_from_json_string_cpp(self$forest_container_ptr, json_string, json_forest_label)
         }, 
         
         #' @description

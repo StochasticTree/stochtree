@@ -37,6 +37,46 @@ cpp11::external_pointer<StochTree::ForestContainer> forest_container_from_json_c
 }
 
 [[cpp11::register]]
+void forest_container_append_from_json_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_sample_ptr, cpp11::external_pointer<nlohmann::json> json_ptr, std::string forest_label) {
+    // Extract the forest's json
+    nlohmann::json forest_json = json_ptr->at("forests").at(forest_label);
+    
+    // Append to the forest sample container using the json
+    forest_sample_ptr->append_from_json(forest_json);
+}
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::ForestContainer> forest_container_from_json_string_cpp(std::string json_string, std::string forest_label) {
+    // Create smart pointer to newly allocated object
+    std::unique_ptr<StochTree::ForestContainer> forest_sample_ptr_ = std::make_unique<StochTree::ForestContainer>(0, 1, true);
+    
+    // Create a nlohmann::json object from the string
+    nlohmann::json json_object = nlohmann::json::parse(json_string);
+    
+    // Extract the forest's json
+    nlohmann::json forest_json = json_object.at("forests").at(forest_label);
+    
+    // Reset the forest sample container using the json
+    forest_sample_ptr_->Reset();
+    forest_sample_ptr_->from_json(forest_json);
+    
+    // Release management of the pointer to R session
+    return cpp11::external_pointer<StochTree::ForestContainer>(forest_sample_ptr_.release());
+}
+
+[[cpp11::register]]
+void forest_container_append_from_json_string_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_sample_ptr, std::string json_string, std::string forest_label) {
+    // Create a nlohmann::json object from the string
+    nlohmann::json json_object = nlohmann::json::parse(json_string);
+    
+    // Extract the forest's json
+    nlohmann::json forest_json = json_object.at("forests").at(forest_label);
+    
+    // Append to the forest sample container using the json
+    forest_sample_ptr->append_from_json(forest_json);
+}
+
+[[cpp11::register]]
 int num_samples_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
     return forest_samples->NumSamples();
 }

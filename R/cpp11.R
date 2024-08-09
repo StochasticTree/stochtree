@@ -96,6 +96,26 @@ rfx_group_ids_from_json_cpp <- function(json_ptr, rfx_label) {
   .Call(`_stochtree_rfx_group_ids_from_json_cpp`, json_ptr, rfx_label)
 }
 
+rfx_container_append_from_json_cpp <- function(rfx_container_ptr, json_ptr, rfx_label) {
+  invisible(.Call(`_stochtree_rfx_container_append_from_json_cpp`, rfx_container_ptr, json_ptr, rfx_label))
+}
+
+rfx_container_from_json_string_cpp <- function(json_string, rfx_label) {
+  .Call(`_stochtree_rfx_container_from_json_string_cpp`, json_string, rfx_label)
+}
+
+rfx_label_mapper_from_json_string_cpp <- function(json_string, rfx_label) {
+  .Call(`_stochtree_rfx_label_mapper_from_json_string_cpp`, json_string, rfx_label)
+}
+
+rfx_group_ids_from_json_string_cpp <- function(json_string, rfx_label) {
+  .Call(`_stochtree_rfx_group_ids_from_json_string_cpp`, json_string, rfx_label)
+}
+
+rfx_container_append_from_json_string_cpp <- function(rfx_container_ptr, json_string, rfx_label) {
+  invisible(.Call(`_stochtree_rfx_container_append_from_json_string_cpp`, rfx_container_ptr, json_string, rfx_label))
+}
+
 rfx_model_cpp <- function(num_components, num_groups) {
   .Call(`_stochtree_rfx_model_cpp`, num_components, num_groups)
 }
@@ -186,6 +206,18 @@ forest_container_cpp <- function(num_trees, output_dimension, is_leaf_constant) 
 
 forest_container_from_json_cpp <- function(json_ptr, forest_label) {
   .Call(`_stochtree_forest_container_from_json_cpp`, json_ptr, forest_label)
+}
+
+forest_container_append_from_json_cpp <- function(forest_sample_ptr, json_ptr, forest_label) {
+  invisible(.Call(`_stochtree_forest_container_append_from_json_cpp`, forest_sample_ptr, json_ptr, forest_label))
+}
+
+forest_container_from_json_string_cpp <- function(json_string, forest_label) {
+  .Call(`_stochtree_forest_container_from_json_string_cpp`, json_string, forest_label)
+}
+
+forest_container_append_from_json_string_cpp <- function(forest_sample_ptr, json_string, forest_label) {
+  invisible(.Call(`_stochtree_forest_container_append_from_json_string_cpp`, forest_sample_ptr, json_string, forest_label))
 }
 
 num_samples_forest_container_cpp <- function(forest_samples) {
@@ -464,10 +496,18 @@ json_add_rfx_groupids_cpp <- function(json_ptr, groupids) {
   .Call(`_stochtree_json_add_rfx_groupids_cpp`, json_ptr, groupids)
 }
 
-json_save_cpp <- function(json_ptr, filename) {
-  invisible(.Call(`_stochtree_json_save_cpp`, json_ptr, filename))
+get_json_string_cpp <- function(json_ptr) {
+  .Call(`_stochtree_get_json_string_cpp`, json_ptr)
 }
 
-json_load_cpp <- function(json_ptr, filename) {
-  invisible(.Call(`_stochtree_json_load_cpp`, json_ptr, filename))
+json_save_file_cpp <- function(json_ptr, filename) {
+  invisible(.Call(`_stochtree_json_save_file_cpp`, json_ptr, filename))
+}
+
+json_load_file_cpp <- function(json_ptr, filename) {
+  invisible(.Call(`_stochtree_json_load_file_cpp`, json_ptr, filename))
+}
+
+json_load_string_cpp <- function(json_ptr, json_string) {
+  invisible(.Call(`_stochtree_json_load_string_cpp`, json_ptr, json_string))
 }

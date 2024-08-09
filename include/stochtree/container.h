@@ -90,6 +90,8 @@ class ForestContainer {
   nlohmann::json to_json();
   /*! \brief Load from JSON */
   void from_json(const nlohmann::json& forest_container_json);
+  /*! \brief Append to a forest container from JSON, requires that the ensemble already contains a nonzero number of forests */
+  void append_from_json(const nlohmann::json& forest_container_json);
 
  private:
   std::vector<std::unique_ptr<TreeEnsemble>> forests_;
