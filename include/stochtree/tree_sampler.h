@@ -618,110 +618,121 @@ class GFRForestSampler {
     // Leaf depth
     int leaf_depth = tree->GetDepth(node_id);
 
+    // Number of features
+    int num_features = dataset.NumCovariates();
+
     // Maximum leaf depth
     int32_t max_depth = tree_prior.GetMaxDepth();
 
     if ((max_depth == -1) || (leaf_depth < max_depth)) {
     
-      // Cutpoint enumeration
-      std::vector<double> log_cutpoint_evaluations;
-      std::vector<int> cutpoint_features;
-      std::vector<double> cutpoint_values;
-      std::vector<FeatureType> cutpoint_feature_types;
-      StochTree::data_size_t valid_cutpoint_count;
-      CutpointGridContainer cutpoint_grid_container(dataset.GetCovariates(), residual.GetData(), cutpoint_grid_size);
-      EvaluateCutpoints(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance,
-                        cutpoint_grid_size, node_id, node_begin, node_end, log_cutpoint_evaluations, cutpoint_features, 
-                        cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, variable_weights, feature_types, 
-                        cutpoint_grid_container);
-      // TODO: maybe add some checks here?
-      
-      // Convert log marginal likelihood to marginal likelihood, normalizing by the maximum log-likelihood
-      double largest_mll = *std::max_element(log_cutpoint_evaluations.begin(), log_cutpoint_evaluations.end());
-      std::vector<double> cutpoint_evaluations(log_cutpoint_evaluations.size());
-      for (data_size_t i = 0; i < log_cutpoint_evaluations.size(); i++){
-        cutpoint_evaluations[i] = std::exp(log_cutpoint_evaluations[i] - largest_mll);
-      }
-      
-      // Sample the split (including a "no split" option)
-      std::discrete_distribution<data_size_t> split_dist(cutpoint_evaluations.begin(), cutpoint_evaluations.end());
-      data_size_t split_chosen = split_dist(gen);
-      
-      if (split_chosen == valid_cutpoint_count){
-        // "No split" sampled, don't split or add any nodes to split queue
-        return;
-      } else {
-        // Split sampled
-        int feature_split = cutpoint_features[split_chosen];
-        FeatureType feature_type = cutpoint_feature_types[split_chosen];
-        double split_value = cutpoint_values[split_chosen];
-        // Perform all of the relevant "split" operations in the model, tree and training dataset
-        
-        // Compute node sample size
-        data_size_t node_n = node_end - node_begin;
-        
-        // Actual numeric cutpoint used for ordered categorical and numeric features
-        double split_value_numeric;
-        TreeSplit tree_split;
-        
-        // We will use these later in the model expansion
-        data_size_t left_n = 0;
-        data_size_t right_n = 0;
-        data_size_t sort_idx;
-        double feature_value;
-        bool split_true;
+      // Compute the "step size"
+      int node_size = node_end - node_begin;
+      int step_size;
+      if (cutpoint_grid_size <= node_size) step_size = node_size / cutpoint_grid_size;
+      else step_size = 1;
 
-        if (feature_type == FeatureType::kUnorderedCategorical) {
-          // Determine the number of categories available in a categorical split and the set of categories that route observations to the left node after split
-          int num_categories;
-          std::vector<std::uint32_t> categories = cutpoint_grid_container.CutpointVector(static_cast<std::uint32_t>(split_value), feature_split);
-          tree_split = TreeSplit(categories);
-        } else if (feature_type == FeatureType::kOrderedCategorical) {
-          // Convert the bin split to an actual split value
-          split_value_numeric = cutpoint_grid_container.CutpointValue(static_cast<std::uint32_t>(split_value), feature_split);
-          tree_split = TreeSplit(split_value_numeric);
-        } else if (feature_type == FeatureType::kNumeric) {
-          // Convert the bin split to an actual split value
-          split_value_numeric = cutpoint_grid_container.CutpointValue(static_cast<std::uint32_t>(split_value), feature_split);
-          tree_split = TreeSplit(split_value_numeric);
+      // Compute the number of steps
+      int num_steps;
+      if (step_size == 1) num_steps = node_size;
+      else num_steps = cutpoint_grid_size;
+      
+      // Only do cutpoint enumeration if there is at least one cutpoint to consider
+      if (num_steps > 1) {
+        // Cutpoint enumeration
+        std::vector<double> log_cutpoint_evaluations((num_steps-1)*num_features);
+        StochTree::data_size_t valid_cutpoint_count;
+        EvaluateCutpoints(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance,
+                          cutpoint_grid_size, node_id, node_begin, node_end, log_cutpoint_evaluations, 
+                          valid_cutpoint_count, variable_weights, feature_types);
+        // TODO: maybe add some checks here?
+        
+        // Convert log marginal likelihood to marginal likelihood, normalizing by the maximum log-likelihood
+        double largest_mll = *std::max_element(log_cutpoint_evaluations.begin(), log_cutpoint_evaluations.end());
+        std::vector<double> cutpoint_evaluations(log_cutpoint_evaluations.size());
+        for (data_size_t i = 0; i < log_cutpoint_evaluations.size(); i++){
+          cutpoint_evaluations[i] = std::exp(log_cutpoint_evaluations[i] - largest_mll);
+        }
+        
+        // Sample the split (including a "no split" option)
+        std::discrete_distribution<data_size_t> split_dist(cutpoint_evaluations.begin(), cutpoint_evaluations.end());
+        data_size_t split_chosen = split_dist(gen);
+        
+        if (split_chosen == valid_cutpoint_count){
+          // "No split" sampled, don't split or add any nodes to split queue
+          return;
         } else {
-          Log::Fatal("Invalid split type");
+          // Split sampled
+          int feature_split = split_chosen / (num_steps-1);
+          int split_offset = split_chosen % (num_steps-1);
+          int split_cutpoint = tracker.GetSortedNodeSampleTracker()->SortIndex(node_begin + step_size*split_offset + (step_size - 1), feature_split);
+          FeatureType feature_type = FeatureType::kNumeric;
+          double split_value = dataset.CovariateValue(split_cutpoint, feature_split);
+          // Perform all of the relevant "split" operations in the model, tree and training dataset
+          
+          // Actual numeric cutpoint used for ordered categorical and numeric features
+          double split_value_numeric;
+          TreeSplit tree_split;
+          
+          // We will use these later in the model expansion
+          data_size_t left_n = 0;
+          data_size_t right_n = 0;
+          data_size_t sort_idx;
+          double feature_value;
+          bool split_true;
+
+          if (feature_type == FeatureType::kUnorderedCategorical) {
+            // Determine the number of categories available in a categorical split and the set of categories that route observations to the left node after split
+            int num_categories = 1;
+            std::vector<std::uint32_t> categories = std::vector<std::uint32_t>(1, 0);
+            tree_split = TreeSplit(categories);
+          } else if (feature_type == FeatureType::kOrderedCategorical) {
+            // Convert the bin split to an actual split value
+            split_value_numeric = split_value;
+            tree_split = TreeSplit(split_value_numeric);
+          } else if (feature_type == FeatureType::kNumeric) {
+            // Convert the bin split to an actual split value
+            split_value_numeric = split_value;
+            tree_split = TreeSplit(split_value_numeric);
+          } else {
+            Log::Fatal("Invalid split type");
+          }
+          
+          // Add split to tree and trackers
+          AddSplitToModel(tracker, dataset, tree_prior, tree_split, gen, tree, tree_num, node_id, feature_split, true);
+
+          // Determine the number of observation in the newly created left node
+          int left_node = tree->LeftChild(node_id);
+          int right_node = tree->RightChild(node_id);
+          auto left_begin_iter = tracker.SortedNodeBeginIterator(left_node, feature_split);
+          auto left_end_iter = tracker.SortedNodeEndIterator(left_node, feature_split);
+          for (auto i = left_begin_iter; i < left_end_iter; i++) {
+            left_n += 1;
+          }
+
+          // Add the begin and end indices for the new left and right nodes to node_index_map
+          node_index_map.insert({left_node, std::make_pair(node_begin, node_begin + left_n)});
+          node_index_map.insert({right_node, std::make_pair(node_begin + left_n, node_end)});
+
+          // Add the left and right nodes to the split tracker
+          split_queue.push_front(right_node);
+          split_queue.push_front(left_node);      
         }
-        
-        // Add split to tree and trackers
-        AddSplitToModel(tracker, dataset, tree_prior, tree_split, gen, tree, tree_num, node_id, feature_split, true);
-
-        // Determine the number of observation in the newly created left node
-        int left_node = tree->LeftChild(node_id);
-        int right_node = tree->RightChild(node_id);
-        auto left_begin_iter = tracker.SortedNodeBeginIterator(left_node, feature_split);
-        auto left_end_iter = tracker.SortedNodeEndIterator(left_node, feature_split);
-        for (auto i = left_begin_iter; i < left_end_iter; i++) {
-          left_n += 1;
-        }
-
-        // Add the begin and end indices for the new left and right nodes to node_index_map
-        node_index_map.insert({left_node, std::make_pair(node_begin, node_begin + left_n)});
-        node_index_map.insert({right_node, std::make_pair(node_begin + left_n, node_end)});
-
-        // Add the left and right nodes to the split tracker
-        split_queue.push_front(right_node);
-        split_queue.push_front(left_node);      
       }
-    }
+      } else {
+        return;
+      }
   }
 
   void EvaluateCutpoints(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, TreePrior& tree_prior, 
                          std::mt19937& gen, int tree_num, double global_variance, int cutpoint_grid_size, int node_id, data_size_t node_begin, data_size_t node_end, 
-                         std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, 
-                         std::vector<FeatureType>& cutpoint_feature_types, data_size_t& valid_cutpoint_count, std::vector<double>& variable_weights, 
-                         std::vector<FeatureType>& feature_types, CutpointGridContainer& cutpoint_grid_container) {
+                         std::vector<double>& log_cutpoint_evaluations, data_size_t& valid_cutpoint_count, std::vector<double>& variable_weights, 
+                         std::vector<FeatureType>& feature_types) {
     // Evaluate all possible cutpoints according to the leaf node model, 
     // recording their log-likelihood and other split information in a series of vectors.
     // The last element of these vectors concerns the "no-split" option.
     leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, tree_num, node_id, log_cutpoint_evaluations, 
-                                         cutpoint_features, cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, 
-                                         cutpoint_grid_container, node_begin, node_end, variable_weights, feature_types);
+                                         valid_cutpoint_count, cutpoint_grid_size, node_begin, node_end, variable_weights, feature_types);
 
     // Compute an adjustment to reflect the no split prior probability and the number of cutpoints
     double bart_prior_no_split_adj;

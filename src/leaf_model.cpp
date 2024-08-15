@@ -67,34 +67,6 @@ void AccumulateSingleNodeSuffStat(SuffStatType& node_suff_stat, ForestDataset& d
   }
 }
 
-template<typename SuffStatType>
-void AccumulateCutpointBinSuffStat(SuffStatType& left_suff_stat, ForestTracker& tracker, CutpointGridContainer& cutpoint_grid_container, 
-                                   ForestDataset& dataset, ColumnVector& residual, double global_variance, int tree_num, int node_id, 
-                                   int feature_num, int cutpoint_num) {
-  // Acquire iterators
-  auto node_begin_iter = tracker.SortedNodeBeginIterator(node_id, feature_num);
-  auto node_end_iter = tracker.SortedNodeEndIterator(node_id, feature_num);
-  
-  // Determine node start point
-  data_size_t node_begin = tracker.SortedNodeBegin(node_id, feature_num);
-
-  // Determine cutpoint bin start and end points
-  data_size_t current_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_num, feature_num);
-  data_size_t current_bin_size = cutpoint_grid_container.BinLength(cutpoint_num, feature_num);
-  data_size_t next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_num + 1, feature_num);
-
-  // Cutpoint specific iterators
-  // TODO: fix the hack of having to subtract off node_begin, probably by cleaning up the CutpointGridContainer interface
-  auto cutpoint_begin_iter = node_begin_iter + (current_bin_begin - node_begin);
-  auto cutpoint_end_iter = node_begin_iter + (next_bin_begin - node_begin);
-
-  // Accumulate sufficient statistics
-  for (auto i = cutpoint_begin_iter; i != cutpoint_end_iter; i++) {
-    auto idx = *i;
-    left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
-  }
-}
-
 std::tuple<double, double, data_size_t, data_size_t> GaussianConstantLeafModel::EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, 
                                                                                                       TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance) {
   // Initialize sufficient statistics
@@ -136,8 +108,7 @@ std::tuple<double, double, data_size_t, data_size_t> GaussianConstantLeafModel::
 }
 
 void GaussianConstantLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, double global_variance, int tree_num, int node_id, std::vector<double>& log_cutpoint_evaluations, 
-                                                          std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, data_size_t& valid_cutpoint_count, 
-                                                          CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, std::vector<FeatureType>& feature_types) {
+                                                          data_size_t& valid_cutpoint_count, int cutpoint_grid_size, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, std::vector<FeatureType>& feature_types) {
   // Initialize sufficient statistics
   GaussianConstantSuffStat node_suff_stat = GaussianConstantSuffStat();
   GaussianConstantSuffStat left_suff_stat = GaussianConstantSuffStat();
@@ -159,7 +130,7 @@ void GaussianConstantLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset
   // Minimum size of newly created leaf nodes (used to rule out invalid splits)
   int32_t min_samples_in_leaf = tree_prior.GetMinSamplesLeaf();
 
-  // Compute sufficient statistics for each possible split
+  // Compute log ML for each possible split
   data_size_t num_cutpoints = 0;
   bool valid_split = false;
   data_size_t node_row_iter;
@@ -172,59 +143,43 @@ void GaussianConstantLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset
   double cutoff_value = 0.0;
   double log_split_eval = 0.0;
   double split_log_ml;
+
+  // Compute the "step size"
+  data_size_t node_size = node_end - node_begin; 
+  int step_size;
+  if (cutpoint_grid_size <= node_size) step_size = node_size / cutpoint_grid_size;
+  else step_size = 1;
+
+  // Compute the number of steps
+  int num_steps;
+  if (step_size == 1) num_steps = node_size;
+  else num_steps = cutpoint_grid_size;
+  
+  // Evaluate all cutpoints for features included in the sampler
+  int bin_offset;
+  
   for (int j = 0; j < covariates.cols(); j++) {
 
     if (std::abs(variable_weights.at(j)) > kEpsilon) {
-      // Enumerate cutpoint strides
-      cutpoint_grid_container.CalculateStrides(covariates, outcome, tracker.GetSortedNodeSampleTracker(), node_id, node_begin, node_end, j, feature_types);
-      
       // Reset sufficient statistics
       left_suff_stat.ResetSuffStat();
       right_suff_stat.ResetSuffStat();
 
-      // Iterate through possible cutpoints
-      int32_t num_feature_cutpoints = cutpoint_grid_container.NumCutpoints(j);
-      feature_type = feature_types[j];
-      // Since we partition an entire cutpoint bin to the left, we must stop one bin before the total number of cutpoint bins
-      for (data_size_t cutpoint_idx = 0; cutpoint_idx < (num_feature_cutpoints - 1); cutpoint_idx++) {
-        current_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx, j);
-        current_bin_size = cutpoint_grid_container.BinLength(cutpoint_idx, j);
-        next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx + 1, j);
+      for (int k = 0; k < num_steps-1; k++) {
+        bin_offset = k*step_size;
+        for (int i = 0; i < step_size; i++) {
 
-        // Accumulate sufficient statistics for the left node
-        AccumulateCutpointBinSuffStat<GaussianConstantSuffStat>(left_suff_stat, tracker, cutpoint_grid_container, dataset, residual,
-                                                                global_variance, tree_num, node_id, j, cutpoint_idx);
-
-        // Compute the corresponding right node sufficient statistics
-        right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
-
-        // Store the bin index as the "cutpoint value" - we can use this to query the actual split 
-        // value or the set of split categories later on once a split is chose
-        cutoff_value = cutpoint_idx;
-
-        // Only include cutpoint for consideration if it defines a valid split in the training data
-        valid_split = (left_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf) && 
-                      right_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf));
-        if (valid_split) {
-          num_cutpoints++;
-          // Add to split rule vector
-          cutpoint_feature_types.push_back(feature_type);
-          cutpoint_features.push_back(j);
-          cutpoint_values.push_back(cutoff_value);
-          // Add the log marginal likelihood of the split to the split eval vector 
-          split_log_ml = SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_variance);
-          log_cutpoint_evaluations.push_back(split_log_ml);
+          // Accumulate left node sufficient statistics
+          left_suff_stat.IncrementSuffStat(dataset, outcome, node_begin + bin_offset + i);
+          
+          // Compute the corresponding right node sufficient statistics
+          right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
         }
+        split_log_ml = SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_variance);
+        log_cutpoint_evaluations[j*(num_steps-1) + k] = split_log_ml;
       }
     }
-
   }
-
-  // Add the log marginal likelihood of the "no-split" option (adjusted for tree prior and cutpoint size per the XBART paper)
-  cutpoint_features.push_back(-1);
-  cutpoint_values.push_back(std::numeric_limits<double>::max());
-  cutpoint_feature_types.push_back(FeatureType::kNumeric);
-  log_cutpoint_evaluations.push_back(no_split_log_ml);
 
   // Update valid cutpoint count
   valid_cutpoint_count = num_cutpoints;
@@ -335,8 +290,7 @@ std::tuple<double, double, data_size_t, data_size_t> GaussianUnivariateRegressio
 }
 
 void GaussianUnivariateRegressionLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, double global_variance, int tree_num, int node_id, std::vector<double>& log_cutpoint_evaluations,
-                                                          std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, data_size_t& valid_cutpoint_count,
-                                                          CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, std::vector<FeatureType>& feature_types) {
+                                                                      data_size_t& valid_cutpoint_count, int cutpoint_grid_size, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, std::vector<FeatureType>& feature_types) {
   // Initialize sufficient statistics
   GaussianUnivariateRegressionSuffStat node_suff_stat = GaussianUnivariateRegressionSuffStat();
   GaussianUnivariateRegressionSuffStat left_suff_stat = GaussianUnivariateRegressionSuffStat();
@@ -358,7 +312,7 @@ void GaussianUnivariateRegressionLeafModel::EvaluateAllPossibleSplits(ForestData
   // Minimum size of newly created leaf nodes (used to rule out invalid splits)
   int32_t min_samples_in_leaf = tree_prior.GetMinSamplesLeaf();
 
-  // Compute sufficient statistics for each possible split
+  // Compute log ML for each possible split
   data_size_t num_cutpoints = 0;
   bool valid_split = false;
   data_size_t node_row_iter;
@@ -371,59 +325,43 @@ void GaussianUnivariateRegressionLeafModel::EvaluateAllPossibleSplits(ForestData
   double cutoff_value = 0.0;
   double log_split_eval = 0.0;
   double split_log_ml;
+
+  // Compute the "step size"
+  data_size_t node_size = node_end - node_begin; 
+  int step_size;
+  if (cutpoint_grid_size <= node_size) step_size = node_size / cutpoint_grid_size;
+  else step_size = 1;
+
+  // Compute the number of steps
+  int num_steps;
+  if (step_size == 1) num_steps = node_size;
+  else num_steps = cutpoint_grid_size;
+  
+  // Evaluate all cutpoints for features included in the sampler
+  int bin_offset;
+  
   for (int j = 0; j < covariates.cols(); j++) {
 
     if (std::abs(variable_weights.at(j)) > kEpsilon) {
-      // Enumerate cutpoint strides
-      cutpoint_grid_container.CalculateStrides(covariates, outcome, tracker.GetSortedNodeSampleTracker(), node_id, node_begin, node_end, j, feature_types);
-      
       // Reset sufficient statistics
       left_suff_stat.ResetSuffStat();
       right_suff_stat.ResetSuffStat();
 
-      // Iterate through possible cutpoints
-      int32_t num_feature_cutpoints = cutpoint_grid_container.NumCutpoints(j);
-      feature_type = feature_types[j];
-      // Since we partition an entire cutpoint bin to the left, we must stop one bin before the total number of cutpoint bins
-      for (data_size_t cutpoint_idx = 0; cutpoint_idx < (num_feature_cutpoints - 1); cutpoint_idx++) {
-        current_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx, j);
-        current_bin_size = cutpoint_grid_container.BinLength(cutpoint_idx, j);
-        next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx + 1, j);
+      for (int k = 0; k < num_steps-1; k++) {
+        bin_offset = k*step_size;
+        for (int i = 0; i < step_size; i++) {
 
-        // Accumulate sufficient statistics for the left node
-        AccumulateCutpointBinSuffStat<GaussianUnivariateRegressionSuffStat>(left_suff_stat, tracker, cutpoint_grid_container, dataset, residual,
-                                                                global_variance, tree_num, node_id, j, cutpoint_idx);
-
-        // Compute the corresponding right node sufficient statistics
-        right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
-
-        // Store the bin index as the "cutpoint value" - we can use this to query the actual split
-        // value or the set of split categories later on once a split is chose
-        cutoff_value = cutpoint_idx;
-
-        // Only include cutpoint for consideration if it defines a valid split in the training data
-        valid_split = (left_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf) &&
-                      right_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf));
-        if (valid_split) {
-          num_cutpoints++;
-          // Add to split rule vector
-          cutpoint_feature_types.push_back(feature_type);
-          cutpoint_features.push_back(j);
-          cutpoint_values.push_back(cutoff_value);
-          // Add the log marginal likelihood of the split to the split eval vector
-          split_log_ml = SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_variance);
-          log_cutpoint_evaluations.push_back(split_log_ml);
+          // Accumulate left node sufficient statistics
+          left_suff_stat.IncrementSuffStat(dataset, outcome, node_begin + bin_offset + i);
+          
+          // Compute the corresponding right node sufficient statistics
+          right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
         }
+        split_log_ml = SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_variance);
+        log_cutpoint_evaluations[j*(num_steps-1) + k] = split_log_ml;
       }
     }
-
   }
-
-  // Add the log marginal likelihood of the "no-split" option (adjusted for tree prior and cutpoint size per the XBART paper)
-  cutpoint_features.push_back(-1);
-  cutpoint_values.push_back(std::numeric_limits<double>::max());
-  cutpoint_feature_types.push_back(FeatureType::kNumeric);
-  log_cutpoint_evaluations.push_back(no_split_log_ml);
 
   // Update valid cutpoint count
   valid_cutpoint_count = num_cutpoints;
@@ -536,8 +474,7 @@ std::tuple<double, double, data_size_t, data_size_t> GaussianMultivariateRegress
 }
 
 void GaussianMultivariateRegressionLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, double global_variance, int tree_num, int node_id, std::vector<double>& log_cutpoint_evaluations,
-                                                          std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, data_size_t& valid_cutpoint_count,
-                                                          CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, std::vector<FeatureType>& feature_types) {
+                                                                        data_size_t& valid_cutpoint_count, int cutpoint_grid_size, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, std::vector<FeatureType>& feature_types) {
   // Initialize sufficient statistics
   int basis_dim = dataset.GetBasis().cols();
   GaussianMultivariateRegressionSuffStat node_suff_stat = GaussianMultivariateRegressionSuffStat(basis_dim);
@@ -560,7 +497,7 @@ void GaussianMultivariateRegressionLeafModel::EvaluateAllPossibleSplits(ForestDa
   // Minimum size of newly created leaf nodes (used to rule out invalid splits)
   int32_t min_samples_in_leaf = tree_prior.GetMinSamplesLeaf();
 
-  // Compute sufficient statistics for each possible split
+  // Compute log ML for each possible split
   data_size_t num_cutpoints = 0;
   bool valid_split = false;
   data_size_t node_row_iter;
@@ -573,59 +510,43 @@ void GaussianMultivariateRegressionLeafModel::EvaluateAllPossibleSplits(ForestDa
   double cutoff_value = 0.0;
   double log_split_eval = 0.0;
   double split_log_ml;
+
+  // Compute the "step size"
+  data_size_t node_size = node_end - node_begin; 
+  int step_size;
+  if (cutpoint_grid_size <= node_size) step_size = node_size / cutpoint_grid_size;
+  else step_size = 1;
+
+  // Compute the number of steps
+  int num_steps;
+  if (step_size == 1) num_steps = node_size;
+  else num_steps = cutpoint_grid_size;
+  
+  // Evaluate all cutpoints for features included in the sampler
+  int bin_offset;
+  
   for (int j = 0; j < covariates.cols(); j++) {
 
     if (std::abs(variable_weights.at(j)) > kEpsilon) {
-      // Enumerate cutpoint strides
-      cutpoint_grid_container.CalculateStrides(covariates, outcome, tracker.GetSortedNodeSampleTracker(), node_id, node_begin, node_end, j, feature_types);
-      
       // Reset sufficient statistics
       left_suff_stat.ResetSuffStat();
       right_suff_stat.ResetSuffStat();
 
-      // Iterate through possible cutpoints
-      int32_t num_feature_cutpoints = cutpoint_grid_container.NumCutpoints(j);
-      feature_type = feature_types[j];
-      // Since we partition an entire cutpoint bin to the left, we must stop one bin before the total number of cutpoint bins
-      for (data_size_t cutpoint_idx = 0; cutpoint_idx < (num_feature_cutpoints - 1); cutpoint_idx++) {
-        current_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx, j);
-        current_bin_size = cutpoint_grid_container.BinLength(cutpoint_idx, j);
-        next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx + 1, j);
+      for (int k = 0; k < num_steps-1; k++) {
+        bin_offset = k*step_size;
+        for (int i = 0; i < step_size; i++) {
 
-        // Accumulate sufficient statistics for the left node
-        AccumulateCutpointBinSuffStat<GaussianMultivariateRegressionSuffStat>(left_suff_stat, tracker, cutpoint_grid_container, dataset, residual,
-                                                                              global_variance, tree_num, node_id, j, cutpoint_idx);
-
-        // Compute the corresponding right node sufficient statistics
-        right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
-
-        // Store the bin index as the "cutpoint value" - we can use this to query the actual split
-        // value or the set of split categories later on once a split is chose
-        cutoff_value = cutpoint_idx;
-
-        // Only include cutpoint for consideration if it defines a valid split in the training data
-        valid_split = (left_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf) &&
-                      right_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf));
-        if (valid_split) {
-          num_cutpoints++;
-          // Add to split rule vector
-          cutpoint_feature_types.push_back(feature_type);
-          cutpoint_features.push_back(j);
-          cutpoint_values.push_back(cutoff_value);
-          // Add the log marginal likelihood of the split to the split eval vector
-          split_log_ml = SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_variance);
-          log_cutpoint_evaluations.push_back(split_log_ml);
+          // Accumulate left node sufficient statistics
+          left_suff_stat.IncrementSuffStat(dataset, outcome, node_begin + bin_offset + i);
+          
+          // Compute the corresponding right node sufficient statistics
+          right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
         }
+        split_log_ml = SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_variance);
+        log_cutpoint_evaluations[j*(num_steps-1) + k] = split_log_ml;
       }
     }
-
   }
-
-  // Add the log marginal likelihood of the "no-split" option (adjusted for tree prior and cutpoint size per the XBART paper)
-  cutpoint_features.push_back(-1);
-  cutpoint_values.push_back(std::numeric_limits<double>::max());
-  cutpoint_feature_types.push_back(FeatureType::kNumeric);
-  log_cutpoint_evaluations.push_back(no_split_log_ml);
 
   // Update valid cutpoint count
   valid_cutpoint_count = num_cutpoints;
