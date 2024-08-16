@@ -169,14 +169,15 @@ void GaussianConstantLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset
       for (int k = 0; k < num_steps-1; k++) {
         bin_offset = k*step_size;
         for (int i = 0; i < step_size; i++) {
-
           // Accumulate left node sufficient statistics
           idx = tracker.GetSortedNodeSampleTracker()->SortIndex(node_begin + bin_offset + i, j);
           left_suff_stat.IncrementSuffStat(dataset, outcome, idx);
-          
-          // Compute the corresponding right node sufficient statistics
-          right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
         }
+
+        // Compute the corresponding right node sufficient statistics
+        right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
+        
+        // Evaluate log marginal likelihood of split and add to evaluations vector
         split_log_ml = SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_variance);
         log_cutpoint_evaluations[j*(num_steps-1) + k] = split_log_ml;
         cutpoint_iter++;
@@ -186,6 +187,9 @@ void GaussianConstantLeafModel::EvaluateAllPossibleSplits(ForestDataset& dataset
 
   // Update valid cutpoint count
   valid_cutpoint_count = cutpoint_iter;
+
+  // Add no split log marginal likelihood
+  log_cutpoint_evaluations[cutpoint_iter] = no_split_log_ml;
 }
 
 double GaussianConstantLeafModel::SplitLogMarginalLikelihood(GaussianConstantSuffStat& left_stat, GaussianConstantSuffStat& right_stat, double global_variance) {

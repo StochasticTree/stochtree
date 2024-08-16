@@ -640,7 +640,7 @@ class GFRForestSampler {
       // Only do cutpoint enumeration if there is at least one cutpoint to consider
       if (num_steps > 1) {
         // Cutpoint enumeration
-        std::vector<double> log_cutpoint_evaluations((num_steps-1)*num_features);
+        std::vector<double> log_cutpoint_evaluations((num_steps-1)*num_features + 1);
         StochTree::data_size_t valid_cutpoint_count;
         EvaluateCutpoints(tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance,
                           cutpoint_grid_size, node_id, node_begin, node_end, log_cutpoint_evaluations, 
