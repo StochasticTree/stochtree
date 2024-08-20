@@ -62,7 +62,7 @@ class CovariateTransformer:
         categorical_types = covariates.apply(lambda x: isinstance(x.dtype, pd.CategoricalDtype))
         float_types = covariates.apply(lambda x: pd.api.types.is_float_dtype(x))
         integer_types = covariates.apply(lambda x: pd.api.types.is_integer_dtype(x))
-        string_types = covariates.apply(lambda x: pd.api.types.is_integer_dtype(x))
+        string_types = covariates.apply(lambda x: pd.api.types.is_string_dtype(x))
         if np.any(datetime_types):
             # raise ValueError("DateTime columns are currently unsupported")
             datetime_cols = covariates.columns[datetime_types].to_list()
