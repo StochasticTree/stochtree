@@ -270,16 +270,13 @@ void sampleGFR(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& f
                ForestLeafModel leaf_model_type, Eigen::MatrixXd& leaf_scale_matrix, double global_variance, double leaf_scale, int cutpoint_grid_size) {
   if (leaf_model_type == ForestLeafModel::kConstant) {
     GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_scale);
-    GFRForestSampler<GaussianConstantLeafModel> sampler = GFRForestSampler<GaussianConstantLeafModel>(cutpoint_grid_size);
-    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types);
+    GFRSampleOneIter<GaussianConstantLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types, cutpoint_grid_size);
   } else if (leaf_model_type == ForestLeafModel::kUnivariateRegression) {
     GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_scale);
-    GFRForestSampler<GaussianUnivariateRegressionLeafModel> sampler = GFRForestSampler<GaussianUnivariateRegressionLeafModel>(cutpoint_grid_size);
-    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types);
+    GFRSampleOneIter<GaussianUnivariateRegressionLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types, cutpoint_grid_size);
   } else if (leaf_model_type == ForestLeafModel::kMultivariateRegression) {
     GaussianMultivariateRegressionLeafModel leaf_model = GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
-    GFRForestSampler<GaussianMultivariateRegressionLeafModel> sampler = GFRForestSampler<GaussianMultivariateRegressionLeafModel>(cutpoint_grid_size);
-    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types);
+    GFRSampleOneIter<GaussianMultivariateRegressionLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types, cutpoint_grid_size);
   }
 }
 
@@ -288,16 +285,13 @@ void sampleMCMC(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& 
                 ForestLeafModel leaf_model_type, Eigen::MatrixXd& leaf_scale_matrix, double global_variance, double leaf_scale, int cutpoint_grid_size) {
   if (leaf_model_type == ForestLeafModel::kConstant) {
     GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_scale);
-    MCMCForestSampler<GaussianConstantLeafModel> sampler = MCMCForestSampler<GaussianConstantLeafModel>();
-    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
+    MCMCSampleOneIter<GaussianConstantLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
   } else if (leaf_model_type == ForestLeafModel::kUnivariateRegression) {
     GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_scale);
-    MCMCForestSampler<GaussianUnivariateRegressionLeafModel> sampler = MCMCForestSampler<GaussianUnivariateRegressionLeafModel>();
-    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
+    MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
   } else if (leaf_model_type == ForestLeafModel::kMultivariateRegression) {
     GaussianMultivariateRegressionLeafModel leaf_model = GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
-    MCMCForestSampler<GaussianMultivariateRegressionLeafModel> sampler = MCMCForestSampler<GaussianMultivariateRegressionLeafModel>();
-    sampler.SampleOneIter(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
+    MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
   }
 }
 
