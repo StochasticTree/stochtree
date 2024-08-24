@@ -127,8 +127,8 @@ void sample_mcmc_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestData
         StochTree::GaussianUnivariateRegressionLeafModel leaf_model = StochTree::GaussianUnivariateRegressionLeafModel(leaf_scale);
         MCMCSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel>(*tracker, *forest_samples, leaf_model, *data, *residual, *split_prior, *rng, var_weights_vector, global_variance, pre_initialized);
     } else if (leaf_model_enum == ForestLeafModel::kMultivariateRegression) {
-        StochTree::GaussianUnivariateRegressionLeafModel leaf_model = StochTree::GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
-        MCMCSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel>(*tracker, *forest_samples, leaf_model, *data, *residual, *split_prior, *rng, var_weights_vector, global_variance, pre_initialized);
+        StochTree::GaussianMultivariateRegressionLeafModel leaf_model = StochTree::GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
+        MCMCSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel>(*tracker, *forest_samples, leaf_model, *data, *residual, *split_prior, *rng, var_weights_vector, global_variance, pre_initialized);
     }
 }
 
