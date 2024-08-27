@@ -41,11 +41,11 @@ enum ForestLeafVarianceType {
   kFixed
 };
 
-enum ForestLeafPriorType {
-  kConstantLeafGaussian,
-  kUnivariateRegressionLeafGaussian,
-  kMultivariateRegressionLeafGaussian
-};
+// enum ForestLeafPriorType {
+//   kConstantLeafGaussian,
+//   kUnivariateRegressionLeafGaussian,
+//   kMultivariateRegressionLeafGaussian
+// };
 
 enum ForestSampler {
   kMCMC,

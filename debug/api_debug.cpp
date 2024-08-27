@@ -16,15 +16,10 @@
 #include <random>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 namespace StochTree{
-
-enum ForestLeafModel {
-    kConstant, 
-    kUnivariateRegression, 
-    kMultivariateRegression
-};
 
 void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
@@ -265,37 +260,37 @@ void OutcomeOffsetScale(ColumnVector& residual, double& outcome_offset, double& 
   }
 }
 
-void sampleGFR(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& forest_samples, ForestDataset& dataset, 
-               ColumnVector& residual, std::mt19937& rng, std::vector<FeatureType>& feature_types, std::vector<double>& var_weights_vector, 
-               ForestLeafModel leaf_model_type, Eigen::MatrixXd& leaf_scale_matrix, double global_variance, double leaf_scale, int cutpoint_grid_size) {
-  if (leaf_model_type == ForestLeafModel::kConstant) {
-    GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_scale);
-    GFRSampleOneIter<GaussianConstantLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types, cutpoint_grid_size);
-  } else if (leaf_model_type == ForestLeafModel::kUnivariateRegression) {
-    GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_scale);
-    GFRSampleOneIter<GaussianUnivariateRegressionLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types, cutpoint_grid_size);
-  } else if (leaf_model_type == ForestLeafModel::kMultivariateRegression) {
-    GaussianMultivariateRegressionLeafModel leaf_model = GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
-    GFRSampleOneIter<GaussianMultivariateRegressionLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types, cutpoint_grid_size);
-  }
-}
+// void sampleGFR(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& forest_samples, ForestDataset& dataset, 
+//                ColumnVector& residual, std::mt19937& rng, std::vector<FeatureType>& feature_types, std::vector<double>& var_weights_vector, 
+//                ForestLeafModel leaf_model_type, Eigen::MatrixXd& leaf_scale_matrix, double global_variance, double leaf_scale, int cutpoint_grid_size) {
+//   if (leaf_model_type == ForestLeafModel::kConstant) {
+//     GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_scale);
+//     GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types, cutpoint_grid_size);
+//   } else if (leaf_model_type == ForestLeafModel::kUnivariateRegression) {
+//     GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_scale);
+//     GFRSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types, cutpoint_grid_size);
+//   } else if (leaf_model_type == ForestLeafModel::kMultivariateRegression) {
+//     GaussianMultivariateRegressionLeafModel leaf_model = GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
+//     GFRSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance, feature_types, cutpoint_grid_size);
+//   }
+// }
 
-void sampleMCMC(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& forest_samples, ForestDataset& dataset, 
-                ColumnVector& residual, std::mt19937& rng, std::vector<FeatureType>& feature_types, std::vector<double>& var_weights_vector, 
-                ForestLeafModel leaf_model_type, Eigen::MatrixXd& leaf_scale_matrix, double global_variance, double leaf_scale, int cutpoint_grid_size) {
-  if (leaf_model_type == ForestLeafModel::kConstant) {
-    GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_scale);
-    MCMCSampleOneIter<GaussianConstantLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
-  } else if (leaf_model_type == ForestLeafModel::kUnivariateRegression) {
-    GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_scale);
-    MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
-  } else if (leaf_model_type == ForestLeafModel::kMultivariateRegression) {
-    GaussianMultivariateRegressionLeafModel leaf_model = GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
-    MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
-  }
-}
+// void sampleMCMC(ForestTracker& tracker, TreePrior& tree_prior, ForestContainer& forest_samples, ForestDataset& dataset, 
+//                 ColumnVector& residual, std::mt19937& rng, std::vector<FeatureType>& feature_types, std::vector<double>& var_weights_vector, 
+//                 ForestLeafModel leaf_model_type, Eigen::MatrixXd& leaf_scale_matrix, double global_variance, double leaf_scale, int cutpoint_grid_size) {
+//   if (leaf_model_type == ForestLeafModel::kConstant) {
+//     GaussianConstantLeafModel leaf_model = GaussianConstantLeafModel(leaf_scale);
+//     MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
+//   } else if (leaf_model_type == ForestLeafModel::kUnivariateRegression) {
+//     GaussianUnivariateRegressionLeafModel leaf_model = GaussianUnivariateRegressionLeafModel(leaf_scale);
+//     MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
+//   } else if (leaf_model_type == ForestLeafModel::kMultivariateRegression) {
+//     GaussianMultivariateRegressionLeafModel leaf_model = GaussianMultivariateRegressionLeafModel(leaf_scale_matrix);
+//     MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat>(tracker, forest_samples, leaf_model, dataset, residual, tree_prior, rng, var_weights_vector, global_variance);
+//   }
+// }
 
-void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int num_mcmc = 100, int random_seed = -1) {
+void RunDebug(int dgp_num = 0, ModelType model_type = kConstantLeafGaussian, bool rfx_included = false, int num_gfr = 10, int num_mcmc = 100, int random_seed = -1) {
   // Flag the data as row-major
   bool row_major = true;
 
@@ -326,24 +321,26 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
   std::vector<int32_t> rfx_groups;
   std::vector<FeatureType> feature_types;
 
+  // Check for DGP : ModelType compatibility
+  if ((model_type != kConstantLeafGaussian) && (dgp_num == 1)) {
+    Log::Fatal("dgp 2 is only compatible with a constant leaf model");
+  }
+
   // Generate the data
   int output_dimension;
   bool is_leaf_constant;
-  ForestLeafModel leaf_model_type;
   if (dgp_num == 0) {
     GenerateDGP1(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
     dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
     dataset.AddBasis(basis_raw.data(), n, omega_cols, row_major);
     output_dimension = 1;
     is_leaf_constant = false;
-    leaf_model_type = ForestLeafModel::kUnivariateRegression;
   }
   else if (dgp_num == 1) {
     GenerateDGP2(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
     dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
     output_dimension = 1;
     is_leaf_constant = true;
-    leaf_model_type = ForestLeafModel::kConstant;
   }
   else {
     Log::Fatal("Invalid dgp_num");
@@ -441,6 +438,9 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
   std::vector<double> global_variance_samples{};
   std::vector<double> leaf_variance_samples{};
 
+  // Prepare the samplers
+  LeafModelVariant leaf_model = leafModelFactory(model_type, leaf_scale, leaf_scale_matrix);
+
   // Run the GFR sampler
   if (num_gfr > 0) {
     for (int i = 0; i < num_gfr; i++) {
@@ -454,8 +454,13 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
       }
 
       // Sample tree ensemble
-      sampleGFR(tracker, tree_prior, forest_samples, dataset, residual, gen, feature_types, variable_weights,
-        leaf_model_type, leaf_scale_matrix, global_variance, leaf_scale, cutpoint_grid_size);
+      if (model_type == ModelType::kConstantLeafGaussian) {
+        GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, false);
+      } else if (model_type == ModelType::kUnivariateRegressionLeafGaussian) {
+        GFRSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, false);
+      } else if (model_type == ModelType::kMultivariateRegressionLeafGaussian) {
+        GFRSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, false, omega_cols);
+      }
 
       if (rfx_included) {
         // Sample random effects
@@ -484,8 +489,13 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
       }
 
       // Sample tree ensemble
-      sampleMCMC(tracker, tree_prior, forest_samples, dataset, residual, gen, feature_types, variable_weights,
-        leaf_model_type, leaf_scale_matrix, global_variance, leaf_scale, cutpoint_grid_size);
+      if (model_type == ModelType::kConstantLeafGaussian) {
+        MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, false);
+      } else if (model_type == ModelType::kUnivariateRegressionLeafGaussian) {
+        MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, false);
+      } else if (model_type == ModelType::kMultivariateRegressionLeafGaussian) {
+        MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, false, omega_cols);
+      }
 
       if (rfx_included) {
         // Sample random effects
@@ -531,24 +541,29 @@ int main(int argc, char* argv[]) {
   if ((dgp_num != 0) && (dgp_num != 1)) {
     StochTree::Log::Fatal("The first command line argument must be 0 or 1");
   }
-  int rfx_int = std::stoi(argv[2]);
+  int model_type_int = static_cast<StochTree::ModelType>(std::stoi(argv[2]));
+  if ((model_type_int != 0) && (model_type_int != 1) && (model_type_int != 2)) {
+    StochTree::Log::Fatal("The second command line argument must be 0, 1, or 2");
+  }
+  StochTree::ModelType model_type = static_cast<StochTree::ModelType>(model_type_int);
+  int rfx_int = std::stoi(argv[3]);
   if ((rfx_int != 0) && (rfx_int != 1)) {
-    StochTree::Log::Fatal("The second command line argument must be 0 or 1");
+    StochTree::Log::Fatal("The third command line argument must be 0 or 1");
   }
   bool rfx_included = static_cast<bool>(rfx_int);
-  int num_gfr = std::stoi(argv[3]);
+  int num_gfr = std::stoi(argv[4]);
   if (num_gfr < 0) {
-    StochTree::Log::Fatal("The third command line argument must be >= 0");
-  }
-  int num_mcmc = std::stoi(argv[4]);
-  if (num_mcmc < 0) {
     StochTree::Log::Fatal("The fourth command line argument must be >= 0");
   }
-  int random_seed = std::stoi(argv[5]);
+  int num_mcmc = std::stoi(argv[5]);
+  if (num_mcmc < 0) {
+    StochTree::Log::Fatal("The fifth command line argument must be >= 0");
+  }
+  int random_seed = std::stoi(argv[6]);
   if (random_seed < -1) {
-    StochTree::Log::Fatal("The fifth command line argument must be >= -0");
+    StochTree::Log::Fatal("The sixth command line argument must be >= -0");
   }
 
   // Run the debug program
-  StochTree::RunDebug(dgp_num, rfx_included, num_gfr, num_mcmc);
+  StochTree::RunDebug(dgp_num, model_type, rfx_included, num_gfr, num_mcmc);
 }

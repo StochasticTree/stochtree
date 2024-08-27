@@ -20,6 +20,12 @@
 
 namespace StochTree {
 
+enum ModelType {
+  kConstantLeafGaussian, 
+  kUnivariateRegressionLeafGaussian, 
+  kMultivariateRegressionLeafGaussian
+};
+
 /*! \brief Sufficient statistic and associated operations for gaussian homoskedastic constant leaf outcome model */
 class GaussianConstantSuffStat {
  public:
@@ -67,12 +73,6 @@ class GaussianConstantLeafModel {
  public:
   GaussianConstantLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
   ~GaussianConstantLeafModel() {}
-  std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance);
-  std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);
-  void EvaluateAllPossibleSplits(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, double global_variance, int tree_num, int split_node_id, 
-                                 std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, 
-                                 data_size_t& valid_cutpoint_count, CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, 
-                                 std::vector<FeatureType>& feature_types);
   double SplitLogMarginalLikelihood(GaussianConstantSuffStat& left_stat, GaussianConstantSuffStat& right_stat, double global_variance);
   double NoSplitLogMarginalLikelihood(GaussianConstantSuffStat& suff_stat, double global_variance);
   double PosteriorParameterMean(GaussianConstantSuffStat& suff_stat, double global_variance);
@@ -133,12 +133,6 @@ class GaussianUnivariateRegressionLeafModel {
  public:
   GaussianUnivariateRegressionLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
   ~GaussianUnivariateRegressionLeafModel() {}
-  std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance);
-  std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);
-  void EvaluateAllPossibleSplits(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, double global_variance, int tree_num, int split_node_id, 
-                                 std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, 
-                                 data_size_t& valid_cutpoint_count, CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, 
-                                 std::vector<FeatureType>& feature_types);
   double SplitLogMarginalLikelihood(GaussianUnivariateRegressionSuffStat& left_stat, GaussianUnivariateRegressionSuffStat& right_stat, double global_variance);
   double NoSplitLogMarginalLikelihood(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance);
   double PosteriorParameterMean(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance);
@@ -201,12 +195,6 @@ class GaussianMultivariateRegressionLeafModel {
  public:
   GaussianMultivariateRegressionLeafModel(Eigen::MatrixXd& Sigma_0) {Sigma_0_ = Sigma_0; multivariate_normal_sampler_ = MultivariateNormalSampler();}
   ~GaussianMultivariateRegressionLeafModel() {}
-  std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance);
-  std::tuple<double, double, data_size_t, data_size_t> EvaluateExistingSplit(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id);
-  void EvaluateAllPossibleSplits(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, double global_variance, int tree_num, int split_node_id, 
-                                 std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, 
-                                 data_size_t& valid_cutpoint_count, CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, 
-                                 std::vector<FeatureType>& feature_types);
   double SplitLogMarginalLikelihood(GaussianMultivariateRegressionSuffStat& left_stat, GaussianMultivariateRegressionSuffStat& right_stat, double global_variance);
   double NoSplitLogMarginalLikelihood(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance);
   Eigen::VectorXd PosteriorParameterMean(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance);
@@ -219,6 +207,137 @@ class GaussianMultivariateRegressionLeafModel {
   Eigen::MatrixXd Sigma_0_;
   MultivariateNormalSampler multivariate_normal_sampler_;
 };
+
+using SuffStatVariant = std::variant<GaussianConstantSuffStat, 
+                                     GaussianUnivariateRegressionSuffStat, 
+                                     GaussianMultivariateRegressionSuffStat>;
+
+using LeafModelVariant = std::variant<GaussianConstantLeafModel, 
+                                      GaussianUnivariateRegressionLeafModel, 
+                                      GaussianMultivariateRegressionLeafModel>;
+
+template<typename SuffStatType, typename... SuffStatConstructorArgs>
+static inline SuffStatVariant createSuffStat(SuffStatConstructorArgs... leaf_suff_stat_args) {
+  return SuffStatType(leaf_suff_stat_args...);
+}
+
+template<typename LeafModelType, typename... LeafModelConstructorArgs>
+static inline LeafModelVariant createLeafModel(LeafModelConstructorArgs... leaf_model_args) {
+  return LeafModelType(leaf_model_args...);
+}
+
+static inline SuffStatVariant suffStatFactory(ModelType model_type, int basis_dim = 0) {
+  if (model_type == kConstantLeafGaussian) {
+    return createSuffStat<GaussianConstantSuffStat>();
+  } else if (model_type == kUnivariateRegressionLeafGaussian) {
+    return createSuffStat<GaussianUnivariateRegressionSuffStat>();
+  } else {
+    return createSuffStat<GaussianMultivariateRegressionSuffStat, int>(basis_dim);
+  }
+}
+
+static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau, Eigen::MatrixXd& Sigma0) {
+  if (model_type == kConstantLeafGaussian) {
+    return createLeafModel<GaussianConstantLeafModel, double>(tau);
+  } else if (model_type == kUnivariateRegressionLeafGaussian) {
+    return createLeafModel<GaussianUnivariateRegressionLeafModel, double>(tau);
+  } else {
+    return createLeafModel<GaussianMultivariateRegressionLeafModel, Eigen::MatrixXd>(Sigma0);
+  }
+}
+
+template<typename SuffStatType>
+static inline void AccumulateSuffStatProposed(SuffStatType& node_suff_stat, SuffStatType& left_suff_stat, SuffStatType& right_suff_stat, ForestDataset& dataset, ForestTracker& tracker, 
+                                ColumnVector& residual, double global_variance, TreeSplit& split, int tree_num, int leaf_num, int split_feature) {
+  // Acquire iterators
+  auto node_begin_iter = tracker.UnsortedNodeBeginIterator(tree_num, leaf_num);
+  auto node_end_iter = tracker.UnsortedNodeEndIterator(tree_num, leaf_num);
+
+  // Accumulate sufficient statistics
+  for (auto i = node_begin_iter; i != node_end_iter; i++) {
+    auto idx = *i;
+    double feature_value = dataset.CovariateValue(idx, split_feature);
+    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    if (split.SplitTrue(feature_value)) {
+      left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    } else {
+      right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    }
+  }
+}
+
+template<typename SuffStatType>
+static inline void AccumulateSuffStatExisting(SuffStatType& node_suff_stat, SuffStatType& left_suff_stat, SuffStatType& right_suff_stat, ForestDataset& dataset, ForestTracker& tracker, 
+                                ColumnVector& residual, double global_variance, int tree_num, int split_node_id, int left_node_id, int right_node_id) {
+  // Acquire iterators
+  auto left_node_begin_iter = tracker.UnsortedNodeBeginIterator(tree_num, left_node_id);
+  auto left_node_end_iter = tracker.UnsortedNodeEndIterator(tree_num, left_node_id);
+  auto right_node_begin_iter = tracker.UnsortedNodeBeginIterator(tree_num, right_node_id);
+  auto right_node_end_iter = tracker.UnsortedNodeEndIterator(tree_num, right_node_id);
+
+  // Accumulate sufficient statistics for the left and split nodes
+  for (auto i = left_node_begin_iter; i != left_node_end_iter; i++) {
+    auto idx = *i;
+    left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+  }
+
+  // Accumulate sufficient statistics for the right and split nodes
+  for (auto i = right_node_begin_iter; i != right_node_end_iter; i++) {
+    auto idx = *i;
+    right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+  }
+}
+
+template<typename SuffStatType, bool sorted>
+static inline void AccumulateSingleNodeSuffStat(SuffStatType& node_suff_stat, ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, int tree_num, int node_id) {
+  // Acquire iterators
+  std::vector<data_size_t>::iterator node_begin_iter;
+  std::vector<data_size_t>::iterator node_end_iter;
+  if (sorted) {
+    // Default to the first feature if we're using the presort tracker
+    node_begin_iter = tracker.SortedNodeBeginIterator(node_id, 0);
+    node_end_iter = tracker.SortedNodeEndIterator(node_id, 0);
+  } else {
+    node_begin_iter = tracker.UnsortedNodeBeginIterator(tree_num, node_id);
+    node_end_iter = tracker.UnsortedNodeEndIterator(tree_num, node_id);
+  }
+  
+  // Accumulate sufficient statistics
+  for (auto i = node_begin_iter; i != node_end_iter; i++) {
+    auto idx = *i;
+    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+  }
+}
+
+template<typename SuffStatType>
+static inline void AccumulateCutpointBinSuffStat(SuffStatType& left_suff_stat, ForestTracker& tracker, CutpointGridContainer& cutpoint_grid_container, 
+                                   ForestDataset& dataset, ColumnVector& residual, double global_variance, int tree_num, int node_id, 
+                                   int feature_num, int cutpoint_num) {
+  // Acquire iterators
+  auto node_begin_iter = tracker.SortedNodeBeginIterator(node_id, feature_num);
+  auto node_end_iter = tracker.SortedNodeEndIterator(node_id, feature_num);
+  
+  // Determine node start point
+  data_size_t node_begin = tracker.SortedNodeBegin(node_id, feature_num);
+
+  // Determine cutpoint bin start and end points
+  data_size_t current_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_num, feature_num);
+  data_size_t current_bin_size = cutpoint_grid_container.BinLength(cutpoint_num, feature_num);
+  data_size_t next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_num + 1, feature_num);
+
+  // Cutpoint specific iterators
+  // TODO: fix the hack of having to subtract off node_begin, probably by cleaning up the CutpointGridContainer interface
+  auto cutpoint_begin_iter = node_begin_iter + (current_bin_begin - node_begin);
+  auto cutpoint_end_iter = node_begin_iter + (next_bin_begin - node_begin);
+
+  // Accumulate sufficient statistics
+  for (auto i = cutpoint_begin_iter; i != cutpoint_end_iter; i++) {
+    auto idx = *i;
+    left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+  }
+}
 
 } // namespace StochTree
 
