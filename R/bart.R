@@ -131,7 +131,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if ((is.null(dim(rfx_basis_test))) && (!is.null(rfx_basis_test))) {
         rfx_basis_test <- as.matrix(rfx_basis_test)
     }
-    
+
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
     has_rfx <- F
     has_rfx_test <- F
@@ -623,6 +623,630 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     }
 }
 
+#' Run the BART algorithm for supervised learning. 
+#'
+#' @param X_train Covariates used to split trees in the ensemble. May be provided either as a dataframe or a matrix. 
+#' Matrix covariates will be assumed to be all numeric. Covariates passed as a dataframe will be 
+#' preprocessed based on the variable types (e.g. categorical columns stored as unordered factors will be one-hot encoded, 
+#' categorical columns stored as ordered factors will passed as integers to the core algorithm, along with the metadata 
+#' that the column is ordered categorical).
+#' @param y_train Outcome to be modeled by the ensemble.
+#' @param W_train (Optional) Bases used to define a regression model `y ~ W` in 
+#' each leaf of each regression tree. By default, BART assumes constant leaf node 
+#' parameters, implicitly regressing on a constant basis of ones (i.e. `y ~ 1`).
+#' @param group_ids_train (Optional) Group labels used for an additive random effects model.
+#' @param rfx_basis_train (Optional) Basis for "random-slope" regression in an additive random effects model.
+#' If `group_ids_train` is provided with a regression basis, an intercept-only random effects model 
+#' will be estimated.
+#' @param X_test (Optional) Test set of covariates used to define "out of sample" evaluation data. 
+#' May be provided either as a dataframe or a matrix, but the format of `X_test` must be consistent with 
+#' that of `X_train`.
+#' @param W_test (Optional) Test set of bases used to define "out of sample" evaluation data. 
+#' While a test set is optional, the structure of any provided test set must match that 
+#' of the training set (i.e. if both X_train and W_train are provided, then a test set must 
+#' consist of X_test and W_test with the same number of columns).
+#' @param group_ids_test (Optional) Test set group labels used for an additive random effects model. 
+#' We do not currently support (but plan to in the near future), test set evaluation for group labels
+#' that were not in the training set.
+#' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param cutpoint_grid_size Maximum size of the "grid" of potential cutpoints to consider. Default: 100.
+#' @param tau_init Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
+#' @param alpha Prior probability of splitting for a tree of depth 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
+#' @param beta Exponent that decreases split probabilities for nodes of depth > 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
+#' @param leaf_model Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.
+#' @param min_samples_leaf Minimum allowable size of a leaf, in terms of training samples. Default: 5.
+#' @param max_depth Maximum depth of any tree in the ensemble. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+#' @param nu Shape parameter in the `IG(nu, nu*lambda)` global error variance model. Default: 3.
+#' @param lambda Component of the scale parameter in the `IG(nu, nu*lambda)` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
+#' @param a_leaf Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: 3.
+#' @param b_leaf Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
+#' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
+#' @param sigma2_init Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
+#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
+#' @param num_trees Number of trees in the ensemble. Default: 200.
+#' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
+#' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
+#' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
+#' @param sample_sigma Whether or not to update the `sigma^2` global error variance parameter based on `IG(nu, nu*lambda)`. Default: T.
+#' @param sample_tau Whether or not to update the `tau` leaf scale variance parameter based on `IG(a_leaf, b_leaf)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: T.
+#' @param random_seed Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
+#' @param keep_burnin Whether or not "burnin" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.
+#' @param keep_gfr Whether or not "grow-from-root" samples should be included in cached predictions. Default TRUE. Ignored if num_mcmc = 0.
+#' @param verbose Whether or not to print progress during the sampling loops. Default: FALSE.
+#' @param sample_global_var Whether or not global variance parameter should be sampled. Default: TRUE.
+#' @param sample_leaf_var Whether or not leaf model variance parameter should be sampled. Default: FALSE.
+#'
+#' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart_specialized(X_train = X_train, y_train = y_train, X_test = X_test)
+#' # plot(rowMeans(bart_model$y_hat_test), y_test, xlab = "predicted", ylab = "actual")
+#' # abline(0,1,col="red",lty=3,lwd=3)
+bart_cpp_loop_generalized <- function(
+    X_train, y_train, W_train = NULL, group_ids_train = NULL, 
+    rfx_basis_train = NULL, X_test = NULL, W_test = NULL, 
+    group_ids_test = NULL, rfx_basis_test = NULL, 
+    cutpoint_grid_size = 100, tau_init = NULL, alpha = 0.95, 
+    beta = 2.0, min_samples_leaf = 5, max_depth = 10, leaf_model = 0, 
+    nu = 3, lambda = NULL, a_leaf = 3, b_leaf = NULL, 
+    q = 0.9, sigma2_init = NULL, variable_weights = NULL, 
+    num_trees = 200, num_gfr = 5, num_burnin = 0, 
+    num_mcmc = 100, sample_sigma = T, sample_tau = T, 
+    random_seed = -1, keep_burnin = F, keep_gfr = F, 
+    verbose = F, sample_global_var = T, sample_leaf_var = F){
+    # Variable weight preprocessing (and initialization if necessary)
+    if (is.null(variable_weights)) {
+        variable_weights = rep(1/ncol(X_train), ncol(X_train))
+    }
+    if (any(variable_weights < 0)) {
+        stop("variable_weights cannot have any negative weights")
+    }
+    
+    # Preprocess covariates
+    if ((!is.data.frame(X_train)) && (!is.matrix(X_train))) {
+        stop("X_train must be a matrix or dataframe")
+    }
+    if (!is.null(X_test)){
+        if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
+            stop("X_test must be a matrix or dataframe")
+        }
+    }
+    if (ncol(X_train) != length(variable_weights)) {
+        stop("length(variable_weights) must equal ncol(X_train)")
+    }
+    train_cov_preprocess_list <- preprocessTrainData(X_train)
+    X_train_metadata <- train_cov_preprocess_list$metadata
+    X_train <- train_cov_preprocess_list$data
+    num_rows_train <- nrow(X_train)
+    num_cov_train <- ncol(X_train)
+    num_cov_test <- num_cov_train
+    original_var_indices <- X_train_metadata$original_var_indices
+    feature_types <- X_train_metadata$feature_types
+    feature_types <- as.integer(feature_types)
+    if (!is.null(X_test)) {
+        X_test <- preprocessPredictionData(X_test, X_train_metadata)
+        num_rows_test <- nrow(X_test)
+    } else {
+        num_rows_test <- 0
+    }
+    num_samples <- num_gfr + num_burnin + num_mcmc
+    
+    # Update variable weights
+    variable_weights_adj <- 1/sapply(original_var_indices, function(x) sum(original_var_indices == x))
+    variable_weights <- variable_weights[original_var_indices]*variable_weights_adj
+    
+    # Convert all input data to matrices if not already converted
+    if ((is.null(dim(W_train))) && (!is.null(W_train))) {
+        W_train <- as.matrix(W_train)
+    }
+    if ((is.null(dim(W_test))) && (!is.null(W_test))) {
+        W_test <- as.matrix(W_test)
+    }
+    if ((is.null(dim(rfx_basis_train))) && (!is.null(rfx_basis_train))) {
+        rfx_basis_train <- as.matrix(rfx_basis_train)
+    }
+    if ((is.null(dim(rfx_basis_test))) && (!is.null(rfx_basis_test))) {
+        rfx_basis_test <- as.matrix(rfx_basis_test)
+    }
+    
+    # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
+    has_rfx <- F
+    has_rfx_test <- F
+    if (!is.null(group_ids_train)) {
+        group_ids_factor <- factor(group_ids_train)
+        group_ids_train <- as.integer(group_ids_factor)
+        has_rfx <- T
+        if (!is.null(group_ids_test)) {
+            group_ids_factor_test <- factor(group_ids_test, levels = levels(group_ids_factor))
+            if (sum(is.na(group_ids_factor_test)) > 0) {
+                stop("All random effect group labels provided in group_ids_test must be present in group_ids_train")
+            }
+            group_ids_test <- as.integer(group_ids_factor_test)
+            has_rfx_test <- T
+        }
+    }
+    
+    # Data consistency checks
+    if ((!is.null(X_test)) && (ncol(X_test) != ncol(X_train))) {
+        stop("X_train and X_test must have the same number of columns")
+    }
+    if ((!is.null(W_test)) && (ncol(W_test) != ncol(W_train))) {
+        stop("W_train and W_test must have the same number of columns")
+    }
+    if ((!is.null(W_train)) && (nrow(W_train) != nrow(X_train))) {
+        stop("W_train and X_train must have the same number of rows")
+    }
+    if ((!is.null(W_test)) && (nrow(W_test) != nrow(X_test))) {
+        stop("W_test and X_test must have the same number of rows")
+    }
+    if (nrow(X_train) != length(y_train)) {
+        stop("X_train and y_train must have the same number of observations")
+    }
+    if ((!is.null(rfx_basis_test)) && (ncol(rfx_basis_test) != ncol(rfx_basis_train))) {
+        stop("rfx_basis_train and rfx_basis_test must have the same number of columns")
+    }
+    if (!is.null(group_ids_train)) {
+        if (!is.null(group_ids_test)) {
+            if ((!is.null(rfx_basis_train)) && (is.null(rfx_basis_test))) {
+                stop("rfx_basis_train is provided but rfx_basis_test is not provided")
+            }
+        }
+    }
+    
+    # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided 
+    has_basis_rfx <- F
+    num_basis_rfx <- 0
+    num_rfx_groups <- 0
+    if (has_rfx) {
+        if (is.null(rfx_basis_train)) {
+            rfx_basis_train <- matrix(rep(1,nrow(X_train)), nrow = nrow(X_train), ncol = 1)
+            num_basis_rfx <- 1
+        } else {
+            has_basis_rfx <- T
+            num_basis_rfx <- ncol(rfx_basis_train)
+        }
+        num_rfx_groups <- length(unique(group_ids_train))
+        num_rfx_components <- ncol(rfx_basis_train)
+        if (num_rfx_groups == 1) warning("Only one group was provided for random effect sampling, so the 'redundant parameterization' is likely overkill")
+    }
+    if (has_rfx_test) {
+        if (is.null(rfx_basis_test)) {
+            if (!is.null(rfx_basis_train)) {
+                stop("Random effects basis provided for training set, must also be provided for the test set")
+            }
+            rfx_basis_test <- matrix(rep(1,nrow(X_test)), nrow = nrow(X_test), ncol = 1)
+        }
+    }
+    
+    # Convert y_train to numeric vector if not already converted
+    if (!is.null(dim(y_train))) {
+        y_train <- as.matrix(y_train)
+    }
+    
+    # Determine whether a basis vector is provided
+    has_basis = !is.null(W_train)
+    if (has_basis) num_basis_train <- ncol(W_train)
+    else num_basis_train <- 0
+    num_basis_test <- num_basis_train
+    
+    # Determine whether a test set is provided
+    has_test = !is.null(X_test)
+    if (has_test) num_test <- nrow(X_test)
+    else num_test <- 0
+    
+    # Standardize outcome separately for test and train
+    y_bar_train <- mean(y_train)
+    y_std_train <- sd(y_train)
+    resid_train <- (y_train-y_bar_train)/y_std_train
+    
+    # Calibrate priors for sigma^2 and tau
+    reg_basis <- cbind(W_train, X_train)
+    sigma2hat <- (sigma(lm(resid_train~reg_basis)))^2
+    quantile_cutoff <- 0.9
+    if (is.null(lambda)) {
+        lambda <- (sigma2hat*qgamma(1-quantile_cutoff,nu))/nu
+    }
+    if (is.null(sigma2_init)) sigma2_init <- sigma2hat
+    if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees)
+    if (is.null(tau_init)) tau_init <- var(resid_train)/(num_trees)
+    current_leaf_scale <- as.matrix(tau_init)
+    current_sigma2 <- sigma2_init
+    
+    # Determine leaf model type
+    if (!has_basis) leaf_model <- 0
+    else if (ncol(W_train) == 1) leaf_model <- 1
+    else if (ncol(W_train) > 1) leaf_model <- 2
+    else stop("W_train passed must be a matrix with at least 1 column")
+    
+    # Unpack model type info
+    if (leaf_model == 0) {
+        output_dimension = 1
+        is_leaf_constant = T
+        leaf_regression = F
+    } else if (leaf_model == 1) {
+        stopifnot(has_basis)
+        stopifnot(ncol(W_train) == 1)
+        output_dimension = 1
+        is_leaf_constant = F
+        leaf_regression = T
+    } else if (leaf_model == 2) {
+        stopifnot(has_basis)
+        stopifnot(ncol(W_train) > 1)
+        output_dimension = ncol(W_train)
+        is_leaf_constant = F
+        leaf_regression = T
+        if (sample_tau) {
+            stop("Sampling leaf scale not yet supported for multivariate leaf models")
+        }
+    }
+    
+    # Random effects prior parameters
+    alpha_init <- as.numeric(NULL)
+    xi_init <- as.numeric(NULL)
+    sigma_alpha_init <- as.numeric(NULL)
+    sigma_xi_init <- as.numeric(NULL)
+    sigma_xi_shape <- NULL
+    sigma_xi_scale <- NULL
+    if (has_rfx) {
+        if (num_rfx_components == 1) {
+            alpha_init <- c(1)
+        } else if (num_rfx_components > 1) {
+            alpha_init <- c(1,rep(0,num_rfx_components-1))
+        } else {
+            stop("There must be at least 1 random effect component")
+        }
+        xi_init <- matrix(rep(alpha_init, num_rfx_groups),num_rfx_components,num_rfx_groups)
+        sigma_alpha_init <- diag(1,num_rfx_components,num_rfx_components)
+        sigma_xi_init <- diag(1,num_rfx_components,num_rfx_components)
+        sigma_xi_shape <- 1
+        sigma_xi_scale <- 1
+    }
+    
+    # Run the BART sampler
+    if ((has_basis) && (has_test) && (has_rfx)) {
+        bart_result_ptr <- run_bart_cpp_basis_test_rfx(
+            as.numeric(X_train), as.numeric(W_train), resid_train, 
+            num_rows_train, num_cov_train, num_basis_train, 
+            as.numeric(X_test), as.numeric(W_test), num_rows_test, num_cov_test, num_basis_test, 
+            as.numeric(rfx_basis_train), group_ids_train, num_basis_rfx, num_rfx_groups, 
+            as.numeric(rfx_basis_test), group_ids_test, num_basis_rfx, num_rfx_groups, 
+            feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
+            tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
+            sample_global_var, sample_leaf_var, alpha_init, xi_init, sigma_alpha_init, 
+            sigma_xi_init, sigma_xi_shape, sigma_xi_scale
+        )
+    } else if ((has_basis) && (has_test) && (!has_rfx)) {
+        bart_result_ptr <- run_bart_cpp_basis_test_norfx(
+            as.numeric(X_train), as.numeric(W_train), resid_train, 
+            num_rows_train, num_cov_train, num_basis_train, 
+            as.numeric(X_test), as.numeric(W_test), num_rows_test, num_cov_test, num_basis_test, 
+            feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
+            tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
+            sample_global_var, sample_leaf_var
+        )
+    } else if ((has_basis) && (!has_test) && (has_rfx)) {
+        bart_result_ptr <- run_bart_cpp_basis_notest_rfx(
+            as.numeric(X_train), as.numeric(W_train), resid_train, 
+            num_rows_train, num_cov_train, num_basis_train, 
+            as.numeric(rfx_basis_train), group_ids_train, num_basis_rfx, num_rfx_groups, 
+            feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
+            tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
+            sample_global_var, sample_leaf_var, alpha_init, xi_init, sigma_alpha_init, 
+            sigma_xi_init, sigma_xi_shape, sigma_xi_scale
+        )
+    } else if ((has_basis) && (!has_test) && (!has_rfx)) {
+        bart_result_ptr <- run_bart_cpp_basis_notest_norfx(
+            as.numeric(X_train), as.numeric(W_train), resid_train, 
+            num_rows_train, num_cov_train, num_basis_train, 
+            feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
+            tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
+            sample_global_var, sample_leaf_var
+        )
+    } else if ((!has_basis) && (has_test) && (has_rfx)) {
+        bart_result_ptr <- run_bart_cpp_nobasis_test_rfx(
+            as.numeric(X_train), resid_train, 
+            num_rows_train, num_cov_train, 
+            as.numeric(X_test), num_rows_test, num_cov_test, 
+            as.numeric(rfx_basis_train), group_ids_train, num_basis_rfx, num_rfx_groups, 
+            as.numeric(rfx_basis_test), group_ids_test, num_basis_rfx, num_rfx_groups, 
+            feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
+            tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
+            sample_global_var, sample_leaf_var, alpha_init, xi_init, sigma_alpha_init, 
+            sigma_xi_init, sigma_xi_shape, sigma_xi_scale
+        )
+    } else if ((!has_basis) && (has_test) && (!has_rfx)) {
+        bart_result_ptr <- run_bart_cpp_nobasis_test_norfx(
+            as.numeric(X_train), resid_train, 
+            num_rows_train, num_cov_train, 
+            as.numeric(X_test), num_rows_test, num_cov_test, 
+            feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
+            tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
+            sample_global_var, sample_leaf_var
+        )
+    } else if ((!has_basis) && (!has_test) && (has_rfx)) {
+        bart_result_ptr <- run_bart_cpp_nobasis_notest_rfx(
+            as.numeric(X_train), resid_train, 
+            num_rows_train, num_cov_train, 
+            as.numeric(rfx_basis_train), group_ids_train, num_basis_rfx, num_rfx_groups, 
+            feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
+            tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
+            sample_global_var, sample_leaf_var, alpha_init, xi_init, sigma_alpha_init, 
+            sigma_xi_init, sigma_xi_shape, sigma_xi_scale
+        )
+    } else if ((!has_basis) && (!has_test) && (!has_rfx)) {
+        bart_result_ptr <- run_bart_cpp_nobasis_notest_norfx(
+            as.numeric(X_train), resid_train, 
+            num_rows_train, num_cov_train, 
+            feature_types, variable_weights, num_trees, output_dimension, is_leaf_constant, 
+            alpha, beta, a_leaf, b_leaf, nu, lambda, min_samples_leaf, max_depth, cutpoint_grid_size, 
+            tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, leaf_model, 
+            sample_global_var, sample_leaf_var
+        )
+    }
+    
+    # Return results as a list
+    model_params <- list(
+        "sigma2_init" = sigma2_init, 
+        "nu" = nu,
+        "lambda" = lambda, 
+        "tau_init" = tau_init,
+        "a" = a_leaf, 
+        "b" = b_leaf,
+        "outcome_mean" = y_bar_train,
+        "outcome_scale" = y_std_train, 
+        "output_dimension" = output_dimension,
+        "is_leaf_constant" = is_leaf_constant,
+        "leaf_regression" = leaf_regression,
+        "requires_basis" = F, 
+        "num_covariates" = ncol(X_train), 
+        "num_basis" = 0, 
+        "num_samples" = num_samples, 
+        "num_gfr" = num_gfr, 
+        "num_burnin" = num_burnin, 
+        "num_mcmc" = num_mcmc, 
+        "has_basis" = F, 
+        "has_rfx" = F, 
+        "has_rfx_basis" = F, 
+        "num_rfx_basis" = 0, 
+        "sample_sigma" = T,
+        "sample_tau" = F
+    )
+    result <- list(
+        # "forests" = forest_samples, 
+        "bart_result" = bart_result_ptr, 
+        "model_params" = model_params
+        # "y_hat_train" = y_hat_train, 
+        # "train_set_metadata" = X_train_metadata,
+        # "keep_indices" = keep_indices
+    )
+    # if (has_test) result[["y_hat_test"]] = y_hat_test
+    # if (sample_sigma) result[["sigma2_samples"]] = sigma2_samples
+    class(result) <- "bartcppgeneralized"
+    
+    return(result)
+}
+
+#' Run the BART algorithm for supervised learning. 
+#'
+#' @param X_train Covariates used to split trees in the ensemble. May be provided either as a dataframe or a matrix. 
+#' Matrix covariates will be assumed to be all numeric. Covariates passed as a dataframe will be 
+#' preprocessed based on the variable types (e.g. categorical columns stored as unordered factors will be one-hot encoded, 
+#' categorical columns stored as ordered factors will passed as integers to the core algorithm, along with the metadata 
+#' that the column is ordered categorical).
+#' @param y_train Outcome to be modeled by the ensemble.
+#' @param X_test (Optional) Test set of covariates used to define "out of sample" evaluation data. 
+#' May be provided either as a dataframe or a matrix, but the format of `X_test` must be consistent with 
+#' that of `X_train`.
+#' @param cutpoint_grid_size Maximum size of the "grid" of potential cutpoints to consider. Default: 100.
+#' @param tau_init Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
+#' @param alpha Prior probability of splitting for a tree of depth 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
+#' @param beta Exponent that decreases split probabilities for nodes of depth > 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
+#' @param leaf_model Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.
+#' @param min_samples_leaf Minimum allowable size of a leaf, in terms of training samples. Default: 5.
+#' @param max_depth Maximum depth of any tree in the ensemble. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+#' @param nu Shape parameter in the `IG(nu, nu*lambda)` global error variance model. Default: 3.
+#' @param lambda Component of the scale parameter in the `IG(nu, nu*lambda)` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
+#' @param a_leaf Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: 3.
+#' @param b_leaf Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
+#' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
+#' @param sigma2_init Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
+#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
+#' @param num_trees Number of trees in the ensemble. Default: 200.
+#' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
+#' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
+#' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
+#' @param random_seed Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
+#' @param keep_burnin Whether or not "burnin" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.
+#' @param keep_gfr Whether or not "grow-from-root" samples should be included in cached predictions. Default TRUE. Ignored if num_mcmc = 0.
+#' @param verbose Whether or not to print progress during the sampling loops. Default: FALSE.
+#'
+#' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart_specialized(X_train = X_train, y_train = y_train, X_test = X_test)
+#' # plot(rowMeans(bart_model$y_hat_test), y_test, xlab = "predicted", ylab = "actual")
+#' # abline(0,1,col="red",lty=3,lwd=3)
+bart_cpp_loop_specialized <- function(
+        X_train, y_train, X_test = NULL, cutpoint_grid_size = 100, 
+        tau_init = NULL, alpha = 0.95, beta = 2.0, min_samples_leaf = 5, 
+        max_depth = 10, nu = 3, lambda = NULL, a_leaf = 3, b_leaf = NULL, 
+        q = 0.9, sigma2_init = NULL, variable_weights = NULL, 
+        num_trees = 200, num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
+        random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F
+){
+    # Variable weight preprocessing (and initialization if necessary)
+    if (is.null(variable_weights)) {
+        variable_weights = rep(1/ncol(X_train), ncol(X_train))
+    }
+    if (any(variable_weights < 0)) {
+        stop("variable_weights cannot have any negative weights")
+    }
+    
+    # Preprocess covariates
+    if ((!is.data.frame(X_train)) && (!is.matrix(X_train))) {
+        stop("X_train must be a matrix or dataframe")
+    }
+    if (!is.null(X_test)){
+        if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
+            stop("X_test must be a matrix or dataframe")
+        }
+    }
+    if (ncol(X_train) != length(variable_weights)) {
+        stop("length(variable_weights) must equal ncol(X_train)")
+    }
+    train_cov_preprocess_list <- preprocessTrainData(X_train)
+    X_train_metadata <- train_cov_preprocess_list$metadata
+    X_train <- train_cov_preprocess_list$data
+    original_var_indices <- X_train_metadata$original_var_indices
+    feature_types <- X_train_metadata$feature_types
+    feature_types <- as.integer(feature_types)
+    if (!is.null(X_test)) X_test <- preprocessPredictionData(X_test, X_train_metadata)
+    
+    # Update variable weights
+    variable_weights_adj <- 1/sapply(original_var_indices, function(x) sum(original_var_indices == x))
+    variable_weights <- variable_weights[original_var_indices]*variable_weights_adj
+    
+    # Data consistency checks
+    if ((!is.null(X_test)) && (ncol(X_test) != ncol(X_train))) {
+        stop("X_train and X_test must have the same number of columns")
+    }
+    if (nrow(X_train) != length(y_train)) {
+        stop("X_train and y_train must have the same number of observations")
+    }
+
+    # Convert y_train to numeric vector if not already converted
+    if (!is.null(dim(y_train))) {
+        y_train <- as.matrix(y_train)
+    }
+    
+    # Determine whether a basis vector is provided
+    has_basis = F
+    
+    # Determine whether a test set is provided
+    has_test = !is.null(X_test)
+    
+    # Standardize outcome separately for test and train
+    y_bar_train <- mean(y_train)
+    y_std_train <- sd(y_train)
+    resid_train <- (y_train-y_bar_train)/y_std_train
+    
+    # Calibrate priors for sigma^2 and tau
+    reg_basis <- X_train
+    sigma2hat <- (sigma(lm(resid_train~reg_basis)))^2
+    quantile_cutoff <- 0.9
+    if (is.null(lambda)) {
+        lambda <- (sigma2hat*qgamma(1-quantile_cutoff,nu))/nu
+    }
+    if (is.null(sigma2_init)) sigma2_init <- sigma2hat
+    if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees)
+    if (is.null(tau_init)) tau_init <- var(resid_train)/(num_trees)
+    current_leaf_scale <- as.matrix(tau_init)
+    current_sigma2 <- sigma2_init
+    
+    # Determine leaf model type
+    leaf_model <- 0
+    
+    # Unpack model type info
+    output_dimension = 1
+    is_leaf_constant = T
+    leaf_regression = F
+
+    # Container of variance parameter samples
+    num_samples <- num_gfr + num_burnin + num_mcmc
+    
+    # Run the BART sampler
+    bart_result_ptr <- run_bart_specialized_cpp(
+        as.numeric(X_train), resid_train, feature_types, variable_weights, nrow(X_train), 
+        ncol(X_train), num_trees, output_dimension, is_leaf_constant, alpha, beta, 
+        min_samples_leaf, cutpoint_grid_size, a_leaf, b_leaf, nu, lambda, 
+        tau_init, sigma2_init, num_gfr, num_burnin, num_mcmc, random_seed, max_depth
+    )
+
+    # Return results as a list
+    model_params <- list(
+        "sigma2_init" = sigma2_init, 
+        "nu" = nu,
+        "lambda" = lambda, 
+        "tau_init" = tau_init,
+        "a" = a_leaf, 
+        "b" = b_leaf,
+        "outcome_mean" = y_bar_train,
+        "outcome_scale" = y_std_train, 
+        "output_dimension" = output_dimension,
+        "is_leaf_constant" = is_leaf_constant,
+        "leaf_regression" = leaf_regression,
+        "requires_basis" = F, 
+        "num_covariates" = ncol(X_train), 
+        "num_basis" = 0, 
+        "num_samples" = num_samples, 
+        "num_gfr" = num_gfr, 
+        "num_burnin" = num_burnin, 
+        "num_mcmc" = num_mcmc, 
+        "has_basis" = F, 
+        "has_rfx" = F, 
+        "has_rfx_basis" = F, 
+        "num_rfx_basis" = 0, 
+        "sample_sigma" = T,
+        "sample_tau" = F
+    )
+    result <- list( 
+        "bart_result" = bart_result_ptr, 
+        "model_params" = model_params
+    )
+    class(result) <- "bartcppsimplified"
+    
+    return(result)
+}
+
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
 #' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
@@ -687,4 +1311,24 @@ getRandomEffectSamples.bartmodel <- function(object, ...){
     result$sigma_samples <- result$sigma_samples*(object$model_params$outcome_scale^2)
     
     return(result)
+}
+
+#' Return the average max depth of all trees and all ensembles in a container of samples
+#'
+#' @param bart_result External pointer to a bart result object
+#'
+#' @return Average maximum depth
+#' @export
+average_max_depth_bart_generalized <- function(bart_result) {
+    average_max_depth_bart_generalized_cpp(bart_result)
+}
+
+#' Return the average max depth of all trees and all ensembles in a container of samples
+#'
+#' @param bart_result External pointer to a bart result object
+#'
+#' @return Average maximum depth
+#' @export
+average_max_depth_bart_specialized <- function(bart_result) {
+    average_max_depth_bart_specialized_cpp(bart_result)
 }

@@ -299,7 +299,7 @@ class Tree {
   bool IsRoot(std::int32_t nid) const {
     return parent_[nid] == kInvalidNodeId;
   }
-
+  
   /*!
    * \brief Whether the node has been deleted
    * \param nid ID of node being queried
@@ -307,7 +307,7 @@ class Tree {
   bool IsDeleted(std::int32_t nid) const {
     return node_deleted_[nid];
   }
-
+  
   /*!
    * \brief Get leaf value of the leaf node
    * \param nid ID of node being queried
@@ -367,7 +367,7 @@ class Tree {
     }
     return max_depth;
   }
-
+  
   /*!
    * \brief get leaf vector of the leaf node; useful for multi-output trees
    * \param nid ID of node being queried

@@ -262,7 +262,7 @@ ForestSamples <- R6::R6Class(
             dim(output) <- c(n_trees, num_features, n_samples)
             return(output)
         }, 
-
+        
         #' @description
         #' Maximum depth of a specific tree in a specific ensemble in a `ForestContainer` object
         #' @param ensemble_num Ensemble number
@@ -271,7 +271,7 @@ ForestSamples <- R6::R6Class(
         ensemble_tree_max_depth = function(ensemble_num, tree_num) {
             return(ensemble_tree_max_depth_forest_container_cpp(self$forest_container_ptr, ensemble_num, tree_num))
         }, 
-
+        
         #' @description
         #' Average the maximum depth of each tree in a given ensemble in a `ForestContainer` object
         #' @param ensemble_num Ensemble number
@@ -279,7 +279,7 @@ ForestSamples <- R6::R6Class(
         average_ensemble_max_depth = function(ensemble_num) {
             return(ensemble_average_max_depth_forest_container_cpp(self$forest_container_ptr, ensemble_num))
         }, 
-
+        
         #' @description
         #' Average the maximum depth of each tree in each ensemble in a `ForestContainer` object
         #' @return Average maximum depth

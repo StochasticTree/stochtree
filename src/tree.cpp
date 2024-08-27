@@ -582,6 +582,7 @@ void JsonToTreeNodeVectors(const json& tree_json, Tree* tree) {
   tree->split_index_.clear();
   tree->leaf_value_.clear();
   tree->threshold_.clear();
+  tree->node_deleted_.clear();
   tree->node_type_.clear();
   tree->node_deleted_.clear();
   tree->leaf_vector_begin_.clear();
