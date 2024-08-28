@@ -33,7 +33,10 @@ class TestCalibration:
         reg_model = linear_model.LinearRegression()
         reg_model.fit(X, y)
         mse = mean_squared_error(y, reg_model.predict(X))
-        with pytest.warns(UserWarning):
+        if reg_model.rank_ < p:
+          with pytest.warns(UserWarning):
+            sigma2, lamb = calibrate_global_error_variance(X, y, None, nu, None, q, True)
+        else:
           sigma2, lamb = calibrate_global_error_variance(X, y, None, nu, None, q, True)
         assert sigma2 == pytest.approx(mse)
         assert lamb == pytest.approx((mse*gamma.ppf(1-q,nu))/nu)
