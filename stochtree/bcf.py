@@ -10,6 +10,7 @@ from typing import Optional, Union
 from scipy.linalg import lstsq
 from scipy.stats import gamma
 from .bart import BARTModel
+from .calibration import calibrate_global_error_variance
 from .data import Dataset, Residual
 from .forest import ForestContainer
 from .preprocessing import CovariateTransformer
@@ -510,14 +511,11 @@ class BCFModel:
         self.y_std = np.squeeze(np.std(y_train))
         resid_train = (y_train-self.y_bar)/self.y_std
 
-        # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau
-        if lamb is None:
-            reg_basis = np.c_[np.ones(self.n_train),X_train_processed]
-            reg_soln = lstsq(reg_basis, np.squeeze(resid_train))
-            sigma2hat = reg_soln[1] / self.n_train
-            quantile_cutoff = q
-            lamb = (sigma2hat*gamma.ppf(1-quantile_cutoff,nu))/nu
-        sigma2 = sigma2hat if sigma2 is None else sigma2
+        # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau (don't use regression initializer for warm-start or XBART)
+        if num_gfr > 0:
+            sigma2, lamb = calibrate_global_error_variance(X_train_processed, np.squeeze(resid_train), sigma2, nu, lamb, q, False)
+        else:
+            sigma2, lamb = calibrate_global_error_variance(X_train_processed, np.squeeze(resid_train), sigma2, nu, lamb, q, True)
         b_leaf_mu = np.squeeze(np.var(resid_train)) / num_trees_mu if b_leaf_mu is None else b_leaf_mu
         b_leaf_tau = np.squeeze(np.var(resid_train)) / (2*num_trees_tau) if b_leaf_tau is None else b_leaf_tau
         sigma_leaf_mu = np.squeeze(np.var(resid_train)) / num_trees_mu if sigma_leaf_mu is None else sigma_leaf_mu

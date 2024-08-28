@@ -175,8 +175,11 @@ class BARTModel:
         self.y_std = np.squeeze(np.std(y_train))
         resid_train = (y_train-self.y_bar)/self.y_std
 
-        # Calibrate priors for global sigma^2 and sigma_leaf
-        sigma2, lamb = calibrate_global_error_variance(X_train_processed, np.squeeze(resid_train), sigma2, nu, lamb, q, True)
+        # Calibrate priors for global sigma^2 and sigma_leaf (don't use regression initializer for warm-start or XBART)
+        if num_gfr > 0:
+            sigma2, lamb = calibrate_global_error_variance(X_train_processed, np.squeeze(resid_train), sigma2, nu, lamb, q, False)
+        else:
+            sigma2, lamb = calibrate_global_error_variance(X_train_processed, np.squeeze(resid_train), sigma2, nu, lamb, q, True)
         b_leaf = np.squeeze(np.var(resid_train)) / num_trees if b_leaf is None else b_leaf
         sigma_leaf = np.squeeze(np.var(resid_train)) / num_trees if sigma_leaf is None else sigma_leaf
         current_sigma2 = sigma2
