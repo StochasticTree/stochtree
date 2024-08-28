@@ -55,7 +55,6 @@ def calibrate_global_error_variance(X: np.array, y: np.array, sigma2: float = No
             # Fit a linear model of y ~ X 
             lm_calibrator = linear_model.LinearRegression()
             lm_calibrator.fit(X_processed, y_processed)
-            print(lm_calibrator.rank_)
             
             # Compute MSE
             y_hat_processed = lm_calibrator.predict(X_processed)
