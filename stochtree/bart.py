@@ -3,8 +3,10 @@ Bayesian Additive Regression Trees (BART) module
 """
 import numpy as np
 import pandas as pd
-from scipy.linalg import lstsq
+from sklearn import linear_model
+from sklearn.metrics import mean_squared_error
 from scipy.stats import gamma
+from .calibration import calibrate_global_error_variance
 from .data import Dataset, Residual
 from .forest import ForestContainer
 from .preprocessing import CovariateTransformer
@@ -173,14 +175,11 @@ class BARTModel:
         self.y_std = np.squeeze(np.std(y_train))
         resid_train = (y_train-self.y_bar)/self.y_std
 
-        # Calibrate priors for global sigma^2 and sigma_leaf
-        if lamb is None:
-            reg_basis = np.c_[np.ones(self.n_train),X_train_processed]
-            reg_soln = lstsq(reg_basis, np.squeeze(resid_train))
-            sigma2hat = reg_soln[1] / self.n_train
-            quantile_cutoff = q
-            lamb = (sigma2hat*gamma.ppf(1-quantile_cutoff,nu))/nu
-        sigma2 = sigma2hat if sigma2 is None else sigma2
+        # Calibrate priors for global sigma^2 and sigma_leaf (don't use regression initializer for warm-start or XBART)
+        if num_gfr > 0:
+            sigma2, lamb = calibrate_global_error_variance(X_train_processed, np.squeeze(resid_train), sigma2, nu, lamb, q, False)
+        else:
+            sigma2, lamb = calibrate_global_error_variance(X_train_processed, np.squeeze(resid_train), sigma2, nu, lamb, q, True)
         b_leaf = np.squeeze(np.var(resid_train)) / num_trees if b_leaf is None else b_leaf
         sigma_leaf = np.squeeze(np.var(resid_train)) / num_trees if sigma_leaf is None else sigma_leaf
         current_sigma2 = sigma2
