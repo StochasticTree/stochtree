@@ -55,6 +55,7 @@ def calibrate_global_error_variance(X: np.array, y: np.array, sigma2: float = No
             # Fit a linear model of y ~ X 
             lm_calibrator = linear_model.LinearRegression()
             lm_calibrator.fit(X_processed, y_processed)
+            print(lm_calibrator.rank_)
             
             # Compute MSE
             y_hat_processed = lm_calibrator.predict(X_processed)
@@ -65,12 +66,12 @@ def calibrate_global_error_variance(X: np.array, y: np.array, sigma2: float = No
             if _is_model_overdetermined(lm_calibrator, n, mse, eps):
                 sigma2 = var_y
                 warnings.warn("Default calibration method for global error variance failed; covariate dimension exceeds number of samples. "
-                              "Initializing global error variance based on the variance of the standardized outcome.")
+                              "Initializing global error variance based on the variance of the standardized outcome.", UserWarning)
             else:
               sigma2 = mse
               if _is_model_rank_deficient(lm_calibrator, p):
                   warnings.warn("Default calibration method for global error variance detected rank deficiency in covariate matrix. "
-                                "This should not impact the calibrated values, but may indicate the presence of duplicated covariates.")
+                                "This should not impact the calibrated values, but may indicate the presence of duplicated covariates.", UserWarning)
         else:
             sigma2 = var_y
     
