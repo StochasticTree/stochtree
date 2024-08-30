@@ -34,8 +34,9 @@ class BCFModel:
                cutpoint_grid_size = 100, sigma_leaf_mu: float = None, sigma_leaf_tau: float = None, 
                alpha_mu: float = 0.95, alpha_tau: float = 0.25, beta_mu: float = 2.0, beta_tau: float = 3.0, 
                min_samples_leaf_mu: int = 5, min_samples_leaf_tau: int = 5, max_depth_mu: int = 10, max_depth_tau: int = 5, 
-               nu: float = 3, lamb: float = None, a_leaf_mu: float = 3, a_leaf_tau: float = 3, b_leaf_mu: float = None, b_leaf_tau: float = None, 
-               q: float = 0.9, sigma2: float = None, variable_weights: np.array = None, 
+               a_global: float = 0, b_global: float = 0, a_leaf_mu: float = 3, a_leaf_tau: float = 3, 
+               b_leaf_mu: float = None, b_leaf_tau: float = None, q: float = 0.9, sigma2: float = None, 
+               pct_var_sigma2_init: float = 0.25, variable_weights: np.array = None, 
                keep_vars_mu: Union[list, np.array] = None, drop_vars_mu: Union[list, np.array] = None, 
                keep_vars_tau: Union[list, np.array] = None, drop_vars_tau: Union[list, np.array] = None, 
                num_trees_mu: int = 200, num_trees_tau: int = 50, num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, 
@@ -93,10 +94,10 @@ class BCFModel:
             Maximum depth of any tree in the mu ensemble. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
         max_depth_tau : :obj:`int`, optional
             Maximum depth of any tree in the tau ensemble. Defaults to ``5``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-        nu : :obj:`float`, optional
-            Shape parameter in the ``IG(nu, nu*lamb)`` global error variance model. Defaults to ``3``.
-        lamb : :obj:`float`, optional
-            Component of the scale parameter in the ``IG(nu, nu*lambda)`` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
+        a_global : :obj:`float`, optional
+            Shape parameter in the ``IG(a_global, b_global)`` global error variance model. Defaults to ``0``.
+        b_global : :obj:`float`, optional
+            Component of the scale parameter in the ``IG(a_global, b_global)`` global error variance prior. Defaults to ``0``.
         a_leaf_mu : :obj:`float`, optional
             Shape parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model for the prognostic forest. Defaults to ``3``.
         a_leaf_tau : :obj:`float`, optional
@@ -109,6 +110,8 @@ class BCFModel:
             Quantile used to calibrated ``lamb`` as in Sparapani et al (2021). Defaults to ``0.9``.
         sigma2 : :obj:`float`, optional
             Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
+        pct_var_sigma2_init : :obj:`float`, optional
+            Percentage of standardized outcome variance used to initialize global error variance parameter. Superseded by ``sigma2``. Defaults to ``0.25``.
         variable_weights : :obj:`np.array`, optional
             Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to ``np.repeat(1/X_train.shape[1], X_train.shape[1])`` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to ``1/X_train.shape[1]``. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in ``X_train`` and then set ``propensity_covariate`` to ``'none'`` and adjust ``keep_vars_mu`` and ``keep_vars_tau`` accordingly.
         keep_vars_mu : obj:`list` or :obj:`np.array`, optional
@@ -130,7 +133,7 @@ class BCFModel:
         num_mcmc : :obj:`int`, optional
             Number of "retained" iterations of the MCMC sampler. Defaults to ``100``. If this is set to 0, GFR (XBART) samples will be retained.
         sample_sigma_global : :obj:`bool`, optional
-            Whether or not to update the ``sigma^2`` global error variance parameter based on ``IG(nu, nu*lambda)``. Defaults to ``True``.
+            Whether or not to update the ``sigma^2`` global error variance parameter based on ``IG(a_global, b_global)``. Defaults to ``True``.
         sample_sigma_leaf_mu : :obj:`bool`, optional
             Whether or not to update the ``tau`` leaf scale variance parameter based on ``IG(a_leaf, b_leaf)`` for the prognostic forest. 
             Cannot (currently) be set to true if ``basis_train`` has more than one column. Defaults to ``True``.
@@ -294,24 +297,24 @@ class BCFModel:
         if beta_tau is not None:
             beta_tau = check_scalar(x=beta_tau, name="beta_tau", target_type=(float,int), 
                                     min_val=1, max_val=None, include_boundaries="left")
-        if nu is not None:
-            nu = check_scalar(x=nu, name="nu", target_type=(float,int), 
-                            min_val=0, max_val=None, include_boundaries="neither")
-        if lamb is not None:
-            lamb = check_scalar(x=lamb, name="lamb", target_type=(float,int), 
-                                min_val=0, max_val=None, include_boundaries="neither")
+        if a_global is not None:
+            a_global = check_scalar(x=a_global, name="a_global", target_type=(float,int), 
+                            min_val=0, max_val=None, include_boundaries="left")
+        if b_global is not None:
+            b_global = check_scalar(x=b_global, name="b_global", target_type=(float,int), 
+                                min_val=0, max_val=None, include_boundaries="left")
         if a_leaf_mu is not None:
             a_leaf_mu = check_scalar(x=a_leaf_mu, name="a_leaf_mu", target_type=(float,int), 
-                                    min_val=0, max_val=None, include_boundaries="neither")
+                                    min_val=0, max_val=None, include_boundaries="left")
         if a_leaf_tau is not None:
             a_leaf_tau = check_scalar(x=a_leaf_tau, name="a_leaf_tau", target_type=(float,int), 
-                                    min_val=0, max_val=None, include_boundaries="neither")
+                                    min_val=0, max_val=None, include_boundaries="left")
         if b_leaf_mu is not None:
             b_leaf_mu = check_scalar(x=b_leaf_mu, name="b_leaf_mu", target_type=(float,int), 
-                                    min_val=0, max_val=None, include_boundaries="neither")
+                                    min_val=0, max_val=None, include_boundaries="left")
         if b_leaf_tau is not None:
             b_leaf_tau = check_scalar(x=b_leaf_tau, name="b_leaf_tau", target_type=(float,int), 
-                                    min_val=0, max_val=None, include_boundaries="neither")
+                                    min_val=0, max_val=None, include_boundaries="left")
         if q is not None:
             q = check_scalar(x=q, name="q", target_type=float, 
                             min_val=0, max_val=1, include_boundaries="neither")
@@ -512,10 +515,8 @@ class BCFModel:
         resid_train = (y_train-self.y_bar)/self.y_std
 
         # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau (don't use regression initializer for warm-start or XBART)
-        if num_gfr > 0:
-            sigma2, lamb = calibrate_global_error_variance(X_train_processed, np.squeeze(resid_train), sigma2, nu, lamb, q, False)
-        else:
-            sigma2, lamb = calibrate_global_error_variance(X_train_processed, np.squeeze(resid_train), sigma2, nu, lamb, q, True)
+        if not sigma2:
+            sigma2 = pct_var_sigma2_init*np.var(resid_train)
         b_leaf_mu = np.squeeze(np.var(resid_train)) / num_trees_mu if b_leaf_mu is None else b_leaf_mu
         b_leaf_tau = np.squeeze(np.var(resid_train)) / (2*num_trees_tau) if b_leaf_tau is None else b_leaf_tau
         sigma_leaf_mu = np.squeeze(np.var(resid_train)) / num_trees_mu if sigma_leaf_mu is None else sigma_leaf_mu
@@ -657,7 +658,7 @@ class BCFModel:
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, nu, lamb)
+                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
                     self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
                 if self.sample_sigma_leaf_mu:
                     self.leaf_scale_mu_samples[i] = leaf_var_model_mu.sample_one_iteration(self.forest_container_mu, cpp_rng, a_leaf_mu, b_leaf_mu, i)
@@ -671,7 +672,7 @@ class BCFModel:
                 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, nu, lamb)
+                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
                     self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
                 if self.sample_sigma_leaf_tau:
                     self.leaf_scale_tau_samples[i] = leaf_var_model_tau.sample_one_iteration(self.forest_container_tau, cpp_rng, a_leaf_tau, b_leaf_tau, i)
@@ -716,7 +717,7 @@ class BCFModel:
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, nu, lamb)
+                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
                     self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
                 if self.sample_sigma_leaf_mu:
                     self.leaf_scale_mu_samples[i] = leaf_var_model_mu.sample_one_iteration(self.forest_container_mu, cpp_rng, a_leaf_mu, b_leaf_mu, i)
@@ -730,7 +731,7 @@ class BCFModel:
                 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, nu, lamb)
+                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
                     self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
                 if self.sample_sigma_leaf_tau:
                     self.leaf_scale_tau_samples[i] = leaf_var_model_tau.sample_one_iteration(self.forest_container_tau, cpp_rng, a_leaf_tau, b_leaf_tau, i)

@@ -418,8 +418,8 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
   double b_rfx = 1.;
   double a_leaf = 2.;
   double b_leaf = 0.5;
-  double nu = 4.;
-  double lamb = 0.5;
+  double a_global = 4.;
+  double b_global = 2.;
 
   // Set leaf model parameters
   double leaf_scale_init = 1.;
@@ -473,7 +473,7 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
       leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, gen));
 
       // Sample global variance
-      global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu * lamb, gen));
+      global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), a_global, b_global, gen));
     }
   }
 
@@ -503,7 +503,7 @@ void RunDebug(int dgp_num = 0, bool rfx_included = false, int num_gfr = 10, int 
       leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, gen));
 
       // Sample global variance
-      global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), nu, nu * lamb, gen));
+      global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), a_global, b_global, gen));
     }
   }
 
