@@ -21,12 +21,13 @@ bart(
   min_samples_leaf = 5,
   max_depth = 10,
   leaf_model = 0,
-  nu = 3,
-  lambda = NULL,
+  a_global = 0,
+  b_global = 0,
   a_leaf = 3,
   b_leaf = NULL,
   q = 0.9,
   sigma2_init = NULL,
+  pct_var_sigma2_init = 0.25,
   variable_weights = NULL,
   num_trees = 200,
   num_gfr = 5,
@@ -88,9 +89,9 @@ that were not in the training set.}
 
 \item{leaf_model}{Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.}
 
-\item{nu}{Shape parameter in the \code{IG(nu, nu*lambda)} global error variance model. Default: 3.}
+\item{a_global}{Shape parameter in the \code{IG(a_global, b_global)} global error variance model. Default: 0.}
 
-\item{lambda}{Component of the scale parameter in the \code{IG(nu, nu*lambda)} global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).}
+\item{b_global}{Scale parameter in the \code{IG(a_global, b_global)} global error variance model. Default: 0.}
 
 \item{a_leaf}{Shape parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model. Default: 3.}
 
@@ -98,7 +99,9 @@ that were not in the training set.}
 
 \item{q}{Quantile used to calibrated \code{lambda} as in Sparapani et al (2021). Default: 0.9.}
 
-\item{sigma2_init}{Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.}
+\item{sigma2_init}{Starting value of global error variance parameter. Calibrated internally as \code{pct_var_sigma2_init*var((y-mean(y))/sd(y))} if not set.}
+
+\item{pct_var_sigma2_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by \code{sigma2_init}.}
 
 \item{variable_weights}{Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.}
 

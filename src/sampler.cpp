@@ -141,11 +141,11 @@ void sample_mcmc_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestData
 [[cpp11::register]]
 double sample_sigma2_one_iteration_cpp(cpp11::external_pointer<StochTree::ColumnVector> residual, 
                                        cpp11::external_pointer<std::mt19937> rng, 
-                                       double nu, double lambda
+                                       double a, double b
 ) {
     // Run one iteration of the sampler
     StochTree::GlobalHomoskedasticVarianceModel var_model = StochTree::GlobalHomoskedasticVarianceModel();
-    return var_model.SampleVarianceParameter(residual->GetData(), nu, lambda, *rng);
+    return var_model.SampleVarianceParameter(residual->GetData(), a, b, *rng);
 }
 
 [[cpp11::register]]
