@@ -36,7 +36,8 @@
 #' @param a_leaf Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: 3.
 #' @param b_leaf Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
 #' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
-#' @param sigma2_init Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
+#' @param sigma2_init Starting value of global error variance parameter. Calibrated internally as `pct_var_sigma2_init*var((y-mean(y))/sd(y))` if not set.
+#' @param pct_var_sigma2_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by `sigma2_init`.
 #' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
 #' @param num_trees Number of trees in the ensemble. Default: 200.
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
@@ -81,12 +82,12 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                  group_ids_test = NULL, rfx_basis_test = NULL, 
                  cutpoint_grid_size = 100, tau_init = NULL, alpha = 0.95, 
                  beta = 2.0, min_samples_leaf = 5, max_depth = 10, leaf_model = 0, 
-                 nu = 3, lambda = NULL, a_leaf = 3, b_leaf = NULL, 
-                 q = 0.9, sigma2_init = NULL, variable_weights = NULL, 
-                 num_trees = 200, num_gfr = 5, num_burnin = 0, 
-                 num_mcmc = 100, sample_sigma = T, sample_tau = T, 
-                 random_seed = -1, keep_burnin = F, keep_gfr = F, 
-                 verbose = F){
+                 a_global = 0, b_global = 0, a_leaf = 3, b_leaf = NULL, 
+                 q = 0.9, sigma2_init = NULL, pct_var_sigma2_init = 0.25,
+                 variable_weights = NULL, num_trees = 200, num_gfr = 5, 
+                 num_burnin = 0, num_mcmc = 100, sample_sigma = T, 
+                 sample_tau = T, random_seed = -1, keep_burnin = F, 
+                 keep_gfr = F, verbose = F) {
     # Variable weight preprocessing (and initialization if necessary)
     if (is.null(variable_weights)) {
         variable_weights = rep(1/ncol(X_train), ncol(X_train))
@@ -216,13 +217,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     resid_train <- (y_train-y_bar_train)/y_std_train
 
     # Calibrate priors for sigma^2 and tau
-    reg_basis <- cbind(W_train, X_train)
-    sigma2hat <- (sigma(lm(resid_train~reg_basis)))^2
-    quantile_cutoff <- 0.9
-    if (is.null(lambda)) {
-        lambda <- (sigma2hat*qgamma(1-quantile_cutoff,nu))/nu
-    }
-    if (is.null(sigma2_init)) sigma2_init <- sigma2hat
+    if (is.null(sigma2_init)) sigma2_init <- pct_var_sigma2_init*var(resid_train)
     if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees)
     if (is.null(tau_init)) tau_init <- var(resid_train)/(num_trees)
     current_leaf_scale <- as.matrix(tau_init)
@@ -331,7 +326,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = F
             )
             if (sample_sigma) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, nu, lambda)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_tau) {
@@ -373,7 +368,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = F
             )
             if (sample_sigma) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, nu, lambda)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_tau) {
