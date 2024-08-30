@@ -26,7 +26,7 @@ class GlobalHomoskedasticVarianceModel {
   ~GlobalHomoskedasticVarianceModel() {}
   double PosteriorShape(Eigen::VectorXd& residuals, double a, double b) {
     data_size_t n = residuals.rows();
-    return (a/2.0) + n;
+    return (a/2.0) + (n/2.0);
   }
   double PosteriorScale(Eigen::VectorXd& residuals, double a, double b) {
     data_size_t n = residuals.rows();
@@ -34,7 +34,7 @@ class GlobalHomoskedasticVarianceModel {
     for (data_size_t i = 0; i < n; i++) {
       sum_sq_resid += std::pow(residuals(i, 0), 2);
     }
-    return (b/2.0) + sum_sq_resid;
+    return (b/2.0) + (sum_sq_resid/2.0);
   }
   double SampleVarianceParameter(Eigen::VectorXd& residuals, double a, double b, std::mt19937& gen) {
     double ig_shape = PosteriorShape(residuals, a, b);
@@ -52,11 +52,11 @@ class LeafNodeHomoskedasticVarianceModel {
   ~LeafNodeHomoskedasticVarianceModel() {}
   double PosteriorShape(TreeEnsemble* ensemble, double a, double b) {
     data_size_t num_leaves = ensemble->NumLeaves();
-    return (a/2.0) + num_leaves;
+    return (a/2.0) + (num_leaves/2.0);
   }
   double PosteriorScale(TreeEnsemble* ensemble, double a, double b) {
     double mu_sq = ensemble->SumLeafSquared();
-    return (b/2.0) + mu_sq;
+    return (b/2.0) + (mu_sq/2.0);
   }
   double SampleVarianceParameter(TreeEnsemble* ensemble, double a, double b, std::mt19937& gen) {
     double ig_shape = PosteriorShape(ensemble, a, b);

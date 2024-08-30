@@ -31,8 +31,8 @@
 #' @param leaf_model Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.
 #' @param min_samples_leaf Minimum allowable size of a leaf, in terms of training samples. Default: 5.
 #' @param max_depth Maximum depth of any tree in the ensemble. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-#' @param nu Shape parameter in the `IG(nu, nu*lambda)` global error variance model. Default: 3.
-#' @param lambda Component of the scale parameter in the `IG(nu, nu*lambda)` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
+#' @param a_global Shape parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
+#' @param b_global Scale parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
 #' @param a_leaf Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: 3.
 #' @param b_leaf Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
 #' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
@@ -43,7 +43,7 @@
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
-#' @param sample_sigma Whether or not to update the `sigma^2` global error variance parameter based on `IG(nu, nu*lambda)`. Default: T.
+#' @param sample_sigma Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_globa, b_global)`. Default: T.
 #' @param sample_tau Whether or not to update the `tau` leaf scale variance parameter based on `IG(a_leaf, b_leaf)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: T.
 #' @param random_seed Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
 #' @param keep_burnin Whether or not "burnin" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.
@@ -437,11 +437,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     # Return results as a list
     model_params <- list(
         "sigma2_init" = sigma2_init, 
-        "nu" = nu,
-        "lambda" = lambda, 
+        "a_global" = a_global,
+        "b_global" = b_global, 
         "tau_init" = tau_init,
-        "a" = a_leaf, 
-        "b" = b_leaf,
+        "a_leaf" = a_leaf, 
+        "b_leaf" = b_leaf,
         "outcome_mean" = y_bar_train,
         "outcome_scale" = y_std_train, 
         "output_dimension" = output_dimension,
