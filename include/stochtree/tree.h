@@ -55,7 +55,7 @@ enum FeatureSplitType {
 /*! \brief Forward declaration of TreeSplit class */
 class TreeSplit;
 
-/*! \brief in-memory representation of a decision tree */
+/*! \brief API for constructing decision trees (splitting, pruning, setting parameter values) */
 class Tree {
  public:
   static constexpr std::int32_t kInvalidNodeId{-1};
@@ -433,11 +433,9 @@ class Tree {
   }
 
   /*!
-   * \brief Get list of all categories belonging to the left/right child node.
-   * See the category_list_right_child_ field of each test node to determine whether this list
-   * represents the right child node or the left child node. Categories are integers ranging from 0
-   * to (n-1), where n is the number of categories in that particular feature. This list is assumed
-   * to be in ascending order.
+   * \brief Get list of all categories belonging to the left child node.
+   * Categories are integers ranging from 0 to (n-1), where n is the number of categories in that particular feature. 
+   * This list is assumed to be in ascending order.
    *
    * \param nid ID of node being queried
    */
@@ -792,10 +790,12 @@ inline int NextNodeCategorical(double fvalue, std::vector<std::uint32_t> const& 
   return SplitTrueCategorical(fvalue, category_list) ? left_child : right_child;
 }
 
-/*! \brief Determine the node at which a tree places a given observation
- *  \param tree Tree object used for prediction
- *  \param data Dataset used for prediction
- *  \param row Row indexing the prediction observation
+/*! 
+ * Determine the node at which a tree places a given observation
+ * 
+ * \param tree Tree object used for prediction
+ * \param data Dataset used for prediction
+ * \param row Row indexing the prediction observation
  */
 inline int EvaluateTree(Tree const& tree, Eigen::MatrixXd& data, int row) {
   int node_id = 0;
@@ -816,10 +816,12 @@ inline int EvaluateTree(Tree const& tree, Eigen::MatrixXd& data, int row) {
   return node_id;
 }
 
-/*! \brief Determine the node at which a tree places a given observation
- *  \param tree Tree object used for prediction
- *  \param data Dataset used for prediction
- *  \param row Row indexing the prediction observation
+/*! 
+ * Determine the node at which a tree places a given observation
+ * 
+ * \param tree Tree object used for prediction
+ * \param data Dataset used for prediction
+ * \param row Row indexing the prediction observation
  */
 inline int EvaluateTree(Tree const& tree, Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& data, int row) {
   int node_id = 0;
@@ -862,14 +864,25 @@ inline bool RowSplitLeft(Eigen::MatrixXd& covariates, int row, int split_index, 
   return SplitTrueCategorical(fvalue, category_list);
 }
 
+/*! \brief Representation of arbitrary tree split rules, including numeric split rules (`X[,i] <= c`) and categorical split rules (`X[,i] in {2,4,6,7}`) */
 class TreeSplit {
  public:
   TreeSplit() {}
+  /*!
+   * \brief Construct a numeric TreeSplit
+   * 
+   * \param split_value Numeric cutoff defining a new split rule
+   */
   TreeSplit(double split_value) {
     numeric_ = true;
     split_value_ = split_value;
     split_set_ = true;
   }
+  /*!
+   * \brief Construct a categorical TreeSplit
+   * 
+   * \param split_categories Vector of category indices defining a new (unordered) categorical split rule
+   */
   TreeSplit(std::vector<std::uint32_t>& split_categories) {
     numeric_ = false;
     split_categories_ = split_categories;
@@ -877,12 +890,20 @@ class TreeSplit {
   }
   ~TreeSplit() {}
   bool SplitSet() {return split_set_;}
+  /*! \brief Whether or not a `TreeSplit` rule is numeric */
   bool NumericSplit() {return numeric_;}
+  /*!
+   * \brief Whether a given covariate value is `True` or `False` on the rule defined by a `TreeSplit` object
+   * 
+   * \param fvalue Value of the covariate
+   */
   bool SplitTrue(double fvalue) {
     if (numeric_) return SplitTrueNumeric(fvalue, split_value_);
     else return SplitTrueCategorical(fvalue, split_categories_);
   }
+  /*! \brief Numeric cutoff value defining a `TreeSplit` object */
   double SplitValue() {return split_value_;}
+  /*! \brief Categories defining a `TreeSplit` object */
   std::vector<std::uint32_t> SplitCategories() {return split_categories_;}
  private:
   bool split_set_{false};

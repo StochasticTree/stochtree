@@ -1,8 +1,8 @@
-StochTree
-=========
+StochTree C++ API and Implementations
+=====================================
 
 ``stochtree`` runs stochastic machine learning algorithms for supervised learning and causal inference.
 
-.. doxygenclass:: StochTree::Tree
-   :project: StochTree
-   :members:
+.. toctree::
+   dataset
+   tree
