@@ -4,7 +4,7 @@ Decision Tree API
 Tree
 ----
 
-The fundamental building block of the C++ tree data structures is the ``Tree`` class. 
+The fundamental building block of the C++ tree interface is the ``Tree`` class. 
 
 .. doxygenclass:: StochTree::Tree
    :project: StochTree
@@ -13,7 +13,7 @@ The fundamental building block of the C++ tree data structures is the ``Tree`` c
 Tree Split
 ----------
 
-Numeric and categorical splits are represented by a `TreeSplit` class.
+Numeric and categorical splits are represented by a ``TreeSplit`` class.
 
 .. doxygenclass:: StochTree::TreeSplit
    :project: StochTree

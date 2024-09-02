@@ -41,12 +41,10 @@ class ColumnVector {
   Eigen::VectorXd data_;
 };
 
-/*! \brief API for loading and accessing data */
+/*! \brief API for loading and accessing data used to sample tree ensembles */
 class ForestDataset {
  public:
-  /*!
-   * \brief Default constructor. No data is loaded at construction time.
-   */
+  /*! \brief Default constructor. No data is loaded at construction time. */
   ForestDataset() {}
   ~ForestDataset() {}
   /*!
@@ -121,19 +119,19 @@ class ForestDataset {
   /*!
    * \brief Return a reference to the raw `Eigen::MatrixXd` storing the covariate data
    * 
-   * \return Eigen::MatrixXd& by reference
+   * \return Reference to internal Eigen::MatrixXd
    */
   inline Eigen::MatrixXd& GetCovariates() {return covariates_.GetData();}
   /*!
    * \brief Return a reference to the raw `Eigen::MatrixXd` storing the basis data
    * 
-   * \return Eigen::MatrixXd& by reference
+   * \return Reference to internal Eigen::MatrixXd
    */
   inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
   /*!
    * \brief Return a reference to the raw `Eigen::VectorXd` storing the variance weights
    * 
-   * \return Eigen::VectorXd& by reference
+   * \return Reference to internal Eigen::VectorXd
    */
   inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
   /*!
@@ -174,31 +172,88 @@ class ForestDataset {
   bool has_var_weights_{false};
 };
 
+/*! \brief API for loading and accessing data used to sample (additive) random effects */
 class RandomEffectsDataset {
  public:
+  /*! \brief Default constructor. No data is loaded at construction time. */
   RandomEffectsDataset() {}
   ~RandomEffectsDataset() {}
-  void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+  /*!
+   * \brief Copy / load basis matrix from raw memory buffer (often pointer to data in a R matrix or numpy array)
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a basis matrix
+   * \param num_row Number of rows in the basis matrix
+   * \param num_col Number of columns in the basis matrix
+   * \param is_row_major Whether or not the data in `data_ptr` are organized in a row-major or column-major fashion
+   */
+   void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
     basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
     has_basis_ = true;
   }
+  /*!
+   * \brief Copy / load variance weights from raw memory buffer (often pointer to data in a R vector or numpy array)
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing weights
+   * \param num_row Number of rows in the weight vector
+   */  
   void AddVarianceWeights(double* data_ptr, data_size_t num_row) {
     var_weights_ = ColumnVector(data_ptr, num_row);
     has_var_weights_ = true;
   }
+  /*!
+   * \brief Copy / load group indices for random effects
+   * 
+   * \param group_labels Vector of integers with as many elements as `num_row` in the basis matrix, 
+   * where each element corresponds to the group label for a given observation.
+   */
   void AddGroupLabels(std::vector<int32_t>& group_labels) {
     group_labels_ = group_labels;
     has_group_labels_ = true;
   }
+  /*! \brief Number of observations (rows) in the dataset */
   inline data_size_t NumObservations() {return basis_.NumRows();}
+  /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded basis data */
   inline bool HasBasis() {return has_basis_;}
+  /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded variance weights */
   inline bool HasVarWeights() {return has_var_weights_;}
+  /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded group labels */
   inline bool HasGroupLabels() {return has_group_labels_;}
+  /*!
+   * \brief Returns a dataset's basis value stored at (`row`, `col`)
+   * 
+   * \param row Row number to query in the basis matrix
+   * \param col Column number to query in the basis matrix
+   */
   inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
+  /*!
+   * \brief Returns a dataset's variance weight stored at element `row`
+   * 
+   * \param row Index to query in the weight vector
+   */
   inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
+  /*!
+   * \brief Returns a dataset's group label stored at element `row`
+   * 
+   * \param row Index to query in the group label vector
+   */
   inline int32_t GroupId(data_size_t row) {return group_labels_[row];}
+  /*!
+   * \brief Return a reference to the raw `Eigen::MatrixXd` storing the basis data
+   * 
+   * \return Reference to internal Eigen::MatrixXd
+   */
   inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
+  /*!
+   * \brief Return a reference to the raw `Eigen::VectorXd` storing the variance weights
+   * 
+   * \return Reference to internal Eigen::VectorXd
+   */
   inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
+  /*!
+   * \brief Return a reference to the raw `std::vector` storing the group labels
+   * 
+   * \return Reference to internal std::vector
+   */
   inline std::vector<int32_t>& GetGroupLabels() {return group_labels_;}
  private:
   ColumnMatrix basis_;

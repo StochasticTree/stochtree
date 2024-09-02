@@ -68,12 +68,15 @@ class Tree {
   Tree& operator=(Tree const&) = delete;
   Tree(Tree&&) noexcept = default;
   Tree& operator=(Tree&&) noexcept = default;
-
+  /*!
+   * \brief Copy the structure and parameters of another tree. If the `Tree` object calling this method already 
+   * has a non-root tree structure / parameters, this will be erased and replaced with a copy of `tree`.
+   * 
+   * \param tree Tree to be cloned
+   */
   void CloneFromTree(Tree* tree);
 
-  /*! \brief Number of nodes */
   std::int32_t num_nodes{0};
-  /*! \brief Number of deleted nodes */
   std::int32_t num_deleted_nodes{0};
 
   /*! \brief Reset tree to empty vectors and default values of boolean / integer variables */
@@ -100,16 +103,15 @@ class Tree {
   /*! \brief Whether or not a tree is a "stump" consisting of a single root node */
   inline bool IsRoot() {return leaves_.size() == 1;}
   
-  /*! \brief Save to JSON */
+  /*! \brief Convert tree to JSON and return JSON in-memory */
   json to_json();
-  /*! \brief Load from JSON */
+  /*! 
+   * \brief Load from JSON 
+   * 
+   * \param tree_json In-memory json object (of type `nlohmann::json`)
+   */
   void from_json(const json& tree_json);
 
-  /*!
-   * \brief change a non leaf node to a leaf node, delete its children
-   * \param nid node id of the node
-   * \param value new leaf value
-   */
   void ChangeToLeaf(std::int32_t nid, double value) {
     CHECK(this->IsLeaf(this->LeftChild(nid)));
     CHECK(this->IsLeaf(this->RightChild(nid)));
@@ -133,9 +135,9 @@ class Tree {
   }
 
   /*!
-   * \brief collapse a non leaf node to a leaf node, delete its children
-   * \param nid node id of the node
-   * \param value new leaf value
+   * \brief Collapse an internal node to a leaf node, deleting its children from the tree
+   * \param nid Node id of the new leaf node
+   * \param value_vector New leaf value
    */
   void CollapseToLeaf(std::int32_t nid, double value) {
     CHECK_EQ(output_dimension_, 1);
@@ -149,11 +151,6 @@ class Tree {
     this->ChangeToLeaf(nid, value);
   }
 
-  /*!
-   * \brief change a non leaf node to a leaf node, delete its children
-   * \param nid node id of the node
-   * \param value_vector new leaf vector value
-   */
   void ChangeToLeaf(std::int32_t nid, std::vector<double> value_vector) {
     CHECK(this->IsLeaf(this->LeftChild(nid)));
     CHECK(this->IsLeaf(this->RightChild(nid)));
@@ -177,9 +174,9 @@ class Tree {
   }
   
   /*!
-   * \brief collapse a non leaf node to a leaf node, delete its children
-   * \param nid node id of the node
-   * \param value_vector new leaf vector value
+   * \brief Collapse an internal node to a leaf node, deleting its children from the tree
+   * \param nid Node id of the new leaf node
+   * \param value_vector New leaf vector value
    */
   void CollapseToLeaf(std::int32_t nid, std::vector<double> value_vector) {
     CHECK_GT(output_dimension_, 1);
@@ -196,8 +193,9 @@ class Tree {
 
   /*!
    * \brief Iterate through all nodes in this tree.
-   * \param Function that accepts a node index, and returns false when iteration should
-   *        stop, otherwise returns true.
+   * 
+   * \tparam Func Function object type, must map `std::int32_t` to `bool`.
+   * \param func Function that accepts a node index and returns `False` when iteration through a given branch of the tree should stop and `True` otherwise.
    */
   template <typename Func> void WalkTree(Func func) const {
     std::stack<std::int32_t> nodes;
@@ -220,9 +218,6 @@ class Tree {
     }
   }
 
-  /*! \brief Predict a tree based on node membership indices
-   * TODO: generalize to vector leaves
-   */
   void InplacePredictFromNodes(std::vector<double> result, std::vector<std::int32_t> node_indices);
   std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices);
   std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices, Eigen::MatrixXd& basis);
@@ -269,7 +264,7 @@ class Tree {
   }
   
   /*!
-   * \brief Index of the node's "default" child, used when feature is missing
+   * \brief Index of the node's "default" child (potentially used in the case of a missing feature at prediction time)
    * \param nid ID of node being queried
    */
   std::int32_t DefaultChild(std::int32_t nid) const {
@@ -277,7 +272,7 @@ class Tree {
   }
   
   /*!
-   * \brief Feature index of the node's split condition
+   * \brief Feature index defining the node's split rule
    * \param nid ID of node being queried
    */
   std::int32_t SplitIndex(std::int32_t nid) const {
@@ -285,7 +280,7 @@ class Tree {
   }
   
   /*!
-   * \brief Whether the node is leaf node
+   * \brief Whether the node is a leaf node
    * \param nid ID of node being queried
    */
   bool IsLeaf(std::int32_t nid) const {
@@ -309,7 +304,7 @@ class Tree {
   }
 
   /*!
-   * \brief Get leaf value of the leaf node
+   * \brief Get parameter value of a node (typically though not necessarily a leaf node)
    * \param nid ID of node being queried
    */
   double LeafValue(std::int32_t nid) const {
@@ -317,7 +312,7 @@ class Tree {
   }
   
   /*!
-   * \brief Get value of the leaf node at a given output dimension
+   * \brief Get parameter value of a node (typically though not necessarily a leaf node) at a given output dimension
    * \param nid ID of node being queried
    * \param dim_id Output dimension being queried
    */
@@ -369,7 +364,7 @@ class Tree {
   }
 
   /*!
-   * \brief get leaf vector of the leaf node; useful for multi-output trees
+   * \brief Get vector-valued parameters of a node (typically leaf)
    * \param nid ID of node being queried
    */
   std::vector<double> LeafVector(std::int32_t nid) const {
@@ -385,7 +380,7 @@ class Tree {
   }
 
   /*!
-   * \brief sum of squared values for a given node
+   * \brief Sum of squared parameter values for a given node (typically though not necessarily a leaf node)
    * \param nid ID of node being queried
    */
   double SumSquaredNodeValues(std::int32_t nid) const {
@@ -406,7 +401,7 @@ class Tree {
   }
 
   /*!
-   * \brief sum of squared values for all leaves in a tree
+   * \brief Sum of squared values for all leaves in a tree
    */
   double SumSquaredLeafValues() const {
     double result = 0.;
@@ -425,7 +420,7 @@ class Tree {
   }
 
   /*!
-   * \brief Get threshold of the node
+   * \brief Get split threshold of the node
    * \param nid ID of node being queried
    */
   double Threshold(std::int32_t nid) const {
@@ -453,7 +448,7 @@ class Tree {
   }
 
   /*!
-   * \brief Get the type of a node
+   * \brief Get the type of a node (i.e. numeric split, categorical split, leaf)
    * \param nid ID of node being queried
    */
   TreeNodeType NodeType(std::int32_t nid) const {
@@ -513,7 +508,7 @@ class Tree {
   }
 
   /*!
-   * \brief get current depth
+   * \brief Get the depth of a node
    * \param nid node id
    */
   [[nodiscard]] std::int32_t GetDepth(std::int32_t nid) const {
@@ -628,58 +623,67 @@ class Tree {
 
   /*!
    * \brief Obtain a 0-based leaf index for each observation in a ForestDataset.
-   *        Internally, trees are stored as essentially vectors of node information, 
-   *        and the leaves_ vector gives us node IDs for every leaf in the tree.
+   *        Internally, trees are stored as vectors of node information, 
+   *        and the `leaves_` vector gives us node IDs for every leaf in the tree.
    *        Here, we would like to know, for every observation in a dataset, 
    *        which leaf number it is mapped to. Since the leaf numbers themselves 
-   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
+   *        do not carry any information, we renumber them from `0` to `leaves_.size()-1`. 
    *
    *        Note: this is a tree-level helper function for an ensemble-level function. 
    *        It assumes the creation of: 
-   *           (a) a vector of column indices of size `dataset.NumObservations()` x `ensemble.NumTrees()`, and
-   *           (b) a running counter of the number of tree-observations already indexed in the ensemble  
-   *               (used as offsets for the leaf number computed and returned here)
+   *        -# a vector of column indices of size `dataset.NumObservations()` x `ensemble.NumTrees()`, stored in "tree-major" order
+   *        -# a running counter of the number of tree-observations already indexed in the ensemble  
+   *           (used as offsets for the leaf number computed and returned here)
    *        Users running this function for a single tree may simply pre-allocate an output vector as 
-   *        std::vector<int32_t> output(dataset->NumObservations()) and set the offset to 0.
+   *        `std::vector<int32_t> output(dataset->NumObservations())` and set the offset to 0.
    * \param dataset Dataset with which to predict leaf indices from the tree
+   * \param output Pre-allocated output vector storing a matrix of column indices, with "rows" corresponding to observations in `dataset` and "columns" corresponding to trees in an ensemble
+   * \param offset Bookkeeping index that determines where in `output` vector that column indices should be unpacked
+   * \param max_leaf Largest leaf value mapped so far. (Leaf indices serve as sparse column indices, so it is important that leaf values be unique to each tree.)
    */
   void PredictLeafIndexInplace(ForestDataset* dataset, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf);
 
   /*!
    * \brief Obtain a 0-based leaf index for each observation in a ForestDataset.
-   *        Internally, trees are stored as essentially vectors of node information, 
-   *        and the leaves_ vector gives us node IDs for every leaf in the tree.
+   *        Internally, trees are stored as vectors of node information, 
+   *        and the `leaves_` vector gives us node IDs for every leaf in the tree.
    *        Here, we would like to know, for every observation in a dataset, 
    *        which leaf number it is mapped to. Since the leaf numbers themselves 
-   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
+   *        do not carry any information, we renumber them from `0` to `leaves_.size()-1`. 
    *
    *        Note: this is a tree-level helper function for an ensemble-level function. 
    *        It assumes the creation of: 
-   *           (a) a vector of column indices of size `dataset.NumObservations()` x `ensemble.NumTrees()`, and
-   *           (b) a running counter of the number of tree-observations already indexed in the ensemble  
-   *               (used as offsets for the leaf number computed and returned here)
+   *        -# a vector of column indices of size `dataset.NumObservations()` x `ensemble.NumTrees()`, stored in "tree-major" order
+   *        -# a running counter of the number of tree-observations already indexed in the ensemble  
+   *           (used as offsets for the leaf number computed and returned here)
    *        Users running this function for a single tree may simply pre-allocate an output vector as 
-   *        std::vector<int32_t> output(dataset->NumObservations()) and set the offset to 0.
+   *        `std::vector<int32_t> output(dataset->NumObservations())` and set the offset to 0.
    * \param covariates Eigen matrix with which to predict leaf indices
+   * \param output Pre-allocated output vector storing a matrix of column indices, with "rows" corresponding to observations in `covariates` and "columns" corresponding to trees in an ensemble
+   * \param offset Bookkeeping index that determines where in `output` vector that column indices should be unpacked
+   * \param max_leaf Largest leaf value mapped so far. (Leaf indices serve as sparse column indices, so it is important that leaf values be unique to each tree.)
    */
   void PredictLeafIndexInplace(Eigen::MatrixXd& covariates, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf);
 
   /*!
    * \brief Obtain a 0-based leaf index for each observation in a ForestDataset.
-   *        Internally, trees are stored as essentially vectors of node information, 
-   *        and the leaves_ vector gives us node IDs for every leaf in the tree.
+   *        Internally, trees are stored as vectors of node information, 
+   *        and the `leaves_` vector gives us node IDs for every leaf in the tree.
    *        Here, we would like to know, for every observation in a dataset, 
    *        which leaf number it is mapped to. Since the leaf numbers themselves 
-   *        do not carry any information, we renumber them from 0 to `leaves_.size()-1`. 
+   *        do not carry any information, we renumber them from `0` to `leaves_.size()-1`. 
    *
    *        Note: this is a tree-level helper function for an ensemble-level function. 
    *        It assumes the creation of: 
-   *           (a) a vector of column indices of size `dataset.NumObservations()` x `ensemble.NumTrees()`, and
-   *           (b) a running counter of the number of tree-observations already indexed in the ensemble  
-   *               (used as offsets for the leaf number computed and returned here)
+   *        -# a vector of column indices of size `dataset.NumObservations()` x `ensemble.NumTrees()`, stored in "tree-major" order
+   *        -# a running counter of the number of tree-observations already indexed in the ensemble  
+   *           (used as offsets for the leaf number computed and returned here)
    *        Users running this function for a single tree may simply pre-allocate an output vector as 
-   *        std::vector<int32_t> output(dataset->NumObservations()) and set the offset to 0.
+   *        `std::vector<int32_t> output(dataset->NumObservations())` and set the offset to 0.
    * \param covariates Eigen matrix with which to predict leaf indices
+   * \param output Pre-allocated output vector storing a matrix of column indices, with "rows" corresponding to observations in `covariates` and "columns" corresponding to trees in an ensemble
+   * \param offset Bookkeeping index that determines where in `output` vector that column indices should be unpacked
+   * \param max_leaf Largest leaf value mapped so far. (Leaf indices serve as sparse column indices, so it is important that leaf values be unique to each tree.)
    */
   void PredictLeafIndexInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf);
 
