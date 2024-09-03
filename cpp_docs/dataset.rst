@@ -1,8 +1,8 @@
 Dataset API
 ===========
 
-ForestDataset
--------------
+Forest Dataset
+--------------
 
 The ``ForestDataset`` class is a wrapper around data needed to sample one or more tree ensembles. 
 Its core elements are
@@ -17,8 +17,8 @@ Its core elements are
    :project: StochTree
    :members:
 
-RandomEffectsDataset
---------------------
+Random Effects Dataset
+----------------------
 
 The ``RandomEffectsDataset`` class is a wrapper around data needed to sample one or more tree ensembles. 
 Its core elements are
@@ -33,3 +33,10 @@ Its core elements are
 .. doxygenclass:: StochTree::RandomEffectsDataset
    :project: StochTree
    :members:
+
+Other Classes and Types
+-----------------------
+
+.. doxygenenum:: StochTree::FeatureType
+   :project: StochTree
+   

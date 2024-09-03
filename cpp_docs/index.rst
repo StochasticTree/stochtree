@@ -6,4 +6,5 @@ It may be useful to researchers building novel tree algorithms or users seeking 
 
 .. toctree::
    dataset
+   tracking
    tree
