@@ -12,7 +12,7 @@ Now, navigate to the python package's main directory (i.e. `cd [path/to/stochtre
 ```
 pip install --upgrade pip
 pip install -r cpp_docs/requirements.txt
-doxygen
+doxygen cpp_docs/Doxyfile
 sphinx-build -M html cpp_docs/ cpp_docs/build/
 ```
 
