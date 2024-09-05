@@ -30,10 +30,11 @@
 
 namespace StochTree {
 
+/*! \brief Integer encoding of feature types */
 enum FeatureType {
-  kNumeric,
-  kOrderedCategorical,
-  kUnorderedCategorical
+  kNumeric, /*!< Numeric feature */
+  kOrderedCategorical, /*!< Ordered categorical feature */
+  kUnorderedCategorical /*!< Unordered categorical feature */
 };
 
 enum ForestLeafVarianceType {

@@ -529,10 +529,10 @@ class GlobalVarianceModelCpp {
   }
   ~GlobalVarianceModelCpp() {}
 
-  double SampleOneIteration(ResidualCpp& residual, RngCpp& rng, double nu, double lamb) {
+  double SampleOneIteration(ResidualCpp& residual, RngCpp& rng, double a, double b) {
     StochTree::ColumnVector* residual_ptr = residual.GetData();
     std::mt19937* rng_ptr = rng.GetRng();
-    return var_model_.SampleVarianceParameter(residual_ptr->GetData(), nu, lamb, *rng_ptr);
+    return var_model_.SampleVarianceParameter(residual_ptr->GetData(), a, b, *rng_ptr);
   }  
 
  private:

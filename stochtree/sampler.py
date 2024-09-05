@@ -53,11 +53,11 @@ class GlobalVarianceModel:
         # Initialize a GlobalVarianceModelCpp object
         self.variance_model_cpp = GlobalVarianceModelCpp()
     
-    def sample_one_iteration(self, residual: Residual, rng: RNG, nu: float, lamb: float) -> float:
+    def sample_one_iteration(self, residual: Residual, rng: RNG, a: float, b: float) -> float:
         """
-        Sample one iteration of a forest using the specified model and tree sampling algorithm
+        Sample one iteration of a global error variance parameter
         """
-        return self.variance_model_cpp.SampleOneIteration(residual.residual_cpp, rng.rng_cpp, nu, lamb)
+        return self.variance_model_cpp.SampleOneIteration(residual.residual_cpp, rng.rng_cpp, a, b)
 
 
 class LeafVarianceModel:
@@ -67,6 +67,6 @@ class LeafVarianceModel:
     
     def sample_one_iteration(self, forest_container: ForestContainer, rng: RNG, a: float, b: float, sample_num: int) -> float:
         """
-        Sample one iteration of a forest using the specified model and tree sampling algorithm
+        Sample one iteration of a forest leaf model's variance parameter (assuming a location-scale leaf model, most commonly ``N(0, tau)``)
         """
         return self.variance_model_cpp.SampleOneIteration(forest_container.forest_container_cpp, rng.rng_cpp, a, b, sample_num)

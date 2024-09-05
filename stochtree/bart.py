@@ -3,8 +3,10 @@ Bayesian Additive Regression Trees (BART) module
 """
 import numpy as np
 import pandas as pd
-from scipy.linalg import lstsq
+from sklearn import linear_model
+from sklearn.metrics import mean_squared_error
 from scipy.stats import gamma
+from .calibration import calibrate_global_error_variance
 from .data import Dataset, Residual
 from .forest import ForestContainer
 from .preprocessing import CovariateTransformer
@@ -25,9 +27,9 @@ class BARTModel:
     
     def sample(self, X_train: np.array, y_train: np.array, basis_train: np.array = None, X_test: np.array = None, basis_test: np.array = None, 
                cutpoint_grid_size = 100, sigma_leaf: float = None, alpha: float = 0.95, beta: float = 2.0, min_samples_leaf: int = 5, max_depth: int = 10, 
-               nu: float = 3, lamb: float = None, a_leaf: float = 3, b_leaf: float = None, q: float = 0.9, sigma2: float = None, 
-               num_trees: int = 200, num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, sample_sigma_global: bool = True, 
-               sample_sigma_leaf: bool = True, random_seed: int = -1, keep_burnin: bool = False, keep_gfr: bool = False) -> None:
+               a_global: float = 0, b_global: float = 0, a_leaf: float = 3, b_leaf: float = None, q: float = 0.9, sigma2: float = None, 
+               pct_var_sigma2_init: float = 0.25, num_trees: int = 200, num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, 
+               sample_sigma_global: bool = True, sample_sigma_leaf: bool = True, random_seed: int = -1, keep_burnin: bool = False, keep_gfr: bool = False) -> None:
         """Runs a BART sampler on provided training set. Predictions will be cached for the training set and (if provided) the test set. 
         Does not require a leaf regression basis. 
 
@@ -58,10 +60,10 @@ class BARTModel:
             Minimum allowable size of a leaf, in terms of training samples. Defaults to ``5``.
         max_depth : :obj:`int`, optional
             Maximum depth of any tree in the ensemble. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-        nu : :obj:`float`, optional
-            Shape parameter in the ``IG(nu, nu*lamb)`` global error variance model. Defaults to ``3``.
-        lamb : :obj:`float`, optional
-            Component of the scale parameter in the ``IG(nu, nu*lambda)`` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
+        a_global : :obj:`float`, optional
+            Shape parameter in the ``IG(a_global, b_global)`` global error variance model. Defaults to ``0``.
+        b_global : :obj:`float`, optional
+            Component of the scale parameter in the ``IG(a_global, b_global)`` global error variance prior. Defaults to ``0``.
         a_leaf : :obj:`float`, optional
             Shape parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model. Defaults to ``3``.
         b_leaf : :obj:`float`, optional
@@ -69,7 +71,9 @@ class BARTModel:
         q : :obj:`float`, optional
             Quantile used to calibrated ``lamb`` as in Sparapani et al (2021). Defaults to ``0.9``.
         sigma2 : :obj:`float`, optional
-            Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
+            Starting value of global variance parameter. Set internally as a percentage of the standardized outcome variance if not set here.
+        pct_var_sigma2_init : :obj:`float`, optional
+            Percentage of standardized outcome variance used to initialize global error variance parameter. Superseded by ``sigma2``. Defaults to ``0.25``.
         num_trees : :obj:`int`, optional
             Number of trees in the ensemble. Defaults to ``200``.
         num_gfr : :obj:`int`, optional
@@ -79,7 +83,7 @@ class BARTModel:
         num_mcmc : :obj:`int`, optional
             Number of "retained" iterations of the MCMC sampler. Defaults to ``100``. If this is set to 0, GFR (XBART) samples will be retained.
         sample_sigma_global : :obj:`bool`, optional
-            Whether or not to update the ``sigma^2`` global error variance parameter based on ``IG(nu, nu*lambda)``. Defaults to ``True``.
+            Whether or not to update the ``sigma^2`` global error variance parameter based on ``IG(a_global, b_global)``. Defaults to ``True``.
         sample_sigma_leaf : :obj:`bool`, optional
             Whether or not to update the ``tau`` leaf scale variance parameter based on ``IG(a_leaf, b_leaf)``. Cannot (currently) be set to true if ``basis_train`` has more than one column. Defaults to ``True``.
         random_seed : :obj:`int`, optional
@@ -173,14 +177,9 @@ class BARTModel:
         self.y_std = np.squeeze(np.std(y_train))
         resid_train = (y_train-self.y_bar)/self.y_std
 
-        # Calibrate priors for global sigma^2 and sigma_leaf
-        if lamb is None:
-            reg_basis = np.c_[np.ones(self.n_train),X_train_processed]
-            reg_soln = lstsq(reg_basis, np.squeeze(resid_train))
-            sigma2hat = reg_soln[1] / self.n_train
-            quantile_cutoff = q
-            lamb = (sigma2hat*gamma.ppf(1-quantile_cutoff,nu))/nu
-        sigma2 = sigma2hat if sigma2 is None else sigma2
+        # Calibrate priors for global sigma^2 and sigma_leaf (don't use regression initializer for warm-start or XBART)
+        if not sigma2:
+            sigma2 = pct_var_sigma2_init*np.var(resid_train)
         b_leaf = np.squeeze(np.var(resid_train)) / num_trees if b_leaf is None else b_leaf
         sigma_leaf = np.squeeze(np.var(resid_train)) / num_trees if sigma_leaf is None else sigma_leaf
         current_sigma2 = sigma2
@@ -255,7 +254,7 @@ class BARTModel:
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, nu, lamb)
+                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
                     self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
                 if self.sample_sigma_leaf:
                     self.leaf_scale_samples[i] = leaf_var_model.sample_one_iteration(self.forest_container, cpp_rng, a_leaf, b_leaf, i)
@@ -276,7 +275,7 @@ class BARTModel:
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, nu, lamb)
+                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
                     self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
                 if self.sample_sigma_leaf:
                     self.leaf_scale_samples[i] = leaf_var_model.sample_one_iteration(self.forest_container, cpp_rng, a_leaf, b_leaf, i)

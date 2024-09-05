@@ -1,7 +1,6 @@
 ## System and data files
 *.pdf
 *.csv
-*.txt
 *.DS_Store
 lib/
 build/
@@ -9,6 +8,9 @@ build/
 xcode/
 *.json
 .vs/
+cpp_docs/doxyoutput/html
+cpp_docs/doxyoutput/xml
+cpp_docs/doxyoutput/latex
 
 ## R gitignore
 

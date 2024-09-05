@@ -46,9 +46,17 @@ class UnsortedNodeSampleTracker;
 class SortedNodeSampleTracker;
 class FeaturePresortRootContainer;
 
-/*! \brief Wrapper around various data structures for forest sampling algorithms */
+/*! \brief "Superclass" wrapper around tracking data structures for forest sampling algorithms */
 class ForestTracker {
  public:
+  /*!
+   * \brief Construct a new `ForestTracker` object
+   * 
+   * \param covariates Matrix of covariate data
+   * \param feature_types Type of each feature (column) in `covariates`. This is represented by the enum `StochTree::FeatureType`
+   * \param num_trees Number of trees in an ensemble to be sampled
+   * \param num_observations Number of rows in `covariates`
+   */
   ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations);
   ~ForestTracker() {}
   void AssignAllSamplesToRoot();
