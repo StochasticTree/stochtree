@@ -66,8 +66,11 @@ class ForestTracker {
   void ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num);
   void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
   void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
+  double GetSamplePrediction(data_size_t sample_id);
   double GetTreeSamplePrediction(data_size_t sample_id, int tree_id);
+  void SetSamplePrediction(data_size_t sample_id, double value);
   void SetTreeSamplePrediction(data_size_t sample_id, int tree_id, double value);
+  void SyncPredictions();
   data_size_t GetNodeId(int observation_num, int tree_num);
   data_size_t UnsortedNodeBegin(int tree_id, int node_id);
   data_size_t UnsortedNodeEnd(int tree_id, int node_id);
@@ -85,6 +88,8 @@ class ForestTracker {
   SortedNodeSampleTracker* GetSortedNodeSampleTracker() {return sorted_node_sample_tracker_.get();}
 
  private:
+  /*! \brief Mapper from observations to predicted values summed over every tree in a forest */
+  std::vector<double> sum_predictions_;
   /*! \brief Mapper from observations to predicted values for every tree in a forest */
   std::unique_ptr<SamplePredMapper> sample_pred_mapper_;
   /*! \brief Mapper from observations to leaf node indices for every tree in a forest */

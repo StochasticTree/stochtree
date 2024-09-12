@@ -82,7 +82,7 @@ class Tree {
   /*! \brief Reset tree to empty vectors and default values of boolean / integer variables */
   void Reset();
   /*! \brief Initialize the tree with a single root node */
-  void Init(int output_dimension = 1);
+  void Init(int output_dimension = 1, bool is_log_scale = false);
   /*! \brief Allocate a new node and return the node's ID */
   int AllocNode();
   /*! \brief Deletes node indexed by node ID */
@@ -218,7 +218,6 @@ class Tree {
     }
   }
 
-  void InplacePredictFromNodes(std::vector<double> result, std::vector<std::int32_t> node_indices);
   std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices);
   std::vector<double> PredictFromNodes(std::vector<std::int32_t> node_indices, Eigen::MatrixXd& basis);
   double PredictFromNode(std::int32_t node_id);
@@ -237,6 +236,13 @@ class Tree {
    */
   std::int32_t OutputDimension() const {
     return output_dimension_;
+  }
+
+  /*!
+   * \brief Whether or not tree parameters should be exponentiated at prediction time
+   */
+  bool IsLogScale() const {
+    return is_log_scale_;
   }
   
   /*!
@@ -713,6 +719,7 @@ class Tree {
 
   bool has_categorical_split_{false};
   int output_dimension_{1};
+  bool is_log_scale_{false};
 };
 
 /*! \brief Comparison operator for trees */
@@ -720,6 +727,7 @@ inline bool operator==(const Tree& lhs, const Tree& rhs) {
   return (
     (lhs.has_categorical_split_ == rhs.has_categorical_split_) && 
     (lhs.output_dimension_ == rhs.output_dimension_) && 
+    (lhs.is_log_scale_ == rhs.is_log_scale_) && 
     (lhs.node_type_ == rhs.node_type_) && 
     (lhs.parent_ == rhs.parent_) && 
     (lhs.cleft_ == rhs.cleft_) && 

@@ -178,6 +178,7 @@ static inline void UpdateResidualEntireForest(ForestTracker& tracker, ForestData
     new_resid = op(residual.GetElement(i), pred_value);
     residual.SetElement(i, new_resid);
   }
+  tracker.SyncPredictions();
 }
 
 static inline void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, 
@@ -186,6 +187,7 @@ static inline void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dat
   double pred_value;
   int32_t leaf_pred;
   double new_resid;
+  double pred_delta;
   for (data_size_t i = 0; i < n; i++) {
     if (tree_new) {
       // If the tree has been newly sampled or adjusted, we must rerun the prediction 
@@ -196,7 +198,9 @@ static inline void UpdateResidualTree(ForestTracker& tracker, ForestDataset& dat
       } else {
         pred_value = tree->PredictFromNode(leaf_pred);
       }
+      pred_delta = pred_value - tracker.GetTreeSamplePrediction(i, tree_num);
       tracker.SetTreeSamplePrediction(i, tree_num, pred_value);
+      tracker.SetSamplePrediction(i, tracker.GetSamplePrediction(i) + pred_delta);
     } else {
       // If the tree has not yet been modified via a sampling step, 
       // we can query its prediction directly from the SamplePredMapper stored in tracker
@@ -235,6 +239,31 @@ static inline void UpdateResidualNewBasis(ForestTracker& tracker, ForestDataset&
       
       // Propagate the change back to the residual
       residual.SetElement(i, new_resid);
+    }
+  }
+  tracker.SyncPredictions();
+}
+
+static inline void UpdatePredictionsTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, 
+                                         int tree_num, bool requires_basis, bool tree_new) {
+  data_size_t n = dataset.GetCovariates().rows();
+  double pred_value;
+  int32_t leaf_pred;
+  double new_resid;
+  double pred_delta;
+  for (data_size_t i = 0; i < n; i++) {
+    if (tree_new) {
+      // If the tree has been newly sampled or adjusted, we must rerun the prediction 
+      // method and update the SamplePredMapper stored in tracker
+      leaf_pred = tracker.GetNodeId(i, tree_num);
+      if (requires_basis) {
+        pred_value = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+      } else {
+        pred_value = tree->PredictFromNode(leaf_pred);
+      }
+      pred_delta = pred_value - tracker.GetTreeSamplePrediction(i, tree_num);
+      tracker.SetTreeSamplePrediction(i, tree_num, pred_value);
+      tracker.SetSamplePrediction(i, tracker.GetSamplePrediction(i) + pred_delta);
     }
   }
 }
@@ -556,7 +585,7 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline void GFRSampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
                                     double global_variance, std::vector<FeatureType>& feature_types, int cutpoint_grid_size, 
-                                    bool pre_initialized, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                    bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Previous number of samples
   int prev_num_samples = forests.NumSamples();
   
@@ -587,7 +616,7 @@ static inline void GFRSampleOneIter(ForestTracker& tracker, ForestContainer& for
   for (int i = 0; i < num_trees; i++) {
     // Add tree i's predictions back to the residual (thus, training a model on the "partial residual")
     Tree* tree = ensemble->GetTree(i);
-    UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), std::plus<double>(), false);
+    if (backfitting) UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), std::plus<double>(), false);
     
     // Reset the tree and sample trackers
     ensemble->ResetInitTree(i);
@@ -606,7 +635,8 @@ static inline void GFRSampleOneIter(ForestTracker& tracker, ForestContainer& for
     leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
     
     // Subtract tree i's predictions back out of the residual
-    UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), std::minus<double>(), true);
+    if (backfitting) UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), std::minus<double>(), true);
+    else UpdatePredictionsTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), true);
   }
 }
 
@@ -845,7 +875,7 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCSampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
-                                     double global_variance, bool pre_initialized, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                     double global_variance, bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Previous number of samples
   int prev_num_samples = forests.NumSamples();
   
@@ -874,7 +904,7 @@ static inline void MCMCSampleOneIter(ForestTracker& tracker, ForestContainer& fo
   for (int i = 0; i < num_trees; i++) {
     // Add tree i's predictions back to the residual (thus, training a model on the "partial residual")
     tree = ensemble->GetTree(i);
-    UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), std::plus<double>(), false);
+    if (backfitting) UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), std::plus<double>(), false);
     
     // Sample tree i
     tree = ensemble->GetTree(i);
@@ -888,8 +918,8 @@ static inline void MCMCSampleOneIter(ForestTracker& tracker, ForestContainer& fo
     leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
     
     // Subtract tree i's predictions back out of the residual
-    tree = ensemble->GetTree(i);
-    UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), std::minus<double>(), true);
+    if (backfitting) UpdateResidualTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), std::minus<double>(), true);
+    else UpdatePredictionsTree(tracker, dataset, residual, tree, i, leaf_model.RequiresBasis(), true);
   }
 }
 

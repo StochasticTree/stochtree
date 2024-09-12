@@ -1,4 +1,5 @@
 #include <stochtree/leaf_model.h>
+#include <boost/math/special_functions/gamma.hpp>
 
 namespace StochTree {
 
@@ -203,6 +204,85 @@ void GaussianMultivariateRegressionLeafModel::SetEnsembleRootPredictedValue(Fore
   for (int i = 0; i < num_trees; i++) {
     Tree* tree = ensemble->GetTree(i);
     tree->SetLeafVector(0, root_pred_vector);
+  }
+}
+
+double LogLinearVarianceLeafModel::SplitLogMarginalLikelihood(LogLinearVarianceSuffStat& left_stat, LogLinearVarianceSuffStat& right_stat, double global_variance) {
+  double left_log_ml = (
+    std::log(boost::math::tgamma(0.5 * (nu_ + left_stat.n))) + 
+    (0.5 * nu_) * std::log(0.5 * (nu_ * lambda_ * lambda_)) - 
+    (0.5 * left_stat.n) * std::log(2 * pi_constant) - 
+    left_stat.sum_log_partial_var - 
+    std::log(boost::math::tgamma(0.5 * (nu_))) - 
+    (0.5 * (nu_ + left_stat.n)) * std::log(nu_ * lambda_ * lambda_ + left_stat.sum_ei)
+  );
+
+  double right_log_ml = (
+    std::log(boost::math::tgamma(0.5 * (nu_ + right_stat.n))) + 
+    (0.5 * nu_) * std::log(0.5 * (nu_ * lambda_ * lambda_)) - 
+    (0.5 * right_stat.n) * std::log(2 * pi_constant) - 
+    right_stat.sum_log_partial_var - 
+    std::log(boost::math::tgamma(0.5 * (nu_))) - 
+    (0.5 * (nu_ + right_stat.n)) * std::log(nu_ * lambda_ * lambda_ + right_stat.sum_ei)
+  );
+
+  return left_log_ml + right_log_ml;
+}
+
+double LogLinearVarianceLeafModel::NoSplitLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
+  double log_ml = (
+    std::log(boost::math::tgamma(0.5 * (nu_ + suff_stat.n))) + 
+    (0.5 * nu_) * std::log(0.5 * (nu_ * lambda_ * lambda_)) - 
+    (0.5 * suff_stat.n) * std::log(2 * pi_constant) - 
+    suff_stat.sum_log_partial_var - 
+    std::log(boost::math::tgamma(0.5 * (nu_))) - 
+    (0.5 * (nu_ + suff_stat.n)) * std::log(nu_ * lambda_ * lambda_ + suff_stat.sum_ei)
+  );
+
+  return log_ml;
+}
+
+double LogLinearVarianceLeafModel::PosteriorParameterShape(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
+  return (nu_ + suff_stat.n) / 2;
+}
+
+double LogLinearVarianceLeafModel::PosteriorParameterScale(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
+  return ((nu_ * lambda_ * lambda_ + suff_stat.weighted_sum_ei) / (2 * (nu_ + suff_stat.n)));
+}
+
+void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen) {
+  // Vector of leaf indices for tree
+  std::vector<int32_t> tree_leaves = tree->GetLeaves();
+  
+  // Initialize sufficient statistics
+  LogLinearVarianceSuffStat node_suff_stat = LogLinearVarianceSuffStat();
+
+  // Sample each leaf node parameter
+  double node_shape;
+  double node_scale;
+  double node_mu;
+  int32_t leaf_id;
+  for (int i = 0; i < tree_leaves.size(); i++) {
+    // Compute leaf node sufficient statistics
+    leaf_id = tree_leaves[i];
+    node_suff_stat.ResetSuffStat();
+    AccumulateSingleNodeSuffStat<LogLinearVarianceSuffStat, false>(node_suff_stat, dataset, tracker, residual, tree_num, leaf_id);
+    
+    // Compute posterior mean and variance
+    node_shape = PosteriorParameterShape(node_suff_stat, global_variance);
+    node_scale = PosteriorParameterScale(node_suff_stat, global_variance);
+    
+    // Draw from IG(shape, scale) and set the leaf parameter with each draw
+    node_mu = std::log(ig_sampler_.Sample(node_shape, node_scale, gen));
+    tree->SetLeaf(leaf_id, node_mu);
+  }
+}
+
+void LogLinearVarianceLeafModel::SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value) {
+  int num_trees = ensemble->NumTrees();
+  for (int i = 0; i < num_trees; i++) {
+    Tree* tree = ensemble->GetTree(i);
+    tree->SetLeaf(0, root_pred_value);
   }
 }
 

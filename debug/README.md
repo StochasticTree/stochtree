@@ -14,9 +14,12 @@ The DGPs are numbered as follows:
 
 0. Simple leaf regression model with a univariate basis for the leaf model
 1. Constant leaf model with a large number of deep interactions between features
+2. Simple leaf regression model with a multivariate basis for the leaf model
+3. Simple "variance-only" model with a mean of zero but covariate-moderated variance function
 
 The models are numbered as follows:
 
 0. Constant leaf tree model (the "classic" BART / XBART model)
 1. "Univariate basis" leaf regression model
 2. "Multivariate basis" leaf regression model
+3. Log linear heteroskedastic variance model

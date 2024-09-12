@@ -94,12 +94,29 @@ void ForestTracker::RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t
   // TODO: WARN if this is called from the GFR Tree Sampler
 }
 
+double ForestTracker::GetSamplePrediction(data_size_t sample_id) {
+  return sum_predictions_[sample_id];
+}
+
 double ForestTracker::GetTreeSamplePrediction(data_size_t sample_id, int tree_id) {
   return sample_pred_mapper_->GetPred(sample_id, tree_id);
 }
 
+void ForestTracker::SetSamplePrediction(data_size_t sample_id, double value) {
+  sum_predictions_[sample_id] = value;
+}
+
 void ForestTracker::SetTreeSamplePrediction(data_size_t sample_id, int tree_id, double value) {
   sample_pred_mapper_->SetPred(sample_id, tree_id, value);
+}
+
+void ForestTracker::SyncPredictions() {
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    sum_predictions_[i] = 0.;
+    for (int j = 0; j < num_trees_; j++) {
+      sum_predictions_[i] += sample_pred_mapper_->GetPred(i, j);
+    }
+  }
 }
 
 FeatureUnsortedPartition::FeatureUnsortedPartition(data_size_t n) {

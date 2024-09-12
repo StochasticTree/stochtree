@@ -8,6 +8,7 @@
 #include <Eigen/Dense>
 #include <stochtree/cutpoint_candidates.h>
 #include <stochtree/data.h>
+#include <stochtree/ig_sampler.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <stochtree/normal_sampler.h>
@@ -24,7 +25,8 @@ namespace StochTree {
 enum ModelType {
   kConstantLeafGaussian, 
   kUnivariateRegressionLeafGaussian, 
-  kMultivariateRegressionLeafGaussian
+  kMultivariateRegressionLeafGaussian, 
+  kLogLinearVariance
 };
 
 /*! \brief Sufficient statistic and associated operations for gaussian homoskedastic constant leaf outcome model */
@@ -38,7 +40,7 @@ class GaussianConstantSuffStat {
     sum_w = 0.0;
     sum_yw = 0.0;
   }
-  void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, data_size_t row_idx) {
+  void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
       sum_w += 1./dataset.VarWeightValue(row_idx);
@@ -52,6 +54,11 @@ class GaussianConstantSuffStat {
     n = 0;
     sum_w = 0.0;
     sum_yw = 0.0;
+  }
+  void AddSuffStat(GaussianConstantSuffStat& lhs, GaussianConstantSuffStat& rhs) {
+    n = lhs.n + rhs.n;
+    sum_w = lhs.sum_w + rhs.sum_w;
+    sum_yw = lhs.sum_yw + rhs.sum_yw;
   }
   void SubtractSuffStat(GaussianConstantSuffStat& lhs, GaussianConstantSuffStat& rhs) {
     n = lhs.n - rhs.n;
@@ -98,7 +105,7 @@ class GaussianUnivariateRegressionSuffStat {
     sum_xxw = 0.0;
     sum_yxw = 0.0;
   }
-  void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, data_size_t row_idx) {
+  void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
       sum_xxw += dataset.BasisValue(row_idx, 0)*dataset.BasisValue(row_idx, 0)/dataset.VarWeightValue(row_idx);
@@ -112,6 +119,11 @@ class GaussianUnivariateRegressionSuffStat {
     n = 0;
     sum_xxw = 0.0;
     sum_yxw = 0.0;
+  }
+  void AddSuffStat(GaussianUnivariateRegressionSuffStat& lhs, GaussianUnivariateRegressionSuffStat& rhs) {
+    n = lhs.n + rhs.n;
+    sum_xxw = lhs.sum_xxw + rhs.sum_xxw;
+    sum_yxw = lhs.sum_yxw + rhs.sum_yxw;
   }
   void SubtractSuffStat(GaussianUnivariateRegressionSuffStat& lhs, GaussianUnivariateRegressionSuffStat& rhs) {
     n = lhs.n - rhs.n;
@@ -160,7 +172,7 @@ class GaussianMultivariateRegressionSuffStat {
     ytWX = Eigen::MatrixXd::Zero(1, basis_dim);
     p = basis_dim;
   }
-  void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, data_size_t row_idx) {
+  void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
       XtWX += dataset.GetBasis()(row_idx, Eigen::all).transpose()*dataset.GetBasis()(row_idx, Eigen::all)/dataset.VarWeightValue(row_idx);
@@ -174,6 +186,11 @@ class GaussianMultivariateRegressionSuffStat {
     n = 0;
     XtWX = Eigen::MatrixXd::Zero(p, p);
     ytWX = Eigen::MatrixXd::Zero(1, p);
+  }
+  void AddSuffStat(GaussianMultivariateRegressionSuffStat& lhs, GaussianMultivariateRegressionSuffStat& rhs) {
+    n = lhs.n + rhs.n;
+    XtWX = lhs.XtWX + rhs.XtWX;
+    ytWX = lhs.ytWX + rhs.ytWX;
   }
   void SubtractSuffStat(GaussianMultivariateRegressionSuffStat& lhs, GaussianMultivariateRegressionSuffStat& rhs) {
     n = lhs.n - rhs.n;
@@ -209,13 +226,83 @@ class GaussianMultivariateRegressionLeafModel {
   MultivariateNormalSampler multivariate_normal_sampler_;
 };
 
+/*! \brief Sufficient statistic and associated operations for heteroskedastic log-linear variance model */
+class LogLinearVarianceSuffStat {
+ public:
+  data_size_t n;
+  double sum_ei;
+  double weighted_sum_ei;
+  double sum_log_partial_var;
+  LogLinearVarianceSuffStat() {
+    n = 0;
+    sum_ei = 0.0;
+    weighted_sum_ei = 0.0;
+    sum_log_partial_var = 0.0;
+  }
+  void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
+    n += 1;
+    sum_ei += outcome(row_idx)*outcome(row_idx);
+    weighted_sum_ei += outcome(row_idx)*outcome(row_idx)/dataset.VarWeightValue(row_idx);
+    sum_log_partial_var += tracker.GetSamplePrediction(row_idx) - tracker.GetTreeSamplePrediction(row_idx, tree_idx);
+  }
+  void ResetSuffStat() {
+    n = 0;
+    sum_ei = 0.0;
+    weighted_sum_ei = 0.0;
+    sum_log_partial_var = 0.0;
+  }
+  void AddSuffStat(LogLinearVarianceSuffStat& lhs, LogLinearVarianceSuffStat& rhs) {
+    n = lhs.n + rhs.n;
+    sum_ei = lhs.sum_ei + rhs.sum_ei;
+    weighted_sum_ei = lhs.weighted_sum_ei + rhs.weighted_sum_ei;
+    sum_log_partial_var = lhs.sum_log_partial_var + rhs.sum_log_partial_var;
+  }
+  void SubtractSuffStat(LogLinearVarianceSuffStat& lhs, LogLinearVarianceSuffStat& rhs) {
+    n = lhs.n - rhs.n;
+    sum_ei = lhs.sum_ei - rhs.sum_ei;
+    weighted_sum_ei = lhs.weighted_sum_ei - rhs.weighted_sum_ei;
+    sum_log_partial_var = lhs.sum_log_partial_var - rhs.sum_log_partial_var;
+  }
+  bool SampleGreaterThan(data_size_t threshold) {
+    return n > threshold;
+  }
+  bool SampleGreaterThanEqual(data_size_t threshold) {
+    return n >= threshold;
+  }
+  data_size_t SampleSize() {
+    return n;
+  }
+};
+
+/*! \brief Marginal likelihood and posterior computation for heteroskedastic log-linear variance model */
+class LogLinearVarianceLeafModel {
+ public:
+  LogLinearVarianceLeafModel(double nu, double lambda) {nu_ = nu; lambda_ = lambda; ig_sampler_ = InverseGammaSampler();}
+  ~LogLinearVarianceLeafModel() {}
+  double SplitLogMarginalLikelihood(LogLinearVarianceSuffStat& left_stat, LogLinearVarianceSuffStat& right_stat, double global_variance);
+  double NoSplitLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance);
+  double PosteriorParameterShape(LogLinearVarianceSuffStat& suff_stat, double global_variance);
+  double PosteriorParameterScale(LogLinearVarianceSuffStat& suff_stat, double global_variance);
+  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
+  void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
+  void SetPriorShape(double nu) {nu_ = nu;}
+  void SetPriorScale(double lambda) {lambda_ = lambda;}
+  inline bool RequiresBasis() {return true;}
+ private:
+  double nu_;
+  double lambda_;
+  InverseGammaSampler ig_sampler_;
+};
+
 using SuffStatVariant = std::variant<GaussianConstantSuffStat, 
                                      GaussianUnivariateRegressionSuffStat, 
-                                     GaussianMultivariateRegressionSuffStat>;
+                                     GaussianMultivariateRegressionSuffStat, 
+                                     LogLinearVarianceSuffStat>;
 
 using LeafModelVariant = std::variant<GaussianConstantLeafModel, 
                                       GaussianUnivariateRegressionLeafModel, 
-                                      GaussianMultivariateRegressionLeafModel>;
+                                      GaussianMultivariateRegressionLeafModel, 
+                                      LogLinearVarianceLeafModel>;
 
 template<typename SuffStatType, typename... SuffStatConstructorArgs>
 static inline SuffStatVariant createSuffStat(SuffStatConstructorArgs... leaf_suff_stat_args) {
@@ -232,18 +319,22 @@ static inline SuffStatVariant suffStatFactory(ModelType model_type, int basis_di
     return createSuffStat<GaussianConstantSuffStat>();
   } else if (model_type == kUnivariateRegressionLeafGaussian) {
     return createSuffStat<GaussianUnivariateRegressionSuffStat>();
-  } else {
+  } else if (model_type == kMultivariateRegressionLeafGaussian) {
     return createSuffStat<GaussianMultivariateRegressionSuffStat, int>(basis_dim);
+  } else {
+    return createSuffStat<LogLinearVarianceSuffStat>();
   }
 }
 
-static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau, Eigen::MatrixXd& Sigma0) {
+static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau, Eigen::MatrixXd& Sigma0, double nu, double lambda) {
   if (model_type == kConstantLeafGaussian) {
     return createLeafModel<GaussianConstantLeafModel, double>(tau);
   } else if (model_type == kUnivariateRegressionLeafGaussian) {
     return createLeafModel<GaussianUnivariateRegressionLeafModel, double>(tau);
-  } else {
+  } else if (model_type == kMultivariateRegressionLeafGaussian) {
     return createLeafModel<GaussianMultivariateRegressionLeafModel, Eigen::MatrixXd>(Sigma0);
+  } else {
+    return createLeafModel<LogLinearVarianceLeafModel, double, double>(nu, lambda);
   }
 }
 
@@ -258,11 +349,11 @@ static inline void AccumulateSuffStatProposed(SuffStatType& node_suff_stat, Suff
   for (auto i = node_begin_iter; i != node_end_iter; i++) {
     auto idx = *i;
     double feature_value = dataset.CovariateValue(idx, split_feature);
-    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
     if (split.SplitTrue(feature_value)) {
-      left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+      left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
     } else {
-      right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+      right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
     }
   }
 }
@@ -279,15 +370,15 @@ static inline void AccumulateSuffStatExisting(SuffStatType& node_suff_stat, Suff
   // Accumulate sufficient statistics for the left and split nodes
   for (auto i = left_node_begin_iter; i != left_node_end_iter; i++) {
     auto idx = *i;
-    left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
-    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
+    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
   }
 
   // Accumulate sufficient statistics for the right and split nodes
   for (auto i = right_node_begin_iter; i != right_node_end_iter; i++) {
     auto idx = *i;
-    right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
-    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
+    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
   }
 }
 
@@ -308,7 +399,7 @@ static inline void AccumulateSingleNodeSuffStat(SuffStatType& node_suff_stat, Fo
   // Accumulate sufficient statistics
   for (auto i = node_begin_iter; i != node_end_iter; i++) {
     auto idx = *i;
-    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
   }
 }
 
@@ -336,7 +427,7 @@ static inline void AccumulateCutpointBinSuffStat(SuffStatType& left_suff_stat, F
   // Accumulate sufficient statistics
   for (auto i = cutpoint_begin_iter; i != cutpoint_end_iter; i++) {
     auto idx = *i;
-    left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), idx);
+    left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
   }
 }
 
