@@ -18,6 +18,9 @@ jobs:
       contents: write
       pull-requests: write # Grant permissions to create and manage pull requests
 
+    env:
+      BRANCH_NAME: python-docs-temp-${{ github.run_id }}
+
     steps:
       - name: Checkout Stochtree Monorepo
         uses: actions/checkout@v4
@@ -58,9 +61,6 @@ jobs:
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
 
-          # Create a unique branch name using a fixed prefix and GitHub run ID
-          BRANCH_NAME="python-docs-temp-${{ github.run_id }}"
-
           # Create and switch to the new branch
           git checkout -b $BRANCH_NAME
 
@@ -75,24 +75,28 @@ jobs:
 
       - name: Create Pull Request Using GitHub CLI
         run: |
-          # Use the unique branch name for PR creation
-          BRANCH_NAME="python-docs-temp-${{ github.run_id }}"
+          # Create a pull request using the unique branch name
           gh pr create --title "Updated the Python documentation" --body "This PR updates the Python documentation." --base main --head $BRANCH_NAME
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable Auto-Merge on the PR
         run: |
-          BRANCH_NAME="python-docs-temp-${{ github.run_id }}"
+          # Enable auto-merge on the created PR
           PR_NUMBER=$(gh pr list --head $BRANCH_NAME --json number --jq '.[0].number')
           gh pr merge $PR_NUMBER --auto --merge
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout Main Branch
+        run: |
+          # Switch to the main branch to avoid issues when deleting the temp branch
+          git checkout main
+
       - name: Delete Branch After Merge
         if: success() # Only delete if previous steps were successful
         run: |
-          BRANCH_NAME="python-docs-temp-${{ github.run_id }}"
+          # Delete the temporary branch after switching away from it
           gh api repos/:owner/:repo/git/refs/heads/$BRANCH_NAME -X DELETE
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
