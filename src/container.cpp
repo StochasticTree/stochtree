@@ -37,7 +37,7 @@ void ForestContainer::InitializeRoot(double leaf_value) {
   CHECK_EQ(num_samples_, 0);
   CHECK_EQ(forests_.size(), 0);
   forests_.resize(1);
-  forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_));
+  forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_, is_exponentiated_));
   // NOTE: not setting num_samples = 1, since we are just initializing constant root 
   // nodes and the forest still needs to be sampled by either MCMC or GFR
   num_samples_ = 0;
@@ -129,7 +129,7 @@ json ForestContainer::to_json() {
   result_obj.emplace("num_samples", this->num_samples_);
   result_obj.emplace("num_trees", this->num_trees_);
   result_obj.emplace("output_dimension", this->output_dimension_);
-  result_obj.emplace("is_exponentiated_", this->is_exponentiated_);
+  result_obj.emplace("is_exponentiated", this->is_exponentiated_);
   result_obj.emplace("is_leaf_constant", this->is_leaf_constant_);
   result_obj.emplace("initialized", this->initialized_);
 

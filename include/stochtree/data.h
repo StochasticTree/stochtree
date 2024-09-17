@@ -160,6 +160,35 @@ class ForestDataset {
       }
     }
   }
+  /*!
+   * \brief Update the data in the internal variance weight vector to new values stored in a raw double array
+   *
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a weight vector
+   * \param num_row Number of rows in the weight vector
+   * \param exponentiate Whether or not inputs should be exponentiated before being saved to var weight vector
+   */
+  void UpdateVarWeights(double* data_ptr, data_size_t num_row, bool exponentiate = true) {
+    CHECK(has_var_weights_);
+    // Copy data from R / Python process memory to Eigen vector
+    double temp_value;
+    for (data_size_t i = 0; i < num_row; ++i) {
+      if (exponentiate) temp_value = std::exp(static_cast<double>(*(data_ptr + i)));
+      else temp_value = static_cast<double>(*(data_ptr + i));
+      var_weights_.SetElement(i, temp_value);
+    }
+  }
+  /*!
+   * \brief Update an observation in the internal variance weight vector to a new value
+   *
+   * \param row_id Row ID in the variance weight vector to be overwritten
+   * \param new_value New variance weight value
+   * \param exponentiate Whether or not input should be exponentiated before being saved to var weight vector
+   */
+  void SetVarWeightValue(data_size_t row_id, double new_value, bool exponentiate = true) {
+    CHECK(has_var_weights_);
+    if (exponentiate) var_weights_.SetElement(row_id, std::exp(new_value));
+    else var_weights_.SetElement(row_id, new_value);
+  }
  private:
   ColumnMatrix covariates_;
   ColumnMatrix basis_;

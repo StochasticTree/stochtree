@@ -20,6 +20,7 @@ ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureTyp
   unsorted_node_sample_tracker_ = std::make_unique<UnsortedNodeSampleTracker>(num_observations, num_trees);
   presort_container_ = std::make_unique<FeaturePresortRootContainer>(covariates, feature_types);
   sorted_node_sample_tracker_ = std::make_unique<SortedNodeSampleTracker>(presort_container_.get(), covariates, feature_types);
+  sum_predictions_ = std::vector<double>(num_observations, 0.);
 
   num_trees_ = num_trees;
   num_observations_ = num_observations;
@@ -71,6 +72,9 @@ void ForestTracker::AssignAllSamplesToRoot(int32_t tree_num) {
 }
 
 void ForestTracker::AssignAllSamplesToConstantPrediction(double value) {
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    sum_predictions_[i] = value*num_trees_;
+  }
   for (int i = 0; i < num_trees_; i++) {
     sample_pred_mapper_->AssignAllSamplesToConstantPrediction(i, value);
   }
@@ -100,6 +104,10 @@ double ForestTracker::GetSamplePrediction(data_size_t sample_id) {
 
 double ForestTracker::GetTreeSamplePrediction(data_size_t sample_id, int tree_id) {
   return sample_pred_mapper_->GetPred(sample_id, tree_id);
+}
+
+void ForestTracker::UpdateVarWeightsFromInternalPredictions(ForestDataset& dataset) {
+  dataset.UpdateVarWeights(sum_predictions_.data(), num_observations_, true);
 }
 
 void ForestTracker::SetSamplePrediction(data_size_t sample_id, double value) {

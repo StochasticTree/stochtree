@@ -68,6 +68,7 @@ class ForestTracker {
   void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
   double GetSamplePrediction(data_size_t sample_id);
   double GetTreeSamplePrediction(data_size_t sample_id, int tree_id);
+  void UpdateVarWeightsFromInternalPredictions(ForestDataset& dataset);
   void SetSamplePrediction(data_size_t sample_id, double value);
   void SetTreeSamplePrediction(data_size_t sample_id, int tree_id, double value);
   void SyncPredictions();

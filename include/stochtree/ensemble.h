@@ -112,11 +112,11 @@ class TreeEnsemble {
         auto &tree = *trees_[j];
         std::int32_t nidx = EvaluateTree(tree, covariates, i);
         for (int32_t k = 0; k < output_dimension_; k++) {
-          if (is_exponentiated_) pred += std::exp(tree.LeafValue(nidx, k)) * basis(i, k);
-          else pred += tree.LeafValue(nidx, k) * basis(i, k);
+          pred += tree.LeafValue(nidx, k) * basis(i, k);
         }
       }
-      output[i + offset] = pred;
+      if (is_exponentiated_) output[i + offset] = std::exp(pred);
+      else output[i + offset] = std::exp(pred);
     }
   }
 
@@ -136,10 +136,10 @@ class TreeEnsemble {
       for (size_t j = tree_begin; j < tree_end; j++) {
         auto &tree = *trees_[j];
         std::int32_t nidx = EvaluateTree(tree, covariates, i);
-        if (is_exponentiated_) pred += std::exp(tree.LeafValue(nidx, 0));
-        else pred += tree.LeafValue(nidx, 0);
+        pred += tree.LeafValue(nidx, 0);
       }
-      output[i + offset] = pred;
+      if (is_exponentiated_) output[i + offset] = std::exp(pred);
+      else output[i + offset] = pred;
     }
   }
 

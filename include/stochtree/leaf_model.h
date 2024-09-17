@@ -232,35 +232,41 @@ class LogLinearVarianceSuffStat {
   data_size_t n;
   double sum_ei;
   double weighted_sum_ei;
+  double sq_weighted_sum_ei;
   double sum_log_partial_var;
   LogLinearVarianceSuffStat() {
     n = 0;
     sum_ei = 0.0;
     weighted_sum_ei = 0.0;
+    sq_weighted_sum_ei = 0.0;
     sum_log_partial_var = 0.0;
   }
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     sum_ei += outcome(row_idx)*outcome(row_idx);
     weighted_sum_ei += outcome(row_idx)*outcome(row_idx)/dataset.VarWeightValue(row_idx);
-    sum_log_partial_var += tracker.GetSamplePrediction(row_idx) - tracker.GetTreeSamplePrediction(row_idx, tree_idx);
+    sq_weighted_sum_ei += (outcome(row_idx)*outcome(row_idx))/(dataset.VarWeightValue(row_idx)*dataset.VarWeightValue(row_idx));
+    sum_log_partial_var += std::exp(tracker.GetSamplePrediction(row_idx) - tracker.GetTreeSamplePrediction(row_idx, tree_idx));
   }
   void ResetSuffStat() {
     n = 0;
     sum_ei = 0.0;
     weighted_sum_ei = 0.0;
+    sq_weighted_sum_ei = 0.0;
     sum_log_partial_var = 0.0;
   }
   void AddSuffStat(LogLinearVarianceSuffStat& lhs, LogLinearVarianceSuffStat& rhs) {
     n = lhs.n + rhs.n;
     sum_ei = lhs.sum_ei + rhs.sum_ei;
     weighted_sum_ei = lhs.weighted_sum_ei + rhs.weighted_sum_ei;
+    sq_weighted_sum_ei = lhs.sq_weighted_sum_ei + rhs.sq_weighted_sum_ei;
     sum_log_partial_var = lhs.sum_log_partial_var + rhs.sum_log_partial_var;
   }
   void SubtractSuffStat(LogLinearVarianceSuffStat& lhs, LogLinearVarianceSuffStat& rhs) {
     n = lhs.n - rhs.n;
     sum_ei = lhs.sum_ei - rhs.sum_ei;
     weighted_sum_ei = lhs.weighted_sum_ei - rhs.weighted_sum_ei;
+    sq_weighted_sum_ei = lhs.sq_weighted_sum_ei - rhs.sq_weighted_sum_ei;
     sum_log_partial_var = lhs.sum_log_partial_var - rhs.sum_log_partial_var;
   }
   bool SampleGreaterThan(data_size_t threshold) {
@@ -287,7 +293,7 @@ class LogLinearVarianceLeafModel {
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetPriorShape(double nu) {nu_ = nu;}
   void SetPriorScale(double lambda) {lambda_ = lambda;}
-  inline bool RequiresBasis() {return true;}
+  inline bool RequiresBasis() {return false;}
  private:
   double nu_;
   double lambda_;
@@ -326,15 +332,17 @@ static inline SuffStatVariant suffStatFactory(ModelType model_type, int basis_di
   }
 }
 
-static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau, Eigen::MatrixXd& Sigma0, double nu, double lambda) {
+static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau, Eigen::MatrixXd& Sigma0, double a, double b) {
   if (model_type == kConstantLeafGaussian) {
     return createLeafModel<GaussianConstantLeafModel, double>(tau);
   } else if (model_type == kUnivariateRegressionLeafGaussian) {
     return createLeafModel<GaussianUnivariateRegressionLeafModel, double>(tau);
   } else if (model_type == kMultivariateRegressionLeafGaussian) {
     return createLeafModel<GaussianMultivariateRegressionLeafModel, Eigen::MatrixXd>(Sigma0);
+  } else if (model_type == kLogLinearVariance) {
+    return createLeafModel<LogLinearVarianceLeafModel, double, double>(a, b);
   } else {
-    return createLeafModel<LogLinearVarianceLeafModel, double, double>(nu, lambda);
+    Log::Fatal("Incompatible model type provided to leaf model factory");
   }
 }
 
