@@ -58,25 +58,33 @@ jobs:
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
 
-          # Create a new branch for the documentation update
-          git checkout -b update-python-docs
+          # Create a unique branch name using a fixed prefix and GitHub run ID
+          BRANCH_NAME="python-docs-temp-${{ github.run_id }}"
 
-          # Add the generated documentation, commit, and push
+          # Create and switch to the new branch
+          git checkout -b $BRANCH_NAME
+
+          # Add the generated documentation and commit
           git add docs/python-documentation
           git commit -m "Updated the Python documentation"
-          git push -u origin update-python-docs
+
+          # Push the changes to the new unique branch
+          git push -u origin $BRANCH_NAME
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Pull Request Using GitHub CLI
         run: |
-          gh pr create --title "Updated the Python documentation" --body "This PR updates the Python documentation." --base main --head update-python-docs
+          # Use the unique branch name for PR creation
+          BRANCH_NAME="python-docs-temp-${{ github.run_id }}"
+          gh pr create --title "Updated the Python documentation" --body "This PR updates the Python documentation." --base main --head $BRANCH_NAME
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable Auto-Merge on the PR
         run: |
-          PR_NUMBER=$(gh pr list --head update-python-docs --json number --jq '.[0].number')
+          BRANCH_NAME="python-docs-temp-${{ github.run_id }}"
+          PR_NUMBER=$(gh pr list --head $BRANCH_NAME --json number --jq '.[0].number')
           gh pr merge $PR_NUMBER --auto --merge
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -84,7 +92,8 @@ jobs:
       - name: Delete Branch After Merge
         if: success() # Only delete if previous steps were successful
         run: |
-          gh api repos/:owner/:repo/git/refs/heads/update-python-docs -X DELETE
+          BRANCH_NAME="python-docs-temp-${{ github.run_id }}"
+          gh api repos/:owner/:repo/git/refs/heads/$BRANCH_NAME -X DELETE
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           owner: ${{ github.repository_owner }}
