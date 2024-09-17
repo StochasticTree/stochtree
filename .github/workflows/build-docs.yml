@@ -1,0 +1,65 @@
+name: Generate Python Documentation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build_python_docs:
+    name: Build Python Documentation
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Stochtree Monorepo
+        uses: actions/checkout@v4
+        with:
+          repository: 'StochasticTree/stochtree'
+          submodules: 'recursive'
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Package with Relevant Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r python_docs/requirements.txt
+          pip install .
+
+      - name: Build HTML Documentation
+        run: |
+          sphinx-build -M html python_docs/source/ python_docs/_build/
+
+      - name: Prepare Documentation Directory
+        run: |
+          # Ensure the target directory exists
+          mkdir -p docs/python-documentation
+          # Clear existing content, if present
+          if [ -d docs/python-documentation ]; then rm -rf docs/python-documentation/*; fi
+
+      - name: Move Documentation to Docs Directory
+        run: |
+          cp -r python_docs/_build/html/* docs/python-documentation/
+
+      - name: Commit and Push Documentation
+        run: |
+          # Configure Git to use the GitHub actor for commits
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+
+          # Add the generated documentation, commit, and push
+          git add docs/python-documentation
+          git commit -m "Updated the Python documentation"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
