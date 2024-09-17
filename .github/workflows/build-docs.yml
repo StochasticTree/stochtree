@@ -16,6 +16,7 @@ jobs:
 
     permissions:
       contents: write
+      pull-requests: write # Grant permissions to create and manage pull requests
 
     steps:
       - name: Checkout Stochtree Monorepo
@@ -51,15 +52,42 @@ jobs:
         run: |
           cp -r python_docs/_build/html/* docs/python-documentation/
 
-      - name: Commit and Push Documentation
+      - name: Commit and Push Documentation to New Branch
         run: |
           # Configure Git to use the GitHub actor for commits
           git config --global user.name "${{ github.actor }}"
           git config --global user.email "${{ github.actor }}@users.noreply.github.com"
 
+          # Create a new branch for the documentation update
+          git checkout -b update-python-docs
+
           # Add the generated documentation, commit, and push
           git add docs/python-documentation
           git commit -m "Updated the Python documentation"
-          git push
+          git push -u origin update-python-docs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Pull Request Using GitHub CLI
+        run: |
+          gh pr create --title "Updated the Python documentation" --body "This PR updates the Python documentation." --base main --head update-python-docs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable Auto-Merge on the PR
+        run: |
+          # Get the pull request number and enable auto-merge
+          PR_NUMBER=$(gh pr list --head update-python-docs --json number --jq '.[0].number')
+          gh pr merge $PR_NUMBER --auto --merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete Branch After Merge
+        if: success() # Only delete if previous steps were successful
+        run: |
+          # Delete the branch after the PR has been merged
+          gh api repos/:owner/:repo/git/refs/heads/update-python-docs -X DELETE
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          owner: ${{ github.repository_owner }}
+          repo: ${{ github.event.repository.name }}
