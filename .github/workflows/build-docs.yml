@@ -88,10 +88,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Checkout Main Branch
+      - name: Checkout Main Branch and Merge Documentation
         run: |
-          # Switch to the main branch to avoid issues when deleting the temp branch
+          # Fetch the latest main branch
+          git fetch origin main
           git checkout main
+
+          # Merge the changes from the temporary branch into main
+          git merge $BRANCH_NAME
+
+          # Push the changes to the main branch
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Delete Branch After Merge
         if: success() # Only delete if previous steps were successful
