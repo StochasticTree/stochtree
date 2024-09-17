@@ -346,7 +346,7 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
   std::normal_distribution<double> normal_dist(0.,1.);
   
   // DGP parameters
-  std::vector<double> betas{1, 2, 5, 10};
+  std::vector<double> betas{0.5, 1, 2, 4};
   int num_partitions = betas.size();
   double s_x;
   double rfx;
@@ -497,7 +497,7 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   double outcome_offset;
   double outcome_scale;
   OutcomeOffsetScale(residual, outcome_offset, outcome_scale);
-
+  
   RandomEffectsDataset rfx_dataset;
   std::vector<int> rfx_init(n, 0);
   RandomEffectsTracker rfx_tracker = RandomEffectsTracker(rfx_init);
@@ -547,7 +547,7 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
 
   // Initialize a leaf model
   double leaf_prior_mean = 0.;
-  double leaf_prior_scale = 1.;
+  double leaf_prior_scale = 1./num_trees;
   
   // Initialize forest sampling machinery
   double alpha = 1;
@@ -559,8 +559,11 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   double b_rfx = 1.;
   double a_leaf = 2.;
   double b_leaf = 0.5;
-  double a_global = 4.;
-  double b_global = 2.;
+  double a_global = 4;
+  double b_global = 2;
+  double a_0 = 1.5;
+  double a_forest = num_trees / (a_0 * a_0) + 0.5;
+  double b_forest = num_trees / (a_0 * a_0);
 
   // Set leaf model parameters
   double leaf_scale;
@@ -622,7 +625,7 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   }
 
   // Prepare the samplers
-  LeafModelVariant leaf_model = leafModelFactory(model_type, leaf_scale, leaf_scale_matrix, a_global, b_global);
+  LeafModelVariant leaf_model = leafModelFactory(model_type, leaf_scale, leaf_scale_matrix, a_forest, b_forest);
 
   // Run the GFR sampler
   if (num_gfr > 0) {
