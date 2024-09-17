@@ -76,7 +76,6 @@ jobs:
 
       - name: Enable Auto-Merge on the PR
         run: |
-          # Get the pull request number and enable auto-merge
           PR_NUMBER=$(gh pr list --head update-python-docs --json number --jq '.[0].number')
           gh pr merge $PR_NUMBER --auto --merge
         env:
@@ -85,7 +84,6 @@ jobs:
       - name: Delete Branch After Merge
         if: success() # Only delete if previous steps were successful
         run: |
-          # Delete the branch after the PR has been merged
           gh api repos/:owner/:repo/git/refs/heads/update-python-docs -X DELETE
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
