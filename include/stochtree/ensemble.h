@@ -116,7 +116,7 @@ class TreeEnsemble {
         }
       }
       if (is_exponentiated_) output[i + offset] = std::exp(pred);
-      else output[i + offset] = std::exp(pred);
+      else output[i + offset] = pred;
     }
   }
 
