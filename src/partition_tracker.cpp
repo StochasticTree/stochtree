@@ -84,6 +84,50 @@ void ForestTracker::AssignAllSamplesToConstantPrediction(int32_t tree_num, doubl
   sample_pred_mapper_->AssignAllSamplesToConstantPrediction(tree_num, value);
 }
 
+void ForestTracker::UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis) {
+  int output_dim = basis.cols();
+  double forest_pred, tree_pred;
+
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    forest_pred = 0.0;
+    for (int j = 0; j < num_trees_; j++) {
+      tree_pred = 0.0;
+      Tree* tree = ensemble->GetTree(j);
+      std::int32_t nidx = EvaluateTree(*tree, covariates, i);
+      for (int32_t k = 0; k < output_dim; k++) {
+        tree_pred += tree->LeafValue(nidx, k) * basis(i, k);
+      }
+      sample_pred_mapper_->SetPred(i, j, tree_pred);
+      forest_pred += tree_pred;
+    }
+    sum_predictions_[i] = forest_pred;
+  }
+}
+
+void ForestTracker::UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates) {
+  double forest_pred, tree_pred;
+
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    forest_pred = 0.0;
+    for (int j = 0; j < num_trees_; j++) {
+      Tree* tree = ensemble->GetTree(j);
+      std::int32_t nidx = EvaluateTree(*tree, covariates, i);
+      tree_pred = tree->LeafValue(nidx, 0);
+      sample_pred_mapper_->SetPred(i, j, tree_pred);
+      forest_pred += tree_pred;
+    }
+    sum_predictions_[i] = forest_pred;
+  }
+}
+
+void ForestTracker::UpdatePredictions(TreeEnsemble* ensemble, ForestDataset& dataset) {
+  if (dataset.HasBasis()) {
+    UpdatePredictionsInternal(ensemble, dataset.GetCovariates(), dataset.GetBasis());
+  } else {
+    UpdatePredictionsInternal(ensemble, dataset.GetCovariates());
+  }
+}
+
 void ForestTracker::AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted) {
   sample_node_mapper_->AddSplit(covariates, split, split_feature, tree_id, split_node_id, left_node_id, right_node_id);
   unsorted_node_sample_tracker_->PartitionTreeNode(covariates, tree_id, split_node_id, left_node_id, right_node_id, split_feature, split);

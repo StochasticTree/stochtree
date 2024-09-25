@@ -321,8 +321,8 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
 
 void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
-  n = 1000;
-  x_cols = 2;
+  n = 400;
+  x_cols = 10;
   omega_cols = 0;
   y_cols = 1;
   if (rfx_included) {
@@ -346,7 +346,7 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
   std::normal_distribution<double> normal_dist(0.,1.);
   
   // DGP parameters
-  std::vector<double> betas{0.5, 1, 2, 4};
+  std::vector<double> betas{0.5, 1, 2, 3};
   int num_partitions = betas.size();
   double s_x;
   double rfx;
@@ -420,9 +420,18 @@ void OutcomeOffsetScale(ColumnVector& residual, double& outcome_offset, double& 
   }
 }
 
-void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussian, bool rfx_included = false, int num_gfr = 10, int num_mcmc = 100, int random_seed = -1) {
+void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussian, 
+              bool rfx_included = false, int num_gfr = 10, int num_mcmc = 100, int random_seed = -1, 
+              std::string dataset_filename = "", int outcome_col = -1, std::string covariate_cols = "",
+              std::string basis_cols = "") {
   // Flag the data as row-major
   bool row_major = true;
+
+  // Determine whether we will generate data or read from file
+  bool data_from_file = false;
+  if (!dataset_filename.empty()) {
+    data_from_file = true;
+  }
 
   // Random number generation
   std::mt19937 gen;
@@ -436,6 +445,9 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
 
   // Initialize dataset
   ForestDataset dataset = ForestDataset();
+
+  // Initialize outcome
+  ColumnVector residual = ColumnVector();
 
   // Empty data containers and dimensions (filled in by calling a specific DGP simulation function below)
   int n;
@@ -459,39 +471,61 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   // Generate the data
   int output_dimension;
   bool is_leaf_constant;
-  if (dgp_num == 0) {
-    GenerateDGP1(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
-    dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
-    dataset.AddBasis(basis_raw.data(), n, omega_cols, row_major);
-    output_dimension = 1;
-    is_leaf_constant = false;
-  } else if (dgp_num == 1) {
-    GenerateDGP2(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
-    dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
-    output_dimension = 1;
-    is_leaf_constant = true;
-  } else if (dgp_num == 2) {
-    GenerateDGP3(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
-    dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
-    dataset.AddBasis(basis_raw.data(), n, omega_cols, row_major);
-    output_dimension = omega_cols;
-    is_leaf_constant = false;
-  } else if (dgp_num == 3) {
-    GenerateDGP4(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
-    dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
-    output_dimension = 1;
-    is_leaf_constant = true;
+  if (!data_from_file) {
+    if (dgp_num == 0) {
+      GenerateDGP1(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+      dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
+      dataset.AddBasis(basis_raw.data(), n, omega_cols, row_major);
+      output_dimension = 1;
+      is_leaf_constant = false;
+    } else if (dgp_num == 1) {
+      GenerateDGP2(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+      dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
+      output_dimension = 1;
+      is_leaf_constant = true;
+    } else if (dgp_num == 2) {
+      GenerateDGP3(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+      dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
+      dataset.AddBasis(basis_raw.data(), n, omega_cols, row_major);
+      output_dimension = omega_cols;
+      is_leaf_constant = false;
+    } else if (dgp_num == 3) {
+      GenerateDGP4(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+      dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
+      output_dimension = 1;
+      is_leaf_constant = true;
+    } else {
+      Log::Fatal("Invalid dgp_num");
+    }
+    // Construct residual
+    residual = ColumnVector(outcome_raw.data(), n);
   } else {
-    Log::Fatal("Invalid dgp_num");
+    // Override RFX
+    rfx_included = false;
+    // Construct residual
+    residual = ColumnVector(dataset_filename, outcome_col);
+    y_cols = 0;
+    // Add covariates
+    dataset.AddCovariatesFromCSV(dataset_filename, covariate_cols);
+    n = dataset.NumObservations();
+    x_cols = dataset.NumCovariates();
+    feature_types.resize(x_cols, FeatureType::kNumeric);
+    if (!basis_cols.empty()) {
+      dataset.AddBasisFromCSV(dataset_filename, basis_cols);
+      output_dimension = dataset.NumBasis();
+      is_leaf_constant = false;
+      omega_cols = dataset.NumBasis();
+    } else {
+      output_dimension = 1;
+      is_leaf_constant = true;
+      omega_cols = 0;
+    }
   }
   
   // Runtime check --- cannot have case / variance weights and be modeling heteroskedastic variance
   if ((dgp_num == 3) && (dataset.HasVarWeights())) {
     StochTree::Log::Fatal("Cannot provide variance / case weights when modeling heteroskedasticity with a forest");
   }
-
-  // Construct residual
-  ColumnVector residual = ColumnVector(outcome_raw.data(), n);
 
   // Center and scale the data
   double outcome_offset;
@@ -550,8 +584,8 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   double leaf_prior_scale = 1./num_trees;
   
   // Initialize forest sampling machinery
-  double alpha = 1;
-  double beta = 0.1;
+  double alpha = 0.95;
+  double beta = 2.;
   int min_samples_leaf = 1;
   int max_depth = 10;
   int cutpoint_grid_size = 100;
@@ -559,8 +593,8 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   double b_rfx = 1.;
   double a_leaf = 2.;
   double b_leaf = 0.5;
-  double a_global = 4;
-  double b_global = 2;
+  double a_global = 0;
+  double b_global = 0;
   double a_0 = 1.5;
   double a_forest = num_trees / (a_0 * a_0) + 0.5;
   double b_forest = num_trees / (a_0 * a_0);
@@ -600,26 +634,29 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   double init_val_glob;
   std::vector<double> init_vec;
   if (model_type == kConstantLeafGaussian) {
-    init_val_glob = StochTree::ComputeMeanOutcome(residual);
+    init_val_glob = ComputeMeanOutcome(residual);
     init_val = init_val_glob / static_cast<double>(num_trees);
     forest_samples.InitializeRoot(init_val);
-    tracker.AssignAllSamplesToConstantPrediction(init_val);
+    UpdateResidualEntireForest(tracker, dataset, residual, forest_samples.GetEnsemble(0), false, std::minus<double>());
+    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
   } else if (model_type == kUnivariateRegressionLeafGaussian) {
-    init_val_glob = StochTree::ComputeMeanOutcome(residual);
+    init_val_glob = ComputeMeanOutcome(residual);
     init_val = init_val_glob / static_cast<double>(num_trees);
     forest_samples.InitializeRoot(init_val);
-    tracker.AssignAllSamplesToConstantPrediction(init_val);
+    UpdateResidualEntireForest(tracker, dataset, residual, forest_samples.GetEnsemble(0), true, std::minus<double>());
+    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
   } else if (model_type == kMultivariateRegressionLeafGaussian) {
-    init_val_glob = StochTree::ComputeMeanOutcome(residual);
+    init_val_glob = ComputeMeanOutcome(residual);
     init_val = init_val_glob / static_cast<double>(num_trees);
     init_vec = std::vector<double>(omega_cols, init_val);
     forest_samples.InitializeRoot(init_vec);
-    tracker.AssignAllSamplesToConstantPrediction(init_val);
+    UpdateResidualEntireForest(tracker, dataset, residual, forest_samples.GetEnsemble(0), true, std::minus<double>());
+    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
   } else if (model_type == kLogLinearVariance) {
-    init_val_glob = StochTree::ComputeVarianceOutcome(residual) * 0.4;
+    init_val_glob = ComputeVarianceOutcome(residual) * 0.4;
     init_val = std::log(init_val_glob) / static_cast<double>(num_trees);
     forest_samples.InitializeRoot(init_val);
-    tracker.AssignAllSamplesToConstantPrediction(init_val);
+    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
     std::vector<double> initial_preds(n, init_val_glob);
     dataset.AddVarianceWeights(initial_preds.data(), n);
   }
@@ -753,7 +790,12 @@ int main(int argc, char* argv[]) {
   if (random_seed < -1) {
     StochTree::Log::Fatal("The sixth command line argument must be >= -0");
   }
+  std::string dataset_filename = argv[7];
+  int outcome_col = std::stoi(argv[8]);
+  std::string covariate_cols = argv[9];
+  std::string basis_cols = argv[10];
 
   // Run the debug program
-  StochTree::RunDebug(dgp_num, model_type, rfx_included, num_gfr, num_mcmc);
+  StochTree::RunDebug(dgp_num, model_type, rfx_included, num_gfr, num_mcmc, random_seed,
+                      dataset_filename, outcome_col, covariate_cols, basis_cols);
 }

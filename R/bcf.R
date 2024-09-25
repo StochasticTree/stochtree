@@ -526,7 +526,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, a_global, b_global)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf_mu) {
@@ -578,7 +578,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, a_global, b_global)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf_tau) {
@@ -625,7 +625,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, a_global, b_global)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf_mu) {
@@ -677,7 +677,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, a_global, b_global)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf_tau) {

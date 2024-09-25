@@ -1,0 +1,517 @@
+---
+title: "Bayesian Supervised Learning with Heteroskedasticity in StochTree"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Bayesian-Supervised-Learning}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+bibliography: vignettes.bib
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette demonstrates how to use the `bart()` function for Bayesian 
+supervised learning (@chipman2010bart), with an additional "variance forest," 
+for modeling conditional variance. To begin, we load the `stochtree` package.
+
+```{r setup}
+library(stochtree)
+```
+
+# Demo 1: Variance-Only Simulation (simple DGP)
+
+## Simulation
+
+Here, we generate data with a constant (zero) mean and a relatively simple covariate-modified variance function.
+
+\begin{equation*}
+\begin{aligned}
+y &= 0 + \sigma^2(X) \epsilon\\
+\sigma^2(X) &= \begin{cases}
+0.25 & X_1 \geq 0 \text{ and } X_1 < 0.25\\
+1 & X_1 \geq 0.25 \text{ and } X_1 < 0.5\\
+4 & X_1 \geq 0.5 \text{ and } X_1 < 0.75\\
+9 & X_1 \geq 0.75 \text{ and } X_1 < 1\\
+\end{cases}\\
+X_1,\dots,X_p &\sim \text{U}\left(0,1\right)\\
+\epsilon &\sim \mathcal{N}\left(0,1\right)
+\end{aligned}
+\end{equation*}
+
+```{r}
+# Generate the data
+n <- 500
+p_x <- 10
+X <- matrix(runif(n*p_x), ncol = p_x)
+f_XW <- 0
+s_XW <- (
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.5) + 
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (1) + 
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2) + 
+    ((0.75 <= X[,1]) & (1 > X[,1])) * (3)
+)
+y <- f_XW + rnorm(n, 0, 1)*s_XW
+
+# Split data into test and train sets
+test_set_pct <- 0.2
+n_test <- round(test_set_pct*n)
+n_train <- n - n_test
+test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+train_inds <- (1:n)[!((1:n) %in% test_inds)]
+X_test <- as.data.frame(X[test_inds,])
+X_train <- as.data.frame(X[train_inds,])
+W_test <- NULL
+W_train <- NULL
+y_test <- y[test_inds]
+y_train <- y[train_inds]
+f_x_test <- f_XW[test_inds]
+f_x_train <- f_XW[train_inds]
+s_x_test <- s_XW[test_inds]
+s_x_train <- s_XW[train_inds]
+```
+
+## Sampling and Analysis
+
+### Warmstart
+
+We first sample the $\sigma^2(X)$ ensemble using "warm-start" 
+initialization (@he2023stochastic). This is the default in 
+`stochtree`.
+
+```{r}
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 100
+num_samples <- num_gfr + num_burnin + num_mcmc
+bart_model_warmstart <- stochtree::bart(
+    X_train = X_train, y_train = y_train, X_test = X_test, 
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    num_trees_mean = 0, num_trees_variance = 20, 
+    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
+    alpha_variance = 0.95, beta_variance = 0.5, 
+    min_samples_leaf_variance = 5, 
+    sample_sigma = T, sample_tau = F
+)
+```
+
+Inspect the MCMC samples
+
+```{r}
+plot(rowMeans(bart_model_warmstart$sigma_x_hat_test), s_x_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "standard deviation function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+```
+
+### MCMC
+
+We now sample the $\sigma^2(X)$ ensemble using MCMC with 
+root initialization (as in @chipman2010bart).
+
+```{r}
+num_gfr <- 0
+num_burnin <- 1000
+num_mcmc <- 100
+num_samples <- num_gfr + num_burnin + num_mcmc
+bart_model_mcmc <- stochtree::bart(
+    X_train = X_train, y_train = y_train, X_test = X_test, 
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    num_trees_mean = 0, num_trees_variance = 20, 
+    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
+    alpha_variance = 0.95, beta_variance = 0.5, 
+    min_samples_leaf_variance = 5, 
+    sample_sigma = T, sample_tau = F
+)
+```
+
+Inspect the MCMC samples
+
+```{r}
+plot(rowMeans(bart_model_mcmc$sigma_x_hat_test), s_x_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "standard deviation function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+```
+
+# Demo 2: Variance-Only Simulation (complex DGP)
+
+## Simulation
+
+Here, we generate data with a constant (zero) mean and a more complex covariate-modified variance function.
+
+\begin{equation*}
+\begin{aligned}
+y &= 0 + \sigma^2(X) \epsilon\\
+\sigma^2(X) &= \begin{cases}
+0.25X_3^2 & X_1 \geq 0 \text{ and } X_1 < 0.25\\
+1X_3^2 & X_1 \geq 0.25 \text{ and } X_1 < 0.5\\
+4X_3^2 & X_1 \geq 0.5 \text{ and } X_1 < 0.75\\
+9X_3^2 & X_1 \geq 0.75 \text{ and } X_1 < 1\\
+\end{cases}\\
+X_1,\dots,X_p &\sim \text{U}\left(0,1\right)\\
+\epsilon &\sim \mathcal{N}\left(0,1\right)
+\end{aligned}
+\end{equation*}
+
+```{r}
+# Generate the data
+n <- 500
+p_x <- 10
+X <- matrix(runif(n*p_x), ncol = p_x)
+f_XW <- 0
+s_XW <- (
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.5*X[,3]) + 
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (1*X[,3]) + 
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2*X[,3]) + 
+    ((0.75 <= X[,1]) & (1 > X[,1])) * (3*X[,3])
+)
+y <- f_XW + rnorm(n, 0, 1)*s_XW
+
+# Split data into test and train sets
+test_set_pct <- 0.2
+n_test <- round(test_set_pct*n)
+n_train <- n - n_test
+test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+train_inds <- (1:n)[!((1:n) %in% test_inds)]
+X_test <- as.data.frame(X[test_inds,])
+X_train <- as.data.frame(X[train_inds,])
+W_test <- NULL
+W_train <- NULL
+y_test <- y[test_inds]
+y_train <- y[train_inds]
+f_x_test <- f_XW[test_inds]
+f_x_train <- f_XW[train_inds]
+s_x_test <- s_XW[test_inds]
+s_x_train <- s_XW[train_inds]
+```
+
+## Sampling and Analysis
+
+### Warmstart
+
+We first sample the $\sigma^2(X)$ ensemble using "warm-start" 
+initialization (@he2023stochastic). This is the default in 
+`stochtree`.
+
+```{r}
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 100
+num_samples <- num_gfr + num_burnin + num_mcmc
+bart_model_warmstart <- stochtree::bart(
+    X_train = X_train, y_train = y_train, X_test = X_test, 
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    num_trees_mean = 0, num_trees_variance = 50, 
+    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
+    alpha_variance = 0.95, beta_variance = 0.5, 
+    min_samples_leaf_variance = 1, 
+    sample_sigma = T, sample_tau = F
+)
+```
+
+Inspect the MCMC samples
+
+```{r}
+plot(rowMeans(bart_model_warmstart$sigma_x_hat_test), s_x_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "standard deviation function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+```
+
+### MCMC
+
+We now sample the $\sigma^2(X)$ ensemble using MCMC with 
+root initialization (as in @chipman2010bart).
+
+```{r}
+num_gfr <- 0
+num_burnin <- 1000
+num_mcmc <- 100
+num_samples <- num_gfr + num_burnin + num_mcmc
+bart_model_mcmc <- stochtree::bart(
+    X_train = X_train, y_train = y_train, X_test = X_test, 
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    num_trees_mean = 0, num_trees_variance = 20, 
+    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
+    alpha_variance = 0.95, beta_variance = 0.5, 
+    min_samples_leaf_variance = 5, 
+    sample_sigma = T, sample_tau = F
+)
+```
+
+Inspect the MCMC samples
+
+```{r}
+plot(rowMeans(bart_model_mcmc$sigma_x_hat_test), s_x_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "standard deviation function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+```
+
+# Demo 3: Mean and Variance Simulation (simple DGP)
+
+## Simulation
+
+Here, we generate data with (relatively simple) covariate-modified mean and variance functions.
+
+\begin{equation*}
+\begin{aligned}
+y &= f(X) + \sigma^2(X) \epsilon\\
+f(X) &= \begin{cases}
+-6 & X_2 \geq 0 \text{ and } X_2 < 0.25\\
+-2 & X_2 \geq 0.25 \text{ and } X_2 < 0.5\\
+2 & X_2 \geq 0.5 \text{ and } X_2 < 0.75\\
+6 & X_2 \geq 0.75 \text{ and } X_2 < 1\\
+\end{cases}\\
+\sigma^2(X) &= \begin{cases}
+0.25 & X_1 \geq 0 \text{ and } X_1 < 0.25\\
+1 & X_1 \geq 0.25 \text{ and } X_1 < 0.5\\
+4 & X_1 \geq 0.5 \text{ and } X_1 < 0.75\\
+9 & X_1 \geq 0.75 \text{ and } X_1 < 1\\
+\end{cases}\\
+X_1,\dots,X_p &\sim \text{U}\left(0,1\right)\\
+\epsilon &\sim \mathcal{N}\left(0,1\right)
+\end{aligned}
+\end{equation*}
+
+```{r}
+# Generate the data
+n <- 500
+p_x <- 10
+X <- matrix(runif(n*p_x), ncol = p_x)
+f_XW <- (
+    ((0 <= X[,2]) & (0.25 > X[,2])) * (-6) + 
+    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (-2) + 
+    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (2) + 
+    ((0.75 <= X[,2]) & (1 > X[,2])) * (6)
+)
+s_XW <- (
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.5) + 
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (1) + 
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2) + 
+    ((0.75 <= X[,1]) & (1 > X[,1])) * (3)
+)
+y <- f_XW + rnorm(n, 0, 1)*s_XW
+
+# Split data into test and train sets
+test_set_pct <- 0.2
+n_test <- round(test_set_pct*n)
+n_train <- n - n_test
+test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+train_inds <- (1:n)[!((1:n) %in% test_inds)]
+X_test <- as.data.frame(X[test_inds,])
+X_train <- as.data.frame(X[train_inds,])
+W_test <- NULL
+W_train <- NULL
+y_test <- y[test_inds]
+y_train <- y[train_inds]
+f_x_test <- f_XW[test_inds]
+f_x_train <- f_XW[train_inds]
+s_x_test <- s_XW[test_inds]
+s_x_train <- s_XW[train_inds]
+```
+
+## Sampling and Analysis
+
+### Warmstart
+
+We first sample the $\sigma^2(X)$ ensemble using "warm-start" 
+initialization (@he2023stochastic). This is the default in 
+`stochtree`.
+
+```{r}
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 100
+num_samples <- num_gfr + num_burnin + num_mcmc
+bart_model_warmstart <- stochtree::bart(
+    X_train = X_train, y_train = y_train, X_test = X_test, 
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    num_trees_mean = 50, num_trees_variance = 20, 
+    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
+    alpha_variance = 0.95, beta_variance = 0.5, 
+    min_samples_leaf_variance = 5, 
+    sample_sigma = T, sample_tau = F
+)
+```
+
+Inspect the MCMC samples
+
+```{r}
+plot(rowMeans(bart_model_warmstart$y_hat_test), y_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "mean function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+plot(rowMeans(bart_model_warmstart$sigma_x_hat_test), s_x_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "standard deviation function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+```
+
+### MCMC
+
+We now sample the $\sigma^2(X)$ ensemble using MCMC with 
+root initialization (as in @chipman2010bart).
+
+```{r}
+num_gfr <- 0
+num_burnin <- 1000
+num_mcmc <- 100
+num_samples <- num_gfr + num_burnin + num_mcmc
+bart_model_mcmc <- stochtree::bart(
+    X_train = X_train, y_train = y_train, X_test = X_test, 
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    num_trees_mean = 50, num_trees_variance = 20, 
+    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
+    alpha_variance = 0.95, beta_variance = 0.5, 
+    min_samples_leaf_variance = 5, 
+    sample_sigma = T, sample_tau = F
+)
+```
+
+Inspect the MCMC samples
+
+```{r}
+plot(rowMeans(bart_model_mcmc$y_hat_test), y_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "mean function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+
+plot(rowMeans(bart_model_mcmc$sigma_x_hat_test), s_x_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "standard deviation function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+```
+
+# Demo 4: Mean and Variance Simulation (complex DGP)
+
+## Simulation
+
+Here, we generate data with more complex covariate-modified mean and variance functions.
+
+\begin{equation*}
+\begin{aligned}
+y &= f(X) + \sigma^2(X) \epsilon\\
+f(X) &= \begin{cases}
+-6X_4 & X_2 \geq 0 \text{ and } X_2 < 0.25\\
+-2X_4 & X_2 \geq 0.25 \text{ and } X_2 < 0.5\\
+2X_4 & X_2 \geq 0.5 \text{ and } X_2 < 0.75\\
+6X_4 & X_2 \geq 0.75 \text{ and } X_2 < 1\\
+\end{cases}\\
+\sigma^2(X) &= \begin{cases}
+0.25X_3^2 & X_1 \geq 0 \text{ and } X_1 < 0.25\\
+1X_3^2 & X_1 \geq 0.25 \text{ and } X_1 < 0.5\\
+4X_3^2 & X_1 \geq 0.5 \text{ and } X_1 < 0.75\\
+9X_3^2 & X_1 \geq 0.75 \text{ and } X_1 < 1\\
+\end{cases}\\
+X_1,\dots,X_p &\sim \text{U}\left(0,1\right)\\
+\epsilon &\sim \mathcal{N}\left(0,1\right)
+\end{aligned}
+\end{equation*}
+
+```{r}
+# Generate the data
+n <- 500
+p_x <- 10
+X <- matrix(runif(n*p_x), ncol = p_x)
+f_XW <- (
+    ((0 <= X[,2]) & (0.25 > X[,2])) * (-6*X[,4]) + 
+    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (-2*X[,4]) + 
+    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (2*X[,4]) + 
+    ((0.75 <= X[,2]) & (1 > X[,2])) * (6*X[,4])
+)
+s_XW <- (
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.5*X[,3]) + 
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (1*X[,3]) + 
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2*X[,3]) + 
+    ((0.75 <= X[,1]) & (1 > X[,1])) * (3*X[,3])
+)
+y <- f_XW + rnorm(n, 0, 1)*s_XW
+
+# Split data into test and train sets
+test_set_pct <- 0.2
+n_test <- round(test_set_pct*n)
+n_train <- n - n_test
+test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+train_inds <- (1:n)[!((1:n) %in% test_inds)]
+X_test <- as.data.frame(X[test_inds,])
+X_train <- as.data.frame(X[train_inds,])
+W_test <- NULL
+W_train <- NULL
+y_test <- y[test_inds]
+y_train <- y[train_inds]
+f_x_test <- f_XW[test_inds]
+f_x_train <- f_XW[train_inds]
+s_x_test <- s_XW[test_inds]
+s_x_train <- s_XW[train_inds]
+```
+
+## Sampling and Analysis
+
+### Warmstart
+
+We first sample the $\sigma^2(X)$ ensemble using "warm-start" 
+initialization (@he2023stochastic). This is the default in 
+`stochtree`.
+
+```{r}
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 100
+num_samples <- num_gfr + num_burnin + num_mcmc
+bart_model_warmstart <- stochtree::bart(
+    X_train = X_train, y_train = y_train, X_test = X_test, 
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    num_trees_mean = 50, num_trees_variance = 20, 
+    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
+    alpha_variance = 0.95, beta_variance = 0.5, 
+    min_samples_leaf_variance = 5, 
+    sample_sigma = T, sample_tau = F
+)
+```
+
+Inspect the MCMC samples
+
+```{r}
+plot(rowMeans(bart_model_warmstart$y_hat_test), y_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "mean function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+plot(rowMeans(bart_model_warmstart$sigma_x_hat_test), s_x_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "standard deviation function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+```
+
+### MCMC
+
+We now sample the $\sigma^2(X)$ ensemble using MCMC with 
+root initialization (as in @chipman2010bart).
+
+```{r}
+num_gfr <- 0
+num_burnin <- 1000
+num_mcmc <- 100
+num_samples <- num_gfr + num_burnin + num_mcmc
+bart_model_mcmc <- stochtree::bart(
+    X_train = X_train, y_train = y_train, X_test = X_test, 
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    num_trees_mean = 50, num_trees_variance = 20, 
+    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
+    alpha_variance = 0.95, beta_variance = 0.5, 
+    min_samples_leaf_variance = 5, 
+    sample_sigma = T, sample_tau = F
+)
+```
+
+Inspect the MCMC samples
+
+```{r}
+plot(rowMeans(bart_model_mcmc$y_hat_test), y_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "mean function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+
+plot(rowMeans(bart_model_mcmc$sigma_x_hat_test), s_x_test, 
+     pch=16, cex=0.75, xlab = "pred", ylab = "actual", main = "standard deviation function")
+abline(0,1,col="red",lty=2,lwd=2.5)
+```
+
+# References

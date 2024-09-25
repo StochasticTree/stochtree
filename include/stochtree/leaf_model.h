@@ -8,6 +8,7 @@
 #include <Eigen/Dense>
 #include <stochtree/cutpoint_candidates.h>
 #include <stochtree/data.h>
+#include <stochtree/gamma_sampler.h>
 #include <stochtree/ig_sampler.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
@@ -240,7 +241,7 @@ class LogLinearVarianceSuffStat {
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     weighted_sum_ei += outcome(row_idx)*outcome(row_idx)/dataset.VarWeightValue(row_idx);
-    sum_log_partial_var += std::exp(tracker.GetSamplePrediction(row_idx) - tracker.GetTreeSamplePrediction(row_idx, tree_idx));
+    sum_log_partial_var += tracker.GetSamplePrediction(row_idx) - tracker.GetTreeSamplePrediction(row_idx, tree_idx);
   }
   void ResetSuffStat() {
     n = 0;
@@ -276,11 +277,11 @@ class LogLinearVarianceLeafModel {
   double SplitLogMarginalLikelihood(LogLinearVarianceSuffStat& left_stat, LogLinearVarianceSuffStat& right_stat, double global_variance);
   double NoSplitLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance);
   double PosteriorParameterShape(LogLinearVarianceSuffStat& suff_stat, double global_variance);
-  double PosteriorParameterScale(LogLinearVarianceSuffStat& suff_stat, double global_variance);
+  double PosteriorParameterRate(LogLinearVarianceSuffStat& suff_stat, double global_variance);
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetPriorShape(double a) {a_ = a;}
-  void SetPriorScale(double b) {b_ = b;}
+  void SetPriorRate(double b) {b_ = b;}
   inline bool RequiresBasis() {return false;}
  private:
   double a_;

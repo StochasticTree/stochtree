@@ -6,16 +6,104 @@
 #define STOCHTREE_DATA_H_
 
 #include <Eigen/Dense>
+#include <stochtree/io.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <memory>
 
 namespace StochTree {
 
+/*! \brief Extract local features from memory */
+static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* text_data, const Parser* parser,
+                                                     std::vector<int32_t>& column_indices, Eigen::MatrixXd& data,
+                                                     data_size_t num_rows) {
+  std::vector<std::pair<int, double>> oneline_features;
+  auto& ref_text_data = *text_data;
+  int feature_counter;
+  bool column_matched;
+  for (data_size_t i = 0; i < num_rows; ++i) {
+    // unpack the vector of textlines read from file into a vector of (int, double) tuples
+    oneline_features.clear();
+    parser->ParseOneLine(ref_text_data[i].c_str(), &oneline_features);
+    
+    // free processed line:
+    ref_text_data[i].clear();
+
+    // unload the data from oneline_features vector into the dataset variables containers
+    int feature_counter = 0;
+    for (auto& inner_data : oneline_features) {
+      int feature_idx = inner_data.first;
+      column_matched = (std::find(column_indices.begin(), column_indices.end(), feature_idx)
+                        != column_indices.end());
+      if (column_matched){
+        data(i, feature_counter) = inner_data.second;
+        feature_counter += 1;
+      }
+    }
+  }
+  // free text data after use
+  text_data->clear();
+}
+
+/*! \brief Extract local features from memory */
+static inline void ExtractSingleFeatureFromMemory(std::vector<std::string>* text_data, const Parser* parser,
+                                                  int32_t column_index, Eigen::VectorXd& data, data_size_t num_rows) {
+  std::vector<std::pair<int, double>> oneline_features;
+  auto& ref_text_data = *text_data;
+  bool column_matched;
+  for (data_size_t i = 0; i < num_rows; ++i) {
+    // unpack the vector of textlines read from file into a vector of (int, double) tuples
+    oneline_features.clear();
+    parser->ParseOneLine(ref_text_data[i].c_str(), &oneline_features);
+    
+    // free processed line:
+    ref_text_data[i].clear();
+
+    // unload the data from oneline_features vector into the dataset variables containers
+    for (auto& inner_data : oneline_features) {
+      int feature_idx = inner_data.first;
+      if (column_index == feature_idx){
+        data(i) = inner_data.second;
+      }
+    }
+  }
+  // free text data after use
+  text_data->clear();
+}
+
+static inline std::vector<std::string> LoadTextDataToMemory(const char* filename, int* num_global_data, bool header) {
+  size_t file_load_progress_interval_bytes = size_t(10) * 1024 * 1024 * 1024;
+  TextReader<data_size_t> text_reader(filename, header, file_load_progress_interval_bytes);
+  // read all lines
+  *num_global_data = text_reader.ReadAllLines();
+  return std::move(text_reader.Lines());
+}
+
+static inline void FeatureUnpack(std::vector<int32_t>& categorical_variables, const char* var_id) {
+  std::string var_clean = Common::RemoveQuotationSymbol(Common::Trim(var_id));
+  int out;
+  bool success = Common::AtoiAndCheck(var_clean.c_str(), &out);
+  if (success) {
+    categorical_variables.push_back(out);
+  } else {
+    Log::Warning("Parsed variable index %s cannot be cast to an integer", var_clean.c_str());
+  }
+}
+
+static inline std::vector<int> Str2FeatureVec(const char* parameters) {
+  std::vector<int> feature_vec;
+  auto args = Common::Split(parameters, ",");
+  for (auto arg : args) {
+    FeatureUnpack(feature_vec, Common::Trim(arg).c_str());
+  }
+  return feature_vec;
+}
+
 class ColumnMatrix {
  public:
   ColumnMatrix() {}
   ColumnMatrix(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
+  ColumnMatrix(std::string filename, std::string column_index_string, bool header = true, bool precise_float_parser = false);
   ~ColumnMatrix() {}
   double GetElement(data_size_t row_num, int32_t col_num) {return data_(row_num, col_num);}
   void SetElement(data_size_t row_num, int32_t col_num, double value) {data_(row_num, col_num) = value;}
@@ -31,6 +119,7 @@ class ColumnVector {
  public:
   ColumnVector() {}
   ColumnVector(double* data_ptr, data_size_t num_row);
+  ColumnVector(std::string filename, int32_t column_index, bool header = true, bool precise_float_parser = false);
   ~ColumnVector() {}
   double GetElement(data_size_t row_num) {return data_(row_num);}
   void SetElement(data_size_t row_num, double value) {data_(row_num) = value;}
@@ -82,6 +171,39 @@ class ForestDataset {
    */
   void AddVarianceWeights(double* data_ptr, data_size_t num_row) {
     var_weights_ = ColumnVector(data_ptr, num_row);
+    has_var_weights_ = true;
+  }
+  /*!
+   * \brief Copy / load covariates from CSV file
+   * 
+   * \param filename Name of the file (including any necessary path prefixes)
+   * \param column_index_string Comma-delimited string listing columns to extract into covariates matrix
+   */
+  void AddCovariatesFromCSV(std::string filename, std::string column_index_string, bool header = true, bool precise_float_parser = false) {
+    covariates_ = ColumnMatrix(filename, column_index_string, header, precise_float_parser);
+    num_observations_ = covariates_.NumRows();
+    num_covariates_ = covariates_.NumCols();
+    has_covariates_ = true;
+  }
+  /*!
+   * \brief Copy / load basis matrix from CSV file
+   * 
+   * \param filename Name of the file (including any necessary path prefixes)
+   * \param column_index_string Comma-delimited string listing columns to extract into covariates matrix
+   */
+  void AddBasisFromCSV(std::string filename, std::string column_index_string, bool header = true, bool precise_float_parser = false) {
+    basis_ = ColumnMatrix(filename, column_index_string, header, precise_float_parser);
+    num_basis_ = basis_.NumCols();
+    has_basis_ = true;
+  }
+  /*!
+   * \brief Copy / load variance / case weights from CSV file
+   * 
+   * \param filename Name of the file (including any necessary path prefixes)
+   * \param column_index Integer index of column containing weights
+   */
+  void AddVarianceWeightsFromCSV(std::string filename, int32_t column_index, bool header = true, bool precise_float_parser = false) {
+    var_weights_ = ColumnVector(filename, column_index, header, precise_float_parser);
     has_var_weights_ = true;
   }
   /*! \brief Whether or not a `ForestDataset` has (yet) loaded covariate data */

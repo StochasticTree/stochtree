@@ -210,15 +210,15 @@ void GaussianMultivariateRegressionLeafModel::SetEnsembleRootPredictedValue(Fore
 double LogLinearVarianceLeafModel::SplitLogMarginalLikelihood(LogLinearVarianceSuffStat& left_stat, LogLinearVarianceSuffStat& right_stat, double global_variance) {
   double left_log_ml = (
     boost::math::lgamma(a_ + 0.5 * left_stat.n) -
-    (0.5 * left_stat.n) * std::log(2 * pi_constant * global_variance) - 
-    0.5 * left_stat.sum_log_partial_var - 
+    // (0.5 * left_stat.n) * std::log(2 * pi_constant * global_variance) - 
+    // 0.5 * left_stat.sum_log_partial_var - 
     (a_ + 0.5 * left_stat.n) * std::log(b_ + (0.5 * left_stat.weighted_sum_ei) / global_variance)
   );
 
   double right_log_ml = (
     boost::math::lgamma(a_ + 0.5 * right_stat.n) -
-    (0.5 * right_stat.n) * std::log(2 * pi_constant * global_variance) - 
-    0.5 * right_stat.sum_log_partial_var - 
+    // (0.5 * right_stat.n) * std::log(2 * pi_constant * global_variance) - 
+    // 0.5 * right_stat.sum_log_partial_var - 
     (a_ + 0.5 * right_stat.n) * std::log(b_ + (0.5 * right_stat.weighted_sum_ei) / global_variance)
   );
 
@@ -228,8 +228,8 @@ double LogLinearVarianceLeafModel::SplitLogMarginalLikelihood(LogLinearVarianceS
 double LogLinearVarianceLeafModel::NoSplitLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
   double log_ml = (
     boost::math::lgamma(a_ + 0.5 * suff_stat.n) -
-    (0.5 * suff_stat.n) * std::log(2 * pi_constant * global_variance) - 
-    0.5 * suff_stat.sum_log_partial_var - 
+    // (0.5 * suff_stat.n) * std::log(2 * pi_constant * global_variance) - 
+    // 0.5 * suff_stat.sum_log_partial_var - 
     (a_ + 0.5 * suff_stat.n) * std::log(b_ + (0.5 * suff_stat.weighted_sum_ei) / global_variance)
   );
 
@@ -240,7 +240,7 @@ double LogLinearVarianceLeafModel::PosteriorParameterShape(LogLinearVarianceSuff
   return a_ + 0.5 * suff_stat.n;
 }
 
-double LogLinearVarianceLeafModel::PosteriorParameterScale(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
+double LogLinearVarianceLeafModel::PosteriorParameterRate(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
   return (b_ + (0.5 * suff_stat.weighted_sum_ei) / global_variance);
 }
 
@@ -253,7 +253,7 @@ void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, Fo
 
   // Sample each leaf node parameter
   double node_shape;
-  double node_scale;
+  double node_rate;
   double node_mu;
   int32_t leaf_id;
   for (int i = 0; i < tree_leaves.size(); i++) {
@@ -264,10 +264,10 @@ void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, Fo
     
     // Compute posterior mean and variance
     node_shape = PosteriorParameterShape(node_suff_stat, global_variance);
-    node_scale = PosteriorParameterScale(node_suff_stat, global_variance);
+    node_rate = PosteriorParameterRate(node_suff_stat, global_variance);
     
     // Draw from IG(shape, scale) and set the leaf parameter with each draw
-    node_mu = std::log(ig_sampler_.Sample(node_shape, node_scale, gen));
+    node_mu = std::log(ig_sampler_.Sample(node_shape, node_rate, gen, false));
     tree->SetLeaf(leaf_id, node_mu);
   }
 }

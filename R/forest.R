@@ -16,9 +16,10 @@ ForestSamples <- R6::R6Class(
         #' @param num_trees Number of trees
         #' @param output_dimension Dimensionality of the outcome model
         #' @param is_leaf_constant Whether leaf is constant
+        #' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
         #' @return A new `ForestContainer` object.
-        initialize = function(num_trees, output_dimension=1, is_leaf_constant=F) {
-            self$forest_container_ptr <- forest_container_cpp(num_trees, output_dimension, is_leaf_constant)
+        initialize = function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+            self$forest_container_ptr <- forest_container_cpp(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
         }, 
         
         #' @description
@@ -104,6 +105,26 @@ ForestSamples <- R6::R6Class(
             } else {
                 stop("leaf_value must be a numeric value or vector of length >= 1")
             }
+        }, 
+        
+        #' @description
+        #' Set a constant predicted value for every tree in the ensemble. 
+        #' Stops program if any tree is more than a root node. 
+        #' @param dataset `ForestDataset` Dataset class (covariates, basis, etc...)
+        #' @param outcome `Outcome` Outcome class (residual / partial residual)
+        #' @param forest_model `ForestModel` object storing tracking structures used in training / sampling
+        #' @param leaf_model_int Integer value encoding the leaf model type (0 = constant gaussian, 1 = univariate gaussian, 2 = multivariate gaussian, 3 = log linear variance).
+        #' @param leaf_value Constant leaf value(s) to be fixed for each tree in the ensemble indexed by `forest_num`. Can be either a single number or a vector, depending on the forest's leaf dimension.
+        prepare_for_sampler = function(dataset, outcome, forest_model, leaf_model_int, leaf_value) {
+            stopifnot(!is.null(dataset$data_ptr))
+            stopifnot(!is.null(outcome$data_ptr))
+            stopifnot(!is.null(forest_model$tracker_ptr))
+            stopifnot(!is.null(self$forest_container_ptr))
+            stopifnot(num_samples_forest_container_cpp(self$forest_container_ptr) == 0)
+            
+            # Initialize the model
+            initialize_forest_model_cpp(dataset$data_ptr, outcome$data_ptr, self$forest_container_ptr, 
+                                        forest_model$tracker_ptr, leaf_value, leaf_model_int)
         }, 
         
         #' @description
@@ -294,11 +315,12 @@ ForestSamples <- R6::R6Class(
 #' @param num_trees Number of trees
 #' @param output_dimension Dimensionality of the outcome model
 #' @param is_leaf_constant Whether leaf is constant
+#' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
 #'
 #' @return `ForestSamples` object
 #' @export
-createForestContainer <- function(num_trees, output_dimension=1, is_leaf_constant=F) {
+createForestContainer <- function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
     return(invisible((
-        ForestSamples$new(num_trees, output_dimension, is_leaf_constant)
+        ForestSamples$new(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
     )))
 }

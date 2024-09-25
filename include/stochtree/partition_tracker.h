@@ -63,6 +63,7 @@ class ForestTracker {
   void AssignAllSamplesToRoot(int32_t tree_num);
   void AssignAllSamplesToConstantPrediction(double value);
   void AssignAllSamplesToConstantPrediction(int32_t tree_num, double value);
+  void UpdatePredictions(TreeEnsemble* ensemble, ForestDataset& dataset);
   void ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num);
   void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
   void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
@@ -108,6 +109,9 @@ class ForestTracker {
   int num_trees_;
   int num_observations_;
   int num_features_;
+
+  void UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis);
+  void UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates);
 };
 
 /*! \brief Class storing sample-prediction map for each tree in an ensemble */
