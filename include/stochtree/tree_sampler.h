@@ -312,14 +312,15 @@ static inline void UpdateVarModelTree(ForestTracker& tracker, ForestDataset& dat
       pred_delta = pred_value - prev_tree_pred;
       tracker.SetTreeSamplePrediction(i, tree_num, pred_value);
       tracker.SetSamplePrediction(i, prev_pred + pred_delta);
+      new_weight = std::log(dataset.VarWeightValue(i)) + pred_value;
+      dataset.SetVarWeightValue(i, new_weight, true);
     } else {
       // If the tree has not yet been modified via a sampling step, 
       // we can query its prediction directly from the SamplePredMapper stored in tracker
       pred_value = tracker.GetTreeSamplePrediction(i, tree_num);
+      new_weight = std::log(dataset.VarWeightValue(i)) - pred_value;
+      dataset.SetVarWeightValue(i, new_weight, true);
     }
-    // Run op (either plus or minus) on the dataset's variance weights and the new prediction
-    new_weight = op(std::log(dataset.VarWeightValue(i)), pred_value);
-    dataset.SetVarWeightValue(i, std::exp(new_weight), false);
   }
 }
 

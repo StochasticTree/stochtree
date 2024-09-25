@@ -267,7 +267,7 @@ void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, Fo
     node_rate = PosteriorParameterRate(node_suff_stat, global_variance);
     
     // Draw from IG(shape, scale) and set the leaf parameter with each draw
-    node_mu = std::log(ig_sampler_.Sample(node_shape, node_rate, gen, false));
+    node_mu = std::log(gamma_sampler_.Sample(node_shape, node_rate, gen, true));
     tree->SetLeaf(leaf_id, node_mu);
   }
 }

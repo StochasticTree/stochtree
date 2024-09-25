@@ -291,10 +291,11 @@ void initialize_forest_model_cpp(cpp11::external_pointer<StochTree::ForestDatase
         UpdateResidualEntireForest(*tracker, *data, *residual, forest_samples->GetEnsemble(0), true, std::minus<double>());
         tracker->UpdatePredictions(forest_samples->GetEnsemble(0), *data);
     } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
-        forest_samples->InitializeRoot(std::log(init_val) / static_cast<double>(num_trees));
+        forest_samples->InitializeRoot(-std::log(init_val) / static_cast<double>(num_trees));
         tracker->UpdatePredictions(forest_samples->GetEnsemble(0), *data);
         int n = data->NumObservations();
         std::vector<double> initial_preds(n, init_val);
+        for (int i = 0; i < n; i++) initial_preds[i] = 1/initial_preds[i];
         data->AddVarianceWeights(initial_preds.data(), n);
     }
 }

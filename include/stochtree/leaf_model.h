@@ -44,8 +44,8 @@ class GaussianConstantSuffStat {
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
-      sum_w += 1./dataset.VarWeightValue(row_idx);
-      sum_yw += outcome(row_idx, 0)/dataset.VarWeightValue(row_idx);
+      sum_w += dataset.VarWeightValue(row_idx);
+      sum_yw += outcome(row_idx, 0)*dataset.VarWeightValue(row_idx);
     } else {
       sum_w += 1.0;
       sum_yw += outcome(row_idx, 0);
@@ -109,8 +109,8 @@ class GaussianUnivariateRegressionSuffStat {
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
-      sum_xxw += dataset.BasisValue(row_idx, 0)*dataset.BasisValue(row_idx, 0)/dataset.VarWeightValue(row_idx);
-      sum_yxw += outcome(row_idx, 0)*dataset.BasisValue(row_idx, 0)/dataset.VarWeightValue(row_idx);
+      sum_xxw += dataset.BasisValue(row_idx, 0)*dataset.BasisValue(row_idx, 0)*dataset.VarWeightValue(row_idx);
+      sum_yxw += outcome(row_idx, 0)*dataset.BasisValue(row_idx, 0)*dataset.VarWeightValue(row_idx);
     } else {
       sum_xxw += dataset.BasisValue(row_idx, 0)*dataset.BasisValue(row_idx, 0);
       sum_yxw += outcome(row_idx, 0)*dataset.BasisValue(row_idx, 0);
@@ -176,8 +176,8 @@ class GaussianMultivariateRegressionSuffStat {
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
-      XtWX += dataset.GetBasis()(row_idx, Eigen::all).transpose()*dataset.GetBasis()(row_idx, Eigen::all)/dataset.VarWeightValue(row_idx);
-      ytWX += (outcome(row_idx, 0)*(dataset.GetBasis()(row_idx, Eigen::all)))/dataset.VarWeightValue(row_idx);
+      XtWX += dataset.GetBasis()(row_idx, Eigen::all).transpose()*dataset.GetBasis()(row_idx, Eigen::all)*dataset.VarWeightValue(row_idx);
+      ytWX += (outcome(row_idx, 0)*(dataset.GetBasis()(row_idx, Eigen::all)))*dataset.VarWeightValue(row_idx);
     } else {
       XtWX += dataset.GetBasis()(row_idx, Eigen::all).transpose()*dataset.GetBasis()(row_idx, Eigen::all);
       ytWX += (outcome(row_idx, 0)*(dataset.GetBasis()(row_idx, Eigen::all)));
@@ -240,7 +240,7 @@ class LogLinearVarianceSuffStat {
   }
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
-    weighted_sum_ei += outcome(row_idx)*outcome(row_idx)/dataset.VarWeightValue(row_idx);
+    weighted_sum_ei += std::exp(std::log(outcome(row_idx)*outcome(row_idx)) + tracker.GetSamplePrediction(row_idx) - tracker.GetTreeSamplePrediction(row_idx, tree_idx));
     sum_log_partial_var += tracker.GetSamplePrediction(row_idx) - tracker.GetTreeSamplePrediction(row_idx, tree_idx);
   }
   void ResetSuffStat() {
@@ -272,7 +272,7 @@ class LogLinearVarianceSuffStat {
 /*! \brief Marginal likelihood and posterior computation for heteroskedastic log-linear variance model */
 class LogLinearVarianceLeafModel {
  public:
-  LogLinearVarianceLeafModel(double a, double b) {a_ = a; b_ = b; ig_sampler_ = InverseGammaSampler();}
+  LogLinearVarianceLeafModel(double a, double b) {a_ = a; b_ = b; gamma_sampler_ = GammaSampler();}
   ~LogLinearVarianceLeafModel() {}
   double SplitLogMarginalLikelihood(LogLinearVarianceSuffStat& left_stat, LogLinearVarianceSuffStat& right_stat, double global_variance);
   double NoSplitLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance);
@@ -286,7 +286,7 @@ class LogLinearVarianceLeafModel {
  private:
   double a_;
   double b_;
-  InverseGammaSampler ig_sampler_;
+  GammaSampler gamma_sampler_;
 };
 
 using SuffStatVariant = std::variant<GaussianConstantSuffStat, 

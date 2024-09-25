@@ -11,13 +11,8 @@ class GammaSampler {
   GammaSampler() {}
   ~GammaSampler() {}
   double Sample(double a, double b, std::mt19937& gen, bool rate_param = true) {
-    // C++ standard library provides a gamma distribution with scale
-    // parameter, but the correspondence between gamma and IG is that 
-    // 1 / gamma(a,b) ~ IG(a,b) when b is a __rate__ parameter.
-    // Before sampling, we convert ig_scale to a gamma scale parameter by 
-    // taking its multiplicative inverse.
-    double rate = rate_param ? b : 1./b;
-    gamma_dist_ = std::gamma_distribution<double>(a, rate);
+    double scale = rate_param ? 1./b : b;
+    gamma_dist_ = std::gamma_distribution<double>(a, scale);
     return gamma_dist_(gen);
   }
  private:
