@@ -477,8 +477,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Mean forest predictions
     if (include_mean_forest) {
-        y_hat_train <- forest_samples_mean$predict(forest_dataset_train)*y_std_train + y_bar_train
-        if (has_test) y_hat_test <- forest_samples_mean$predict(forest_dataset_test)*y_std_train + y_bar_train
+        y_hat_train <- forest_samples_mean$predict(forest_dataset_train)*y_std_train/sqrt(variance_scale) + y_bar_train
+        if (has_test) y_hat_test <- forest_samples_mean$predict(forest_dataset_test)*y_std_train/sqrt(variance_scale) + y_bar_train
     }
     
     # Variance forest predictions
@@ -489,11 +489,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Random effects predictions
     if (has_rfx) {
-        rfx_preds_train <- rfx_samples$predict(group_ids_train, rfx_basis_train)*y_std_train
+        rfx_preds_train <- rfx_samples$predict(group_ids_train, rfx_basis_train)*y_std_train/sqrt(variance_scale)
         y_hat_train <- y_hat_train + rfx_preds_train
     }
     if ((has_rfx_test) && (has_test)) {
-        rfx_preds_test <- rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std_train
+        rfx_preds_test <- rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std_train/sqrt(variance_scale)
         y_hat_test <- y_hat_test + rfx_preds_test
     }
     
@@ -533,7 +533,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     }
 
     # Global error variance
-    if (sample_sigma) sigma2_samples <- global_var_samples[keep_indices]*(y_std_train^2)
+    if (sample_sigma) sigma2_samples <- global_var_samples[keep_indices]*(y_std_train^2)/variance_scale
     
     # Leaf parameter variance
     if (sample_tau) tau_samples <- leaf_scale_samples[keep_indices]
@@ -544,8 +544,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             sigma_x_hat_train <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_train[,i]*sigma2_samples[i]))
             if (has_test) sigma_x_hat_test <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_test[,i]*sigma2_samples[i]))
         } else {
-            sigma_x_hat_train <- sqrt(sigma_x_hat_train*sigma2_init)*y_std_train
-            if (has_test) sigma_x_hat_test <- sqrt(sigma_x_hat_test*sigma2_init)*y_std_train
+            sigma_x_hat_train <- sqrt(sigma_x_hat_train*sigma2_init)*y_std_train/sqrt(variance_scale)
+            if (has_test) sigma_x_hat_test <- sqrt(sigma_x_hat_test*sigma2_init)*y_std_train/sqrt(variance_scale)
         }
     }
     
