@@ -34,11 +34,12 @@ bart(
   sigma2_init = NULL,
   variance_forest_init = NULL,
   pct_var_sigma2_init = 1,
-  pct_var_variance_forest_init = 0.4,
+  variance_scale = 1,
+  pct_var_variance_forest_init = 1,
   variable_weights_mean = NULL,
   variable_weights_variance = NULL,
   num_trees_mean = 200,
-  num_trees_variance = 200,
+  num_trees_variance = 20,
   num_gfr = 5,
   num_burnin = 0,
   num_mcmc = 100,
@@ -47,8 +48,7 @@ bart(
   random_seed = -1,
   keep_burnin = F,
   keep_gfr = F,
-  verbose = F,
-  include_variance_forest = F
+  verbose = F
 )
 }
 \arguments{
@@ -125,7 +125,9 @@ that were not in the training set.}
 
 \item{pct_var_sigma2_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by \code{sigma2_init}.}
 
-\item{pct_var_variance_forest_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by \code{variance_forest_init}.}
+\item{variance_scale}{Variance after the data have been scaled. Default: 1.}
+
+\item{pct_var_variance_forest_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by \code{variance_forest_init}.}
 
 \item{variable_weights_mean}{Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.}
 

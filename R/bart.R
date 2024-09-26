@@ -46,6 +46,7 @@
 #' @param variance_forest_init Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance` if not set.
 #' @param pct_var_sigma2_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by `sigma2_init`.
 #' @param pct_var_variance_forest_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by `variance_forest_init`.
+#' @param variance_scale Variance after the data have been scaled. Default: 1.
 #' @param variable_weights_mean Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
 #' @param variable_weights_variance Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
 #' @param num_trees_mean Number of trees in the ensemble for the conditional mean model. Default: 200. If `num_trees_mean = 0`, the conditional mean will not be modeled using a forest and the function will only proceed if `num_trees_variance > 0`.
@@ -96,7 +97,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                  min_samples_leaf_variance = 5, max_depth_variance = 10, 
                  a_global = 0, b_global = 0, a_leaf = 3, b_leaf = NULL, 
                  a_forest = NULL, b_forest = NULL, q = 0.9, sigma2_init = NULL, 
-                 variance_forest_init = NULL, pct_var_sigma2_init = 1, 
+                 variance_forest_init = NULL, pct_var_sigma2_init = 1, variance_scale = 1, 
                  pct_var_variance_forest_init = 1, variable_weights_mean = NULL, 
                  variable_weights_variance = NULL, num_trees_mean = 200, num_trees_variance = 20, 
                  num_gfr = 5, num_burnin = 0, num_mcmc = 100, sample_sigma = T, 
@@ -256,6 +257,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     y_bar_train <- mean(y_train)
     y_std_train <- sd(y_train)
     resid_train <- (y_train-y_bar_train)/y_std_train
+    resid_train <- resid_train*sqrt(variance_scale)
     
     # Compute initial value of root nodes in mean forest
     init_val_mean <- mean(resid_train)
