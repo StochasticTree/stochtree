@@ -96,9 +96,10 @@ bart_model_warmstart <- stochtree::bart(
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     num_trees_mean = 0, num_trees_variance = 20, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 0.5, 
+    alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
     sample_sigma = T, sample_tau = F
+    # , a_forest = 1, b_forest = 1
 )
 ```
 
@@ -125,9 +126,10 @@ bart_model_mcmc <- stochtree::bart(
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     num_trees_mean = 0, num_trees_variance = 20, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 0.5, 
+    alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
     sample_sigma = T, sample_tau = F
+    # , a_forest = 1, b_forest = 1
 )
 ```
 
@@ -209,9 +211,10 @@ bart_model_warmstart <- stochtree::bart(
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     num_trees_mean = 0, num_trees_variance = 50, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 0.5, 
+    alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 1, 
     sample_sigma = T, sample_tau = F
+    # , a_forest = 1, b_forest = 1
 )
 ```
 
@@ -238,9 +241,10 @@ bart_model_mcmc <- stochtree::bart(
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     num_trees_mean = 0, num_trees_variance = 20, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 0.5, 
+    alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
     sample_sigma = T, sample_tau = F
+    # , a_forest = 1, b_forest = 1
 )
 ```
 
@@ -333,9 +337,10 @@ bart_model_warmstart <- stochtree::bart(
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     num_trees_mean = 50, num_trees_variance = 20, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 0.5, 
+    alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F
+    sample_sigma = T, sample_tau = F, 
+    a_forest = 1, b_forest = 1
 )
 ```
 
@@ -365,9 +370,10 @@ bart_model_mcmc <- stochtree::bart(
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     num_trees_mean = 50, num_trees_variance = 20, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 0.5, 
+    alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F
+    sample_sigma = T, sample_tau = F, 
+    a_forest = 1, b_forest = 1
 )
 ```
 
@@ -464,9 +470,10 @@ bart_model_warmstart <- stochtree::bart(
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     num_trees_mean = 50, num_trees_variance = 20, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 0.5, 
+    alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F
+    sample_sigma = T, sample_tau = F, 
+    a_forest = 1, b_forest = 1
 )
 ```
 
@@ -496,9 +503,10 @@ bart_model_mcmc <- stochtree::bart(
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     num_trees_mean = 50, num_trees_variance = 20, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 0.5, 
+    alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F
+    sample_sigma = T, sample_tau = F, 
+    a_forest = 1, b_forest = 1
 )
 ```
 

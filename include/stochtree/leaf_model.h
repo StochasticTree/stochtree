@@ -276,6 +276,7 @@ class LogLinearVarianceLeafModel {
   ~LogLinearVarianceLeafModel() {}
   double SplitLogMarginalLikelihood(LogLinearVarianceSuffStat& left_stat, LogLinearVarianceSuffStat& right_stat, double global_variance);
   double NoSplitLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance);
+  double SuffStatLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance);
   double PosteriorParameterShape(LogLinearVarianceSuffStat& suff_stat, double global_variance);
   double PosteriorParameterRate(LogLinearVarianceSuffStat& suff_stat, double global_variance);
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);

@@ -268,8 +268,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     current_leaf_scale <- as.matrix(tau_init)
     current_sigma2 <- sigma2_init
     a_0 <- 1.5
-    a_forest <- num_trees_variance/(a_0^2) + 0.5
-    b_forest <- num_trees_variance/(a_0^2)
+    if (is.null(a_forest)) a_forest <- num_trees_variance/(a_0^2) + 0.5
+    if (is.null(b_forest)) b_forest <- num_trees_variance/(a_0^2)
     
     # Determine leaf model type
     if (!has_basis) leaf_model_mean_forest <- 0
@@ -542,8 +542,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             sigma_x_hat_train <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_train[,i]*sigma2_samples[i]))
             if (has_test) sigma_x_hat_test <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_test[,i]*sigma2_samples[i]))
         } else {
-            sigma_x_hat_train <- sqrt(sigma_x_hat_train*sigma2_init)
-            if (has_test) sigma_x_hat_test <- sqrt(sigma_x_hat_test*sigma2_init)
+            sigma_x_hat_train <- sqrt(sigma_x_hat_train*sigma2_init)*y_std_train
+            if (has_test) sigma_x_hat_test <- sqrt(sigma_x_hat_test*sigma2_init)*y_std_train
         }
     }
     

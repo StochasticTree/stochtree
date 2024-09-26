@@ -208,31 +208,22 @@ void GaussianMultivariateRegressionLeafModel::SetEnsembleRootPredictedValue(Fore
 }
 
 double LogLinearVarianceLeafModel::SplitLogMarginalLikelihood(LogLinearVarianceSuffStat& left_stat, LogLinearVarianceSuffStat& right_stat, double global_variance) {
-  double left_log_ml = (
-    boost::math::lgamma(a_ + 0.5 * left_stat.n) -
-    // (0.5 * left_stat.n) * std::log(2 * pi_constant * global_variance) - 
-    // 0.5 * left_stat.sum_log_partial_var - 
-    (a_ + 0.5 * left_stat.n) * std::log(b_ + (0.5 * left_stat.weighted_sum_ei) / global_variance)
-  );
-
-  double right_log_ml = (
-    boost::math::lgamma(a_ + 0.5 * right_stat.n) -
-    // (0.5 * right_stat.n) * std::log(2 * pi_constant * global_variance) - 
-    // 0.5 * right_stat.sum_log_partial_var - 
-    (a_ + 0.5 * right_stat.n) * std::log(b_ + (0.5 * right_stat.weighted_sum_ei) / global_variance)
-  );
-
+  double left_log_ml = SuffStatLogMarginalLikelihood(left_stat, global_variance);
+  double right_log_ml = SuffStatLogMarginalLikelihood(right_stat, global_variance);
   return left_log_ml + right_log_ml;
 }
 
 double LogLinearVarianceLeafModel::NoSplitLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
-  double log_ml = (
-    boost::math::lgamma(a_ + 0.5 * suff_stat.n) -
-    // (0.5 * suff_stat.n) * std::log(2 * pi_constant * global_variance) - 
-    // 0.5 * suff_stat.sum_log_partial_var - 
-    (a_ + 0.5 * suff_stat.n) * std::log(b_ + (0.5 * suff_stat.weighted_sum_ei) / global_variance)
-  );
+  return SuffStatLogMarginalLikelihood(suff_stat, global_variance);
+}
 
+double LogLinearVarianceLeafModel::SuffStatLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
+  double a_term = a_ + 0.5 * suff_stat.n;
+  double b_term = b_ + ((0.5 * suff_stat.weighted_sum_ei) / global_variance);
+  double log_b_term = std::log(b_term);
+  double lgamma_a_term = boost::math::lgamma(a_term);
+  double resid_term = a_term * log_b_term;
+  double log_ml = lgamma_a_term - resid_term;
   return log_ml;
 }
 
