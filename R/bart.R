@@ -550,6 +550,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     }
     
     # Return results as a list
+    # TODO: store variance_scale and propagate through predict function
     model_params <- list(
         "sigma2_init" = sigma2_init, 
         "a_global" = a_global,
