@@ -218,12 +218,13 @@ double LogLinearVarianceLeafModel::NoSplitLogMarginalLikelihood(LogLinearVarianc
 }
 
 double LogLinearVarianceLeafModel::SuffStatLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
+  double prior_terms = a_ * std::log(b_) - boost::math::lgamma(a_);
   double a_term = a_ + 0.5 * suff_stat.n;
   double b_term = b_ + ((0.5 * suff_stat.weighted_sum_ei) / global_variance);
   double log_b_term = std::log(b_term);
   double lgamma_a_term = boost::math::lgamma(a_term);
   double resid_term = a_term * log_b_term;
-  double log_ml = lgamma_a_term - resid_term;
+  double log_ml = prior_terms + lgamma_a_term - resid_term;
   return log_ml;
 }
 
@@ -258,7 +259,9 @@ void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, Fo
     node_rate = PosteriorParameterRate(node_suff_stat, global_variance);
     
     // Draw from IG(shape, scale) and set the leaf parameter with each draw
-    node_mu = std::log(gamma_sampler_.Sample(node_shape, node_rate, gen, true));
+    std::gamma_distribution<double> gamma_dist_(node_shape, 1.);
+    node_mu = std::log(gamma_dist_(gen) / node_rate);
+    // node_mu = std::log(gamma_sampler_.Sample(node_shape, node_rate, gen, true));
     tree->SetLeaf(leaf_id, node_mu);
   }
 }
