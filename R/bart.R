@@ -27,12 +27,12 @@
 #' @param cutpoint_grid_size Maximum size of the "grid" of potential cutpoints to consider. Default: 100.
 #' @param tau_init Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees_mean` if not set here.
 #' @param leaf_model Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.
-#' @param alpha_mean Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`.
-#' @param beta_mean Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`.
+#' @param alpha_mean Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: 0.95.
+#' @param beta_mean Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: 2.
 #' @param min_samples_leaf_mean Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: 5.
 #' @param max_depth_mean Maximum depth of any tree in the ensemble in the mean model. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-#' @param alpha_variance Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`.
-#' @param beta_variance Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`.
+#' @param alpha_variance Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`. Default: 0.95.
+#' @param beta_variance Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance` .Default: 2.
 #' @param min_samples_leaf_variance Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: 5.
 #' @param max_depth_variance Maximum depth of any tree in the ensemble in the variance model. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
 #' @param a_global Shape parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
@@ -108,6 +108,13 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     else include_variance_forest = F
     if (num_trees_mean > 0) include_mean_forest = T
     else include_mean_forest = F
+    
+    # Set the variance forest priors if not set
+    if (include_variance_forest) {
+        a_0 <- 1.5
+        if (is.null(a_forest)) a_forest <- num_trees_variance / (a_0^2) + 0.5
+        if (is.null(b_forest)) b_forest <- num_trees_variance / (a_0^2)
+    }
     
     # Override tau sampling if there is no mean forest
     if (!include_mean_forest) sample_tau <- F
@@ -269,10 +276,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if (is.null(tau_init)) tau_init <- var(resid_train)/(num_trees_mean)
     current_leaf_scale <- as.matrix(tau_init)
     current_sigma2 <- sigma2_init
-    a_0 <- 1.5
-    if (is.null(a_forest)) a_forest <- num_trees_variance/(a_0^2) + 0.5
-    if (is.null(b_forest)) b_forest <- num_trees_variance/(a_0^2)
-    
+
     # Determine leaf model type
     if (!has_basis) leaf_model_mean_forest <- 0
     else if (ncol(W_train) == 1) leaf_model_mean_forest <- 1

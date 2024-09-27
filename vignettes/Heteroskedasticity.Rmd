@@ -90,16 +90,14 @@ initialization (@he2023stochastic). This is the default in
 num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
+num_trees <- 20
+a_0 <- 1.5
 num_samples <- num_gfr + num_burnin + num_mcmc
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    num_trees_mean = 0, num_trees_variance = 20, 
-    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 1.25, 
-    min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F
-    # , a_forest = 1, b_forest = 1
+    num_trees_mean = 0, num_trees_variance = num_trees, 
+    sample_sigma = F, sample_tau = F
 )
 ```
 
@@ -125,11 +123,7 @@ bart_model_mcmc <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     num_trees_mean = 0, num_trees_variance = 20, 
-    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-    alpha_variance = 0.95, beta_variance = 1.25, 
-    min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F
-    # , a_forest = 1, b_forest = 1
+    sample_sigma = F, sample_tau = F
 )
 ```
 
@@ -213,8 +207,7 @@ bart_model_warmstart <- stochtree::bart(
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 1, 
-    sample_sigma = T, sample_tau = F
-    # , a_forest = 1, b_forest = 1
+    sample_sigma = F, sample_tau = F
 )
 ```
 
@@ -243,8 +236,7 @@ bart_model_mcmc <- stochtree::bart(
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F
-    # , a_forest = 1, b_forest = 1
+    sample_sigma = F, sample_tau = F
 )
 ```
 
@@ -339,8 +331,7 @@ bart_model_warmstart <- stochtree::bart(
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F, 
-    a_forest = 1, b_forest = 1
+    sample_sigma = F, sample_tau = F
 )
 ```
 
@@ -372,8 +363,7 @@ bart_model_mcmc <- stochtree::bart(
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F, 
-    a_forest = 1, b_forest = 1
+    sample_sigma = F, sample_tau = F
 )
 ```
 
@@ -472,8 +462,7 @@ bart_model_warmstart <- stochtree::bart(
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F, 
-    a_forest = 1, b_forest = 1
+    sample_sigma = F, sample_tau = F
 )
 ```
 
@@ -505,8 +494,7 @@ bart_model_mcmc <- stochtree::bart(
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
-    sample_sigma = T, sample_tau = F, 
-    a_forest = 1, b_forest = 1
+    sample_sigma = F, sample_tau = F
 )
 ```
 

@@ -89,17 +89,17 @@ that were not in the training set.}
 
 \item{tau_init}{Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees_mean} if not set here.}
 
-\item{alpha_mean}{Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines \code{alpha_mean} and \code{beta_mean} via \code{alpha_mean*(1+node_depth)^-beta_mean}.}
+\item{alpha_mean}{Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines \code{alpha_mean} and \code{beta_mean} via \code{alpha_mean*(1+node_depth)^-beta_mean}. Default: 0.95.}
 
-\item{beta_mean}{Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines \code{alpha_mean} and \code{beta_mean} via \code{alpha_mean*(1+node_depth)^-beta_mean}.}
+\item{beta_mean}{Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines \code{alpha_mean} and \code{beta_mean} via \code{alpha_mean*(1+node_depth)^-beta_mean}. Default: 2.}
 
 \item{min_samples_leaf_mean}{Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: 5.}
 
 \item{max_depth_mean}{Maximum depth of any tree in the ensemble in the mean model. Default: 10. Can be overriden with \code{-1} which does not enforce any depth limits on trees.}
 
-\item{alpha_variance}{Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance}.}
+\item{alpha_variance}{Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance}. Default: 0.95.}
 
-\item{beta_variance}{Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance}.}
+\item{beta_variance}{Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance} .Default: 2.}
 
 \item{min_samples_leaf_variance}{Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: 5.}
 
