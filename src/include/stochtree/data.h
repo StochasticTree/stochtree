@@ -35,10 +35,13 @@ class ColumnVector {
   double GetElement(data_size_t row_num) {return data_(row_num);}
   void SetElement(data_size_t row_num, double value) {data_(row_num) = value;}
   void LoadData(double* data_ptr, data_size_t num_row);
+  void AddToData(double* data_ptr, data_size_t num_row);
+  void SubtractFromData(double* data_ptr, data_size_t num_row);
   inline data_size_t NumRows() {return data_.size();}
   inline Eigen::VectorXd& GetData() {return data_;}
  private:
   Eigen::VectorXd data_;
+  void UpdateData(double* data_ptr, data_size_t num_row, std::function<double(double, double)> op);
 };
 
 class ForestDataset {

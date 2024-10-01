@@ -106,6 +106,40 @@ Outcome <- R6::R6Class(
         #' @return R vector containing (copy of) the values in `Outcome` object
         get_data = function() {
             return(get_residual_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Update the current state of the outcome (i.e. partial residual) data by adding the values of `update_vector`
+        #' @param update_vector Vector to be added to outcome
+        #' @return NULL
+        add_vector = function(update_vector) {
+            if (!is.numeric(update_vector)) {
+                stop("update_vector must be a numeric vector or 2d matrix")
+            } else {
+                dim_vec <- dim(update_vector)
+                if (!is.null(dim_vec)) {
+                    if (length(dim_vec) > 2) stop("if update_vector is provided as a matrix, it must be 2d")
+                    update_vector <- as.numeric(update_vector)
+                }
+            }
+            add_to_column_vector_cpp(self$data_ptr, update_vector)
+        }, 
+        
+        #' @description
+        #' Update the current state of the outcome (i.e. partial residual) data by subtracting the values of `update_vector`
+        #' @param update_vector Vector to be subtracted from outcome
+        #' @return NULL
+        subtract_vector = function(update_vector) {
+            if (!is.numeric(update_vector)) {
+                stop("update_vector must be a numeric vector or 2d matrix")
+            } else {
+                dim_vec <- dim(update_vector)
+                if (!is.null(dim_vec)) {
+                    if (length(dim_vec) > 2) stop("if update_vector is provided as a matrix, it must be 2d")
+                    update_vector <- as.numeric(update_vector)
+                }
+            }
+            subtract_from_column_vector_cpp(self$data_ptr, update_vector)
         }
     )
 )
