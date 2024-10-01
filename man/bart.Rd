@@ -113,7 +113,7 @@ that were not in the training set.}
 
 \item{num_mcmc}{Number of "retained" iterations of the MCMC sampler. Default: 100.}
 
-\item{sample_sigma}{Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(nu, nu*lambda)}. Default: T.}
+\item{sample_sigma}{Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(a_globa, b_global)}. Default: T.}
 
 \item{sample_tau}{Whether or not to update the \code{tau} leaf scale variance parameter based on \code{IG(a_leaf, b_leaf)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: T.}
 
