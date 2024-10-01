@@ -87,6 +87,22 @@ extern "C" SEXP _stochtree_create_column_vector_cpp(SEXP outcome) {
   END_CPP11
 }
 // R_data.cpp
+void add_to_column_vector_cpp(cpp11::external_pointer<StochTree::ColumnVector> outcome, cpp11::doubles update_vector);
+extern "C" SEXP _stochtree_add_to_column_vector_cpp(SEXP outcome, SEXP update_vector) {
+  BEGIN_CPP11
+    add_to_column_vector_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(outcome), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(update_vector));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+void subtract_from_column_vector_cpp(cpp11::external_pointer<StochTree::ColumnVector> outcome, cpp11::doubles update_vector);
+extern "C" SEXP _stochtree_subtract_from_column_vector_cpp(SEXP outcome, SEXP update_vector) {
+  BEGIN_CPP11
+    subtract_from_column_vector_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(outcome), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(update_vector));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
 cpp11::writable::doubles get_residual_cpp(cpp11::external_pointer<StochTree::ColumnVector> vector_ptr);
 extern "C" SEXP _stochtree_get_residual_cpp(SEXP vector_ptr) {
   BEGIN_CPP11
@@ -889,6 +905,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_add_sample_forest_container_cpp",                     (DL_FUNC) &_stochtree_add_sample_forest_container_cpp,                      1},
     {"_stochtree_add_sample_value_forest_container_cpp",               (DL_FUNC) &_stochtree_add_sample_value_forest_container_cpp,                2},
     {"_stochtree_add_sample_vector_forest_container_cpp",              (DL_FUNC) &_stochtree_add_sample_vector_forest_container_cpp,               2},
+    {"_stochtree_add_to_column_vector_cpp",                            (DL_FUNC) &_stochtree_add_to_column_vector_cpp,                             2},
     {"_stochtree_adjust_residual_forest_container_cpp",                (DL_FUNC) &_stochtree_adjust_residual_forest_container_cpp,                 7},
     {"_stochtree_all_roots_forest_container_cpp",                      (DL_FUNC) &_stochtree_all_roots_forest_container_cpp,                       2},
     {"_stochtree_average_max_depth_forest_container_cpp",              (DL_FUNC) &_stochtree_average_max_depth_forest_container_cpp,               1},
@@ -1001,6 +1018,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_sample_tau_one_iteration_cpp",                        (DL_FUNC) &_stochtree_sample_tau_one_iteration_cpp,                         5},
     {"_stochtree_set_leaf_value_forest_container_cpp",                 (DL_FUNC) &_stochtree_set_leaf_value_forest_container_cpp,                  2},
     {"_stochtree_set_leaf_vector_forest_container_cpp",                (DL_FUNC) &_stochtree_set_leaf_vector_forest_container_cpp,                 2},
+    {"_stochtree_subtract_from_column_vector_cpp",                     (DL_FUNC) &_stochtree_subtract_from_column_vector_cpp,                      2},
     {"_stochtree_tree_prior_cpp",                                      (DL_FUNC) &_stochtree_tree_prior_cpp,                                       4},
     {"_stochtree_update_residual_forest_container_cpp",                (DL_FUNC) &_stochtree_update_residual_forest_container_cpp,                 5},
     {NULL, NULL, 0}

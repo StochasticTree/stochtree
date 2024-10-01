@@ -96,4 +96,58 @@ void ColumnVector::LoadData(double* data_ptr, data_size_t num_row) {
   }
 }
 
+void ColumnVector::AddToData(double* data_ptr, data_size_t num_row) {
+  data_size_t num_existing_rows = NumRows();
+  CHECK_EQ(num_row, num_existing_rows);
+  // std::function<double(double, double)> op = std::plus<double>();
+  UpdateData(data_ptr, num_row, std::plus<double>());
+}
+
+void ColumnVector::SubtractFromData(double* data_ptr, data_size_t num_row) {
+  data_size_t num_existing_rows = NumRows();
+  CHECK_EQ(num_row, num_existing_rows);
+  // std::function<double(double, double)> op = std::minus<double>();
+  UpdateData(data_ptr, num_row, std::minus<double>());
+}
+
+void ColumnVector::UpdateData(double* data_ptr, data_size_t num_row, std::function<double(double, double)> op) {
+  double ptr_val;
+  double updated_val;
+  for (data_size_t i = 0; i < num_row; ++i) {
+    ptr_val = static_cast<double>(*(data_ptr + i));
+    updated_val = op(data_(i), ptr_val);
+    data_(i) = updated_val;
+  }
+}
+
+void LoadData(double* data_ptr, int num_row, int num_col, bool is_row_major, Eigen::MatrixXd& data_matrix) {
+  data_matrix.resize(num_row, num_col);
+
+  // Copy data from R / Python process memory to Eigen matrix
+  double temp_value;
+  for (data_size_t i = 0; i < num_row; ++i) {
+    for (int j = 0; j < num_col; ++j) {
+      if (is_row_major){
+        // Numpy 2-d arrays are stored in "row major" order
+        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
+      } else {
+        // R matrices are stored in "column major" order
+        temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
+      }
+      data_matrix(i, j) = temp_value;
+    }
+  }
+}
+
+void LoadData(double* data_ptr, int num_row, Eigen::VectorXd& data_vector) {
+  data_vector.resize(num_row);
+
+  // Copy data from R / Python process memory to Eigen matrix
+  double temp_value;
+  for (data_size_t i = 0; i < num_row; ++i) {
+    temp_value = static_cast<double>(*(data_ptr + i));
+    data_vector(i) = temp_value;
+  }
+}
+
 } // namespace StochTree

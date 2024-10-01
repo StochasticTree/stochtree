@@ -23,6 +23,8 @@ of the outcome minus the predictions of every other model term
 \itemize{
 \item \href{#method-Outcome-new}{\code{Outcome$new()}}
 \item \href{#method-Outcome-get_data}{\code{Outcome$get_data()}}
+\item \href{#method-Outcome-add_vector}{\code{Outcome$add_vector()}}
+\item \href{#method-Outcome-subtract_vector}{\code{Outcome$subtract_vector()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -56,6 +58,46 @@ Extract raw data in R from the underlying C++ object
 
 \subsection{Returns}{
 R vector containing (copy of) the values in \code{Outcome} object
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Outcome-add_vector"></a>}}
+\if{latex}{\out{\hypertarget{method-Outcome-add_vector}{}}}
+\subsection{Method \code{add_vector()}}{
+Update the current state of the outcome (i.e. partial residual) data by adding the values of \code{update_vector}
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Outcome$add_vector(update_vector)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{update_vector}}{Vector to be added to outcome}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Outcome-subtract_vector"></a>}}
+\if{latex}{\out{\hypertarget{method-Outcome-subtract_vector}{}}}
+\subsection{Method \code{subtract_vector()}}{
+Update the current state of the outcome (i.e. partial residual) data by subtracting the values of \code{update_vector}
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Outcome$subtract_vector(update_vector)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{update_vector}}{Vector to be subtracted from outcome}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
 }
 }
 }
