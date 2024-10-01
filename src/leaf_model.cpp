@@ -232,7 +232,7 @@ double LogLinearVarianceLeafModel::PosteriorParameterShape(LogLinearVarianceSuff
   return a_ + 0.5 * suff_stat.n;
 }
 
-double LogLinearVarianceLeafModel::PosteriorParameterRate(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
+double LogLinearVarianceLeafModel::PosteriorParameterScale(LogLinearVarianceSuffStat& suff_stat, double global_variance) {
   return (b_ + (0.5 * suff_stat.weighted_sum_ei) / global_variance);
 }
 
@@ -256,11 +256,11 @@ void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, Fo
     
     // Compute posterior mean and variance
     node_shape = PosteriorParameterShape(node_suff_stat, global_variance);
-    node_rate = PosteriorParameterRate(node_suff_stat, global_variance);
+    node_rate = PosteriorParameterScale(node_suff_stat, global_variance);
     
     // Draw from IG(shape, scale) and set the leaf parameter with each draw
     std::gamma_distribution<double> gamma_dist_(node_shape, 1.);
-    node_mu = std::log(gamma_dist_(gen) / node_rate);
+    node_mu = -std::log(gamma_dist_(gen) / node_rate);
     // node_mu = std::log(gamma_sampler_.Sample(node_shape, node_rate, gen, true));
     tree->SetLeaf(leaf_id, node_mu);
   }

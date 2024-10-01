@@ -487,8 +487,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Variance forest predictions
     if (include_variance_forest) {
-        sigma_x_hat_train <- 1/forest_samples_variance$predict(forest_dataset_train)
-        if (has_test) sigma_x_hat_test <- 1/forest_samples_variance$predict(forest_dataset_test)
+        sigma_x_hat_train <- forest_samples_variance$predict(forest_dataset_train)
+        if (has_test) sigma_x_hat_test <- forest_samples_variance$predict(forest_dataset_test)
     }
     
     # Random effects predictions
