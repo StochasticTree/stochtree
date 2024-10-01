@@ -228,6 +228,10 @@ class BARTModel:
         else:
             leaf_model_int = 2
         
+        # TODO Placeholder: expose the heteroskedasticity interface through the function signature, as in R
+        a_forest = 1
+        b_forest = 1
+
         # Container of forest samples
         self.forest_container = ForestContainer(num_trees, 1, True) if not self.has_basis else ForestContainer(num_trees, self.num_basis, False)
         
@@ -249,7 +253,8 @@ class BARTModel:
                 # Sample the forest
                 forest_sampler.sample_one_iteration(
                     self.forest_container, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                    cutpoint_grid_size, current_leaf_scale, variable_weights, current_sigma2, leaf_model_int, True, True
+                    cutpoint_grid_size, current_leaf_scale, variable_weights, a_forest, b_forest, 
+                    current_sigma2, leaf_model_int, True, True
                 )
 
                 # Sample variance parameters (if requested)
@@ -270,7 +275,8 @@ class BARTModel:
                 # Sample the forest
                 forest_sampler.sample_one_iteration(
                     self.forest_container, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                    cutpoint_grid_size, current_leaf_scale, variable_weights, current_sigma2, leaf_model_int, False, True
+                    cutpoint_grid_size, current_leaf_scale, variable_weights, a_forest, b_forest, 
+                    current_sigma2, leaf_model_int, False, True
                 )
 
                 # Sample variance parameters (if requested)

@@ -19,13 +19,14 @@ class ForestSampler:
     
     def sample_one_iteration(self, forest_container: ForestContainer, dataset: Dataset, residual: Residual, rng: RNG, 
                              feature_types: np.array, cutpoint_grid_size: int, leaf_model_scale_input: np.array, 
-                             variable_weights: np.array, global_variance: float, leaf_model_int: int, gfr: bool, pre_initialized: bool):
+                             variable_weights: np.array, a_forest: float, b_forest: float, global_variance: float, 
+                             leaf_model_int: int, gfr: bool, pre_initialized: bool):
         """
         Sample one iteration of a forest using the specified model and tree sampling algorithm
         """
         self.forest_sampler_cpp.SampleOneIteration(forest_container.forest_container_cpp, dataset.dataset_cpp, residual.residual_cpp, rng.rng_cpp, 
                                                    feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, 
-                                                   global_variance, leaf_model_int, gfr, pre_initialized)
+                                                   a_forest, b_forest, global_variance, leaf_model_int, gfr, pre_initialized)
     
     def adjust_residual(self, dataset: Dataset, residual: Residual, forest_container: ForestContainer, requires_basis: bool, forest_num: int, add: bool) -> None:
         """

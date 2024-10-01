@@ -29,8 +29,8 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     current_leaf_scale = as.matrix(1./num_trees,nrow=1,ncol=1)
     cutpoint_grid_size = 100
     max_depth = 10
-    a_global = 0
-    b_global = 0
+    a_forest = 0
+    b_forest = 0
     
     # RNG
     cpp_rng = createRNG(-1)
@@ -46,7 +46,7 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     # Run the forest sampling algorithm for a single iteration
     forest_model$sample_one_iteration(
         forest_dataset, residual, forest_samples, cpp_rng, feature_types, 
-        0, current_leaf_scale, variable_weights, a_global, b_global, 
+        0, current_leaf_scale, variable_weights, a_forest, b_forest, 
         current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
     )
 
