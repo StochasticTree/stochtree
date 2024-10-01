@@ -153,7 +153,7 @@ that were not in the training set.}
 
 \item{num_mcmc}{Number of "retained" iterations of the MCMC sampler. Default: 100.}
 
-\item{sample_sigma_global}{Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(nu, nu*lambda)}. Default: T.}
+\item{sample_sigma_global}{Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(a_global, b_global)}. Default: T.}
 
 \item{sample_sigma_leaf_mu}{Whether or not to update the \code{sigma_leaf_mu} leaf scale variance parameter in the prognostic forest based on \code{IG(a_leaf_mu, b_leaf_mu)}. Default: T.}
 

@@ -44,6 +44,14 @@ create_column_vector_cpp <- function(outcome) {
   .Call(`_stochtree_create_column_vector_cpp`, outcome)
 }
 
+add_to_column_vector_cpp <- function(outcome, update_vector) {
+  invisible(.Call(`_stochtree_add_to_column_vector_cpp`, outcome, update_vector))
+}
+
+subtract_from_column_vector_cpp <- function(outcome, update_vector) {
+  invisible(.Call(`_stochtree_subtract_from_column_vector_cpp`, outcome, update_vector))
+}
+
 get_residual_cpp <- function(vector_ptr) {
   .Call(`_stochtree_get_residual_cpp`, vector_ptr)
 }

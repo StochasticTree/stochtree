@@ -111,6 +111,32 @@ cpp11::external_pointer<StochTree::ColumnVector> create_column_vector_cpp(cpp11:
 }
 
 [[cpp11::register]]
+void add_to_column_vector_cpp(cpp11::external_pointer<StochTree::ColumnVector> outcome, cpp11::doubles update_vector) {
+    // Unpack pointers to data and dimensions
+    StochTree::data_size_t n = update_vector.size();
+    double* update_data_ptr = REAL(PROTECT(update_vector));
+    
+    // Add to the outcome data using the C++ API
+    outcome->AddToData(update_data_ptr, n);
+    
+    // Unprotect pointers to R data
+    UNPROTECT(1);
+}
+
+[[cpp11::register]]
+void subtract_from_column_vector_cpp(cpp11::external_pointer<StochTree::ColumnVector> outcome, cpp11::doubles update_vector) {
+    // Unpack pointers to data and dimensions
+    StochTree::data_size_t n = update_vector.size();
+    double* update_data_ptr = REAL(PROTECT(update_vector));
+    
+    // Add to the outcome data using the C++ API
+    outcome->SubtractFromData(update_data_ptr, n);
+    
+    // Unprotect pointers to R data
+    UNPROTECT(1);
+}
+
+[[cpp11::register]]
 cpp11::writable::doubles get_residual_cpp(cpp11::external_pointer<StochTree::ColumnVector> vector_ptr) {
     // Initialize output vector
     StochTree::data_size_t n = vector_ptr->NumRows();

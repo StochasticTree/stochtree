@@ -43,6 +43,30 @@ void ColumnVector::LoadData(double* data_ptr, data_size_t num_row) {
   }
 }
 
+void ColumnVector::AddToData(double* data_ptr, data_size_t num_row) {
+  data_size_t num_existing_rows = NumRows();
+  CHECK_EQ(num_row, num_existing_rows);
+  // std::function<double(double, double)> op = std::plus<double>();
+  UpdateData(data_ptr, num_row, std::plus<double>());
+}
+
+void ColumnVector::SubtractFromData(double* data_ptr, data_size_t num_row) {
+  data_size_t num_existing_rows = NumRows();
+  CHECK_EQ(num_row, num_existing_rows);
+  // std::function<double(double, double)> op = std::minus<double>();
+  UpdateData(data_ptr, num_row, std::minus<double>());
+}
+
+void ColumnVector::UpdateData(double* data_ptr, data_size_t num_row, std::function<double(double, double)> op) {
+  double ptr_val;
+  double updated_val;
+  for (data_size_t i = 0; i < num_row; ++i) {
+    ptr_val = static_cast<double>(*(data_ptr + i));
+    updated_val = op(data_(i), ptr_val);
+    data_(i) = updated_val;
+  }
+}
+
 void LoadData(double* data_ptr, int num_row, int num_col, bool is_row_major, Eigen::MatrixXd& data_matrix) {
   data_matrix.resize(num_row, num_col);
 
