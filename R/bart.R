@@ -583,7 +583,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         "sample_sigma" = sample_sigma,
         "sample_tau" = sample_tau,
         "include_mean_forest" = include_mean_forest,
-        "include_variance_forest" = include_variance_forest
+        "include_variance_forest" = include_variance_forest,
+        "variance_scale" = variance_scale
     )
     result <- list(
         "model_params" = model_params, 
@@ -721,18 +722,19 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     else prediction_dataset <- createForestDataset(X_test)
     
     # Compute mean forest predictions
+    variance_scale <- bart$model_params$variance_scale
     y_std <- bart$model_params$outcome_scale
     y_bar <- bart$model_params$outcome_mean
-    mean_forest_predictions <- bart$mean_forests$predict(prediction_dataset)*y_std + y_bar
+    mean_forest_predictions <- bart$mean_forests$predict(prediction_dataset)*y_std/sqrt(variance_scale) + y_bar
     
     # Compute variance forest predictions
     if (bart$model_params$include_variance_forest) {
-        var_forest_predictions <- bart$variance_forests$predict(prediction_dataset)*(y_std^2)
+        var_forest_predictions <- bart$variance_forests$predict(prediction_dataset)*(y_std^2)/variance_scale
     }
     
     # Compute rfx predictions (if needed)
     if (bart$model_params$has_rfx) {
-        rfx_predictions <- bart$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std
+        rfx_predictions <- bart$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std/sqrt(variance_scale)
     }
     
     # Restrict predictions to the "retained" samples (if applicable)
@@ -746,21 +748,24 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     }
     
     if (bart$model_params$has_rfx) {
-        y_hat <- forest_predictions + rfx_predictions
-        result <- list(
-            "mean_forest_predictions" = mean_forest_predictions, 
-            "variance_forest_predictions" = variance_forest_predictions, 
-            "rfx_predictions" = rfx_predictions, 
-            "y_hat" = y_hat
-        )
-        return(result)
+        y_hat <- mean_forest_predictions + rfx_predictions
     } else {
-        result <- list(
-            "y_hat" = mean_forest_predictions, 
-            "variance_forest_predictions" = variance_forest_predictions
-        )
-        return(result)
+        y_hat <- mean_forest_predictions
     }
+    
+    result <- list(
+        "y_hat" = y_hat, 
+        "mean_forest_predictions" = mean_forest_predictions
+    )
+    
+    if (bart$model_params$has_rfx) {
+        result[["rfx_predictions"]] = rfx_predictions
+    }
+    
+    if (bart$model_params$include_variance_forest) {
+        result[["variance_forest_predictions"]] = variance_forest_predictions
+    }
+    return(result)
 }
 
 #' Extract raw sample values for each of the random effect parameter terms.
