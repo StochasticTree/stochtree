@@ -232,31 +232,25 @@ class LogLinearVarianceSuffStat {
  public:
   data_size_t n;
   double weighted_sum_ei;
-  double sum_log_partial_var;
   LogLinearVarianceSuffStat() {
     n = 0;
     weighted_sum_ei = 0.0;
-    sum_log_partial_var = 0.0;
   }
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     weighted_sum_ei += std::exp(std::log(outcome(row_idx)*outcome(row_idx)) + tracker.GetSamplePrediction(row_idx) - tracker.GetTreeSamplePrediction(row_idx, tree_idx));
-    sum_log_partial_var += tracker.GetSamplePrediction(row_idx) - tracker.GetTreeSamplePrediction(row_idx, tree_idx);
   }
   void ResetSuffStat() {
     n = 0;
     weighted_sum_ei = 0.0;
-    sum_log_partial_var = 0.0;
   }
   void AddSuffStat(LogLinearVarianceSuffStat& lhs, LogLinearVarianceSuffStat& rhs) {
     n = lhs.n + rhs.n;
     weighted_sum_ei = lhs.weighted_sum_ei + rhs.weighted_sum_ei;
-    sum_log_partial_var = lhs.sum_log_partial_var + rhs.sum_log_partial_var;
   }
   void SubtractSuffStat(LogLinearVarianceSuffStat& lhs, LogLinearVarianceSuffStat& rhs) {
     n = lhs.n - rhs.n;
     weighted_sum_ei = lhs.weighted_sum_ei - rhs.weighted_sum_ei;
-    sum_log_partial_var = lhs.sum_log_partial_var - rhs.sum_log_partial_var;
   }
   bool SampleGreaterThan(data_size_t threshold) {
     return n > threshold;
