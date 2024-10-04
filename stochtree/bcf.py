@@ -627,8 +627,8 @@ class BCFModel:
         forest_sampler_tau = ForestSampler(forest_dataset_train, feature_types, num_trees_tau, self.n_train, alpha_tau, beta_tau, min_samples_leaf_tau, max_depth_tau)
 
         # Container of forest samples
-        self.forest_container_mu = ForestContainer(num_trees_mu, 1, True)
-        self.forest_container_tau = ForestContainer(num_trees_tau, Z_train.shape[1], False)
+        self.forest_container_mu = ForestContainer(num_trees_mu, 1, True, False)
+        self.forest_container_tau = ForestContainer(num_trees_tau, Z_train.shape[1], False, False)
         
         # Variance samplers
         if self.sample_sigma_global:

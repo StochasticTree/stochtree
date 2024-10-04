@@ -39,12 +39,12 @@
 #' @param b_global Scale parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
 #' @param a_leaf Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: 3.
 #' @param b_leaf Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees_mean` if not set here.
-#' @param a_forest Shape parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `include_variance_forest = T`). Calibrated internally as `num_trees_variance / 1.5^2 + 0.5` if not set.
-#' @param b_forest Scale parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `include_variance_forest = T`). Calibrated internally as `num_trees_variance / 1.5^2` if not set.
+#' @param a_forest Shape parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `num_trees_variance > 0`). Calibrated internally as `num_trees_variance / 1.5^2 + 0.5` if not set.
+#' @param b_forest Scale parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `num_trees_variance > 0`). Calibrated internally as `num_trees_variance / 1.5^2` if not set.
 #' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
 #' @param sigma2_init Starting value of global error variance parameter. Calibrated internally as `pct_var_sigma2_init*var((y-mean(y))/sd(y))` if not set.
 #' @param variance_forest_init Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance` if not set.
-#' @param pct_var_sigma2_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by `sigma2_init`.
+#' @param pct_var_sigma2_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by `sigma2_init`.
 #' @param pct_var_variance_forest_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by `variance_forest_init`.
 #' @param variance_scale Variance after the data have been scaled. Default: 1.
 #' @param variable_weights_mean Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
@@ -54,8 +54,8 @@
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
-#' @param sample_sigma Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_globa, b_global)`. Default: T.
-#' @param sample_tau Whether or not to update the `tau` leaf scale variance parameter based on `IG(a_leaf, b_leaf)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: T.
+#' @param sample_sigma_global Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_global, b_global)`. Default: T.
+#' @param sample_sigma_leaf Whether or not to update the `tau` leaf scale variance parameter based on `IG(a_leaf, b_leaf)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: F.
 #' @param random_seed Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
 #' @param keep_burnin Whether or not "burnin" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.
 #' @param keep_gfr Whether or not "grow-from-root" samples should be included in cached predictions. Default TRUE. Ignored if num_mcmc = 0.
@@ -97,12 +97,13 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                  min_samples_leaf_variance = 5, max_depth_variance = 10, 
                  a_global = 0, b_global = 0, a_leaf = 3, b_leaf = NULL, 
                  a_forest = NULL, b_forest = NULL, q = 0.9, sigma2_init = NULL, 
-                 variance_forest_init = NULL, pct_var_sigma2_init = 1, variance_scale = 1, 
-                 pct_var_variance_forest_init = 1, variable_weights_mean = NULL, 
-                 variable_weights_variance = NULL, num_trees_mean = 200, num_trees_variance = 20, 
-                 num_gfr = 5, num_burnin = 0, num_mcmc = 100, sample_sigma = T, 
-                 sample_tau = T, random_seed = -1, keep_burnin = F, 
-                 keep_gfr = F, verbose = F) {
+                 variance_forest_init = NULL, pct_var_sigma2_init = 1, 
+                 pct_var_variance_forest_init = 1, variance_scale = 1, 
+                 variable_weights_mean = NULL, variable_weights_variance = NULL, 
+                 num_trees_mean = 200, num_trees_variance = 20, 
+                 num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
+                 sample_sigma_global = T, sample_sigma_leaf = F, random_seed = -1, 
+                 keep_burnin = F, keep_gfr = F, verbose = F) {
     # Determine whether conditional mean, variance, or both will be modeled
     if (num_trees_variance > 0) include_variance_forest = T
     else include_variance_forest = F
@@ -373,8 +374,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 
     # Container of variance parameter samples
     num_samples <- num_gfr + num_burnin + num_mcmc
-    if (sample_sigma) global_var_samples <- rep(0, num_samples)
-    if (sample_tau) leaf_scale_samples <- rep(0, num_samples)
+    if (sample_sigma_global) global_var_samples <- rep(0, num_samples)
+    if (sample_sigma_leaf) leaf_scale_samples <- rep(0, num_samples)
     
     # Initialize the leaves of each tree in the mean forest
     if (include_mean_forest) {
@@ -399,7 +400,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 }
             }
             
-            
             if (include_mean_forest) {
                 forest_model_mean$sample_one_iteration(
                     forest_dataset_train, outcome_train, forest_samples_mean, rng, feature_types, 
@@ -414,11 +414,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                     a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
                 )
             }
-            if (sample_sigma) {
+            if (sample_sigma_global) {
                 global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
-            if (sample_tau) {
+            if (sample_sigma_leaf) {
                 leaf_scale_samples[i] <- sample_tau_one_iteration(forest_samples_mean, rng, a_leaf, b_leaf, i-1)
                 current_leaf_scale <- as.matrix(leaf_scale_samples[i])
             }
@@ -465,11 +465,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                     a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
                 )
             }
-            if (sample_sigma) {
+            if (sample_sigma_global) {
                 global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
-            if (sample_tau) {
+            if (sample_sigma_leaf) {
                 leaf_scale_samples[i] <- sample_tau_one_iteration(forest_samples_mean, rng, a_leaf, b_leaf, i-1)
                 current_leaf_scale <- as.matrix(leaf_scale_samples[i])
             }
@@ -537,10 +537,10 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     }
 
     # Global error variance
-    if (sample_sigma) sigma2_samples <- global_var_samples[keep_indices]*(y_std_train^2)/variance_scale
+    if (sample_sigma_global) sigma2_samples <- global_var_samples[keep_indices]*(y_std_train^2)/variance_scale
     
     # Leaf parameter variance
-    if (sample_tau) tau_samples <- leaf_scale_samples[keep_indices]
+    if (sample_sigma_leaf) tau_samples <- leaf_scale_samples[keep_indices]
     
     # Rescale variance forest prediction by sigma2_samples
     if (include_variance_forest) {
@@ -580,8 +580,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         "has_rfx" = has_rfx, 
         "has_rfx_basis" = has_basis_rfx, 
         "num_rfx_basis" = num_basis_rfx, 
-        "sample_sigma" = sample_sigma,
-        "sample_tau" = sample_tau,
+        "sample_sigma_global" = sample_sigma_global,
+        "sample_sigma_leaf" = sample_sigma_leaf,
         "include_mean_forest" = include_mean_forest,
         "include_variance_forest" = include_variance_forest,
         "variance_scale" = variance_scale
@@ -601,8 +601,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         result[["sigma_x_hat_train"]] = sigma_x_hat_train
         if (has_test) result[["sigma_x_hat_test"]] = sigma_x_hat_test
     }
-    if (sample_sigma) result[["sigma2_samples"]] = sigma2_samples
-    if (sample_tau) result[["tau_samples"]] = tau_samples
+    if (sample_sigma_global) result[["sigma2_global_samples"]] = sigma2_samples
+    if (sample_sigma_leaf) result[["sigma2_leaf_samples"]] = tau_samples
     if (has_rfx) {
         result[["rfx_samples"]] = rfx_samples
         result[["rfx_preds_train"]] = rfx_preds_train
