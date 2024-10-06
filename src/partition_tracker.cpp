@@ -121,7 +121,8 @@ void ForestTracker::UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::Mat
 }
 
 void ForestTracker::UpdatePredictions(TreeEnsemble* ensemble, ForestDataset& dataset) {
-  if (dataset.HasBasis()) {
+  if (!ensemble->IsLeafConstant()) {
+    CHECK(dataset.HasBasis());
     UpdatePredictionsInternal(ensemble, dataset.GetCovariates(), dataset.GetBasis());
   } else {
     UpdatePredictionsInternal(ensemble, dataset.GetCovariates());

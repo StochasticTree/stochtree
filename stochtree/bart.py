@@ -249,6 +249,11 @@ class BARTModel:
                 a_forest = num_trees_variance / 1.5**2 + 0.5
             if not b_forest:
                 b_forest = num_trees_variance / 1.5**2
+        else:
+            if not a_forest:
+                a_forest = 1.
+            if not b_forest:
+                b_forest = 1.
 
         # Container of variance parameter samples
         self.num_gfr = num_gfr

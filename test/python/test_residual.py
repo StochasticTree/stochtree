@@ -49,7 +49,7 @@ class TestResidual:
 
         # Create forest sampler and forest container
         forest_sampler = ForestSampler(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf)
-        forest_container = ForestContainer(num_trees, 1, False)
+        forest_container = ForestContainer(num_trees, 1, False, False)
         
         # Initialize the leaves of each tree in the prognostic forest
         init_root = np.squeeze(np.mean(resid)) / num_trees

@@ -639,16 +639,15 @@ class BCFModel:
             leaf_var_model_tau = LeafVarianceModel()
 
         # Initialize the leaves of each tree in the prognostic forest
-        init_mu = np.squeeze(np.mean(resid_train)) / num_trees_mu
-        self.forest_container_mu.set_root_leaves(0, init_mu)
-        forest_sampler_mu.adjust_residual(forest_dataset_train, residual_train, self.forest_container_mu, False, 0, True)
+        init_mu = np.array([np.squeeze(np.mean(resid_train))])
+        forest_sampler_mu.prepare_for_sampler(forest_dataset_train, residual_train, self.forest_container_mu, 0, init_mu)
 
         # Initialize the leaves of each tree in the treatment forest
         if self.multivariate_treatment:
-            self.forest_container_tau.set_root_leaves(0, np.zeros(self.treatment_dim))
+            init_tau = np.zeros(Z_train.shape[1])
         else:
-            self.forest_container_tau.set_root_leaves(0, 0.)
-        forest_sampler_tau.adjust_residual(forest_dataset_train, residual_train, self.forest_container_tau, True, 0, True)
+            init_tau = np.array([0.])
+        forest_sampler_tau.prepare_for_sampler(forest_dataset_train, residual_train, self.forest_container_tau, treatment_leaf_model, init_tau)
 
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
