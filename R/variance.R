@@ -1,13 +1,14 @@
-#' Sample one iteration of the global variance model
+#' Sample one iteration of the (inverse gamma) global variance model
 #'
 #' @param residual Outcome class
+#' @param dataset ForestDataset class
 #' @param rng C++ random number generator
-#' @param nu Global variance shape parameter
-#' @param lambda Constitutes the scale parameter for the global variance along with nu (i.e. scale is nu*lambda)
+#' @param a Global variance shape parameter
+#' @param b Global variance scale parameter
 #'
 #' @export
-sample_sigma2_one_iteration <- function(residual, rng, nu, lambda) {
-    return(sample_sigma2_one_iteration_cpp(residual$data_ptr, rng$rng_ptr, nu, lambda))
+sample_sigma2_one_iteration <- function(residual, dataset, rng, a, b) {
+    return(sample_sigma2_one_iteration_cpp(residual$data_ptr, dataset$data_ptr, rng$rng_ptr, a, b))
 }
 
 #' Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)

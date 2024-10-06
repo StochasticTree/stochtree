@@ -85,6 +85,7 @@ reference:
   - createForestKernel
   - CppRNG
   - createRNG
+  - calibrate_inverse_gamma_error_variance
 
 - subtitle: Random Effects
   desc: >
@@ -112,16 +113,21 @@ reference:
   - stochtree-package
 
 articles:
-- title: High-Level Interface
-  navbar: High-Level Interface
+- title: High-Level Model Fitting
+  navbar: High-Level Model Fitting
   contents:
   - BayesianSupervisedLearning
   - CausalInference
+
+- title: Advanced Model Interface
+  navbar: Advanced Model Interface
+  contents:
   - MultiChain
   - ModelSerialization
+  - PriorCalibration
+  - EnsembleKernel
 
 - title: Prototype Interface
   navbar: Prototype Interface
   contents:
   - CustomSamplingRoutine
-  - EnsembleKernel

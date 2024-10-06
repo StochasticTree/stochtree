@@ -4,6 +4,7 @@
 #include <stochtree/leaf_model.h>
 #include <stochtree/log.h>
 #include <stochtree/partition_tracker.h>
+#include <stochtree/tree_sampler.h>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -49,9 +50,10 @@ TEST(LeafConstantModel, FullEnumeration) {
   StochTree::GaussianConstantLeafModel leaf_model = StochTree::GaussianConstantLeafModel(tau);
 
   // Evaluate all possible cutpoints
-  leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
-                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, 
-                                       feature_types);
+  StochTree::EvaluateAllPossibleSplits<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(
+    dataset, tracker, residual, tree_prior, leaf_model, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, cutpoint_values, 
+    cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, feature_types
+  );
 
   // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
   ASSERT_EQ(log_cutpoint_evaluations.size(), (n - 2*min_samples_leaf + 1)*p + 1);
@@ -107,9 +109,10 @@ TEST(LeafConstantModel, CutpointThinning) {
   StochTree::GaussianConstantLeafModel leaf_model = StochTree::GaussianConstantLeafModel(tau);
 
   // Evaluate all possible cutpoints
-  leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
-                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, 
-                                       feature_types);
+  StochTree::EvaluateAllPossibleSplits<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(
+    dataset, tracker, residual, tree_prior, leaf_model, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, cutpoint_values, 
+    cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, feature_types
+  );
 
   // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
   ASSERT_EQ(log_cutpoint_evaluations.size(), (cutpoint_grid_size - 1)*p + 1);
@@ -165,9 +168,10 @@ TEST(LeafUnivariateRegressionModel, FullEnumeration) {
   StochTree::GaussianUnivariateRegressionLeafModel leaf_model = StochTree::GaussianUnivariateRegressionLeafModel(tau);
 
   // Evaluate all possible cutpoints
-  leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
-                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, 
-                                       feature_types);
+  StochTree::EvaluateAllPossibleSplits<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(
+    dataset, tracker, residual, tree_prior, leaf_model, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, cutpoint_values, 
+    cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, feature_types
+  );
 
   // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
   ASSERT_EQ(log_cutpoint_evaluations.size(), (n - 2*min_samples_leaf + 1)*p + 1);
@@ -224,9 +228,11 @@ TEST(LeafUnivariateRegressionModel, CutpointThinning) {
   StochTree::GaussianUnivariateRegressionLeafModel leaf_model = StochTree::GaussianUnivariateRegressionLeafModel(tau);
 
   // Evaluate all possible cutpoints
-  leaf_model.EvaluateAllPossibleSplits(dataset, tracker, residual, tree_prior, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, 
-                                       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, 
-                                       feature_types);
+  StochTree::EvaluateAllPossibleSplits<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(
+    dataset, tracker, residual, tree_prior, leaf_model, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, cutpoint_values, 
+    cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, feature_types
+  );
+
 
   // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
   ASSERT_EQ(log_cutpoint_evaluations.size(), (cutpoint_grid_size - 1)*p + 1);

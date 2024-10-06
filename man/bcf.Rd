@@ -27,14 +27,15 @@ bcf(
   min_samples_leaf_tau = 5,
   max_depth_mu = 10,
   max_depth_tau = 5,
-  nu = 3,
-  lambda = NULL,
+  a_global = 0,
+  b_global = 0,
   a_leaf_mu = 3,
   a_leaf_tau = 3,
   b_leaf_mu = NULL,
   b_leaf_tau = NULL,
   q = 0.9,
   sigma2 = NULL,
+  pct_var_sigma2_init = 0.25,
   variable_weights = NULL,
   keep_vars_mu = NULL,
   drop_vars_mu = NULL,
@@ -114,9 +115,9 @@ that were not in the training set.}
 
 \item{max_depth_tau}{Maximum depth of any tree in the tau ensemble. Default: 5. Can be overriden with \code{-1} which does not enforce any depth limits on trees.}
 
-\item{nu}{Shape parameter in the \code{IG(nu, nu*lambda)} global error variance model. Default: 3.}
+\item{a_global}{Shape parameter in the \code{IG(a_global, b_global)} global error variance model. Default: 0.}
 
-\item{lambda}{Component of the scale parameter in the \code{IG(nu, nu*lambda)} global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).}
+\item{b_global}{Scale parameter in the \code{IG(a_global, b_global)} global error variance model. Default: 0.}
 
 \item{a_leaf_mu}{Shape parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model for the prognostic forest. Default: 3.}
 
@@ -128,7 +129,9 @@ that were not in the training set.}
 
 \item{q}{Quantile used to calibrated \code{lambda} as in Sparapani et al (2021). Default: 0.9.}
 
-\item{sigma2}{Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.}
+\item{sigma2}{Starting value of global error variance parameter. Calibrated internally as \code{pct_var_sigma2_init*var((y-mean(y))/sd(y))} if not set.}
+
+\item{pct_var_sigma2_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by \code{sigma2}.}
 
 \item{variable_weights}{Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to \code{1/ncol(X_train)}. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in \code{X_train} and then set \code{propensity_covariate} to \code{'none'} adjust \code{keep_vars_mu} and \code{keep_vars_tau} accordingly.}
 
@@ -150,7 +153,7 @@ that were not in the training set.}
 
 \item{num_mcmc}{Number of "retained" iterations of the MCMC sampler. Default: 100.}
 
-\item{sample_sigma_global}{Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(nu, nu*lambda)}. Default: T.}
+\item{sample_sigma_global}{Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(a_global, b_global)}. Default: T.}
 
 \item{sample_sigma_leaf_mu}{Whether or not to update the \code{sigma_leaf_mu} leaf scale variance parameter in the prognostic forest based on \code{IG(a_leaf_mu, b_leaf_mu)}. Default: T.}
 

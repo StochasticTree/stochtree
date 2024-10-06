@@ -152,7 +152,7 @@ dispatch_stochtree_run <- function(num_gfr, num_burnin, num_mcmc_retained, param
                 outcome_model_type, param_list$leaf_prior_scale, param_list$var_weights, 
                 global_var_samples[i], param_list$cutpoint_grid_size, gfr = T
             )
-            global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_train, rng, param_list$nu, param_list$lambda)
+            global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, param_list$nu, param_list$lambda)
             leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples, rng, param_list$a_leaf, param_list$b_leaf, i-1)
             param_list$leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
         }
@@ -165,9 +165,7 @@ dispatch_stochtree_run <- function(num_gfr, num_burnin, num_mcmc_retained, param
             outcome_model_type, param_list$leaf_prior_scale, param_list$var_weights, 
             global_var_samples[i], param_list$cutpoint_grid_size, gfr = F
         )
-        global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_train, rng, param_list$nu, param_list$lambda)
-        # leaf_scale_samples[i+1] <- sample_tau_one_iteration(forest_samples, rng, param_list$a_leaf, param_list$b_leaf, i-1)
-        # param_list$leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
+        global_var_samples[i+1] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, param_list$nu, param_list$lambda)
     }
     
     # Forest predictions

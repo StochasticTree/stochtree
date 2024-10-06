@@ -22,8 +22,8 @@ namespace StochTree {
 
 class ForestContainer {
  public:
-  ForestContainer(int num_trees, int output_dimension = 1, bool is_leaf_constant = true);
-  ForestContainer(int num_samples, int num_trees, int output_dimension = 1, bool is_leaf_constant = true);
+  ForestContainer(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false);
+  ForestContainer(int num_samples, int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false);
   ~ForestContainer() {}
 
   void InitializeRoot(double leaf_value);
@@ -98,6 +98,7 @@ class ForestContainer {
   int num_samples_;
   int num_trees_;
   int output_dimension_;
+  bool is_exponentiated_{false};
   bool is_leaf_constant_;
   bool initialized_{false};
 };

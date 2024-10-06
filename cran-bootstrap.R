@@ -10,12 +10,6 @@
 # which is MIT licensed with the following copyright:
 # Copyright (c) Microsoft Corporation
 
-# Use xfun for find and replace in files / directories
-# require(xfun)
-# if (!require(xfun)) {
-#     install.packages("xfun")
-# }
-
 # Create the stochtree_cran folder
 cran_dir <- "stochtree_cran"
 if (!dir.exists(cran_dir)) {
@@ -253,5 +247,75 @@ if (all(file.exists(eigen_files_to_vendor_src))) {
         cat("All Eigen files successfully copied to src/include/Eigen\n")
     } else {
         stop("Failed to vendor all Eigen files")
+    }
+}
+
+# Copy boost_math headers / implementations to an include/ subdirectory of src/
+boost_header_files_to_vendor_src <- c()
+boost_header_files_to_vendor_dst <- c()
+# Existing header files
+boost_header_subfolder_src <- "deps/boost_math/include/boost"
+boost_header_filenames_src <- list.files(boost_header_subfolder_src, pattern = "\\.(hpp)$", recursive = TRUE)
+boost_header_files_to_vendor_src <- file.path(boost_header_subfolder_src, boost_header_filenames_src)
+# Existing implementation files
+boost_impl_subfolder_src <- "deps/boost_math/src"
+boost_impl_filenames_src <- list.files(boost_impl_subfolder_src, pattern = "\\.(cpp)$", recursive = TRUE)
+boost_impl_files_to_vendor_src <- file.path(boost_impl_subfolder_src, boost_impl_filenames_src)
+# Destination files
+boost_header_subfolder_dst <- "src/include/boost"
+boost_header_files_to_vendor_dst <- file.path(cran_dir, boost_header_subfolder_dst, boost_header_filenames_src)
+boost_impl_files_to_vendor_dst <- file.path(cran_dir, boost_header_subfolder_dst, boost_impl_filenames_src)
+
+if (all(file.exists(boost_header_files_to_vendor_src))) {
+    n_removed <- suppressWarnings(sum(file.remove(boost_header_files_to_vendor_dst)))
+    if (n_removed > 0) {
+        cat(sprintf("Removed %d previously vendored files from src/include/boost\n", n_removed))
+    }
+    
+    cat(
+        sprintf(
+            "Vendoring files from deps/boost_math/include/boost/ to src/include/boost\n"
+        )
+    )
+    
+    # Recreate the directory structure
+    dst_dirs <- unique(dirname(boost_header_files_to_vendor_dst))
+    for (dst_dir in dst_dirs) {
+        if (!dir.exists(dst_dir)) {
+            dir.create(dst_dir, recursive = TRUE)
+        }
+    }
+    
+    if (all(file.copy(boost_header_files_to_vendor_src, boost_header_files_to_vendor_dst))) {
+        cat("All deps/boost_math/include/boost header files successfully copied to src/include/boost\n")
+    } else {
+        stop("Failed to vendor all deps/boost_math/include/boost header files")
+    }
+}
+
+if (all(file.exists(boost_impl_files_to_vendor_src))) {
+    n_removed <- suppressWarnings(sum(file.remove(boost_impl_files_to_vendor_dst)))
+    if (n_removed > 0) {
+        cat(sprintf("Removed %d previously vendored cpp files from src/include/boost\n", n_removed))
+    }
+    
+    cat(
+        sprintf(
+            "Vendoring files from deps/boost_math/src/ to src/include/boost\n"
+        )
+    )
+    
+    # Recreate the directory structure
+    dst_dirs <- unique(dirname(boost_impl_files_to_vendor_dst))
+    for (dst_dir in dst_dirs) {
+        if (!dir.exists(dst_dir)) {
+            dir.create(dst_dir, recursive = TRUE)
+        }
+    }
+    
+    if (all(file.copy(boost_impl_files_to_vendor_src, boost_impl_files_to_vendor_dst))) {
+        cat("All deps/boost_math/src header files successfully copied to src/include/boost\n")
+    } else {
+        stop("Failed to vendor all deps/boost_math/src header files")
     }
 }

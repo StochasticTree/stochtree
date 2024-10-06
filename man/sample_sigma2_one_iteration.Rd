@@ -2,19 +2,21 @@
 % Please edit documentation in R/variance.R
 \name{sample_sigma2_one_iteration}
 \alias{sample_sigma2_one_iteration}
-\title{Sample one iteration of the global variance model}
+\title{Sample one iteration of the (inverse gamma) global variance model}
 \usage{
-sample_sigma2_one_iteration(residual, rng, nu, lambda)
+sample_sigma2_one_iteration(residual, dataset, rng, a, b)
 }
 \arguments{
 \item{residual}{Outcome class}
 
+\item{dataset}{ForestDataset class}
+
 \item{rng}{C++ random number generator}
 
-\item{nu}{Global variance shape parameter}
+\item{a}{Global variance shape parameter}
 
-\item{lambda}{Constitutes the scale parameter for the global variance along with nu (i.e. scale is nu*lambda)}
+\item{b}{Global variance scale parameter}
 }
 \description{
-Sample one iteration of the global variance model
+Sample one iteration of the (inverse gamma) global variance model
 }

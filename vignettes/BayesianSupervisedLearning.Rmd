@@ -76,14 +76,14 @@ num_samples <- num_gfr + num_burnin + num_mcmc
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_trees = 100, num_gfr = num_gfr, num_burnin = num_burnin, 
-    num_mcmc = num_mcmc, sample_sigma = T, sample_tau = T
+    num_mcmc = num_mcmc, sample_sigma_global = T, sample_sigma_leaf = T
 )
 ```
 
 Inspect the MCMC samples
 
 ```{r bart_warmstart_plot}
-plot(bart_model_warmstart$sigma2_samples, ylab="sigma^2")
+plot(bart_model_warmstart$sigma2_global_samples, ylab="sigma^2")
 plot(rowMeans(bart_model_warmstart$y_hat_test), y_test, 
      pch=16, cex=0.75, xlab = "pred", ylab = "actual")
 abline(0,1,col="red",lty=2,lwd=2.5)
@@ -101,14 +101,14 @@ num_samples <- num_gfr + num_burnin + num_mcmc
 bart_model_root <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_trees = 100, num_gfr = num_gfr, num_burnin = num_burnin, 
-    num_mcmc = num_mcmc, sample_sigma = T, sample_tau = T
+    num_mcmc = num_mcmc, sample_sigma_global = T, sample_sigma_leaf = T
 )
 ```
 
 Inspect the MCMC samples
 
 ```{r bart_root_plot}
-plot(bart_model_root$sigma2_samples, ylab="sigma^2")
+plot(bart_model_root$sigma2_global_samples, ylab="sigma^2")
 plot(rowMeans(bart_model_root$y_hat_test), y_test, 
      pch=16, cex=0.75, xlab = "pred", ylab = "actual")
 abline(0,1,col="red",lty=2,lwd=2.5)
@@ -168,14 +168,14 @@ bart_model_warmstart <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, 
     X_test = X_test, W_test = W_test, num_trees = 100, 
     num_gfr = num_gfr, num_burnin = num_burnin, 
-    num_mcmc = num_mcmc, sample_sigma = T, sample_tau = T
+    num_mcmc = num_mcmc, sample_sigma_global = T, sample_sigma_leaf = T
 )
 ```
 
 Inspect the MCMC samples
 
 ```{r bart_warmstart_plot_plm}
-plot(bart_model_warmstart$sigma2_samples, ylab="sigma^2")
+plot(bart_model_warmstart$sigma2_global_samples, ylab="sigma^2")
 plot(rowMeans(bart_model_warmstart$y_hat_test), y_test, 
      pch=16, cex=0.75, xlab = "pred", ylab = "actual")
 abline(0,1,col="red",lty=2,lwd=2.5)
@@ -194,14 +194,14 @@ bart_model_root <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, 
     X_test = X_test, W_test = W_test, num_trees = 100, 
     num_gfr = num_gfr, num_burnin = num_burnin, 
-    num_mcmc = num_mcmc, sample_sigma = T, sample_tau = T
+    num_mcmc = num_mcmc, sample_sigma_global = T, sample_sigma_leaf = T
 )
 ```
 
 Inspect the BART samples after burnin.
 
 ```{r bart_root_plot_plm}
-plot(bart_model_root$sigma2_samples, ylab="sigma^2")
+plot(bart_model_root$sigma2_global_samples, ylab="sigma^2")
 plot(rowMeans(bart_model_root$y_hat_test), y_test, 
      pch=16, cex=0.75, xlab = "pred", ylab = "actual")
 abline(0,1,col="red",lty=2,lwd=2.5)
@@ -272,14 +272,14 @@ bart_model_warmstart <- stochtree::bart(
     X_test = X_test, W_test = W_test, group_ids_test = group_ids_test,
     rfx_basis_test = rfx_basis_test, num_trees = 100, num_gfr = num_gfr, 
     num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    sample_sigma = T, sample_tau = T
+    sample_sigma_global = T, sample_sigma_leaf = T
 )
 ```
 
 Inspect the MCMC samples
 
 ```{r bart_warmstart_plot_plm_rfx}
-plot(bart_model_warmstart$sigma2_samples, ylab="sigma^2")
+plot(bart_model_warmstart$sigma2_global_samples, ylab="sigma^2")
 abline(h=noise_sd^2,col="red",lty=2,lwd=2.5)
 plot(rowMeans(bart_model_warmstart$y_hat_test), y_test, 
      pch=16, cex=0.75, xlab = "pred", ylab = "actual")
@@ -301,14 +301,14 @@ bart_model_root <- stochtree::bart(
     X_test = X_test, W_test = W_test, group_ids_test = group_ids_test,
     rfx_basis_test = rfx_basis_test, num_trees = 100, num_gfr = num_gfr, 
     num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    sample_sigma = T, sample_tau = T
+    sample_sigma_global = T, sample_sigma_leaf = T
 )
 ```
 
 Inspect the MCMC samples
 
 ```{r bart_root_plot_plm_rfx}
-plot(bart_model_root$sigma2_samples, ylab="sigma^2")
+plot(bart_model_root$sigma2_global_samples, ylab="sigma^2")
 abline(h=noise_sd^2,col="red",lty=2,lwd=2.5)
 plot(rowMeans(bart_model_root$y_hat_test), y_test, 
      pch=16, cex=0.75, xlab = "pred", ylab = "actual")

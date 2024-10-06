@@ -32,14 +32,15 @@
 #' @param min_samples_leaf_tau Minimum allowable size of a leaf, in terms of training samples, for the treatment effect forest. Default: 5.
 #' @param max_depth_mu Maximum depth of any tree in the mu ensemble. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
 #' @param max_depth_tau Maximum depth of any tree in the tau ensemble. Default: 5. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-#' @param nu Shape parameter in the `IG(nu, nu*lambda)` global error variance model. Default: 3.
-#' @param lambda Component of the scale parameter in the `IG(nu, nu*lambda)` global error variance prior. If not specified, this is calibrated as in Sparapani et al (2021).
+#' @param a_global Shape parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
+#' @param b_global Scale parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
 #' @param a_leaf_mu Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the prognostic forest. Default: 3.
 #' @param a_leaf_tau Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the treatment effect forest. Default: 3.
 #' @param b_leaf_mu Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the prognostic forest. Calibrated internally as 0.5/num_trees if not set here.
 #' @param b_leaf_tau Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the treatment effect forest. Calibrated internally as 0.5/num_trees if not set here.
 #' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
-#' @param sigma2 Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
+#' @param sigma2 Starting value of global error variance parameter. Calibrated internally as `pct_var_sigma2_init*var((y-mean(y))/sd(y))` if not set.
+#' @param pct_var_sigma2_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by `sigma2`.
 #' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/ncol(X_train)`. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in `X_train` and then set `propensity_covariate` to `'none'` adjust `keep_vars_mu` and `keep_vars_tau` accordingly.
 #' @param keep_vars_mu Vector of variable names or column indices denoting variables that should be included in the prognostic (`mu(X)`) forest. Default: NULL.
 #' @param drop_vars_mu Vector of variable names or column indices denoting variables that should be excluded from the prognostic (`mu(X)`) forest. Default: NULL. If both `drop_vars_mu` and `keep_vars_mu` are set, `drop_vars_mu` will be ignored.
@@ -50,7 +51,7 @@
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
-#' @param sample_sigma_global Whether or not to update the `sigma^2` global error variance parameter based on `IG(nu, nu*lambda)`. Default: T.
+#' @param sample_sigma_global Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_global, b_global)`. Default: T.
 #' @param sample_sigma_leaf_mu Whether or not to update the `sigma_leaf_mu` leaf scale variance parameter in the prognostic forest based on `IG(a_leaf_mu, b_leaf_mu)`. Default: T.
 #' @param sample_sigma_leaf_tau Whether or not to update the `sigma_leaf_tau` leaf scale variance parameter in the treatment effect forest based on `IG(a_leaf_tau, b_leaf_tau)`. Default: T.
 #' @param propensity_covariate Whether to include the propensity score as a covariate in either or both of the forests. Enter "none" for neither, "mu" for the prognostic forest, "tau" for the treatment forest, and "both" for both forests. If this is not "none" and a propensity score is not provided, it will be estimated from (`X_train`, `Z_train`) using `stochtree::bart()`. Default: "mu".
@@ -118,11 +119,11 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 group_ids_test = NULL, rfx_basis_test = NULL, cutpoint_grid_size = 100, 
                 sigma_leaf_mu = NULL, sigma_leaf_tau = NULL, alpha_mu = 0.95, alpha_tau = 0.25, 
                 beta_mu = 2.0, beta_tau = 3.0, min_samples_leaf_mu = 5, min_samples_leaf_tau = 5, 
-                max_depth_mu = 10, max_depth_tau = 5, nu = 3, lambda = NULL, a_leaf_mu = 3, a_leaf_tau = 3, 
-                b_leaf_mu = NULL, b_leaf_tau = NULL, q = 0.9, sigma2 = NULL, variable_weights = NULL, 
-                keep_vars_mu = NULL, drop_vars_mu = NULL, keep_vars_tau = NULL, drop_vars_tau = NULL, 
-                num_trees_mu = 250, num_trees_tau = 50, num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
-                sample_sigma_global = T, sample_sigma_leaf_mu = T, sample_sigma_leaf_tau = F, 
+                max_depth_mu = 10, max_depth_tau = 5, a_global = 0, b_global = 0, a_leaf_mu = 3, a_leaf_tau = 3, 
+                b_leaf_mu = NULL, b_leaf_tau = NULL, q = 0.9, sigma2 = NULL, pct_var_sigma2_init = 0.25, 
+                variable_weights = NULL, keep_vars_mu = NULL, drop_vars_mu = NULL, keep_vars_tau = NULL, 
+                drop_vars_tau = NULL, num_trees_mu = 250, num_trees_tau = 50, num_gfr = 5, num_burnin = 0, 
+                num_mcmc = 100, sample_sigma_global = T, sample_sigma_leaf_mu = T, sample_sigma_leaf_tau = F, 
                 propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, b_1 = 0.5, 
                 rfx_prior_var = NULL, random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F) {
     # Variable weight preprocessing (and initialization if necessary)
@@ -413,13 +414,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     resid_train <- (y_train-y_bar_train)/y_std_train
     
     # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau
-    reg_basis <- X_train
-    sigma2hat <- mean(resid(lm(resid_train~reg_basis))^2)
-    quantile_cutoff <- 0.9
-    if (is.null(lambda)) {
-        lambda <- (sigma2hat*qgamma(1-quantile_cutoff,nu))/nu
-    }
-    if (is.null(sigma2)) sigma2 <- sigma2hat
+    if (is.null(sigma2)) sigma2 <- pct_var_sigma2_init*var(resid_train)
     if (is.null(b_leaf_mu)) b_leaf_mu <- var(resid_train)/(num_trees_mu)
     if (is.null(b_leaf_tau)) b_leaf_tau <- var(resid_train)/(2*num_trees_tau)
     if (is.null(sigma_leaf_mu)) sigma_leaf_mu <- var(resid_train)/(num_trees_mu)
@@ -506,16 +501,10 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     # Initialize the leaves of each tree in the prognostic forest
     forest_samples_mu$set_root_leaves(0, mean(resid_train) / num_trees_mu)
     forest_samples_mu$adjust_residual(forest_dataset_train, outcome_train, forest_model_mu, F, 0, F)
-    # adjust_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
-    #                                      forest_samples_mu$forest_container_ptr, forest_model_mu$tracker_ptr, 
-    #                                      F, 0, F)
     
     # Initialize the leaves of each tree in the treatment effect forest
     forest_samples_tau$set_root_leaves(0, 0.)
     forest_samples_tau$adjust_residual(forest_dataset_train, outcome_train, forest_model_tau, T, 0, F)
-    # adjust_residual_forest_container_cpp(forest_dataset_train$data_ptr, outcome_train$data_ptr, 
-    #                                      forest_samples_tau$forest_container_ptr, forest_model_tau$tracker_ptr, 
-    #                                      T, 0, F)
 
     # Run GFR (warm start) if specified
     if (num_gfr > 0){
@@ -537,7 +526,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, nu, lambda)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf_mu) {
@@ -589,7 +578,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, nu, lambda)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf_tau) {
@@ -636,7 +625,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, nu, lambda)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf_mu) {
@@ -688,7 +677,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, nu, lambda)
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf_tau) {
@@ -786,8 +775,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         "initial_sigma_leaf_tau" = sigma_leaf_tau,
         "initial_b_0" = b_0,
         "initial_b_1" = b_1,
-        "nu" = nu,
-        "lambda" = lambda, 
+        "a_global" = a_global,
+        "b_global" = b_global,
         "a_leaf_mu" = a_leaf_mu, 
         "b_leaf_mu" = b_leaf_mu,
         "a_leaf_tau" = a_leaf_tau, 

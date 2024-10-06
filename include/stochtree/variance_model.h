@@ -8,6 +8,7 @@
 #include <Eigen/Dense>
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
+#include <stochtree/gamma_sampler.h>
 #include <stochtree/ig_sampler.h>
 #include <stochtree/meta.h>
 
@@ -24,28 +25,43 @@ class GlobalHomoskedasticVarianceModel {
  public:
   GlobalHomoskedasticVarianceModel() {ig_sampler_ = InverseGammaSampler();}
   ~GlobalHomoskedasticVarianceModel() {}
-  double PosteriorShape(Eigen::VectorXd& residuals, double nu, double lambda) {
+  double PosteriorShape(Eigen::VectorXd& residuals, double a, double b) {
     data_size_t n = residuals.rows();
-    return (nu/2.0) + n;
+    return a + (0.5 * n);
   }
-  double PosteriorScale(Eigen::VectorXd& residuals, double nu, double lambda) {
+  double PosteriorScale(Eigen::VectorXd& residuals, double a, double b) {
     data_size_t n = residuals.rows();
-    double nu_lambda = nu*lambda;
     double sum_sq_resid = 0.;
     for (data_size_t i = 0; i < n; i++) {
-      sum_sq_resid += std::pow(residuals(i, 0), 2);
+      sum_sq_resid += (residuals(i) * residuals(i));
     }
-    return (nu_lambda/2.0) + sum_sq_resid;
+    return b + (0.5 * sum_sq_resid);
   }
-  double SampleVarianceParameter(Eigen::VectorXd& residuals, double nu, double lambda, std::mt19937& gen) {
-    double ig_shape = PosteriorShape(residuals, nu, lambda);
-    double ig_scale = PosteriorScale(residuals, nu, lambda);
+  double PosteriorShape(Eigen::VectorXd& residuals, Eigen::VectorXd& weights, double a, double b) {
+    data_size_t n = residuals.rows();
+    return a + (0.5 * n);
+  }
+  double PosteriorScale(Eigen::VectorXd& residuals, Eigen::VectorXd& weights, double a, double b) {
+    data_size_t n = residuals.rows();
+    double sum_sq_resid = 0.;
+    for (data_size_t i = 0; i < n; i++) {
+      sum_sq_resid += (residuals(i) * residuals(i)) * weights(i);
+    }
+    return b + (0.5 * sum_sq_resid);
+  }
+  double SampleVarianceParameter(Eigen::VectorXd& residuals, double a, double b, std::mt19937& gen) {
+    double ig_shape = PosteriorShape(residuals, a, b);
+    double ig_scale = PosteriorScale(residuals, a, b);
+    return ig_sampler_.Sample(ig_shape, ig_scale, gen);
+  }
+  double SampleVarianceParameter(Eigen::VectorXd& residuals, Eigen::VectorXd& weights, double a, double b, std::mt19937& gen) {
+    double ig_shape = PosteriorShape(residuals, weights, a, b);
+    double ig_scale = PosteriorScale(residuals, weights, a, b);
     return ig_sampler_.Sample(ig_shape, ig_scale, gen);
   }
  private:
   InverseGammaSampler ig_sampler_;
 };
-
 
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class LeafNodeHomoskedasticVarianceModel {
@@ -54,11 +70,11 @@ class LeafNodeHomoskedasticVarianceModel {
   ~LeafNodeHomoskedasticVarianceModel() {}
   double PosteriorShape(TreeEnsemble* ensemble, double a, double b) {
     data_size_t num_leaves = ensemble->NumLeaves();
-    return (a/2.0) + num_leaves;
+    return (a/2.0) + (num_leaves/2.0);
   }
   double PosteriorScale(TreeEnsemble* ensemble, double a, double b) {
     double mu_sq = ensemble->SumLeafSquared();
-    return (b/2.0) + mu_sq;
+    return (b/2.0) + (mu_sq/2.0);
   }
   double SampleVarianceParameter(TreeEnsemble* ensemble, double a, double b, std::mt19937& gen) {
     double ig_shape = PosteriorShape(ensemble, a, b);

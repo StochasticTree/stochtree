@@ -8,7 +8,7 @@ install the package, and run `sphinx-build` as below
 
 ```
 pip install --upgrade pip
-pip install -r docs/requirements.txt
+pip install -r python_docs/requirements.txt
 pip install .
 sphinx-build -M html python_docs/source/ python_docs/build/
 ```

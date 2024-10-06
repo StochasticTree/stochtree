@@ -8,9 +8,9 @@ from stochtree_cpp import ForestContainerCpp
 from typing import Union
 
 class ForestContainer:
-    def __init__(self, num_trees: int, output_dimension: int, leaf_constant: bool) -> None:
+    def __init__(self, num_trees: int, output_dimension: int, leaf_constant: bool, is_exponentiated: bool) -> None:
         # Initialize a ForestContainerCpp object
-        self.forest_container_cpp = ForestContainerCpp(num_trees, output_dimension, leaf_constant)
+        self.forest_container_cpp = ForestContainerCpp(num_trees, output_dimension, leaf_constant, is_exponentiated)
     
     def predict(self, dataset: Dataset) -> np.array:
         # Predict samples from Dataset
