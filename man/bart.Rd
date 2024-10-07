@@ -15,7 +15,7 @@ bart(
   group_ids_test = NULL,
   rfx_basis_test = NULL,
   cutpoint_grid_size = 100,
-  tau_init = NULL,
+  sigma_leaf_init = NULL,
   alpha_mean = 0.95,
   beta_mean = 2,
   min_samples_leaf_mean = 5,
@@ -39,7 +39,7 @@ bart(
   variable_weights_mean = NULL,
   variable_weights_variance = NULL,
   num_trees_mean = 200,
-  num_trees_variance = 20,
+  num_trees_variance = 0,
   num_gfr = 5,
   num_burnin = 0,
   num_mcmc = 100,
@@ -87,7 +87,7 @@ that were not in the training set.}
 
 \item{cutpoint_grid_size}{Maximum size of the "grid" of potential cutpoints to consider. Default: 100.}
 
-\item{tau_init}{Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees_mean} if not set here.}
+\item{sigma_leaf_init}{Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees_mean} if not set here.}
 
 \item{alpha_mean}{Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines \code{alpha_mean} and \code{beta_mean} via \code{alpha_mean*(1+node_depth)^-beta_mean}. Default: 0.95.}
 

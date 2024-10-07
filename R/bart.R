@@ -25,7 +25,7 @@
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
 #' @param cutpoint_grid_size Maximum size of the "grid" of potential cutpoints to consider. Default: 100.
-#' @param tau_init Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees_mean` if not set here.
+#' @param sigma_leaf_init Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees_mean` if not set here.
 #' @param leaf_model Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.
 #' @param alpha_mean Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: 0.95.
 #' @param beta_mean Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: 2.
@@ -91,7 +91,7 @@
 bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL, 
                  rfx_basis_train = NULL, X_test = NULL, W_test = NULL, 
                  group_ids_test = NULL, rfx_basis_test = NULL, 
-                 cutpoint_grid_size = 100, tau_init = NULL, 
+                 cutpoint_grid_size = 100, sigma_leaf_init = NULL, 
                  alpha_mean = 0.95, beta_mean = 2.0, min_samples_leaf_mean = 5, 
                  max_depth_mean = 10, alpha_variance = 0.95, beta_variance = 2.0, 
                  min_samples_leaf_variance = 5, max_depth_variance = 10, 
@@ -100,7 +100,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                  variance_forest_init = NULL, pct_var_sigma2_init = 1, 
                  pct_var_variance_forest_init = 1, variance_scale = 1, 
                  variable_weights_mean = NULL, variable_weights_variance = NULL, 
-                 num_trees_mean = 200, num_trees_variance = 20, 
+                 num_trees_mean = 200, num_trees_variance = 0, 
                  num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
                  sample_sigma_global = T, sample_sigma_leaf = F, random_seed = -1, 
                  keep_burnin = F, keep_gfr = F, verbose = F) {
@@ -115,6 +115,9 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         a_0 <- 1.5
         if (is.null(a_forest)) a_forest <- num_trees_variance / (a_0^2) + 0.5
         if (is.null(b_forest)) b_forest <- num_trees_variance / (a_0^2)
+    } else {
+        a_forest <- 1.
+        b_forest <- 1.
     }
     
     # Override tau sampling if there is no mean forest
@@ -274,8 +277,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if (is.null(sigma2_init)) sigma2_init <- pct_var_sigma2_init*var(resid_train)
     if (is.null(variance_forest_init)) variance_forest_init <- pct_var_variance_forest_init*var(resid_train)
     if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees_mean)
-    if (is.null(tau_init)) tau_init <- var(resid_train)/(num_trees_mean)
-    current_leaf_scale <- as.matrix(tau_init)
+    if (is.null(sigma_leaf_init)) sigma_leaf_init <- var(resid_train)/(num_trees_mean)
+    current_leaf_scale <- as.matrix(sigma_leaf_init)
     current_sigma2 <- sigma2_init
 
     # Determine leaf model type
@@ -542,7 +545,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     # Leaf parameter variance
     if (sample_sigma_leaf) tau_samples <- leaf_scale_samples[keep_indices]
     
-    # Rescale variance forest prediction by sigma2_samples
+    # Rescale variance forest prediction by global sigma2 (sampled or constant)
     if (include_variance_forest) {
         if (sample_sigma_global) {
             sigma_x_hat_train <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_train[,i]*sigma2_samples[i]))
@@ -557,9 +560,9 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     # TODO: store variance_scale and propagate through predict function
     model_params <- list(
         "sigma2_init" = sigma2_init, 
+        "sigma_leaf_init" = sigma_leaf_init,
         "a_global" = a_global,
         "b_global" = b_global, 
-        "tau_init" = tau_init,
         "a_leaf" = a_leaf, 
         "b_leaf" = b_leaf,
         "a_forest" = a_forest, 
@@ -598,7 +601,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         if (has_test) result[["y_hat_test"]] = y_hat_test
     }
     if (include_variance_forest) {
-        result[["var_forests"]] = forest_samples_variance
+        result[["variance_forests"]] = forest_samples_variance
         result[["sigma_x_hat_train"]] = sigma_x_hat_train
         if (has_test) result[["sigma_x_hat_test"]] = sigma_x_hat_test
     }
@@ -634,7 +637,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
-#' @param predict_all (Optional) Whether to predict the model for all of the samples in the stored objects or the subset of burnt-in / GFR samples as specified at training time. Default FALSE.
 #'
 #' @return List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest. 
 #' If the model does have random effects, the list has three elements -- forest predictions, random effects predictions, and their sum (`y_hat`).
@@ -665,7 +667,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 #' y_hat_test <- predict(bart_model, X_test)
 #' # plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
 #' # abline(0,1,col="red",lty=3,lwd=3)
-predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL, predict_all = F){
+predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL){
     # Preprocess covariates
     if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
         stop("X_test must be a matrix or dataframe")
@@ -726,11 +728,14 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     variance_scale <- bart$model_params$variance_scale
     y_std <- bart$model_params$outcome_scale
     y_bar <- bart$model_params$outcome_mean
-    mean_forest_predictions <- bart$mean_forests$predict(prediction_dataset)*y_std/sqrt(variance_scale) + y_bar
+    sigma2_init <- bart$model_params$sigma2_init
+    if (bart$model_params$include_mean_forest) {
+        mean_forest_predictions <- bart$mean_forests$predict(prediction_dataset)*y_std/sqrt(variance_scale) + y_bar
+    }
     
     # Compute variance forest predictions
     if (bart$model_params$include_variance_forest) {
-        var_forest_predictions <- bart$variance_forests$predict(prediction_dataset)*(y_std^2)/variance_scale
+        s_x_raw <- bart$variance_forests$predict(prediction_dataset)
     }
     
     # Compute rfx predictions (if needed)
@@ -739,30 +744,43 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     }
     
     # Restrict predictions to the "retained" samples (if applicable)
-    if (!predict_all) {
-        keep_indices = bart$keep_indices
+    keep_indices = bart$keep_indices
+    if (bart$model_params$include_mean_forest) {
         mean_forest_predictions <- mean_forest_predictions[,keep_indices]
-        if (bart$model_params$include_variance_forest) {
-            variance_forest_predictions <- variance_forest_predictions[,keep_indices]
+    }
+    if (bart$model_params$include_variance_forest) {
+        s_x_raw <- s_x_raw[,keep_indices]
+    }
+    if (bart$model_params$has_rfx) rfx_predictions <- rfx_predictions[,keep_indices]
+    
+    # Scale variance forest predictions
+    if (bart$model_params$include_variance_forest) {
+        if (bart$model_params$sample_sigma_global) {
+            sigma2_samples <- bart$sigma2_global_samples
+            variance_forest_predictions <- sapply(1:length(keep_indices), function(i) sqrt(s_x_raw[,i]*sigma2_samples[i]))
+        } else {
+            variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std/sqrt(variance_scale)
         }
-        if (bart$model_params$has_rfx) rfx_predictions <- rfx_predictions[,keep_indices]
     }
-    
-    if (bart$model_params$has_rfx) {
+
+    if ((bart$model_params$include_mean_forest) && (bart$model_params$has_rfx)) {
         y_hat <- mean_forest_predictions + rfx_predictions
-    } else {
+    } else if ((bart$model_params$include_mean_forest) && (!bart$model_params$has_rfx)) {
         y_hat <- mean_forest_predictions
+    } else if ((!bart$model_params$include_mean_forest) && (bart$model_params$has_rfx)) {
+        y_hat <- rfx_predictions
+    } 
+    
+    result <- list()
+    if ((bart$model_params$has_rfx) || (bart$model_params$include_mean_forest)) {
+        result[["y_hat"]] = y_hat
     }
-    
-    result <- list(
-        "y_hat" = y_hat, 
-        "mean_forest_predictions" = mean_forest_predictions
-    )
-    
+    if (bart$model_params$include_mean_forest) {
+        result[["mean_forest_predictions"]] = mean_forest_predictions
+    }
     if (bart$model_params$has_rfx) {
         result[["rfx_predictions"]] = rfx_predictions
     }
-    
     if (bart$model_params$include_variance_forest) {
         result[["variance_forest_predictions"]] = variance_forest_predictions
     }

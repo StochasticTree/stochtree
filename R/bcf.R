@@ -22,32 +22,42 @@
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
 #' @param cutpoint_grid_size Maximum size of the "grid" of potential cutpoints to consider. Default: 100.
-#' @param sigma_leaf_mu Starting value of leaf node scale parameter for the prognostic forest. Calibrated internally as `2/num_trees_mu` if not set here.
-#' @param sigma_leaf_tau Starting value of leaf node scale parameter for the treatment effect forest. Calibrated internally as `1/num_trees_tau` if not set here.
-#' @param alpha_mu Prior probability of splitting for a tree of depth 0 for the prognostic forest. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: 0.95.
-#' @param alpha_tau Prior probability of splitting for a tree of depth 0 for the treatment effect forest. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: 0.25.
-#' @param beta_mu Exponent that decreases split probabilities for nodes of depth > 0 for the prognostic forest. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: 2.0.
-#' @param beta_tau Exponent that decreases split probabilities for nodes of depth > 0 for the treatment effect forest. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: 3.0.
+#' @param sigma_leaf_mu Starting value of leaf node scale parameter for the prognostic forest. Calibrated internally as `1/num_trees_mu` if not set here.
+#' @param sigma_leaf_tau Starting value of leaf node scale parameter for the treatment effect forest. Calibrated internally as `1/(2*num_trees_tau)` if not set here.
+#' @param alpha_mu Prior probability of splitting for a tree of depth 0 for the prognostic forest. Tree split prior combines `alpha` and `beta` via `alpha_mu*(1+node_depth)^-beta_mu`. Default: 0.95.
+#' @param alpha_tau Prior probability of splitting for a tree of depth 0 for the treatment effect forest. Tree split prior combines `alpha` and `beta` via `alpha_tau*(1+node_depth)^-beta_tau`. Default: 0.25.
+#' @param alpha_variance Prior probability of splitting for a tree of depth 0 in the (optional) conditional variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`. Default: 0.95.
+#' @param beta_mu Exponent that decreases split probabilities for nodes of depth > 0 for the prognostic forest. Tree split prior combines `alpha` and `beta` via `alpha_mu*(1+node_depth)^-beta_mu`. Default: 2.0.
+#' @param beta_tau Exponent that decreases split probabilities for nodes of depth > 0 for the treatment effect forest. Tree split prior combines `alpha` and `beta` via `alpha_tau*(1+node_depth)^-beta_tau`. Default: 3.0.
+#' @param beta_variance Exponent that decreases split probabilities for nodes of depth > 0 in the (optional) conditional variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`. Default: 2.0.
 #' @param min_samples_leaf_mu Minimum allowable size of a leaf, in terms of training samples, for the prognostic forest. Default: 5.
 #' @param min_samples_leaf_tau Minimum allowable size of a leaf, in terms of training samples, for the treatment effect forest. Default: 5.
+#' @param min_samples_leaf_variance Minimum allowable size of a leaf, in terms of training samples, in the (optional) conditional variance model. Default: 5.
 #' @param max_depth_mu Maximum depth of any tree in the mu ensemble. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
 #' @param max_depth_tau Maximum depth of any tree in the tau ensemble. Default: 5. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+#' @param max_depth_variance Maximum depth of any tree in the ensemble in the (optional) conditional variance model. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
 #' @param a_global Shape parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
 #' @param b_global Scale parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
 #' @param a_leaf_mu Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the prognostic forest. Default: 3.
 #' @param a_leaf_tau Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the treatment effect forest. Default: 3.
 #' @param b_leaf_mu Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the prognostic forest. Calibrated internally as 0.5/num_trees if not set here.
 #' @param b_leaf_tau Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model for the treatment effect forest. Calibrated internally as 0.5/num_trees if not set here.
-#' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
-#' @param sigma2 Starting value of global error variance parameter. Calibrated internally as `pct_var_sigma2_init*var((y-mean(y))/sd(y))` if not set.
-#' @param pct_var_sigma2_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by `sigma2`.
+#' @param a_forest Shape parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `num_trees_variance > 0`). Calibrated internally as `num_trees_variance / 1.5^2 + 0.5` if not set.
+#' @param b_forest Scale parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `num_trees_variance > 0`). Calibrated internally as `num_trees_variance / 1.5^2` if not set.
+#' @param sigma2_init Starting value of global error variance parameter. Calibrated internally as `pct_var_sigma2_init*var((y-mean(y))/sd(y))` if not set.
+#' @param variance_forest_init Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance` if not set.
+#' @param pct_var_sigma2_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by `sigma2_init`.
+#' @param pct_var_variance_forest_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by `variance_forest_init`.
 #' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/ncol(X_train)`. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in `X_train` and then set `propensity_covariate` to `'none'` adjust `keep_vars_mu` and `keep_vars_tau` accordingly.
 #' @param keep_vars_mu Vector of variable names or column indices denoting variables that should be included in the prognostic (`mu(X)`) forest. Default: NULL.
 #' @param drop_vars_mu Vector of variable names or column indices denoting variables that should be excluded from the prognostic (`mu(X)`) forest. Default: NULL. If both `drop_vars_mu` and `keep_vars_mu` are set, `drop_vars_mu` will be ignored.
 #' @param keep_vars_tau Vector of variable names or column indices denoting variables that should be included in the treatment effect (`tau(X)`) forest. Default: NULL.
 #' @param drop_vars_tau Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (`tau(X)`) forest. Default: NULL. If both `drop_vars_tau` and `keep_vars_tau` are set, `drop_vars_tau` will be ignored.
+#' @param keep_vars_variance Vector of variable names or column indices denoting variables that should be included in the (optional) conditional variance forest. Default: NULL.
+#' @param drop_vars_variance Vector of variable names or column indices denoting variables that should be excluded from the (optional) conditional variance forest. Default: NULL. If both `drop_vars_variance` and `keep_vars_variance` are set, `drop_vars_variance` will be ignored.
 #' @param num_trees_mu Number of trees in the prognostic forest. Default: 200.
 #' @param num_trees_tau Number of trees in the treatment effect forest. Default: 50.
+#' @param num_trees_variance Number of trees in the (optional) conditional variance forest model. Default: 0.
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
@@ -118,14 +128,31 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 rfx_basis_train = NULL, X_test = NULL, Z_test = NULL, pi_test = NULL, 
                 group_ids_test = NULL, rfx_basis_test = NULL, cutpoint_grid_size = 100, 
                 sigma_leaf_mu = NULL, sigma_leaf_tau = NULL, alpha_mu = 0.95, alpha_tau = 0.25, 
-                beta_mu = 2.0, beta_tau = 3.0, min_samples_leaf_mu = 5, min_samples_leaf_tau = 5, 
-                max_depth_mu = 10, max_depth_tau = 5, a_global = 0, b_global = 0, a_leaf_mu = 3, a_leaf_tau = 3, 
-                b_leaf_mu = NULL, b_leaf_tau = NULL, q = 0.9, sigma2 = NULL, pct_var_sigma2_init = 0.25, 
-                variable_weights = NULL, keep_vars_mu = NULL, drop_vars_mu = NULL, keep_vars_tau = NULL, 
-                drop_vars_tau = NULL, num_trees_mu = 250, num_trees_tau = 50, num_gfr = 5, num_burnin = 0, 
-                num_mcmc = 100, sample_sigma_global = T, sample_sigma_leaf_mu = T, sample_sigma_leaf_tau = F, 
-                propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, b_1 = 0.5, 
+                alpha_variance = 0.95, beta_mu = 2.0, beta_tau = 3.0, beta_variance = 2.0, 
+                min_samples_leaf_mu = 5, min_samples_leaf_tau = 5, min_samples_leaf_variance = 5, 
+                max_depth_mu = 10, max_depth_tau = 5, max_depth_variance = 10, a_global = 0, b_global = 0, 
+                a_leaf_mu = 3, a_leaf_tau = 3, b_leaf_mu = NULL, b_leaf_tau = NULL, a_forest = NULL, b_forest = NULL, 
+                sigma2_init = NULL, variance_forest_init = NULL, pct_var_sigma2_init = 1, 
+                pct_var_variance_forest_init = 1, variable_weights = NULL, keep_vars_mu = NULL, 
+                drop_vars_mu = NULL, keep_vars_tau = NULL, drop_vars_tau = NULL, keep_vars_variance = NULL, 
+                drop_vars_variance = NULL, num_trees_mu = 250, num_trees_tau = 50, num_trees_variance = 0, 
+                num_gfr = 5, num_burnin = 0, num_mcmc = 100, sample_sigma_global = T, sample_sigma_leaf_mu = T, 
+                sample_sigma_leaf_tau = F, propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, b_1 = 0.5, 
                 rfx_prior_var = NULL, random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F) {
+    # Determine whether conditional variance will be modeled
+    if (num_trees_variance > 0) include_variance_forest = T
+    else include_variance_forest = F
+
+    # Set the variance forest priors if not set
+    if (include_variance_forest) {
+        a_0 <- 1.5
+        if (is.null(a_forest)) a_forest <- num_trees_variance / (a_0^2) + 0.5
+        if (is.null(b_forest)) b_forest <- num_trees_variance / (a_0^2)
+    } else {
+        a_forest <- 1.
+        b_forest <- 1.
+    }
+    
     # Variable weight preprocessing (and initialization if necessary)
     if (is.null(variable_weights)) {
         variable_weights = rep(1/ncol(X_train), ncol(X_train))
@@ -211,6 +238,39 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         }
     } else {
         variable_subset_tau <- 1:ncol(X_train)
+    }
+    if (!is.null(keep_vars_variance)) {
+        if (is.character(keep_vars_variance)) {
+            if (!all(keep_vars_variance %in% names(X_train))) {
+                stop("keep_vars_variance includes some variable names that are not in X_train")
+            }
+            variable_subset_variance <- unname(which(names(X_train) %in% keep_vars_variance))
+        } else {
+            if (any(keep_vars_variance > ncol(X_train))) {
+                stop("keep_vars_variance includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(keep_vars_variance < 0)) {
+                stop("keep_vars_variance includes some negative variable indices")
+            }
+            variable_subset_variance <- keep_vars_variance
+        }
+    } else if ((is.null(keep_vars_variance)) && (!is.null(drop_vars_variance))) {
+        if (is.character(drop_vars_variance)) {
+            if (!all(drop_vars_variance %in% names(X_train))) {
+                stop("drop_vars_variance includes some variable names that are not in X_train")
+            }
+            variable_subset_variance <- unname(which(!(names(X_train) %in% drop_vars_variance)))
+        } else {
+            if (any(drop_vars_variance > ncol(X_train))) {
+                stop("drop_vars_variance includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(drop_vars_variance < 0)) {
+                stop("drop_vars_variance includes some negative variable indices")
+            }
+            variable_subset_variance <- (1:ncol(X_train))[!(1:ncol(X_train) %in% drop_vars_variance)]
+        }
+    } else {
+        variable_subset_variance <- 1:ncol(X_train)
     }
     
     # Preprocess covariates
@@ -314,10 +374,13 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     variable_weights_adj <- 1/sapply(original_var_indices, function(x) sum(original_var_indices == x))
     variable_weights <- variable_weights[original_var_indices]*variable_weights_adj
     
-    # Create mu and tau specific variable weights with weights zeroed out for excluded variables
-    variable_weights_tau <- variable_weights_mu <- variable_weights
+    # Create mu and tau (and variance) specific variable weights with weights zeroed out for excluded variables
+    variable_weights_variance <- variable_weights_tau <- variable_weights_mu <- variable_weights
     variable_weights_mu[!(original_var_indices %in% variable_subset_mu)] <- 0
     variable_weights_tau[!(original_var_indices %in% variable_subset_tau)] <- 0
+    if (include_variance_forest) {
+        variable_weights_variance[!(original_var_indices %in% variable_subset_variance)] <- 0
+    }
 
     # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided 
     has_basis_rfx <- F
@@ -380,7 +443,15 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         bart_model_propensity <- bart(X_train = X_train_raw, y_train = as.numeric(Z_train), X_test = X_test_raw, 
                                       num_gfr = num_total, num_burnin = 0, num_mcmc = 0)
         pi_train <- rowMeans(bart_model_propensity$y_hat_train[,(num_burnin+1):num_total])
-        if (has_test) pi_test <- rowMeans(bart_model_propensity$y_hat_test[,(num_burnin+1):num_total])
+        if ((is.null(dim(pi_train))) && (!is.null(pi_train))) {
+            pi_train <- as.matrix(pi_train)
+        }
+        if (has_test) {
+            pi_test <- rowMeans(bart_model_propensity$y_hat_test[,(num_burnin+1):num_total])
+            if ((is.null(dim(pi_test))) && (!is.null(pi_test))) {
+                pi_test <- as.matrix(pi_test)
+            }
+        }
     }
 
     if (has_test) {
@@ -394,12 +465,15 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         if (propensity_covariate == "mu") {
             variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(pi_train)))
             variable_weights_tau <- c(variable_weights_tau, 0)
+            if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, 0)
         } else if (propensity_covariate == "tau") {
             variable_weights_mu <- c(variable_weights_mu, 0)
             variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(pi_train)))
+            if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, 0)
         } else if (propensity_covariate == "both") {
             variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(pi_train)))
             variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(pi_train)))
+            if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, 0)
         }
         if (has_test) X_test <- cbind(X_test, pi_test)
     }
@@ -407,6 +481,9 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     # Renormalize variable weights
     variable_weights_mu <- variable_weights_mu / sum(variable_weights_mu)
     variable_weights_tau <- variable_weights_tau / sum(variable_weights_tau)
+    if (include_variance_forest) {
+        variable_weights_variance <- variable_weights_variance / sum(variable_weights_variance)
+    }
     
     # Standardize outcome separately for test and train
     y_bar_train <- mean(y_train)
@@ -414,14 +491,18 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     resid_train <- (y_train-y_bar_train)/y_std_train
     
     # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau
-    if (is.null(sigma2)) sigma2 <- pct_var_sigma2_init*var(resid_train)
+    if (is.null(sigma2_init)) sigma2_init <- pct_var_sigma2_init*var(resid_train)
+    if (is.null(variance_forest_init)) variance_forest_init <- pct_var_variance_forest_init*var(resid_train)
     if (is.null(b_leaf_mu)) b_leaf_mu <- var(resid_train)/(num_trees_mu)
     if (is.null(b_leaf_tau)) b_leaf_tau <- var(resid_train)/(2*num_trees_tau)
     if (is.null(sigma_leaf_mu)) sigma_leaf_mu <- var(resid_train)/(num_trees_mu)
     if (is.null(sigma_leaf_tau)) sigma_leaf_tau <- var(resid_train)/(2*num_trees_tau)
-    current_sigma2 <- sigma2
+    current_sigma2 <- sigma2_init
     current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
     current_leaf_scale_tau <- as.matrix(sigma_leaf_tau)
+    
+    # Set variance leaf model type (currently only one option)
+    leaf_model_variance_forest <- 3
     
     # Random effects prior parameters
     if (has_rfx) {
@@ -493,14 +574,16 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     # Sampling data structures
     forest_model_mu <- createForestModel(forest_dataset_train, feature_types, num_trees_mu, nrow(X_train), alpha_mu, beta_mu, min_samples_leaf_mu, max_depth_mu)
     forest_model_tau <- createForestModel(forest_dataset_train, feature_types, num_trees_tau, nrow(X_train), alpha_tau, beta_tau, min_samples_leaf_tau, max_depth_tau)
+    if (include_variance_forest) {
+        forest_model_variance <- createForestModel(forest_dataset_train, feature_types, num_trees_variance, nrow(X_train), alpha_variance, beta_variance, min_samples_leaf_variance, max_depth_variance)
+    }
     
     # Container of forest samples
     forest_samples_mu <- createForestContainer(num_trees_mu, 1, T)
     forest_samples_tau <- createForestContainer(num_trees_tau, 1, F)
-    
-    # Placeholder heteroskedasticity parameters
-    a_forest = 1.
-    b_forest = 1.
+    if (include_variance_forest) {
+        forest_samples_variance <- createForestContainer(num_trees_variance, 1, TRUE, TRUE)
+    }
     
     # Initialize the leaves of each tree in the prognostic forest
     init_mu <- mean(resid_train)
@@ -509,6 +592,11 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     # Initialize the leaves of each tree in the treatment effect forest
     init_tau <- 0.
     forest_samples_tau$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_tau, 1, init_tau)
+    
+    # Initialize the leaves of each tree in the variance forest
+    if (include_variance_forest) {
+        forest_samples_variance$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_variance, leaf_model_variance_forest, variance_forest_init)
+    }
 
     # Run GFR (warm start) if specified
     if (num_gfr > 0){
@@ -581,6 +669,13 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             }
             
             # Sample variance parameters (if requested)
+            if (include_variance_forest) {
+                forest_model_variance$sample_one_iteration(
+                    forest_dataset_train, outcome_train, forest_samples_variance, rng, feature_types, 
+                    leaf_model_variance_forest, current_leaf_scale_mu, variable_weights_variance, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
+                )
+            }
             if (sample_sigma_global) {
                 global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
@@ -680,6 +775,13 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             }
             
             # Sample variance parameters (if requested)
+            if (include_variance_forest) {
+                forest_model_variance$sample_one_iteration(
+                    forest_dataset_train, outcome_train, forest_samples_variance, rng, feature_types, 
+                    leaf_model_variance_forest, current_leaf_scale_mu, variable_weights_variance, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
+                )
+            }
             if (sample_sigma_global) {
                 global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
@@ -714,6 +816,10 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             tau_hat_test <- forest_samples_tau$predict_raw(forest_dataset_test)*y_std_train
         }
         y_hat_test <- mu_hat_test + tau_hat_test * as.numeric(Z_test)
+    }
+    if (include_variance_forest) {
+        sigma_x_hat_train <- forest_samples_variance$predict(forest_dataset_train)
+        if (has_test) sigma_x_hat_test <- forest_samples_variance$predict(forest_dataset_test)
     }
 
     # Random effects predictions
@@ -762,6 +868,10 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             rfx_preds_test <- rfx_preds_test[,keep_indices]
         }
     }
+    if (include_variance_forest) {
+        sigma_x_hat_train <- sigma_x_hat_train[,keep_indices]
+        if (has_test) sigma_x_hat_test <- sigma_x_hat_test[,keep_indices]
+    }
     
     # Global error variance
     if (sample_sigma_global) sigma2_samples <- global_var_samples[keep_indices]*(y_std_train^2)
@@ -772,9 +882,25 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     # Leaf parameter variance for treatment effect forest
     if (sample_sigma_leaf_tau) sigma_leaf_tau_samples <- leaf_scale_tau_samples[keep_indices]
     
+    # Rescale variance forest prediction by global sigma2 (sampled or constant)
+    if (include_variance_forest) {
+        if (sample_sigma_global) {
+            sigma_x_hat_train <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_train[,i]*sigma2_samples[i]))
+            if (has_test) sigma_x_hat_test <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_test[,i]*sigma2_samples[i]))
+        } else {
+            sigma_x_hat_train <- sqrt(sigma_x_hat_train*sigma2_init)*y_std_train
+            if (has_test) sigma_x_hat_test <- sqrt(sigma_x_hat_test*sigma2_init)*y_std_train
+        }
+    }
+    
     # Return results as a list
+    if (include_variance_forest) {
+        num_variance_covariates <- sum(variable_weights_variance > 0)
+    } else {
+        num_variance_covariates <- 0
+    }
     model_params <- list(
-        "initial_sigma2" = sigma2, 
+        "initial_sigma2" = sigma2_init, 
         "initial_sigma_leaf_mu" = sigma_leaf_mu,
         "initial_sigma_leaf_tau" = sigma_leaf_tau,
         "initial_b_0" = b_0,
@@ -785,11 +911,14 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         "b_leaf_mu" = b_leaf_mu,
         "a_leaf_tau" = a_leaf_tau, 
         "b_leaf_tau" = b_leaf_tau,
+        "a_forest" = a_forest, 
+        "b_forest" = b_forest,
         "outcome_mean" = y_bar_train,
         "outcome_scale" = y_std_train, 
         "num_covariates" = num_cov_orig,
         "num_prognostic_covariates" = sum(variable_weights_mu > 0),
         "num_treatment_covariates" = sum(variable_weights_tau > 0),
+        "num_variance_covariates" = num_variance_covariates,
         "treatment_dim" = ncol(Z_train), 
         "propensity_covariate" = propensity_covariate, 
         "binary_treatment" = binary_treatment, 
@@ -801,6 +930,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         "has_rfx" = has_rfx, 
         "has_rfx_basis" = has_basis_rfx, 
         "num_rfx_basis" = num_basis_rfx, 
+        "include_variance_forest" = include_variance_forest, 
         "sample_sigma_global" = sample_sigma_global,
         "sample_sigma_leaf_mu" = sample_sigma_leaf_mu,
         "sample_sigma_leaf_tau" = sample_sigma_leaf_tau
@@ -821,6 +951,11 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     if (has_test) result[["mu_hat_test"]] = mu_hat_test
     if (has_test) result[["tau_hat_test"]] = tau_hat_test
     if (has_test) result[["y_hat_test"]] = y_hat_test
+    if (include_variance_forest) {
+        result[["forests_variance"]] = forest_samples_variance
+        result[["sigma_x_hat_train"]] = sigma_x_hat_train
+        if (has_test) result[["sigma_x_hat_test"]] = sigma_x_hat_test
+    }
     if (sample_sigma_global) result[["sigma2_samples"]] = sigma2_samples
     if (sample_sigma_leaf_mu) result[["sigma_leaf_mu_samples"]] = sigma_leaf_mu_samples
     if (sample_sigma_leaf_tau) result[["sigma_leaf_tau_samples"]] = sigma_leaf_tau_samples
@@ -849,9 +984,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
-#' @param predict_all (Optional) Whether to predict the model for all of the samples in the stored objects or the subset of burnt-in / GFR samples as specified at training time. Default FALSE.
 #'
-#' @return List of three (or four) `nrow(X_test)` by `bcf$num_samples` matrices: prognostic function estimates, treatment effect estimates, (possibly) random effects predictions, and outcome predictions.
+#' @return List of 3-5 `nrow(X_test)` by `bcf$num_samples` matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
 #' @export
 #'
 #' @examples
@@ -901,7 +1035,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 #' # abline(0,1,col="red",lty=3,lwd=3)
 #' # plot(rowMeans(preds$tau_hat), tau_test, xlab = "predicted", ylab = "actual", main = "Treatment effect")
 #' # abline(0,1,col="red",lty=3,lwd=3)
-predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL, predict_all = F){
+predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL){
     # Preprocess covariates
     if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
         stop("X_test must be a matrix or dataframe")
@@ -976,12 +1110,16 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
     # Compute forest predictions
     y_std <- bcf$model_params$outcome_scale
     y_bar <- bcf$model_params$outcome_mean
+    sigma2_init <- bcf$model_params$initial_sigma2
     mu_hat_test <- bcf$forests_mu$predict(prediction_dataset_mu)*y_std + y_bar
     if (bcf$model_params$adaptive_coding) {
         tau_hat_test_raw <- bcf$forests_tau$predict_raw(prediction_dataset_tau)
         tau_hat_test <- t(t(tau_hat_test_raw) * (bcf$b_1_samples - bcf$b_0_samples))*y_std
     } else {
         tau_hat_test <- bcf$forests_tau$predict_raw(prediction_dataset_tau)*y_std
+    }
+    if (bcf$model_params$include_variance_forest) {
+        s_x_raw <- bcf$variance_forests$predict(prediction_dataset)
     }
     
     # Compute rfx predictions (if needed)
@@ -994,27 +1132,35 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
     if (bcf$model_params$has_rfx) y_hat_test <- y_hat_test + rfx_predictions
     
     # Restrict predictions to the "retained" samples (if applicable)
-    if (!predict_all) {
-        keep_indices = bcf$keep_indices
-        mu_hat_test <- mu_hat_test[,keep_indices]
-        tau_hat_test <- tau_hat_test[,keep_indices]
-        y_hat_test <- y_hat_test[,keep_indices]
-        if (bcf$model_params$has_rfx) rfx_predictions <- rfx_predictions[,keep_indices]
+    keep_indices = bcf$keep_indices
+    mu_hat_test <- mu_hat_test[,keep_indices]
+    tau_hat_test <- tau_hat_test[,keep_indices]
+    y_hat_test <- y_hat_test[,keep_indices]
+    if (bcf$model_params$has_rfx) rfx_predictions <- rfx_predictions[,keep_indices]
+    if (bcf$model_params$include_variance_forest) {
+        s_x_raw <- s_x_raw[,keep_indices]
     }
     
+    # Scale variance forest predictions
+    if (bcf$model_params$include_variance_forest) {
+        if (bcf$model_params$sample_sigma_global) {
+            sigma2_samples <- bcf$sigma2_global_samples
+            variance_forest_predictions <- sapply(1:length(keep_indices), function(i) sqrt(s_x_raw[,i]*sigma2_samples[i]))
+        } else {
+            variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std
+        }
+    }
+
+    result <- list(
+        "mu_hat" = mu_hat_test, 
+        "tau_hat" = tau_hat_test, 
+        "y_hat" = y_hat_test
+    )
     if (bcf$model_params$has_rfx) {
-        result <- list(
-            "mu_hat" = mu_hat_test, 
-            "tau_hat" = tau_hat_test, 
-            "rfx_predictions" = rfx_predictions, 
-            "y_hat" = y_hat_test
-        )
-    } else {
-        result <- list(
-            "mu_hat" = mu_hat_test, 
-            "tau_hat" = tau_hat_test, 
-            "y_hat" = y_hat_test
-        )
+        result[["rfx_predictions"]] = rfx_predictions
+    }
+    if (bcf$model_params$include_variance_forest) {
+        result[["variance_forest_predictions"]] = variance_forest_predictions
     }
     return(result)
 }
