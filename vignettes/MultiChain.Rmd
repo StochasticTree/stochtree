@@ -176,7 +176,7 @@ The first step of this process is to run the sampler in parallel,
 storing the resulting BART JSON strings in a list.
 
 ```{r}
-bart_model_strings <- foreach (i = 1:num_chains) %dopar% {
+bart_model_outputs <- foreach (i = 1:num_chains) %dopar% {
   random_seed <- i
   bart_model <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, 
@@ -186,7 +186,8 @@ bart_model_strings <- foreach (i = 1:num_chains) %dopar% {
     sample_sigma_leaf = T, random_seed = random_seed
   )
   bart_model_string <- stochtree::saveBARTModelToJsonString(bart_model)
-  bart_model_string
+  y_hat_test <- bart_model$y_hat_test
+  list(model=bart_model_string, yhat=y_hat_test)
 }
 ```
 
@@ -200,6 +201,12 @@ Now, if we want to combine the forests from each of these BART models into a
 single forest, we can do so as follows
 
 ```{r}
+bart_model_strings <- list()
+bart_model_yhats <- matrix(NA, nrow = length(y_test), ncol = num_chains)
+for (i in 1:length(bart_model_outputs)) {
+    bart_model_strings[[i]] <- bart_model_outputs[[i]]$model
+    bart_model_yhats[,i] <- rowMeans(bart_model_outputs[[i]]$yhat)
+}
 combined_bart <- createBARTModelFromCombinedJsonString(bart_model_strings)
 ```
 
@@ -209,8 +216,23 @@ We can predict from this combined forest as follows
 yhat_combined <- predict(combined_bart, X_test, W_test)$y_hat
 ```
 
-Since we don't have access to the original $\hat{y}$ values, we instead 
-compare average predictions from each chain to the true $y$ values.
+Compare average predictions from each chain to the original predictions.
+
+```{r}
+par(mfrow = c(1,2))
+for (i in 1:num_chains) {
+    offset <- (i-1)*num_mcmc
+    inds_start <- offset + 1
+    inds_end <- offset + num_mcmc
+    plot(rowMeans(yhat_combined[,inds_start:inds_end]), bart_model_yhats[,i],
+         xlab = "deserialized", ylab = "original", 
+         main = paste0("Chain ", i, "\nPredictions"))
+    abline(0,1,col="red",lty=3,lwd=3)
+}
+par(mfrow = c(1,1))
+```
+
+And to the true $y$ values.
 
 ```{r}
 par(mfrow = c(1,2))
