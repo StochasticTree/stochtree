@@ -544,7 +544,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Rescale variance forest prediction by sigma2_samples
     if (include_variance_forest) {
-        if (sample_sigma) {
+        if (sample_sigma_global) {
             sigma_x_hat_train <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_train[,i]*sigma2_samples[i]))
             if (has_test) sigma_x_hat_test <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_test[,i]*sigma2_samples[i]))
         } else {
@@ -576,6 +576,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         "num_gfr" = num_gfr, 
         "num_burnin" = num_burnin, 
         "num_mcmc" = num_mcmc, 
+        "num_retained_samples" = length(keep_indices),
         "has_basis" = !is.null(W_train), 
         "has_rfx" = has_rfx, 
         "has_rfx_basis" = has_basis_rfx, 
@@ -872,7 +873,12 @@ convertBARTModelToJson <- function(object){
     }
 
     # Add the forests
-    jsonobj$add_forest(object$forests)
+    if (object$model_params$include_mean_forest) {
+        jsonobj$add_forest(object$mean_forests)
+    }
+    if (object$model_params$include_variance_forest) {
+        jsonobj$add_forest(object$variance_forests)
+    }
 
     # Add metadata
     jsonobj$add_scalar("num_numeric_vars", object$train_set_metadata$num_numeric_vars)
@@ -893,8 +899,10 @@ convertBARTModelToJson <- function(object){
     # Add global parameters
     jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
     jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
-    jsonobj$add_boolean("sample_sigma", object$model_params$sample_sigma)
-    jsonobj$add_boolean("sample_tau", object$model_params$sample_tau)
+    jsonobj$add_boolean("sample_sigma_global", object$model_params$sample_sigma_global)
+    jsonobj$add_boolean("sample_sigma_leaf", object$model_params$sample_sigma_leaf)
+    jsonobj$add_boolean("include_mean_forest", object$model_params$include_mean_forest)
+    jsonobj$add_boolean("include_variance_forest", object$model_params$include_variance_forest)
     jsonobj$add_boolean("has_rfx", object$model_params$has_rfx)
     jsonobj$add_boolean("has_rfx_basis", object$model_params$has_rfx_basis)
     jsonobj$add_scalar("num_rfx_basis", object$model_params$num_rfx_basis)
@@ -906,11 +914,11 @@ convertBARTModelToJson <- function(object){
     jsonobj$add_scalar("num_basis", object$model_params$num_basis)
     jsonobj$add_boolean("requires_basis", object$model_params$requires_basis)
     jsonobj$add_vector("keep_indices", object$keep_indices)
-    if (object$model_params$sample_sigma) {
-        jsonobj$add_vector("sigma2_samples", object$sigma2_samples, "parameters")
+    if (object$model_params$sample_sigma_global) {
+        jsonobj$add_vector("sigma2_global_samples", object$sigma2_global_samples, "parameters")
     }
-    if (object$model_params$sample_tau) {
-        jsonobj$add_vector("tau_samples", object$tau_samples, "parameters")
+    if (object$model_params$sample_sigma_leaf) {
+        jsonobj$add_vector("sigma2_leaf_samples", object$sigma2_leaf_samples, "parameters")
     }
 
     # Add random effects (if present)
@@ -1035,7 +1043,16 @@ createBARTModelFromJson <- function(json_object){
     output <- list()
     
     # Unpack the forests
-    output[["forests"]] <- loadForestContainerJson(json_object, "forest_0")
+    include_mean_forest <- json_object$get_boolean("include_mean_forest")
+    include_variance_forest <- json_object$get_boolean("include_variance_forest")
+    if (include_mean_forest) {
+        output[["mean_forests"]] <- loadForestContainerJson(json_object, "forest_0")
+        if (include_variance_forest) {
+            output[["variance_forests"]] <- loadForestContainerJson(json_object, "forest_1")
+        }
+    } else {
+        output[["variance_forests"]] <- loadForestContainerJson(json_object, "forest_0")
+    }
 
     # Unpack metadata
     train_set_metadata = list()
@@ -1060,8 +1077,10 @@ createBARTModelFromJson <- function(json_object){
     model_params = list()
     model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
-    model_params[["sample_sigma"]] <- json_object$get_boolean("sample_sigma")
-    model_params[["sample_tau"]] <- json_object$get_boolean("sample_tau")
+    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["include_mean_forest"]] <- include_mean_forest
+    model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["has_rfx"]] <- json_object$get_boolean("has_rfx")
     model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
     model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
@@ -1075,11 +1094,11 @@ createBARTModelFromJson <- function(json_object){
     output[["model_params"]] <- model_params
     
     # Unpack sampled parameters
-    if (model_params[["sample_sigma"]]) {
-        output[["sigma2_samples"]] <- json_object$get_vector("sigma2_samples", "parameters")
+    if (model_params[["sample_sigma_global"]]) {
+        output[["sigma2_global_samples"]] <- json_object$get_vector("sigma2_global_samples", "parameters")
     }
-    if (model_params[["sample_tau"]]) {
-        output[["tau_samples"]] <- json_object$get_vector("tau_samples", "parameters")
+    if (model_params[["sample_sigma_leaf"]]) {
+        output[["sigma2_leaf_samples"]] <- json_object$get_vector("sigma2_leaf_samples", "parameters")
     }
 
     # Unpack random effects
@@ -1214,13 +1233,22 @@ createBARTModelFromJsonString <- function(json_string){
 createBARTModelFromCombinedJson <- function(json_object_list){
     # Initialize the BCF model
     output <- list()
-    
-    # Unpack the forests
-    output[["forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
-    
+
     # For scalar / preprocessing details which aren't sample-dependent, 
     # defer to the first json
     json_object_default <- json_object_list[[1]]
+    
+    # Unpack the forests
+    include_mean_forest <- json_object_default$get_boolean("include_mean_forest")
+    include_variance_forest <- json_object_default$get_boolean("include_variance_forest")
+    if (include_mean_forest) {
+        output[["mean_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+        if (include_variance_forest) {
+            output[["variance_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_1")
+        }
+    } else {
+        output[["variance_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+    }
     
     # Unpack metadata
     train_set_metadata = list()
@@ -1244,8 +1272,10 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     model_params = list()
     model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
-    model_params[["sample_sigma"]] <- json_object_default$get_boolean("sample_sigma")
-    model_params[["sample_tau"]] <- json_object_default$get_boolean("sample_tau")
+    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["include_mean_forest"]] <- include_mean_forest
+    model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
     model_params[["has_rfx_basis"]] <- json_object_default$get_boolean("has_rfx_basis")
     model_params[["num_rfx_basis"]] <- json_object_default$get_scalar("num_rfx_basis")
@@ -1278,23 +1308,23 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     output[["model_params"]] <- model_params
     
     # Unpack sampled parameters
-    if (model_params[["sample_sigma"]]) {
+    if (model_params[["sample_sigma_global"]]) {
         for (i in 1:length(json_object_list)) {
             json_object <- json_object_list[[i]]
             if (i == 1) {
-                output[["sigma2_samples"]] <- json_object$get_vector("sigma2_samples", "parameters")
+                output[["sigma2_global_samples"]] <- json_object$get_vector("sigma2_global_samples", "parameters")
             } else {
-                output[["sigma2_samples"]] <- c(output[["sigma2_samples"]], json_object$get_vector("sigma2_samples", "parameters"))
+                output[["sigma2_global_samples"]] <- c(output[["sigma2_global_samples"]], json_object$get_vector("sigma2_global_samples", "parameters"))
             }
         }
     }
-    if (model_params[["sample_tau"]]) {
+    if (model_params[["sample_sigma_leaf"]]) {
         for (i in 1:length(json_object_list)) {
             json_object <- json_object_list[[i]]
             if (i == 1) {
-                output[["tau_samples"]] <- json_object$get_vector("tau_samples", "parameters")
+                output[["sigma2_leaf_samples"]] <- json_object$get_vector("sigma2_leaf_samples", "parameters")
             } else {
-                output[["tau_samples"]] <- c(output[["tau_samples"]], json_object$get_vector("tau_samples", "parameters"))
+                output[["sigma2_leaf_samples"]] <- c(output[["sigma2_leaf_samples"]], json_object$get_vector("sigma2_leaf_samples", "parameters"))
             }
         }
     }
@@ -1352,12 +1382,21 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
         json_object_list[[i]] <- createCppJsonString(json_string)
     }
     
-    # Unpack the forests
-    output[["forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
-    
     # For scalar / preprocessing details which aren't sample-dependent, 
     # defer to the first json
     json_object_default <- json_object_list[[1]]
+    
+    # Unpack the forests
+    include_mean_forest <- json_object_default$get_boolean("include_mean_forest")
+    include_variance_forest <- json_object_default$get_boolean("include_variance_forest")
+    if (include_mean_forest) {
+        output[["mean_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+        if (include_variance_forest) {
+            output[["variance_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_1")
+        }
+    } else {
+        output[["variance_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+    }
     
     # Unpack metadata
     train_set_metadata = list()
@@ -1382,8 +1421,10 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     model_params = list()
     model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
-    model_params[["sample_sigma"]] <- json_object_default$get_boolean("sample_sigma")
-    model_params[["sample_tau"]] <- json_object_default$get_boolean("sample_tau")
+    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["include_mean_forest"]] <- include_mean_forest
+    model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
     model_params[["has_rfx_basis"]] <- json_object_default$get_boolean("has_rfx_basis")
     model_params[["num_rfx_basis"]] <- json_object_default$get_scalar("num_rfx_basis")
@@ -1416,23 +1457,23 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     output[["model_params"]] <- model_params
     
     # Unpack sampled parameters
-    if (model_params[["sample_sigma"]]) {
+    if (model_params[["sample_sigma_global"]]) {
         for (i in 1:length(json_object_list)) {
             json_object <- json_object_list[[i]]
             if (i == 1) {
-                output[["sigma2_samples"]] <- json_object$get_vector("sigma2_samples", "parameters")
+                output[["sigma2_global_samples"]] <- json_object$get_vector("sigma2_global_samples", "parameters")
             } else {
-                output[["sigma2_samples"]] <- c(output[["sigma2_samples"]], json_object$get_vector("sigma2_samples", "parameters"))
+                output[["sigma2_global_samples"]] <- c(output[["sigma2_global_samples"]], json_object$get_vector("sigma2_global_samples", "parameters"))
             }
         }
     }
-    if (model_params[["sample_tau"]]) {
+    if (model_params[["sample_sigma_leaf"]]) {
         for (i in 1:length(json_object_list)) {
             json_object <- json_object_list[[i]]
             if (i == 1) {
-                output[["tau_samples"]] <- json_object$get_vector("tau_samples", "parameters")
+                output[["sigma2_leaf_samples"]] <- json_object$get_vector("sigma2_leaf_samples", "parameters")
             } else {
-                output[["tau_samples"]] <- c(output[["tau_samples"]], json_object$get_vector("tau_samples", "parameters"))
+                output[["sigma2_leaf_samples"]] <- c(output[["sigma2_leaf_samples"]], json_object$get_vector("sigma2_leaf_samples", "parameters"))
             }
         }
     }

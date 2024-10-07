@@ -100,9 +100,10 @@ bart_models <- list()
 for (i in 1:num_chains) {
     bart_models[[i]] <- stochtree::bart(
         X_train = X_train, W_train = W_train, y_train = y_train, 
-        X_test = X_test, W_test = W_test, num_trees = num_trees, 
+        X_test = X_test, W_test = W_test, num_trees_mean = num_trees, 
         num_gfr = num_gfr, num_burnin = num_burnin, 
-        num_mcmc = num_mcmc, sample_sigma = T, sample_tau = T
+        num_mcmc = num_mcmc, sample_sigma_global = T, 
+        sample_sigma_leaf = T
     )
 }
 ```
@@ -179,10 +180,10 @@ bart_model_strings <- foreach (i = 1:num_chains) %dopar% {
   random_seed <- i
   bart_model <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, 
-    X_test = X_test, W_test = W_test, num_trees = num_trees, 
+    X_test = X_test, W_test = W_test, num_trees_mean = num_trees, 
     num_gfr = num_gfr, num_burnin = num_burnin, 
-    num_mcmc = num_mcmc, sample_sigma = T, sample_tau = T,
-    random_seed = random_seed
+    num_mcmc = num_mcmc, sample_sigma_global = T, 
+    sample_sigma_leaf = T, random_seed = random_seed
   )
   bart_model_string <- stochtree::saveBARTModelToJsonString(bart_model)
   bart_model_string

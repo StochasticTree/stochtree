@@ -34,8 +34,8 @@ bart(
   sigma2_init = NULL,
   variance_forest_init = NULL,
   pct_var_sigma2_init = 1,
-  variance_scale = 1,
   pct_var_variance_forest_init = 1,
+  variance_scale = 1,
   variable_weights_mean = NULL,
   variable_weights_variance = NULL,
   num_trees_mean = 200,
@@ -43,8 +43,8 @@ bart(
   num_gfr = 5,
   num_burnin = 0,
   num_mcmc = 100,
-  sample_sigma = T,
-  sample_tau = T,
+  sample_sigma_global = T,
+  sample_sigma_leaf = F,
   random_seed = -1,
   keep_burnin = F,
   keep_gfr = F,
@@ -113,9 +113,9 @@ that were not in the training set.}
 
 \item{b_leaf}{Scale parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees_mean} if not set here.}
 
-\item{a_forest}{Shape parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{include_variance_forest = T}). Calibrated internally as \code{num_trees_variance / 1.5^2 + 0.5} if not set.}
+\item{a_forest}{Shape parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2 + 0.5} if not set.}
 
-\item{b_forest}{Scale parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{include_variance_forest = T}). Calibrated internally as \code{num_trees_variance / 1.5^2} if not set.}
+\item{b_forest}{Scale parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2} if not set.}
 
 \item{q}{Quantile used to calibrated \code{lambda} as in Sparapani et al (2021). Default: 0.9.}
 
@@ -123,11 +123,11 @@ that were not in the training set.}
 
 \item{variance_forest_init}{Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as \code{log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance} if not set.}
 
-\item{pct_var_sigma2_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by \code{sigma2_init}.}
-
-\item{variance_scale}{Variance after the data have been scaled. Default: 1.}
+\item{pct_var_sigma2_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by \code{sigma2_init}.}
 
 \item{pct_var_variance_forest_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by \code{variance_forest_init}.}
+
+\item{variance_scale}{Variance after the data have been scaled. Default: 1.}
 
 \item{variable_weights_mean}{Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.}
 
@@ -143,9 +143,9 @@ that were not in the training set.}
 
 \item{num_mcmc}{Number of "retained" iterations of the MCMC sampler. Default: 100.}
 
-\item{sample_sigma}{Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(a_globa, b_global)}. Default: T.}
+\item{sample_sigma_global}{Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(a_global, b_global)}. Default: T.}
 
-\item{sample_tau}{Whether or not to update the \code{tau} leaf scale variance parameter based on \code{IG(a_leaf, b_leaf)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: T.}
+\item{sample_sigma_leaf}{Whether or not to update the \code{tau} leaf scale variance parameter based on \code{IG(a_leaf, b_leaf)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: F.}
 
 \item{random_seed}{Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to \code{std::random_device}.}
 

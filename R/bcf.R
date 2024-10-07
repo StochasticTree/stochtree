@@ -498,13 +498,17 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     forest_samples_mu <- createForestContainer(num_trees_mu, 1, T)
     forest_samples_tau <- createForestContainer(num_trees_tau, 1, F)
     
+    # Placeholder heteroskedasticity parameters
+    a_forest = 1.
+    b_forest = 1.
+    
     # Initialize the leaves of each tree in the prognostic forest
-    forest_samples_mu$set_root_leaves(0, mean(resid_train) / num_trees_mu)
-    forest_samples_mu$adjust_residual(forest_dataset_train, outcome_train, forest_model_mu, F, 0, F)
+    init_mu <- mean(resid_train)
+    forest_samples_mu$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mu, 0, init_mu)
     
     # Initialize the leaves of each tree in the treatment effect forest
-    forest_samples_tau$set_root_leaves(0, 0.)
-    forest_samples_tau$adjust_residual(forest_dataset_train, outcome_train, forest_model_tau, T, 0, F)
+    init_tau <- 0.
+    forest_samples_tau$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_tau, 1, init_tau)
 
     # Run GFR (warm start) if specified
     if (num_gfr > 0){
@@ -520,7 +524,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             # Sample the prognostic forest
             forest_model_mu$sample_one_iteration(
                 forest_dataset_train, outcome_train, forest_samples_mu, rng, feature_types, 
-                0, current_leaf_scale_mu, variable_weights_mu, 
+                0, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
                 current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
             )
             
@@ -537,7 +541,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             # Sample the treatment forest
             forest_model_tau$sample_one_iteration(
                 forest_dataset_train, outcome_train, forest_samples_tau, rng, feature_types, 
-                1, current_leaf_scale_tau, variable_weights_tau, 
+                1, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
                 current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
             )
             
@@ -619,7 +623,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             # Sample the prognostic forest
             forest_model_mu$sample_one_iteration(
                 forest_dataset_train, outcome_train, forest_samples_mu, rng, feature_types, 
-                0, current_leaf_scale_mu, variable_weights_mu, 
+                0, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
                 current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
             )
             
@@ -636,7 +640,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             # Sample the treatment forest
             forest_model_tau$sample_one_iteration(
                 forest_dataset_train, outcome_train, forest_samples_tau, rng, feature_types, 
-                1, current_leaf_scale_tau, variable_weights_tau, 
+                1, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
                 current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
             )
             

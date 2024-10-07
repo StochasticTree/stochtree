@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
 
 This vignette demonstrates how to use the `bart()` function for Bayesian 
 supervised learning (@chipman2010bart), with an additional "variance forest," 
-for modeling conditional variance. To begin, we load the `stochtree` package.
+for modeling conditional variance (see @murray2021log). To begin, we load the `stochtree` package.
 
 ```{r setup}
 library(stochtree)
@@ -122,7 +122,7 @@ num_samples <- num_gfr + num_burnin + num_mcmc
 bart_model_mcmc <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    num_trees_mean = 0, num_trees_variance = 20, 
+    num_trees_mean = 0, num_trees_variance = 50, 
     sample_sigma_global = F, sample_sigma_leaf = F
 )
 ```
@@ -232,7 +232,7 @@ num_samples <- num_gfr + num_burnin + num_mcmc
 bart_model_mcmc <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    num_trees_mean = 0, num_trees_variance = 20, 
+    num_trees_mean = 0, num_trees_variance = 50, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
@@ -327,7 +327,7 @@ num_samples <- num_gfr + num_burnin + num_mcmc
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    num_trees_mean = 50, num_trees_variance = 20, 
+    num_trees_mean = 50, num_trees_variance = 50, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
@@ -359,7 +359,7 @@ num_samples <- num_gfr + num_burnin + num_mcmc
 bart_model_mcmc <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    num_trees_mean = 50, num_trees_variance = 20, 
+    num_trees_mean = 50, num_trees_variance = 50, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
@@ -458,7 +458,7 @@ num_samples <- num_gfr + num_burnin + num_mcmc
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    num_trees_mean = 50, num_trees_variance = 20, 
+    num_trees_mean = 50, num_trees_variance = 50, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 
@@ -490,7 +490,7 @@ num_samples <- num_gfr + num_burnin + num_mcmc
 bart_model_mcmc <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    num_trees_mean = 50, num_trees_variance = 20, 
+    num_trees_mean = 50, num_trees_variance = 50, 
     alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
     alpha_variance = 0.95, beta_variance = 1.25, 
     min_samples_leaf_variance = 5, 

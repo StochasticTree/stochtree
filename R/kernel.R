@@ -132,8 +132,10 @@ createForestKernel <- function() {
 #' corresponds to the observations for which outcomes are unobserved and must be estimated 
 #' based on the kernels k(X_test,X_test), k(X_test,X_train), and k(X_train,X_train). If not provided, 
 #' this function will only compute k(X_train, X_train).
-#' @param forest_num (Option) Index of the forest sample to use for kernel computation. If not provided, 
+#' @param forest_num (Optional) Index of the forest sample to use for kernel computation. If not provided, 
 #' this function will use the last forest.
+#' @param forest_type (Optional) Whether to compute the kernel from the mean or variance forest. Default: "mean". Specify "variance" for the variance forest. 
+#' All other inputs are invalid. Must have sampled the relevant forest or an error will occur.
 #' @return List of kernel matrices. If `X_test = NULL`, the list contains 
 #' one `n_train` x `n_train` matrix, where `n_train = nrow(X_train)`. 
 #' This matrix is the kernel defined by `W_train %*% t(W_train)` where `W_train` 
@@ -141,8 +143,19 @@ createForestKernel <- function() {
 #' If `X_test` is not `NULL`, the list contains two more matrices defined by 
 #' `W_test %*% t(W_train)` and `W_test %*% t(W_test)`.
 #' @export
-computeForestKernels <- function(bart_model, X_train, X_test=NULL, forest_num=NULL) {
+computeForestKernels <- function(bart_model, X_train, X_test=NULL, forest_num=NULL, forest_type="mean") {
     stopifnot(class(bart_model)=="bartmodel")
+    if (forest_type=="mean") {
+        if (!bart_model$model_params$include_mean_forest) {
+            stop("Mean forest was not sampled in the bart model provided")
+        }
+    } else if (forest_type=="variance") {
+        if (!bart_model$model_params$include_variance_forest) {
+            stop("Variance forest was not sampled in the bart model provided")
+        }
+    } else {
+        stop("Must provide either 'mean' or 'variance' for the `forest_type` parameter")
+    }
     
     # Preprocess covariates
     if (!is.data.frame(X_train)) {
@@ -164,10 +177,17 @@ computeForestKernels <- function(bart_model, X_train, X_test=NULL, forest_num=NU
     num_samples <- bart_model$model_params$num_samples
     stopifnot(forest_num <= num_samples)
     sample_index <- ifelse(is.null(forest_num), num_samples-1, forest_num-1)
-    return(forest_kernel$compute_kernel(
-        covariates_train = X_train, covariates_test = X_test,
-        forest_container = bart_model$forests, forest_num = sample_index
-    ))
+    if (forest_type=="mean") {
+        return(forest_kernel$compute_kernel(
+            covariates_train = X_train, covariates_test = X_test,
+            forest_container = bart_model$mean_forests, forest_num = sample_index
+        ))
+    } else if (forest_type=="variance") {
+        return(forest_kernel$compute_kernel(
+            covariates_train = X_train, covariates_test = X_test,
+            forest_container = bart_model$variance_forests, forest_num = sample_index
+        ))
+    }
 }
 
 #' Compute and return a vector representation of a forest's leaf predictions for 
@@ -192,21 +212,41 @@ computeForestKernels <- function(bart_model, X_train, X_test=NULL, forest_num=NU
 #' corresponds to the observations for which outcomes are unobserved and must be estimated 
 #' based on the kernels k(X_test,X_test), k(X_test,X_train), and k(X_train,X_train). If not provided, 
 #' this function will only compute k(X_train, X_train).
-#' @param forest_num (Option) Index of the forest sample to use for kernel computation. If not provided, 
+#' @param forest_num (Optional) Index of the forest sample to use for kernel computation. If not provided, 
 #' this function will use the last forest.
+#' @param forest_type (Optional) Whether to compute the kernel from the mean or variance forest. Default: "mean". Specify "variance" for the variance forest. 
+#' All other inputs are invalid. Must have sampled the relevant forest or an error will occur.
 #' @return List of vectors. If `X_test = NULL`, the list contains 
 #' one vector of length `n_train * num_trees`, where `n_train = nrow(X_train)` 
 #' and `num_trees` is the number of trees in `bart_model`. If `X_test` is not `NULL`, 
 #' the list contains another vector of length `n_test * num_trees`.
 #' @export
-computeForestLeafIndices <- function(bart_model, X_train, X_test=NULL, forest_num=NULL) {
+computeForestLeafIndices <- function(bart_model, X_train, X_test=NULL, forest_num=NULL, forest_type="mean") {
     stopifnot(class(bart_model)=="bartmodel")
+    if (forest_type=="mean") {
+        if (!bart_model$model_params$include_mean_forest) {
+            stop("Mean forest was not sampled in the bart model provided")
+        }
+    } else if (forest_type=="variance") {
+        if (!bart_model$model_params$include_variance_forest) {
+            stop("Variance forest was not sampled in the bart model provided")
+        }
+    } else {
+        stop("Must provide either 'mean' or 'variance' for the `forest_type` parameter")
+    }
     forest_kernel <- createForestKernel()
     num_samples <- bart_model$model_params$num_samples
     stopifnot(forest_num <= num_samples)
     sample_index <- ifelse(is.null(forest_num), num_samples-1, forest_num-1)
-    return(forest_kernel$compute_leaf_indices(
-        covariates_train = X_train, covariates_test = X_test,
-        forest_container = bart_model$forests, forest_num = sample_index
-    ))
+    if (forest_type == "mean") {
+        return(forest_kernel$compute_leaf_indices(
+            covariates_train = X_train, covariates_test = X_test,
+            forest_container = bart_model$mean_forests, forest_num = sample_index
+        ))
+    } else if (forest_type == "variance") {
+        return(forest_kernel$compute_leaf_indices(
+            covariates_train = X_train, covariates_test = X_test,
+            forest_container = bart_model$variance_forests, forest_num = sample_index
+        ))
+    }
 }

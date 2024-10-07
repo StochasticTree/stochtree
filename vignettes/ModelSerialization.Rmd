@@ -42,7 +42,7 @@ Here we show how to save and reload models from JSON files on disk.
 
 Draw from a modified version of the data generating process defined in @hahn2020bayesian.
 
-```{r data}
+```{r}
 # Generate synthetic data
 n <- 1000
 snr <- 2
@@ -138,6 +138,93 @@ plot(rowMeans(bcf_model$tau_hat_train), rowMeans(bcf_preds_reload$tau_hat),
 abline(0,1,col="red",lwd=3,lty=3)
 plot(rowMeans(bcf_model$y_hat_train), rowMeans(bcf_preds_reload$y_hat), 
      xlab = "Original", ylab = "Deserialized", main = "Overall outcome")
+abline(0,1,col="red",lwd=3,lty=3)
+```
+
+# Demo 2: BART
+
+BART models are initially sampled and constructed using the `bart()` function.
+Here we show how to save and reload models from JSON files on disk.
+
+## Model Building
+
+Draw from a relatively straightforward heteroskedastic supervised learning DGP.
+
+```{r}
+# Generate the data
+n <- 500
+p_x <- 10
+X <- matrix(runif(n*p_x), ncol = p_x)
+f_XW <- 0
+s_XW <- (
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.5*X[,3]) + 
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (1*X[,3]) + 
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2*X[,3]) + 
+    ((0.75 <= X[,1]) & (1 > X[,1])) * (3*X[,3])
+)
+y <- f_XW + rnorm(n, 0, 1)*s_XW
+
+# Split data into test and train sets
+test_set_pct <- 0.2
+n_test <- round(test_set_pct*n)
+n_train <- n - n_test
+test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+train_inds <- (1:n)[!((1:n) %in% test_inds)]
+X_test <- as.data.frame(X[test_inds,])
+X_train <- as.data.frame(X[train_inds,])
+W_test <- NULL
+W_train <- NULL
+y_test <- y[test_inds]
+y_train <- y[train_inds]
+f_x_test <- f_XW[test_inds]
+f_x_train <- f_XW[train_inds]
+s_x_test <- s_XW[test_inds]
+s_x_train <- s_XW[train_inds]
+```
+
+Sample a BART model.
+
+```{r}
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 100
+num_samples <- num_gfr + num_burnin + num_mcmc
+bart_model <- stochtree::bart(
+    X_train = X_train, y_train = y_train, X_test = X_test, 
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    num_trees_mean = 0, num_trees_variance = 50, 
+    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
+    alpha_variance = 0.95, beta_variance = 1.25, 
+    min_samples_leaf_variance = 1, 
+    sample_sigma_global = F, sample_sigma_leaf = F
+)
+```
+
+## Serialization
+
+Save the BART model to disk.
+
+```{r bart_serialization}
+saveBARTModelToJsonFile(bart_model, "bart.json")
+```
+
+## Deserialization
+
+Reload the BART model from disk.
+
+```{r bart_deserialization}
+bart_model_reload <- createBARTModelFromJsonFile("bart.json")
+```
+
+Check that the predictions align with those of the original model.
+
+```{r bart_roundtrip}
+bart_preds_reload <- predict(bart_model_reload, X_train)
+plot(rowMeans(bart_model$y_hat_train), rowMeans(bart_preds_reload$y_hat), 
+     xlab = "Original", ylab = "Deserialized", main = "Conditional Mean Estimates")
+abline(0,1,col="red",lwd=3,lty=3)
+plot(rowMeans(bart_model$sigma_x_hat_train), rowMeans(bart_preds_reload$variance_forest_predictions), 
+     xlab = "Original", ylab = "Deserialized", main = "Conditional Variance Estimates")
 abline(0,1,col="red",lwd=3,lty=3)
 ```
 
