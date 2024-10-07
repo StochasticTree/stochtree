@@ -110,7 +110,7 @@ for (i in 1:num_warmstart) {
     
     # Sample global variance parameter
     global_var_samples[i+1] <- sample_sigma2_one_iteration(
-        outcome, rng, nu, lambda
+        outcome, forest_dataset, rng, nu, lambda
     )
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
@@ -133,7 +133,7 @@ for (i in (num_warmstart+1):num_samples) {
     
     # Sample global variance parameter
     global_var_samples[i+1] <- sample_sigma2_one_iteration(
-        outcome, rng, nu, lambda
+        outcome, forest_dataset, rng, nu, lambda
     )
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`

@@ -12,9 +12,9 @@
 #include <vector>
 
 [[cpp11::register]]
-cpp11::external_pointer<StochTree::ForestContainer> forest_container_cpp(int num_trees, int output_dimension = 1, bool is_leaf_constant = true) {
+cpp11::external_pointer<StochTree::ForestContainer> forest_container_cpp(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
     // Create smart pointer to newly allocated object
-    std::unique_ptr<StochTree::ForestContainer> forest_sample_ptr_ = std::make_unique<StochTree::ForestContainer>(num_trees, output_dimension, is_leaf_constant);
+    std::unique_ptr<StochTree::ForestContainer> forest_sample_ptr_ = std::make_unique<StochTree::ForestContainer>(num_trees, output_dimension, is_leaf_constant, is_exponentiated);
     
     // Release management of the pointer to R session
     return cpp11::external_pointer<StochTree::ForestContainer>(forest_sample_ptr_.release());
@@ -34,6 +34,46 @@ cpp11::external_pointer<StochTree::ForestContainer> forest_container_from_json_c
     
     // Release management of the pointer to R session
     return cpp11::external_pointer<StochTree::ForestContainer>(forest_sample_ptr_.release());
+}
+
+[[cpp11::register]]
+void forest_container_append_from_json_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_sample_ptr, cpp11::external_pointer<nlohmann::json> json_ptr, std::string forest_label) {
+    // Extract the forest's json
+    nlohmann::json forest_json = json_ptr->at("forests").at(forest_label);
+    
+    // Append to the forest sample container using the json
+    forest_sample_ptr->append_from_json(forest_json);
+}
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::ForestContainer> forest_container_from_json_string_cpp(std::string json_string, std::string forest_label) {
+    // Create smart pointer to newly allocated object
+    std::unique_ptr<StochTree::ForestContainer> forest_sample_ptr_ = std::make_unique<StochTree::ForestContainer>(0, 1, true);
+    
+    // Create a nlohmann::json object from the string
+    nlohmann::json json_object = nlohmann::json::parse(json_string);
+    
+    // Extract the forest's json
+    nlohmann::json forest_json = json_object.at("forests").at(forest_label);
+    
+    // Reset the forest sample container using the json
+    forest_sample_ptr_->Reset();
+    forest_sample_ptr_->from_json(forest_json);
+    
+    // Release management of the pointer to R session
+    return cpp11::external_pointer<StochTree::ForestContainer>(forest_sample_ptr_.release());
+}
+
+[[cpp11::register]]
+void forest_container_append_from_json_string_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_sample_ptr, std::string json_string, std::string forest_label) {
+    // Create a nlohmann::json object from the string
+    nlohmann::json json_object = nlohmann::json::parse(json_string);
+    
+    // Extract the forest's json
+    nlohmann::json forest_json = json_object.at("forests").at(forest_label);
+    
+    // Append to the forest sample container using the json
+    forest_sample_ptr->append_from_json(forest_json);
 }
 
 [[cpp11::register]]
@@ -245,6 +285,59 @@ void set_leaf_vector_forest_container_cpp(cpp11::external_pointer<StochTree::For
         leaf_vector_converted[i] = leaf_vector[i];
     }
     forest_samples->InitializeRoot(leaf_vector_converted);
+}
+
+[[cpp11::register]]
+void initialize_forest_model_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
+                                 cpp11::external_pointer<StochTree::ColumnVector> residual, 
+                                 cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 
+                                 cpp11::external_pointer<StochTree::ForestTracker> tracker, 
+                                 cpp11::doubles init_values, int leaf_model_int){
+    // Convert leaf model type to enum
+    StochTree::ModelType model_type;
+    if (leaf_model_int == 0) model_type = StochTree::ModelType::kConstantLeafGaussian;
+    else if (leaf_model_int == 1) model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
+    else if (leaf_model_int == 2) model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
+    else if (leaf_model_int == 3) model_type = StochTree::ModelType::kLogLinearVariance;
+    else StochTree::Log::Fatal("Invalid model type");
+    
+    // Unpack initial value
+    int num_trees = forest_samples->NumTrees();
+    double init_val;
+    std::vector<double> init_value_vector;
+    if ((model_type == StochTree::ModelType::kConstantLeafGaussian) || 
+        (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) || 
+        (model_type == StochTree::ModelType::kLogLinearVariance)) {
+        init_val = init_values.at(0);
+    } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
+        int leaf_dim = init_values.size();
+        init_value_vector.resize(leaf_dim);
+        for (int i = 0; i < leaf_dim; i++) {
+            init_value_vector[i] = init_values[i] / static_cast<double>(num_trees);
+        }
+    }
+    
+    // Initialize the models accordingly
+    if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
+        forest_samples->InitializeRoot(init_val / static_cast<double>(num_trees));
+        UpdateResidualEntireForest(*tracker, *data, *residual, forest_samples->GetEnsemble(0), false, std::minus<double>());
+        tracker->UpdatePredictions(forest_samples->GetEnsemble(0), *data);
+    } else if (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) {
+        forest_samples->InitializeRoot(init_val / static_cast<double>(num_trees));
+        UpdateResidualEntireForest(*tracker, *data, *residual, forest_samples->GetEnsemble(0), true, std::minus<double>());
+        tracker->UpdatePredictions(forest_samples->GetEnsemble(0), *data);
+    } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
+        forest_samples->InitializeRoot(init_value_vector);
+        UpdateResidualEntireForest(*tracker, *data, *residual, forest_samples->GetEnsemble(0), true, std::minus<double>());
+        tracker->UpdatePredictions(forest_samples->GetEnsemble(0), *data);
+    } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
+        forest_samples->InitializeRoot(std::log(init_val) / static_cast<double>(num_trees));
+        tracker->UpdatePredictions(forest_samples->GetEnsemble(0), *data);
+        int n = data->NumObservations();
+        std::vector<double> initial_preds(n, init_val);
+        // for (int i = 0; i < n; i++) initial_preds[i] = 1/initial_preds[i];
+        data->AddVarianceWeights(initial_preds.data(), n);
+    }
 }
 
 [[cpp11::register]]

@@ -4,10 +4,12 @@
 \alias{sample_sigma2_one_iteration}
 \title{Sample one iteration of the (inverse gamma) global variance model}
 \usage{
-sample_sigma2_one_iteration(residual, rng, a, b)
+sample_sigma2_one_iteration(residual, dataset, rng, a, b)
 }
 \arguments{
 \item{residual}{Outcome class}
+
+\item{dataset}{ForestDataset class}
 
 \item{rng}{C++ random number generator}
 

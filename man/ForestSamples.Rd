@@ -18,10 +18,14 @@ Wrapper around a C++ container of tree ensembles
 \itemize{
 \item \href{#method-ForestSamples-new}{\code{ForestSamples$new()}}
 \item \href{#method-ForestSamples-load_from_json}{\code{ForestSamples$load_from_json()}}
+\item \href{#method-ForestSamples-append_from_json}{\code{ForestSamples$append_from_json()}}
+\item \href{#method-ForestSamples-load_from_json_string}{\code{ForestSamples$load_from_json_string()}}
+\item \href{#method-ForestSamples-append_from_json_string}{\code{ForestSamples$append_from_json_string()}}
 \item \href{#method-ForestSamples-predict}{\code{ForestSamples$predict()}}
 \item \href{#method-ForestSamples-predict_raw}{\code{ForestSamples$predict_raw()}}
 \item \href{#method-ForestSamples-predict_raw_single_forest}{\code{ForestSamples$predict_raw_single_forest()}}
 \item \href{#method-ForestSamples-set_root_leaves}{\code{ForestSamples$set_root_leaves()}}
+\item \href{#method-ForestSamples-prepare_for_sampler}{\code{ForestSamples$prepare_for_sampler()}}
 \item \href{#method-ForestSamples-adjust_residual}{\code{ForestSamples$adjust_residual()}}
 \item \href{#method-ForestSamples-update_residual}{\code{ForestSamples$update_residual()}}
 \item \href{#method-ForestSamples-save_json}{\code{ForestSamples$save_json()}}
@@ -47,7 +51,12 @@ Wrapper around a C++ container of tree ensembles
 \subsection{Method \code{new()}}{
 Create a new ForestContainer object.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$new(num_trees, output_dimension = 1, is_leaf_constant = F)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$new(
+  num_trees,
+  output_dimension = 1,
+  is_leaf_constant = F,
+  is_exponentiated = F
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -58,6 +67,8 @@ Create a new ForestContainer object.
 \item{\code{output_dimension}}{Dimensionality of the outcome model}
 
 \item{\code{is_leaf_constant}}{Whether leaf is constant}
+
+\item{\code{is_exponentiated}}{Whether forest predictions should be exponentiated before being returned}
 }
 \if{html}{\out{</div>}}
 }
@@ -69,7 +80,7 @@ A new \code{ForestContainer} object.
 \if{html}{\out{<a id="method-ForestSamples-load_from_json"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-load_from_json}{}}}
 \subsection{Method \code{load_from_json()}}{
-Create a new ForestContainer object from a json object
+Create a new \code{ForestContainer} object from a json object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$load_from_json(json_object, json_forest_label)}\if{html}{\out{</div>}}
 }
@@ -85,6 +96,72 @@ Create a new ForestContainer object from a json object
 }
 \subsection{Returns}{
 A new \code{ForestContainer} object.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-append_from_json"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-append_from_json}{}}}
+\subsection{Method \code{append_from_json()}}{
+Append to a \code{ForestContainer} object from a json object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$append_from_json(json_object, json_forest_label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_object}}{Object of class \code{CppJson}}
+
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-load_from_json_string"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-load_from_json_string}{}}}
+\subsection{Method \code{load_from_json_string()}}{
+Create a new \code{ForestContainer} object from a json object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$load_from_json_string(json_string, json_forest_label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_string}}{JSON string which parses into object of class \code{CppJson}}
+
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+A new \code{ForestContainer} object.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-append_from_json_string"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-append_from_json_string}{}}}
+\subsection{Method \code{append_from_json_string()}}{
+Append to a \code{ForestContainer} object from a json object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$append_from_json_string(json_string, json_forest_label)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_string}}{JSON string which parses into object of class \code{CppJson}}
+
+\item{\code{json_forest_label}}{Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
 }
 }
 \if{html}{\out{<hr>}}
@@ -171,6 +248,38 @@ Stops program if any tree is more than a root node.
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{forest_num}}{Index of the forest sample within the container.}
+
+\item{\code{leaf_value}}{Constant leaf value(s) to be fixed for each tree in the ensemble indexed by \code{forest_num}. Can be either a single number or a vector, depending on the forest's leaf dimension.}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-prepare_for_sampler"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-prepare_for_sampler}{}}}
+\subsection{Method \code{prepare_for_sampler()}}{
+Set a constant predicted value for every tree in the ensemble.
+Stops program if any tree is more than a root node.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$prepare_for_sampler(
+  dataset,
+  outcome,
+  forest_model,
+  leaf_model_int,
+  leaf_value
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dataset}}{\code{ForestDataset} Dataset class (covariates, basis, etc...)}
+
+\item{\code{outcome}}{\code{Outcome} Outcome class (residual / partial residual)}
+
+\item{\code{forest_model}}{\code{ForestModel} object storing tracking structures used in training / sampling}
+
+\item{\code{leaf_model_int}}{Integer value encoding the leaf model type (0 = constant gaussian, 1 = univariate gaussian, 2 = multivariate gaussian, 3 = log linear variance).}
 
 \item{\code{leaf_value}}{Constant leaf value(s) to be fixed for each tree in the ensemble indexed by \code{forest_num}. Can be either a single number or a vector, depending on the forest's leaf dimension.}
 }

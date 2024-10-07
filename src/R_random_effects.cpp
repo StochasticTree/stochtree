@@ -70,6 +70,85 @@ cpp11::writable::integers rfx_group_ids_from_json_cpp(cpp11::external_pointer<nl
 }
 
 [[cpp11::register]]
+void rfx_container_append_from_json_cpp(cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container_ptr, cpp11::external_pointer<nlohmann::json> json_ptr, std::string rfx_label) {
+    // Extract the random effect container's json
+    nlohmann::json rfx_json = json_ptr->at("random_effects").at(rfx_label);
+    
+    // Reset the forest sample container using the json
+    rfx_container_ptr->append_from_json(rfx_json);
+}
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container_from_json_string_cpp(std::string json_string, std::string rfx_label) {
+    // Create smart pointer to newly allocated object
+    std::unique_ptr<StochTree::RandomEffectsContainer> rfx_container_ptr_ = std::make_unique<StochTree::RandomEffectsContainer>();
+    
+    // Create a nlohmann::json object from the string
+    nlohmann::json json_object = nlohmann::json::parse(json_string);
+    
+    // Extract the random effect container's json
+    nlohmann::json rfx_json = json_object.at("random_effects").at(rfx_label);
+    
+    // Reset the forest sample container using the json
+    rfx_container_ptr_->Reset();
+    rfx_container_ptr_->from_json(rfx_json);
+    
+    // Release management of the pointer to R session
+    return cpp11::external_pointer<StochTree::RandomEffectsContainer>(rfx_container_ptr_.release());
+}
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::LabelMapper> rfx_label_mapper_from_json_string_cpp(std::string json_string, std::string rfx_label) {
+    // Create smart pointer to newly allocated object
+    std::unique_ptr<StochTree::LabelMapper> label_mapper_ptr_ = std::make_unique<StochTree::LabelMapper>();
+    
+    // Create a nlohmann::json object from the string
+    nlohmann::json json_object = nlohmann::json::parse(json_string);
+    
+    // Extract the label mapper's json
+    nlohmann::json rfx_json = json_object.at("random_effects").at(rfx_label);
+    
+    // Reset the label mapper using the json
+    label_mapper_ptr_->Reset();
+    label_mapper_ptr_->from_json(rfx_json);
+    
+    // Release management of the pointer to R session
+    return cpp11::external_pointer<StochTree::LabelMapper>(label_mapper_ptr_.release());
+}
+
+[[cpp11::register]]
+cpp11::writable::integers rfx_group_ids_from_json_string_cpp(std::string json_string, std::string rfx_label) {
+    // Create smart pointer to newly allocated object
+    cpp11::writable::integers output;
+    
+    // Create a nlohmann::json object from the string
+    nlohmann::json json_object = nlohmann::json::parse(json_string);
+    
+    // Extract the groupids' json
+    nlohmann::json rfx_json = json_object.at("random_effects").at(rfx_label);
+    
+    // Reset the forest sample container using the json
+    int num_groups = rfx_json.size();
+    for (int i = 0; i < num_groups; i++) {
+        output.push_back(rfx_json.at(i));
+    }
+    
+    return output;
+}
+
+[[cpp11::register]]
+void rfx_container_append_from_json_string_cpp(cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container_ptr, std::string json_string, std::string rfx_label) {
+    // Create a nlohmann::json object from the string
+    nlohmann::json json_object = nlohmann::json::parse(json_string);
+    
+    // Extract the random effect container's json
+    nlohmann::json rfx_json = json_object.at("random_effects").at(rfx_label);
+    
+    // Reset the forest sample container using the json
+    rfx_container_ptr->append_from_json(rfx_json);
+}
+
+[[cpp11::register]]
 cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model_cpp(int num_components, int num_groups) {
     // Create smart pointer to newly allocated object
     std::unique_ptr<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model_ptr_ = std::make_unique<StochTree::MultivariateRegressionRandomEffectsModel>(num_components, num_groups);

@@ -5,24 +5,26 @@
 
 namespace StochTree {
 
-ForestContainer::ForestContainer(int num_trees, int output_dimension, bool is_leaf_constant) {
+ForestContainer::ForestContainer(int num_trees, int output_dimension, bool is_leaf_constant, bool is_exponentiated) {
   forests_ = std::vector<std::unique_ptr<TreeEnsemble>>(0);
   num_samples_ = 0;
   num_trees_ = num_trees;
   output_dimension_ = output_dimension;
   is_leaf_constant_ = is_leaf_constant;
+  is_exponentiated_ = is_exponentiated;
   initialized_ = true;
 }
 
-ForestContainer::ForestContainer(int num_samples, int num_trees, int output_dimension, bool is_leaf_constant) {
+ForestContainer::ForestContainer(int num_samples, int num_trees, int output_dimension, bool is_leaf_constant, bool is_exponentiated) {
   forests_ = std::vector<std::unique_ptr<TreeEnsemble>>(num_samples);
   for (auto& forest : forests_) {
-    forest.reset(new TreeEnsemble(num_trees, output_dimension, is_leaf_constant));
+    forest.reset(new TreeEnsemble(num_trees, output_dimension, is_leaf_constant, is_exponentiated));
   }
   num_samples_ = num_samples;
   num_trees_ = num_trees;
   output_dimension_ = output_dimension;
   is_leaf_constant_ = is_leaf_constant;
+  is_exponentiated_ = is_exponentiated;
   initialized_ = true;
 }
 
@@ -35,7 +37,7 @@ void ForestContainer::InitializeRoot(double leaf_value) {
   CHECK_EQ(num_samples_, 0);
   CHECK_EQ(forests_.size(), 0);
   forests_.resize(1);
-  forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_));
+  forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_, is_exponentiated_));
   // NOTE: not setting num_samples = 1, since we are just initializing constant root 
   // nodes and the forest still needs to be sampled by either MCMC or GFR
   num_samples_ = 0;
@@ -47,7 +49,7 @@ void ForestContainer::InitializeRoot(std::vector<double>& leaf_vector) {
   CHECK_EQ(num_samples_, 0);
   CHECK_EQ(forests_.size(), 0);
   forests_.resize(1);
-  forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_));
+  forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_, is_exponentiated_));
   // NOTE: not setting num_samples = 1, since we are just initializing constant root 
   // nodes and the forest still needs to be sampled by either MCMC or GFR
   num_samples_ = 0;
@@ -59,7 +61,7 @@ void ForestContainer::AddSamples(int num_samples) {
   int total_new_samples = num_samples + num_samples_;
   forests_.resize(total_new_samples);
   for (int i = num_samples_; i < total_new_samples; i++) {
-    forests_[i].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_));
+    forests_[i].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_, is_exponentiated_));
   }
   num_samples_ = total_new_samples;
 }
@@ -127,6 +129,7 @@ json ForestContainer::to_json() {
   result_obj.emplace("num_samples", this->num_samples_);
   result_obj.emplace("num_trees", this->num_trees_);
   result_obj.emplace("output_dimension", this->output_dimension_);
+  result_obj.emplace("is_exponentiated", this->is_exponentiated_);
   result_obj.emplace("is_leaf_constant", this->is_leaf_constant_);
   result_obj.emplace("initialized", this->initialized_);
 
@@ -145,6 +148,7 @@ void ForestContainer::from_json(const json& forest_container_json) {
   this->num_trees_ = forest_container_json.at("num_trees");
   this->output_dimension_ = forest_container_json.at("output_dimension");
   this->is_leaf_constant_ = forest_container_json.at("is_leaf_constant");
+  this->is_exponentiated_ = forest_container_json.at("is_exponentiated");
   this->initialized_ = forest_container_json.at("initialized");
 
   std::string forest_label;
@@ -152,9 +156,31 @@ void ForestContainer::from_json(const json& forest_container_json) {
   forests_.resize(this->num_samples_);
   for (int i = 0; i < this->num_samples_; i++) {
     forest_label = "forest_" + std::to_string(i);
-    forests_[i] = std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_);
+    forests_[i] = std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_, this->is_exponentiated_);
     forests_[i]->from_json(forest_container_json.at(forest_label));
   }
+}
+
+/*! \brief Append forests to a container from a JSON forest specification */
+void ForestContainer::append_from_json(const json& forest_container_json) {
+  CHECK_GT(this->num_samples_, 0);
+  CHECK_EQ(this->num_trees_, forest_container_json.at("num_trees"));
+  CHECK_EQ(this->output_dimension_, forest_container_json.at("output_dimension"));
+  CHECK_EQ(this->is_leaf_constant_, forest_container_json.at("is_leaf_constant"));
+  CHECK_EQ(this->initialized_, forest_container_json.at("initialized"));
+  int new_num_samples = forest_container_json.at("num_samples");
+
+  std::string forest_label;
+  // forests_.resize(this->num_samples_);
+  int forest_ind;
+  for (int i = 0; i < forest_container_json.at("num_samples"); i++) {
+    forest_ind = this->num_samples_ + i;
+    forest_label = "forest_" + std::to_string(i);
+    // forests_[forest_ind] = std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_);
+    forests_.push_back(std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_));
+    forests_[forest_ind]->from_json(forest_container_json.at(forest_label));
+  }
+  this->num_samples_ += new_num_samples;
 }
 
 } // namespace StochTree

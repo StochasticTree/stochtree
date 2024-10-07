@@ -178,6 +178,7 @@ class JSONSerializer:
             return self.json_cpp.ExtractStringVectorSubfolder(subfolder_name, field_name)
     
     def get_forest_container(self, forest_label: str) -> ForestContainer:
-        result = ForestContainer(0, 1, True)
+        # TODO: read this from JSON
+        result = ForestContainer(0, 1, True, False)
         result.forest_container_cpp.LoadFromJson(self.json_cpp, forest_label)
         return result

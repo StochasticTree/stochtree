@@ -46,20 +46,33 @@ class UnsortedNodeSampleTracker;
 class SortedNodeSampleTracker;
 class FeaturePresortRootContainer;
 
-/*! \brief Wrapper around various data structures for forest sampling algorithms */
+/*! \brief "Superclass" wrapper around tracking data structures for forest sampling algorithms */
 class ForestTracker {
  public:
+  /*!
+   * \brief Construct a new `ForestTracker` object
+   * 
+   * \param covariates Matrix of covariate data
+   * \param feature_types Type of each feature (column) in `covariates`. This is represented by the enum `StochTree::FeatureType`
+   * \param num_trees Number of trees in an ensemble to be sampled
+   * \param num_observations Number of rows in `covariates`
+   */
   ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations);
   ~ForestTracker() {}
   void AssignAllSamplesToRoot();
   void AssignAllSamplesToRoot(int32_t tree_num);
   void AssignAllSamplesToConstantPrediction(double value);
   void AssignAllSamplesToConstantPrediction(int32_t tree_num, double value);
+  void UpdatePredictions(TreeEnsemble* ensemble, ForestDataset& dataset);
   void ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num);
   void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
   void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
+  double GetSamplePrediction(data_size_t sample_id);
   double GetTreeSamplePrediction(data_size_t sample_id, int tree_id);
+  void UpdateVarWeightsFromInternalPredictions(ForestDataset& dataset);
+  void SetSamplePrediction(data_size_t sample_id, double value);
   void SetTreeSamplePrediction(data_size_t sample_id, int tree_id, double value);
+  void SyncPredictions();
   data_size_t GetNodeId(int observation_num, int tree_num);
   data_size_t UnsortedNodeBegin(int tree_id, int node_id);
   data_size_t UnsortedNodeEnd(int tree_id, int node_id);
@@ -77,6 +90,8 @@ class ForestTracker {
   SortedNodeSampleTracker* GetSortedNodeSampleTracker() {return sorted_node_sample_tracker_.get();}
 
  private:
+  /*! \brief Mapper from observations to predicted values summed over every tree in a forest */
+  std::vector<double> sum_predictions_;
   /*! \brief Mapper from observations to predicted values for every tree in a forest */
   std::unique_ptr<SamplePredMapper> sample_pred_mapper_;
   /*! \brief Mapper from observations to leaf node indices for every tree in a forest */
@@ -94,6 +109,9 @@ class ForestTracker {
   int num_trees_;
   int num_observations_;
   int num_features_;
+
+  void UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis);
+  void UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates);
 };
 
 /*! \brief Class storing sample-prediction map for each tree in an ensemble */

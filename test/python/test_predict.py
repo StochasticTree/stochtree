@@ -18,7 +18,7 @@ class TestPredict:
         output_dim = 1
         forest_dataset = Dataset()
         forest_dataset.add_covariates(X)
-        forest_samples = ForestContainer(num_trees, output_dim, True)
+        forest_samples = ForestContainer(num_trees, output_dim, True, False)
 
         # Initialize a forest with constant root predictions
         forest_samples.add_sample(0.)
@@ -82,7 +82,7 @@ class TestPredict:
         forest_dataset = Dataset()
         forest_dataset.add_covariates(X)
         forest_dataset.add_basis(W)
-        forest_samples = ForestContainer(num_trees, output_dim, False)
+        forest_samples = ForestContainer(num_trees, output_dim, False, False)
 
         # Initialize a forest with constant root predictions
         forest_samples.add_sample(0.)
@@ -149,7 +149,7 @@ class TestPredict:
         forest_dataset = Dataset()
         forest_dataset.add_covariates(X)
         forest_dataset.add_basis(W)
-        forest_samples = ForestContainer(num_trees, output_dim, False)
+        forest_samples = ForestContainer(num_trees, output_dim, False, False)
 
         # Initialize a forest with constant root predictions
         forest_samples.add_sample(np.array([1.,1.]))

@@ -618,13 +618,17 @@ class BCFModel:
         else:
             cpp_rng = RNG(random_seed)
         
+        # TODO Placeholder: expose the heteroskedasticity interface through the function signature, as in R
+        a_forest = 1
+        b_forest = 1
+        
         # Sampling data structures
         forest_sampler_mu = ForestSampler(forest_dataset_train, feature_types, num_trees_mu, self.n_train, alpha_mu, beta_mu, min_samples_leaf_mu, max_depth_mu)
         forest_sampler_tau = ForestSampler(forest_dataset_train, feature_types, num_trees_tau, self.n_train, alpha_tau, beta_tau, min_samples_leaf_tau, max_depth_tau)
 
         # Container of forest samples
-        self.forest_container_mu = ForestContainer(num_trees_mu, 1, True)
-        self.forest_container_tau = ForestContainer(num_trees_tau, Z_train.shape[1], False)
+        self.forest_container_mu = ForestContainer(num_trees_mu, 1, True, False)
+        self.forest_container_tau = ForestContainer(num_trees_tau, Z_train.shape[1], False, False)
         
         # Variance samplers
         if self.sample_sigma_global:
@@ -635,16 +639,15 @@ class BCFModel:
             leaf_var_model_tau = LeafVarianceModel()
 
         # Initialize the leaves of each tree in the prognostic forest
-        init_mu = np.squeeze(np.mean(resid_train)) / num_trees_mu
-        self.forest_container_mu.set_root_leaves(0, init_mu)
-        forest_sampler_mu.adjust_residual(forest_dataset_train, residual_train, self.forest_container_mu, False, 0, True)
+        init_mu = np.array([np.squeeze(np.mean(resid_train))])
+        forest_sampler_mu.prepare_for_sampler(forest_dataset_train, residual_train, self.forest_container_mu, 0, init_mu)
 
         # Initialize the leaves of each tree in the treatment forest
         if self.multivariate_treatment:
-            self.forest_container_tau.set_root_leaves(0, np.zeros(self.treatment_dim))
+            init_tau = np.zeros(Z_train.shape[1])
         else:
-            self.forest_container_tau.set_root_leaves(0, 0.)
-        forest_sampler_tau.adjust_residual(forest_dataset_train, residual_train, self.forest_container_tau, True, 0, True)
+            init_tau = np.array([0.])
+        forest_sampler_tau.prepare_for_sampler(forest_dataset_train, residual_train, self.forest_container_tau, treatment_leaf_model, init_tau)
 
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
@@ -653,7 +656,8 @@ class BCFModel:
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
                     self.forest_container_mu, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                    cutpoint_grid_size, current_leaf_scale_mu, variable_weights_mu, current_sigma2, 0, True, True
+                    cutpoint_grid_size, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
+                    current_sigma2, 0, True, True
                 )
 
                 # Sample variance parameters (if requested)
@@ -667,7 +671,8 @@ class BCFModel:
                 # Sample the treatment forest
                 forest_sampler_tau.sample_one_iteration(
                     self.forest_container_tau, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                    cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, current_sigma2, treatment_leaf_model, True, True
+                    cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
+                    current_sigma2, treatment_leaf_model, True, True
                 )
                 
                 # Sample variance parameters (if requested)
@@ -712,7 +717,8 @@ class BCFModel:
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
                     self.forest_container_mu, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                    cutpoint_grid_size, current_leaf_scale_mu, variable_weights_mu, current_sigma2, 0, False, True
+                    cutpoint_grid_size, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
+                    current_sigma2, 0, False, True
                 )
 
                 # Sample variance parameters (if requested)
@@ -726,7 +732,8 @@ class BCFModel:
                 # Sample the treatment forest
                 forest_sampler_tau.sample_one_iteration(
                     self.forest_container_tau, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                    cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, current_sigma2, treatment_leaf_model, False, True
+                    cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
+                    current_sigma2, treatment_leaf_model, False, True
                 )
                 
                 # Sample variance parameters (if requested)

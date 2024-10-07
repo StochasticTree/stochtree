@@ -38,16 +38,6 @@ std::int32_t Tree::NumSplitNodes() const {
   return splits;
 }
 
-void Tree::InplacePredictFromNodes(std::vector<double> result, std::vector<std::int32_t> node_indices) {
-  if (result.size() != node_indices.size()) {
-    Log::Fatal("Indices and result vector are different sizes");
-  }
-  data_size_t n = node_indices.size();
-  for (data_size_t i = 0; i < n; i++) {
-    result[i] = this->LeafValue(node_indices[i]);
-  }
-}
-
 double Tree::PredictFromNode(std::int32_t node_id) {
   if (!this->IsLeaf(node_id)) {
     Log::Fatal("Node %d is not a leaf node", node_id);
@@ -111,6 +101,7 @@ void Tree::CloneFromTree(Tree* tree) {
 
   has_categorical_split_ = tree->has_categorical_split_;
   output_dimension_ = tree->output_dimension_;
+  is_log_scale_ = tree->is_log_scale_;
 }
 
 std::int32_t Tree::AllocNode() {
@@ -321,9 +312,10 @@ void Tree::Reset() {
   num_deleted_nodes = 0;
   has_categorical_split_ = false;
   output_dimension_ = 1;
+  is_log_scale_ = false;
 }
 
-void Tree::Init(std::int32_t output_dimension) {
+void Tree::Init(std::int32_t output_dimension, bool is_log_scale) {
   CHECK_GE(output_dimension, 1);
 
   // Clear all of the vectors that define the tree structure
@@ -350,8 +342,9 @@ void Tree::Init(std::int32_t output_dimension) {
   leaf_parents_.clear();
   internal_nodes_.clear();
 
-  // Set output dimension
+  // Set tree level info
   output_dimension_ = output_dimension;
+  is_log_scale_ = is_log_scale;
 
   // Allocate root node
   int rid = AllocNode();
@@ -564,6 +557,7 @@ json Tree::to_json() {
   result_obj.emplace("num_deleted_nodes", this->NumDeletedNodes());
   result_obj.emplace("has_categorical_split", this->has_categorical_split_);
   result_obj.emplace("output_dimension", this->output_dimension_);
+  result_obj.emplace("is_log_scale", this->is_log_scale_);
 
   // Unpack the array based fields
   TreeNodeVectorsToJson(result_obj, this);
@@ -655,6 +649,7 @@ void Tree::from_json(const json& tree_json) {
   tree_json.at("num_deleted_nodes").get_to(this->num_deleted_nodes);
   tree_json.at("has_categorical_split").get_to(this->has_categorical_split_);
   tree_json.at("output_dimension").get_to(this->output_dimension_);
+  tree_json.at("is_log_scale").get_to(this->is_log_scale_);
   this->num_deleted_nodes = 0;
   
   // Unpack the array based fields

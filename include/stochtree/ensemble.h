@@ -26,23 +26,25 @@ namespace StochTree {
 
 class TreeEnsemble {
  public:
-  TreeEnsemble(int num_trees, int output_dimension = 1, bool is_leaf_constant = true) {
+  TreeEnsemble(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
     // Initialize trees in the ensemble
     trees_ = std::vector<std::unique_ptr<Tree>>(num_trees);
     for (int i = 0; i < num_trees; i++) {
       trees_[i].reset(new Tree());
-      trees_[i]->Init(output_dimension);
+      trees_[i]->Init(output_dimension, is_exponentiated);
     }
     // Store ensemble configurations
     num_trees_ = num_trees;
     output_dimension_ = output_dimension;
     is_leaf_constant_ = is_leaf_constant;
+    is_exponentiated_ = is_exponentiated;
   }
   TreeEnsemble(TreeEnsemble& ensemble) {
     // Unpack ensemble configurations
     num_trees_ = ensemble.num_trees_;
     output_dimension_ = ensemble.output_dimension_;
     is_leaf_constant_ = ensemble.is_leaf_constant_;
+    is_exponentiated_ = ensemble.is_exponentiated_;
     // Initialize trees in the ensemble
     trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
     for (int i = 0; i < num_trees_; i++) {
@@ -68,7 +70,7 @@ class TreeEnsemble {
 
   inline void ResetInitTree(int i) {
     trees_[i].reset(new Tree());
-    trees_[i]->Init(output_dimension_);
+    trees_[i]->Init(output_dimension_, is_exponentiated_);
   }
 
   inline void CloneFromExistingTree(int i, Tree* tree) {
@@ -113,7 +115,8 @@ class TreeEnsemble {
           pred += tree.LeafValue(nidx, k) * basis(i, k);
         }
       }
-      output[i + offset] = pred;
+      if (is_exponentiated_) output[i + offset] = std::exp(pred);
+      else output[i + offset] = pred;
     }
   }
 
@@ -135,7 +138,8 @@ class TreeEnsemble {
         std::int32_t nidx = EvaluateTree(tree, covariates, i);
         pred += tree.LeafValue(nidx, 0);
       }
-      output[i + offset] = pred;
+      if (is_exponentiated_) output[i + offset] = std::exp(pred);
+      else output[i + offset] = pred;
     }
   }
 
@@ -192,6 +196,10 @@ class TreeEnsemble {
 
   inline bool IsLeafConstant() {
     return is_leaf_constant_;
+  }
+
+  inline bool IsExponentiated() {
+    return is_exponentiated_;
   }
 
   inline int32_t TreeMaxDepth(int tree_num) {
@@ -332,6 +340,7 @@ class TreeEnsemble {
     result_obj.emplace("num_trees", this->num_trees_);
     result_obj.emplace("output_dimension", this->output_dimension_);
     result_obj.emplace("is_leaf_constant", this->is_leaf_constant_);
+    result_obj.emplace("is_exponentiated", this->is_exponentiated_);
 
     std::string tree_label;
     for (int i = 0; i < trees_.size(); i++) {
@@ -347,6 +356,7 @@ class TreeEnsemble {
     this->num_trees_ = ensemble_json.at("num_trees");
     this->output_dimension_ = ensemble_json.at("output_dimension");
     this->is_leaf_constant_ = ensemble_json.at("is_leaf_constant");
+    this->is_exponentiated_ = ensemble_json.at("is_exponentiated");
 
     std::string tree_label;
     trees_.clear();
@@ -363,6 +373,7 @@ class TreeEnsemble {
   int num_trees_;
   int output_dimension_;
   bool is_leaf_constant_;
+  bool is_exponentiated_;
 };
 
 } // namespace StochTree

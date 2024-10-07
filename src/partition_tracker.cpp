@@ -20,6 +20,7 @@ ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureTyp
   unsorted_node_sample_tracker_ = std::make_unique<UnsortedNodeSampleTracker>(num_observations, num_trees);
   presort_container_ = std::make_unique<FeaturePresortRootContainer>(covariates, feature_types);
   sorted_node_sample_tracker_ = std::make_unique<SortedNodeSampleTracker>(presort_container_.get(), covariates, feature_types);
+  sum_predictions_ = std::vector<double>(num_observations, 0.);
 
   num_trees_ = num_trees;
   num_observations_ = num_observations;
@@ -71,6 +72,9 @@ void ForestTracker::AssignAllSamplesToRoot(int32_t tree_num) {
 }
 
 void ForestTracker::AssignAllSamplesToConstantPrediction(double value) {
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    sum_predictions_[i] = value*num_trees_;
+  }
   for (int i = 0; i < num_trees_; i++) {
     sample_pred_mapper_->AssignAllSamplesToConstantPrediction(i, value);
   }
@@ -78,6 +82,51 @@ void ForestTracker::AssignAllSamplesToConstantPrediction(double value) {
 
 void ForestTracker::AssignAllSamplesToConstantPrediction(int32_t tree_num, double value) {
   sample_pred_mapper_->AssignAllSamplesToConstantPrediction(tree_num, value);
+}
+
+void ForestTracker::UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis) {
+  int output_dim = basis.cols();
+  double forest_pred, tree_pred;
+
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    forest_pred = 0.0;
+    for (int j = 0; j < num_trees_; j++) {
+      tree_pred = 0.0;
+      Tree* tree = ensemble->GetTree(j);
+      std::int32_t nidx = EvaluateTree(*tree, covariates, i);
+      for (int32_t k = 0; k < output_dim; k++) {
+        tree_pred += tree->LeafValue(nidx, k) * basis(i, k);
+      }
+      sample_pred_mapper_->SetPred(i, j, tree_pred);
+      forest_pred += tree_pred;
+    }
+    sum_predictions_[i] = forest_pred;
+  }
+}
+
+void ForestTracker::UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates) {
+  double forest_pred, tree_pred;
+
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    forest_pred = 0.0;
+    for (int j = 0; j < num_trees_; j++) {
+      Tree* tree = ensemble->GetTree(j);
+      std::int32_t nidx = EvaluateTree(*tree, covariates, i);
+      tree_pred = tree->LeafValue(nidx, 0);
+      sample_pred_mapper_->SetPred(i, j, tree_pred);
+      forest_pred += tree_pred;
+    }
+    sum_predictions_[i] = forest_pred;
+  }
+}
+
+void ForestTracker::UpdatePredictions(TreeEnsemble* ensemble, ForestDataset& dataset) {
+  if (!ensemble->IsLeafConstant()) {
+    CHECK(dataset.HasBasis());
+    UpdatePredictionsInternal(ensemble, dataset.GetCovariates(), dataset.GetBasis());
+  } else {
+    UpdatePredictionsInternal(ensemble, dataset.GetCovariates());
+  }
 }
 
 void ForestTracker::AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted) {
@@ -94,12 +143,33 @@ void ForestTracker::RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t
   // TODO: WARN if this is called from the GFR Tree Sampler
 }
 
+double ForestTracker::GetSamplePrediction(data_size_t sample_id) {
+  return sum_predictions_[sample_id];
+}
+
 double ForestTracker::GetTreeSamplePrediction(data_size_t sample_id, int tree_id) {
   return sample_pred_mapper_->GetPred(sample_id, tree_id);
 }
 
+void ForestTracker::UpdateVarWeightsFromInternalPredictions(ForestDataset& dataset) {
+  dataset.UpdateVarWeights(sum_predictions_.data(), num_observations_, true);
+}
+
+void ForestTracker::SetSamplePrediction(data_size_t sample_id, double value) {
+  sum_predictions_[sample_id] = value;
+}
+
 void ForestTracker::SetTreeSamplePrediction(data_size_t sample_id, int tree_id, double value) {
   sample_pred_mapper_->SetPred(sample_id, tree_id, value);
+}
+
+void ForestTracker::SyncPredictions() {
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    sum_predictions_[i] = 0.;
+    for (int j = 0; j < num_trees_; j++) {
+      sum_predictions_[i] += sample_pred_mapper_->GetPred(i, j);
+    }
+  }
 }
 
 FeatureUnsortedPartition::FeatureUnsortedPartition(data_size_t n) {

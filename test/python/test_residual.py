@@ -41,13 +41,15 @@ class TestResidual:
         current_sigma2 = 1.
         current_leaf_scale = np.array([[1./num_trees]])
         cutpoint_grid_size = 100
+        a_forest = 1
+        b_forest = 1
 
         # RNG
         cpp_rng = RNG(-1)
 
         # Create forest sampler and forest container
         forest_sampler = ForestSampler(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf)
-        forest_container = ForestContainer(num_trees, 1, False)
+        forest_container = ForestContainer(num_trees, 1, False, False)
         
         # Initialize the leaves of each tree in the prognostic forest
         init_root = np.squeeze(np.mean(resid)) / num_trees
@@ -57,7 +59,8 @@ class TestResidual:
         # Run the forest sampling algorithm for a single iteration
         forest_sampler.sample_one_iteration(
             forest_container, forest_dataset, residual, cpp_rng, feature_types, 
-            cutpoint_grid_size, current_leaf_scale, variable_weights, current_sigma2, 1, True, True
+            cutpoint_grid_size, current_leaf_scale, variable_weights, a_forest, b_forest, 
+            current_sigma2, 1, True, True
         )
 
         # Get the current residual after running the sampler

@@ -17,7 +17,13 @@ or two datasets (which we refer to as "training and test sets"). This verbiage
 hints that one potential use-case for a matrix of leaf indices is to define a
 ensemble-based kernel for kriging.}
 \usage{
-computeForestLeafIndices(bart_model, X_train, X_test = NULL, forest_num = NULL)
+computeForestLeafIndices(
+  bart_model,
+  X_train,
+  X_test = NULL,
+  forest_num = NULL,
+  forest_type = "mean"
+)
 }
 \arguments{
 \item{bart_model}{Object of type \code{bartmodel} corresponding to a BART model with at least one sample}
@@ -30,8 +36,11 @@ corresponds to the observations for which outcomes are unobserved and must be es
 based on the kernels k(X_test,X_test), k(X_test,X_train), and k(X_train,X_train). If not provided,
 this function will only compute k(X_train, X_train).}
 
-\item{forest_num}{(Option) Index of the forest sample to use for kernel computation. If not provided,
+\item{forest_num}{(Optional) Index of the forest sample to use for kernel computation. If not provided,
 this function will use the last forest.}
+
+\item{forest_type}{(Optional) Whether to compute the kernel from the mean or variance forest. Default: "mean". Specify "variance" for the variance forest.
+All other inputs are invalid. Must have sampled the relevant forest or an error will occur.}
 }
 \value{
 List of vectors. If \code{X_test = NULL}, the list contains

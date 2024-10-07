@@ -68,27 +68,29 @@ ForestModel <- R6::R6Class(
         #' @param leaf_model_int Integer specifying the leaf model type (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression)
         #' @param leaf_model_scale Scale parameter used in the leaf node model (should be a q x q matrix where q is the dimensionality of the basis and is only >1 when `leaf_model_int = 2`)
         #' @param variable_weights Vector specifying sampling probability for all p covariates in `forest_dataset`
+        #' @param a_forest Shape parameter on variance forest model (if applicable)
+        #' @param b_forest Scale parameter on variance forest model (if applicable)
         #' @param global_scale Global variance parameter
         #' @param cutpoint_grid_size (Optional) Number of unique cutpoints to consider (default: 500, currently only used when `GFR = TRUE`)
         #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm
         #' @param pre_initialized (Optional) Whether or not the leaves are pre-initialized outside of the sampling loop (before any samples are drawn). In multi-forest implementations like BCF, this is true, though in the single-forest supervised learning implementation, we can let C++ do the initialization. Default: F.
         sample_one_iteration = function(forest_dataset, residual, forest_samples, rng, feature_types, 
                                         leaf_model_int, leaf_model_scale, variable_weights, 
-                                        global_scale, cutpoint_grid_size = 500, gfr = T, 
-                                        pre_initialized = F) {
+                                        a_forest, b_forest, global_scale, cutpoint_grid_size = 500, 
+                                        gfr = T, pre_initialized = F) {
             if (gfr) {
                 sample_gfr_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, self$tracker_ptr, self$tree_prior_ptr, 
                     rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, global_scale, leaf_model_int, pre_initialized
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, pre_initialized
                 )
             } else {
                 sample_mcmc_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, self$tracker_ptr, self$tree_prior_ptr,
                     rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, global_scale, leaf_model_int, pre_initialized
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, pre_initialized
                 ) 
             }
         }

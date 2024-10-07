@@ -18,6 +18,7 @@ reference:
   - predict.bcf
   - saveBCFModelToJsonFile
   - createBCFModelFromJsonFile
+  - createBCFModelFromJsonString
   - convertBCFModelToJson
   - createBCFModelFromJson
 
@@ -29,11 +30,25 @@ reference:
   contents:
   - CppJson
   - createCppJson
+  - createCppJsonFile
+  - createCppJsonString
   - loadForestContainerJson
+  - loadForestContainerCombinedJson
+  - loadForestContainerCombinedJsonString
   - loadRandomEffectSamplesJson
   - loadVectorJson
   - loadScalarJson
-  - createCppJsonFile
+  - convertBARTModelToJson
+  - createBARTModelFromCombinedJson
+  - createBARTModelFromCombinedJsonString
+  - createBARTModelFromJson
+  - createBARTModelFromJsonFile
+  - createBARTModelFromJsonString
+  - loadRandomEffectSamplesCombinedJson
+  - loadRandomEffectSamplesCombinedJsonString
+  - saveBARTModelToJsonFile
+  - saveBARTModelToJsonString
+  - saveBCFModelToJsonString
 
 - subtitle: Data
   desc: >
@@ -107,6 +122,7 @@ articles:
 - title: Advanced Model Interface
   navbar: Advanced Model Interface
   contents:
+  - MultiChain
   - ModelSerialization
   - PriorCalibration
   - EnsembleKernel

@@ -102,7 +102,7 @@ abline(0,1,col="red",lty=3,lwd=3)
 Inspect the posterior samples of $\sigma^2$
 
 ```{r}
-plot(bart_model$sigma2_samples, ylab = "sigma^2", xlab = "iteration")
+plot(bart_model$sigma2_global_samples, ylab = "sigma^2", xlab = "iteration")
 abline(h = noise_sd^2, col = "red", lty = 3, lwd = 3)
 ```
 

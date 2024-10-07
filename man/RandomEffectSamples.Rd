@@ -28,6 +28,9 @@ needed for prediction / serialization
 \item \href{#method-RandomEffectSamples-new}{\code{RandomEffectSamples$new()}}
 \item \href{#method-RandomEffectSamples-load_in_session}{\code{RandomEffectSamples$load_in_session()}}
 \item \href{#method-RandomEffectSamples-load_from_json}{\code{RandomEffectSamples$load_from_json()}}
+\item \href{#method-RandomEffectSamples-append_from_json}{\code{RandomEffectSamples$append_from_json()}}
+\item \href{#method-RandomEffectSamples-load_from_json_string}{\code{RandomEffectSamples$load_from_json_string()}}
+\item \href{#method-RandomEffectSamples-append_from_json_string}{\code{RandomEffectSamples$append_from_json_string()}}
 \item \href{#method-RandomEffectSamples-predict}{\code{RandomEffectSamples$predict()}}
 \item \href{#method-RandomEffectSamples-extract_parameter_samples}{\code{RandomEffectSamples$extract_parameter_samples()}}
 \item \href{#method-RandomEffectSamples-extract_label_mapping}{\code{RandomEffectSamples$extract_label_mapping()}}
@@ -103,6 +106,99 @@ Construct RandomEffectSamples object from a json object
 }
 \subsection{Returns}{
 A new \code{RandomEffectSamples} object.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectSamples-append_from_json"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectSamples-append_from_json}{}}}
+\subsection{Method \code{append_from_json()}}{
+Append random effect draws to \code{RandomEffectSamples} object from a json object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectSamples$append_from_json(
+  json_object,
+  json_rfx_container_label,
+  json_rfx_mapper_label,
+  json_rfx_groupids_label
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_object}}{Object of class \code{CppJson}}
+
+\item{\code{json_rfx_container_label}}{Label referring to a particular rfx sample container (i.e. "random_effect_container_0") in the overall json hierarchy}
+
+\item{\code{json_rfx_mapper_label}}{Label referring to a particular rfx label mapper (i.e. "random_effect_label_mapper_0") in the overall json hierarchy}
+
+\item{\code{json_rfx_groupids_label}}{Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL (updates object in-place)
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectSamples-load_from_json_string"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectSamples-load_from_json_string}{}}}
+\subsection{Method \code{load_from_json_string()}}{
+Construct RandomEffectSamples object from a json object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectSamples$load_from_json_string(
+  json_string,
+  json_rfx_container_label,
+  json_rfx_mapper_label,
+  json_rfx_groupids_label
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_string}}{JSON string which parses into object of class \code{CppJson}}
+
+\item{\code{json_rfx_container_label}}{Label referring to a particular rfx sample container (i.e. "random_effect_container_0") in the overall json hierarchy}
+
+\item{\code{json_rfx_mapper_label}}{Label referring to a particular rfx label mapper (i.e. "random_effect_label_mapper_0") in the overall json hierarchy}
+
+\item{\code{json_rfx_groupids_label}}{Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+A new \code{RandomEffectSamples} object.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectSamples-append_from_json_string"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectSamples-append_from_json_string}{}}}
+\subsection{Method \code{append_from_json_string()}}{
+Append random effect draws to \code{RandomEffectSamples} object from a json object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectSamples$append_from_json_string(
+  json_string,
+  json_rfx_container_label,
+  json_rfx_mapper_label,
+  json_rfx_groupids_label
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{json_string}}{JSON string which parses into object of class \code{CppJson}}
+
+\item{\code{json_rfx_container_label}}{Label referring to a particular rfx sample container (i.e. "random_effect_container_0") in the overall json hierarchy}
+
+\item{\code{json_rfx_mapper_label}}{Label referring to a particular rfx label mapper (i.e. "random_effect_label_mapper_0") in the overall json hierarchy}
+
+\item{\code{json_rfx_groupids_label}}{Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL (updates object in-place)
 }
 }
 \if{html}{\out{<hr>}}
