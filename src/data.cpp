@@ -9,6 +9,36 @@ ColumnMatrix::ColumnMatrix(double* data_ptr, data_size_t num_row, int num_col, b
   LoadData(data_ptr, num_row, num_col, is_row_major);
 }
 
+ColumnMatrix::ColumnMatrix(std::string filename, std::string column_index_string, bool header, bool precise_float_parser) {
+  // Convert string to vector of indices
+  std::vector<int32_t> column_indices = Str2FeatureVec(column_index_string.c_str());
+  
+  // Set up CSV parser
+  data_size_t num_global_data = 0;
+  auto parser = std::unique_ptr<Parser>(Parser::CreateParser(filename.c_str(), header, 0, precise_float_parser));
+  if (parser == nullptr) {
+    Log::Fatal("Could not recognize data format of %s", filename.c_str());
+  }
+  
+  // Determine number of columns in the data file
+  int num_columns = parser->NumFeatures();
+
+  // Check compatibility between column_indices and num_columns
+  int32_t max_col = *std::max_element(column_indices.begin(), column_indices.end());
+  if (max_col >= num_columns) Log::Fatal("Some column indices requested do not exist in the CSV file");
+
+  // Read data to memory
+  auto text_data = LoadTextDataToMemory(filename.c_str(), &num_global_data, header);
+  int num_observations = static_cast<data_size_t>(text_data.size());
+
+  // Allocate the data_ matrix
+  data_ = Eigen::MatrixXd(num_observations, column_indices.size());
+
+  // Load data
+  ExtractMultipleFeaturesFromMemory(&text_data, parser.get(), column_indices, data_, num_observations);
+  text_data.clear();
+}
+
 void ColumnMatrix::LoadData(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
   data_.resize(num_row, num_col);
 
@@ -30,6 +60,29 @@ void ColumnMatrix::LoadData(double* data_ptr, data_size_t num_row, int num_col, 
 
 ColumnVector::ColumnVector(double* data_ptr, data_size_t num_row) {
   LoadData(data_ptr, num_row);
+}
+
+ColumnVector::ColumnVector(std::string filename, int32_t column_index, bool header, bool precise_float_parser) {
+  // Set up CSV parser
+  data_size_t num_global_data = 0;
+  auto parser = std::unique_ptr<Parser>(Parser::CreateParser(filename.c_str(), header, 0, precise_float_parser));
+  if (parser == nullptr) {
+    Log::Fatal("Could not recognize data format of %s", filename.c_str());
+  }
+  
+  // Determine number of columns in the data file
+  int num_columns = parser->NumFeatures();
+
+  // Read data to memory
+  auto text_data = LoadTextDataToMemory(filename.c_str(), &num_global_data, header);
+  int num_observations = static_cast<data_size_t>(text_data.size());
+
+  // Allocate the data_ matrix
+  data_ = Eigen::VectorXd(num_observations);
+
+  // Load data
+  ExtractSingleFeatureFromMemory(&text_data, parser.get(), column_index, data_, num_observations);
+  text_data.clear();
 }
 
 void ColumnVector::LoadData(double* data_ptr, data_size_t num_row) {

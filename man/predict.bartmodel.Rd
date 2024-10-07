@@ -9,8 +9,7 @@
   X_test,
   W_test = NULL,
   group_ids_test = NULL,
-  rfx_basis_test = NULL,
-  predict_all = F
+  rfx_basis_test = NULL
 )
 }
 \arguments{
@@ -25,8 +24,6 @@ We do not currently support (but plan to in the near future), test set evaluatio
 that were not in the training set.}
 
 \item{rfx_basis_test}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
-
-\item{predict_all}{(Optional) Whether to predict the model for all of the samples in the stored objects or the subset of burnt-in / GFR samples as specified at training time. Default FALSE.}
 }
 \value{
 List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest.

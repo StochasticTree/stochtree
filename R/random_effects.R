@@ -54,6 +54,41 @@ RandomEffectSamples <- R6::R6Class(
         }, 
         
         #' @description
+        #' Append random effect draws to `RandomEffectSamples` object from a json object
+        #' @param json_object Object of class `CppJson`
+        #' @param json_rfx_container_label Label referring to a particular rfx sample container (i.e. "random_effect_container_0") in the overall json hierarchy
+        #' @param json_rfx_mapper_label Label referring to a particular rfx label mapper (i.e. "random_effect_label_mapper_0") in the overall json hierarchy
+        #' @param json_rfx_groupids_label Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy
+        #' @return NULL (updates object in-place)
+        append_from_json = function(json_object, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label) {
+            rfx_container_append_from_json_cpp(self$rfx_container_ptr, json_object$json_ptr, json_rfx_container_label)
+        }, 
+        
+        #' @description
+        #' Construct RandomEffectSamples object from a json object
+        #' @param json_string JSON string which parses into object of class `CppJson`
+        #' @param json_rfx_container_label Label referring to a particular rfx sample container (i.e. "random_effect_container_0") in the overall json hierarchy
+        #' @param json_rfx_mapper_label Label referring to a particular rfx label mapper (i.e. "random_effect_label_mapper_0") in the overall json hierarchy
+        #' @param json_rfx_groupids_label Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy
+        #' @return A new `RandomEffectSamples` object.
+        load_from_json_string = function(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label) {
+            self$rfx_container_ptr <- rfx_container_from_json_string_cpp(json_object$json_ptr, json_rfx_container_label)
+            self$label_mapper_ptr <- rfx_label_mapper_from_json_string_cpp(json_object$json_ptr, json_rfx_mapper_label)
+            self$training_group_ids <- rfx_group_ids_from_json_string_cpp(json_object$json_ptr, json_rfx_groupids_label)
+        }, 
+        
+        #' @description
+        #' Append random effect draws to `RandomEffectSamples` object from a json object
+        #' @param json_string JSON string which parses into object of class `CppJson`
+        #' @param json_rfx_container_label Label referring to a particular rfx sample container (i.e. "random_effect_container_0") in the overall json hierarchy
+        #' @param json_rfx_mapper_label Label referring to a particular rfx label mapper (i.e. "random_effect_label_mapper_0") in the overall json hierarchy
+        #' @param json_rfx_groupids_label Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy
+        #' @return NULL (updates object in-place)
+        append_from_json_string = function(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label) {
+            rfx_container_append_from_json_string_cpp(self$rfx_container_ptr, json_object$json_ptr, json_rfx_container_label)
+        }, 
+        
+        #' @description
         #' Predict random effects for each observation implied by `rfx_group_ids` and `rfx_basis`. 
         #' If a random effects model is "intercept-only" the `rfx_basis` will be a vector of ones of size `length(rfx_group_ids)`.
         #' @param rfx_group_ids Indices of random effects groups in a prediction set

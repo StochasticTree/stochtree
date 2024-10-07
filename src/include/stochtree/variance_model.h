@@ -8,6 +8,7 @@
 #include <Eigen/Dense>
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
+#include <stochtree/gamma_sampler.h>
 #include <stochtree/ig_sampler.h>
 #include <stochtree/meta.h>
 
@@ -26,19 +27,36 @@ class GlobalHomoskedasticVarianceModel {
   ~GlobalHomoskedasticVarianceModel() {}
   double PosteriorShape(Eigen::VectorXd& residuals, double a, double b) {
     data_size_t n = residuals.rows();
-    return (a/2.0) + (n/2.0);
+    return a + (0.5 * n);
   }
   double PosteriorScale(Eigen::VectorXd& residuals, double a, double b) {
     data_size_t n = residuals.rows();
     double sum_sq_resid = 0.;
     for (data_size_t i = 0; i < n; i++) {
-      sum_sq_resid += std::pow(residuals(i, 0), 2);
+      sum_sq_resid += (residuals(i) * residuals(i));
     }
-    return (b/2.0) + (sum_sq_resid/2.0);
+    return b + (0.5 * sum_sq_resid);
+  }
+  double PosteriorShape(Eigen::VectorXd& residuals, Eigen::VectorXd& weights, double a, double b) {
+    data_size_t n = residuals.rows();
+    return a + (0.5 * n);
+  }
+  double PosteriorScale(Eigen::VectorXd& residuals, Eigen::VectorXd& weights, double a, double b) {
+    data_size_t n = residuals.rows();
+    double sum_sq_resid = 0.;
+    for (data_size_t i = 0; i < n; i++) {
+      sum_sq_resid += (residuals(i) * residuals(i)) * weights(i);
+    }
+    return b + (0.5 * sum_sq_resid);
   }
   double SampleVarianceParameter(Eigen::VectorXd& residuals, double a, double b, std::mt19937& gen) {
     double ig_shape = PosteriorShape(residuals, a, b);
     double ig_scale = PosteriorScale(residuals, a, b);
+    return ig_sampler_.Sample(ig_shape, ig_scale, gen);
+  }
+  double SampleVarianceParameter(Eigen::VectorXd& residuals, Eigen::VectorXd& weights, double a, double b, std::mt19937& gen) {
+    double ig_shape = PosteriorShape(residuals, weights, a, b);
+    double ig_scale = PosteriorScale(residuals, weights, a, b);
     return ig_sampler_.Sample(ig_shape, ig_scale, gen);
   }
  private:

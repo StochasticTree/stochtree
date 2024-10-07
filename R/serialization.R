@@ -277,11 +277,18 @@ CppJson <- R6::R6Class(
         }, 
         
         #' @description
+        #' Convert a JSON object to in-memory string
+        #' @return JSON string
+        return_json_string = function() {
+            return(get_json_string_cpp(self$json_ptr))
+        }, 
+        
+        #' @description
         #' Save a json object to file
         #' @param filename String of filepath, must end in ".json"
         #' @return NULL
         save_file = function(filename) {
-            json_save_cpp(self$json_ptr, filename)
+            json_save_file_cpp(self$json_ptr, filename)
         }, 
         
         #' @description
@@ -289,7 +296,15 @@ CppJson <- R6::R6Class(
         #' @param filename String of filepath, must end in ".json"
         #' @return NULL
         load_from_file = function(filename) {
-            json_load_cpp(self$json_ptr, filename)
+            json_load_file_cpp(self$json_ptr, filename)
+        }, 
+        
+        #' @description
+        #' Load a json object from string
+        #' @param json_string JSON string dump
+        #' @return NULL
+        load_from_string = function(json_string) {
+            json_load_string_cpp(self$json_ptr, json_string)
         }
     )
 )
@@ -307,6 +322,46 @@ loadForestContainerJson <- function(json_object, json_forest_label) {
     return(output)
 }
 
+#' Combine multiple JSON model objects containing forests (with the same hierarchy / schema) into a single forest_container
+#'
+#' @param json_object_list List of objects of class `CppJson`
+#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in the list)
+#'
+#' @return `ForestSamples` object
+#' @export
+loadForestContainerCombinedJson <- function(json_object_list, json_forest_label) {
+    invisible(output <- ForestSamples$new(0,1,T))
+    for (i in 1:length(json_object_list)) {
+        json_object <- json_object_list[[i]]
+        if (i == 1) {
+            output$load_from_json(json_object, json_forest_label)
+        } else {
+            output$append_from_json(json_object, json_forest_label)
+        }
+    }
+    return(output)
+}
+
+#' Combine multiple JSON strings representing model objects containing forests (with the same hierarchy / schema) into a single forest_container
+#'
+#' @param json_string_list List of strings that parse into objects of type `CppJson`
+#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in the list)
+#'
+#' @return `ForestSamples` object
+#' @export
+loadForestContainerCombinedJsonString <- function(json_string_list, json_forest_label) {
+    invisible(output <- ForestSamples$new(0,1,T))
+    for (i in 1:length(json_string_list)) {
+        json_string <- json_string_list[[i]]
+        if (i == 1) {
+            output$load_from_json_string(json_string, json_forest_label)
+        } else {
+            output$append_from_json_string(json_string, json_forest_label)
+        }
+    }
+    return(output)
+}
+
 #' Load a container of random effect samples from json
 #'
 #' @param json_object Object of class `CppJson`
@@ -320,6 +375,52 @@ loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
     json_rfx_groupids_label <- paste0("random_effect_groupids_", json_rfx_num)
     invisible(output <- RandomEffectSamples$new())
     output$load_from_json(json_object, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)
+    return(output)
+}
+
+#' Combine multiple JSON model objects containing random effects (with the same hierarchy / schema) into a single container
+#'
+#' @param json_object_list List of objects of class `CppJson`
+#' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked
+#'
+#' @return `RandomEffectSamples` object
+#' @export
+loadRandomEffectSamplesCombinedJson <- function(json_object_list, json_rfx_num) {
+    json_rfx_container_label <- paste0("random_effect_container_", json_rfx_num)
+    json_rfx_mapper_label <- paste0("random_effect_label_mapper_", json_rfx_num)
+    json_rfx_groupids_label <- paste0("random_effect_groupids_", json_rfx_num)
+    invisible(output <- RandomEffectSamples$new())
+    for (i in 1:length(json_object_list)) {
+        json_object <- json_object_list[[i]]
+        if (i == 1) {
+            output$load_from_json(json_object, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)
+        } else {
+            output$append_from_json(json_object, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)
+        }
+    }
+    return(output)
+}
+
+#' Combine multiple JSON strings representing model objects containing random effects (with the same hierarchy / schema) into a single container
+#'
+#' @param json_string_list List of objects of class `CppJson`
+#' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked
+#'
+#' @return `RandomEffectSamples` object
+#' @export
+loadRandomEffectSamplesCombinedJsonString <- function(json_string_list, json_rfx_num) {
+    json_rfx_container_label <- paste0("random_effect_container_", json_rfx_num)
+    json_rfx_mapper_label <- paste0("random_effect_label_mapper_", json_rfx_num)
+    json_rfx_groupids_label <- paste0("random_effect_groupids_", json_rfx_num)
+    invisible(output <- RandomEffectSamples$new())
+    for (i in 1:length(json_object_list)) {
+        json_string <- json_string_list[[i]]
+        if (i == 1) {
+            output$load_from_json_string(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)
+        } else {
+            output$append_from_json_string(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)
+        }
+    }
     return(output)
 }
 
@@ -377,5 +478,18 @@ createCppJsonFile <- function(json_filename) {
         output <- CppJson$new()
     ))
     output$load_from_file(json_filename)
+    return(output)
+}
+
+#' Create a C++ Json object from a Json string
+#'
+#' @param json_string JSON string dump
+#' @return `CppJson` object
+#' @export
+createCppJsonString <- function(json_string) {
+    invisible((
+        output <- CppJson$new()
+    ))
+    output$load_from_string(json_string)
     return(output)
 }

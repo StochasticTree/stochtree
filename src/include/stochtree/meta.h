@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <boost/math/constants/constants.hpp>
 
 #if (defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_AMD64))) || defined(__INTEL_COMPILER) || MM_PREFETCH
   #include <xmmintrin.h>
@@ -30,10 +31,11 @@
 
 namespace StochTree {
 
+/*! \brief Integer encoding of feature types */
 enum FeatureType {
-  kNumeric,
-  kOrderedCategorical,
-  kUnorderedCategorical
+  kNumeric, /*!< Numeric feature */
+  kOrderedCategorical, /*!< Ordered categorical feature */
+  kUnorderedCategorical /*!< Unordered categorical feature */
 };
 
 enum ForestLeafVarianceType {
@@ -41,11 +43,11 @@ enum ForestLeafVarianceType {
   kFixed
 };
 
-enum ForestLeafPriorType {
-  kConstantLeafGaussian,
-  kUnivariateRegressionLeafGaussian,
-  kMultivariateRegressionLeafGaussian
-};
+// enum ForestLeafPriorType {
+//   kConstantLeafGaussian,
+//   kUnivariateRegressionLeafGaussian,
+//   kMultivariateRegressionLeafGaussian
+// };
 
 enum ForestSampler {
   kMCMC,
@@ -62,6 +64,9 @@ enum RandomEffectsType {
   kConstantRandomEffect,
   kRegressionRandomEffect
 };
+
+/*! \brief Double precision pi constant */
+static constexpr double pi_constant = boost::math::constants::pi<double>();
 
 /*! \brief Type of data size */
 typedef int32_t data_size_t;

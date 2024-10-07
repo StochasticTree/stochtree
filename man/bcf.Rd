@@ -21,28 +21,36 @@ bcf(
   sigma_leaf_tau = NULL,
   alpha_mu = 0.95,
   alpha_tau = 0.25,
+  alpha_variance = 0.95,
   beta_mu = 2,
   beta_tau = 3,
+  beta_variance = 2,
   min_samples_leaf_mu = 5,
   min_samples_leaf_tau = 5,
+  min_samples_leaf_variance = 5,
   max_depth_mu = 10,
   max_depth_tau = 5,
+  max_depth_variance = 10,
   a_global = 0,
   b_global = 0,
   a_leaf_mu = 3,
   a_leaf_tau = 3,
   b_leaf_mu = NULL,
   b_leaf_tau = NULL,
-  q = 0.9,
-  sigma2 = NULL,
-  pct_var_sigma2_init = 0.25,
+  sigma2_init = NULL,
+  variance_forest_init = NULL,
+  pct_var_sigma2_init = 1,
+  pct_var_variance_forest_init = 1,
   variable_weights = NULL,
   keep_vars_mu = NULL,
   drop_vars_mu = NULL,
   keep_vars_tau = NULL,
   drop_vars_tau = NULL,
+  keep_vars_variance = NULL,
+  drop_vars_variance = NULL,
   num_trees_mu = 250,
   num_trees_tau = 50,
+  num_trees_variance = 0,
   num_gfr = 5,
   num_burnin = 0,
   num_mcmc = 100,
@@ -95,25 +103,33 @@ that were not in the training set.}
 
 \item{cutpoint_grid_size}{Maximum size of the "grid" of potential cutpoints to consider. Default: 100.}
 
-\item{sigma_leaf_mu}{Starting value of leaf node scale parameter for the prognostic forest. Calibrated internally as \code{2/num_trees_mu} if not set here.}
+\item{sigma_leaf_mu}{Starting value of leaf node scale parameter for the prognostic forest. Calibrated internally as \code{1/num_trees_mu} if not set here.}
 
-\item{sigma_leaf_tau}{Starting value of leaf node scale parameter for the treatment effect forest. Calibrated internally as \code{1/num_trees_tau} if not set here.}
+\item{sigma_leaf_tau}{Starting value of leaf node scale parameter for the treatment effect forest. Calibrated internally as \code{1/(2*num_trees_tau)} if not set here.}
 
-\item{alpha_mu}{Prior probability of splitting for a tree of depth 0 for the prognostic forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: 0.95.}
+\item{alpha_mu}{Prior probability of splitting for a tree of depth 0 for the prognostic forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha_mu*(1+node_depth)^-beta_mu}. Default: 0.95.}
 
-\item{alpha_tau}{Prior probability of splitting for a tree of depth 0 for the treatment effect forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: 0.25.}
+\item{alpha_tau}{Prior probability of splitting for a tree of depth 0 for the treatment effect forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha_tau*(1+node_depth)^-beta_tau}. Default: 0.25.}
 
-\item{beta_mu}{Exponent that decreases split probabilities for nodes of depth > 0 for the prognostic forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: 2.0.}
+\item{alpha_variance}{Prior probability of splitting for a tree of depth 0 in the (optional) conditional variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance}. Default: 0.95.}
 
-\item{beta_tau}{Exponent that decreases split probabilities for nodes of depth > 0 for the treatment effect forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: 3.0.}
+\item{beta_mu}{Exponent that decreases split probabilities for nodes of depth > 0 for the prognostic forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha_mu*(1+node_depth)^-beta_mu}. Default: 2.0.}
+
+\item{beta_tau}{Exponent that decreases split probabilities for nodes of depth > 0 for the treatment effect forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha_tau*(1+node_depth)^-beta_tau}. Default: 3.0.}
+
+\item{beta_variance}{Exponent that decreases split probabilities for nodes of depth > 0 in the (optional) conditional variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance}. Default: 2.0.}
 
 \item{min_samples_leaf_mu}{Minimum allowable size of a leaf, in terms of training samples, for the prognostic forest. Default: 5.}
 
 \item{min_samples_leaf_tau}{Minimum allowable size of a leaf, in terms of training samples, for the treatment effect forest. Default: 5.}
 
+\item{min_samples_leaf_variance}{Minimum allowable size of a leaf, in terms of training samples, in the (optional) conditional variance model. Default: 5.}
+
 \item{max_depth_mu}{Maximum depth of any tree in the mu ensemble. Default: 10. Can be overriden with \code{-1} which does not enforce any depth limits on trees.}
 
 \item{max_depth_tau}{Maximum depth of any tree in the tau ensemble. Default: 5. Can be overriden with \code{-1} which does not enforce any depth limits on trees.}
+
+\item{max_depth_variance}{Maximum depth of any tree in the ensemble in the (optional) conditional variance model. Default: 10. Can be overriden with \code{-1} which does not enforce any depth limits on trees.}
 
 \item{a_global}{Shape parameter in the \code{IG(a_global, b_global)} global error variance model. Default: 0.}
 
@@ -127,11 +143,13 @@ that were not in the training set.}
 
 \item{b_leaf_tau}{Scale parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model for the treatment effect forest. Calibrated internally as 0.5/num_trees if not set here.}
 
-\item{q}{Quantile used to calibrated \code{lambda} as in Sparapani et al (2021). Default: 0.9.}
+\item{sigma2_init}{Starting value of global error variance parameter. Calibrated internally as \code{pct_var_sigma2_init*var((y-mean(y))/sd(y))} if not set.}
 
-\item{sigma2}{Starting value of global error variance parameter. Calibrated internally as \code{pct_var_sigma2_init*var((y-mean(y))/sd(y))} if not set.}
+\item{variance_forest_init}{Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as \code{log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance} if not set.}
 
-\item{pct_var_sigma2_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by \code{sigma2}.}
+\item{pct_var_sigma2_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by \code{sigma2_init}.}
+
+\item{pct_var_variance_forest_init}{Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by \code{variance_forest_init}.}
 
 \item{variable_weights}{Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to \code{1/ncol(X_train)}. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in \code{X_train} and then set \code{propensity_covariate} to \code{'none'} adjust \code{keep_vars_mu} and \code{keep_vars_tau} accordingly.}
 
@@ -143,9 +161,15 @@ that were not in the training set.}
 
 \item{drop_vars_tau}{Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (\code{tau(X)}) forest. Default: NULL. If both \code{drop_vars_tau} and \code{keep_vars_tau} are set, \code{drop_vars_tau} will be ignored.}
 
+\item{keep_vars_variance}{Vector of variable names or column indices denoting variables that should be included in the (optional) conditional variance forest. Default: NULL.}
+
+\item{drop_vars_variance}{Vector of variable names or column indices denoting variables that should be excluded from the (optional) conditional variance forest. Default: NULL. If both \code{drop_vars_variance} and \code{keep_vars_variance} are set, \code{drop_vars_variance} will be ignored.}
+
 \item{num_trees_mu}{Number of trees in the prognostic forest. Default: 200.}
 
 \item{num_trees_tau}{Number of trees in the treatment effect forest. Default: 50.}
+
+\item{num_trees_variance}{Number of trees in the (optional) conditional variance forest model. Default: 0.}
 
 \item{num_gfr}{Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.}
 
@@ -176,6 +200,10 @@ that were not in the training set.}
 \item{keep_gfr}{Whether or not "grow-from-root" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.}
 
 \item{verbose}{Whether or not to print progress during the sampling loops. Default: FALSE.}
+
+\item{a_forest}{Shape parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2 + 0.5} if not set.}
+
+\item{b_forest}{Scale parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2} if not set.}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).

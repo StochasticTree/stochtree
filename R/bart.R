@@ -25,26 +25,37 @@
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
 #' @param cutpoint_grid_size Maximum size of the "grid" of potential cutpoints to consider. Default: 100.
-#' @param tau_init Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
-#' @param alpha Prior probability of splitting for a tree of depth 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
-#' @param beta Exponent that decreases split probabilities for nodes of depth > 0. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
+#' @param sigma_leaf_init Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees_mean` if not set here.
 #' @param leaf_model Model to use in the leaves, coded as integer with (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: 0.
-#' @param min_samples_leaf Minimum allowable size of a leaf, in terms of training samples. Default: 5.
-#' @param max_depth Maximum depth of any tree in the ensemble. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+#' @param alpha_mean Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: 0.95.
+#' @param beta_mean Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: 2.
+#' @param min_samples_leaf_mean Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: 5.
+#' @param max_depth_mean Maximum depth of any tree in the ensemble in the mean model. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+#' @param alpha_variance Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`. Default: 0.95.
+#' @param beta_variance Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance` .Default: 2.
+#' @param min_samples_leaf_variance Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: 5.
+#' @param max_depth_variance Maximum depth of any tree in the ensemble in the variance model. Default: 10. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
 #' @param a_global Shape parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
 #' @param b_global Scale parameter in the `IG(a_global, b_global)` global error variance model. Default: 0.
 #' @param a_leaf Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: 3.
-#' @param b_leaf Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
+#' @param b_leaf Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees_mean` if not set here.
+#' @param a_forest Shape parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `num_trees_variance > 0`). Calibrated internally as `num_trees_variance / 1.5^2 + 0.5` if not set.
+#' @param b_forest Scale parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `num_trees_variance > 0`). Calibrated internally as `num_trees_variance / 1.5^2` if not set.
 #' @param q Quantile used to calibrated `lambda` as in Sparapani et al (2021). Default: 0.9.
 #' @param sigma2_init Starting value of global error variance parameter. Calibrated internally as `pct_var_sigma2_init*var((y-mean(y))/sd(y))` if not set.
-#' @param pct_var_sigma2_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 0.25. Superseded by `sigma2_init`.
-#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
-#' @param num_trees Number of trees in the ensemble. Default: 200.
+#' @param variance_forest_init Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance` if not set.
+#' @param pct_var_sigma2_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by `sigma2_init`.
+#' @param pct_var_variance_forest_init Percentage of standardized outcome variance used to initialize global error variance parameter. Default: 1. Superseded by `variance_forest_init`.
+#' @param variance_scale Variance after the data have been scaled. Default: 1.
+#' @param variable_weights_mean Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
+#' @param variable_weights_variance Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
+#' @param num_trees_mean Number of trees in the ensemble for the conditional mean model. Default: 200. If `num_trees_mean = 0`, the conditional mean will not be modeled using a forest and the function will only proceed if `num_trees_variance > 0`.
+#' @param num_trees_variance Number of trees in the ensemble for the conditional variance model. Default: 0. Variance is only modeled using a tree / forest if `num_trees_variance > 0`.
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
-#' @param sample_sigma Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_globa, b_global)`. Default: T.
-#' @param sample_tau Whether or not to update the `tau` leaf scale variance parameter based on `IG(a_leaf, b_leaf)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: T.
+#' @param sample_sigma_global Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_global, b_global)`. Default: T.
+#' @param sample_sigma_leaf Whether or not to update the `tau` leaf scale variance parameter based on `IG(a_leaf, b_leaf)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: F.
 #' @param random_seed Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
 #' @param keep_burnin Whether or not "burnin" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.
 #' @param keep_gfr Whether or not "grow-from-root" samples should be included in cached predictions. Default TRUE. Ignored if num_mcmc = 0.
@@ -80,20 +91,54 @@
 bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL, 
                  rfx_basis_train = NULL, X_test = NULL, W_test = NULL, 
                  group_ids_test = NULL, rfx_basis_test = NULL, 
-                 cutpoint_grid_size = 100, tau_init = NULL, alpha = 0.95, 
-                 beta = 2.0, min_samples_leaf = 5, max_depth = 10, leaf_model = 0, 
+                 cutpoint_grid_size = 100, sigma_leaf_init = NULL, 
+                 alpha_mean = 0.95, beta_mean = 2.0, min_samples_leaf_mean = 5, 
+                 max_depth_mean = 10, alpha_variance = 0.95, beta_variance = 2.0, 
+                 min_samples_leaf_variance = 5, max_depth_variance = 10, 
                  a_global = 0, b_global = 0, a_leaf = 3, b_leaf = NULL, 
-                 q = 0.9, sigma2_init = NULL, pct_var_sigma2_init = 0.25,
-                 variable_weights = NULL, num_trees = 200, num_gfr = 5, 
-                 num_burnin = 0, num_mcmc = 100, sample_sigma = T, 
-                 sample_tau = T, random_seed = -1, keep_burnin = F, 
-                 keep_gfr = F, verbose = F) {
-    # Variable weight preprocessing (and initialization if necessary)
-    if (is.null(variable_weights)) {
-        variable_weights = rep(1/ncol(X_train), ncol(X_train))
+                 a_forest = NULL, b_forest = NULL, q = 0.9, sigma2_init = NULL, 
+                 variance_forest_init = NULL, pct_var_sigma2_init = 1, 
+                 pct_var_variance_forest_init = 1, variance_scale = 1, 
+                 variable_weights_mean = NULL, variable_weights_variance = NULL, 
+                 num_trees_mean = 200, num_trees_variance = 0, 
+                 num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
+                 sample_sigma_global = T, sample_sigma_leaf = F, random_seed = -1, 
+                 keep_burnin = F, keep_gfr = F, verbose = F) {
+    # Determine whether conditional mean, variance, or both will be modeled
+    if (num_trees_variance > 0) include_variance_forest = T
+    else include_variance_forest = F
+    if (num_trees_mean > 0) include_mean_forest = T
+    else include_mean_forest = F
+    
+    # Set the variance forest priors if not set
+    if (include_variance_forest) {
+        a_0 <- 1.5
+        if (is.null(a_forest)) a_forest <- num_trees_variance / (a_0^2) + 0.5
+        if (is.null(b_forest)) b_forest <- num_trees_variance / (a_0^2)
+    } else {
+        a_forest <- 1.
+        b_forest <- 1.
     }
-    if (any(variable_weights < 0)) {
-        stop("variable_weights cannot have any negative weights")
+    
+    # Override tau sampling if there is no mean forest
+    if (!include_mean_forest) sample_tau <- F
+    
+    # Variable weight preprocessing (and initialization if necessary)
+    if (include_mean_forest) {
+        if (is.null(variable_weights_mean)) {
+            variable_weights_mean = rep(1/ncol(X_train), ncol(X_train))
+        }
+        if (any(variable_weights_mean < 0)) {
+            stop("variable_weights_mean cannot have any negative weights")
+        }
+    }
+    if (include_variance_forest) {
+        if (is.null(variable_weights_variance)) {
+            variable_weights_variance = rep(1/ncol(X_train), ncol(X_train))
+        }
+        if (any(variable_weights_variance < 0)) {
+            stop("variable_weights_variance cannot have any negative weights")
+        }
     }
     
     # Preprocess covariates
@@ -105,8 +150,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             stop("X_test must be a matrix or dataframe")
         }
     }
-    if (ncol(X_train) != length(variable_weights)) {
-        stop("length(variable_weights) must equal ncol(X_train)")
+    if ((ncol(X_train) != length(variable_weights_mean)) && (include_mean_forest)) {
+        stop("length(variable_weights_mean) must equal ncol(X_train)")
+    }
+    if ((ncol(X_train) != length(variable_weights_variance)) && (include_variance_forest)) {
+        stop("length(variable_weights_variance) must equal ncol(X_train)")
     }
     train_cov_preprocess_list <- preprocessTrainData(X_train)
     X_train_metadata <- train_cov_preprocess_list$metadata
@@ -117,7 +165,12 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Update variable weights
     variable_weights_adj <- 1/sapply(original_var_indices, function(x) sum(original_var_indices == x))
-    variable_weights <- variable_weights[original_var_indices]*variable_weights_adj
+    if (include_mean_forest) {
+        variable_weights_mean <- variable_weights_mean[original_var_indices]*variable_weights_adj
+    }
+    if (include_variance_forest) {
+        variable_weights_variance <- variable_weights_variance[original_var_indices]*variable_weights_adj
+    }
     
     # Convert all input data to matrices if not already converted
     if ((is.null(dim(W_train))) && (!is.null(W_train))) {
@@ -215,32 +268,40 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     y_bar_train <- mean(y_train)
     y_std_train <- sd(y_train)
     resid_train <- (y_train-y_bar_train)/y_std_train
+    resid_train <- resid_train*sqrt(variance_scale)
+    
+    # Compute initial value of root nodes in mean forest
+    init_val_mean <- mean(resid_train)
 
     # Calibrate priors for sigma^2 and tau
     if (is.null(sigma2_init)) sigma2_init <- pct_var_sigma2_init*var(resid_train)
-    if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees)
-    if (is.null(tau_init)) tau_init <- var(resid_train)/(num_trees)
-    current_leaf_scale <- as.matrix(tau_init)
+    if (is.null(variance_forest_init)) variance_forest_init <- pct_var_variance_forest_init*var(resid_train)
+    if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees_mean)
+    if (is.null(sigma_leaf_init)) sigma_leaf_init <- var(resid_train)/(num_trees_mean)
+    current_leaf_scale <- as.matrix(sigma_leaf_init)
     current_sigma2 <- sigma2_init
-    
+
     # Determine leaf model type
-    if (!has_basis) leaf_model <- 0
-    else if (ncol(W_train) == 1) leaf_model <- 1
-    else if (ncol(W_train) > 1) leaf_model <- 2
+    if (!has_basis) leaf_model_mean_forest <- 0
+    else if (ncol(W_train) == 1) leaf_model_mean_forest <- 1
+    else if (ncol(W_train) > 1) leaf_model_mean_forest <- 2
     else stop("W_train passed must be a matrix with at least 1 column")
+
+    # Set variance leaf model type (currently only one option)
+    leaf_model_variance_forest <- 3
     
     # Unpack model type info
-    if (leaf_model == 0) {
+    if (leaf_model_mean_forest == 0) {
         output_dimension = 1
         is_leaf_constant = T
         leaf_regression = F
-    } else if (leaf_model == 1) {
+    } else if (leaf_model_mean_forest == 1) {
         stopifnot(has_basis)
         stopifnot(ncol(W_train) == 1)
         output_dimension = 1
         is_leaf_constant = F
         leaf_regression = T
-    } else if (leaf_model == 2) {
+    } else if (leaf_model_mean_forest == 2) {
         stopifnot(has_basis)
         stopifnot(ncol(W_train) > 1)
         output_dimension = ncol(W_train)
@@ -269,10 +330,20 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Sampling data structures
     feature_types <- as.integer(feature_types)
-    forest_model <- createForestModel(forest_dataset_train, feature_types, num_trees, nrow(X_train), alpha, beta, min_samples_leaf, max_depth)
+    if (include_mean_forest) {
+        forest_model_mean <- createForestModel(forest_dataset_train, feature_types, num_trees_mean, nrow(X_train), alpha_mean, beta_mean, min_samples_leaf_mean, max_depth_mean)
+    }
+    if (include_variance_forest) {
+        forest_model_variance <- createForestModel(forest_dataset_train, feature_types, num_trees_variance, nrow(X_train), alpha_variance, beta_variance, min_samples_leaf_variance, max_depth_variance)
+    }
     
     # Container of forest samples
-    forest_samples <- createForestContainer(num_trees, output_dimension, is_leaf_constant)
+    if (include_mean_forest) {
+        forest_samples_mean <- createForestContainer(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
+    }
+    if (include_variance_forest) {
+        forest_samples_variance <- createForestContainer(num_trees_variance, 1, TRUE, TRUE)
+    }
     
     # Random effects prior parameters
     if (has_rfx) {
@@ -306,8 +377,20 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 
     # Container of variance parameter samples
     num_samples <- num_gfr + num_burnin + num_mcmc
-    if (sample_sigma) global_var_samples <- rep(0, num_samples)
-    if (sample_tau) leaf_scale_samples <- rep(0, num_samples)
+    if (sample_sigma_global) global_var_samples <- rep(0, num_samples)
+    if (sample_sigma_leaf) leaf_scale_samples <- rep(0, num_samples)
+    
+    # Initialize the leaves of each tree in the mean forest
+    if (include_mean_forest) {
+        if (requires_basis) init_values_mean_forest <- rep(0., ncol(W_train))
+        else init_values_mean_forest <- 0.
+        forest_samples_mean$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mean, leaf_model_mean_forest, init_values_mean_forest)
+    }
+
+    # Initialize the leaves of each tree in the variance forest
+    if (include_variance_forest) {
+        forest_samples_variance$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_variance, leaf_model_variance_forest, variance_forest_init)
+    }
     
     # Run GFR (warm start) if specified
     if (num_gfr > 0){
@@ -320,17 +403,26 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 }
             }
             
-            forest_model$sample_one_iteration(
-                forest_dataset_train, outcome_train, forest_samples, rng, feature_types, 
-                leaf_model, current_leaf_scale, variable_weights, 
-                current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = F
-            )
-            if (sample_sigma) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, a_global, b_global)
+            if (include_mean_forest) {
+                forest_model_mean$sample_one_iteration(
+                    forest_dataset_train, outcome_train, forest_samples_mean, rng, feature_types, 
+                    leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
+                )
+            }
+            if (include_variance_forest) {
+                forest_model_variance$sample_one_iteration(
+                    forest_dataset_train, outcome_train, forest_samples_variance, rng, feature_types, 
+                    leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
+                )
+            }
+            if (sample_sigma_global) {
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
-            if (sample_tau) {
-                leaf_scale_samples[i] <- sample_tau_one_iteration(forest_samples, rng, a_leaf, b_leaf, i-1)
+            if (sample_sigma_leaf) {
+                leaf_scale_samples[i] <- sample_tau_one_iteration(forest_samples_mean, rng, a_leaf, b_leaf, i-1)
                 current_leaf_scale <- as.matrix(leaf_scale_samples[i])
             }
             if (has_rfx) {
@@ -362,17 +454,26 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 }
             }
             
-            forest_model$sample_one_iteration(
-                forest_dataset_train, outcome_train, forest_samples, rng, feature_types, 
-                leaf_model, current_leaf_scale, variable_weights, 
-                current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = F
-            )
-            if (sample_sigma) {
-                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, rng, a_global, b_global)
+            if (include_mean_forest) {
+                forest_model_mean$sample_one_iteration(
+                    forest_dataset_train, outcome_train, forest_samples_mean, rng, feature_types, 
+                    leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
+                )
+            }
+            if (include_variance_forest) {
+                forest_model_variance$sample_one_iteration(
+                    forest_dataset_train, outcome_train, forest_samples_variance, rng, feature_types, 
+                    leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
+                )
+            }
+            if (sample_sigma_global) {
+                global_var_samples[i] <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 current_sigma2 <- global_var_samples[i]
             }
-            if (sample_tau) {
-                leaf_scale_samples[i] <- sample_tau_one_iteration(forest_samples, rng, a_leaf, b_leaf, i-1)
+            if (sample_sigma_leaf) {
+                leaf_scale_samples[i] <- sample_tau_one_iteration(forest_samples_mean, rng, a_leaf, b_leaf, i-1)
                 current_leaf_scale <- as.matrix(leaf_scale_samples[i])
             }
             if (has_rfx) {
@@ -381,17 +482,25 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         }
     }
     
-    # Forest predictions
-    y_hat_train <- forest_samples$predict(forest_dataset_train)*y_std_train + y_bar_train
-    if (has_test) y_hat_test <- forest_samples$predict(forest_dataset_test)*y_std_train + y_bar_train
+    # Mean forest predictions
+    if (include_mean_forest) {
+        y_hat_train <- forest_samples_mean$predict(forest_dataset_train)*y_std_train/sqrt(variance_scale) + y_bar_train
+        if (has_test) y_hat_test <- forest_samples_mean$predict(forest_dataset_test)*y_std_train/sqrt(variance_scale) + y_bar_train
+    }
+    
+    # Variance forest predictions
+    if (include_variance_forest) {
+        sigma_x_hat_train <- forest_samples_variance$predict(forest_dataset_train)
+        if (has_test) sigma_x_hat_test <- forest_samples_variance$predict(forest_dataset_test)
+    }
     
     # Random effects predictions
     if (has_rfx) {
-        rfx_preds_train <- rfx_samples$predict(group_ids_train, rfx_basis_train)*y_std_train
+        rfx_preds_train <- rfx_samples$predict(group_ids_train, rfx_basis_train)*y_std_train/sqrt(variance_scale)
         y_hat_train <- y_hat_train + rfx_preds_train
     }
     if ((has_rfx_test) && (has_test)) {
-        rfx_preds_test <- rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std_train
+        rfx_preds_test <- rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std_train/sqrt(variance_scale)
         y_hat_test <- y_hat_test + rfx_preds_test
     }
     
@@ -417,31 +526,47 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     }
     
     # Subset forest and RFX predictions
-    y_hat_train <- y_hat_train[,keep_indices]
+    if (include_mean_forest) {
+        y_hat_train <- y_hat_train[,keep_indices]
+        if (has_test) y_hat_test <- y_hat_test[,keep_indices]
+    }
+    if (include_variance_forest) {
+        sigma_x_hat_train <- sigma_x_hat_train[,keep_indices]
+        if (has_test) sigma_x_hat_test <- sigma_x_hat_test[,keep_indices]
+    }
     if (has_rfx) {
         rfx_preds_train <- rfx_preds_train[,keep_indices]
+        if (has_test) rfx_preds_test <- rfx_preds_test[,keep_indices]
     }
-    if (has_test) {
-        y_hat_test <- y_hat_test[,keep_indices]
-        if (has_rfx_test) {
-            rfx_preds_test <- rfx_preds_test[,keep_indices]
+
+    # Global error variance
+    if (sample_sigma_global) sigma2_samples <- global_var_samples[keep_indices]*(y_std_train^2)/variance_scale
+    
+    # Leaf parameter variance
+    if (sample_sigma_leaf) tau_samples <- leaf_scale_samples[keep_indices]
+    
+    # Rescale variance forest prediction by global sigma2 (sampled or constant)
+    if (include_variance_forest) {
+        if (sample_sigma_global) {
+            sigma_x_hat_train <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_train[,i]*sigma2_samples[i]))
+            if (has_test) sigma_x_hat_test <- sapply(1:length(keep_indices), function(i) sqrt(sigma_x_hat_test[,i]*sigma2_samples[i]))
+        } else {
+            sigma_x_hat_train <- sqrt(sigma_x_hat_train*sigma2_init)*y_std_train/sqrt(variance_scale)
+            if (has_test) sigma_x_hat_test <- sqrt(sigma_x_hat_test*sigma2_init)*y_std_train/sqrt(variance_scale)
         }
     }
     
-    # Global error variance
-    if (sample_sigma) sigma2_samples <- global_var_samples[keep_indices]*(y_std_train^2)
-    
-    # Leaf parameter variance
-    if (sample_tau) tau_samples <- leaf_scale_samples[keep_indices]
-    
     # Return results as a list
+    # TODO: store variance_scale and propagate through predict function
     model_params <- list(
         "sigma2_init" = sigma2_init, 
+        "sigma_leaf_init" = sigma_leaf_init,
         "a_global" = a_global,
         "b_global" = b_global, 
-        "tau_init" = tau_init,
         "a_leaf" = a_leaf, 
         "b_leaf" = b_leaf,
+        "a_forest" = a_forest, 
+        "b_forest" = b_forest,
         "outcome_mean" = y_bar_train,
         "outcome_scale" = y_std_train, 
         "output_dimension" = output_dimension,
@@ -454,23 +579,34 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         "num_gfr" = num_gfr, 
         "num_burnin" = num_burnin, 
         "num_mcmc" = num_mcmc, 
+        "num_retained_samples" = length(keep_indices),
         "has_basis" = !is.null(W_train), 
         "has_rfx" = has_rfx, 
         "has_rfx_basis" = has_basis_rfx, 
         "num_rfx_basis" = num_basis_rfx, 
-        "sample_sigma" = sample_sigma,
-        "sample_tau" = sample_tau
+        "sample_sigma_global" = sample_sigma_global,
+        "sample_sigma_leaf" = sample_sigma_leaf,
+        "include_mean_forest" = include_mean_forest,
+        "include_variance_forest" = include_variance_forest,
+        "variance_scale" = variance_scale
     )
     result <- list(
-        "forests" = forest_samples, 
         "model_params" = model_params, 
-        "y_hat_train" = y_hat_train, 
         "train_set_metadata" = X_train_metadata,
         "keep_indices" = keep_indices
     )
-    if (has_test) result[["y_hat_test"]] = y_hat_test
-    if (sample_sigma) result[["sigma2_samples"]] = sigma2_samples
-    if (sample_tau) result[["tau_samples"]] = tau_samples
+    if (include_mean_forest) {
+        result[["mean_forests"]] = forest_samples_mean
+        result[["y_hat_train"]] = y_hat_train
+        if (has_test) result[["y_hat_test"]] = y_hat_test
+    }
+    if (include_variance_forest) {
+        result[["variance_forests"]] = forest_samples_variance
+        result[["sigma_x_hat_train"]] = sigma_x_hat_train
+        if (has_test) result[["sigma_x_hat_test"]] = sigma_x_hat_test
+    }
+    if (sample_sigma_global) result[["sigma2_global_samples"]] = sigma2_samples
+    if (sample_sigma_leaf) result[["sigma2_leaf_samples"]] = tau_samples
     if (has_rfx) {
         result[["rfx_samples"]] = rfx_samples
         result[["rfx_preds_train"]] = rfx_preds_train
@@ -480,7 +616,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     class(result) <- "bartmodel"
     
     # Clean up classes with external pointers to C++ data structures
-    rm(forest_model)
+    if (include_mean_forest) rm(forest_model_mean)
+    if (include_variance_forest) rm(forest_model_variance)
     rm(forest_dataset_train)
     if (has_test) rm(forest_dataset_test)
     if (has_rfx) rm(rfx_dataset_train, rfx_tracker_train, rfx_model)
@@ -500,7 +637,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
-#' @param predict_all (Optional) Whether to predict the model for all of the samples in the stored objects or the subset of burnt-in / GFR samples as specified at training time. Default FALSE.
 #'
 #' @return List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest. 
 #' If the model does have random effects, the list has three elements -- forest predictions, random effects predictions, and their sum (`y_hat`).
@@ -531,7 +667,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 #' y_hat_test <- predict(bart_model, X_test)
 #' # plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
 #' # abline(0,1,col="red",lty=3,lwd=3)
-predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL, predict_all = F){
+predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL){
     # Preprocess covariates
     if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
         stop("X_test must be a matrix or dataframe")
@@ -588,34 +724,67 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     if (!is.null(W_test)) prediction_dataset <- createForestDataset(X_test, W_test)
     else prediction_dataset <- createForestDataset(X_test)
     
-    # Compute forest predictions
+    # Compute mean forest predictions
+    variance_scale <- bart$model_params$variance_scale
     y_std <- bart$model_params$outcome_scale
     y_bar <- bart$model_params$outcome_mean
-    forest_predictions <- bart$forests$predict(prediction_dataset)*y_std + y_bar
+    sigma2_init <- bart$model_params$sigma2_init
+    if (bart$model_params$include_mean_forest) {
+        mean_forest_predictions <- bart$mean_forests$predict(prediction_dataset)*y_std/sqrt(variance_scale) + y_bar
+    }
+    
+    # Compute variance forest predictions
+    if (bart$model_params$include_variance_forest) {
+        s_x_raw <- bart$variance_forests$predict(prediction_dataset)
+    }
     
     # Compute rfx predictions (if needed)
     if (bart$model_params$has_rfx) {
-        rfx_predictions <- bart$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std
+        rfx_predictions <- bart$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std/sqrt(variance_scale)
     }
     
     # Restrict predictions to the "retained" samples (if applicable)
-    if (!predict_all) {
-        keep_indices = bart$keep_indices
-        forest_predictions <- forest_predictions[,keep_indices]
-        if (bart$model_params$has_rfx) rfx_predictions <- rfx_predictions[,keep_indices]
+    keep_indices = bart$keep_indices
+    if (bart$model_params$include_mean_forest) {
+        mean_forest_predictions <- mean_forest_predictions[,keep_indices]
     }
+    if (bart$model_params$include_variance_forest) {
+        s_x_raw <- s_x_raw[,keep_indices]
+    }
+    if (bart$model_params$has_rfx) rfx_predictions <- rfx_predictions[,keep_indices]
     
-    if (bart$model_params$has_rfx) {
-        y_hat <- forest_predictions + rfx_predictions
-        result <- list(
-            "forest_predictions" = forest_predictions, 
-            "rfx_predictions" = rfx_predictions, 
-            "y_hat" = y_hat
-        )
-        return(result)
-    } else {
-        return(list("y_hat" = forest_predictions))
+    # Scale variance forest predictions
+    if (bart$model_params$include_variance_forest) {
+        if (bart$model_params$sample_sigma_global) {
+            sigma2_samples <- bart$sigma2_global_samples
+            variance_forest_predictions <- sapply(1:length(keep_indices), function(i) sqrt(s_x_raw[,i]*sigma2_samples[i]))
+        } else {
+            variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std/sqrt(variance_scale)
+        }
     }
+
+    if ((bart$model_params$include_mean_forest) && (bart$model_params$has_rfx)) {
+        y_hat <- mean_forest_predictions + rfx_predictions
+    } else if ((bart$model_params$include_mean_forest) && (!bart$model_params$has_rfx)) {
+        y_hat <- mean_forest_predictions
+    } else if ((!bart$model_params$include_mean_forest) && (bart$model_params$has_rfx)) {
+        y_hat <- rfx_predictions
+    } 
+    
+    result <- list()
+    if ((bart$model_params$has_rfx) || (bart$model_params$include_mean_forest)) {
+        result[["y_hat"]] = y_hat
+    }
+    if (bart$model_params$include_mean_forest) {
+        result[["mean_forest_predictions"]] = mean_forest_predictions
+    }
+    if (bart$model_params$has_rfx) {
+        result[["rfx_predictions"]] = rfx_predictions
+    }
+    if (bart$model_params$include_variance_forest) {
+        result[["variance_forest_predictions"]] = variance_forest_predictions
+    }
+    return(result)
 }
 
 #' Extract raw sample values for each of the random effect parameter terms.
@@ -682,4 +851,657 @@ getRandomEffectSamples.bartmodel <- function(object, ...){
     result$sigma_samples <- result$sigma_samples*(object$model_params$outcome_scale^2)
     
     return(result)
+}
+
+#' Convert the persistent aspects of a BART model to (in-memory) JSON
+#'
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
+#'
+#' @return Object of type `CppJson`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json <- convertBARTModelToJson(bart_model)
+convertBARTModelToJson <- function(object){
+    jsonobj <- createCppJson()
+    
+    if (is.null(object$model_params)) {
+        stop("This BCF model has not yet been sampled")
+    }
+
+    # Add the forests
+    if (object$model_params$include_mean_forest) {
+        jsonobj$add_forest(object$mean_forests)
+    }
+    if (object$model_params$include_variance_forest) {
+        jsonobj$add_forest(object$variance_forests)
+    }
+
+    # Add metadata
+    jsonobj$add_scalar("num_numeric_vars", object$train_set_metadata$num_numeric_vars)
+    jsonobj$add_scalar("num_ordered_cat_vars", object$train_set_metadata$num_ordered_cat_vars)
+    jsonobj$add_scalar("num_unordered_cat_vars", object$train_set_metadata$num_unordered_cat_vars)
+    if (object$train_set_metadata$num_numeric_vars > 0) {
+        jsonobj$add_string_vector("numeric_vars", object$train_set_metadata$numeric_vars)
+    }
+    if (object$train_set_metadata$num_ordered_cat_vars > 0) {
+        jsonobj$add_string_vector("ordered_cat_vars", object$train_set_metadata$ordered_cat_vars)
+        jsonobj$add_string_list("ordered_unique_levels", object$train_set_metadata$ordered_unique_levels)
+    }
+    if (object$train_set_metadata$num_unordered_cat_vars > 0) {
+        jsonobj$add_string_vector("unordered_cat_vars", object$train_set_metadata$unordered_cat_vars)
+        jsonobj$add_string_list("unordered_unique_levels", object$train_set_metadata$unordered_unique_levels)
+    }
+    
+    # Add global parameters
+    jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
+    jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
+    jsonobj$add_boolean("sample_sigma_global", object$model_params$sample_sigma_global)
+    jsonobj$add_boolean("sample_sigma_leaf", object$model_params$sample_sigma_leaf)
+    jsonobj$add_boolean("include_mean_forest", object$model_params$include_mean_forest)
+    jsonobj$add_boolean("include_variance_forest", object$model_params$include_variance_forest)
+    jsonobj$add_boolean("has_rfx", object$model_params$has_rfx)
+    jsonobj$add_boolean("has_rfx_basis", object$model_params$has_rfx_basis)
+    jsonobj$add_scalar("num_rfx_basis", object$model_params$num_rfx_basis)
+    jsonobj$add_scalar("num_gfr", object$model_params$num_gfr)
+    jsonobj$add_scalar("num_burnin", object$model_params$num_burnin)
+    jsonobj$add_scalar("num_mcmc", object$model_params$num_mcmc)
+    jsonobj$add_scalar("num_samples", object$model_params$num_samples)
+    jsonobj$add_scalar("num_covariates", object$model_params$num_covariates)
+    jsonobj$add_scalar("num_basis", object$model_params$num_basis)
+    jsonobj$add_boolean("requires_basis", object$model_params$requires_basis)
+    jsonobj$add_vector("keep_indices", object$keep_indices)
+    if (object$model_params$sample_sigma_global) {
+        jsonobj$add_vector("sigma2_global_samples", object$sigma2_global_samples, "parameters")
+    }
+    if (object$model_params$sample_sigma_leaf) {
+        jsonobj$add_vector("sigma2_leaf_samples", object$sigma2_leaf_samples, "parameters")
+    }
+
+    # Add random effects (if present)
+    if (object$model_params$has_rfx) {
+        jsonobj$add_random_effects(object$rfx_samples)
+        jsonobj$add_string_vector("rfx_unique_group_ids", object$rfx_unique_group_ids)
+    }
+    
+    return(jsonobj)
+}
+
+#' Convert the persistent aspects of a BART model to (in-memory) JSON and save to a file
+#'
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
+#' @param filename String of filepath, must end in ".json"
+#'
+#' @return NULL
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # saveBARTModelToJsonFile(bart_model, "test.json")
+saveBARTModelToJsonFile <- function(object, filename){
+    # Convert to Json
+    jsonobj <- convertBARTModelToJson(object)
+    
+    # Save to file
+    jsonobj$save_file(filename)
+}
+
+#' Convert the persistent aspects of a BART model to (in-memory) JSON string
+#'
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
+#' @return JSON string
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # saveBARTModelToJsonString(bart_model)
+saveBARTModelToJsonString <- function(object){
+    # Convert to Json
+    jsonobj <- convertBARTModelToJson(object)
+    
+    # Dump to string
+    return(jsonobj$return_json_string())
+}
+
+#' Convert an (in-memory) JSON representation of a BART model to a BART model object 
+#' which can be used for prediction, etc...
+#'
+#' @param json_object Object of type `CppJson` containing Json representation of a BART model
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json <- convertBARTModelToJson(bart_model)
+#' # bart_model_roundtrip <- createBARTModelFromJson(bart_json)
+createBARTModelFromJson <- function(json_object){
+    # Initialize the BCF model
+    output <- list()
+    
+    # Unpack the forests
+    include_mean_forest <- json_object$get_boolean("include_mean_forest")
+    include_variance_forest <- json_object$get_boolean("include_variance_forest")
+    if (include_mean_forest) {
+        output[["mean_forests"]] <- loadForestContainerJson(json_object, "forest_0")
+        if (include_variance_forest) {
+            output[["variance_forests"]] <- loadForestContainerJson(json_object, "forest_1")
+        }
+    } else {
+        output[["variance_forests"]] <- loadForestContainerJson(json_object, "forest_0")
+    }
+
+    # Unpack metadata
+    train_set_metadata = list()
+    train_set_metadata[["num_numeric_vars"]] <- json_object$get_scalar("num_numeric_vars")
+    train_set_metadata[["num_ordered_cat_vars"]] <- json_object$get_scalar("num_ordered_cat_vars")
+    train_set_metadata[["num_unordered_cat_vars"]] <- json_object$get_scalar("num_unordered_cat_vars")
+    if (train_set_metadata[["num_numeric_vars"]] > 0) {
+        train_set_metadata[["numeric_vars"]] <- json_object$get_string_vector("numeric_vars")
+    }
+    if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
+        train_set_metadata[["ordered_cat_vars"]] <- json_object$get_string_vector("ordered_cat_vars")
+        train_set_metadata[["ordered_unique_levels"]] <- json_object$get_string_list("ordered_unique_levels", train_set_metadata[["ordered_cat_vars"]])
+    }
+    if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
+        train_set_metadata[["unordered_cat_vars"]] <- json_object$get_string_vector("unordered_cat_vars")
+        train_set_metadata[["unordered_unique_levels"]] <- json_object$get_string_list("unordered_unique_levels", train_set_metadata[["unordered_cat_vars"]])
+    }
+    output[["train_set_metadata"]] <- train_set_metadata
+    output[["keep_indices"]] <- json_object$get_vector("keep_indices")
+    
+    # Unpack model params
+    model_params = list()
+    model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
+    model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
+    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["include_mean_forest"]] <- include_mean_forest
+    model_params[["include_variance_forest"]] <- include_variance_forest
+    model_params[["has_rfx"]] <- json_object$get_boolean("has_rfx")
+    model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
+    model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
+    model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
+    model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
+    model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
+    model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
+    model_params[["num_covariates"]] <- json_object$get_scalar("num_covariates")
+    model_params[["num_basis"]] <- json_object$get_scalar("num_basis")
+    model_params[["requires_basis"]] <- json_object$get_boolean("requires_basis")
+    output[["model_params"]] <- model_params
+    
+    # Unpack sampled parameters
+    if (model_params[["sample_sigma_global"]]) {
+        output[["sigma2_global_samples"]] <- json_object$get_vector("sigma2_global_samples", "parameters")
+    }
+    if (model_params[["sample_sigma_leaf"]]) {
+        output[["sigma2_leaf_samples"]] <- json_object$get_vector("sigma2_leaf_samples", "parameters")
+    }
+
+    # Unpack random effects
+    if (model_params[["has_rfx"]]) {
+        output[["rfx_unique_group_ids"]] <- json_object$get_string_vector("rfx_unique_group_ids")
+        output[["rfx_samples"]] <- loadRandomEffectSamplesJson(json_object, 0)
+    }
+    
+    class(output) <- "bartmodel"
+    return(output)
+}
+
+#' Convert a JSON file containing sample information on a trained BART model 
+#' to a BART model object which can be used for prediction, etc...
+#'
+#' @param json_filename String of filepath, must end in ".json"
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # saveBARTModelToJsonFile(bart_model, "test.json")
+#' # bart_model_roundtrip <- createBARTModelFromJsonFile("test.json")
+createBARTModelFromJsonFile <- function(json_filename){
+    # Load a `CppJson` object from file
+    bart_json <- createCppJsonFile(json_filename)
+    
+    # Create and return the BCF object
+    bart_object <- createBARTModelFromJson(bart_json)
+    
+    return(bart_object)
+}
+
+#' Convert a JSON string containing sample information on a trained BART model 
+#' to a BART model object which can be used for prediction, etc...
+#'
+#' @param json_string JSON string dump
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json <- saveBARTModelToJsonString(bart_model)
+#' # bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
+#' # y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X_train)$y_hat)
+#' # plot(rowMeans(bart_model$y_hat_train), y_hat_mean_roundtrip, 
+#' #      xlab = "original", ylab = "roundtrip")
+createBARTModelFromJsonString <- function(json_string){
+    # Load a `CppJson` object from string
+    bart_json <- createCppJsonString(json_string)
+    
+    # Create and return the BCF object
+    bart_object <- createBARTModelFromJson(bart_json)
+    
+    return(bart_object)
+}
+
+#' Convert a list of (in-memory) JSON representations of a BART model to a single combined BART model object 
+#' which can be used for prediction, etc...
+#'
+#' @param json_object_list List of objects of type `CppJson` containing Json representation of a BART model
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json <- list(convertBARTModelToJson(bart_model))
+#' # bart_model_roundtrip <- createBARTModelFromCombinedJson(bart_json)
+createBARTModelFromCombinedJson <- function(json_object_list){
+    # Initialize the BCF model
+    output <- list()
+
+    # For scalar / preprocessing details which aren't sample-dependent, 
+    # defer to the first json
+    json_object_default <- json_object_list[[1]]
+    
+    # Unpack the forests
+    include_mean_forest <- json_object_default$get_boolean("include_mean_forest")
+    include_variance_forest <- json_object_default$get_boolean("include_variance_forest")
+    if (include_mean_forest) {
+        output[["mean_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+        if (include_variance_forest) {
+            output[["variance_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_1")
+        }
+    } else {
+        output[["variance_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+    }
+    
+    # Unpack metadata
+    train_set_metadata = list()
+    train_set_metadata[["num_numeric_vars"]] <- json_object_default$get_scalar("num_numeric_vars")
+    train_set_metadata[["num_ordered_cat_vars"]] <- json_object_default$get_scalar("num_ordered_cat_vars")
+    train_set_metadata[["num_unordered_cat_vars"]] <- json_object_default$get_scalar("num_unordered_cat_vars")
+    if (train_set_metadata[["num_numeric_vars"]] > 0) {
+        train_set_metadata[["numeric_vars"]] <- json_object_default$get_string_vector("numeric_vars")
+    }
+    if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
+        train_set_metadata[["ordered_cat_vars"]] <- json_object_default$get_string_vector("ordered_cat_vars")
+        train_set_metadata[["ordered_unique_levels"]] <- json_object_default$get_string_list("ordered_unique_levels", train_set_metadata[["ordered_cat_vars"]])
+    }
+    if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
+        train_set_metadata[["unordered_cat_vars"]] <- json_object_default$get_string_vector("unordered_cat_vars")
+        train_set_metadata[["unordered_unique_levels"]] <- json_object_default$get_string_list("unordered_unique_levels", train_set_metadata[["unordered_cat_vars"]])
+    }
+    output[["train_set_metadata"]] <- train_set_metadata
+
+    # Unpack model params
+    model_params = list()
+    model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
+    model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
+    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["include_mean_forest"]] <- include_mean_forest
+    model_params[["include_variance_forest"]] <- include_variance_forest
+    model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
+    model_params[["has_rfx_basis"]] <- json_object_default$get_boolean("has_rfx_basis")
+    model_params[["num_rfx_basis"]] <- json_object_default$get_scalar("num_rfx_basis")
+    model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
+    model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
+    model_params[["requires_basis"]] <- json_object_default$get_boolean("requires_basis")
+
+    # Combine values that are sample-specific
+    keep_index_offset <- 0
+    keep_indices <- c()
+    for (i in 1:length(json_object_list)) {
+        json_object <- json_object_list[[i]]
+        if (i == 1) {
+            model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
+            keep_indices <- c(keep_indices, keep_index_offset + json_object$get_vector("keep_indices"))
+        } else {
+            prev_json <- json_object_list[[i-1]]
+            model_params[["num_gfr"]] <- model_params[["num_gfr"]] + json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- model_params[["num_burnin"]] + json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- model_params[["num_mcmc"]] + json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- model_params[["num_samples"]] + json_object$get_scalar("num_samples")
+            keep_index_offset <- keep_index_offset + prev_json$get_scalar("num_samples")
+            keep_indices <- c(keep_indices, keep_index_offset + json_object$get_vector("keep_indices"))
+        }
+    }
+    output[["keep_indices"]] <- keep_indices
+    output[["model_params"]] <- model_params
+    
+    # Unpack sampled parameters
+    if (model_params[["sample_sigma_global"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma2_global_samples"]] <- json_object$get_vector("sigma2_global_samples", "parameters")
+            } else {
+                output[["sigma2_global_samples"]] <- c(output[["sigma2_global_samples"]], json_object$get_vector("sigma2_global_samples", "parameters"))
+            }
+        }
+    }
+    if (model_params[["sample_sigma_leaf"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma2_leaf_samples"]] <- json_object$get_vector("sigma2_leaf_samples", "parameters")
+            } else {
+                output[["sigma2_leaf_samples"]] <- c(output[["sigma2_leaf_samples"]], json_object$get_vector("sigma2_leaf_samples", "parameters"))
+            }
+        }
+    }
+    
+    # Unpack random effects
+    if (model_params[["has_rfx"]]) {
+        output[["rfx_unique_group_ids"]] <- json_object_default$get_string_vector("rfx_unique_group_ids")
+        output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(json_object_list, 0)
+    }
+    
+    class(output) <- "bartmodel"
+    return(output)
+}
+
+#' Convert a list of (in-memory) JSON strings that represent BART models to a single combined BART model object 
+#' which can be used for prediction, etc...
+#'
+#' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BART model
+#'
+#' @return Object of type `bartmodel`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' # bart_json_string_list <- list(saveBARTModelToJsonString(bart_model))
+#' # bart_model_roundtrip <- createBARTModelFromCombinedJsonString(bart_json_string_list)
+createBARTModelFromCombinedJsonString <- function(json_string_list){
+    # Initialize the BCF model
+    output <- list()
+    
+    # Convert JSON strings
+    json_object_list <- list()
+    for (i in 1:length(json_string_list)) {
+        json_string <- json_string_list[[i]]
+        json_object_list[[i]] <- createCppJsonString(json_string)
+    }
+    
+    # For scalar / preprocessing details which aren't sample-dependent, 
+    # defer to the first json
+    json_object_default <- json_object_list[[1]]
+    
+    # Unpack the forests
+    include_mean_forest <- json_object_default$get_boolean("include_mean_forest")
+    include_variance_forest <- json_object_default$get_boolean("include_variance_forest")
+    if (include_mean_forest) {
+        output[["mean_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+        if (include_variance_forest) {
+            output[["variance_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_1")
+        }
+    } else {
+        output[["variance_forests"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+    }
+    
+    # Unpack metadata
+    train_set_metadata = list()
+    train_set_metadata[["num_numeric_vars"]] <- json_object_default$get_scalar("num_numeric_vars")
+    train_set_metadata[["num_ordered_cat_vars"]] <- json_object_default$get_scalar("num_ordered_cat_vars")
+    train_set_metadata[["num_unordered_cat_vars"]] <- json_object_default$get_scalar("num_unordered_cat_vars")
+    if (train_set_metadata[["num_numeric_vars"]] > 0) {
+        train_set_metadata[["numeric_vars"]] <- json_object_default$get_string_vector("numeric_vars")
+    }
+    if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
+        train_set_metadata[["ordered_cat_vars"]] <- json_object_default$get_string_vector("ordered_cat_vars")
+        train_set_metadata[["ordered_unique_levels"]] <- json_object_default$get_string_list("ordered_unique_levels", train_set_metadata[["ordered_cat_vars"]])
+    }
+    if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
+        train_set_metadata[["unordered_cat_vars"]] <- json_object_default$get_string_vector("unordered_cat_vars")
+        train_set_metadata[["unordered_unique_levels"]] <- json_object_default$get_string_list("unordered_unique_levels", train_set_metadata[["unordered_cat_vars"]])
+    }
+    output[["train_set_metadata"]] <- train_set_metadata
+    output[["keep_indices"]] <- json_object_default$get_vector("keep_indices")
+    
+    # Unpack model params
+    model_params = list()
+    model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
+    model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
+    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["include_mean_forest"]] <- include_mean_forest
+    model_params[["include_variance_forest"]] <- include_variance_forest
+    model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
+    model_params[["has_rfx_basis"]] <- json_object_default$get_boolean("has_rfx_basis")
+    model_params[["num_rfx_basis"]] <- json_object_default$get_scalar("num_rfx_basis")
+    model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
+    model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
+    model_params[["requires_basis"]] <- json_object_default$get_boolean("requires_basis")
+    
+    # Combine values that are sample-specific
+    keep_index_offset <- 0
+    keep_indices <- c()
+    for (i in 1:length(json_object_list)) {
+        json_object <- json_object_list[[i]]
+        if (i == 1) {
+            model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
+            keep_indices <- c(keep_indices, keep_index_offset + json_object$get_vector("keep_indices"))
+        } else {
+            prev_json <- json_object_list[[i-1]]
+            model_params[["num_gfr"]] <- model_params[["num_gfr"]] + json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- model_params[["num_burnin"]] + json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- model_params[["num_mcmc"]] + json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- model_params[["num_samples"]] + json_object$get_scalar("num_samples")
+            keep_index_offset <- keep_index_offset + prev_json$get_scalar("num_samples")
+            keep_indices <- c(keep_indices, keep_index_offset + json_object$get_vector("keep_indices"))
+        }
+    }
+    output[["keep_indices"]] <- keep_indices
+    output[["model_params"]] <- model_params
+    
+    # Unpack sampled parameters
+    if (model_params[["sample_sigma_global"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma2_global_samples"]] <- json_object$get_vector("sigma2_global_samples", "parameters")
+            } else {
+                output[["sigma2_global_samples"]] <- c(output[["sigma2_global_samples"]], json_object$get_vector("sigma2_global_samples", "parameters"))
+            }
+        }
+    }
+    if (model_params[["sample_sigma_leaf"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma2_leaf_samples"]] <- json_object$get_vector("sigma2_leaf_samples", "parameters")
+            } else {
+                output[["sigma2_leaf_samples"]] <- c(output[["sigma2_leaf_samples"]], json_object$get_vector("sigma2_leaf_samples", "parameters"))
+            }
+        }
+    }
+    
+    # Unpack random effects
+    if (model_params[["has_rfx"]]) {
+        output[["rfx_unique_group_ids"]] <- json_object_default$get_string_vector("rfx_unique_group_ids")
+        output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(json_object_list, 0)
+    }
+    
+    class(output) <- "bartmodel"
+    return(output)
 }
