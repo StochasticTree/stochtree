@@ -45,6 +45,12 @@ class ForestContainer:
 
     def load_from_json_file(self, json_filename: str) -> None:
         self.forest_container_cpp.LoadFromJsonFile(json_filename)
+
+    def dump_json_string(self) -> str:
+        return self.forest_container_cpp.DumpJsonString()
+
+    def load_from_json_string(self, json_string: str) -> None:
+        self.forest_container_cpp.LoadFromJsonString(json_string)
     
     def add_sample(self, leaf_value: Union[float, np.array]) -> None:
         """
