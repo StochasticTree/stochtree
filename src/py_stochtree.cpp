@@ -260,6 +260,14 @@ class ForestContainerCpp {
 
   void LoadFromJson(JsonCpp& json, std::string forest_label);
 
+  std::string DumpJsonString() {
+    return forest_samples_->DumpJsonString();
+  }
+
+  void LoadFromJsonString(std::string& json_string) {
+    forest_samples_->LoadFromJsonString(json_string);
+  }
+
   StochTree::ForestContainer* GetContainer() {
     return forest_samples_.get();
   }
@@ -973,6 +981,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("SaveToJsonFile", &ForestContainerCpp::SaveToJsonFile)
     .def("LoadFromJsonFile", &ForestContainerCpp::LoadFromJsonFile)
     .def("LoadFromJson", &ForestContainerCpp::LoadFromJson)
+    .def("DumpJsonString", &ForestContainerCpp::DumpJsonString)
+    .def("LoadFromJsonString", &ForestContainerCpp::LoadFromJsonString)
     .def("AddSampleValue", &ForestContainerCpp::AddSampleValue)
     .def("AddSampleVector", &ForestContainerCpp::AddSampleVector)
     .def("AddNumericSplitValue", &ForestContainerCpp::AddNumericSplitValue)
