@@ -77,6 +77,17 @@ class ForestContainer {
     this->from_json(file_tree_json);
   }
 
+  std::string DumpJsonString() {
+    nlohmann::json model_json = this->to_json();
+    return model_json.dump();
+  }
+
+  void LoadFromJsonString(std::string& json_string) {
+    nlohmann::json file_tree_json = nlohmann::json::parse(json_string);
+    this->Reset();
+    this->from_json(file_tree_json);
+  }
+
   void Reset() {
     forests_.clear();
     num_samples_ = 0;

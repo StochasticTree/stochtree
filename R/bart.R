@@ -915,6 +915,7 @@ convertBARTModelToJson <- function(object){
     }
     
     # Add global parameters
+    jsonobj$add_scalar("variance_scale", object$model_params$variance_scale)
     jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
     jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
     jsonobj$add_boolean("sample_sigma_global", object$model_params$sample_sigma_global)
@@ -1093,6 +1094,7 @@ createBARTModelFromJson <- function(json_object){
     
     # Unpack model params
     model_params = list()
+    model_params[["variance_scale"]] <- json_object$get_scalar("variance_scale")
     model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
     model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
@@ -1437,10 +1439,11 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     
     # Unpack model params
     model_params = list()
+    model_params[["variance_scale"]] <- json_object_default$get_scalar("variance_scale")
     model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
-    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
-    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["sample_sigma_global"]] <- json_object_default$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf"]] <- json_object_default$get_boolean("sample_sigma_leaf")
     model_params[["include_mean_forest"]] <- include_mean_forest
     model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
