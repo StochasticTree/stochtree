@@ -43,7 +43,7 @@
 #'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in cached predictions. Default `TRUE`. Ignored if `num_mcmc = 0`.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'
-#'   **2. Mean Model Parameters**
+#'   **2. Mean Forest Parameters**
 #'   
 #'   - `num_trees_mean` Number of trees in the ensemble for the conditional mean model. Default: `200`. If `num_trees_mean = 0`, the conditional mean will not be modeled using a forest, and the function will only proceed if `num_trees_variance > 0`.
 #'   - `sample_sigma_leaf` Whether or not to update the `tau` leaf scale variance parameter based on `IG(a_leaf, b_leaf)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: `FALSE`.
@@ -53,7 +53,7 @@
 #'   - `alpha_mean` Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: `0.95`.
 #'   - `beta_mean` Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: `2`.
 #'   - `min_samples_leaf_mean` Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: `5`.
-#'   - `max_depth_mean` Maximum depth of any tree in the ensemble in the mean model. Default: `10`. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+#'   - `max_depth_mean` Maximum depth of any tree in the ensemble in the mean model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
 #'
 #'   **2.2. Leaf Model Parameters**
 #'   
@@ -62,7 +62,7 @@
 #'   - `a_leaf` Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: `3`.
 #'   - `b_leaf` Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees_mean` if not set here.
 #'
-#'   **3. Conditional Variance Model Parameters**
+#'   **3. Conditional Variance Forest Parameters**
 #'   
 #'   - `num_trees_variance` Number of trees in the ensemble for the conditional variance model. Default: `0`. Variance is only modeled using a tree / forest if `num_trees_variance > 0`.
 #'   - `variance_forest_init` Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance` if not set.
@@ -73,7 +73,7 @@
 #'   - `alpha_variance` Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`. Default: `0.95`.
 #'   - `beta_variance` Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`. Default: `2`.
 #'   - `min_samples_leaf_variance` Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: `5`.
-#'   - `max_depth_variance` Maximum depth of any tree in the ensemble in the variance model. Default: `10`. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+#'   - `max_depth_variance` Maximum depth of any tree in the ensemble in the variance model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
 #'
 #'   **3.2. Leaf Model Parameters**
 #'   

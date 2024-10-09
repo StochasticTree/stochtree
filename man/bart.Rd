@@ -77,7 +77,7 @@ that were not in the training set.}
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
 }
 
-\strong{2. Mean Model Parameters}
+\strong{2. Mean Forest Parameters}
 \itemize{
 \item \code{num_trees_mean} Number of trees in the ensemble for the conditional mean model. Default: \code{200}. If \code{num_trees_mean = 0}, the conditional mean will not be modeled using a forest, and the function will only proceed if \code{num_trees_variance > 0}.
 \item \code{sample_sigma_leaf} Whether or not to update the \code{tau} leaf scale variance parameter based on \code{IG(a_leaf, b_leaf)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: \code{FALSE}.
@@ -88,7 +88,7 @@ that were not in the training set.}
 \item \code{alpha_mean} Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines \code{alpha_mean} and \code{beta_mean} via \code{alpha_mean*(1+node_depth)^-beta_mean}. Default: \code{0.95}.
 \item \code{beta_mean} Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines \code{alpha_mean} and \code{beta_mean} via \code{alpha_mean*(1+node_depth)^-beta_mean}. Default: \code{2}.
 \item \code{min_samples_leaf_mean} Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: \code{5}.
-\item \code{max_depth_mean} Maximum depth of any tree in the ensemble in the mean model. Default: \code{10}. Can be overriden with \code{-1} which does not enforce any depth limits on trees.
+\item \code{max_depth_mean} Maximum depth of any tree in the ensemble in the mean model. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
 }
 
 \strong{2.2. Leaf Model Parameters}
@@ -99,7 +99,7 @@ that were not in the training set.}
 \item \code{b_leaf} Scale parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees_mean} if not set here.
 }
 
-\strong{3. Conditional Variance Model Parameters}
+\strong{3. Conditional Variance Forest Parameters}
 \itemize{
 \item \code{num_trees_variance} Number of trees in the ensemble for the conditional variance model. Default: \code{0}. Variance is only modeled using a tree / forest if \code{num_trees_variance > 0}.
 \item \code{variance_forest_init} Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as \code{log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance} if not set.
@@ -111,7 +111,7 @@ that were not in the training set.}
 \item \code{alpha_variance} Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance}. Default: \code{0.95}.
 \item \code{beta_variance} Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance}. Default: \code{2}.
 \item \code{min_samples_leaf_variance} Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: \code{5}.
-\item \code{max_depth_variance} Maximum depth of any tree in the ensemble in the variance model. Default: \code{10}. Can be overriden with \code{-1} which does not enforce any depth limits on trees.
+\item \code{max_depth_variance} Maximum depth of any tree in the ensemble in the variance model. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
 }
 
 \strong{3.2. Leaf Model Parameters}

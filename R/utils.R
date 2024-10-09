@@ -1,5 +1,4 @@
-#' Preprocess BART parameter list. Override defaults with any provided 
-#' parameters.
+#' Preprocess BART parameter list. Override defaults with any provided parameters.
 #'
 #' @param params Parameter list
 #'
@@ -21,6 +20,44 @@ preprocessBartParams <- function(params) {
         num_trees_mean = 200, num_trees_variance = 0, 
         sample_sigma_global = T, sample_sigma_leaf = F, 
         random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F
+    )
+    
+    # Override defaults
+    for (key in names(params)) {
+        if (!key %in% names(processed_params)) {
+            stop("Variable ", key, " is not a valid BART model parameter")
+        }
+        val <- params[[key]]
+        if (!is.null(val)) processed_params[[key]] <- val
+    }
+    
+    # Return result
+    return(processed_params)
+}
+
+#' Preprocess BCF parameter list. Override defaults with any provided parameters.
+#'
+#' @param params Parameter list
+#'
+#' @return Parameter list with defaults overriden by values supplied in `params`
+#' @export
+preprocessBcfParams <- function(params) {
+    # Default parameter values
+    processed_params <- list(
+        cutpoint_grid_size = 100, sigma_leaf_mu = NULL, sigma_leaf_tau = NULL, 
+        alpha_mu = 0.95, alpha_tau = 0.25, alpha_variance = 0.95, 
+        beta_mu = 2.0, beta_tau = 3.0, beta_variance = 2.0, 
+        min_samples_leaf_mu = 5, min_samples_leaf_tau = 5, min_samples_leaf_variance = 5, 
+        max_depth_mu = 10, max_depth_tau = 5, max_depth_variance = 10, 
+        a_global = 0, b_global = 0, a_leaf_mu = 3, a_leaf_tau = 3, b_leaf_mu = NULL, b_leaf_tau = NULL, 
+        a_forest = NULL, b_forest = NULL, sigma2_init = NULL, variance_forest_init = NULL, 
+        pct_var_sigma2_init = 1, pct_var_variance_forest_init = 1, 
+        variable_weights = NULL, keep_vars_mu = NULL, drop_vars_mu = NULL, 
+        keep_vars_tau = NULL, drop_vars_tau = NULL, keep_vars_variance = NULL, 
+        drop_vars_variance = NULL, num_trees_mu = 250, num_trees_tau = 50, num_trees_variance = 0, 
+        num_gfr = 5, num_burnin = 0, num_mcmc = 100, sample_sigma_global = T, sample_sigma_leaf_mu = T, 
+        sample_sigma_leaf_tau = F, propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, b_1 = 0.5, 
+        rfx_prior_var = NULL, random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F
     )
     
     # Override defaults

@@ -2,8 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{preprocessBartParams}
 \alias{preprocessBartParams}
-\title{Preprocess BART parameter list. Override defaults with any provided
-parameters.}
+\title{Preprocess BART parameter list. Override defaults with any provided parameters.}
 \usage{
 preprocessBartParams(params)
 }
@@ -14,6 +13,5 @@ preprocessBartParams(params)
 Parameter list with defaults overriden by values supplied in \code{params}
 }
 \description{
-Preprocess BART parameter list. Override defaults with any provided
-parameters.
+Preprocess BART parameter list. Override defaults with any provided parameters.
 }
