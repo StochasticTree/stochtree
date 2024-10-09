@@ -1,3 +1,41 @@
+#' Preprocess BART parameter list. Override defaults with any provided 
+#' parameters.
+#'
+#' @param params Parameter list
+#'
+#' @return Parameter list with defaults overriden by values supplied in `params`
+#' @export
+preprocessBartParams <- function(params) {
+    # Default parameter values
+    processed_params <- list(
+        cutpoint_grid_size = 100, sigma_leaf_init = NULL, 
+        alpha_mean = 0.95, beta_mean = 2.0, 
+        min_samples_leaf_mean = 5, max_depth_mean = 10, 
+        alpha_variance = 0.95, beta_variance = 2.0, 
+        min_samples_leaf_variance = 5, max_depth_variance = 10, 
+        a_global = 0, b_global = 0, a_leaf = 3, b_leaf = NULL, 
+        a_forest = NULL, b_forest = NULL, variance_scale = 1, 
+        sigma2_init = NULL, variance_forest_init = NULL, 
+        pct_var_sigma2_init = 1, pct_var_variance_forest_init = 1, 
+        variable_weights_mean = NULL, variable_weights_variance = NULL, 
+        num_trees_mean = 200, num_trees_variance = 0, 
+        sample_sigma_global = T, sample_sigma_leaf = F, 
+        random_seed = -1, keep_burnin = F, keep_gfr = F, verbose = F
+    )
+    
+    # Override defaults
+    for (key in names(params)) {
+        if (!key %in% names(processed_params)) {
+            stop("Variable ", key, " is not a valid BART model parameter")
+        }
+        val <- params[[key]]
+        if (!is.null(val)) processed_params[[key]] <- val
+    }
+    
+    # Return result
+    return(processed_params)
+}
+
 #' Preprocess covariates. DataFrames will be preprocessed based on their column 
 #' types. Matrices will be passed through assuming all columns are numeric.
 #'

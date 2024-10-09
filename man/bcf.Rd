@@ -37,6 +37,8 @@ bcf(
   a_leaf_tau = 3,
   b_leaf_mu = NULL,
   b_leaf_tau = NULL,
+  a_forest = NULL,
+  b_forest = NULL,
   sigma2_init = NULL,
   variance_forest_init = NULL,
   pct_var_sigma2_init = 1,
@@ -143,6 +145,10 @@ that were not in the training set.}
 
 \item{b_leaf_tau}{Scale parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model for the treatment effect forest. Calibrated internally as 0.5/num_trees if not set here.}
 
+\item{a_forest}{Shape parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2 + 0.5} if not set.}
+
+\item{b_forest}{Scale parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2} if not set.}
+
 \item{sigma2_init}{Starting value of global error variance parameter. Calibrated internally as \code{pct_var_sigma2_init*var((y-mean(y))/sd(y))} if not set.}
 
 \item{variance_forest_init}{Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as \code{log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance} if not set.}
@@ -200,10 +206,6 @@ that were not in the training set.}
 \item{keep_gfr}{Whether or not "grow-from-root" samples should be included in cached predictions. Default FALSE. Ignored if num_mcmc = 0.}
 
 \item{verbose}{Whether or not to print progress during the sampling loops. Default: FALSE.}
-
-\item{a_forest}{Shape parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2 + 0.5} if not set.}
-
-\item{b_forest}{Scale parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2} if not set.}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
