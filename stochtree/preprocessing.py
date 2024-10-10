@@ -3,12 +3,54 @@ Data preprocessing module, drawn largely from the sklearn preprocessing module, 
 
 Copyright (c) 2007-2024 The scikit-learn developers.
 """
-from typing import Union, Optional, Any
+from typing import Union, Optional, Any, Dict
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from sklearn.utils.validation import check_array, column_or_1d
 import numpy as np
 import pandas as pd
 import warnings
+
+def _preprocess_bart_params(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    processed_params = {
+        'cutpoint_grid_size' : 100, 
+        'sigma_leaf' : None, 
+        'alpha_mean' : 0.95, 
+        'beta_mean' : 2.0, 
+        'min_samples_leaf_mean' : 5, 
+        'max_depth_mean' : 10, 
+        'alpha_variance' : 0.95, 
+        'beta_variance' : 2.0, 
+        'min_samples_leaf_variance' : 5, 
+        'max_depth_variance' : 10, 
+        'a_global' : 0, 
+        'b_global' : 0, 
+        'a_leaf' : 3, 
+        'b_leaf' : None, 
+        'a_forest' : None, 
+        'b_forest' : None, 
+        'sigma2_init' : None, 
+        'variance_forest_leaf_init' : None, 
+        'pct_var_sigma2_init' : 1, 
+        'pct_var_variance_forest_init' : 1, 
+        'variance_scale' : 1, 
+        'variable_weights_mean' : None, 
+        'variable_weights_variance' : None, 
+        'num_trees_mean' : 200, 
+        'num_trees_variance' : 0, 
+        'sample_sigma_global' : True, 
+        'sample_sigma_leaf' : True, 
+        'random_seed' : -1, 
+        'keep_burnin' : False, 
+        'keep_gfr' : False
+    }
+    
+    for key, value in params.items():
+        if key not in processed_params:
+            raise ValueError(f'Parameter {key} not a valid BART parameter')
+        processed_params[key] = value
+    
+    return processed_params
+
 
 class CovariateTransformer:
     """Class that transforms covariates to a format that can be used to define tree splits

@@ -3,13 +3,14 @@ Bayesian Additive Regression Trees (BART) module
 """
 import numpy as np
 import pandas as pd
+from typing import Optional, Dict, Any
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error
 from scipy.stats import gamma
 from .calibration import calibrate_global_error_variance
 from .data import Dataset, Residual
 from .forest import ForestContainer
-from .preprocessing import CovariateTransformer
+from .preprocessing import CovariateTransformer, _preprocess_bart_params
 from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
 from .utils import NotSampledError
 
@@ -26,14 +27,7 @@ class BARTModel:
         return self.sampled
     
     def sample(self, X_train: np.array, y_train: np.array, basis_train: np.array = None, X_test: np.array = None, basis_test: np.array = None, 
-               cutpoint_grid_size = 100, sigma_leaf: float = None, alpha_mean: float = 0.95, beta_mean: float = 2.0, min_samples_leaf_mean: int = 5, 
-               max_depth_mean: int = 10, alpha_variance: float = 0.95, beta_variance: float = 2.0, min_samples_leaf_variance: int = 5, 
-               max_depth_variance: int = 10, a_global: float = 0, b_global: float = 0, a_leaf: float = 3, b_leaf: float = None, 
-               a_forest: float = None, b_forest: float = None, sigma2_init: float = None, variance_forest_leaf_init: float = None, 
-               pct_var_sigma2_init: float = 1, pct_var_variance_forest_init: float = 1, variance_scale: float = 1, 
-               variable_weights_mean: np.array = None, variable_weights_variance: np.array = None, num_trees_mean: int = 200, 
-               num_trees_variance: int = 0, num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, 
-               sample_sigma_global: bool = True, sample_sigma_leaf: bool = True, random_seed: int = -1, keep_burnin: bool = False, keep_gfr: bool = False) -> None:
+               num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, params: Optional[Dict[str, Any]] = None) -> None:
         """Runs a BART sampler on provided training set. Predictions will be cached for the training set and (if provided) the test set. 
         Does not require a leaf regression basis. 
 
@@ -50,84 +44,84 @@ class BARTModel:
         basis_test : :obj:`np.array`, optional
             Optional test set basis vector used to define a regression to be run in the leaves of each tree. 
             Must be included / omitted consistently (i.e. if basis_train is provided, then basis_test must be provided alongside X_test).
-        cutpoint_grid_size : :obj:`int`, optional
-            Maximum number of cutpoints to consider for each feature. Defaults to ``100``.
-        sigma_leaf : :obj:`float`, optional
-            Scale parameter on the (conditional mean) leaf node regression model.
-        alpha_mean : :obj:`float`, optional
-            Prior probability of splitting for a tree of depth 0 in the conditional mean model. 
-            Tree split prior combines ``alpha_mean`` and ``beta_mean`` via ``alpha_mean*(1+node_depth)^-beta_mean``.
-        beta_mean : :obj:`float`, optional
-            Exponent that decreases split probabilities for nodes of depth > 0 in the conditional mean model. 
-            Tree split prior combines ``alpha_mean`` and ``beta_mean`` via ``alpha_mean*(1+node_depth)^-beta_mean``.
-        min_samples_leaf_mean : :obj:`int`, optional
-            Minimum allowable size of a leaf, in terms of training samples, in the conditional mean model. Defaults to ``5``.
-        max_depth_mean : :obj:`int`, optional
-            Maximum depth of any tree in the ensemble in the conditional mean model. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-        alpha_variance : :obj:`float`, optional
-            Prior probability of splitting for a tree of depth 0 in the conditional variance model. 
-            Tree split prior combines ``alpha_variance`` and ``beta_variance`` via ``alpha_variance*(1+node_depth)^-beta_variance``.
-        beta_variance : :obj:`float`, optional
-            Exponent that decreases split probabilities for nodes of depth > 0 in the conditional variance model. 
-            Tree split prior combines ``alpha_variance`` and ``beta_variance`` via ``alpha_variance*(1+node_depth)^-beta_variance``.
-        min_samples_leaf_variance : :obj:`int`, optional
-            Minimum allowable size of a leaf, in terms of training samples in the conditional variance model. Defaults to ``5``.
-        max_depth_variance : :obj:`int`, optional
-            Maximum depth of any tree in the ensemble in the conditional variance model. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-        a_global : :obj:`float`, optional
-            Shape parameter in the ``IG(a_global, b_global)`` global error variance model. Defaults to ``0``.
-        b_global : :obj:`float`, optional
-            Component of the scale parameter in the ``IG(a_global, b_global)`` global error variance prior. Defaults to ``0``.
-        b_leaf : :obj:`float`, optional
-            Scale parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model. Calibrated internally as ``0.5/num_trees_mean`` if not set here.
-        a_leaf : :obj:`float`, optional
-            Shape parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model. Defaults to ``3``.
-        b_leaf : :obj:`float`, optional
-            Scale parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model. Calibrated internally as ``0.5/num_trees_mean`` if not set here.
-        a_forest : :obj:`float`, optional
-            Shape parameter in the [optional] ``IG(a_forest, b_forest)`` conditional error variance forest (which is only sampled if ``num_trees_variance > 0``). Calibrated internally as ``num_trees_variance / 1.5^2 + 0.5`` if not set here.
-        b_forest : :obj:`float`, optional
-            Scale parameter in the [optional] ``IG(a_forest, b_forest)`` conditional error variance forest (which is only sampled if ``num_trees_variance > 0``). Calibrated internally as ``num_trees_variance / 1.5^2`` if not set here.
-        sigma2_init : :obj:`float`, optional
-            Starting value of global variance parameter. Set internally as a percentage of the standardized outcome variance if not set here.
-        variance_forest_leaf_init : :obj:`float`, optional
-            Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as ``np.log(pct_var_variance_forest_init*np.var((y-np.mean(y))/np.std(y)))/num_trees_variance`` if not set.
-        pct_var_sigma2_init : :obj:`float`, optional
-            Percentage of standardized outcome variance used to initialize global error variance parameter. Superseded by ``sigma2``. Defaults to ``1``.
-        pct_var_variance_forest_init : :obj:`float`, optional
-            Percentage of standardized outcome variance used to initialize global error variance parameter. Default: ``1``. Superseded by ``variance_forest_init``.
-        variance_scale : :obj:`float`, optional
-            Variance after the data have been scaled. Default: ``1``.
-        variable_weights_mean : :obj:`np.array`, optional
-            Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
-        variable_weights_forest : :obj:`np.array`, optional
-            Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
-        num_trees_mean : :obj:`int`, optional
-            Number of trees in the ensemble for the conditional mean model. Defaults to ``200``. If ``num_trees_mean = 0``, the conditional mean will not be modeled using a forest and the function will only proceed if ``num_trees_variance > 0``.
-        num_trees_variance : :obj:`int`, optional
-            Number of trees in the ensemble for the conditional variance model. Defaults to ``0``. Variance is only modeled using a tree / forest if `num_trees_variance > 0`.
         num_gfr : :obj:`int`, optional
             Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Defaults to ``5``.
         num_burnin : :obj:`int`, optional
             Number of "burn-in" iterations of the MCMC sampler. Defaults to ``0``. Ignored if ``num_gfr > 0``.
         num_mcmc : :obj:`int`, optional
             Number of "retained" iterations of the MCMC sampler. Defaults to ``100``. If this is set to 0, GFR (XBART) samples will be retained.
-        sample_sigma_global : :obj:`bool`, optional
-            Whether or not to update the ``sigma^2`` global error variance parameter based on ``IG(a_global, b_global)``. Defaults to ``True``.
-        sample_sigma_leaf : :obj:`bool`, optional
-            Whether or not to update the ``tau`` leaf scale variance parameter based on ``IG(a_leaf, b_leaf)``. Cannot (currently) be set to true if ``basis_train`` has more than one column. Defaults to ``False``.
-        random_seed : :obj:`int`, optional
-            Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to ``std::random_device``.
-        keep_burnin : :obj:`bool`, optional
-            Whether or not "burnin" samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
-        keep_gfr : :obj:`bool`, optional
-            Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
-        
+        params : :obj:`dict`, optional
+            Dictionary of model parameters, each of which has a default value.
+
+            * ``cutpoint_grid_size`` (``int``): Maximum number of cutpoints to consider for each feature. Defaults to ``100``.
+            * ``sigma_leaf`` (``float``): Scale parameter on the (conditional mean) leaf node regression model.
+            * ``alpha_mean`` (``float``): Prior probability of splitting for a tree of depth 0 in the conditional mean model. Tree split prior combines ``alpha_mean`` and ``beta_mean`` via ``alpha_mean*(1+node_depth)^-beta_mean``.
+            * ``beta_mean`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional mean model. Tree split prior combines ``alpha_mean`` and ``beta_mean`` via ``alpha_mean*(1+node_depth)^-beta_mean``.
+            * ``min_samples_leaf_mean`` (``int``): Minimum allowable size of a leaf, in terms of training samples, in the conditional mean model. Defaults to ``5``.
+            * ``max_depth_mean`` (``int``): Maximum depth of any tree in the ensemble in the conditional mean model. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+            * ``alpha_variance`` (``float``): Prior probability of splitting for a tree of depth 0 in the conditional variance model. Tree split prior combines ``alpha_variance`` and ``beta_variance`` via ``alpha_variance*(1+node_depth)^-beta_variance``.
+            * ``beta_variance`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional variance model. Tree split prior combines ``alpha_variance`` and ``beta_variance`` via ``alpha_variance*(1+node_depth)^-beta_variance``.
+            * ``min_samples_leaf_variance`` (``int``): Minimum allowable size of a leaf, in terms of training samples in the conditional variance model. Defaults to ``5``.
+            * ``max_depth_variance`` (``int``): Maximum depth of any tree in the ensemble in the conditional variance model. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+            * ``a_global`` (``float``): Shape parameter in the ``IG(a_global, b_global)`` global error variance model. Defaults to ``0``.
+            * ``b_global`` (``float``): Scale parameter in the ``IG(a_global, b_global)`` global error variance prior. Defaults to ``0``.
+            * ``a_leaf`` (``float``): Shape parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model. Defaults to ``3``.
+            * ``b_leaf`` (``float``): Scale parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model. Calibrated internally as ``0.5/num_trees_mean`` if not set here.
+            * ``a_forest`` (``float``): Shape parameter in the [optional] ``IG(a_forest, b_forest)`` conditional error variance forest (which is only sampled if ``num_trees_variance > 0``). Calibrated internally as ``num_trees_variance / 1.5^2 + 0.5`` if not set here.
+            * ``b_forest`` (``float``): Scale parameter in the [optional] ``IG(a_forest, b_forest)`` conditional error variance forest (which is only sampled if ``num_trees_variance > 0``). Calibrated internally as ``num_trees_variance / 1.5^2`` if not set here.
+            * ``sigma2_init`` (``float``): Starting value of global variance parameter. Set internally as a percentage of the standardized outcome variance if not set here.
+            * ``variance_forest_leaf_init`` (``float``): Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as ``np.log(pct_var_variance_forest_init*np.var((y-np.mean(y))/np.std(y)))/num_trees_variance`` if not set.
+            * ``pct_var_sigma2_init`` (``float``): Percentage of standardized outcome variance used to initialize global error variance parameter. Superseded by ``sigma2``. Defaults to ``1``.
+            * ``pct_var_variance_forest_init`` (``float``): Percentage of standardized outcome variance used to initialize global error variance parameter. Default: ``1``. Superseded by ``variance_forest_init``.
+            * ``variance_scale`` (``float``): Variance after the data have been scaled. Default: ``1``.
+            * ``variable_weights_mean`` (``np.array``): Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
+            * ``variable_weights_forest`` (``np.array``): Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
+            * ``num_trees_mean`` (``int``): Number of trees in the ensemble for the conditional mean model. Defaults to ``200``. If ``num_trees_mean = 0``, the conditional mean will not be modeled using a forest and the function will only proceed if ``num_trees_variance > 0``.
+            * ``num_trees_variance`` (``int``): Number of trees in the ensemble for the conditional variance model. Defaults to ``0``. Variance is only modeled using a tree / forest if ``num_trees_variance > 0``.
+            * ``sample_sigma_global`` (``bool``): Whether or not to update the ``sigma^2`` global error variance parameter based on ``IG(a_global, b_global)``. Defaults to ``True``.
+            * ``sample_sigma_leaf`` (``bool``): Whether or not to update the ``tau`` leaf scale variance parameter based on ``IG(a_leaf, b_leaf)``. Cannot (currently) be set to true if ``basis_train`` has more than one column. Defaults to ``False``.
+            * ``random_seed`` (``int``): Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to ``std::random_device``.
+            * ``keep_burnin`` (``bool``): Whether or not "burnin" samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
+            * ``keep_gfr`` (``bool``): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
+
         Returns
         -------
         self : BARTModel
             Sampled BART Model.
         """
+        # Unpack parameters
+        bart_params = _preprocess_bart_params(params)
+        cutpoint_grid_size = bart_params['cutpoint_grid_size']
+        sigma_leaf = bart_params['sigma_leaf']
+        alpha_mean = bart_params['alpha_mean']
+        beta_mean = bart_params['beta_mean']
+        min_samples_leaf_mean = bart_params['min_samples_leaf_mean']
+        max_depth_mean = bart_params['max_depth_mean']
+        alpha_variance = bart_params['alpha_variance']
+        beta_variance = bart_params['beta_variance']
+        min_samples_leaf_variance = bart_params['min_samples_leaf_variance']
+        max_depth_variance = bart_params['max_depth_variance']
+        a_global = bart_params['a_global']
+        b_global = bart_params['b_global']
+        a_leaf = bart_params['a_leaf']
+        b_leaf = bart_params['b_leaf']
+        a_forest = bart_params['a_forest']
+        b_forest = bart_params['b_forest']
+        sigma2_init = bart_params['sigma2_init']
+        variance_forest_leaf_init = bart_params['variance_forest_leaf_init']
+        pct_var_sigma2_init = bart_params['pct_var_sigma2_init']
+        pct_var_variance_forest_init = bart_params['pct_var_variance_forest_init']
+        variance_scale = bart_params['variance_scale']
+        variable_weights_mean = bart_params['variable_weights_mean']
+        variable_weights_variance = bart_params['variable_weights_variance']
+        num_trees_mean = bart_params['num_trees_mean']
+        num_trees_variance = bart_params['num_trees_variance']
+        sample_sigma_global = bart_params['sample_sigma_global']
+        sample_sigma_leaf = bart_params['sample_sigma_leaf']
+        random_seed = bart_params['random_seed']
+        keep_burnin = bart_params['keep_burnin']
+        keep_gfr = bart_params['keep_gfr']
+
         # Determine which models (conditional mean, conditional variance, or both) we will fit
         self.include_mean_forest = True if num_trees_mean > 0 else False
         self.include_variance_forest = True if num_trees_variance > 0 else False
