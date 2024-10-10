@@ -96,7 +96,8 @@ sigma_leaf <- 1/num_trees
 X_train <- as.data.frame(X_train)
 X_test <- as.data.frame(X_test)
 colnames(X_train) <- colnames(X_test) <- "x1"
-bart_model <- bart(X_train=X_train, y_train=y_train, X_test=X_test, num_trees_mean=num_trees)
+bart_params <- list(num_trees_mean=num_trees)
+bart_model <- bart(X_train=X_train, y_train=y_train, X_test=X_test, params = bart_params)
 
 # Extract kernels needed for kriging
 result_kernels <- computeForestKernels(bart_model=bart_model, X_train=X_train, X_test=X_test)
@@ -167,7 +168,8 @@ num_trees <- 200
 sigma_leaf <- 1/num_trees
 X_train <- as.data.frame(X_train)
 X_test <- as.data.frame(X_test)
-bart_model <- bart(X_train=X_train, y_train=y_train, X_test=X_test, num_trees_mean=num_trees)
+bart_params <- list(num_trees_mean=num_trees)
+bart_model <- bart(X_train=X_train, y_train=y_train, X_test=X_test, params = bart_params)
 
 # Extract kernels needed for kriging
 result_kernels <- computeForestKernels(bart_model=bart_model, X_train=X_train, X_test=X_test)

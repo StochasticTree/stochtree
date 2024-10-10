@@ -56,7 +56,7 @@ This is done in `stochtree` via the `calibrate_inverse_gamma_error_variance` fun
 library(stochtree)
 
 # Generate data
-n <- 1000
+n <- 500
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
 f_XW <- (
@@ -87,9 +87,10 @@ lambda <- calibrate_inverse_gamma_error_variance(y_train, X_train, nu = nu)
 Now we run a BART model with this variance parameterization
 
 ```{r}
+bart_params <- list(a_global = nu/2, b_global = (nu*lambda)/2)
 bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
-                   a_global = nu, b_global = nu*lambda, num_gfr = 0, 
-                   num_burnin = 500, num_mcmc = 100)
+                   num_gfr = 0, num_burnin = 1000, num_mcmc = 100, 
+                   params = bart_params)
 ```
 
 Inspect the out-of-sample predictions of the model
@@ -105,6 +106,5 @@ Inspect the posterior samples of $\sigma^2$
 plot(bart_model$sigma2_global_samples, ylab = "sigma^2", xlab = "iteration")
 abline(h = noise_sd^2, col = "red", lty = 3, lwd = 3)
 ```
-
 
 # References
