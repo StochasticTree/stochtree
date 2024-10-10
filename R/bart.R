@@ -962,6 +962,7 @@ convertBARTModelToJson <- function(object){
     jsonobj$add_scalar("variance_scale", object$model_params$variance_scale)
     jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
     jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
+    jsonobj$add_scalar("sigma2_init", object$model_params$sigma2_init)
     jsonobj$add_boolean("sample_sigma_global", object$model_params$sample_sigma_global)
     jsonobj$add_boolean("sample_sigma_leaf", object$model_params$sample_sigma_leaf)
     jsonobj$add_boolean("include_mean_forest", object$model_params$include_mean_forest)
@@ -1141,6 +1142,7 @@ createBARTModelFromJson <- function(json_object){
     model_params[["variance_scale"]] <- json_object$get_scalar("variance_scale")
     model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
+    model_params[["sigma2_init"]] <- json_object$get_scalar("sigma2_init")
     model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
     model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
     model_params[["include_mean_forest"]] <- include_mean_forest
@@ -1336,6 +1338,7 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     model_params = list()
     model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
+    model_params[["sigma2_init"]] <- json_object_default$get_scalar("sigma2_init")
     model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
     model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
     model_params[["include_mean_forest"]] <- include_mean_forest
@@ -1486,6 +1489,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     model_params[["variance_scale"]] <- json_object_default$get_scalar("variance_scale")
     model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
+    model_params[["sigma2_init"]] <- json_object_default$get_scalar("sigma2_init")
     model_params[["sample_sigma_global"]] <- json_object_default$get_boolean("sample_sigma_global")
     model_params[["sample_sigma_leaf"]] <- json_object_default$get_boolean("sample_sigma_leaf")
     model_params[["include_mean_forest"]] <- include_mean_forest

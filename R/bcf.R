@@ -1187,7 +1187,7 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
     # Compute forest predictions
     y_std <- bcf$model_params$outcome_scale
     y_bar <- bcf$model_params$outcome_mean
-    sigma2_init <- bcf$model_params$initial_sigma2
+    initial_sigma2 <- bcf$model_params$initial_sigma2
     mu_hat_test <- bcf$forests_mu$predict(prediction_dataset_mu)*y_std + y_bar
     if (bcf$model_params$adaptive_coding) {
         tau_hat_test_raw <- bcf$forests_tau$predict_raw(prediction_dataset_tau)
@@ -1224,7 +1224,7 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
             sigma2_samples <- bcf$sigma2_global_samples
             variance_forest_predictions <- sapply(1:length(keep_indices), function(i) sqrt(s_x_raw[,i]*sigma2_samples[i]))
         } else {
-            variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std
+            variance_forest_predictions <- sqrt(s_x_raw*initial_sigma2)*y_std
         }
     }
 
@@ -1406,6 +1406,9 @@ convertBCFModelToJson <- function(object){
     # Add the forests
     jsonobj$add_forest(object$forests_mu)
     jsonobj$add_forest(object$forests_tau)
+    if (object$model_params$include_variance_forest) {
+        jsonobj$add_forest(object$forests_variance)
+    }
     
     # Add metadata
     jsonobj$add_scalar("num_numeric_vars", object$train_set_metadata$num_numeric_vars)
@@ -1426,9 +1429,11 @@ convertBCFModelToJson <- function(object){
     # Add global parameters
     jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
     jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
+    jsonobj$add_scalar("initial_sigma2", object$model_params$initial_sigma2)
     jsonobj$add_boolean("sample_sigma_global", object$model_params$sample_sigma_global)
     jsonobj$add_boolean("sample_sigma_leaf_mu", object$model_params$sample_sigma_leaf_mu)
     jsonobj$add_boolean("sample_sigma_leaf_tau", object$model_params$sample_sigma_leaf_tau)
+    jsonobj$add_boolean("include_variance_forest", object$model_params$include_variance_forest)
     jsonobj$add_string("propensity_covariate", object$model_params$propensity_covariate)
     jsonobj$add_boolean("has_rfx", object$model_params$has_rfx)
     jsonobj$add_boolean("has_rfx_basis", object$model_params$has_rfx_basis)
@@ -1686,6 +1691,10 @@ createBCFModelFromJson <- function(json_object){
     # Unpack the forests
     output[["forests_mu"]] <- loadForestContainerJson(json_object, "forest_0")
     output[["forests_tau"]] <- loadForestContainerJson(json_object, "forest_1")
+    include_variance_forest <- json_object$get_boolean("include_variance_forest")
+    if (include_variance_forest) {
+        output[["forests_variance"]] <- loadForestContainerJson(json_object, "forest_2")
+    }
 
     # Unpack metadata
     train_set_metadata = list()
@@ -1710,9 +1719,11 @@ createBCFModelFromJson <- function(json_object){
     model_params = list()
     model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
+    model_params[["initial_sigma2"]] <- json_object$get_scalar("initial_sigma2")
     model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
     model_params[["sample_sigma_leaf_mu"]] <- json_object$get_boolean("sample_sigma_leaf_mu")
     model_params[["sample_sigma_leaf_tau"]] <- json_object$get_boolean("sample_sigma_leaf_tau")
+    model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["propensity_covariate"]] <- json_object$get_string("propensity_covariate")
     model_params[["has_rfx"]] <- json_object$get_boolean("has_rfx")
     model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")

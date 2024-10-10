@@ -161,7 +161,7 @@ for (i in 1:num_warmstart) {
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, rng, feature_types, 
         outcome_model_type, leaf_prior_scale, var_weights, 
-        global_var_samples[i], cutpoint_grid_size, gfr = T
+        1, 1, global_var_samples[i], cutpoint_grid_size, gfr = T
     )
     
     # Sample global variance parameter
@@ -186,7 +186,7 @@ for (i in (num_warmstart+1):num_samples) {
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, rng, feature_types, 
         outcome_model_type, leaf_prior_scale, var_weights, 
-        global_var_samples[i], cutpoint_grid_size, gfr = F
+        1, 1, global_var_samples[i], cutpoint_grid_size, gfr = F
     )
     
     # Sample global variance parameter
@@ -370,7 +370,7 @@ for (i in 1:num_warmstart) {
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, rng, feature_types, 
         outcome_model_type, leaf_prior_scale, var_weights, 
-        global_var_samples[i], cutpoint_grid_size, gfr = T
+        1, 1, global_var_samples[i], cutpoint_grid_size, gfr = T
     )
     
     # Sample global variance parameter
@@ -398,7 +398,7 @@ for (i in (num_warmstart+1):num_samples) {
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, rng, feature_types, 
         outcome_model_type, leaf_prior_scale, var_weights, 
-        global_var_samples[i], cutpoint_grid_size, gfr = F
+        1, 1, global_var_samples[i], cutpoint_grid_size, gfr = F
     )
     
     # Sample global variance parameter
@@ -599,7 +599,7 @@ for (i in 1:num_warmstart) {
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, rng, feature_types, 
         outcome_model_type, leaf_prior_scale, var_weights, 
-        global_var_samples[i], cutpoint_grid_size, gfr = T
+        1, 1, global_var_samples[i], cutpoint_grid_size, gfr = T
     )
     
     # Sample global variance parameter
@@ -627,7 +627,7 @@ for (i in (num_warmstart+1):num_samples) {
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, rng, feature_types, 
         outcome_model_type, leaf_prior_scale, var_weights, 
-        global_var_samples[i], cutpoint_grid_size, gfr = F
+        1, 1, global_var_samples[i], cutpoint_grid_size, gfr = F
     )
     
     # Sample global variance parameter
@@ -824,12 +824,12 @@ for (i in 1:num_warmstart) {
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, rng, feature_types, 
         outcome_model_type, leaf_prior_scale, var_weights, 
-        sigma2, cutpoint_grid_size, gfr = T
+        1, 1, sigma2, cutpoint_grid_size, gfr = T
     )
     
     # Sample global variance parameter
     global_var_samples[i+1] <- sample_sigma2_one_iteration(
-        outcome, rng, nu, lambda
+        outcome, forest_dataset, rng, nu, lambda
     )
 }
 ```
@@ -862,12 +862,12 @@ for (i in (num_warmstart+1):num_samples) {
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, rng, feature_types, 
         outcome_model_type, leaf_prior_scale, var_weights, 
-        global_var_samples[i], cutpoint_grid_size, gfr = F
+        1, 1, global_var_samples[i], cutpoint_grid_size, gfr = F
     )
     
     # Sample global variance parameter
     global_var_samples[i+1] <- sample_sigma2_one_iteration(
-        outcome, rng, nu, lambda
+        outcome, forest_dataset, rng, nu, lambda
     )
 }
 ```
@@ -1150,7 +1150,7 @@ if (num_gfr > 0){
         forest_model_mu$sample_one_iteration(
             forest_dataset_mu, outcome, forest_samples_mu, rng, 
             feature_types_mu, 0, current_leaf_scale_mu, variable_weights_mu, 
-            current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
+            1, 1, current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
         )
         
         # Sample variance parameters (if requested)
@@ -1163,7 +1163,7 @@ if (num_gfr > 0){
         forest_model_tau$sample_one_iteration(
             forest_dataset_tau, outcome, forest_samples_tau, rng, 
             feature_types_tau, 1, current_leaf_scale_tau, variable_weights_tau, 
-            current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
+            1, 1, current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
         )
         
         # Sample adaptive coding parameters
@@ -1198,7 +1198,7 @@ if (num_burnin + num_mcmc > 0) {
         # Sample the prognostic forest
         forest_model_mu$sample_one_iteration(
             forest_dataset_mu, outcome, forest_samples_mu, rng, feature_types_mu, 
-            0, current_leaf_scale_mu, variable_weights_mu, current_sigma2, 
+            0, current_leaf_scale_mu, variable_weights_mu, 1, 1, current_sigma2, 
             cutpoint_grid_size, gfr = F, pre_initialized = T
         )
         
@@ -1209,7 +1209,7 @@ if (num_burnin + num_mcmc > 0) {
         # Sample the treatment forest
         forest_model_tau$sample_one_iteration(
             forest_dataset_tau, outcome, forest_samples_tau, rng, feature_types_tau, 
-            1, current_leaf_scale_tau, variable_weights_tau, current_sigma2, 
+            1, current_leaf_scale_tau, variable_weights_tau, 1, 1, current_sigma2, 
             cutpoint_grid_size, gfr = F, pre_initialized = T
         )
         
