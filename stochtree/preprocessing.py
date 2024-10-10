@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import warnings
 
-def _preprocess_bart_params(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _preprocess_bart_params(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     processed_params = {
         'cutpoint_grid_size' : 100, 
         'sigma_leaf' : None, 
@@ -44,10 +44,60 @@ def _preprocess_bart_params(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         'keep_gfr' : False
     }
     
-    for key, value in params.items():
-        if key not in processed_params:
-            raise ValueError(f'Parameter {key} not a valid BART parameter')
-        processed_params[key] = value
+    if params:
+        for key, value in params.items():
+            if key not in processed_params:
+                raise ValueError(f'Parameter {key} not a valid BART parameter')
+            processed_params[key] = value
+    
+    return processed_params
+
+
+def _preprocess_bcf_params(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    processed_params = {
+        'cutpoint_grid_size': 100, 
+        'sigma_leaf_mu': None, 
+        'sigma_leaf_tau': None, 
+        'alpha_mu': 0.95, 
+        'alpha_tau': 0.25, 
+        'beta_mu': 2.0, 
+        'beta_tau': 3.0, 
+        'min_samples_leaf_mu': 5, 
+        'min_samples_leaf_tau': 5, 
+        'max_depth_mu': 10, 
+        'max_depth_tau': 5, 
+        'a_global': 0, 
+        'b_global': 0, 
+        'a_leaf_mu': 3, 
+        'a_leaf_tau': 3, 
+        'b_leaf_mu': None, 
+        'b_leaf_tau': None, 
+        'sigma2': None, 
+        'pct_var_sigma2_init': 0.25, 
+        'variable_weights': None, 
+        'keep_vars_mu': None, 
+        'drop_vars_mu': None, 
+        'keep_vars_tau': None, 
+        'drop_vars_tau': None, 
+        'num_trees_mu': 200, 
+        'num_trees_tau': 50, 
+        'sample_sigma_global': True, 
+        'sample_sigma_leaf_mu': True, 
+        'sample_sigma_leaf_tau': False, 
+        'propensity_covariate': "mu", 
+        'adaptive_coding': True, 
+        'b_0': -0.5, 
+        'b_1': 0.5, 
+        'random_seed': -1, 
+        'keep_burnin': False, 
+        'keep_gfr': False
+    }
+    
+    if params:
+        for key, value in params.items():
+            if key not in processed_params:
+                raise ValueError(f'Parameter {key} not a valid BCF parameter')
+            processed_params[key] = value
     
     return processed_params
 
