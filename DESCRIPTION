@@ -25,7 +25,9 @@ Suggests:
     mvtnorm,
     ggplot2,
     latex2exp,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0), 
+    foreach, 
+    doParallel
 VignetteBuilder: knitr
 SystemRequirements: C++17
 Imports: 
