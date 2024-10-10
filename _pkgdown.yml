@@ -86,6 +86,8 @@ reference:
   - CppRNG
   - createRNG
   - calibrate_inverse_gamma_error_variance
+  - preprocessBartParams
+  - preprocessBcfParams
 
 - subtitle: Random Effects
   desc: >
@@ -118,6 +120,7 @@ articles:
   contents:
   - BayesianSupervisedLearning
   - CausalInference
+  - Heteroskedasticity
 
 - title: Advanced Model Interface
   navbar: Advanced Model Interface
