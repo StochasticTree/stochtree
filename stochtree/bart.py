@@ -4,10 +4,6 @@ Bayesian Additive Regression Trees (BART) module
 import numpy as np
 import pandas as pd
 from typing import Optional, Dict, Any
-from sklearn import linear_model
-from sklearn.metrics import mean_squared_error
-from scipy.stats import gamma
-from .calibration import calibrate_global_error_variance
 from .data import Dataset, Residual
 from .forest import ForestContainer
 from .preprocessing import CovariateTransformer, _preprocess_bart_params

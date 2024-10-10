@@ -3,14 +3,9 @@ Bayesian Causal Forests (BCF) module
 """
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
-from sklearn.model_selection import GridSearchCV, KFold
 from sklearn.utils import check_scalar
 from typing import Optional, Union, Dict, Any
-from scipy.linalg import lstsq
-from scipy.stats import gamma
 from .bart import BARTModel
-from .calibration import calibrate_global_error_variance
 from .data import Dataset, Residual
 from .forest import ForestContainer
 from .preprocessing import CovariateTransformer, _preprocess_bcf_params
@@ -811,6 +806,19 @@ class BCFModel:
                 treatment_term_test = Z_test*np.squeeze(self.tau_hat_test)
             self.y_hat_test = self.mu_hat_test + treatment_term_test
     
+        if self.sample_sigma_global:
+            self.global_var_samples = self.global_var_samples[self.keep_indices]
+        
+        if self.sample_sigma_leaf_mu:
+            self.leaf_scale_mu_samples = self.leaf_scale_mu_samples[self.keep_indices]
+
+        if self.sample_sigma_leaf_tau:
+            self.leaf_scale_tau_samples = self.leaf_scale_tau_samples[self.keep_indices]
+        
+        if self.adaptive_coding:
+            self.b0_samples = self.b0_samples[self.keep_indices]
+            self.b1_samples = self.b1_samples[self.keep_indices]
+    
     def predict_tau(self, X: np.array, Z: np.array, propensity: np.array = None) -> np.array:
         """Predict CATE function for every provided observation.
 
@@ -873,15 +881,9 @@ class BCFModel:
         
         # Estimate treatment effect
         tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau.dataset_cpp)
-        tau_raw = tau_raw*self.y_std
-        if self.adaptive_coding:
-            tau_raw = tau_raw*np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
-        tau_x = tau_raw[:,self.keep_indices]
-
-        tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau.dataset_cpp)
         tau_raw = tau_raw[:,self.keep_indices,:]
         if self.adaptive_coding:
-            adaptive_coding_weights = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
+            adaptive_coding_weights = np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
             tau_raw = tau_raw*adaptive_coding_weights
         tau_x = np.squeeze(tau_raw*self.y_std)
 
@@ -969,7 +971,7 @@ class BCFModel:
         tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau.dataset_cpp)
         tau_raw = tau_raw[:,self.keep_indices,:]
         if self.adaptive_coding:
-            adaptive_coding_weights = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
+            adaptive_coding_weights = np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
             tau_raw = tau_raw*adaptive_coding_weights
         tau_x = np.squeeze(tau_raw*self.y_std)
         if Z.shape[1] > 1:
