@@ -321,8 +321,18 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if (is.null(sigma2_init)) sigma2_init <- pct_var_sigma2_init*var(resid_train)
     if (is.null(variance_forest_init)) variance_forest_init <- pct_var_variance_forest_init*var(resid_train)
     if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees_mean)
-    if (is.null(sigma_leaf_init)) sigma_leaf_init <- var(resid_train)/(num_trees_mean)
-    current_leaf_scale <- as.matrix(sigma_leaf_init)
+    if (has_basis) {
+        if (ncol(W_train) > 1) {
+            if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(var(resid_train)/(num_trees_mean), ncol(W_train))
+            current_leaf_scale <- sigma_leaf_init
+        } else {
+            if (is.null(sigma_leaf_init)) sigma_leaf_init <- var(resid_train)/(num_trees_mean)
+            current_leaf_scale <- as.matrix(sigma_leaf_init)
+        }
+    } else {
+        if (is.null(sigma_leaf_init)) sigma_leaf_init <- var(resid_train)/(num_trees_mean)
+        current_leaf_scale <- as.matrix(sigma_leaf_init)
+    }
     current_sigma2 <- sigma2_init
 
     # Determine leaf model type
