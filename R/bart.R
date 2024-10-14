@@ -351,7 +351,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         output_dimension = ncol(W_train)
         is_leaf_constant = F
         leaf_regression = T
-        if (sample_tau) {
+        if (sample_sigma_leaf) {
             stop("Sampling leaf scale not yet supported for multivariate leaf models")
         }
     }
@@ -875,7 +875,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
 #' bart_model <- bart(X_train = X_train, y_train = y_train, 
 #'                    group_ids_train = group_ids_train, rfx_basis_train = rfx_basis_train, 
 #'                    X_test = X_test, group_ids_test = group_ids_test, rfx_basis_test = rfx_basis_test, 
-#'                    num_gfr = 100, num_burnin = 0, num_mcmc = 100, sample_tau = TRUE)
+#'                    num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' rfx_samples <- getRandomEffectSamples(bart_model)
 getRandomEffectSamples.bartmodel <- function(object, ...){
     result = list()
