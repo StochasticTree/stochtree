@@ -340,32 +340,12 @@ predict_forest_raw_single_forest_cpp <- function(forest_samples, dataset, forest
   .Call(`_stochtree_predict_forest_raw_single_forest_cpp`, forest_samples, dataset, forest_num)
 }
 
-forest_kernel_cpp <- function() {
-  .Call(`_stochtree_forest_kernel_cpp`)
+forest_container_get_max_leaf_index_cpp <- function(forest_container, forest_num) {
+  .Call(`_stochtree_forest_container_get_max_leaf_index_cpp`, forest_container, forest_num)
 }
 
-forest_kernel_compute_leaf_indices_train_cpp <- function(forest_kernel, covariates_train, forest_container, forest_num) {
-  invisible(.Call(`_stochtree_forest_kernel_compute_leaf_indices_train_cpp`, forest_kernel, covariates_train, forest_container, forest_num))
-}
-
-forest_kernel_compute_leaf_indices_train_test_cpp <- function(forest_kernel, covariates_train, covariates_test, forest_container, forest_num) {
-  invisible(.Call(`_stochtree_forest_kernel_compute_leaf_indices_train_test_cpp`, forest_kernel, covariates_train, covariates_test, forest_container, forest_num))
-}
-
-forest_kernel_get_train_leaf_indices_cpp <- function(forest_kernel) {
-  .Call(`_stochtree_forest_kernel_get_train_leaf_indices_cpp`, forest_kernel)
-}
-
-forest_kernel_get_test_leaf_indices_cpp <- function(forest_kernel) {
-  .Call(`_stochtree_forest_kernel_get_test_leaf_indices_cpp`, forest_kernel)
-}
-
-forest_kernel_compute_kernel_train_cpp <- function(forest_kernel, covariates_train, forest_container, forest_num) {
-  .Call(`_stochtree_forest_kernel_compute_kernel_train_cpp`, forest_kernel, covariates_train, forest_container, forest_num)
-}
-
-forest_kernel_compute_kernel_train_test_cpp <- function(forest_kernel, covariates_train, covariates_test, forest_container, forest_num) {
-  .Call(`_stochtree_forest_kernel_compute_kernel_train_test_cpp`, forest_kernel, covariates_train, covariates_test, forest_container, forest_num)
+compute_leaf_indices_cpp <- function(forest_container, covariates, forest_nums) {
+  .Call(`_stochtree_compute_leaf_indices_cpp`, forest_container, covariates, forest_nums)
 }
 
 sample_gfr_one_iteration_cpp <- function(data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, pre_initialized) {
