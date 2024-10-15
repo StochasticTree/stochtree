@@ -633,61 +633,10 @@ extern "C" SEXP _stochtree_predict_forest_raw_single_forest_cpp(SEXP forest_samp
   END_CPP11
 }
 // kernel.cpp
-cpp11::external_pointer<StochTree::ForestKernel> forest_kernel_cpp();
-extern "C" SEXP _stochtree_forest_kernel_cpp() {
-  BEGIN_CPP11
-    return cpp11::as_sexp(forest_kernel_cpp());
-  END_CPP11
-}
-// kernel.cpp
 int forest_container_get_max_leaf_index_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_container, int forest_num);
 extern "C" SEXP _stochtree_forest_container_get_max_leaf_index_cpp(SEXP forest_container, SEXP forest_num) {
   BEGIN_CPP11
     return cpp11::as_sexp(forest_container_get_max_leaf_index_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_container), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num)));
-  END_CPP11
-}
-// kernel.cpp
-void forest_kernel_compute_leaf_indices_train_cpp(cpp11::external_pointer<StochTree::ForestKernel> forest_kernel, cpp11::doubles_matrix<> covariates_train, cpp11::external_pointer<StochTree::ForestContainer> forest_container, int forest_num);
-extern "C" SEXP _stochtree_forest_kernel_compute_leaf_indices_train_cpp(SEXP forest_kernel, SEXP covariates_train, SEXP forest_container, SEXP forest_num) {
-  BEGIN_CPP11
-    forest_kernel_compute_leaf_indices_train_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestKernel>>>(forest_kernel), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(covariates_train), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_container), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num));
-    return R_NilValue;
-  END_CPP11
-}
-// kernel.cpp
-void forest_kernel_compute_leaf_indices_train_test_cpp(cpp11::external_pointer<StochTree::ForestKernel> forest_kernel, cpp11::doubles_matrix<> covariates_train, cpp11::doubles_matrix<> covariates_test, cpp11::external_pointer<StochTree::ForestContainer> forest_container, int forest_num);
-extern "C" SEXP _stochtree_forest_kernel_compute_leaf_indices_train_test_cpp(SEXP forest_kernel, SEXP covariates_train, SEXP covariates_test, SEXP forest_container, SEXP forest_num) {
-  BEGIN_CPP11
-    forest_kernel_compute_leaf_indices_train_test_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestKernel>>>(forest_kernel), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(covariates_train), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(covariates_test), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_container), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num));
-    return R_NilValue;
-  END_CPP11
-}
-// kernel.cpp
-cpp11::writable::integers forest_kernel_get_train_leaf_indices_cpp(cpp11::external_pointer<StochTree::ForestKernel> forest_kernel);
-extern "C" SEXP _stochtree_forest_kernel_get_train_leaf_indices_cpp(SEXP forest_kernel) {
-  BEGIN_CPP11
-    return cpp11::as_sexp(forest_kernel_get_train_leaf_indices_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestKernel>>>(forest_kernel)));
-  END_CPP11
-}
-// kernel.cpp
-cpp11::writable::integers forest_kernel_get_test_leaf_indices_cpp(cpp11::external_pointer<StochTree::ForestKernel> forest_kernel);
-extern "C" SEXP _stochtree_forest_kernel_get_test_leaf_indices_cpp(SEXP forest_kernel) {
-  BEGIN_CPP11
-    return cpp11::as_sexp(forest_kernel_get_test_leaf_indices_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestKernel>>>(forest_kernel)));
-  END_CPP11
-}
-// kernel.cpp
-cpp11::list forest_kernel_compute_kernel_train_cpp(cpp11::external_pointer<StochTree::ForestKernel> forest_kernel, cpp11::doubles_matrix<> covariates_train, cpp11::external_pointer<StochTree::ForestContainer> forest_container, int forest_num);
-extern "C" SEXP _stochtree_forest_kernel_compute_kernel_train_cpp(SEXP forest_kernel, SEXP covariates_train, SEXP forest_container, SEXP forest_num) {
-  BEGIN_CPP11
-    return cpp11::as_sexp(forest_kernel_compute_kernel_train_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestKernel>>>(forest_kernel), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(covariates_train), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_container), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num)));
-  END_CPP11
-}
-// kernel.cpp
-cpp11::list forest_kernel_compute_kernel_train_test_cpp(cpp11::external_pointer<StochTree::ForestKernel> forest_kernel, cpp11::doubles_matrix<> covariates_train, cpp11::doubles_matrix<> covariates_test, cpp11::external_pointer<StochTree::ForestContainer> forest_container, int forest_num);
-extern "C" SEXP _stochtree_forest_kernel_compute_kernel_train_test_cpp(SEXP forest_kernel, SEXP covariates_train, SEXP covariates_test, SEXP forest_container, SEXP forest_num) {
-  BEGIN_CPP11
-    return cpp11::as_sexp(forest_kernel_compute_kernel_train_test_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestKernel>>>(forest_kernel), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(covariates_train), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(covariates_test), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_container), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num)));
   END_CPP11
 }
 // kernel.cpp
@@ -1019,13 +968,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_forest_dataset_add_covariates_cpp",                   (DL_FUNC) &_stochtree_forest_dataset_add_covariates_cpp,                    2},
     {"_stochtree_forest_dataset_add_weights_cpp",                      (DL_FUNC) &_stochtree_forest_dataset_add_weights_cpp,                       2},
     {"_stochtree_forest_dataset_update_basis_cpp",                     (DL_FUNC) &_stochtree_forest_dataset_update_basis_cpp,                      2},
-    {"_stochtree_forest_kernel_compute_kernel_train_cpp",              (DL_FUNC) &_stochtree_forest_kernel_compute_kernel_train_cpp,               4},
-    {"_stochtree_forest_kernel_compute_kernel_train_test_cpp",         (DL_FUNC) &_stochtree_forest_kernel_compute_kernel_train_test_cpp,          5},
-    {"_stochtree_forest_kernel_compute_leaf_indices_train_cpp",        (DL_FUNC) &_stochtree_forest_kernel_compute_leaf_indices_train_cpp,         4},
-    {"_stochtree_forest_kernel_compute_leaf_indices_train_test_cpp",   (DL_FUNC) &_stochtree_forest_kernel_compute_leaf_indices_train_test_cpp,    5},
-    {"_stochtree_forest_kernel_cpp",                                   (DL_FUNC) &_stochtree_forest_kernel_cpp,                                    0},
-    {"_stochtree_forest_kernel_get_test_leaf_indices_cpp",             (DL_FUNC) &_stochtree_forest_kernel_get_test_leaf_indices_cpp,              1},
-    {"_stochtree_forest_kernel_get_train_leaf_indices_cpp",            (DL_FUNC) &_stochtree_forest_kernel_get_train_leaf_indices_cpp,             1},
     {"_stochtree_forest_tracker_cpp",                                  (DL_FUNC) &_stochtree_forest_tracker_cpp,                                   4},
     {"_stochtree_get_forest_split_counts_forest_container_cpp",        (DL_FUNC) &_stochtree_get_forest_split_counts_forest_container_cpp,         3},
     {"_stochtree_get_granular_split_count_array_forest_container_cpp", (DL_FUNC) &_stochtree_get_granular_split_count_array_forest_container_cpp,  2},
