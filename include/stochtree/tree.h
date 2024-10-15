@@ -693,6 +693,10 @@ class Tree {
    */
   void PredictLeafIndexInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, std::vector<int32_t>& output, int32_t offset, int32_t max_leaf);
 
+  void PredictLeafIndexInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, 
+                               Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& output, 
+                               int column_ind, int32_t offset, int32_t max_leaf);
+
   // Node info
   std::vector<TreeNodeType> node_type_;
   std::vector<std::int32_t> parent_;

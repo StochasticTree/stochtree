@@ -17,17 +17,17 @@ RoxygenNote: 7.3.1
 LinkingTo: 
     cpp11
 Suggests: 
+    doParallel, 
+    foreach, 
+    ggplot2,
     knitr,
-    rmarkdown,
+    latex2exp,
     Matrix,
-    tgp,
     MASS,
     mvtnorm,
-    ggplot2,
-    latex2exp,
+    rmarkdown,
     testthat (>= 3.0.0), 
-    foreach, 
-    doParallel
+    tgp
 VignetteBuilder: knitr
 SystemRequirements: C++17
 Imports: 

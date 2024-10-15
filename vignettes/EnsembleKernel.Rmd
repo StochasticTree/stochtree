@@ -48,6 +48,7 @@ To begin, load the `stochtree` package and the `tgp` package which will serve as
 library(stochtree)
 library(tgp)
 library(MASS)
+library(Matrix)
 library(mvtnorm)
 ```
 
@@ -96,20 +97,25 @@ sigma_leaf <- 1/num_trees
 X_train <- as.data.frame(X_train)
 X_test <- as.data.frame(X_test)
 colnames(X_train) <- colnames(X_test) <- "x1"
-bart_params <- list(num_trees_mean=num_trees)
+bart_params <- list(num_trees_mean=num_trees, sigma_leaf_init=sigma_leaf)
 bart_model <- bart(X_train=X_train, y_train=y_train, X_test=X_test, params = bart_params)
 
 # Extract kernels needed for kriging
-result_kernels <- computeForestKernels(bart_model=bart_model, X_train=X_train, X_test=X_test)
-Sigma_11 <- result_kernels$kernel_test
-Sigma_12 <- result_kernels$kernel_test_train
-Sigma_22 <- result_kernels$kernel_train
-Sigma_22_inv <- ginv(Sigma_22)
+leaf_mat_train <- computeForestLeafIndices(bart_model, X_train, forest_type = "mean", 
+                                           forest_inds = bart_model$model_params$num_samples)
+leaf_mat_test <- computeForestLeafIndices(bart_model, X_test, forest_type = "mean", 
+                                           forest_inds = bart_model$model_params$num_samples)
+W_train <- sparseMatrix(i=rep(1:length(y_train),num_trees), j=leaf_mat_train + 1, x=1)
+W_test <- sparseMatrix(i=rep(1:length(y_test),num_trees), j=leaf_mat_test + 1, x=1)
+Sigma_11 <- tcrossprod(W_test) / num_trees
+Sigma_12 <- tcrossprod(W_test, W_train) / num_trees
+Sigma_22 <- tcrossprod(W_train) / num_trees
+Sigma_22_inv <- ginv(as.matrix(Sigma_22))
 Sigma_21 <- t(Sigma_12)
 
 # Compute mean and covariance for the test set posterior
 mu_tilde <- Sigma_12 %*% Sigma_22_inv %*% y_train
-Sigma_tilde <- (sigma_leaf)*(Sigma_11 - Sigma_12 %*% Sigma_22_inv %*% Sigma_21)
+Sigma_tilde <- as.matrix((sigma_leaf)*(Sigma_11 - Sigma_12 %*% Sigma_22_inv %*% Sigma_21))
 
 # Sample from f(X_test) | X_test, X_train, f(X_train)
 gp_samples <- mvtnorm::rmvnorm(1000, mean = mu_tilde, sigma = Sigma_tilde)
@@ -172,16 +178,21 @@ bart_params <- list(num_trees_mean=num_trees)
 bart_model <- bart(X_train=X_train, y_train=y_train, X_test=X_test, params = bart_params)
 
 # Extract kernels needed for kriging
-result_kernels <- computeForestKernels(bart_model=bart_model, X_train=X_train, X_test=X_test)
-Sigma_11 <- result_kernels$kernel_test
-Sigma_12 <- result_kernels$kernel_test_train
-Sigma_22 <- result_kernels$kernel_train
-Sigma_22_inv <- ginv(Sigma_22)
+leaf_mat_train <- computeForestLeafIndices(bart_model, X_train, forest_type = "mean", 
+                                           forest_inds = bart_model$model_params$num_samples)
+leaf_mat_test <- computeForestLeafIndices(bart_model, X_test, forest_type = "mean", 
+                                           forest_inds = bart_model$model_params$num_samples)
+W_train <- sparseMatrix(i=rep(1:length(y_train),num_trees), j=leaf_mat_train + 1, x=1)
+W_test <- sparseMatrix(i=rep(1:length(y_test),num_trees), j=leaf_mat_test + 1, x=1)
+Sigma_11 <- tcrossprod(W_test) / num_trees
+Sigma_12 <- tcrossprod(W_test, W_train) / num_trees
+Sigma_22 <- tcrossprod(W_train) / num_trees
+Sigma_22_inv <- ginv(as.matrix(Sigma_22))
 Sigma_21 <- t(Sigma_12)
 
 # Compute mean and covariance for the test set posterior
 mu_tilde <- Sigma_12 %*% Sigma_22_inv %*% y_train
-Sigma_tilde <- (sigma_leaf)*(Sigma_11 - Sigma_12 %*% Sigma_22_inv %*% Sigma_21)
+Sigma_tilde <- as.matrix((sigma_leaf)*(Sigma_11 - Sigma_12 %*% Sigma_22_inv %*% Sigma_21))
 
 # Sample from f(X_test) | X_test, X_train, f(X_train)
 gp_samples <- mvtnorm::rmvnorm(1000, mean = mu_tilde, sigma = Sigma_tilde)

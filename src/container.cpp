@@ -123,6 +123,19 @@ void ForestContainer::PredictRawInPlace(ForestDataset& dataset, int forest_num, 
   forests_[forest_num]->PredictRawInplace(dataset, output, 0, num_trees, offset);
 }
 
+void ForestContainer::PredictLeafIndicesInplace(
+  Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, 
+  Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& output, 
+  std::vector<int>& forest_indices, int num_trees, data_size_t n
+) {
+  int num_forests = forest_indices.size();
+  int forest_id;
+  for (int i = 0; i < num_forests; i++) {
+    forest_id = forest_indices[i];
+    forests_[forest_id]->PredictLeafIndicesInplace(covariates, output, i, num_trees, n);
+  }
+}
+
 /*! \brief Save to JSON */
 json ForestContainer::to_json() {
   json result_obj;
