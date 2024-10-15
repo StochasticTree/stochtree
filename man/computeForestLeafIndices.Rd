@@ -11,42 +11,43 @@ first tree in an ensemble, the next \code{n} elements correspond to predictions 
 the second tree and so on. The "data" for each element corresponds to a uniquely
 mapped column index that corresponds to a single leaf of a single tree (i.e.
 if tree 1 has 3 leaves, its column indices range from 0 to 2, and then tree 2's
-leaf indices begin at 3, etc...).
-Users may pass a single dataset (which we refer to here as a "training set")
-or two datasets (which we refer to as "training and test sets"). This verbiage
-hints that one potential use-case for a matrix of leaf indices is to define a
-ensemble-based kernel for kriging.}
+leaf indices begin at 3, etc...).}
 \usage{
 computeForestLeafIndices(
-  bart_model,
-  X_train,
-  X_test = NULL,
-  forest_num = NULL,
-  forest_type = "mean"
+  model_object,
+  covariates,
+  forest_type,
+  forest_inds = NULL
 )
 }
 \arguments{
-\item{bart_model}{Object of type \code{bartmodel} corresponding to a BART model with at least one sample}
+\item{model_object}{Object of type \code{bartmodel} or \code{bcf} corresponding to a BART / BCF model with at least one forest sample}
 
-\item{X_train}{Matrix of "training" data. In a traditional Gaussian process kriging context, this
-corresponds to the observations for which outcomes are observed.}
+\item{covariates}{Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.}
 
-\item{X_test}{(Optional) Matrix of "test" data. In a traditional Gaussian process kriging context, this
-corresponds to the observations for which outcomes are unobserved and must be estimated
-based on the kernels k(X_test,X_test), k(X_test,X_train), and k(X_train,X_train). If not provided,
-this function will only compute k(X_train, X_train).}
+\item{forest_type}{Which forest to use from \code{model_object}.
+Valid inputs depend on the model type, and whether or not a
 
-\item{forest_num}{(Optional) Index of the forest sample to use for kernel computation. If not provided,
-this function will use the last forest.}
+\strong{1. BART}
+\itemize{
+\item \code{'mean'}: Extracts leaf indices for the mean forest
+\item \code{'variance'}: Extracts leaf indices for the variance forest
+}
 
-\item{forest_type}{(Optional) Whether to compute the kernel from the mean or variance forest. Default: "mean". Specify "variance" for the variance forest.
-All other inputs are invalid. Must have sampled the relevant forest or an error will occur.}
+\strong{2. BCF}
+\itemize{
+\item \code{'prognostic'}: Extracts leaf indices for the prognostic forest
+\item \code{'treatment'}: Extracts leaf indices for the treatment effect forest
+\item \code{'variance'}: Extracts leaf indices for the variance forest
+}}
+
+\item{forest_inds}{(Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided,
+this function will return leaf indices for every sample of a forest.
+This function uses 1-indexing, so the first forest sample corresponds to \code{forest_num = 1}, and so on.}
 }
 \value{
-List of vectors. If \code{X_test = NULL}, the list contains
-one vector of length \code{n_train * num_trees}, where \code{n_train = nrow(X_train)}
-and \code{num_trees} is the number of trees in \code{bart_model}. If \code{X_test} is not \code{NULL},
-the list contains another vector of length \code{n_test * num_trees}.
+List of vectors. Each vector is of size \code{num_obs * num_trees}, where \code{num_obs = nrow(covariates)}
+and \code{num_trees} is the number of trees in the relevant forest of \code{model_object}.
 }
 \description{
 Compute and return a vector representation of a forest's leaf predictions for
@@ -59,8 +60,4 @@ the second tree and so on. The "data" for each element corresponds to a uniquely
 mapped column index that corresponds to a single leaf of a single tree (i.e.
 if tree 1 has 3 leaves, its column indices range from 0 to 2, and then tree 2's
 leaf indices begin at 3, etc...).
-Users may pass a single dataset (which we refer to here as a "training set")
-or two datasets (which we refer to as "training and test sets"). This verbiage
-hints that one potential use-case for a matrix of leaf indices is to define a
-ensemble-based kernel for kriging.
 }

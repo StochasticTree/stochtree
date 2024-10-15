@@ -640,6 +640,13 @@ extern "C" SEXP _stochtree_forest_kernel_cpp() {
   END_CPP11
 }
 // kernel.cpp
+int forest_container_get_max_leaf_index_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_container, int forest_num);
+extern "C" SEXP _stochtree_forest_container_get_max_leaf_index_cpp(SEXP forest_container, SEXP forest_num) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_container_get_max_leaf_index_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_container), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num)));
+  END_CPP11
+}
+// kernel.cpp
 void forest_kernel_compute_leaf_indices_train_cpp(cpp11::external_pointer<StochTree::ForestKernel> forest_kernel, cpp11::doubles_matrix<> covariates_train, cpp11::external_pointer<StochTree::ForestContainer> forest_container, int forest_num);
 extern "C" SEXP _stochtree_forest_kernel_compute_leaf_indices_train_cpp(SEXP forest_kernel, SEXP covariates_train, SEXP forest_container, SEXP forest_num) {
   BEGIN_CPP11
@@ -681,6 +688,13 @@ cpp11::list forest_kernel_compute_kernel_train_test_cpp(cpp11::external_pointer<
 extern "C" SEXP _stochtree_forest_kernel_compute_kernel_train_test_cpp(SEXP forest_kernel, SEXP covariates_train, SEXP covariates_test, SEXP forest_container, SEXP forest_num) {
   BEGIN_CPP11
     return cpp11::as_sexp(forest_kernel_compute_kernel_train_test_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestKernel>>>(forest_kernel), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(covariates_train), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(covariates_test), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_container), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num)));
+  END_CPP11
+}
+// kernel.cpp
+cpp11::writable::integers_matrix<> compute_leaf_indices_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_container, cpp11::doubles_matrix<> covariates, cpp11::integers forest_nums);
+extern "C" SEXP _stochtree_compute_leaf_indices_cpp(SEXP forest_container, SEXP covariates, SEXP forest_nums) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(compute_leaf_indices_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_container), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(covariates), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(forest_nums)));
   END_CPP11
 }
 // sampler.cpp
@@ -984,6 +998,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_adjust_residual_forest_container_cpp",                (DL_FUNC) &_stochtree_adjust_residual_forest_container_cpp,                 7},
     {"_stochtree_all_roots_forest_container_cpp",                      (DL_FUNC) &_stochtree_all_roots_forest_container_cpp,                       2},
     {"_stochtree_average_max_depth_forest_container_cpp",              (DL_FUNC) &_stochtree_average_max_depth_forest_container_cpp,               1},
+    {"_stochtree_compute_leaf_indices_cpp",                            (DL_FUNC) &_stochtree_compute_leaf_indices_cpp,                             3},
     {"_stochtree_create_column_vector_cpp",                            (DL_FUNC) &_stochtree_create_column_vector_cpp,                             1},
     {"_stochtree_create_forest_dataset_cpp",                           (DL_FUNC) &_stochtree_create_forest_dataset_cpp,                            0},
     {"_stochtree_create_rfx_dataset_cpp",                              (DL_FUNC) &_stochtree_create_rfx_dataset_cpp,                               0},
@@ -999,6 +1014,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_forest_container_cpp",                                (DL_FUNC) &_stochtree_forest_container_cpp,                                 4},
     {"_stochtree_forest_container_from_json_cpp",                      (DL_FUNC) &_stochtree_forest_container_from_json_cpp,                       2},
     {"_stochtree_forest_container_from_json_string_cpp",               (DL_FUNC) &_stochtree_forest_container_from_json_string_cpp,                2},
+    {"_stochtree_forest_container_get_max_leaf_index_cpp",             (DL_FUNC) &_stochtree_forest_container_get_max_leaf_index_cpp,              2},
     {"_stochtree_forest_dataset_add_basis_cpp",                        (DL_FUNC) &_stochtree_forest_dataset_add_basis_cpp,                         2},
     {"_stochtree_forest_dataset_add_covariates_cpp",                   (DL_FUNC) &_stochtree_forest_dataset_add_covariates_cpp,                    2},
     {"_stochtree_forest_dataset_add_weights_cpp",                      (DL_FUNC) &_stochtree_forest_dataset_add_weights_cpp,                       2},

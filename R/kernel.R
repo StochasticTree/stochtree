@@ -200,53 +200,82 @@ computeForestKernels <- function(bart_model, X_train, X_test=NULL, forest_num=NU
 #' mapped column index that corresponds to a single leaf of a single tree (i.e. 
 #' if tree 1 has 3 leaves, its column indices range from 0 to 2, and then tree 2's 
 #' leaf indices begin at 3, etc...).
-#' Users may pass a single dataset (which we refer to here as a "training set") 
-#' or two datasets (which we refer to as "training and test sets"). This verbiage 
-#' hints that one potential use-case for a matrix of leaf indices is to define a 
-#' ensemble-based kernel for kriging.
 #'
-#' @param bart_model Object of type `bartmodel` corresponding to a BART model with at least one sample
-#' @param X_train Matrix of "training" data. In a traditional Gaussian process kriging context, this 
-#' corresponds to the observations for which outcomes are observed.
-#' @param X_test (Optional) Matrix of "test" data. In a traditional Gaussian process kriging context, this 
-#' corresponds to the observations for which outcomes are unobserved and must be estimated 
-#' based on the kernels k(X_test,X_test), k(X_test,X_train), and k(X_train,X_train). If not provided, 
-#' this function will only compute k(X_train, X_train).
-#' @param forest_num (Optional) Index of the forest sample to use for kernel computation. If not provided, 
-#' this function will use the last forest.
-#' @param forest_type (Optional) Whether to compute the kernel from the mean or variance forest. Default: "mean". Specify "variance" for the variance forest. 
-#' All other inputs are invalid. Must have sampled the relevant forest or an error will occur.
-#' @return List of vectors. If `X_test = NULL`, the list contains 
-#' one vector of length `n_train * num_trees`, where `n_train = nrow(X_train)` 
-#' and `num_trees` is the number of trees in `bart_model`. If `X_test` is not `NULL`, 
-#' the list contains another vector of length `n_test * num_trees`.
+#' @param model_object Object of type `bartmodel` or `bcf` corresponding to a BART / BCF model with at least one forest sample
+#' @param covariates Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.
+#' @param forest_type Which forest to use from `model_object`. 
+#' Valid inputs depend on the model type, and whether or not a 
+#' 
+#'   **1. BART**
+#'
+#'   - `'mean'`: Extracts leaf indices for the mean forest
+#'   - `'variance'`: Extracts leaf indices for the variance forest
+#' 
+#'   **2. BCF**
+#'
+#'   - `'prognostic'`: Extracts leaf indices for the prognostic forest
+#'   - `'treatment'`: Extracts leaf indices for the treatment effect forest
+#'   - `'variance'`: Extracts leaf indices for the variance forest
+#' 
+#' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided, 
+#' this function will return leaf indices for every sample of a forest. 
+#' This function uses 1-indexing, so the first forest sample corresponds to `forest_num = 1`, and so on.
+#' @return List of vectors. Each vector is of size `num_obs * num_trees`, where `num_obs = nrow(covariates)` 
+#' and `num_trees` is the number of trees in the relevant forest of `model_object`. 
 #' @export
-computeForestLeafIndices <- function(bart_model, X_train, X_test=NULL, forest_num=NULL, forest_type="mean") {
-    stopifnot(class(bart_model)=="bartmodel")
-    if (forest_type=="mean") {
-        if (!bart_model$model_params$include_mean_forest) {
-            stop("Mean forest was not sampled in the bart model provided")
-        }
-    } else if (forest_type=="variance") {
-        if (!bart_model$model_params$include_variance_forest) {
-            stop("Variance forest was not sampled in the bart model provided")
+computeForestLeafIndices <- function(model_object, covariates, forest_type, forest_inds=NULL) {
+    # Extract relevant forest container
+    stopifnot(class(model_object) %in% c("bartmodel", "bcf"))
+    model_type <- ifelse(class(model_object)=="bartmodel", "bart", "bcf")
+    if (model_type == "bart") {
+        stopifnot(forest_type %in% c("mean", "variance"))
+        if (forest_type=="mean") {
+            if (!model_object$model_params$include_mean_forest) {
+                stop("Mean forest was not sampled in the bart model provided")
+            }
+            forest_container <- model_object$mean_forests
+        } else if (forest_type=="variance") {
+            if (!model_object$model_params$include_variance_forest) {
+                stop("Variance forest was not sampled in the bart model provided")
+            }
+            forest_container <- model_object$variance_forests
         }
     } else {
-        stop("Must provide either 'mean' or 'variance' for the `forest_type` parameter")
+        stopifnot(forest_type %in% c("prognostic", "treatment", "variance"))
+        if (forest_type=="prognostic") {
+            forest_container <- model_object$forests_mu
+        } else if (forest_type=="treatment") {
+            forest_container <- model_object$forests_tau
+        } else if (forest_type=="variance") {
+            if (!model_object$model_params$include_variance_forest) {
+                stop("Variance forest was not sampled in the bcf model provided")
+            }
+            forest_container <- model_object$variance_forests
+        }
     }
-    forest_kernel <- createForestKernel()
-    num_samples <- bart_model$model_params$num_samples
-    stopifnot(forest_num <= num_samples)
-    sample_index <- ifelse(is.null(forest_num), num_samples-1, forest_num-1)
-    if (forest_type == "mean") {
-        return(forest_kernel$compute_leaf_indices(
-            covariates_train = X_train, covariates_test = X_test,
-            forest_container = bart_model$mean_forests, forest_num = sample_index
-        ))
-    } else if (forest_type == "variance") {
-        return(forest_kernel$compute_leaf_indices(
-            covariates_train = X_train, covariates_test = X_test,
-            forest_container = bart_model$variance_forests, forest_num = sample_index
-        ))
+    
+    # Preprocess covariates
+    if ((!is.data.frame(covariates)) && (!is.matrix(covariates))) {
+        stop("covariates must be a matrix or dataframe")
     }
+    train_set_metadata <- model_object$train_set_metadata
+    covariates_processed <- preprocessPredictionData(covariates, train_set_metadata)
+    
+    # Preprocess forest indices
+    num_forests <- forest_container$num_samples()
+    if (is.null(forest_inds)) {
+        forest_inds <- as.integer(1:num_forests - 1)
+    } else {
+        stopifnot(all(forest_inds <= num_forests))
+        stopifnot(all(forest_inds >= 1))
+        forest_inds <- as.integer(forest_inds - 1)
+    }
+    
+    # Compute leaf indices
+    leaf_ind_matrix <- compute_leaf_indices_cpp(
+        forest_container$forest_container_ptr, 
+        covariates_processed, forest_inds
+    )
+
+    return(leaf_ind_matrix)
 }

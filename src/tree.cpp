@@ -451,6 +451,22 @@ void Tree::PredictLeafIndexInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynam
   }
 }
 
+void Tree::PredictLeafIndexInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, 
+                                   Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& output, 
+                                   int column_ind, int32_t offset, int32_t max_leaf) {
+  int n = covariates.rows();
+  CHECK_GE(output.size(), offset + n);
+  std::map<int32_t,int32_t> renumber_map;
+  for (int i = 0; i < leaves_.size(); i++) {
+    renumber_map.insert({leaves_[i], i});
+  }
+  int32_t node_id, remapped_node;
+  for (int i = 0; i < n; i++) {
+    node_id = EvaluateTree(*this, covariates, i);
+    output(offset + i, column_ind) = max_leaf + renumber_map.at(node_id);
+  }
+}
+
 void TreeNodeVectorsToJson(json& obj, Tree* tree) {
   // Initialize a map with names of the node vectors and empty json arrays
   std::map<std::string, json> tree_array_map;
