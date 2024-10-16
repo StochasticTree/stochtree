@@ -2,16 +2,7 @@
 % Please edit documentation in R/kernel.R
 \name{computeForestLeafIndices}
 \alias{computeForestLeafIndices}
-\title{Compute and return a vector representation of a forest's leaf predictions for
-every observation in a dataset.
-The vector has a "column-major" format that can be easily re-represented as
-as a CSC sparse matrix: elements are organized so that the first \code{n} elements
-correspond to leaf predictions for all \code{n} observations in a dataset for the
-first tree in an ensemble, the next \code{n} elements correspond to predictions for
-the second tree and so on. The "data" for each element corresponds to a uniquely
-mapped column index that corresponds to a single leaf of a single tree (i.e.
-if tree 1 has 3 leaves, its column indices range from 0 to 2, and then tree 2's
-leaf indices begin at 3, etc...).}
+\title{Compute vector of forest leaf indices}
 \usage{
 computeForestLeafIndices(
   model_object,
@@ -26,7 +17,7 @@ computeForestLeafIndices(
 \item{covariates}{Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.}
 
 \item{forest_type}{Which forest to use from \code{model_object}.
-Valid inputs depend on the model type, and whether or not a
+Valid inputs depend on the model type, and whether or not a given forest was sampled in that model.
 
 \strong{1. BART}
 \itemize{
@@ -52,8 +43,9 @@ and \code{num_trees} is the number of trees in the relevant forest of \code{mode
 \description{
 Compute and return a vector representation of a forest's leaf predictions for
 every observation in a dataset.
-The vector has a "column-major" format that can be easily re-represented as
-as a CSC sparse matrix: elements are organized so that the first \code{n} elements
+
+The vector has a "row-major" format that can be easily re-represented as
+as a CSR sparse matrix: elements are organized so that the first \code{n} elements
 correspond to leaf predictions for all \code{n} observations in a dataset for the
 first tree in an ensemble, the next \code{n} elements correspond to predictions for
 the second tree and so on. The "data" for each element corresponds to a uniquely
