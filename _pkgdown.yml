@@ -86,8 +86,9 @@ reference:
   - calibrate_inverse_gamma_error_variance
   - preprocessBartParams
   - preprocessBcfParams
-  - computeForestLeafIndices
   - computeMaxLeafIndex
+  - computeForestLeafIndices
+  - computeForestLeafVariances
 
 - subtitle: Random Effects
   desc: >
@@ -103,7 +104,6 @@ reference:
   - getRandomEffectSamples.bartmodel
   - getRandomEffectSamples.bcf
   - sample_sigma2_one_iteration
-  - sample_tau_one_iteration
   - sample_tau_one_iteration
 
 - title: Package info
