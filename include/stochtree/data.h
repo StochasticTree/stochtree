@@ -126,6 +126,7 @@ class ColumnVector {
   void LoadData(double* data_ptr, data_size_t num_row);
   void AddToData(double* data_ptr, data_size_t num_row);
   void SubtractFromData(double* data_ptr, data_size_t num_row);
+  void OverwriteData(double* data_ptr, data_size_t num_row);
   inline data_size_t NumRows() {return data_.size();}
   inline Eigen::VectorXd& GetData() {return data_;}
  private:
