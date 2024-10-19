@@ -178,7 +178,7 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
-        #' Updates the residual used for training tree ensembles by iteratively 
+        #' Propagates basis update through to the (full/partial) residual by iteratively 
         #' (a) adding back in the previous prediction of each tree, (b) recomputing predictions 
         #' for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
         #' 
@@ -190,13 +190,13 @@ ForestSamples <- R6::R6Class(
         #' @param outcome `Outcome` object storing the residuals to be updated based on forest predictions
         #' @param forest_model `ForestModel` object storing tracking structures used in training / sampling
         #' @param forest_num Index of forest used to update residuals (starting at 1, in R style)
-        update_residual = function(dataset, outcome, forest_model, forest_num) {
+        propagate_basis_update = function(dataset, outcome, forest_model, forest_num) {
             stopifnot(!is.null(dataset$data_ptr))
             stopifnot(!is.null(outcome$data_ptr))
             stopifnot(!is.null(forest_model$tracker_ptr))
             stopifnot(!is.null(self$forest_container_ptr))
             
-            update_residual_forest_container_cpp(
+            propagate_basis_update_forest_container_cpp(
                 dataset$data_ptr, outcome$data_ptr, self$forest_container_ptr, 
                 forest_model$tracker_ptr, forest_num
             )

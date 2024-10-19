@@ -62,7 +62,7 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     forest_dataset$update_basis(W_update)
     
     # Update residual to reflect adjusted basis
-    forest_samples$update_residual(forest_dataset, residual, forest_model, 0)
+    forest_samples$propagate_basis_update(forest_dataset, residual, forest_model, 0)
     
     # Get updated prediction from the tree ensemble
     updated_yhat = as.numeric(forest_samples$predict(forest_dataset))

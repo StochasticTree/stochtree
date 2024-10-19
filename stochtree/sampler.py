@@ -55,16 +55,16 @@ class ForestSampler:
         """
         forest_container.forest_container_cpp.AdjustResidual(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, requires_basis, forest_num, add)
     
-    def update_residual(self, dataset: Dataset, residual: Residual, forest_container: ForestContainer, forest_num: int) -> None:
+    def propagate_basis_update(self, dataset: Dataset, residual: Residual, forest_container: ForestContainer, forest_num: int) -> None:
         """
-        Method that updates the residual used for training tree ensembles by iteratively (a) adding back in the previous prediction of each tree, (b) recomputing predictions 
+        Propagates basis update through to the (full/partial) residual by iteratively (a) adding back in the previous prediction of each tree, (b) recomputing predictions 
         for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
 
         This is useful in cases where a basis (for e.g. leaf regression) is updated outside of a tree sampler (as with e.g. adaptive coding for binary treatment BCF). 
         Once a basis has been updated, the overall "function" represented by a tree model has changed and this should be reflected through to the residual before the 
         next sampling loop is run.
         """
-        forest_container.forest_container_cpp.UpdateResidualNewBasis(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, forest_num)
+        forest_container.forest_container_cpp.PropagateBasisUpdate(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, forest_num)
 
 
 class GlobalVarianceModel:

@@ -690,7 +690,7 @@ class BCFModel:
                     self.b1_samples[i] = current_b_1
 
                     # Update residual to reflect adjusted basis
-                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
+                    forest_sampler_tau.propagate_basis_update(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
@@ -751,7 +751,7 @@ class BCFModel:
                     self.b1_samples[i] = current_b_1
 
                     # Update residual to reflect adjusted basis
-                    forest_sampler_tau.update_residual(forest_dataset_train, residual_train, self.forest_container_tau, i)
+                    forest_sampler_tau.propagate_basis_update(forest_dataset_train, residual_train, self.forest_container_tau, i)
         
         # Mark the model as sampled
         self.sampled = True

@@ -25,6 +25,8 @@ enum ForestLeafModel {
     kMultivariateRegression
 };
 
+class ForestSamplerCpp;
+
 class ForestDatasetCpp {
  public:
   ForestDatasetCpp() {
@@ -114,12 +116,7 @@ class ResidualCpp {
     residual_->OverwriteData(data_ptr, num_row);
   }
 
-  void PropagateResidualUpdate(ForestSamplerCpp& forest_sampler) {
-    // Extract pointer to forest tracker
-    StochTree::ForestTracker* tracker_ptr = forest_sampler.GetTracker();
-    // Propagate update to the residual through the trackers
-    StochTree::UpdateResidualNewOutcome(*tracker_ptr, *residual_);
-  }
+  void PropagateResidualUpdate(ForestSamplerCpp& forest_sampler);
 
  private:
   std::unique_ptr<StochTree::ColumnVector> residual_;
@@ -262,7 +259,7 @@ class ForestContainerCpp {
 
   void AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, int forest_num, bool add);
 
-  void UpdateResidualNewBasis(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, int forest_num);
+  void PropagateBasisUpdate(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, int forest_num);
 
   void SaveToJsonFile(std::string json_filename) {
     forest_samples_->SaveToJsonFile(json_filename);
@@ -655,7 +652,7 @@ void ForestContainerCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& 
   StochTree::UpdateResidualEntireForest(*(sampler.GetTracker()), *(dataset.GetDataset()), *(residual.GetData()), forest_samples_->GetEnsemble(forest_num), requires_basis, op);
 }
 
-void ForestContainerCpp::UpdateResidualNewBasis(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, int forest_num) {
+void ForestContainerCpp::PropagateBasisUpdate(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, int forest_num) {
   // Perform the update operation
   StochTree::UpdateResidualNewBasis(*(sampler.GetTracker()), *(dataset.GetDataset()), *(residual.GetData()), forest_samples_->GetEnsemble(forest_num));
 }
@@ -935,6 +932,13 @@ void ForestContainerCpp::LoadFromJson(JsonCpp& json, std::string forest_label) {
   forest_samples_->from_json(forest_json);
 }
 
+void ResidualCpp::PropagateResidualUpdate(ForestSamplerCpp& forest_sampler) {
+  // Extract pointer to forest tracker
+  StochTree::ForestTracker* tracker_ptr = forest_sampler.GetTracker();
+  // Propagate update to the residual through the trackers
+  StochTree::UpdateResidualNewOutcome(*tracker_ptr, *residual_);
+}
+
 PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<JsonCpp>(m, "JsonCpp")
     .def(py::init<>())
@@ -976,7 +980,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
 
   py::class_<ResidualCpp>(m, "ResidualCpp")
     .def(py::init<py::array_t<double>,data_size_t>())
-    .def("GetResidualArray", &ResidualCpp::GetResidualArray);
+    .def("GetResidualArray", &ResidualCpp::GetResidualArray)
+    .def("ReplaceData", &ResidualCpp::ReplaceData)
+    .def("PropagateResidualUpdate", &ResidualCpp::PropagateResidualUpdate);
 
   py::class_<RngCpp>(m, "RngCpp")
     .def(py::init<int>());
@@ -991,7 +997,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("SetRootValue", &ForestContainerCpp::SetRootValue)
     .def("SetRootVector", &ForestContainerCpp::SetRootVector)
     .def("AdjustResidual", &ForestContainerCpp::AdjustResidual)
-    .def("UpdateResidualNewBasis", &ForestContainerCpp::UpdateResidualNewBasis)
+    .def("PropagateBasisUpdate", &ForestContainerCpp::PropagateBasisUpdate)
     .def("SaveToJsonFile", &ForestContainerCpp::SaveToJsonFile)
     .def("LoadFromJsonFile", &ForestContainerCpp::LoadFromJsonFile)
     .def("LoadFromJson", &ForestContainerCpp::LoadFromJson)
