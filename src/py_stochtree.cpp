@@ -107,6 +107,20 @@ class ResidualCpp {
     return result;
   }
 
+  void ReplaceData(py::array_t<double> new_vector, data_size_t num_row) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(new_vector.mutable_data());
+    // Overwrite data in residual_
+    residual_->OverwriteData(data_ptr, num_row);
+  }
+
+  void PropagateResidualUpdate(ForestSamplerCpp& forest_sampler) {
+    // Extract pointer to forest tracker
+    StochTree::ForestTracker* tracker_ptr = forest_sampler.GetTracker();
+    // Propagate update to the residual through the trackers
+    StochTree::UpdateResidualNewOutcome(*tracker_ptr, *residual_);
+  }
+
  private:
   std::unique_ptr<StochTree::ColumnVector> residual_;
 };
