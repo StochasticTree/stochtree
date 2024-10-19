@@ -1,6 +1,8 @@
 #include <cpp11.hpp>
 #include <stochtree/container.h>
 #include <stochtree/data.h>
+#include <stochtree/partition_tracker.h>
+#include <stochtree/tree_sampler.h>
 #include <memory>
 #include <vector>
 
@@ -134,6 +136,25 @@ void subtract_from_column_vector_cpp(cpp11::external_pointer<StochTree::ColumnVe
     
     // Unprotect pointers to R data
     UNPROTECT(1);
+}
+
+[[cpp11::register]]
+void overwrite_column_vector_cpp(cpp11::external_pointer<StochTree::ColumnVector> outcome, cpp11::doubles new_vector) {
+    // Unpack pointers to data and dimensions
+    StochTree::data_size_t n = new_vector.size();
+    double* update_data_ptr = REAL(PROTECT(new_vector));
+    
+    // Add to the outcome data using the C++ API
+    outcome->OverwriteData(update_data_ptr, n);
+    
+    // Unprotect pointers to R data
+    UNPROTECT(1);
+}
+
+[[cpp11::register]]
+void propagate_trees_column_vector_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker, 
+                                       cpp11::external_pointer<StochTree::ColumnVector> residual) {
+    StochTree::UpdateResidualNewOutcome(*tracker, *residual);
 }
 
 [[cpp11::register]]

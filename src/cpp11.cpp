@@ -103,6 +103,22 @@ extern "C" SEXP _stochtree_subtract_from_column_vector_cpp(SEXP outcome, SEXP up
   END_CPP11
 }
 // R_data.cpp
+void overwrite_column_vector_cpp(cpp11::external_pointer<StochTree::ColumnVector> outcome, cpp11::doubles new_vector);
+extern "C" SEXP _stochtree_overwrite_column_vector_cpp(SEXP outcome, SEXP new_vector) {
+  BEGIN_CPP11
+    overwrite_column_vector_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(outcome), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(new_vector));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+void propagate_trees_column_vector_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker, cpp11::external_pointer<StochTree::ColumnVector> residual);
+extern "C" SEXP _stochtree_propagate_trees_column_vector_cpp(SEXP tracker, SEXP residual) {
+  BEGIN_CPP11
+    propagate_trees_column_vector_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestTracker>>>(tracker), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
 cpp11::writable::doubles get_residual_cpp(cpp11::external_pointer<StochTree::ColumnVector> vector_ptr);
 extern "C" SEXP _stochtree_get_residual_cpp(SEXP vector_ptr) {
   BEGIN_CPP11
@@ -1014,9 +1030,11 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_num_samples_forest_container_cpp",                    (DL_FUNC) &_stochtree_num_samples_forest_container_cpp,                     1},
     {"_stochtree_num_trees_forest_container_cpp",                      (DL_FUNC) &_stochtree_num_trees_forest_container_cpp,                       1},
     {"_stochtree_output_dimension_forest_container_cpp",               (DL_FUNC) &_stochtree_output_dimension_forest_container_cpp,                1},
+    {"_stochtree_overwrite_column_vector_cpp",                         (DL_FUNC) &_stochtree_overwrite_column_vector_cpp,                          2},
     {"_stochtree_predict_forest_cpp",                                  (DL_FUNC) &_stochtree_predict_forest_cpp,                                   2},
     {"_stochtree_predict_forest_raw_cpp",                              (DL_FUNC) &_stochtree_predict_forest_raw_cpp,                               2},
     {"_stochtree_predict_forest_raw_single_forest_cpp",                (DL_FUNC) &_stochtree_predict_forest_raw_single_forest_cpp,                 3},
+    {"_stochtree_propagate_trees_column_vector_cpp",                   (DL_FUNC) &_stochtree_propagate_trees_column_vector_cpp,                    2},
     {"_stochtree_rfx_container_append_from_json_cpp",                  (DL_FUNC) &_stochtree_rfx_container_append_from_json_cpp,                   3},
     {"_stochtree_rfx_container_append_from_json_string_cpp",           (DL_FUNC) &_stochtree_rfx_container_append_from_json_string_cpp,            3},
     {"_stochtree_rfx_container_cpp",                                   (DL_FUNC) &_stochtree_rfx_container_cpp,                                    2},

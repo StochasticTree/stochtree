@@ -110,6 +110,14 @@ void ColumnVector::SubtractFromData(double* data_ptr, data_size_t num_row) {
   UpdateData(data_ptr, num_row, std::minus<double>());
 }
 
+void ColumnVector::OverwriteData(double* data_ptr, data_size_t num_row) {
+  double ptr_val;
+  for (data_size_t i = 0; i < num_row; ++i) {
+    ptr_val = static_cast<double>(*(data_ptr + i));
+    data_(i) = ptr_val;
+  }
+}
+
 void ColumnVector::UpdateData(double* data_ptr, data_size_t num_row, std::function<double(double, double)> op) {
   double ptr_val;
   double updated_val;
