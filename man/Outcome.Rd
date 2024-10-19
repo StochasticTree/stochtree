@@ -25,6 +25,8 @@ of the outcome minus the predictions of every other model term
 \item \href{#method-Outcome-get_data}{\code{Outcome$get_data()}}
 \item \href{#method-Outcome-add_vector}{\code{Outcome$add_vector()}}
 \item \href{#method-Outcome-subtract_vector}{\code{Outcome$subtract_vector()}}
+\item \href{#method-Outcome-update_data}{\code{Outcome$update_data()}}
+\item \href{#method-Outcome-propagate_trees_new_outcome}{\code{Outcome$propagate_trees_new_outcome()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -93,6 +95,47 @@ Update the current state of the outcome (i.e. partial residual) data by subtract
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{update_vector}}{Vector to be subtracted from outcome}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Outcome-update_data"></a>}}
+\if{latex}{\out{\hypertarget{method-Outcome-update_data}{}}}
+\subsection{Method \code{update_data()}}{
+Update the current state of the outcome (i.e. partial residual) data by replacing each element with the elements of \code{new_vector}
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Outcome$update_data(new_vector)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{new_vector}}{Vector from which to overwrite the current data}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Outcome-propagate_trees_new_outcome"></a>}}
+\if{latex}{\out{\hypertarget{method-Outcome-propagate_trees_new_outcome}{}}}
+\subsection{Method \code{propagate_trees_new_outcome()}}{
+Update the current state of the outcome (i.e. partial residual) data by subtracting the current predictions of each tree.
+This function is run after the \code{update_data} method, which overwrites the partial residual with an entirely new stream of outcome data.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Outcome$propagate_trees_new_outcome(forest_model)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_model}}{\code{ForestModel} object storing tracking structures used in training / sampling}
 }
 \if{html}{\out{</div>}}
 }

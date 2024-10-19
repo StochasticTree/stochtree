@@ -52,6 +52,14 @@ subtract_from_column_vector_cpp <- function(outcome, update_vector) {
   invisible(.Call(`_stochtree_subtract_from_column_vector_cpp`, outcome, update_vector))
 }
 
+overwrite_column_vector_cpp <- function(outcome, new_vector) {
+  invisible(.Call(`_stochtree_overwrite_column_vector_cpp`, outcome, new_vector))
+}
+
+propagate_trees_column_vector_cpp <- function(tracker, residual) {
+  invisible(.Call(`_stochtree_propagate_trees_column_vector_cpp`, tracker, residual))
+}
+
 get_residual_cpp <- function(vector_ptr) {
   .Call(`_stochtree_get_residual_cpp`, vector_ptr)
 }
