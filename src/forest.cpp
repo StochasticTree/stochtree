@@ -356,11 +356,11 @@ void adjust_residual_forest_container_cpp(cpp11::external_pointer<StochTree::For
 }
 
 [[cpp11::register]]
-void update_residual_forest_container_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
-                                          cpp11::external_pointer<StochTree::ColumnVector> residual, 
-                                          cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 
-                                          cpp11::external_pointer<StochTree::ForestTracker> tracker, 
-                                          int forest_num) {
+void propagate_basis_update_forest_container_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
+                                                 cpp11::external_pointer<StochTree::ColumnVector> residual, 
+                                                 cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 
+                                                 cpp11::external_pointer<StochTree::ForestTracker> tracker, 
+                                                 int forest_num) {
     // Perform the update (addition / subtraction) operation
     StochTree::UpdateResidualNewBasis(*tracker, *data, *residual, forest_samples->GetEnsemble(forest_num));
 }

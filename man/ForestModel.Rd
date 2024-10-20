@@ -22,6 +22,8 @@ trees, and exposes functionality to run a forest sampler
 \itemize{
 \item \href{#method-ForestModel-new}{\code{ForestModel$new()}}
 \item \href{#method-ForestModel-sample_one_iteration}{\code{ForestModel$sample_one_iteration()}}
+\item \href{#method-ForestModel-propagate_basis_update}{\code{ForestModel$propagate_basis_update()}}
+\item \href{#method-ForestModel-propagate_residual_update}{\code{ForestModel$propagate_residual_update()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -123,6 +125,62 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
 \item{\code{pre_initialized}}{(Optional) Whether or not the leaves are pre-initialized outside of the sampling loop (before any samples are drawn). In multi-forest implementations like BCF, this is true, though in the single-forest supervised learning implementation, we can let C++ do the initialization. Default: F.}
 }
 \if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-propagate_basis_update"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-propagate_basis_update}{}}}
+\subsection{Method \code{propagate_basis_update()}}{
+Propagates basis update through to the (full/partial) residual by iteratively
+(a) adding back in the previous prediction of each tree, (b) recomputing predictions
+for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
+
+This is useful in cases where a basis (for e.g. leaf regression) is updated outside
+of a tree sampler (as with e.g. adaptive coding for binary treatment BCF).
+Once a basis has been updated, the overall "function" represented by a tree model has
+changed and this should be reflected through to the residual before the next sampling loop is run.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$propagate_basis_update(
+  dataset,
+  outcome,
+  forest_samples,
+  forest_num
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dataset}}{\code{ForestDataset} object storing the covariates and bases for a given forest}
+
+\item{\code{outcome}}{\code{Outcome} object storing the residuals to be updated based on forest predictions}
+
+\item{\code{forest_samples}}{\code{ForestSamples} object storing draws of tree ensembles}
+
+\item{\code{forest_num}}{Index of forest used to update residuals (starting at 1, in R style)}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-propagate_residual_update"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-propagate_residual_update}{}}}
+\subsection{Method \code{propagate_residual_update()}}{
+Update the current state of the outcome (i.e. partial residual) data by subtracting the current predictions of each tree.
+This function is run after the \code{Outcome} class's \code{update_data} method, which overwrites the partial residual with an entirely new stream of outcome data.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$propagate_residual_update(residual)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{residual}}{Outcome used to sample the forest}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
 }
 }
 }

@@ -332,8 +332,8 @@ adjust_residual_forest_container_cpp <- function(data, residual, forest_samples,
   invisible(.Call(`_stochtree_adjust_residual_forest_container_cpp`, data, residual, forest_samples, tracker, requires_basis, forest_num, add))
 }
 
-update_residual_forest_container_cpp <- function(data, residual, forest_samples, tracker, forest_num) {
-  invisible(.Call(`_stochtree_update_residual_forest_container_cpp`, data, residual, forest_samples, tracker, forest_num))
+propagate_basis_update_forest_container_cpp <- function(data, residual, forest_samples, tracker, forest_num) {
+  invisible(.Call(`_stochtree_propagate_basis_update_forest_container_cpp`, data, residual, forest_samples, tracker, forest_num))
 }
 
 predict_forest_cpp <- function(forest_samples, dataset) {

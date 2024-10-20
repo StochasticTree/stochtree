@@ -93,6 +93,40 @@ ForestModel <- R6::R6Class(
                     variable_weights, a_forest, b_forest, global_scale, leaf_model_int, pre_initialized
                 ) 
             }
+        }, 
+        
+        #' @description
+        #' Propagates basis update through to the (full/partial) residual by iteratively 
+        #' (a) adding back in the previous prediction of each tree, (b) recomputing predictions 
+        #' for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
+        #' 
+        #' This is useful in cases where a basis (for e.g. leaf regression) is updated outside 
+        #' of a tree sampler (as with e.g. adaptive coding for binary treatment BCF). 
+        #' Once a basis has been updated, the overall "function" represented by a tree model has 
+        #' changed and this should be reflected through to the residual before the next sampling loop is run.
+        #' @param dataset `ForestDataset` object storing the covariates and bases for a given forest
+        #' @param outcome `Outcome` object storing the residuals to be updated based on forest predictions
+        #' @param forest_samples `ForestSamples` object storing draws of tree ensembles
+        #' @param forest_num Index of forest used to update residuals (starting at 1, in R style)
+        propagate_basis_update = function(dataset, outcome, forest_samples, forest_num) {
+            stopifnot(!is.null(dataset$data_ptr))
+            stopifnot(!is.null(outcome$data_ptr))
+            stopifnot(!is.null(self$tracker_ptr))
+            stopifnot(!is.null(forest_samples$forest_container_ptr))
+            
+            propagate_basis_update_forest_container_cpp(
+                dataset$data_ptr, outcome$data_ptr, forest_samples$forest_container_ptr, 
+                self$tracker_ptr, forest_num
+            )
+        }, 
+        
+        #' @description
+        #' Update the current state of the outcome (i.e. partial residual) data by subtracting the current predictions of each tree. 
+        #' This function is run after the `Outcome` class's `update_data` method, which overwrites the partial residual with an entirely new stream of outcome data.
+        #' @param residual Outcome used to sample the forest
+        #' @return NULL
+        propagate_residual_update = function(residual) {
+            propagate_trees_column_vector_cpp(self$tracker_ptr, residual$data_ptr)
         }
     )
 )
