@@ -27,7 +27,6 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-set_root_leaves}{\code{ForestSamples$set_root_leaves()}}
 \item \href{#method-ForestSamples-prepare_for_sampler}{\code{ForestSamples$prepare_for_sampler()}}
 \item \href{#method-ForestSamples-adjust_residual}{\code{ForestSamples$adjust_residual()}}
-\item \href{#method-ForestSamples-update_residual}{\code{ForestSamples$update_residual()}}
 \item \href{#method-ForestSamples-save_json}{\code{ForestSamples$save_json()}}
 \item \href{#method-ForestSamples-load_json}{\code{ForestSamples$load_json()}}
 \item \href{#method-ForestSamples-num_samples}{\code{ForestSamples$num_samples()}}
@@ -319,36 +318,6 @@ After trees are initialized with constant root node predictions, their root pred
 \item{\code{forest_num}}{Index of forest used to update residuals}
 
 \item{\code{add}}{Whether forest predictions should be added to or subtracted from residuals}
-}
-\if{html}{\out{</div>}}
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestSamples-update_residual"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestSamples-update_residual}{}}}
-\subsection{Method \code{update_residual()}}{
-Updates the residual used for training tree ensembles by iteratively
-(a) adding back in the previous prediction of each tree, (b) recomputing predictions
-for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
-
-This is useful in cases where a basis (for e.g. leaf regression) is updated outside
-of a tree sampler (as with e.g. adaptive coding for binary treatment BCF).
-Once a basis has been updated, the overall "function" represented by a tree model has
-changed and this should be reflected through to the residual before the next sampling loop is run.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$update_residual(dataset, outcome, forest_model, forest_num)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{dataset}}{\code{ForestDataset} object storing the covariates and bases for a given forest}
-
-\item{\code{outcome}}{\code{Outcome} object storing the residuals to be updated based on forest predictions}
-
-\item{\code{forest_model}}{\code{ForestModel} object storing tracking structures used in training / sampling}
-
-\item{\code{forest_num}}{Index of forest used to update residuals (starting at 1, in R style)}
 }
 \if{html}{\out{</div>}}
 }

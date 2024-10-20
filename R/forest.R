@@ -178,31 +178,6 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
-        #' Propagates basis update through to the (full/partial) residual by iteratively 
-        #' (a) adding back in the previous prediction of each tree, (b) recomputing predictions 
-        #' for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
-        #' 
-        #' This is useful in cases where a basis (for e.g. leaf regression) is updated outside 
-        #' of a tree sampler (as with e.g. adaptive coding for binary treatment BCF). 
-        #' Once a basis has been updated, the overall "function" represented by a tree model has 
-        #' changed and this should be reflected through to the residual before the next sampling loop is run.
-        #' @param dataset `ForestDataset` object storing the covariates and bases for a given forest
-        #' @param outcome `Outcome` object storing the residuals to be updated based on forest predictions
-        #' @param forest_model `ForestModel` object storing tracking structures used in training / sampling
-        #' @param forest_num Index of forest used to update residuals (starting at 1, in R style)
-        propagate_basis_update = function(dataset, outcome, forest_model, forest_num) {
-            stopifnot(!is.null(dataset$data_ptr))
-            stopifnot(!is.null(outcome$data_ptr))
-            stopifnot(!is.null(forest_model$tracker_ptr))
-            stopifnot(!is.null(self$forest_container_ptr))
-            
-            propagate_basis_update_forest_container_cpp(
-                dataset$data_ptr, outcome$data_ptr, self$forest_container_ptr, 
-                forest_model$tracker_ptr, forest_num
-            )
-        }, 
-        
-        #' @description
         #' Store the trees and metadata of `ForestDataset` class in a json file
         #' @param json_filename Name of output json file (must end in ".json")
         save_json = function(json_filename) {
