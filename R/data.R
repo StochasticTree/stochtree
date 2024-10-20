@@ -157,15 +157,6 @@ Outcome <- R6::R6Class(
                 }
             }
             overwrite_column_vector_cpp(self$data_ptr, new_vector)
-        }, 
-        
-        #' @description
-        #' Update the current state of the outcome (i.e. partial residual) data by subtracting the current predictions of each tree. 
-        #' This function is run after the `update_data` method, which overwrites the partial residual with an entirely new stream of outcome data.
-        #' @param forest_model `ForestModel` object storing tracking structures used in training / sampling
-        #' @return NULL
-        propagate_trees_new_outcome = function(forest_model) {
-            propagate_trees_column_vector_cpp(forest_model$tracker_ptr, self$data_ptr)
         }
     )
 )

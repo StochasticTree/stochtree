@@ -742,7 +742,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 }
                 
                 # Update leaf predictions and residual
-                forest_samples_tau$update_residual(forest_dataset_train, outcome_train, forest_model_tau, i-1)
+                forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, forest_samples_tau, i-1)
             }
             
             # Sample variance parameters (if requested)
@@ -848,7 +848,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 }
                 
                 # Update leaf predictions and residual
-                forest_samples_tau$update_residual(forest_dataset_train, outcome_train, forest_model_tau, i-1)
+                forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, forest_samples_tau, i-1)
             }
             
             # Sample variance parameters (if requested)
