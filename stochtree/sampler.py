@@ -64,7 +64,10 @@ class ForestSampler:
         Once a basis has been updated, the overall "function" represented by a tree model has changed and this should be reflected through to the residual before the 
         next sampling loop is run.
         """
-        forest_container.forest_container_cpp.PropagateBasisUpdate(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, forest_num)
+        self.forest_sampler_cpp.PropagateBasisUpdate(dataset.dataset_cpp, residual.residual_cpp, forest_container.forest_container_cpp, forest_num)
+    
+    def propagate_residual_update(self, residual: Residual) -> None:
+        self.forest_sampler_cpp.PropagateResidualUpdate(residual.residual_cpp)
 
 
 class GlobalVarianceModel:

@@ -3,7 +3,6 @@ Python classes wrapping C++ data objects
 """
 import numpy as np
 from stochtree_cpp import ForestDatasetCpp, ResidualCpp
-from sampler import ForestSampler
 
 class Dataset:
     def __init__(self) -> None:
@@ -62,6 +61,3 @@ class Residual:
         """
         n = new_vector.size
         self.residual_cpp.UpdateData(new_vector, n)
-    
-    def propagate_residual_update(self, sampler: ForestSampler) -> None:
-        self.residual_cpp.PropagateResidualUpdate(sampler.forest_sampler_cpp)
