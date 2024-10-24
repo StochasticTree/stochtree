@@ -9,6 +9,10 @@ The program takes several command line arguments (in order):
 4. Number of grow-from-root (GFR) samples
 5. Number of MCMC samples
 6. Seed for random number generator (-1 means we defer to C++ `std::random_device`)
+7. [Optional] name of data file to load for training, instead of simulating data (leave this blank as `""` if simulated data is desired)
+8. [Optional] index of outcome column in data file (leave this blank as `0`)
+9. [Optional] comma-delimited string of column indices of covariates (leave this blank as `""`)
+10. [Optional] comma-delimited string of column indices of leaf regression bases (leave this blank as `""`)
 
 The DGPs are numbered as follows:
 
@@ -23,3 +27,7 @@ The models are numbered as follows:
 1. "Univariate basis" leaf regression model
 2. "Multivariate basis" leaf regression model
 3. Log linear heteroskedastic variance model
+
+For an example of how to run this progam for DGP 0, leaf model 1, no random effects, 10 GFR samples, 100 MCMC samples and a default seed (`-1`), run
+
+`debugstochtree 0 1 0 10 100 -1 "" 0 "" ""`

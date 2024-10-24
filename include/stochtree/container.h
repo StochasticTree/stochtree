@@ -26,6 +26,7 @@ class ForestContainer {
   ForestContainer(int num_samples, int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false);
   ~ForestContainer() {}
 
+  void AddSample(TreeEnsemble& forest);
   void InitializeRoot(double leaf_value);
   void InitializeRoot(std::vector<double>& leaf_vector);
   void AddSamples(int num_samples);

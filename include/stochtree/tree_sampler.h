@@ -384,43 +384,42 @@ static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateExist
   return std::tuple<double, double, data_size_t, data_size_t>(split_log_ml, no_split_log_ml, left_n, right_n);
 }
 
-template <typename LeafModel>
-static inline void ModelInitialization(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model,
-                                       ForestDataset& dataset, ColumnVector& residual, TreePrior& tree_prior,
-                                       std::mt19937& gen, std::vector<double>& variable_weights, double global_variance,
-                                       bool pre_initialized, bool backfitting, int prev_num_samples, bool var_trees = false) {
-  if ((prev_num_samples == 0) && (!pre_initialized)) {
-    // Add new forest to the container
-    forests.AddSamples(1);
+// template <typename LeafModel>
+// static inline void ModelInitialization(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model,
+//                                        ForestDataset& dataset, ColumnVector& residual, TreePrior& tree_prior,
+//                                        std::mt19937& gen, std::vector<double>& variable_weights, double global_variance,
+//                                        bool pre_initialized, bool backfitting, int prev_num_samples, bool var_trees = false) {
+//   if ((prev_num_samples == 0) && (!pre_initialized)) {
+//     // Add new forest to the container
+//     forests.AddSamples(1);
     
-    // Set initial value for each leaf in the forest
-    double leaf_value;
-    if (var_trees) {
-      leaf_value = std::log(ComputeVarianceOutcome(residual)) / static_cast<double>(forests.NumTrees());
-    } else {
-      leaf_value = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
-    }
-    TreeEnsemble* ensemble = forests.GetEnsemble(0);
-    leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, leaf_value);
-    tracker.AssignAllSamplesToConstantPrediction(leaf_value);
-  } else if (prev_num_samples > 0) {
-    // Add new forest to the container
-    forests.AddSamples(1);
+//     // Set initial value for each leaf in the forest
+//     double leaf_value;
+//     if (var_trees) {
+//       leaf_value = std::log(ComputeVarianceOutcome(residual)) / static_cast<double>(forests.NumTrees());
+//     } else {
+//       leaf_value = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
+//     }
+//     TreeEnsemble* ensemble = forests.GetEnsemble(0);
+//     leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, leaf_value);
+//     tracker.AssignAllSamplesToConstantPrediction(leaf_value);
+//   } else if (prev_num_samples > 0) {
+//     // Add new forest to the container
+//     forests.AddSamples(1);
 
-    // NOTE: only doing this for the simplicity of the partial residual step
-    // We could alternatively "reach back" to the tree predictions from a previous
-    // sample (whenever there is more than one sample). This is cleaner / quicker
-    // to implement during this refactor.
-    forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
-  } else {
-    forests.IncrementSampleCount();
-  }
-}
+//     // NOTE: only doing this for the simplicity of the partial residual step
+//     // We could alternatively "reach back" to the tree predictions from a previous
+//     // sample (whenever there is more than one sample). This is cleaner / quicker
+//     // to implement during this refactor.
+//     forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
+//   } else {
+//     forests.IncrementSampleCount();
+//   }
+// }
 
 template <typename LeafModel>
-static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, 
-                                                 ForestDataset& dataset, ColumnVector& residual, TreePrior& tree_prior, 
-                                                 bool backfitting, Tree* tree, int tree_num) {
+static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
+                                                 ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
   if (backfitting) {
     UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::plus<double>(), false);
   } else {
@@ -430,9 +429,8 @@ static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, ForestC
 }
 
 template <typename LeafModel>
-static inline void AdjustStateAfterTreeSampling(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, 
-                                                ForestDataset& dataset, ColumnVector& residual, TreePrior& tree_prior, 
-                                                bool backfitting, Tree* tree, int tree_num) {
+static inline void AdjustStateAfterTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
+                                                ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
   if (backfitting) {
     UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::minus<double>(), true);
   } else {
@@ -707,37 +705,37 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
 }
 
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
-static inline void GFRSampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
+static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
                                     double global_variance, std::vector<FeatureType>& feature_types, int cutpoint_grid_size, 
-                                    bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
-  // Previous number of samples
-  int prev_num_samples = forests.NumSamples();
+                                    bool keep_forest, bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+  // // Previous number of samples
+  // int prev_num_samples = forests.NumSamples();
   
-  // Handle any "initialization" of a model (trees, ForestTracker, etc...) if this is the first sample and 
-  // the model was not pre-initialized
-  bool var_trees;
-  if (std::is_same_v<LeafModel, LogLinearVarianceLeafModel>) var_trees = true;
-  else var_trees = false;
-  ModelInitialization<LeafModel>(tracker, forests, leaf_model, dataset, residual, tree_prior, gen,
-                                 variable_weights, global_variance, pre_initialized, backfitting,
-                                 prev_num_samples, var_trees);
+  // // Handle any "initialization" of a model (trees, ForestTracker, etc...) if this is the first sample and 
+  // // the model was not pre-initialized
+  // bool var_trees;
+  // if (std::is_same_v<LeafModel, LogLinearVarianceLeafModel>) var_trees = true;
+  // else var_trees = false;
+  // ModelInitialization<LeafModel>(tracker, forests, leaf_model, dataset, residual, tree_prior, gen,
+  //                                variable_weights, global_variance, pre_initialized, backfitting,
+  //                                prev_num_samples, var_trees);
   
   // Run the GFR algorithm for each tree
-  TreeEnsemble* ensemble = forests.GetEnsemble(prev_num_samples);
+  // TreeEnsemble* ensemble = forests.GetEnsemble(prev_num_samples);
   int num_trees = forests.NumTrees();
   for (int i = 0; i < num_trees; i++) {
     // Adjust any model state needed to run a tree sampler
     // For models that involve Bayesian backfitting, this amounts to adding tree i's 
     // predictions back to the residual (thus, training a model on the "partial residual")
     // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
-    Tree* tree = ensemble->GetTree(i);
-    AdjustStateBeforeTreeSampling<LeafModel>(tracker, forests, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
+    Tree* tree = active_forest.GetTree(i);
+    AdjustStateBeforeTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
     
     // Reset the tree and sample trackers
-    ensemble->ResetInitTree(i);
+    active_forest.ResetInitTree(i);
     tracker.ResetRoot(dataset.GetCovariates(), feature_types, i);
-    tree = ensemble->GetTree(i);
+    tree = active_forest.GetTree(i);
     
     // Sample tree i
     GFRSampleTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
@@ -747,14 +745,18 @@ static inline void GFRSampleOneIter(ForestTracker& tracker, ForestContainer& for
     );
     
     // Sample leaf parameters for tree i
-    tree = ensemble->GetTree(i);
+    tree = active_forest.GetTree(i);
     leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
     
     // Adjust any model state needed to run a tree sampler
     // For models that involve Bayesian backfitting, this amounts to subtracting tree i's 
     // predictions back out of the residual (thus, using an updated "partial residual" in the following interation).
     // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
-    AdjustStateAfterTreeSampling<LeafModel>(tracker, forests, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
+    AdjustStateAfterTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
+  }
+
+  if (keep_forest) {
+    forests.AddSample(active_forest);
   }
 }
 
@@ -1000,49 +1002,53 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
 }
 
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
-static inline void MCMCSampleOneIter(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
+static inline void MCMCSampleOneIter(TreeEnsemble& active_forest, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
-                                     double global_variance, bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
-  // Previous number of samples
-  int prev_num_samples = forests.NumSamples();
+                                     double global_variance, bool keep_forest, bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+  // // Previous number of samples
+  // int prev_num_samples = forests.NumSamples();
   
-  // Handle any "initialization" of a model (trees, ForestTracker, etc...) if this is the first sample and 
-  // the model was not pre-initialized
-  bool var_trees;
-  if (std::is_same_v<LeafModel, LogLinearVarianceLeafModel>) var_trees = true;
-  else var_trees = false;
-  ModelInitialization<LeafModel>(tracker, forests, leaf_model, dataset, residual, tree_prior, gen,
-                                 variable_weights, global_variance, pre_initialized, backfitting,
-                                 prev_num_samples, var_trees);
+  // // Handle any "initialization" of a model (trees, ForestTracker, etc...) if this is the first sample and 
+  // // the model was not pre-initialized
+  // bool var_trees;
+  // if (std::is_same_v<LeafModel, LogLinearVarianceLeafModel>) var_trees = true;
+  // else var_trees = false;
+  // ModelInitialization<LeafModel>(tracker, forests, leaf_model, dataset, residual, tree_prior, gen,
+  //                                variable_weights, global_variance, pre_initialized, backfitting,
+  //                                prev_num_samples, var_trees);
   
   // Run the MCMC algorithm for each tree
-  TreeEnsemble* ensemble = forests.GetEnsemble(prev_num_samples);
-  Tree* tree;
+  // TreeEnsemble* ensemble = forests.GetEnsemble(prev_num_samples);
   int num_trees = forests.NumTrees();
   for (int i = 0; i < num_trees; i++) {
     // Adjust any model state needed to run a tree sampler
     // For models that involve Bayesian backfitting, this amounts to adding tree i's 
     // predictions back to the residual (thus, training a model on the "partial residual")
     // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
-    Tree* tree = ensemble->GetTree(i);
-    AdjustStateBeforeTreeSampling<LeafModel>(tracker, forests, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
+    // Tree* tree = ensemble->GetTree(i);
+    Tree* tree = active_forest.GetTree(i);
+    AdjustStateBeforeTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
     
     // Sample tree i
-    tree = ensemble->GetTree(i);
+    tree = active_forest.GetTree(i);
     MCMCSampleTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
       tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, variable_weights, i, 
       global_variance, leaf_suff_stat_args...
     );
     
     // Sample leaf parameters for tree i
-    tree = ensemble->GetTree(i);
+    tree = active_forest.GetTree(i);
     leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
     
     // Adjust any model state needed to run a tree sampler
     // For models that involve Bayesian backfitting, this amounts to subtracting tree i's 
     // predictions back out of the residual (thus, using an updated "partial residual" in the following interation).
     // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
-    AdjustStateAfterTreeSampling<LeafModel>(tracker, forests, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
+    AdjustStateAfterTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
+  }
+
+  if (keep_forest) {
+    forests.AddSample(active_forest);
   }
 }
 

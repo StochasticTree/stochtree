@@ -28,6 +28,18 @@ ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureTyp
   feature_types_ = feature_types;
 }
 
+void ForestTracker::ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset, std::vector<FeatureType>& feature_types) {
+  // Since GFR always starts over from root, this data structure can always simply be reset
+  Eigen::MatrixXd& covariates = dataset.GetCovariates();
+  sorted_node_sample_tracker_.reset(new SortedNodeSampleTracker(presort_container_.get(), covariates, feature_types));
+  
+  // Reconstitute each of the remaining data structures in the tracker based on splits in the ensemble
+  // UnsortedNodeSampleTracker
+  unsorted_node_sample_tracker_->ReconstituteFromForest(forest, dataset);
+  // SampleNodeMapper, SamplePredMapper and sum_predictions_
+  UpdateSampleTrackers(forest, dataset);
+}
+
 void ForestTracker::ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num) {
   AssignAllSamplesToRoot(tree_num);
   unsorted_node_sample_tracker_->ResetTreeToRoot(tree_num, covariates.rows());
@@ -82,6 +94,53 @@ void ForestTracker::AssignAllSamplesToConstantPrediction(double value) {
 
 void ForestTracker::AssignAllSamplesToConstantPrediction(int32_t tree_num, double value) {
   sample_pred_mapper_->AssignAllSamplesToConstantPrediction(tree_num, value);
+}
+
+void ForestTracker::UpdateSampleTrackersInternal(TreeEnsemble& forest, Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis) {
+  int output_dim = basis.cols();
+  double forest_pred, tree_pred;
+
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    forest_pred = 0.0;
+    for (int j = 0; j < num_trees_; j++) {
+      tree_pred = 0.0;
+      Tree* tree = forest.GetTree(j);
+      std::int32_t nidx = EvaluateTree(*tree, covariates, i);
+      sample_node_mapper_->SetNodeId(i, j, nidx);
+      for (int32_t k = 0; k < output_dim; k++) {
+        tree_pred += tree->LeafValue(nidx, k) * basis(i, k);
+      }
+      sample_pred_mapper_->SetPred(i, j, tree_pred);
+      forest_pred += tree_pred;
+    }
+    sum_predictions_[i] = forest_pred;
+  }
+}
+
+void ForestTracker::UpdateSampleTrackersInternal(TreeEnsemble& forest, Eigen::MatrixXd& covariates) {
+  double forest_pred, tree_pred;
+
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    forest_pred = 0.0;
+    for (int j = 0; j < num_trees_; j++) {
+      Tree* tree = forest.GetTree(j);
+      std::int32_t nidx = EvaluateTree(*tree, covariates, i);
+      sample_node_mapper_->SetNodeId(i, j, nidx);
+      tree_pred = tree->LeafValue(nidx, 0);
+      sample_pred_mapper_->SetPred(i, j, tree_pred);
+      forest_pred += tree_pred;
+    }
+    sum_predictions_[i] = forest_pred;
+  }
+}
+
+void ForestTracker::UpdateSampleTrackers(TreeEnsemble& forest, ForestDataset& dataset) {
+  if (!forest.IsLeafConstant()) {
+    CHECK(dataset.HasBasis());
+    UpdateSampleTrackersInternal(forest, dataset.GetCovariates(), dataset.GetBasis());
+  } else {
+    UpdateSampleTrackersInternal(forest, dataset.GetCovariates());
+  }
 }
 
 void ForestTracker::UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis) {
@@ -172,6 +231,15 @@ void ForestTracker::SyncPredictions() {
   }
 }
 
+void UnsortedNodeSampleTracker::ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset) {
+  int n = dataset.NumObservations();
+  for (int i = 0; i < num_trees_; i++) {
+    Tree* tree = forest.GetTree(i);
+    feature_partitions_[i].reset(new FeatureUnsortedPartition(n));
+    feature_partitions_[i]->ReconstituteFromTree(*tree, dataset);
+  }
+}
+
 FeatureUnsortedPartition::FeatureUnsortedPartition(data_size_t n) {
   indices_.resize(n);
   std::iota(indices_.begin(), indices_.end(), 0);
@@ -182,6 +250,92 @@ FeatureUnsortedPartition::FeatureUnsortedPartition(data_size_t n) {
   right_nodes_ = {StochTree::Tree::kInvalidNodeId};
   num_nodes_ = 1;
   num_deleted_nodes_ = 0;
+}
+
+void FeatureUnsortedPartition::ReconstituteFromTree(Tree& tree, ForestDataset& dataset) {
+  // Make sure this data structure is a root
+  CHECK_EQ(num_nodes_, 1);
+  CHECK_EQ(num_deleted_nodes_, 0);
+  data_size_t n = dataset.NumObservations();
+  CHECK_EQ(indices_.size(), n);
+  
+  // Extract covariates
+  Eigen::MatrixXd& covariates = dataset.GetCovariates();
+
+  // Set node counters
+  num_nodes_ = tree.NumNodes();
+  num_deleted_nodes_ = tree.NumDeletedNodes();
+  
+  // Resize tracking vectors
+  node_begin_.resize(num_nodes_);
+  node_length_.resize(num_nodes_);
+  parent_nodes_.resize(num_nodes_);
+  left_nodes_.resize(num_nodes_);
+  right_nodes_.resize(num_nodes_);
+  
+  // Unpack tree's splits into this data structure
+  bool is_deleted;
+  TreeNodeType node_type;
+  data_size_t node_start_idx;
+  data_size_t num_node_elements;
+  data_size_t num_true, num_false;
+  TreeSplit split_rule;
+  int split_index;
+  for (int i = 0; i < num_nodes_; i++) {
+    is_deleted = tree.IsDeleted(i);
+    if (is_deleted) {
+      deleted_nodes_.push_back(i);
+    } else {
+      // Node beginning and length in indices_
+      if (i == 0) {
+        node_start_idx = 0;
+        num_node_elements = n;
+      } else {
+        node_start_idx = node_begin_[i];
+        num_node_elements = node_length_[i];
+      }
+      // Tree node info
+      parent_nodes_[i] = tree.Parent(i);
+      node_type = tree.NodeType(i);
+      left_nodes_[i] = tree.LeftChild(i);
+      right_nodes_[i] = tree.RightChild(i);
+      // Only update indices_, node_begin_ and node_length_ if a split is to be added
+      if (node_type == TreeNodeType::kNumericalSplitNode) {
+        // Extract split rule
+        split_rule = TreeSplit(tree.Threshold(i));
+        split_index = tree.SplitIndex(i);
+      } else if (node_type == TreeNodeType::kCategoricalSplitNode) {
+        std::vector<uint32_t> categories = tree.CategoryList(i);
+        split_rule = TreeSplit(categories);
+        split_index = tree.SplitIndex(i);
+      } else {
+        continue;
+      }
+      // Partition the node indices 
+      auto node_begin = (indices_.begin() + node_begin_[i]);
+      auto node_end = (indices_.begin() + node_begin_[i] + node_length_[i]);
+      auto right_node_begin = std::stable_partition(node_begin, node_end, [&](int row) { return split_rule.SplitTrue(covariates(row, split_index)); });
+      
+      // Determine the number of true and false elements
+      node_begin = (indices_.begin() + node_begin_[i]);
+      num_true = std::distance(node_begin, right_node_begin);
+      num_false = num_node_elements - num_true;
+
+      // Add left node tracking information
+      node_begin_[left_nodes_[i]] = node_start_idx;
+      node_length_[left_nodes_[i]] = num_true;
+      parent_nodes_[left_nodes_[i]] = i;
+      left_nodes_[left_nodes_[i]] = StochTree::Tree::kInvalidNodeId;
+      left_nodes_[right_nodes_[i]] = StochTree::Tree::kInvalidNodeId;
+      
+      // Add right node tracking information
+      node_begin_[right_nodes_[i]] = node_start_idx + num_true;
+      node_length_[right_nodes_[i]] = num_false;
+      parent_nodes_[right_nodes_[i]] = i;
+      right_nodes_[left_nodes_[i]] = StochTree::Tree::kInvalidNodeId;
+      right_nodes_[right_nodes_[i]] = StochTree::Tree::kInvalidNodeId;
+    }
+  }
 }
 
 data_size_t FeatureUnsortedPartition::NodeBegin(int node_id) {
