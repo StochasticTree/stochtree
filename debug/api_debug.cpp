@@ -641,27 +641,27 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   if (model_type == kConstantLeafGaussian) {
     init_val_glob = ComputeMeanOutcome(residual);
     init_val = init_val_glob / static_cast<double>(num_trees);
-    forest_samples.InitializeRoot(init_val);
-    UpdateResidualEntireForest(tracker, dataset, residual, forest_samples.GetEnsemble(0), false, std::minus<double>());
-    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
+    active_forest.SetLeafValue(init_val);
+    UpdateResidualEntireForest(tracker, dataset, residual, &active_forest, false, std::minus<double>());
+    tracker.UpdatePredictions(&active_forest, dataset);
   } else if (model_type == kUnivariateRegressionLeafGaussian) {
     init_val_glob = ComputeMeanOutcome(residual);
     init_val = init_val_glob / static_cast<double>(num_trees);
-    forest_samples.InitializeRoot(init_val);
-    UpdateResidualEntireForest(tracker, dataset, residual, forest_samples.GetEnsemble(0), true, std::minus<double>());
-    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
+    active_forest.SetLeafValue(init_val);
+    UpdateResidualEntireForest(tracker, dataset, residual, &active_forest, true, std::minus<double>());
+    tracker.UpdatePredictions(&active_forest, dataset);
   } else if (model_type == kMultivariateRegressionLeafGaussian) {
     init_val_glob = ComputeMeanOutcome(residual);
     init_val = init_val_glob / static_cast<double>(num_trees);
     init_vec = std::vector<double>(omega_cols, init_val);
-    forest_samples.InitializeRoot(init_vec);
-    UpdateResidualEntireForest(tracker, dataset, residual, forest_samples.GetEnsemble(0), true, std::minus<double>());
-    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
+    active_forest.SetLeafVector(init_vec);
+    UpdateResidualEntireForest(tracker, dataset, residual, &active_forest, true, std::minus<double>());
+    tracker.UpdatePredictions(&active_forest, dataset);
   } else if (model_type == kLogLinearVariance) {
     init_val_glob = ComputeVarianceOutcome(residual) * 0.4;
     init_val = std::log(init_val_glob) / static_cast<double>(num_trees);
-    forest_samples.InitializeRoot(init_val);
-    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
+    active_forest.SetLeafValue(init_val);
+    tracker.UpdatePredictions(&active_forest, dataset);
     std::vector<double> initial_preds(n, init_val_glob);
     dataset.AddVarianceWeights(initial_preds.data(), n);
   }

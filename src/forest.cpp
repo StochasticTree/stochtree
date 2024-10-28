@@ -12,6 +12,15 @@
 #include <vector>
 
 [[cpp11::register]]
+cpp11::external_pointer<StochTree::TreeEnsemble> active_forest_cpp(int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
+    // Create smart pointer to newly allocated object
+    std::unique_ptr<StochTree::TreeEnsemble> forest_ptr_ = std::make_unique<StochTree::TreeEnsemble>(output_dimension, is_leaf_constant, is_exponentiated);
+    
+    // Release management of the pointer to R session
+    return cpp11::external_pointer<StochTree::TreeEnsemble>(forest_ptr_.release());
+}
+
+[[cpp11::register]]
 cpp11::external_pointer<StochTree::ForestContainer> forest_container_cpp(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
     // Create smart pointer to newly allocated object
     std::unique_ptr<StochTree::ForestContainer> forest_sample_ptr_ = std::make_unique<StochTree::ForestContainer>(num_trees, output_dimension, is_leaf_constant, is_exponentiated);
@@ -335,7 +344,6 @@ void initialize_forest_model_cpp(cpp11::external_pointer<StochTree::ForestDatase
         tracker->UpdatePredictions(forest_samples->GetEnsemble(0), *data);
         int n = data->NumObservations();
         std::vector<double> initial_preds(n, init_val);
-        // for (int i = 0; i < n; i++) initial_preds[i] = 1/initial_preds[i];
         data->AddVarianceWeights(initial_preds.data(), n);
     }
 }
@@ -388,7 +396,7 @@ cpp11::writable::doubles predict_forest_raw_cpp(cpp11::external_pointer<StochTre
     // Predict from the sampled forests
     std::vector<double> output_raw = forest_samples->PredictRaw(*dataset);
     
-    // Convert result to a matrix
+    // Unpack / re-arrange results
     int n = dataset->GetCovariates().rows();
     int num_samples = forest_samples->NumSamples();
     int output_dimension = forest_samples->OutputDimension();
@@ -396,7 +404,7 @@ cpp11::writable::doubles predict_forest_raw_cpp(cpp11::external_pointer<StochTre
     for (size_t i = 0; i < n; i++) {
         for (int j = 0; j < output_dimension; j++) {
             for (int k = 0; k < num_samples; k++) {
-                // Convert from idionsyncratic C++ storage to "column-major" --- first dimension is data row, second is output column, third is sample number
+                // Convert from idiosyncratic C++ storage to "column-major" --- first dimension is data row, second is output column, third is sample number
                 output.at(k*output_dimension*n + j*n + i) = output_raw[k*output_dimension*n + i*output_dimension + j];
             }
         }
@@ -421,4 +429,35 @@ cpp11::writable::doubles_matrix<> predict_forest_raw_single_forest_cpp(cpp11::ex
     }
     
     return output;
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles predict_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, cpp11::external_pointer<StochTree::ForestDataset> dataset) {
+    int n = dataset->GetCovariates().rows();
+    std::vector<double> output(n);
+    active_forest->PredictInplace(*dataset, output, 0);
+    return output;
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles predict_raw_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, cpp11::external_pointer<StochTree::ForestDataset> dataset) {
+    int n = dataset->GetCovariates().rows();
+    int output_dimension = active_forest->OutputDimension();
+    std::vector<double> output_raw(n*output_dimension);
+    active_forest->PredictInplace(*dataset, output_raw, 0);
+    
+    cpp11::writable::doubles output(n*output_dimension);
+    for (size_t i = 0; i < n; i++) {
+        for (int j = 0; j < output_dimension; j++) {
+            // Convert from row-major to column-major
+            output.at(j*n + i) = output_raw[i*output_dimension + j];
+        }
+    }
+    
+    return output;
+}
+
+[[cpp11::register]]
+int output_dimension_forest_container_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
+    return active_forest->OutputDimension();
 }

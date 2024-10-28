@@ -30,4 +30,6 @@ The models are numbered as follows:
 
 For an example of how to run this progam for DGP 0, leaf model 1, no random effects, 10 GFR samples, 100 MCMC samples and a default seed (`-1`), run
 
-`debugstochtree 0 1 0 10 100 -1 "" 0 "" ""`
+`./build/debugstochtree 0 1 0 10 100 -1 "" 0 "" ""`
+
+from the main `stochtree` project directory after building with `BUILD_DEBUG_TARGETS` set to `ON`.
