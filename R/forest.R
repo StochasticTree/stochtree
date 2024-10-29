@@ -327,12 +327,13 @@ Forest <- R6::R6Class(
         
         #' @description
         #' Create a new Forest object.
+        #' @param num_trees Number of trees in the forest
         #' @param output_dimension Dimensionality of the outcome model
         #' @param is_leaf_constant Whether leaf is constant
         #' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
         #' @return A new `Forest` object.
-        initialize = function(output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
-            self$forest_ptr <- active_forest_cpp(output_dimension, is_leaf_constant, is_exponentiated)
+        initialize = function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+            self$forest_ptr <- active_forest_cpp(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
         }, 
         
         #' @description
@@ -465,7 +466,7 @@ Forest <- R6::R6Class(
         #' @description
         #' Retrieve a vector of indices of leaf nodes for a given tree in a given forest
         #' @param tree_num Index of the tree for which leaf indices will be retrieved
-        get_tree_leaves = function(forest_num, tree_num) {
+        get_tree_leaves = function(tree_num) {
             return(get_tree_leaves_active_forest_cpp(self$forest_ptr, tree_num))
         }, 
         
@@ -518,14 +519,15 @@ createForestContainer <- function(num_trees, output_dimension=1, is_leaf_constan
 
 #' Create a forest
 #'
+#' @param num_trees Number of trees in the forest
 #' @param output_dimension Dimensionality of the outcome model
 #' @param is_leaf_constant Whether leaf is constant
 #' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
 #'
 #' @return `Forest` object
 #' @export
-createForest <- function(output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+createForest <- function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
     return(invisible((
-        Forest$new(output_dimension, is_leaf_constant, is_exponentiated)
+        Forest$new(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
     )))
 }

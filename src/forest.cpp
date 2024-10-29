@@ -12,9 +12,9 @@
 #include <vector>
 
 [[cpp11::register]]
-cpp11::external_pointer<StochTree::TreeEnsemble> active_forest_cpp(int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
+cpp11::external_pointer<StochTree::TreeEnsemble> active_forest_cpp(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
     // Create smart pointer to newly allocated object
-    std::unique_ptr<StochTree::TreeEnsemble> forest_ptr_ = std::make_unique<StochTree::TreeEnsemble>(output_dimension, is_leaf_constant, is_exponentiated);
+    std::unique_ptr<StochTree::TreeEnsemble> forest_ptr_ = std::make_unique<StochTree::TreeEnsemble>(num_trees, output_dimension, is_leaf_constant, is_exponentiated);
     
     // Release management of the pointer to R session
     return cpp11::external_pointer<StochTree::TreeEnsemble>(forest_ptr_.release());
@@ -458,6 +458,204 @@ cpp11::writable::doubles predict_raw_active_forest_cpp(cpp11::external_pointer<S
 }
 
 [[cpp11::register]]
-int output_dimension_forest_container_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
+int output_dimension_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
     return active_forest->OutputDimension();
+}
+
+[[cpp11::register]]
+double average_max_depth_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
+    return active_forest->AverageMaxDepth();
+}
+
+[[cpp11::register]]
+int num_trees_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
+    return active_forest->NumTrees();
+}
+
+[[cpp11::register]]
+int ensemble_tree_max_depth_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, int tree_num) {
+    return active_forest->TreeMaxDepth(tree_num);
+}
+
+[[cpp11::register]]
+int is_leaf_constant_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
+    return active_forest->IsLeafConstant();
+}
+
+[[cpp11::register]]
+bool all_roots_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
+    return active_forest->AllRoots();
+}
+
+[[cpp11::register]]
+void set_leaf_value_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, double leaf_value) {
+    active_forest->SetLeafValue(leaf_value);
+}
+
+[[cpp11::register]]
+void set_leaf_vector_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, cpp11::doubles leaf_vector) {
+    std::vector<double> leaf_vector_cast(leaf_vector.begin(), leaf_vector.end());
+    active_forest->SetLeafVector(leaf_vector_cast);
+}
+
+[[cpp11::register]]
+void add_numeric_split_tree_value_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, int tree_num, int leaf_num, int feature_num, double split_threshold, double left_leaf_value, double right_leaf_value) {
+    if (active_forest->OutputDimension() != 1) {
+        cpp11::stop("leaf_vector must match forest leaf dimension");
+    }
+    StochTree::Tree* tree = active_forest->GetTree(tree_num);
+    if (!tree->IsLeaf(leaf_num)) {
+        cpp11::stop("leaf_num is not a leaf");
+    }
+    tree->ExpandNode(leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value);
+}
+
+[[cpp11::register]]
+void add_numeric_split_tree_vector_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, int tree_num, int leaf_num, int feature_num, double split_threshold, cpp11::doubles left_leaf_vector, cpp11::doubles right_leaf_vector) {
+    if (active_forest->OutputDimension() != left_leaf_vector.size()) {
+        cpp11::stop("left_leaf_vector must match forest leaf dimension");
+    }
+    if (active_forest->OutputDimension() != right_leaf_vector.size()) {
+        cpp11::stop("right_leaf_vector must match forest leaf dimension");
+    }
+    std::vector<double> left_leaf_vector_cast(left_leaf_vector.begin(), left_leaf_vector.end());
+    std::vector<double> right_leaf_vector_cast(right_leaf_vector.begin(), right_leaf_vector.end());
+    StochTree::Tree* tree = active_forest->GetTree(tree_num);
+    if (!tree->IsLeaf(leaf_num)) {
+        cpp11::stop("leaf_num is not a leaf");
+    }
+    tree->ExpandNode(leaf_num, feature_num, split_threshold, left_leaf_vector_cast, right_leaf_vector_cast);
+}
+
+[[cpp11::register]]
+cpp11::writable::integers get_tree_leaves_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, int tree_num) {
+    StochTree::Tree* tree = active_forest->GetTree(tree_num);
+    std::vector<int32_t> leaves_raw = tree->GetLeaves();
+    cpp11::writable::integers leaves(leaves_raw.begin(), leaves_raw.end());
+    return leaves;
+}
+
+[[cpp11::register]]
+cpp11::writable::integers get_tree_split_counts_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, int tree_num, int num_features) {
+    cpp11::writable::integers output(num_features);
+    for (int i = 0; i < output.size(); i++) output.at(i) = 0;
+    StochTree::Tree* tree = active_forest->GetTree(tree_num);
+    std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+    for (int i = 0; i < split_nodes.size(); i++) {
+        auto split_feature = split_nodes.at(i);
+        output.at(split_feature)++;
+    }
+    return output;
+}
+
+[[cpp11::register]]
+cpp11::writable::integers get_overall_split_counts_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, int num_features) {
+    cpp11::writable::integers output(num_features);
+    for (int i = 0; i < output.size(); i++) output.at(i) = 0;
+    int num_trees = active_forest->NumTrees();
+    for (int i = 0; i < num_trees; i++) {
+        StochTree::Tree* tree = active_forest->GetTree(i);
+        std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+        for (int j = 0; j < split_nodes.size(); j++) {
+            auto split_feature = split_nodes.at(j);
+            output.at(split_feature)++;
+        }
+    }
+    return output;
+}
+
+[[cpp11::register]]
+cpp11::writable::integers get_granular_split_count_array_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, int num_features) {
+    int num_trees = active_forest->NumTrees();
+    cpp11::writable::integers output(num_features*num_trees);
+    for (int elem = 0; elem < output.size(); elem++) output.at(elem) = 0;
+    for (int i = 0; i < num_trees; i++) {
+        StochTree::Tree* tree = active_forest->GetTree(i);
+        std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+        for (int j = 0; j < split_nodes.size(); j++) {
+            auto split_feature = split_nodes.at(j);
+            output.at(split_feature*num_trees + i)++;
+        }
+    }
+    return output;
+}
+
+[[cpp11::register]]
+void initialize_forest_model_active_forest_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
+                                               cpp11::external_pointer<StochTree::ColumnVector> residual, 
+                                               cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
+                                               cpp11::external_pointer<StochTree::ForestTracker> tracker, 
+                                               cpp11::doubles init_values, int leaf_model_int){
+    // Convert leaf model type to enum
+    StochTree::ModelType model_type;
+    if (leaf_model_int == 0) model_type = StochTree::ModelType::kConstantLeafGaussian;
+    else if (leaf_model_int == 1) model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
+    else if (leaf_model_int == 2) model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
+    else if (leaf_model_int == 3) model_type = StochTree::ModelType::kLogLinearVariance;
+    else StochTree::Log::Fatal("Invalid model type");
+    
+    // Unpack initial value
+    int num_trees = active_forest->NumTrees();
+    double init_val;
+    std::vector<double> init_value_vector;
+    if ((model_type == StochTree::ModelType::kConstantLeafGaussian) || 
+        (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) || 
+        (model_type == StochTree::ModelType::kLogLinearVariance)) {
+        init_val = init_values.at(0);
+    } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
+        int leaf_dim = init_values.size();
+        init_value_vector.resize(leaf_dim);
+        for (int i = 0; i < leaf_dim; i++) {
+            init_value_vector[i] = init_values[i] / static_cast<double>(num_trees);
+        }
+    }
+    
+    // Initialize the models accordingly
+    double leaf_init_val;
+    if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
+        leaf_init_val = init_val / static_cast<double>(num_trees);
+        active_forest->SetLeafValue(leaf_init_val);
+        UpdateResidualEntireForest(*tracker, *data, *residual, active_forest.get(), false, std::minus<double>());
+        tracker->UpdatePredictions(active_forest.get(), *data);
+    } else if (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) {
+        leaf_init_val = init_val / static_cast<double>(num_trees);
+        active_forest->SetLeafValue(leaf_init_val);
+        UpdateResidualEntireForest(*tracker, *data, *residual, active_forest.get(), true, std::minus<double>());
+        tracker->UpdatePredictions(active_forest.get(), *data);
+    } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
+        active_forest->SetLeafVector(init_value_vector);
+        UpdateResidualEntireForest(*tracker, *data, *residual, active_forest.get(), true, std::minus<double>());
+        tracker->UpdatePredictions(active_forest.get(), *data);
+    } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
+        leaf_init_val = std::log(init_val) / static_cast<double>(num_trees);
+        active_forest->SetLeafValue(leaf_init_val);
+        tracker->UpdatePredictions(active_forest.get(), *data);
+        int n = data->NumObservations();
+        std::vector<double> initial_preds(n, init_val);
+        data->AddVarianceWeights(initial_preds.data(), n);
+    }
+}
+
+[[cpp11::register]]
+void adjust_residual_active_forest_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
+                                       cpp11::external_pointer<StochTree::ColumnVector> residual, 
+                                       cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
+                                       cpp11::external_pointer<StochTree::ForestTracker> tracker, 
+                                       bool requires_basis, bool add) {
+    // Determine whether or not we are adding forest_num to the residuals
+    std::function<double(double, double)> op;
+    if (add) op = std::plus<double>();
+    else op = std::minus<double>();
+    
+    // Perform the update (addition / subtraction) operation
+    StochTree::UpdateResidualEntireForest(*tracker, *data, *residual, active_forest.get(), requires_basis, op);
+}
+
+[[cpp11::register]]
+void propagate_basis_update_active_forest_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
+                                              cpp11::external_pointer<StochTree::ColumnVector> residual, 
+                                              cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
+                                              cpp11::external_pointer<StochTree::ForestTracker> tracker) {
+    // Perform the update (addition / subtraction) operation
+    StochTree::UpdateResidualNewBasis(*tracker, *data, *residual, active_forest.get());
 }

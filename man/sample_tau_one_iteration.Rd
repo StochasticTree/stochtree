@@ -4,10 +4,10 @@
 \alias{sample_tau_one_iteration}
 \title{Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)}
 \usage{
-sample_tau_one_iteration(forest_samples, rng, a, b, sample_num)
+sample_tau_one_iteration(forest, rng, a, b, sample_num)
 }
 \arguments{
-\item{forest_samples}{Container of forest samples}
+\item{forest}{C++ forest sample}
 
 \item{rng}{C++ random number generator}
 

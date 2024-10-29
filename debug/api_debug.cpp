@@ -699,7 +699,7 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
       }
 
       // Sample leaf node variance
-      leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, gen));
+      leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(&active_forest, a_leaf, b_leaf, gen));
 
       // Sample global variance
       global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), a_global, b_global, gen));
@@ -736,7 +736,7 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
       }
 
       // Sample leaf node variance
-      leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, gen));
+      leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(&active_forest, a_leaf, b_leaf, gen));
 
       // Sample global variance
       global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), a_global, b_global, gen));

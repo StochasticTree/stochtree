@@ -34,6 +34,7 @@ void ForestContainer::CopyFromPreviousSample(int new_sample_id, int previous_sam
 
 void ForestContainer::AddSample(TreeEnsemble& forest) {
   forests_.push_back(std::make_unique<TreeEnsemble>(forest));
+  num_samples_++;
 }
 
 void ForestContainer::InitializeRoot(double leaf_value) {

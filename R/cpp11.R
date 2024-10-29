@@ -216,6 +216,10 @@ rfx_label_mapper_to_list_cpp <- function(label_mapper_ptr) {
   .Call(`_stochtree_rfx_label_mapper_to_list_cpp`, label_mapper_ptr)
 }
 
+active_forest_cpp <- function(num_trees, output_dimension, is_leaf_constant, is_exponentiated) {
+  .Call(`_stochtree_active_forest_cpp`, num_trees, output_dimension, is_leaf_constant, is_exponentiated)
+}
+
 forest_container_cpp <- function(num_trees, output_dimension, is_leaf_constant, is_exponentiated) {
   .Call(`_stochtree_forest_container_cpp`, num_trees, output_dimension, is_leaf_constant, is_exponentiated)
 }
@@ -348,6 +352,82 @@ predict_forest_raw_single_forest_cpp <- function(forest_samples, dataset, forest
   .Call(`_stochtree_predict_forest_raw_single_forest_cpp`, forest_samples, dataset, forest_num)
 }
 
+predict_active_forest_cpp <- function(active_forest, dataset) {
+  .Call(`_stochtree_predict_active_forest_cpp`, active_forest, dataset)
+}
+
+predict_raw_active_forest_cpp <- function(active_forest, dataset) {
+  .Call(`_stochtree_predict_raw_active_forest_cpp`, active_forest, dataset)
+}
+
+output_dimension_active_forest_cpp <- function(active_forest) {
+  .Call(`_stochtree_output_dimension_active_forest_cpp`, active_forest)
+}
+
+average_max_depth_active_forest_cpp <- function(active_forest) {
+  .Call(`_stochtree_average_max_depth_active_forest_cpp`, active_forest)
+}
+
+num_trees_active_forest_cpp <- function(active_forest) {
+  .Call(`_stochtree_num_trees_active_forest_cpp`, active_forest)
+}
+
+ensemble_tree_max_depth_active_forest_cpp <- function(active_forest, tree_num) {
+  .Call(`_stochtree_ensemble_tree_max_depth_active_forest_cpp`, active_forest, tree_num)
+}
+
+is_leaf_constant_active_forest_cpp <- function(active_forest) {
+  .Call(`_stochtree_is_leaf_constant_active_forest_cpp`, active_forest)
+}
+
+all_roots_active_forest_cpp <- function(active_forest) {
+  .Call(`_stochtree_all_roots_active_forest_cpp`, active_forest)
+}
+
+set_leaf_value_active_forest_cpp <- function(active_forest, leaf_value) {
+  invisible(.Call(`_stochtree_set_leaf_value_active_forest_cpp`, active_forest, leaf_value))
+}
+
+set_leaf_vector_active_forest_cpp <- function(active_forest, leaf_vector) {
+  invisible(.Call(`_stochtree_set_leaf_vector_active_forest_cpp`, active_forest, leaf_vector))
+}
+
+add_numeric_split_tree_value_active_forest_cpp <- function(active_forest, tree_num, leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value) {
+  invisible(.Call(`_stochtree_add_numeric_split_tree_value_active_forest_cpp`, active_forest, tree_num, leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value))
+}
+
+add_numeric_split_tree_vector_active_forest_cpp <- function(active_forest, tree_num, leaf_num, feature_num, split_threshold, left_leaf_vector, right_leaf_vector) {
+  invisible(.Call(`_stochtree_add_numeric_split_tree_vector_active_forest_cpp`, active_forest, tree_num, leaf_num, feature_num, split_threshold, left_leaf_vector, right_leaf_vector))
+}
+
+get_tree_leaves_active_forest_cpp <- function(active_forest, tree_num) {
+  .Call(`_stochtree_get_tree_leaves_active_forest_cpp`, active_forest, tree_num)
+}
+
+get_tree_split_counts_active_forest_cpp <- function(active_forest, tree_num, num_features) {
+  .Call(`_stochtree_get_tree_split_counts_active_forest_cpp`, active_forest, tree_num, num_features)
+}
+
+get_overall_split_counts_active_forest_cpp <- function(active_forest, num_features) {
+  .Call(`_stochtree_get_overall_split_counts_active_forest_cpp`, active_forest, num_features)
+}
+
+get_granular_split_count_array_active_forest_cpp <- function(active_forest, num_features) {
+  .Call(`_stochtree_get_granular_split_count_array_active_forest_cpp`, active_forest, num_features)
+}
+
+initialize_forest_model_active_forest_cpp <- function(data, residual, active_forest, tracker, init_values, leaf_model_int) {
+  invisible(.Call(`_stochtree_initialize_forest_model_active_forest_cpp`, data, residual, active_forest, tracker, init_values, leaf_model_int))
+}
+
+adjust_residual_active_forest_cpp <- function(data, residual, active_forest, tracker, requires_basis, add) {
+  invisible(.Call(`_stochtree_adjust_residual_active_forest_cpp`, data, residual, active_forest, tracker, requires_basis, add))
+}
+
+propagate_basis_update_active_forest_cpp <- function(data, residual, active_forest, tracker) {
+  invisible(.Call(`_stochtree_propagate_basis_update_active_forest_cpp`, data, residual, active_forest, tracker))
+}
+
 forest_container_get_max_leaf_index_cpp <- function(forest_container, forest_num) {
   .Call(`_stochtree_forest_container_get_max_leaf_index_cpp`, forest_container, forest_num)
 }
@@ -356,20 +436,20 @@ compute_leaf_indices_cpp <- function(forest_container, covariates, forest_nums) 
   .Call(`_stochtree_compute_leaf_indices_cpp`, forest_container, covariates, forest_nums)
 }
 
-sample_gfr_one_iteration_cpp <- function(data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, pre_initialized) {
-  invisible(.Call(`_stochtree_sample_gfr_one_iteration_cpp`, data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, pre_initialized))
+sample_gfr_one_iteration_cpp <- function(data, residual, forest_samples, active_forest, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, pre_initialized) {
+  invisible(.Call(`_stochtree_sample_gfr_one_iteration_cpp`, data, residual, forest_samples, active_forest, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, pre_initialized))
 }
 
-sample_mcmc_one_iteration_cpp <- function(data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, pre_initialized) {
-  invisible(.Call(`_stochtree_sample_mcmc_one_iteration_cpp`, data, residual, forest_samples, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, pre_initialized))
+sample_mcmc_one_iteration_cpp <- function(data, residual, forest_samples, active_forest, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, pre_initialized) {
+  invisible(.Call(`_stochtree_sample_mcmc_one_iteration_cpp`, data, residual, forest_samples, active_forest, tracker, split_prior, rng, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, pre_initialized))
 }
 
 sample_sigma2_one_iteration_cpp <- function(residual, dataset, rng, a, b) {
   .Call(`_stochtree_sample_sigma2_one_iteration_cpp`, residual, dataset, rng, a, b)
 }
 
-sample_tau_one_iteration_cpp <- function(forest_samples, rng, a, b, sample_num) {
-  .Call(`_stochtree_sample_tau_one_iteration_cpp`, forest_samples, rng, a, b, sample_num)
+sample_tau_one_iteration_cpp <- function(active_forest, rng, a, b, sample_num) {
+  .Call(`_stochtree_sample_tau_one_iteration_cpp`, active_forest, rng, a, b, sample_num)
 }
 
 rng_cpp <- function(random_seed) {
