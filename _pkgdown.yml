@@ -77,6 +77,8 @@ reference:
   desc: >
     Classes and functions for constructing and persisting forests
   contents:
+  - Forest
+  - createForest
   - ForestModel
   - createForestModel
   - ForestSamples

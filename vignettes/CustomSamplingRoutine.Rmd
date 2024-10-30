@@ -1151,8 +1151,8 @@ active_forest_mu$prepare_for_sampler(forest_dataset_mu, outcome, forest_model_mu
 active_forest_mu$adjust_residual(forest_dataset_mu, outcome, forest_model_mu, F, F)
 
 # Initialize the leaves of each tree in the treatment effect forest
-active_forest_tau$prepare_for_sampler(forest_dataset_tau, outcome, forest_model_tau, 0, 0.)
-active_forest_tau$adjust_residual(forest_dataset_tau, outcome, forest_model_tau, F, F)
+active_forest_tau$prepare_for_sampler(forest_dataset_tau, outcome, forest_model_tau, 1, 0.)
+active_forest_tau$adjust_residual(forest_dataset_tau, outcome, forest_model_tau, T, F)
 ```
 
 Run the grow-from-root sampler to "warm-start" BART, also updating the adaptive coding parameter $b_0$ and $b_1$

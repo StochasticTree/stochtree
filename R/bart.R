@@ -394,9 +394,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     # Container of forest samples
     if (include_mean_forest) {
         forest_samples_mean <- createForestContainer(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
+        active_forest_mean <- createForest(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
     }
     if (include_variance_forest) {
         forest_samples_variance <- createForestContainer(num_trees_variance, 1, TRUE, TRUE)
+        active_forest_variance <- createForest(num_trees_variance, 1, TRUE, TRUE)
     }
     
     # Random effects prior parameters
@@ -438,12 +440,13 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if (include_mean_forest) {
         if (requires_basis) init_values_mean_forest <- rep(0., ncol(W_train))
         else init_values_mean_forest <- 0.
-        forest_samples_mean$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mean, leaf_model_mean_forest, init_values_mean_forest)
+        active_forest_mean$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mean, leaf_model_mean_forest, init_values_mean_forest)
+        active_forest_mean$adjust_residual(forest_dataset_train, outcome_train, forest_model_mean, requires_basis, FALSE)
     }
 
     # Initialize the leaves of each tree in the variance forest
     if (include_variance_forest) {
-        forest_samples_variance$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_variance, leaf_model_variance_forest, variance_forest_init)
+        active_forest_variance$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_variance, leaf_model_variance_forest, variance_forest_init)
     }
     
     # Run GFR (warm start) if specified
@@ -459,16 +462,16 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             
             if (include_mean_forest) {
                 forest_model_mean$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_mean, rng, feature_types, 
-                    leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
+                    forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
+                    rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = T, gfr = T, pre_initialized = T
                 )
             }
             if (include_variance_forest) {
                 forest_model_variance$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_variance, rng, feature_types, 
-                    leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
+                    forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
+                    rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = T, gfr = T, pre_initialized = T
                 )
             }
             if (sample_sigma_global) {
@@ -476,7 +479,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf) {
-                leaf_scale_samples[i] <- sample_tau_one_iteration(forest_samples_mean, rng, a_leaf, b_leaf, i-1)
+                leaf_scale_samples[i] <- sample_tau_one_iteration(active_forest_mean, rng, a_leaf, b_leaf, i-1)
                 current_leaf_scale <- as.matrix(leaf_scale_samples[i])
             }
             if (has_rfx) {
@@ -510,16 +513,16 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             
             if (include_mean_forest) {
                 forest_model_mean$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_mean, rng, feature_types, 
-                    leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
+                    forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
+                    rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = T, gfr = F, pre_initialized = T
                 )
             }
             if (include_variance_forest) {
                 forest_model_variance$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_variance, rng, feature_types, 
-                    leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, gfr = F, pre_initialized = T
+                    forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
+                    rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = T, gfr = F, pre_initialized = T
                 )
             }
             if (sample_sigma_global) {
@@ -527,7 +530,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 current_sigma2 <- global_var_samples[i]
             }
             if (sample_sigma_leaf) {
-                leaf_scale_samples[i] <- sample_tau_one_iteration(forest_samples_mean, rng, a_leaf, b_leaf, i-1)
+                leaf_scale_samples[i] <- sample_tau_one_iteration(active_forest_mean, rng, a_leaf, b_leaf, i-1)
                 current_leaf_scale <- as.matrix(leaf_scale_samples[i])
             }
             if (has_rfx) {
