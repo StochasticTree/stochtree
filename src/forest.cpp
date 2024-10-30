@@ -444,7 +444,7 @@ cpp11::writable::doubles predict_raw_active_forest_cpp(cpp11::external_pointer<S
     int n = dataset->GetCovariates().rows();
     int output_dimension = active_forest->OutputDimension();
     std::vector<double> output_raw(n*output_dimension);
-    active_forest->PredictInplace(*dataset, output_raw, 0);
+    active_forest->PredictRawInplace(*dataset, output_raw, 0);
     
     cpp11::writable::doubles output(n*output_dimension);
     for (size_t i = 0; i < n; i++) {

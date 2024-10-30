@@ -1286,7 +1286,7 @@ mean((rowMeans(tau_hat[,1:num_gfr]) - tau_x)^2)
 Inspect the warm start BART results
 
 ```{r bcf_warm_start_plot}
-plot(sigma_samples[(num_gfr+1):num_samples], ylab="sigma^2")
+plot(sigma2_samples[(num_gfr+1):num_samples], ylab="sigma^2")
 plot(rowMeans(mu_hat[,(num_gfr+1):num_samples]), mu_x, pch=16, cex=0.75, 
      xlab = "pred", ylab = "actual", main = "prognostic term")
 abline(0,1,col="red",lty=2,lwd=2.5)
