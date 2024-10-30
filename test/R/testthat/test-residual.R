@@ -38,16 +38,17 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     # Create forest sampler and forest container
     forest_model = createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
     forest_samples = createForestContainer(num_trees, 1, F)
+    active_forest = createForest(num_trees, 1, F)
     
     # Initialize the leaves of each tree in the prognostic forest
-    forest_samples$set_root_leaves(0, mean(resid) / num_trees)
-    forest_samples$adjust_residual(forest_dataset, residual, forest_model, F, 0, F)
-
+    active_forest$prepare_for_sampler(forest_dataset, residual, forest_model, 0, mean(resid))
+    active_forest$adjust_residual(forest_dataset, residual, forest_model, F, F)
+    
     # Run the forest sampling algorithm for a single iteration
     forest_model$sample_one_iteration(
-        forest_dataset, residual, forest_samples, cpp_rng, feature_types, 
-        0, current_leaf_scale, variable_weights, a_forest, b_forest, 
-        current_sigma2, cutpoint_grid_size, gfr = T, pre_initialized = T
+        forest_dataset, residual, forest_samples, active_forest, 
+        cpp_rng, feature_types, 0, current_leaf_scale, variable_weights, a_forest, b_forest, 
+        current_sigma2, cutpoint_grid_size, keep_forest = T, gfr = T, pre_initialized = T
     )
 
     # Get the current residual after running the sampler
@@ -62,7 +63,7 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     forest_dataset$update_basis(W_update)
     
     # Update residual to reflect adjusted basis
-    forest_model$propagate_basis_update(forest_dataset, residual, forest_samples, 0)
+    forest_model$propagate_basis_update(forest_dataset, residual, active_forest)
     
     # Get updated prediction from the tree ensemble
     updated_yhat = as.numeric(forest_samples$predict(forest_dataset))
