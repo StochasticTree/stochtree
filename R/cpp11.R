@@ -348,6 +348,10 @@ predict_forest_raw_single_forest_cpp <- function(forest_samples, dataset, forest
   .Call(`_stochtree_predict_forest_raw_single_forest_cpp`, forest_samples, dataset, forest_num)
 }
 
+predict_forest_raw_single_tree_cpp <- function(forest_samples, dataset, forest_num, tree_num) {
+  .Call(`_stochtree_predict_forest_raw_single_tree_cpp`, forest_samples, dataset, forest_num, tree_num)
+}
+
 forest_container_get_max_leaf_index_cpp <- function(forest_container, forest_num) {
   .Call(`_stochtree_forest_container_get_max_leaf_index_cpp`, forest_container, forest_num)
 }
