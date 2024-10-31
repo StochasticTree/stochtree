@@ -235,6 +235,29 @@ class ForestContainerCpp {
     return result;
   }
 
+  py::array_t<double> PredictRawSingleTree(ForestDatasetCpp& dataset, int forest_num, int tree_num) {
+    // Predict from the forest container
+    data_size_t n = dataset.NumRows();
+    int num_samples = this->NumSamples();
+    int output_dim = this->OutputDimension();
+    StochTree::ForestDataset* data_ptr = dataset.GetDataset();
+    std::vector<double> output_raw = forest_samples_->PredictRawSingleTree(*data_ptr, forest_num, tree_num);
+
+    // Convert result to a matrix
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, output_dim}));
+    auto accessor = result.mutable_unchecked<2>();
+    // py::buffer_info buf = result.request();
+    // double *ptr = static_cast<double *>(buf.ptr);
+    for (size_t i = 0; i < n; i++) {
+      for (int j = 0; j < output_dim; j++) {
+        accessor(i,j) = output_raw[i*output_dim + j];
+        // ptr[i*output_dim + j] = output_raw[i*output_dim + j];
+      }
+    }
+
+    return result;
+  }
+
   void SetRootValue(int forest_num, double leaf_value) {
     forest_samples_->InitializeRoot(leaf_value);
   }
