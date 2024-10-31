@@ -642,7 +642,7 @@ void adjust_residual_active_forest_cpp(cpp11::external_pointer<StochTree::Forest
                                        cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
                                        cpp11::external_pointer<StochTree::ForestTracker> tracker, 
                                        bool requires_basis, bool add) {
-    // Determine whether or not we are adding forest_num to the residuals
+    // Determine whether or not we are adding forest predictions to the residuals
     std::function<double(double, double)> op;
     if (add) op = std::plus<double>();
     else op = std::minus<double>();

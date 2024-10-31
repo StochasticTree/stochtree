@@ -25,6 +25,8 @@ class ForestSampler:
         """
         Sample one iteration of a forest using the specified model and tree sampling algorithm
 
+        Parameters
+        ----------
         forest_container : :obj:`ForestContainer`
             Stochtree object storing tree ensembles
         forest : :obj:`Forest`
@@ -66,6 +68,8 @@ class ForestSampler:
         """
         Initialize forest and tracking data structures with constant root values before running a sampler
 
+        Parameters
+        ----------
         dataset : :obj:`Dataset`
             Stochtree dataset object storing covariates / bases / weights
         residual : :obj:`Residual`
@@ -79,16 +83,29 @@ class ForestSampler:
         """
         self.forest_sampler_cpp.InitializeForestModel(dataset.dataset_cpp, residual.residual_cpp, forest.forest_cpp, leaf_model, initial_values)
     
-    def adjust_residual(self, dataset: Dataset, residual: Residual, forest: Forest, requires_basis: bool, forest_num: int, add: bool) -> None:
+    def adjust_residual(self, dataset: Dataset, residual: Residual, forest: Forest, requires_basis: bool, add: bool) -> None:
         """
         Method that "adjusts" the residual used for training tree ensembles by either adding or subtracting the prediction of each tree to the existing residual. 
         
         This is typically run just once at the beginning of a forest sampling algorithm --- after trees are initialized with constant root node predictions, their 
         root predictions are subtracted out of the residual.
+
+        Parameters
+        ----------
+        dataset : :obj:`Dataset`
+            Stochtree dataset object storing covariates / bases / weights
+        residual : :obj:`Residual`
+            Stochtree object storing continuously updated partial / full residual
+        forest : :obj:`Forest`
+            Stochtree object storing the "active" forest being sampled
+        requires_basis : :obj:`bool`
+            Whether or not the forest requires a basis dot product when predicting
+        add : :obj:`bool`
+            Whether the predictions of each tree are added (if ``add=True``) or subtracted (``add=False``) from the outcome to form the new residual
         """
-        forest_container.forest_container_cpp.AdjustResidual(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, requires_basis, forest_num, add)
+        forest.forest_cpp.AdjustResidual(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, requires_basis, add)
     
-    def propagate_basis_update(self, dataset: Dataset, residual: Residual, forest_container: ForestContainer, forest_num: int) -> None:
+    def propagate_basis_update(self, dataset: Dataset, residual: Residual, forest: Forest) -> None:
         """
         Propagates basis update through to the (full/partial) residual by iteratively (a) adding back in the previous prediction of each tree, (b) recomputing predictions 
         for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
@@ -96,8 +113,17 @@ class ForestSampler:
         This is useful in cases where a basis (for e.g. leaf regression) is updated outside of a tree sampler (as with e.g. adaptive coding for binary treatment BCF). 
         Once a basis has been updated, the overall "function" represented by a tree model has changed and this should be reflected through to the residual before the 
         next sampling loop is run.
+
+        Parameters
+        ----------
+        dataset : :obj:`Dataset`
+            Stochtree dataset object storing covariates / bases / weights
+        residual : :obj:`Residual`
+            Stochtree object storing continuously updated partial / full residual
+        forest : :obj:`Forest`
+            Stochtree object storing the "active" forest being sampled
         """
-        self.forest_sampler_cpp.PropagateBasisUpdate(dataset.dataset_cpp, residual.residual_cpp, forest_container.forest_container_cpp, forest_num)
+        self.forest_sampler_cpp.PropagateBasisUpdate(dataset.dataset_cpp, residual.residual_cpp, forest.forest_cpp)
     
     def propagate_residual_update(self, residual: Residual) -> None:
         self.forest_sampler_cpp.PropagateResidualUpdate(residual.residual_cpp)
