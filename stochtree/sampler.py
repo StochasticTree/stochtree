@@ -3,7 +3,7 @@ Python classes wrapping C++ sampler objects
 """
 import numpy as np
 from .data import Dataset, Residual
-from .forest import ForestContainer
+from .forest import ForestContainer, Forest
 from stochtree_cpp import RngCpp, ForestSamplerCpp, GlobalVarianceModelCpp, LeafVarianceModelCpp
 from typing import Union
 
@@ -18,18 +18,51 @@ class ForestSampler:
         # Initialize a ForestDatasetCpp object
         self.forest_sampler_cpp = ForestSamplerCpp(dataset.dataset_cpp, feature_types, num_trees, num_obs, alpha, beta, min_samples_leaf, max_depth)
     
-    def sample_one_iteration(self, forest_container: ForestContainer, dataset: Dataset, residual: Residual, rng: RNG, 
-                             feature_types: np.array, cutpoint_grid_size: int, leaf_model_scale_input: np.array, 
-                             variable_weights: np.array, a_forest: float, b_forest: float, global_variance: float, 
-                             leaf_model_int: int, gfr: bool, pre_initialized: bool):
+    def sample_one_iteration(self, forest_container: ForestContainer, forest: Forest, dataset: Dataset, 
+                             residual: Residual, rng: RNG, feature_types: np.array, cutpoint_grid_size: int, 
+                             leaf_model_scale_input: np.array, variable_weights: np.array, a_forest: float, b_forest: float, 
+                             global_variance: float, leaf_model_int: int, keep_forest: bool, gfr: bool, pre_initialized: bool):
         """
         Sample one iteration of a forest using the specified model and tree sampling algorithm
+
+        forest_container : :obj:`ForestContainer`
+            Stochtree object storing tree ensembles
+        forest : :obj:`Forest`
+            Stochtree object storing the "active" forest being sampled
+        dataset : :obj:`Dataset`
+            Stochtree dataset object storing covariates / bases / weights
+        residual : :obj:`Residual`
+            Stochtree object storing continuously updated partial / full residual
+        rng : :obj:`RNG`
+            Stochtree object storing C++ random number generator to be used sampling algorithm
+        feature_types : :obj:`np.array`
+            Array of integer-coded feature types (0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+        cutpoint_grid_size : :obj:`int`
+            Maximum size of a grid of available cutpoints (which thins the number of possible splits, particularly useful in the grow-from-root algorithm)
+        leaf_model_scale_input : :obj:`np.array`
+            Numpy array containing leaf model scale parameter (if the leaf model is univariate, this is essentially a scalar which is used as such in the C++ source, but stored as a numpy array)
+        variable_weights : :obj:`np.array`
+            Numpy array containing sampling probabilities for each feature
+        a_forest : :obj:`float`
+            Scale parameter for the inverse gamma outcome model for heteroskedasticity forest
+        b_forest : :obj:`float`
+            Scale parameter for the inverse gamma outcome model for heteroskedasticity forest
+        global_variance : :obj:`float`
+            Current value of the global error variance parameter
+        leaf_model_int : :obj:`int`
+            Integer encoding the leaf model type (0 = constant Gaussian leaf mean model, 1 = univariate Gaussian leaf regression mean model, 2 = multivariate Gaussian leaf regression mean model, 3 = univariate Inverse Gamma constant leaf variance model)
+        keep_forest : :obj:`bool`
+            Whether or not the resulting forest should be retained in ``forest_container`` or discarded (due to burnin or thinning for example)
+        gfr : :obj:`bool`
+            Whether or not the "grow-from-root" (GFR) sampler is run (if this is ``True`` and ``leaf_model_int=0`` this is equivalent to XBART, if this is ``FALSE`` and ``leaf_model_int=0`` this is equivalent to the original BART)
+        pre_initialized : :obj:`bool`
+            Whether or not the forest being sampled has already been initialized
         """
-        self.forest_sampler_cpp.SampleOneIteration(forest_container.forest_container_cpp, dataset.dataset_cpp, residual.residual_cpp, rng.rng_cpp, 
+        self.forest_sampler_cpp.SampleOneIteration(forest_container.forest_container_cpp, forest.forest_cpp, dataset.dataset_cpp, residual.residual_cpp, rng.rng_cpp, 
                                                    feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, 
-                                                   a_forest, b_forest, global_variance, leaf_model_int, gfr, pre_initialized)
+                                                   a_forest, b_forest, global_variance, leaf_model_int, keep_forest, gfr, pre_initialized)
     
-    def prepare_for_sampler(self, dataset: Dataset, residual: Residual, forests: ForestContainer, leaf_model: int, initial_values: np.array):
+    def prepare_for_sampler(self, dataset: Dataset, residual: Residual, forest: Forest, leaf_model: int, initial_values: np.array):
         """
         Initialize forest and tracking data structures with constant root values before running a sampler
 
@@ -37,16 +70,16 @@ class ForestSampler:
             Stochtree dataset object storing covariates / bases / weights
         residual : :obj:`Residual`
             Stochtree object storing continuously updated partial / full residual
-        forests : :obj:`ForestContainer`
-            Stochtree object storing tree ensembles
+        forest : :obj:`Forest`
+            Stochtree object storing the "active" forest being sampled
         leaf_model : :obj:`int`
             Integer encoding the leaf model type
         initial_values : :obj:`np.array`
             Constant root node value(s) at which to initialize forest prediction (internally, it is divided by the number of trees and typically it is 0 for mean models and 1 for variance models).
         """
-        self.forest_sampler_cpp.InitializeForestModel(dataset.dataset_cpp, residual.residual_cpp, forests.forest_container_cpp, leaf_model, initial_values)
+        self.forest_sampler_cpp.InitializeForestModel(dataset.dataset_cpp, residual.residual_cpp, forest.forest_cpp, leaf_model, initial_values)
     
-    def adjust_residual(self, dataset: Dataset, residual: Residual, forest_container: ForestContainer, requires_basis: bool, forest_num: int, add: bool) -> None:
+    def adjust_residual(self, dataset: Dataset, residual: Residual, forest: Forest, requires_basis: bool, forest_num: int, add: bool) -> None:
         """
         Method that "adjusts" the residual used for training tree ensembles by either adding or subtracting the prediction of each tree to the existing residual. 
         
