@@ -422,3 +422,21 @@ cpp11::writable::doubles_matrix<> predict_forest_raw_single_forest_cpp(cpp11::ex
     
     return output;
 }
+
+[[cpp11::register]]
+cpp11::writable::doubles_matrix<> predict_forest_raw_single_tree_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::ForestDataset> dataset, int forest_num, int tree_num) {
+    // Predict from the sampled forests
+    std::vector<double> output_raw = forest_samples->PredictRawSingleTree(*dataset, forest_num, tree_num);
+    
+    // Convert result to a matrix
+    int n = dataset->GetCovariates().rows();
+    int output_dimension = forest_samples->OutputDimension();
+    cpp11::writable::doubles_matrix<> output(n, output_dimension);
+    for (size_t i = 0; i < n; i++) {
+        for (int j = 0; j < output_dimension; j++) {
+            output(i, j) = output_raw[i*output_dimension + j];
+        }
+    }
+    
+    return output;
+}
