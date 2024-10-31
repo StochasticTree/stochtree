@@ -648,6 +648,13 @@ extern "C" SEXP _stochtree_predict_forest_raw_single_forest_cpp(SEXP forest_samp
     return cpp11::as_sexp(predict_forest_raw_single_forest_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num)));
   END_CPP11
 }
+// forest.cpp
+cpp11::writable::doubles_matrix<> predict_forest_raw_single_tree_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::ForestDataset> dataset, int forest_num, int tree_num);
+extern "C" SEXP _stochtree_predict_forest_raw_single_tree_cpp(SEXP forest_samples, SEXP dataset, SEXP forest_num, SEXP tree_num) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(predict_forest_raw_single_tree_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num)));
+  END_CPP11
+}
 // kernel.cpp
 int forest_container_get_max_leaf_index_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_container, int forest_num);
 extern "C" SEXP _stochtree_forest_container_get_max_leaf_index_cpp(SEXP forest_container, SEXP forest_num) {
@@ -1034,6 +1041,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_predict_forest_cpp",                                  (DL_FUNC) &_stochtree_predict_forest_cpp,                                   2},
     {"_stochtree_predict_forest_raw_cpp",                              (DL_FUNC) &_stochtree_predict_forest_raw_cpp,                               2},
     {"_stochtree_predict_forest_raw_single_forest_cpp",                (DL_FUNC) &_stochtree_predict_forest_raw_single_forest_cpp,                 3},
+    {"_stochtree_predict_forest_raw_single_tree_cpp",                  (DL_FUNC) &_stochtree_predict_forest_raw_single_tree_cpp,                   4},
     {"_stochtree_propagate_basis_update_forest_container_cpp",         (DL_FUNC) &_stochtree_propagate_basis_update_forest_container_cpp,          5},
     {"_stochtree_propagate_trees_column_vector_cpp",                   (DL_FUNC) &_stochtree_propagate_trees_column_vector_cpp,                    2},
     {"_stochtree_rfx_container_append_from_json_cpp",                  (DL_FUNC) &_stochtree_rfx_container_append_from_json_cpp,                   3},
