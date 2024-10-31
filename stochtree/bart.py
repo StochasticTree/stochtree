@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Dict, Any
 from .data import Dataset, Residual
-from .forest import ForestContainer
+from .forest import ForestContainer, Forest
 from .preprocessing import CovariateTransformer, _preprocess_bart_params
 from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
 from .utils import NotSampledError
@@ -297,8 +297,10 @@ class BARTModel:
         # Container of forest samples
         if self.include_mean_forest:
             self.forest_container_mean = ForestContainer(num_trees_mean, 1, True, False) if not self.has_basis else ForestContainer(num_trees_mean, self.num_basis, False, False)
+            active_forest_mean = Forest(num_trees_mean, 1, True, False) if not self.has_basis else Forest(num_trees_mean, self.num_basis, False, False)
         if self.include_variance_forest:
             self.forest_container_variance = ForestContainer(num_trees_variance, 1, True, True)
+            active_forest_variance = Forest(num_trees_variance, 1, True, True)
         
         # Variance samplers
         if self.sample_sigma_global:
@@ -312,12 +314,12 @@ class BARTModel:
                 init_val_mean = np.repeat(0., basis_train.shape[1])
             else:
                 init_val_mean = np.array([0.])
-            forest_sampler_mean.prepare_for_sampler(forest_dataset_train, residual_train, self.forest_container_mean, leaf_model_mean_forest, init_val_mean)
+            forest_sampler_mean.prepare_for_sampler(forest_dataset_train, residual_train, active_forest_mean, leaf_model_mean_forest, init_val_mean)
 
         # Initialize the leaves of each tree in the variance forest
         if self.include_variance_forest:
             init_val_variance = np.array([variance_forest_leaf_init])
-            forest_sampler_variance.prepare_for_sampler(forest_dataset_train, residual_train, self.forest_container_variance, leaf_model_variance_forest, init_val_variance)
+            forest_sampler_variance.prepare_for_sampler(forest_dataset_train, residual_train, active_forest_variance, leaf_model_variance_forest, init_val_variance)
 
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
@@ -326,17 +328,17 @@ class BARTModel:
                 # Sample the mean forest
                 if self.include_mean_forest:
                     forest_sampler_mean.sample_one_iteration(
-                        self.forest_container_mean, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                        cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
-                        current_sigma2, leaf_model_mean_forest, True, True
+                        self.forest_container_mean, active_forest_mean, forest_dataset_train, residual_train, 
+                        cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
+                        current_sigma2, leaf_model_mean_forest, True, True, True
                     )
                 
                 # Sample the variance forest
                 if self.include_variance_forest:
                     forest_sampler_variance.sample_one_iteration(
-                        self.forest_container_variance, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                        cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
-                        current_sigma2, leaf_model_variance_forest, True, True
+                        self.forest_container_variance, active_forest_variance, forest_dataset_train, residual_train, 
+                        cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
+                        current_sigma2, leaf_model_variance_forest, True, True, True
                     )
 
                 # Sample variance parameters (if requested)
@@ -344,7 +346,7 @@ class BARTModel:
                     current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
                     self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std/self.variance_scale
                 if self.sample_sigma_leaf:
-                    self.leaf_scale_samples[i] = leaf_var_model.sample_one_iteration(self.forest_container_mean, cpp_rng, a_leaf, b_leaf, i)
+                    self.leaf_scale_samples[i] = leaf_var_model.sample_one_iteration(active_forest_mean, cpp_rng, a_leaf, b_leaf, i)
                     current_leaf_scale[0,0] = self.leaf_scale_samples[i]
         
         # Run MCMC
@@ -357,17 +359,17 @@ class BARTModel:
                 # Sample the mean forest
                 if self.include_mean_forest:
                     forest_sampler_mean.sample_one_iteration(
-                        self.forest_container_mean, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                        cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
-                        current_sigma2, leaf_model_mean_forest, False, True
+                        self.forest_container_mean, active_forest_mean, forest_dataset_train, residual_train, 
+                        cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
+                        current_sigma2, leaf_model_mean_forest, True, False, True
                     )
                 
                 # Sample the variance forest
                 if self.include_variance_forest:
                     forest_sampler_variance.sample_one_iteration(
-                        self.forest_container_variance, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                        cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
-                        current_sigma2, leaf_model_variance_forest, False, True
+                        self.forest_container_variance, active_forest_variance, forest_dataset_train, residual_train, 
+                        cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
+                        current_sigma2, leaf_model_variance_forest, True, False, True
                     )
 
                 # Sample variance parameters (if requested)
@@ -375,7 +377,7 @@ class BARTModel:
                     current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
                     self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std/self.variance_scale
                 if self.sample_sigma_leaf:
-                    self.leaf_scale_samples[i] = leaf_var_model.sample_one_iteration(self.forest_container_mean, cpp_rng, a_leaf, b_leaf, i)
+                    self.leaf_scale_samples[i] = leaf_var_model.sample_one_iteration(active_forest_mean, cpp_rng, a_leaf, b_leaf, i)
                     current_leaf_scale[0,0] = self.leaf_scale_samples[i]
         
         # Mark the model as sampled
