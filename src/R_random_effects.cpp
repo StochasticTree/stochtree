@@ -181,9 +181,9 @@ cpp11::external_pointer<StochTree::LabelMapper> rfx_label_mapper_cpp(cpp11::exte
 [[cpp11::register]]
 void rfx_model_sample_random_effects_cpp(cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model, cpp11::external_pointer<StochTree::RandomEffectsDataset> rfx_dataset, 
                                          cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::RandomEffectsTracker> rfx_tracker, 
-                                         cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container, double global_variance, cpp11::external_pointer<std::mt19937> rng) {
+                                         cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container, bool keep_sample, double global_variance, cpp11::external_pointer<std::mt19937> rng) {
     rfx_model->SampleRandomEffects(*rfx_dataset, *residual, *rfx_tracker, global_variance, *rng);
-    rfx_container->AddSample(*rfx_model);
+    if (keep_sample) rfx_container->AddSample(*rfx_model);
 }
 
 [[cpp11::register]]

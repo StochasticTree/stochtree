@@ -13,13 +13,12 @@ sample_sigma2_one_iteration <- function(residual, dataset, rng, a, b) {
 
 #' Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)
 #'
-#' @param forest C++ forest sample
+#' @param forest C++ forest
 #' @param rng C++ random number generator
 #' @param a Leaf variance shape parameter
 #' @param b Leaf variance scale parameter
-#' @param sample_num Sample index
 #'
 #' @export
-sample_tau_one_iteration <- function(forest, rng, a, b, sample_num) {
-    return(sample_tau_one_iteration_cpp(forest$forest_ptr, rng$rng_ptr, a, b, sample_num))
+sample_tau_one_iteration <- function(forest, rng, a, b) {
+    return(sample_tau_one_iteration_cpp(forest$forest_ptr, rng$rng_ptr, a, b))
 }

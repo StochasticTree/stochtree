@@ -271,10 +271,10 @@ extern "C" SEXP _stochtree_rfx_label_mapper_cpp(SEXP rfx_tracker) {
   END_CPP11
 }
 // R_random_effects.cpp
-void rfx_model_sample_random_effects_cpp(cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model, cpp11::external_pointer<StochTree::RandomEffectsDataset> rfx_dataset, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::RandomEffectsTracker> rfx_tracker, cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container, double global_variance, cpp11::external_pointer<std::mt19937> rng);
-extern "C" SEXP _stochtree_rfx_model_sample_random_effects_cpp(SEXP rfx_model, SEXP rfx_dataset, SEXP residual, SEXP rfx_tracker, SEXP rfx_container, SEXP global_variance, SEXP rng) {
+void rfx_model_sample_random_effects_cpp(cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model, cpp11::external_pointer<StochTree::RandomEffectsDataset> rfx_dataset, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::RandomEffectsTracker> rfx_tracker, cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container, bool keep_sample, double global_variance, cpp11::external_pointer<std::mt19937> rng);
+extern "C" SEXP _stochtree_rfx_model_sample_random_effects_cpp(SEXP rfx_model, SEXP rfx_dataset, SEXP residual, SEXP rfx_tracker, SEXP rfx_container, SEXP keep_sample, SEXP global_variance, SEXP rng) {
   BEGIN_CPP11
-    rfx_model_sample_random_effects_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel>>>(rfx_model), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(rfx_dataset), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsTracker>>>(rfx_tracker), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsContainer>>>(rfx_container), cpp11::as_cpp<cpp11::decay_t<double>>(global_variance), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng));
+    rfx_model_sample_random_effects_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel>>>(rfx_model), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(rfx_dataset), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsTracker>>>(rfx_tracker), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsContainer>>>(rfx_container), cpp11::as_cpp<cpp11::decay_t<bool>>(keep_sample), cpp11::as_cpp<cpp11::decay_t<double>>(global_variance), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng));
     return R_NilValue;
   END_CPP11
 }
@@ -833,10 +833,10 @@ extern "C" SEXP _stochtree_sample_sigma2_one_iteration_cpp(SEXP residual, SEXP d
   END_CPP11
 }
 // sampler.cpp
-double sample_tau_one_iteration_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, cpp11::external_pointer<std::mt19937> rng, double a, double b, int sample_num);
-extern "C" SEXP _stochtree_sample_tau_one_iteration_cpp(SEXP active_forest, SEXP rng, SEXP a, SEXP b, SEXP sample_num) {
+double sample_tau_one_iteration_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, cpp11::external_pointer<std::mt19937> rng, double a, double b);
+extern "C" SEXP _stochtree_sample_tau_one_iteration_cpp(SEXP active_forest, SEXP rng, SEXP a, SEXP b) {
   BEGIN_CPP11
-    return cpp11::as_sexp(sample_tau_one_iteration_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(active_forest), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng), cpp11::as_cpp<cpp11::decay_t<double>>(a), cpp11::as_cpp<cpp11::decay_t<double>>(b), cpp11::as_cpp<cpp11::decay_t<int>>(sample_num)));
+    return cpp11::as_sexp(sample_tau_one_iteration_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(active_forest), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng), cpp11::as_cpp<cpp11::decay_t<double>>(a), cpp11::as_cpp<cpp11::decay_t<double>>(b)));
   END_CPP11
 }
 // sampler.cpp
@@ -1229,7 +1229,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_rfx_label_mapper_to_list_cpp",                        (DL_FUNC) &_stochtree_rfx_label_mapper_to_list_cpp,                         1},
     {"_stochtree_rfx_model_cpp",                                       (DL_FUNC) &_stochtree_rfx_model_cpp,                                        2},
     {"_stochtree_rfx_model_predict_cpp",                               (DL_FUNC) &_stochtree_rfx_model_predict_cpp,                                3},
-    {"_stochtree_rfx_model_sample_random_effects_cpp",                 (DL_FUNC) &_stochtree_rfx_model_sample_random_effects_cpp,                  7},
+    {"_stochtree_rfx_model_sample_random_effects_cpp",                 (DL_FUNC) &_stochtree_rfx_model_sample_random_effects_cpp,                  8},
     {"_stochtree_rfx_model_set_group_parameter_covariance_cpp",        (DL_FUNC) &_stochtree_rfx_model_set_group_parameter_covariance_cpp,         2},
     {"_stochtree_rfx_model_set_group_parameters_cpp",                  (DL_FUNC) &_stochtree_rfx_model_set_group_parameters_cpp,                   2},
     {"_stochtree_rfx_model_set_variance_prior_scale_cpp",              (DL_FUNC) &_stochtree_rfx_model_set_variance_prior_scale_cpp,               2},
@@ -1242,7 +1242,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_sample_gfr_one_iteration_cpp",                        (DL_FUNC) &_stochtree_sample_gfr_one_iteration_cpp,                        17},
     {"_stochtree_sample_mcmc_one_iteration_cpp",                       (DL_FUNC) &_stochtree_sample_mcmc_one_iteration_cpp,                       17},
     {"_stochtree_sample_sigma2_one_iteration_cpp",                     (DL_FUNC) &_stochtree_sample_sigma2_one_iteration_cpp,                      5},
-    {"_stochtree_sample_tau_one_iteration_cpp",                        (DL_FUNC) &_stochtree_sample_tau_one_iteration_cpp,                         5},
+    {"_stochtree_sample_tau_one_iteration_cpp",                        (DL_FUNC) &_stochtree_sample_tau_one_iteration_cpp,                         4},
     {"_stochtree_set_leaf_value_active_forest_cpp",                    (DL_FUNC) &_stochtree_set_leaf_value_active_forest_cpp,                     2},
     {"_stochtree_set_leaf_value_forest_container_cpp",                 (DL_FUNC) &_stochtree_set_leaf_value_forest_container_cpp,                  2},
     {"_stochtree_set_leaf_vector_active_forest_cpp",                   (DL_FUNC) &_stochtree_set_leaf_vector_active_forest_cpp,                    2},

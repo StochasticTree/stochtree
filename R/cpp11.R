@@ -144,8 +144,8 @@ rfx_label_mapper_cpp <- function(rfx_tracker) {
   .Call(`_stochtree_rfx_label_mapper_cpp`, rfx_tracker)
 }
 
-rfx_model_sample_random_effects_cpp <- function(rfx_model, rfx_dataset, residual, rfx_tracker, rfx_container, global_variance, rng) {
-  invisible(.Call(`_stochtree_rfx_model_sample_random_effects_cpp`, rfx_model, rfx_dataset, residual, rfx_tracker, rfx_container, global_variance, rng))
+rfx_model_sample_random_effects_cpp <- function(rfx_model, rfx_dataset, residual, rfx_tracker, rfx_container, keep_sample, global_variance, rng) {
+  invisible(.Call(`_stochtree_rfx_model_sample_random_effects_cpp`, rfx_model, rfx_dataset, residual, rfx_tracker, rfx_container, keep_sample, global_variance, rng))
 }
 
 rfx_model_predict_cpp <- function(rfx_model, rfx_dataset, rfx_tracker) {
@@ -448,8 +448,8 @@ sample_sigma2_one_iteration_cpp <- function(residual, dataset, rng, a, b) {
   .Call(`_stochtree_sample_sigma2_one_iteration_cpp`, residual, dataset, rng, a, b)
 }
 
-sample_tau_one_iteration_cpp <- function(active_forest, rng, a, b, sample_num) {
-  .Call(`_stochtree_sample_tau_one_iteration_cpp`, active_forest, rng, a, b, sample_num)
+sample_tau_one_iteration_cpp <- function(active_forest, rng, a, b) {
+  .Call(`_stochtree_sample_tau_one_iteration_cpp`, active_forest, rng, a, b)
 }
 
 rng_cpp <- function(random_seed) {

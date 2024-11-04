@@ -167,7 +167,7 @@ double sample_sigma2_one_iteration_cpp(cpp11::external_pointer<StochTree::Column
 [[cpp11::register]]
 double sample_tau_one_iteration_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
                                     cpp11::external_pointer<std::mt19937> rng, 
-                                    double a, double b, int sample_num
+                                    double a, double b
 ) {
     // Run one iteration of the sampler
     StochTree::LeafNodeHomoskedasticVarianceModel var_model = StochTree::LeafNodeHomoskedasticVarianceModel();

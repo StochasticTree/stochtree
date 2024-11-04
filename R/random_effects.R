@@ -224,13 +224,14 @@ RandomEffectsModel <- R6::R6Class(
         #' @param residual Object of type `Outcome`
         #' @param rfx_tracker Object of type `RandomEffectsTracker`
         #' @param rfx_samples Object of type `RandomEffectSamples`
+        #' @param keep_sample Whether sample should be retained in `rfx_samples`. If `FALSE`, the state of `rfx_tracker` will be updated, but the parameter values will not be added to the sample container. Samples are commonly discarded due to burn-in or thinning.
         #' @param global_variance Scalar global variance parameter
         #' @param rng Object of type `CppRNG`
         #' @return None
-        sample_random_effect = function(rfx_dataset, residual, rfx_tracker, rfx_samples, global_variance, rng) {
+        sample_random_effect = function(rfx_dataset, residual, rfx_tracker, rfx_samples, keep_sample, global_variance, rng) {
             rfx_model_sample_random_effects_cpp(self$rfx_model_ptr, rfx_dataset$data_ptr, 
                                                 residual$data_ptr, rfx_tracker$rfx_tracker_ptr, 
-                                                rfx_samples$rfx_container_ptr, global_variance, rng$rng_ptr)
+                                                rfx_samples$rfx_container_ptr, keep_sample, global_variance, rng$rng_ptr)
         },
         
         #' @description
