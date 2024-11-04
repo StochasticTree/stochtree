@@ -77,6 +77,21 @@ class TreeEnsemble {
     return trees_[i]->CloneFromTree(tree);
   }
 
+  std::vector<double> Predict(ForestDataset& dataset) {
+    data_size_t n = dataset.NumObservations();
+    std::vector<double> output(n);
+    PredictInplace(dataset, output, 0);
+    return output;
+  }
+
+  std::vector<double> PredictRaw(ForestDataset& dataset) {
+    data_size_t n = dataset.NumObservations();
+    data_size_t total_output_size = n * output_dimension_;
+    std::vector<double> output(total_output_size);
+    PredictRawInplace(dataset, output, 0);
+    return output;
+  }
+  
   inline void PredictInplace(ForestDataset& dataset, std::vector<double> &output, data_size_t offset = 0) {
     PredictInplace(dataset, output, 0, trees_.size(), offset);
   }

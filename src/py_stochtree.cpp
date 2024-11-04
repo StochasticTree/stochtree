@@ -470,24 +470,13 @@ class ForestCpp {
   }
   ~ForestCpp() {}
 
-  void InitializeForestModel(cpp11::external_pointer<StochTree::ForestDataset> data, 
-                             cpp11::external_pointer<StochTree::ColumnVector> residual, 
-                             cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
-                             cpp11::external_pointer<StochTree::ForestTracker> tracker, 
-                             cpp11::doubles init_values, int leaf_model_int);
-
   int OutputDimension() {
     return forest_->OutputDimension();
-  }
-
-  int NumSamples() {
-    return forest_->NumSamples();
   }
 
   py::array_t<double> Predict(ForestDatasetCpp& dataset) {
     // Predict from the forest container
     data_size_t n = dataset.NumRows();
-    int num_samples = this->NumSamples();
     StochTree::ForestDataset* data_ptr = dataset.GetDataset();
     std::vector<double> output_raw = forest_->Predict(*data_ptr);
 
@@ -646,7 +635,7 @@ class ForestCpp {
   }
 
  private:
-  std::unique_ptr<StochTree::ForestContainer> forest_samples_;
+  std::unique_ptr<StochTree::TreeEnsemble> forest_;
   int num_trees_;
   int output_dimension_;
   bool is_leaf_constant_;
@@ -1216,6 +1205,24 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("GetForestSplitCounts", &ForestContainerCpp::GetForestSplitCounts)
     .def("GetOverallSplitCounts", &ForestContainerCpp::GetOverallSplitCounts)
     .def("GetGranularSplitCounts", &ForestContainerCpp::GetGranularSplitCounts);
+
+  py::class_<ForestCpp>(m, "ForestCpp")
+    .def(py::init<int,int,bool,bool>())
+    .def("OutputDimension", &ForestCpp::OutputDimension)
+    .def("Predict", &ForestCpp::Predict)
+    .def("PredictRaw", &ForestCpp::PredictRaw)
+    .def("SetRootValue", &ForestCpp::SetRootValue)
+    .def("SetRootVector", &ForestCpp::SetRootVector)
+    .def("AdjustResidual", &ForestCpp::AdjustResidual)
+    .def("AddSampleValue", &ForestCpp::AddSampleValue)
+    .def("AddSampleVector", &ForestCpp::AddSampleVector)
+    .def("AddNumericSplitValue", &ForestCpp::AddNumericSplitValue)
+    .def("AddNumericSplitVector", &ForestCpp::AddNumericSplitVector)
+    .def("GetEnsemble", &ForestCpp::GetEnsemble)
+    .def("GetTreeLeaves", &ForestCpp::GetTreeLeaves)
+    .def("GetTreeSplitCounts", &ForestCpp::GetTreeSplitCounts)
+    .def("GetOverallSplitCounts", &ForestCpp::GetOverallSplitCounts)
+    .def("GetGranularSplitCounts", &ForestCpp::GetGranularSplitCounts);
 
   py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
     .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
