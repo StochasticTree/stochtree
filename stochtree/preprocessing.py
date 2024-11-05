@@ -41,7 +41,8 @@ def _preprocess_bart_params(params: Optional[Dict[str, Any]] = None) -> Dict[str
         'sample_sigma_leaf' : True, 
         'random_seed' : -1, 
         'keep_burnin' : False, 
-        'keep_gfr' : False
+        'keep_gfr' : False, 
+        'keep_every' : 1
     }
     
     if params:
@@ -90,7 +91,8 @@ def _preprocess_bcf_params(params: Optional[Dict[str, Any]] = None) -> Dict[str,
         'b_1': 0.5, 
         'random_seed': -1, 
         'keep_burnin': False, 
-        'keep_gfr': False
+        'keep_gfr': False, 
+        'keep_every' : 1
     }
     
     if params:

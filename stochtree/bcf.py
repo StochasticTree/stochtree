@@ -105,6 +105,7 @@ class BCFModel:
             * ``random_seed`` (``int``): Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to ``std::random_device``.
             * ``keep_burnin`` (``bool``): Whether or not "burnin" samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
             * ``keep_gfr`` (``bool``): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
+            * ``keep_every`` (``int``): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to ``1``. Setting ``keep_every = k`` for some ``k > 1`` will "thin" the MCMC samples by retaining every ``k``-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
         
         Returns
         -------
@@ -149,6 +150,7 @@ class BCFModel:
         random_seed = bcf_params['random_seed']
         keep_burnin = bcf_params['keep_burnin']
         keep_gfr = bcf_params['keep_gfr']
+        keep_every = bcf_params['keep_every']
         
         # Variable weight preprocessing (and initialization if necessary)
         if variable_weights is None:
@@ -553,19 +555,24 @@ class BCFModel:
         self.propensity_covariate = propensity_covariate
 
         # Container of variance parameter samples
-        self.num_gfr = num_gfr
-        self.num_burnin = num_burnin
-        self.num_mcmc = num_mcmc
-        self.num_samples = num_gfr + num_burnin + num_mcmc
+        num_actual_mcmc_iter = num_mcmc * keep_every
+        num_temp_samples = num_gfr + num_burnin + num_actual_mcmc_iter
+        num_retained_samples = num_mcmc
+        if keep_gfr:
+            num_retained_samples += num_gfr
+        if keep_burnin:
+            num_retained_samples += num_burnin
+        self.num_samples = num_retained_samples
         self.sample_sigma_global = sample_sigma_global
         self.sample_sigma_leaf_mu = sample_sigma_leaf_mu
         self.sample_sigma_leaf_tau = sample_sigma_leaf_tau
         if sample_sigma_global:
-            self.global_var_samples = np.zeros(self.num_samples)
+            self.global_var_samples = np.empty(self.num_samples, dtype=np.float64)
         if sample_sigma_leaf_mu:
-            self.leaf_scale_mu_samples = np.zeros(self.num_samples)
+            self.leaf_scale_mu_samples = np.empty(self.num_samples, dtype=np.float64)
         if sample_sigma_leaf_tau:
-            self.leaf_scale_tau_samples = np.zeros(self.num_samples)
+            self.leaf_scale_tau_samples = np.empty(self.num_samples, dtype=np.float64)
+        sample_counter = -1
         
         # Prepare adaptive coding structure
         if self.adaptive_coding:
@@ -573,8 +580,8 @@ class BCFModel:
                 raise ValueError("b_0 and b_1 must be single numeric values")
             if not (isinstance(b_0, (int, float)) or isinstance(b_1, (int, float))):
                 raise ValueError("b_0 and b_1 must be numeric values")
-            self.b0_samples = np.zeros(self.num_samples)
-            self.b1_samples = np.zeros(self.num_samples)
+            self.b0_samples = np.empty(self.num_samples, dtype=np.float64)
+            self.b1_samples = np.empty(self.num_samples, dtype=np.float64)
             current_b_0 = b_0
             current_b_1 = b_1
             tau_basis_train = (1-Z_train)*current_b_0 + Z_train*current_b_1
@@ -637,43 +644,47 @@ class BCFModel:
         forest_sampler_tau.prepare_for_sampler(forest_dataset_train, residual_train, active_forest_tau, treatment_leaf_model, init_tau)
 
         # Run GFR (warm start) if specified
-        if self.num_gfr > 0:
-            gfr_indices = np.arange(self.num_gfr)
-            for i in range(self.num_gfr):
+        if num_gfr > 0:
+            for i in range(num_gfr):
+                keep_sample = keep_gfr
+                if keep_sample:
+                    sample_counter += 1
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
                     self.forest_container_mu, active_forest_mu, forest_dataset_train, residual_train, cpp_rng, feature_types, 
                     cutpoint_grid_size, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
-                    current_sigma2, 0, True, True, True
+                    current_sigma2, 0, keep_sample, True, True
                 )
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
                     current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
-                    self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
                 if self.sample_sigma_leaf_mu:
-                    self.leaf_scale_mu_samples[i] = leaf_var_model_mu.sample_one_iteration(active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu, i)
-                    current_leaf_scale_mu[0,0] = self.leaf_scale_mu_samples[i]
+                    current_leaf_scale_mu[0,0] = leaf_var_model_mu.sample_one_iteration(active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu)
+                    if keep_sample:
+                        self.leaf_scale_mu_samples[sample_counter] = current_leaf_scale_mu[0,0]
                 
                 # Sample the treatment forest
                 forest_sampler_tau.sample_one_iteration(
                     self.forest_container_tau, active_forest_tau, forest_dataset_train, residual_train, cpp_rng, feature_types, 
                     cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
-                    current_sigma2, treatment_leaf_model, True, True, True
+                    current_sigma2, treatment_leaf_model, keep_sample, True, True
                 )
                 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
                     current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
-                    self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
+                    if keep_sample:
+                        self.global_var_samples[sample_counter] = current_sigma2
                 if self.sample_sigma_leaf_tau:
-                    self.leaf_scale_tau_samples[i] = leaf_var_model_tau.sample_one_iteration(active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau, i)
-                    current_leaf_scale_tau[0,0] = self.leaf_scale_tau_samples[i]
+                    current_leaf_scale_tau[0,0] = leaf_var_model_tau.sample_one_iteration(active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau)
+                    if keep_sample:
+                        self.leaf_scale_tau_samples[sample_counter] = current_leaf_scale_tau[0,0]
                 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
-                    mu_x = self.forest_container_mu.predict_raw_single_forest(forest_dataset_train, i)
-                    tau_x = np.squeeze(self.forest_container_tau.predict_raw_single_forest(forest_dataset_train, i))
+                    mu_x = active_forest_mu.predict_raw(forest_dataset_train)
+                    tau_x = np.squeeze(active_forest_tau.predict_raw(forest_dataset_train))
                     s_tt0 = np.sum(tau_x*tau_x*(np.squeeze(Z_train)==0))
                     s_tt1 = np.sum(tau_x*tau_x*(np.squeeze(Z_train)==1))
                     partial_resid_mu = np.squeeze(resid_train - mu_x)
@@ -688,53 +699,66 @@ class BCFModel:
                     if self.has_test:
                         tau_basis_test = (1-np.squeeze(Z_test))*current_b_0 + np.squeeze(Z_test)*current_b_1
                         forest_dataset_test.update_basis(tau_basis_test)
-                    self.b0_samples[i] = current_b_0
-                    self.b1_samples[i] = current_b_1
+                    if keep_sample:
+                        self.b0_samples[sample_counter] = current_b_0
+                        self.b1_samples[sample_counter] = current_b_1
 
                     # Update residual to reflect adjusted basis
-                    forest_sampler_tau.propagate_basis_update(forest_dataset_train, residual_train, active_forest_tau, i)
+                    forest_sampler_tau.propagate_basis_update(forest_dataset_train, residual_train, active_forest_tau)
         
         # Run MCMC
-        if self.num_burnin + self.num_mcmc > 0:
-            if self.num_burnin > 0:
-                burnin_indices = np.arange(self.num_gfr, self.num_gfr + self.num_burnin)
-            if self.num_mcmc > 0:
-                mcmc_indices = np.arange(self.num_gfr + self.num_burnin, self.num_gfr + self.num_burnin + self.num_mcmc)
-            for i in range(self.num_gfr, self.num_samples):
+        if num_burnin + num_mcmc > 0:
+            for i in range(num_gfr, num_temp_samples):
+                is_mcmc = i + 1 > num_gfr + num_burnin
+                if is_mcmc:
+                    mcmc_counter = i - num_gfr - num_burnin + 1
+                    if (mcmc_counter % keep_every == 0):
+                        keep_sample = True
+                    else:
+                        keep_sample = False
+                else:
+                    if keep_burnin:
+                        keep_sample = True
+                    else:
+                        keep_sample = False
+                if keep_sample:
+                    sample_counter += 1
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
                     self.forest_container_mu, active_forest_mu, forest_dataset_train, residual_train, cpp_rng, feature_types, 
                     cutpoint_grid_size, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
-                    current_sigma2, 0, True, False, True
+                    current_sigma2, 0, keep_sample, False, True
                 )
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
                     current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
-                    self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
                 if self.sample_sigma_leaf_mu:
-                    self.leaf_scale_mu_samples[i] = leaf_var_model_mu.sample_one_iteration(active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu, i)
-                    current_leaf_scale_mu[0,0] = self.leaf_scale_mu_samples[i]
+                    current_leaf_scale_mu[0,0] = leaf_var_model_mu.sample_one_iteration(active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu)
+                    if keep_sample:
+                        self.leaf_scale_mu_samples[sample_counter] = current_leaf_scale_mu[0,0]
                 
                 # Sample the treatment forest
                 forest_sampler_tau.sample_one_iteration(
                     self.forest_container_tau, active_forest_tau, forest_dataset_train, residual_train, cpp_rng, feature_types, 
                     cutpoint_grid_size, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
-                    current_sigma2, treatment_leaf_model, True, False, True
+                    current_sigma2, treatment_leaf_model, keep_sample, False, True
                 )
                 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
                     current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
-                    self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std
+                    if keep_sample:
+                        self.global_var_samples[sample_counter] = current_sigma2
                 if self.sample_sigma_leaf_tau:
-                    self.leaf_scale_tau_samples[i] = leaf_var_model_tau.sample_one_iteration(active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau, i)
-                    current_leaf_scale_tau[0,0] = self.leaf_scale_tau_samples[i]                
+                    current_leaf_scale_tau[0,0] = leaf_var_model_tau.sample_one_iteration(active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau)
+                    if keep_sample:
+                        self.leaf_scale_tau_samples[sample_counter] = current_leaf_scale_tau[0,0]           
                 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
-                    mu_x = self.forest_container_mu.predict_raw_single_forest(forest_dataset_train, i)
-                    tau_x = np.squeeze(self.forest_container_tau.predict_raw_single_forest(forest_dataset_train, i))
+                    mu_x = active_forest_mu.predict_raw(forest_dataset_train)
+                    tau_x = np.squeeze(active_forest_tau.predict_raw(forest_dataset_train))
                     s_tt0 = np.sum(tau_x*tau_x*(np.squeeze(Z_train)==0))
                     s_tt1 = np.sum(tau_x*tau_x*(np.squeeze(Z_train)==1))
                     partial_resid_mu = np.squeeze(resid_train - mu_x)
@@ -749,43 +773,23 @@ class BCFModel:
                     if self.has_test:
                         tau_basis_test = (1-np.squeeze(Z_test))*current_b_0 + np.squeeze(Z_test)*current_b_1
                         forest_dataset_test.update_basis(tau_basis_test)
-                    self.b0_samples[i] = current_b_0
-                    self.b1_samples[i] = current_b_1
+                    if keep_sample:
+                        self.b0_samples[sample_counter] = current_b_0
+                        self.b1_samples[sample_counter] = current_b_1
 
                     # Update residual to reflect adjusted basis
-                    forest_sampler_tau.propagate_basis_update(forest_dataset_train, residual_train, active_forest_tau, i)
+                    forest_sampler_tau.propagate_basis_update(forest_dataset_train, residual_train, active_forest_tau)
         
         # Mark the model as sampled
         self.sampled = True
 
-        # Prediction indices to be stored
-        if self.num_mcmc > 0:
-            self.keep_indices = mcmc_indices
-            if keep_gfr:
-                self.keep_indices = np.concatenate((gfr_indices, self.keep_indices))
-            else:
-                # Don't retain both GFR and burnin samples
-                if keep_burnin:
-                    self.keep_indices = np.concatenate((burnin_indices, self.keep_indices))
-        else:
-            if self.num_gfr > 0 and self.num_burnin > 0:
-                # Override keep_gfr = False since there are no MCMC samples
-                # Don't retain both GFR and burnin samples
-                self.keep_indices = gfr_indices
-            elif self.num_gfr <= 0 and self.num_burnin > 0:
-                self.keep_indices = burnin_indices
-            elif self.num_gfr > 0 and self.num_burnin <= 0:
-                self.keep_indices = gfr_indices
-            else:
-                raise RuntimeError("There are no samples to retain!")
-        
         # Store predictions
         mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)
-        self.mu_hat_train = mu_raw[:,self.keep_indices]*self.y_std + self.y_bar
+        self.mu_hat_train = mu_raw*self.y_std + self.y_bar
         tau_raw_train = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_train.dataset_cpp)
-        self.tau_hat_train = tau_raw_train[:,self.keep_indices,:]
+        self.tau_hat_train = tau_raw_train
         if self.adaptive_coding:
-            adaptive_coding_weights = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
+            adaptive_coding_weights = np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
             self.tau_hat_train = self.tau_hat_train*adaptive_coding_weights
         self.tau_hat_train = np.squeeze(self.tau_hat_train*self.y_std)
         if self.multivariate_treatment:
@@ -795,11 +799,11 @@ class BCFModel:
         self.y_hat_train = self.mu_hat_train + treatment_term_train
         if self.has_test:
             mu_raw_test = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_test.dataset_cpp)
-            self.mu_hat_test = mu_raw_test[:,self.keep_indices]*self.y_std + self.y_bar
+            self.mu_hat_test = mu_raw_test*self.y_std + self.y_bar
             tau_raw_test = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_test.dataset_cpp)
-            self.tau_hat_test = tau_raw_test[:,self.keep_indices,:]
+            self.tau_hat_test = tau_raw_test
             if self.adaptive_coding:
-                adaptive_coding_weights_test = np.expand_dims(self.b1_samples[self.keep_indices] - self.b0_samples[self.keep_indices], axis=(0,2))
+                adaptive_coding_weights_test = np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
                 self.tau_hat_test = self.tau_hat_test*adaptive_coding_weights_test
             self.tau_hat_test = np.squeeze(self.tau_hat_test*self.y_std)
             if self.multivariate_treatment:
@@ -809,17 +813,17 @@ class BCFModel:
             self.y_hat_test = self.mu_hat_test + treatment_term_test
     
         if self.sample_sigma_global:
-            self.global_var_samples = self.global_var_samples[self.keep_indices]
+            self.global_var_samples = self.global_var_samples*self.y_std*self.y_std
         
         if self.sample_sigma_leaf_mu:
-            self.leaf_scale_mu_samples = self.leaf_scale_mu_samples[self.keep_indices]
+            self.leaf_scale_mu_samples = self.leaf_scale_mu_samples
 
         if self.sample_sigma_leaf_tau:
-            self.leaf_scale_tau_samples = self.leaf_scale_tau_samples[self.keep_indices]
+            self.leaf_scale_tau_samples = self.leaf_scale_tau_samples
         
         if self.adaptive_coding:
-            self.b0_samples = self.b0_samples[self.keep_indices]
-            self.b1_samples = self.b1_samples[self.keep_indices]
+            self.b0_samples = self.b0_samples
+            self.b1_samples = self.b1_samples
     
     def predict_tau(self, X: np.array, Z: np.array, propensity: np.array = None) -> np.array:
         """Predict CATE function for every provided observation.
@@ -883,7 +887,7 @@ class BCFModel:
         
         # Estimate treatment effect
         tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau.dataset_cpp)
-        tau_raw = tau_raw[:,self.keep_indices,:]
+        tau_raw = tau_raw
         if self.adaptive_coding:
             adaptive_coding_weights = np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
             tau_raw = tau_raw*adaptive_coding_weights
@@ -969,9 +973,9 @@ class BCFModel:
         
         # Compute predicted outcome and decomposed outcome model terms
         mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_tau.dataset_cpp)
-        mu_x = mu_raw[:,self.keep_indices]*self.y_std + self.y_bar
+        mu_x = mu_raw*self.y_std + self.y_bar
         tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(forest_dataset_tau.dataset_cpp)
-        tau_raw = tau_raw[:,self.keep_indices,:]
+        tau_raw = tau_raw
         if self.adaptive_coding:
             adaptive_coding_weights = np.expand_dims(self.b1_samples - self.b0_samples, axis=(0,2))
             tau_raw = tau_raw*adaptive_coding_weights

@@ -146,8 +146,8 @@ class LeafVarianceModel:
         # Initialize a LeafVarianceModelCpp object
         self.variance_model_cpp = LeafVarianceModelCpp()
     
-    def sample_one_iteration(self, forest: Forest, rng: RNG, a: float, b: float, sample_num: int) -> float:
+    def sample_one_iteration(self, forest: Forest, rng: RNG, a: float, b: float) -> float:
         """
         Sample one iteration of a forest leaf model's variance parameter (assuming a location-scale leaf model, most commonly ``N(0, tau)``)
         """
-        return self.variance_model_cpp.SampleOneIteration(forest.forest_cpp, rng.rng_cpp, a, b, sample_num)
+        return self.variance_model_cpp.SampleOneIteration(forest.forest_cpp, rng.rng_cpp, a, b)
