@@ -41,6 +41,7 @@
 #'   - `sample_sigma_global` Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_global, b_global)`. Default: `TRUE`.
 #'   - `keep_burnin` Whether or not "burnin" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
+#'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'
 #'   **2. Mean Forest Parameters**
@@ -146,6 +147,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     random_seed <- bart_params$random_seed
     keep_burnin <- bart_params$keep_burnin
     keep_gfr <- bart_params$keep_gfr
+    keep_every <- bart_params$keep_every
     verbose <- bart_params$verbose
     
     # Determine whether conditional mean, variance, or both will be modeled
@@ -502,7 +504,15 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             mcmc_indices = (num_gfr+num_burnin+1):(num_gfr+num_burnin+num_mcmc)
         }
         for (i in (num_gfr+1):num_samples) {
-            keep_sample <- ifelse(keep_burnin, T, ifelse(i > (num_gfr + num_burnin), T, F))
+            is_mcmc <- i > (num_gfr + num_burnin)
+            if (is_mcmc) {
+                mcmc_counter <- i - (num_gfr + num_burnin)
+                if (mcmc_counter %% keep_every == 0) keep_sample <- T
+                else keep_sample <- F
+            } else {
+                if (keep_burnin) keep_sample <- T
+                else keep_sample <- F
+            }
             if (keep_sample) sample_counter <- sample_counter + 1
             # Print progress
             if (verbose) {

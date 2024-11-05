@@ -41,6 +41,7 @@
 #'   - `random_seed` Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
 #'   - `keep_burnin` Whether or not "burnin" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
+#'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'   - `sample_sigma_global` Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_global, b_global)`. Default: `TRUE`.
 #' 
@@ -214,6 +215,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     random_seed <- bcf_params$random_seed
     keep_burnin <- bcf_params$keep_burnin
     keep_gfr <- bcf_params$keep_gfr
+    keep_every <- bcf_params$keep_every
     verbose <- bcf_params$verbose
     
     # Determine whether conditional variance will be modeled
@@ -618,7 +620,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     }
     
     # Container of variance parameter samples
-    num_samples <- num_gfr + num_burnin + num_mcmc
+    num_actual_mcmc_iter <- num_mcmc * keep_every
+    num_samples <- num_gfr + num_burnin + num_actual_mcmc_iter
     num_retained_samples <- ifelse(keep_gfr, num_gfr, 0) + ifelse(keep_burnin, num_burnin, 0) + num_mcmc
     if (sample_sigma_global) global_var_samples <- rep(NA, num_retained_samples)
     if (sample_sigma_leaf_mu) leaf_scale_mu_samples <- rep(NA, num_retained_samples)
@@ -790,7 +793,15 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             mcmc_indices = (num_gfr+num_burnin+1):(num_gfr+num_burnin+num_mcmc)
         }
         for (i in (num_gfr+1):num_samples) {
-            keep_sample <- ifelse(keep_burnin, T, ifelse(i > (num_gfr + num_burnin), T, F))
+            is_mcmc <- i > (num_gfr + num_burnin)
+            if (is_mcmc) {
+                mcmc_counter <- i - (num_gfr + num_burnin)
+                if (mcmc_counter %% keep_every == 0) keep_sample <- T
+                else keep_sample <- F
+            } else {
+                if (keep_burnin) keep_sample <- T
+                else keep_sample <- F
+            }
             if (keep_sample) sample_counter <- sample_counter + 1
             # Print progress
             if (verbose) {
