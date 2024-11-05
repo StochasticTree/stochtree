@@ -1,5 +1,5 @@
 import numpy as np
-from stochtree import ForestContainer, Dataset, Residual, ForestSampler, RNG
+from stochtree import ForestContainer, Forest, Dataset, Residual, ForestSampler, RNG
 
 class TestResidual:
     def test_basis_update(self):
@@ -50,17 +50,18 @@ class TestResidual:
         # Create forest sampler and forest container
         forest_sampler = ForestSampler(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf)
         forest_container = ForestContainer(num_trees, 1, False, False)
+        active_forest = Forest(num_trees, 1, False, False)
         
         # Initialize the leaves of each tree in the prognostic forest
         init_root = np.squeeze(np.mean(resid)) / num_trees
-        forest_container.set_root_leaves(0, init_root)
-        forest_sampler.adjust_residual(forest_dataset, residual, forest_container, False, 0, True)
+        active_forest.set_root_leaves(init_root)
+        forest_sampler.adjust_residual(forest_dataset, residual, active_forest, False, True)
         
         # Run the forest sampling algorithm for a single iteration
         forest_sampler.sample_one_iteration(
-            forest_container, forest_dataset, residual, cpp_rng, feature_types, 
+            forest_container, active_forest, forest_dataset, residual, cpp_rng, feature_types, 
             cutpoint_grid_size, current_leaf_scale, variable_weights, a_forest, b_forest, 
-            current_sigma2, 1, True, True
+            current_sigma2, 1, True, True, True
         )
 
         # Get the current residual after running the sampler
@@ -75,7 +76,7 @@ class TestResidual:
         forest_dataset.update_basis(W_update)
 
         # Update residual to reflect adjusted basis
-        forest_sampler.propagate_basis_update(forest_dataset, residual, forest_container, 0)
+        forest_sampler.propagate_basis_update(forest_dataset, residual, active_forest)
 
         # Get updated prediction from the tree ensemble
         updated_yhat = forest_container.predict(forest_dataset)

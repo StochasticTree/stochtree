@@ -532,11 +532,11 @@ class ForestCpp {
     return result;
   }
 
-  void SetRootValue(int forest_num, double leaf_value) {
+  void SetRootValue(double leaf_value) {
     forest_->SetLeafValue(leaf_value);
   }
 
-  void SetRootVector(int forest_num, py::array_t<double>& leaf_vector, int leaf_size) {
+  void SetRootVector(py::array_t<double>& leaf_vector, int leaf_size) {
     std::vector<double> leaf_vector_converted(leaf_size);
     for (int i = 0; i < leaf_size; i++) {
         leaf_vector_converted[i] = leaf_vector.at(i);
