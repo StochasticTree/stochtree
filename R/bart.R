@@ -434,7 +434,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     }
 
     # Container of variance parameter samples
-    num_samples <- num_gfr + num_burnin + num_mcmc
+    num_actual_mcmc_iter <- num_mcmc * keep_every
+    num_samples <- num_gfr + num_burnin + num_actual_mcmc_iter
     num_retained_samples <- ifelse(keep_gfr, num_gfr, 0) + ifelse(keep_burnin, num_burnin, 0) + num_mcmc
     if (sample_sigma_global) global_var_samples <- rep(NA, num_retained_samples)
     if (sample_sigma_leaf) leaf_scale_samples <- rep(NA, num_retained_samples)
