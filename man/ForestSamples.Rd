@@ -24,6 +24,7 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-predict}{\code{ForestSamples$predict()}}
 \item \href{#method-ForestSamples-predict_raw}{\code{ForestSamples$predict_raw()}}
 \item \href{#method-ForestSamples-predict_raw_single_forest}{\code{ForestSamples$predict_raw_single_forest()}}
+\item \href{#method-ForestSamples-predict_raw_single_tree}{\code{ForestSamples$predict_raw_single_tree()}}
 \item \href{#method-ForestSamples-set_root_leaves}{\code{ForestSamples$set_root_leaves()}}
 \item \href{#method-ForestSamples-prepare_for_sampler}{\code{ForestSamples$prepare_for_sampler()}}
 \item \href{#method-ForestSamples-adjust_residual}{\code{ForestSamples$adjust_residual()}}
@@ -230,7 +231,32 @@ Predict "raw" leaf values (without being multiplied by basis) for a specific for
 }
 \subsection{Returns}{
 matrix of predictions with as many rows as in forest_dataset
-and as many columns as samples in the \code{ForestContainer}
+and as many columns as dimensions in the leaves of trees in \code{ForestContainer}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-predict_raw_single_tree"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-predict_raw_single_tree}{}}}
+\subsection{Method \code{predict_raw_single_tree()}}{
+Predict "raw" leaf values (without being multiplied by basis) for a specific tree in a specific forest on every observation in \code{forest_dataset}
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$predict_raw_single_tree(forest_dataset, forest_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_dataset}}{\code{ForestDataset} R class}
+
+\item{\code{forest_num}}{Index of the forest sample within the container}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+matrix of predictions with as many rows as in \code{forest_dataset}
+and as many columns as dimensions in the leaves of trees in \code{ForestContainer}
 }
 }
 \if{html}{\out{<hr>}}

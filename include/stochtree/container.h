@@ -34,9 +34,11 @@ class ForestContainer {
   std::vector<double> Predict(ForestDataset& dataset);
   std::vector<double> PredictRaw(ForestDataset& dataset);
   std::vector<double> PredictRaw(ForestDataset& dataset, int forest_num);
+  std::vector<double> PredictRawSingleTree(ForestDataset& dataset, int forest_num, int tree_num);
   void PredictInPlace(ForestDataset& dataset, std::vector<double>& output);
   void PredictRawInPlace(ForestDataset& dataset, std::vector<double>& output);
   void PredictRawInPlace(ForestDataset& dataset, int forest_num, std::vector<double>& output);
+  void PredictRawSingleTreeInPlace(ForestDataset& dataset, int forest_num, int tree_num, std::vector<double>& output);
   void PredictLeafIndicesInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, 
                                  Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& output, 
                                  std::vector<int>& forest_indices, int num_trees, data_size_t n);

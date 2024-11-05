@@ -28,6 +28,10 @@ class ForestContainer:
         # Predict raw leaf values for a specific forest (indexed by forest_num) from Dataset
         return self.forest_container_cpp.PredictRawSingleForest(dataset.dataset_cpp, forest_num)
     
+    def predict_raw_single_tree(self, dataset: Dataset, forest_num: int, tree_num: int) -> np.array:
+        # Predict raw leaf values for a specific tree from specific forest from Dataset
+        return self.forest_container_cpp.PredictRawSingleTree(dataset.dataset_cpp, forest_num, tree_num)
+    
     def set_root_leaves(self, forest_num: int, leaf_value: Union[float, np.array]) -> None:
         # Predict raw leaf values for a specific forest (indexed by forest_num) from Dataset
         if not isinstance(leaf_value, np.ndarray) and not isinstance(leaf_value, float):

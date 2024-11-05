@@ -352,6 +352,10 @@ predict_forest_raw_single_forest_cpp <- function(forest_samples, dataset, forest
   .Call(`_stochtree_predict_forest_raw_single_forest_cpp`, forest_samples, dataset, forest_num)
 }
 
+predict_forest_raw_single_tree_cpp <- function(forest_samples, dataset, forest_num, tree_num) {
+  .Call(`_stochtree_predict_forest_raw_single_tree_cpp`, forest_samples, dataset, forest_num, tree_num)
+}
+
 predict_active_forest_cpp <- function(active_forest, dataset) {
   .Call(`_stochtree_predict_active_forest_cpp`, active_forest, dataset)
 }
