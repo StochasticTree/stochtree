@@ -131,6 +131,11 @@ int is_leaf_constant_forest_container_cpp(cpp11::external_pointer<StochTree::For
 }
 
 [[cpp11::register]]
+int is_exponentiated_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
+    return forest_samples->IsExponentiated();
+}
+
+[[cpp11::register]]
 bool all_roots_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num) {
     return forest_samples->AllRoots(forest_num);
 }
@@ -497,6 +502,11 @@ int ensemble_tree_max_depth_active_forest_cpp(cpp11::external_pointer<StochTree:
 [[cpp11::register]]
 int is_leaf_constant_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
     return active_forest->IsLeafConstant();
+}
+
+[[cpp11::register]]
+int is_exponentiated_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
+    return active_forest->IsExponentiated();
 }
 
 [[cpp11::register]]

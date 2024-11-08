@@ -42,6 +42,7 @@
 #'   - `keep_burnin` Whether or not "burnin" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
+#'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'
 #'   **2. Mean Forest Parameters**
@@ -148,6 +149,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     keep_burnin <- bart_params$keep_burnin
     keep_gfr <- bart_params$keep_gfr
     keep_every <- bart_params$keep_every
+    num_chains <- bart_params$num_chains
     verbose <- bart_params$verbose
     
     # Determine whether conditional mean, variance, or both will be modeled
@@ -456,7 +458,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Run GFR (warm start) if specified
     if (num_gfr > 0){
-        gfr_indices = 1:num_gfr
         for (i in 1:num_gfr) {
             keep_sample <- ifelse(keep_gfr, T, F)
             if (keep_sample) sample_counter <- sample_counter + 1
@@ -498,12 +499,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Run MCMC
     if (num_burnin + num_mcmc > 0) {
-        if (num_burnin > 0) {
-            burnin_indices = (num_gfr+1):(num_gfr+num_burnin)
-        }
-        if (num_mcmc > 0) {
-            mcmc_indices = (num_gfr+num_burnin+1):(num_gfr+num_burnin+num_mcmc)
-        }
         for (i in (num_gfr+1):num_samples) {
             is_mcmc <- i > (num_gfr + num_burnin)
             if (is_mcmc) {

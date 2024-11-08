@@ -65,6 +65,8 @@ class ForestContainer {
   inline int32_t OutputDimension(int ensemble_num) {return forests_[ensemble_num]->OutputDimension();}
   inline bool IsLeafConstant() {return is_leaf_constant_;}
   inline bool IsLeafConstant(int ensemble_num) {return forests_[ensemble_num]->IsLeafConstant();}
+  inline bool IsExponentiated() {return is_exponentiated_;}
+  inline bool IsExponentiated(int ensemble_num) {return forests_[ensemble_num]->IsExponentiated();}
   inline bool AllRoots(int ensemble_num) {return forests_[ensemble_num]->AllRoots();}
   inline void SetLeafValue(int ensemble_num, double leaf_value) {forests_[ensemble_num]->SetLeafValue(leaf_value);}
   inline void SetLeafVector(int ensemble_num, std::vector<double>& leaf_vector) {forests_[ensemble_num]->SetLeafVector(leaf_vector);}

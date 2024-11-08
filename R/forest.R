@@ -230,6 +230,20 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
+        #' Return constant leaf status of trees in a `ForestContainer` object
+        #' @return `T` if leaves are constant, `F` otherwise
+        is_constant_leaf = function() {
+            return(is_constant_leaf_forest_container_cpp(self$forest_container_ptr))
+        }, 
+        
+        #' @description
+        #' Return exponentiation status of trees in a `ForestContainer` object
+        #' @return `T` if leaf predictions must be exponentiated, `F` otherwise
+        is_exponentiated = function() {
+            return(is_exponentiated_forest_container_cpp(self$forest_container_ptr))
+        }, 
+        
+        #' @description
         #' Add a new all-root ensemble to the container, with all of the leaves 
         #' set to the value / vector provided
         #' @param leaf_value Value (or vector of values) to initialize root nodes in tree
@@ -449,17 +463,31 @@ Forest <- R6::R6Class(
         }, 
         
         #' @description
-        #' Return number of trees in each ensemble of a `ForestContainer` object
+        #' Return number of trees in each ensemble of a `Forest` object
         #' @return Tree count
         num_trees = function() {
             return(num_trees_active_forest_cpp(self$forest_ptr))
         }, 
         
         #' @description
-        #' Return output dimension of trees in a `ForestContainer` object
+        #' Return output dimension of trees in a `Forest` object
         #' @return Leaf node parameter size
         output_dimension = function() {
             return(output_dimension_active_forest_cpp(self$forest_ptr))
+        }, 
+        
+        #' @description
+        #' Return constant leaf status of trees in a `Forest` object
+        #' @return `T` if leaves are constant, `F` otherwise
+        is_constant_leaf = function() {
+            return(is_constant_leaf_active_forest_cpp(self$forest_ptr))
+        }, 
+        
+        #' @description
+        #' Return exponentiation status of trees in a `Forest` object
+        #' @return `T` if leaf predictions must be exponentiated, `F` otherwise
+        is_exponentiated = function() {
+            return(is_exponentiated_active_forest_cpp(self$forest_ptr))
         }, 
         
         #' @description
@@ -542,6 +570,19 @@ createForestContainer <- function(num_trees, output_dimension=1, is_leaf_constan
 #' @return `Forest` object
 #' @export
 createForest <- function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+    return(invisible((
+        Forest$new(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
+    )))
+}
+
+#' Create a forest
+#'
+#' @param forest_samples Container of forest samples from which to initialize active forest
+#' @param forest_num Index of forest samples from which to initialize active forest
+#'
+#' @return `Forest` object
+#' @export
+resetActiveForest <- function(forest_samples, forest_num) {
     return(invisible((
         Forest$new(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
     )))
