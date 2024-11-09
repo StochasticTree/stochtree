@@ -1039,8 +1039,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("GetForestSplitCounts", &ForestContainerCpp::GetForestSplitCounts)
     .def("GetOverallSplitCounts", &ForestContainerCpp::GetOverallSplitCounts)
     .def("GetGranularSplitCounts", &ForestContainerCpp::GetGranularSplitCounts)
-    .det("NumLeaves", &ForestContainerCpp::NumLeaves)
-    .det("SumLeafSquared", &ForestContainerCpp::SumLeafSquared);
+    .def("NumLeaves", &ForestContainerCpp::NumLeaves)
+    .def("SumLeafSquared", &ForestContainerCpp::SumLeafSquared);
 
   py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
     .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
