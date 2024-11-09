@@ -148,4 +148,22 @@ class ForestContainer:
             Total number of features in the training set
         """
         return self.forest_container_cpp.GetGranularSplitCounts(num_features)
+
+    def num_leaves(self, forest_num: int) -> int:
+        """
+        Return the total number of leaves for a given forest in the ``ForestContainer``
+
+        forest_num : :obj:`int`
+            Index of the forest to be queried
+        """
+        return self.forest_container_cpp.NumLeaves(forest_num)
+
+    def sum_leaves_squared(self, forest_num: int) -> float:
+        """
+        Return the total sum of squared leaf values for a given forest in the ``ForestContainer``
+
+        forest_num : :obj:`int`
+            Index of the forest to be queried
+        """
+        return self.forest_container_cpp.SumLeafSquared(forest_num)
     
