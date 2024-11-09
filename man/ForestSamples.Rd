@@ -43,6 +43,8 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-ensemble_tree_max_depth}{\code{ForestSamples$ensemble_tree_max_depth()}}
 \item \href{#method-ForestSamples-average_ensemble_max_depth}{\code{ForestSamples$average_ensemble_max_depth()}}
 \item \href{#method-ForestSamples-average_max_depth}{\code{ForestSamples$average_max_depth()}}
+\item \href{#method-ForestSamples-num_leaves}{\code{ForestSamples$num_leaves()}}
+\item \href{#method-ForestSamples-sum_leaves_squared}{\code{ForestSamples$sum_leaves_squared()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -622,6 +624,46 @@ Average the maximum depth of each tree in each ensemble in a \code{ForestContain
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$average_max_depth()}\if{html}{\out{</div>}}
 }
 
+\subsection{Returns}{
+Average maximum depth
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-num_leaves"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-num_leaves}{}}}
+\subsection{Method \code{num_leaves()}}{
+Number of leaves in a given ensemble in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$num_leaves(forest_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the ensemble to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Count of leaves in the ensemble stored at \code{forest_num}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-sum_leaves_squared"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-sum_leaves_squared}{}}}
+\subsection{Method \code{sum_leaves_squared()}}{
+Sum of squared (raw) leaf values in a given ensemble in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$sum_leaves_squared(forest_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the ensemble to be queried}
+}
+\if{html}{\out{</div>}}
+}
 \subsection{Returns}{
 Average maximum depth
 }
