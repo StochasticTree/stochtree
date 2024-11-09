@@ -323,6 +323,22 @@ ForestSamples <- R6::R6Class(
         #' @return Average maximum depth
         average_max_depth = function() {
             return(average_max_depth_forest_container_cpp(self$forest_container_ptr))
+        }, 
+        
+        #' @description
+        #' Number of leaves in a given ensemble in a `ForestContainer` object
+        #' @param forest_num Index of the ensemble to be queried
+        #' @return Count of leaves in the ensemble stored at `forest_num`
+        num_leaves = function(forest_num) {
+            return(num_leaves_ensemble_forest_container_cpp(self$forest_container_ptr, forest_num))
+        }, 
+        
+        #' @description
+        #' Sum of squared (raw) leaf values in a given ensemble in a `ForestContainer` object
+        #' @param forest_num Index of the ensemble to be queried
+        #' @return Average maximum depth
+        sum_leaves_squared = function(forest_num) {
+            return(sum_leaves_squared_ensemble_forest_container_cpp(self$forest_container_ptr, forest_num))
         }
     )
 )
