@@ -28,10 +28,10 @@ ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureTyp
   feature_types_ = feature_types;
 }
 
-void ForestTracker::ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset, std::vector<FeatureType>& feature_types) {
+void ForestTracker::ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset) {
   // Since GFR always starts over from root, this data structure can always simply be reset
   Eigen::MatrixXd& covariates = dataset.GetCovariates();
-  sorted_node_sample_tracker_.reset(new SortedNodeSampleTracker(presort_container_.get(), covariates, feature_types));
+  sorted_node_sample_tracker_.reset(new SortedNodeSampleTracker(presort_container_.get(), covariates, feature_types_));
   
   // Reconstitute each of the remaining data structures in the tracker based on splits in the ensemble
   // UnsortedNodeSampleTracker

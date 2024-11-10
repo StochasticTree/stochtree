@@ -33,6 +33,8 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-num_samples}{\code{ForestSamples$num_samples()}}
 \item \href{#method-ForestSamples-num_trees}{\code{ForestSamples$num_trees()}}
 \item \href{#method-ForestSamples-output_dimension}{\code{ForestSamples$output_dimension()}}
+\item \href{#method-ForestSamples-is_constant_leaf}{\code{ForestSamples$is_constant_leaf()}}
+\item \href{#method-ForestSamples-is_exponentiated}{\code{ForestSamples$is_exponentiated()}}
 \item \href{#method-ForestSamples-add_forest_with_constant_leaves}{\code{ForestSamples$add_forest_with_constant_leaves()}}
 \item \href{#method-ForestSamples-add_numeric_split_tree}{\code{ForestSamples$add_numeric_split_tree()}}
 \item \href{#method-ForestSamples-get_tree_leaves}{\code{ForestSamples$get_tree_leaves()}}
@@ -421,6 +423,32 @@ Return output dimension of trees in a \code{ForestContainer} object
 
 \subsection{Returns}{
 Leaf node parameter size
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-is_constant_leaf"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-is_constant_leaf}{}}}
+\subsection{Method \code{is_constant_leaf()}}{
+Return constant leaf status of trees in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$is_constant_leaf()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+\code{T} if leaves are constant, \code{F} otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-is_exponentiated"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-is_exponentiated}{}}}
+\subsection{Method \code{is_exponentiated()}}{
+Return exponentiation status of trees in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$is_exponentiated()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+\code{T} if leaf predictions must be exponentiated, \code{F} otherwise
 }
 }
 \if{html}{\out{<hr>}}

@@ -276,6 +276,10 @@ is_leaf_constant_forest_container_cpp <- function(forest_samples) {
   .Call(`_stochtree_is_leaf_constant_forest_container_cpp`, forest_samples)
 }
 
+is_exponentiated_forest_container_cpp <- function(forest_samples) {
+  .Call(`_stochtree_is_exponentiated_forest_container_cpp`, forest_samples)
+}
+
 all_roots_forest_container_cpp <- function(forest_samples, forest_num) {
   .Call(`_stochtree_all_roots_forest_container_cpp`, forest_samples, forest_num)
 }
@@ -384,6 +388,10 @@ is_leaf_constant_active_forest_cpp <- function(active_forest) {
   .Call(`_stochtree_is_leaf_constant_active_forest_cpp`, active_forest)
 }
 
+is_exponentiated_active_forest_cpp <- function(active_forest) {
+  .Call(`_stochtree_is_exponentiated_active_forest_cpp`, active_forest)
+}
+
 all_roots_active_forest_cpp <- function(active_forest) {
   .Call(`_stochtree_all_roots_active_forest_cpp`, active_forest)
 }
@@ -430,6 +438,14 @@ adjust_residual_active_forest_cpp <- function(data, residual, active_forest, tra
 
 propagate_basis_update_active_forest_cpp <- function(data, residual, active_forest, tracker) {
   invisible(.Call(`_stochtree_propagate_basis_update_active_forest_cpp`, data, residual, active_forest, tracker))
+}
+
+reset_active_forest_cpp <- function(active_forest, forest_samples, forest_num) {
+  invisible(.Call(`_stochtree_reset_active_forest_cpp`, active_forest, forest_samples, forest_num))
+}
+
+reset_forest_model_cpp <- function(forest_tracker, data, forest_samples, forest_num) {
+  invisible(.Call(`_stochtree_reset_forest_model_cpp`, forest_tracker, data, forest_samples, forest_num))
 }
 
 forest_container_get_max_leaf_index_cpp <- function(forest_container, forest_num) {

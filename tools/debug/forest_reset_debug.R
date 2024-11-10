@@ -1,3 +1,6 @@
+# Load libraries
+library(stochtree)
+
 # Generate some data
 seed <- 1234
 set.seed(seed)
@@ -20,13 +23,19 @@ alpha <- 0.95
 beta <- 0.95
 min_samples_leaf <- 5
 max_depth <- 10
+cutpoint_grid_size <- 100
+variable_weights = rep(1/ncol(X), ncol(X))
 output_dimension <- 1
 is_leaf_constant <- T
 leaf_model <- 0
 current_sigma2 <- 1.
 current_leaf_scale <- as.matrix(1/num_trees)
-a_forest <- 0.
-b_forest <- 0.
+a_forest <- 1.
+b_forest <- 1.
+a_global <- 0.
+b_global <- 0.
+a_leaf <- 3.
+b_leaf <- 1./num_trees
 forest_dataset <- createForestDataset(X)
 outcome <- createOutcome(y_std)
 rng <- createRNG(seed)
@@ -51,7 +60,7 @@ sample_counter <- 0
 # Initialize the forest model (ensemble of root-only trees)
 init_root_value <- 0.
 active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, leaf_model, init_root_value)
-active_forest$adjust_residual(forest_dataset, outcome, forest_model, requires_basis, FALSE)
+active_forest$adjust_residual(forest_dataset, outcome, forest_model, FALSE, FALSE)
 
 # Run GFR (warm start) if specified
 if (num_gfr > 0){
@@ -60,7 +69,7 @@ if (num_gfr > 0){
         keep_sample <- ifelse(keep_gfr, T, F)
         if (keep_sample) sample_counter <- sample_counter + 1
 
-        forest_model_mean$sample_one_iteration(
+        forest_model$sample_one_iteration(
             forest_dataset, outcome, forest_samples, active_forest, 
             rng, feature_types, leaf_model, current_leaf_scale, variable_weights, 
             a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
@@ -84,8 +93,8 @@ if (num_burnin + num_mcmc > 0) {
     for (chain_num in 1:num_chains) {
         # Reset state of active_forest and forest_model based on a previous GFR sample
         forest_ind <- num_gfr - chain_num
-        active_forest <- resetActiveForest(forest_samples, forest_ind)
-        forest_model <- resetForestModel(forest_samples, forest_ind)
+        resetActiveForest(active_forest, forest_samples, forest_ind)
+        resetForestModel(forest_model, forest_dataset, forest_samples, forest_ind)
 
         # Run the MCMC sampler starting from the current active forest
         for (i in 1:num_mcmc_samples) {
@@ -118,3 +127,6 @@ if (num_burnin + num_mcmc > 0) {
         }
     }
 }
+
+# Obtain predictions for all of the warmstarted MCMC samples
+

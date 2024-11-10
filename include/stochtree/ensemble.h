@@ -49,10 +49,8 @@ class TreeEnsemble {
     trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
     for (int i = 0; i < num_trees_; i++) {
       trees_[i].reset(new Tree());
-      // trees_[i]->Init(output_dimension);
     }
     // Clone trees in the ensemble
-    // trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
     for (int j = 0; j < num_trees_; j++) {
       Tree* tree = ensemble.GetTree(j);
       this->CloneFromExistingTree(j, tree);
@@ -75,6 +73,26 @@ class TreeEnsemble {
 
   inline void CloneFromExistingTree(int i, Tree* tree) {
     return trees_[i]->CloneFromTree(tree);
+  }
+
+  inline void ReconstituteFromForest(TreeEnsemble& ensemble) {
+    // Delete old tree pointers
+    trees_.clear();
+    // Unpack ensemble configurations
+    num_trees_ = ensemble.num_trees_;
+    output_dimension_ = ensemble.output_dimension_;
+    is_leaf_constant_ = ensemble.is_leaf_constant_;
+    is_exponentiated_ = ensemble.is_exponentiated_;
+    // Initialize trees in the ensemble
+    trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
+    for (int i = 0; i < num_trees_; i++) {
+      trees_[i].reset(new Tree());
+    }
+    // Clone trees in the ensemble
+    for (int j = 0; j < num_trees_; j++) {
+      Tree* tree = ensemble.GetTree(j);
+      this->CloneFromExistingTree(j, tree);
+    }
   }
 
   std::vector<double> Predict(ForestDataset& dataset) {

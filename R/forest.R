@@ -575,15 +575,28 @@ createForest <- function(num_trees, output_dimension=1, is_leaf_constant=F, is_e
     )))
 }
 
-#' Create a forest
-#'
-#' @param forest_samples Container of forest samples from which to initialize active forest
+#' Re-initialize an active forest from a specific forest in a `ForestContainer`
+#' 
+#' @param active_forest Current active forest
+#' @param forest_samples Container of forest samples from which to re-initialize active forest
 #' @param forest_num Index of forest samples from which to initialize active forest
 #'
 #' @return `Forest` object
 #' @export
-resetActiveForest <- function(forest_samples, forest_num) {
-    return(invisible((
-        Forest$new(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
-    )))
+resetActiveForest <- function(active_forest, forest_samples, forest_num) {
+    reset_active_forest_cpp(active_forest$forest_ptr, forest_samples$forest_container_ptr, forest_num)
+}
+
+#' Re-initialize a forest model (tracking data structures) from a specific forest in a `ForestContainer`
+#' 
+#' @param forest_model Forest model with tracking data structures
+#' @param dataset Training dataset object
+#' @param forest_samples Container of forest samples from which to re-initialize active forest
+#' @param forest_num Index of forest samples from which to initialize active forest
+#'
+#' @return `Forest` object
+#' @export
+resetForestModel <- function(forest_model, dataset, forest_samples, forest_num) {
+    reset_forest_model_cpp(forest_model$tracker_ptr, dataset$data_ptr, 
+                           forest_samples$forest_container_ptr, forest_num)
 }

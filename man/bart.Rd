@@ -75,6 +75,7 @@ that were not in the training set.}
 \item \code{keep_burnin} Whether or not "burnin" samples should be included in cached predictions. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
 \item \code{keep_gfr} Whether or not "grow-from-root" samples should be included in cached predictions. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
 \item \code{keep_every} How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default \code{1}. Setting \code{keep_every <- k} for some \code{k > 1} will "thin" the MCMC samples by retaining every \code{k}-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
+\item \code{num_chains} How many independent MCMC chains should be sampled. If \code{num_mcmc = 0}, this is ignored. If \code{num_gfr = 0}, then each chain is run from root for \code{num_mcmc * keep_every + num_burnin} iterations, with \code{num_mcmc} samples retained. If \code{num_gfr > 0}, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that \code{num_gfr >= num_chains}. Default: \code{1}.
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
 }
 

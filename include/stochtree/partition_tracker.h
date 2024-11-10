@@ -59,7 +59,7 @@ class ForestTracker {
    */
   ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations);
   ~ForestTracker() {}
-  void ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset, std::vector<FeatureType>& feature_types);
+  void ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset);
   void AssignAllSamplesToRoot();
   void AssignAllSamplesToRoot(int32_t tree_num);
   void AssignAllSamplesToConstantPrediction(double value);

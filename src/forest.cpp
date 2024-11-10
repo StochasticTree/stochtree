@@ -686,3 +686,26 @@ void propagate_basis_update_active_forest_cpp(cpp11::external_pointer<StochTree:
     // Perform the update (addition / subtraction) operation
     StochTree::UpdateResidualNewBasis(*tracker, *data, *residual, active_forest.get());
 }
+
+[[cpp11::register]]
+void reset_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
+                             cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 
+                             int forest_num) {
+    // Extract raw pointer to the forest held at index forest_num
+    StochTree::TreeEnsemble* forest = forest_samples->GetEnsemble(forest_num);
+
+    // Reset active forest using the forest held at index forest_num
+    active_forest->ReconstituteFromForest(*forest);
+}
+
+[[cpp11::register]]
+void reset_forest_model_cpp(cpp11::external_pointer<StochTree::ForestTracker> forest_tracker, 
+                            cpp11::external_pointer<StochTree::ForestDataset> data, 
+                            cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 
+                            int forest_num) {
+    // Extract raw pointer to the forest held at index forest_num
+    StochTree::TreeEnsemble* forest = forest_samples->GetEnsemble(forest_num);
+    
+    // Reset forest tracker using the forest held at index forest_num
+    forest_tracker->ReconstituteFromForest(*forest, *data);
+}

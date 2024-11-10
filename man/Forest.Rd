@@ -24,6 +24,8 @@ Wrapper around a C++ tree ensemble
 \item \href{#method-Forest-adjust_residual}{\code{Forest$adjust_residual()}}
 \item \href{#method-Forest-num_trees}{\code{Forest$num_trees()}}
 \item \href{#method-Forest-output_dimension}{\code{Forest$output_dimension()}}
+\item \href{#method-Forest-is_constant_leaf}{\code{Forest$is_constant_leaf()}}
+\item \href{#method-Forest-is_exponentiated}{\code{Forest$is_exponentiated()}}
 \item \href{#method-Forest-add_numeric_split_tree}{\code{Forest$add_numeric_split_tree()}}
 \item \href{#method-Forest-get_tree_leaves}{\code{Forest$get_tree_leaves()}}
 \item \href{#method-Forest-get_tree_split_counts}{\code{Forest$get_tree_split_counts()}}
@@ -191,7 +193,7 @@ After trees are initialized with constant root node predictions, their root pred
 \if{html}{\out{<a id="method-Forest-num_trees"></a>}}
 \if{latex}{\out{\hypertarget{method-Forest-num_trees}{}}}
 \subsection{Method \code{num_trees()}}{
-Return number of trees in each ensemble of a \code{ForestContainer} object
+Return number of trees in each ensemble of a \code{Forest} object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{Forest$num_trees()}\if{html}{\out{</div>}}
 }
@@ -204,13 +206,39 @@ Tree count
 \if{html}{\out{<a id="method-Forest-output_dimension"></a>}}
 \if{latex}{\out{\hypertarget{method-Forest-output_dimension}{}}}
 \subsection{Method \code{output_dimension()}}{
-Return output dimension of trees in a \code{ForestContainer} object
+Return output dimension of trees in a \code{Forest} object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{Forest$output_dimension()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
 Leaf node parameter size
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Forest-is_constant_leaf"></a>}}
+\if{latex}{\out{\hypertarget{method-Forest-is_constant_leaf}{}}}
+\subsection{Method \code{is_constant_leaf()}}{
+Return constant leaf status of trees in a \code{Forest} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Forest$is_constant_leaf()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+\code{T} if leaves are constant, \code{F} otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Forest-is_exponentiated"></a>}}
+\if{latex}{\out{\hypertarget{method-Forest-is_exponentiated}{}}}
+\subsection{Method \code{is_exponentiated()}}{
+Return exponentiation status of trees in a \code{Forest} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Forest$is_exponentiated()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+\code{T} if leaf predictions must be exponentiated, \code{F} otherwise
 }
 }
 \if{html}{\out{<hr>}}
