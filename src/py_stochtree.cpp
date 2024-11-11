@@ -164,6 +164,16 @@ class ForestContainerCpp {
     return forest_samples_->NumSamples();
   }
 
+  int NumLeaves(int forest_num) {
+    StochTree::TreeEnsemble* forest = forest_samples_->GetEnsemble(forest_num);
+    return forest->NumLeaves();
+  }
+
+  double SumLeafSquared(int forest_num) {
+    StochTree::TreeEnsemble* forest = forest_samples_->GetEnsemble(forest_num);
+    return forest->SumLeafSquared();
+  }
+
   py::array_t<double> Predict(ForestDatasetCpp& dataset) {
     // Predict from the forest container
     data_size_t n = dataset.NumRows();
@@ -1221,7 +1231,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("GetTreeSplitCounts", &ForestContainerCpp::GetTreeSplitCounts)
     .def("GetForestSplitCounts", &ForestContainerCpp::GetForestSplitCounts)
     .def("GetOverallSplitCounts", &ForestContainerCpp::GetOverallSplitCounts)
-    .def("GetGranularSplitCounts", &ForestContainerCpp::GetGranularSplitCounts);
+    .def("GetGranularSplitCounts", &ForestContainerCpp::GetGranularSplitCounts)
+    .def("NumLeaves", &ForestContainerCpp::NumLeaves)
+    .def("SumLeafSquared", &ForestContainerCpp::SumLeafSquared);
 
   py::class_<ForestCpp>(m, "ForestCpp")
     .def(py::init<int,int,bool,bool>())

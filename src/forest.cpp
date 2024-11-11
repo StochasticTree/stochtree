@@ -106,6 +106,18 @@ double average_max_depth_forest_container_cpp(cpp11::external_pointer<StochTree:
 }
 
 [[cpp11::register]]
+int num_leaves_ensemble_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num) {
+    StochTree::TreeEnsemble* forest = forest_samples->GetEnsemble(forest_num);
+    return forest->NumLeaves();
+}
+
+[[cpp11::register]]
+double sum_leaves_squared_ensemble_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num) {
+    StochTree::TreeEnsemble* forest = forest_samples->GetEnsemble(forest_num);
+    return forest->SumLeafSquared();
+}
+
+[[cpp11::register]]
 int num_trees_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
     return forest_samples->NumTrees();
 }

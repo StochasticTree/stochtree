@@ -256,6 +256,14 @@ average_max_depth_forest_container_cpp <- function(forest_samples) {
   .Call(`_stochtree_average_max_depth_forest_container_cpp`, forest_samples)
 }
 
+num_leaves_ensemble_forest_container_cpp <- function(forest_samples, forest_num) {
+  .Call(`_stochtree_num_leaves_ensemble_forest_container_cpp`, forest_samples, forest_num)
+}
+
+sum_leaves_squared_ensemble_forest_container_cpp <- function(forest_samples, forest_num) {
+  .Call(`_stochtree_sum_leaves_squared_ensemble_forest_container_cpp`, forest_samples, forest_num)
+}
+
 num_trees_forest_container_cpp <- function(forest_samples) {
   .Call(`_stochtree_num_trees_forest_container_cpp`, forest_samples)
 }

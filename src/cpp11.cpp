@@ -476,6 +476,20 @@ extern "C" SEXP _stochtree_average_max_depth_forest_container_cpp(SEXP forest_sa
   END_CPP11
 }
 // forest.cpp
+int num_leaves_ensemble_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num);
+extern "C" SEXP _stochtree_num_leaves_ensemble_forest_container_cpp(SEXP forest_samples, SEXP forest_num) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(num_leaves_ensemble_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num)));
+  END_CPP11
+}
+// forest.cpp
+double sum_leaves_squared_ensemble_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num);
+extern "C" SEXP _stochtree_sum_leaves_squared_ensemble_forest_container_cpp(SEXP forest_samples, SEXP forest_num) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(sum_leaves_squared_ensemble_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num)));
+  END_CPP11
+}
+// forest.cpp
 int num_trees_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples);
 extern "C" SEXP _stochtree_num_trees_forest_container_cpp(SEXP forest_samples) {
   BEGIN_CPP11
@@ -1226,6 +1240,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_json_load_string_cpp",                                (DL_FUNC) &_stochtree_json_load_string_cpp,                                 2},
     {"_stochtree_json_save_file_cpp",                                  (DL_FUNC) &_stochtree_json_save_file_cpp,                                   2},
     {"_stochtree_json_save_forest_container_cpp",                      (DL_FUNC) &_stochtree_json_save_forest_container_cpp,                       2},
+    {"_stochtree_num_leaves_ensemble_forest_container_cpp",            (DL_FUNC) &_stochtree_num_leaves_ensemble_forest_container_cpp,             2},
     {"_stochtree_num_samples_forest_container_cpp",                    (DL_FUNC) &_stochtree_num_samples_forest_container_cpp,                     1},
     {"_stochtree_num_trees_active_forest_cpp",                         (DL_FUNC) &_stochtree_num_trees_active_forest_cpp,                          1},
     {"_stochtree_num_trees_forest_container_cpp",                      (DL_FUNC) &_stochtree_num_trees_forest_container_cpp,                       1},
@@ -1290,6 +1305,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_set_leaf_vector_active_forest_cpp",                   (DL_FUNC) &_stochtree_set_leaf_vector_active_forest_cpp,                    2},
     {"_stochtree_set_leaf_vector_forest_container_cpp",                (DL_FUNC) &_stochtree_set_leaf_vector_forest_container_cpp,                 2},
     {"_stochtree_subtract_from_column_vector_cpp",                     (DL_FUNC) &_stochtree_subtract_from_column_vector_cpp,                      2},
+    {"_stochtree_sum_leaves_squared_ensemble_forest_container_cpp",    (DL_FUNC) &_stochtree_sum_leaves_squared_ensemble_forest_container_cpp,     2},
     {"_stochtree_tree_prior_cpp",                                      (DL_FUNC) &_stochtree_tree_prior_cpp,                                       4},
     {NULL, NULL, 0}
 };
