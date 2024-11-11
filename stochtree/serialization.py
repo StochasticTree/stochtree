@@ -15,6 +15,28 @@ class JSONSerializer:
         self.num_forests = 0
         self.forest_labels = []
     
+    def return_json_string(self) -> str:
+        """
+        Convert JSON object to in-memory string
+
+        Returns
+        -------
+        :obj:`str`
+            JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
+        """
+        return self.json_cpp.DumpJson()
+    
+    def load_from_json_string(self, json_string: str) -> None:
+        """
+        Parse in-memory JSON string to ``JsonCpp`` object
+
+        Parameters
+        -------
+        json_string : :obj:`str`
+            JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
+        """
+        self.json_cpp.LoadFromString(json_string)
+    
     def add_forest(self, forest_samples: ForestContainer) -> None:
         """Adds a container of forest samples to a json object
 
