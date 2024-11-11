@@ -8,6 +8,7 @@ from .data import Dataset, Residual
 from .forest import ForestContainer
 from .preprocessing import CovariateTransformer, _preprocess_bart_params
 from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
+from .serialization import JSONSerializer
 from .utils import NotSampledError
 
 class BARTModel:
@@ -29,9 +30,9 @@ class BARTModel:
 
         Parameters
         ----------
-        X_train : np.array
+        X_train : :obj:`np.array`
             Training set covariates on which trees may be partitioned.
-        y_train : np.array
+        y_train : :obj:`np.array`
             Training set outcome.
         basis_train : :obj:`np.array`, optional
             Optional training set basis vector used to define a regression to be run in the leaves of each tree.
@@ -438,7 +439,7 @@ class BARTModel:
 
         Parameters
         ----------
-        covariates : np.array
+        covariates : :obj:`np.array`
             Test set covariates.
         basis_train : :obj:`np.array`, optional
             Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
@@ -495,7 +496,7 @@ class BARTModel:
 
         Parameters
         ----------
-        covariates : np.array
+        covariates : :obj:`np.array`
             Test set covariates.
         basis_train : :obj:`np.array`, optional
             Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
@@ -594,3 +595,107 @@ class BARTModel:
             variance_pred = np.sqrt(variance_pred_raw*self.sigma2_init)*self.y_std/np.sqrt(self.variance_scale)
 
         return variance_pred
+    
+    def to_json(self) -> str:
+        """
+        Converts a sampled BART model to JSON string representation (which can then be saved to a file or 
+        processed using the ``json`` library)
+
+        Returns
+        -------
+        :obj:`str`
+            JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
+        """
+        if not self.is_sampled:
+            msg = (
+                "This BARTModel instance has not yet been sampled. "
+                "Call 'fit' with appropriate arguments before using this model."
+            )
+            raise NotSampledError(msg)
+        
+        # Initialize JSONSerializer object
+        bart_json = JSONSerializer()
+        
+        # Add the forests
+        if self.include_mean_forest:
+            bart_json.add_forest(self.forest_container_mean)
+        if self.include_variance_forest:
+            bart_json.add_forest(self.forest_container_variance)
+        
+        # Add global parameters
+        bart_json.add_scalar("variance_scale", self.variance_scale)
+        bart_json.add_scalar("outcome_scale", self.y_std)
+        bart_json.add_scalar("outcome_mean", self.y_bar)
+        bart_json.add_scalar("sigma2_init", self.sigma2_init)
+        bart_json.add_boolean("sample_sigma_global", self.sample_sigma_global)
+        bart_json.add_boolean("sample_sigma_leaf", self.sample_sigma_leaf)
+        bart_json.add_boolean("include_mean_forest", self.include_mean_forest)
+        bart_json.add_boolean("include_variance_forest", self.include_variance_forest)
+        bart_json.add_scalar("num_gfr", self.num_gfr)
+        bart_json.add_scalar("num_burnin", self.num_burnin)
+        bart_json.add_scalar("num_mcmc", self.num_mcmc)
+        bart_json.add_scalar("num_samples", self.num_samples)
+        bart_json.add_scalar("num_basis", self.num_basis)
+        bart_json.add_boolean("requires_basis", self.has_basis)
+        bart_json.add_numeric_vector("keep_indices", self.keep_indices)
+        
+        # Add parameter samples
+        if self.sample_sigma_global:
+            bart_json.add_numeric_vector("sigma2_global_samples", self.global_var_samples, "parameters")
+        if self.sample_sigma_global:
+            bart_json.add_numeric_vector("sigma2_leaf_samples", self.leaf_scale_samples, "parameters")
+        
+        return bart_json.return_json_string()
+
+    def from_json(self, json_string: str) -> None:
+        """
+        Converts a JSON string to an in-memory BART model.
+
+        Parameters
+        ----------
+        json_string : :obj:`str`
+            JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
+        """
+        # Parse string to a JSON object in C++
+        bart_json = JSONSerializer()
+        bart_json.load_from_json_string(json_string)
+        
+        # Unpack forests
+        self.include_mean_forest = bart_json.get_boolean("include_mean_forest")
+        self.include_variance_forest = bart_json.get_boolean("include_variance_forest")
+        if self.include_mean_forest:
+            # TODO: don't just make this a placeholder that we overwrite
+            self.forest_container_mean = ForestContainer(0, 0, False, False)
+            self.forest_container_mean.forest_container_cpp.LoadFromJson(bart_json.json_cpp, "forest_0")
+            if self.include_variance_forest:
+                # TODO: don't just make this a placeholder that we overwrite
+                self.forest_container_variance = ForestContainer(0, 0, False, False)
+                self.forest_container_variance.forest_container_cpp.LoadFromJson(bart_json.json_cpp, "forest_1")
+        else:
+            # TODO: don't just make this a placeholder that we overwrite
+            self.forest_container_variance = ForestContainer(0, 0, False, False)
+            self.forest_container_variance.forest_container_cpp.LoadFromJson(bart_json.json_cpp, "forest_0")
+        
+        # Unpack global parameters
+        self.variance_scale = bart_json.get_scalar("variance_scale")
+        self.y_std = bart_json.get_scalar("outcome_scale")
+        self.y_bar = bart_json.get_scalar("outcome_mean")
+        self.sigma2_init = bart_json.get_scalar("sigma2_init")
+        self.sample_sigma_global = bart_json.get_boolean("sample_sigma_global")
+        self.sample_sigma_leaf = bart_json.get_boolean("sample_sigma_leaf")
+        self.num_gfr = bart_json.get_scalar("num_gfr")
+        self.num_burnin = bart_json.get_scalar("num_burnin")
+        self.num_mcmc = bart_json.get_scalar("num_mcmc")
+        self.num_samples = bart_json.get_scalar("num_samples")
+        self.num_basis = bart_json.get_scalar("num_basis")
+        self.has_basis = bart_json.get_boolean("requires_basis")
+        self.keep_indices = bart_json.get_numeric_vector("keep_indices").astype(int)
+
+        # Unpack parameter samples
+        if self.sample_sigma_global:
+            self.global_var_samples = bart_json.get_numeric_vector("sigma2_global_samples", "parameters")
+        if self.sample_sigma_global:
+            self.leaf_scale_samples = bart_json.get_numeric_vector("sigma2_leaf_samples", "parameters")
+        
+        # Mark the deserialized model as "sampled"
+        self.sampled = True

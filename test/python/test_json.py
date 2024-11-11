@@ -162,3 +162,46 @@ class TestJson:
         forest_container_reloaded.load_from_json_string(forest_json_string)
         y_hat_reloaded = forest_container_reloaded.predict(dataset)
         np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)
+    
+    def test_bart_string(self):
+        # RNG
+        random_seed = 1234
+        rng = np.random.default_rng(random_seed)
+
+        # Generate covariates and basis
+        n = 1000
+        p_X = 10
+        p_W = 1
+        X = rng.uniform(0, 1, (n, p_X))
+        W = rng.uniform(0, 1, (n, p_W))
+
+        # Define the outcome mean function
+        def outcome_mean(X, W):
+            return np.where(
+                (X[:,0] >= 0.0) & (X[:,0] < 0.25), -7.5 * W[:,0], 
+                np.where(
+                    (X[:,0] >= 0.25) & (X[:,0] < 0.5), -2.5 * W[:,0], 
+                    np.where(
+                        (X[:,0] >= 0.5) & (X[:,0] < 0.75), 2.5 * W[:,0], 
+                        7.5 * W[:,0]
+                    )
+                )
+            )
+
+        # Generate outcome
+        epsilon = rng.normal(0, 1, n)
+        y = outcome_mean(X, W) + epsilon
+
+        # Run BART
+        bart_orig = BARTModel()
+        bart_orig.sample(X_train=X, y_train=y, basis_train=W, num_gfr=10, num_mcmc=10)
+        
+        # Extract predictions from the sampler
+        y_hat_orig = bart_orig.predict(X, W)
+
+        # "Round-trip" the model to JSON string and back and check that the predictions agree
+        bart_json_string = bart_orig.to_json()
+        bart_reloaded = BARTModel()
+        bart_reloaded.from_json(bart_json_string)
+        y_hat_reloaded = bart_reloaded.predict(X, W)
+        np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)
