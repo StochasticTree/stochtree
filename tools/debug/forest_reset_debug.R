@@ -7,7 +7,7 @@ set.seed(seed)
 n <- 1000
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
-E_y <- 2*X[,1]
+E_y <- 10*X[,1]
 eps <- rnorm(n,0,1)
 y <- E_y + eps
 y_std <- (y-mean(y))/sd(y)
@@ -16,7 +16,7 @@ y_std <- (y-mean(y))/sd(y)
 num_mcmc <- 100
 num_gfr <- 10
 num_burnin <- 0
-num_chains <- 1
+num_chains <- 4
 keep_every <- 5
 num_trees <- 100
 alpha <- 0.95
@@ -129,4 +129,17 @@ if (num_burnin + num_mcmc > 0) {
 }
 
 # Obtain predictions for all of the warmstarted MCMC samples
+yhat <- forest_samples$predict(forest_dataset)*sd(y) + mean(y)
 
+# Plot results for each chain
+plot_chain <- function(y, yhat, i) {
+    yhat_mean_chain <- rowMeans(yhat[,(num_gfr + (i-1)*num_mcmc):(num_gfr + (i)*num_mcmc)])
+    plot(yhat_mean_chain, y, main = paste0("Chain ", i, " MCMC Samples"), xlab = "yhat")
+    abline(0,1,col="red",lty=3,lwd=3)
+}
+yhat_mean_gfr <- rowMeans(yhat[,1:num_gfr])
+plot(yhat_mean_gfr, y, main = "GFR Samples", xlab = "yhat")
+abline(0,1,col="red",lty=3,lwd=3)
+for (i in 1:num_chains) {
+    plot_chain(y, yhat, i)
+}
