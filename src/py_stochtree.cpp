@@ -714,6 +714,10 @@ class JsonCpp {
     output_file << *json_ << std::endl;
   }
 
+  void LoadFromString(std::string& json_string) {
+    *json_ = nlohmann::json::parse(json_string);
+  }
+
   std::string DumpJson() {
     return json_->dump();
   }
@@ -973,6 +977,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def(py::init<>())
     .def("LoadFile", &JsonCpp::LoadFile)
     .def("SaveFile", &JsonCpp::SaveFile)
+    .def("LoadFromString", &JsonCpp::LoadFromString)
     .def("DumpJson", &JsonCpp::DumpJson)
     .def("AddDouble", &JsonCpp::AddDouble)
     .def("AddDoubleSubfolder", &JsonCpp::AddDoubleSubfolder)
