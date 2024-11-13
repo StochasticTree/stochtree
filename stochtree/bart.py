@@ -1,6 +1,8 @@
 """
 Bayesian Additive Regression Trees (BART) module
 """
+from numbers import Number, Integral
+from math import log
 import numpy as np
 import pandas as pd
 from typing import Optional, Dict, Any
@@ -119,8 +121,18 @@ class BARTModel:
         random_seed = bart_params['random_seed']
         keep_burnin = bart_params['keep_burnin']
         keep_gfr = bart_params['keep_gfr']
+        num_chains = bart_params['num_chains']
         keep_every = bart_params['keep_every']
+    
+        # Check that num_chains >= 1
+        if not isinstance(num_chains, Integral) or num_chains < 1:
+            raise ValueError("num_chains must be an integer greater than 0")
 
+        # Check if there are enough GFR samples to seed num_chains samplers
+        if num_gfr > 0:
+            if num_chains > num_gfr:
+                raise ValueError("num_chains > num_gfr, meaning we do not have enough GFR samples to seed num_chains distinct MCMC chains")
+        
         # Determine which models (conditional mean, conditional variance, or both) we will fit
         self.include_mean_forest = True if num_trees_mean > 0 else False
         self.include_variance_forest = True if num_trees_variance > 0 else False
@@ -252,13 +264,13 @@ class BARTModel:
         self.num_gfr = num_gfr
         self.num_burnin = num_burnin
         self.num_mcmc = num_mcmc
-        num_actual_mcmc_iter = num_mcmc * keep_every
-        num_temp_samples = num_gfr + num_burnin + num_actual_mcmc_iter
-        num_retained_samples = num_mcmc
+        num_actual_mcmc_iter = num_mcmc * keep_every * num_chains
+        num_temp_samples = num_gfr + num_burnin * num_chains + num_actual_mcmc_iter
+        num_retained_samples = num_mcmc * num_chains
         if keep_gfr:
             num_retained_samples += num_gfr
         if keep_burnin:
-            num_retained_samples += num_burnin
+            num_retained_samples += num_burnin * num_chains
         self.num_samples = num_retained_samples
         self.sample_sigma_global = sample_sigma_global
         self.sample_sigma_leaf = sample_sigma_leaf
@@ -366,46 +378,68 @@ class BARTModel:
         
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
-            for i in range(self.num_gfr, num_temp_samples):
-                is_mcmc = i + 1 > num_gfr + num_burnin
-                if is_mcmc:
-                    mcmc_counter = i - num_gfr - num_burnin + 1
-                    if (mcmc_counter % keep_every == 0):
-                        keep_sample = True
-                    else:
-                        keep_sample = False
+            for chain_num in range(num_chains):
+                if num_gfr > 0:
+                    forest_ind = num_gfr - chain_num - 1
+                    if self.include_mean_forest:
+                        active_forest_mean.reset(self.forest_container_mean, forest_ind)
+                        forest_sampler_mean.reconstitute_from_forest(active_forest_mean, forest_dataset_train, residual_train, True)
+                    if self.include_variance_forest:
+                        active_forest_variance.reset(self.forest_container_variance, forest_ind)
+                        forest_sampler_variance.reconstitute_from_forest(active_forest_variance, forest_dataset_train, residual_train, False)
                 else:
-                    if keep_burnin:
-                        keep_sample = True
+                    if self.include_mean_forest:
+                        active_forest_mean.reset_root()
+                        if init_val_mean.shape[0] == 1:
+                            active_forest_mean.set_root_leaves(init_val_mean[0] / num_trees_mean)
+                        else:
+                            active_forest_mean.set_root_leaves(init_val_mean / num_trees_mean)
+                        forest_sampler_mean.reconstitute_from_forest(active_forest_mean, forest_dataset_train, residual_train, True)
+                    if self.include_variance_forest:
+                        active_forest_variance.reset_root()
+                        active_forest_variance.set_root_leaves(log(variance_forest_leaf_init) / num_trees_mean)
+                        forest_sampler_variance.reconstitute_from_forest(active_forest_variance, forest_dataset_train, residual_train, False)
+            
+                for i in range(self.num_gfr, num_temp_samples):
+                    is_mcmc = i + 1 > num_gfr + num_burnin
+                    if is_mcmc:
+                        mcmc_counter = i - num_gfr - num_burnin + 1
+                        if (mcmc_counter % keep_every == 0):
+                            keep_sample = True
+                        else:
+                            keep_sample = False
                     else:
-                        keep_sample = False
-                if keep_sample:
-                    sample_counter += 1
-                # Sample the mean forest
-                if self.include_mean_forest:
-                    forest_sampler_mean.sample_one_iteration(
-                        self.forest_container_mean, active_forest_mean, forest_dataset_train, residual_train, 
-                        cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
-                        current_sigma2, leaf_model_mean_forest, keep_sample, False, True
-                    )
-                
-                # Sample the variance forest
-                if self.include_variance_forest:
-                    forest_sampler_variance.sample_one_iteration(
-                        self.forest_container_variance, active_forest_variance, forest_dataset_train, residual_train, 
-                        cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
-                        current_sigma2, leaf_model_variance_forest, keep_sample, False, True
-                    )
+                        if keep_burnin:
+                            keep_sample = True
+                        else:
+                            keep_sample = False
+                    if keep_sample:
+                        sample_counter += 1
+                    # Sample the mean forest
+                    if self.include_mean_forest:
+                        forest_sampler_mean.sample_one_iteration(
+                            self.forest_container_mean, active_forest_mean, forest_dataset_train, residual_train, 
+                            cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
+                            current_sigma2, leaf_model_mean_forest, keep_sample, False, True
+                        )
+                    
+                    # Sample the variance forest
+                    if self.include_variance_forest:
+                        forest_sampler_variance.sample_one_iteration(
+                            self.forest_container_variance, active_forest_variance, forest_dataset_train, residual_train, 
+                            cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
+                            current_sigma2, leaf_model_variance_forest, keep_sample, False, True
+                        )
 
-                # Sample variance parameters (if requested)
-                if self.sample_sigma_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
-                    if keep_sample:
-                        self.global_var_samples[sample_counter] = current_sigma2
-                if self.sample_sigma_leaf:
-                    current_leaf_scale[0,0] = leaf_var_model.sample_one_iteration(active_forest_mean, cpp_rng, a_leaf, b_leaf)
-                    if keep_sample:
-                        self.leaf_scale_samples[sample_counter] = current_leaf_scale[0,0]
+                    # Sample variance parameters (if requested)
+                    if self.sample_sigma_global:
+                        current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
+                        if keep_sample:
+                            self.global_var_samples[sample_counter] = current_sigma2
+                    if self.sample_sigma_leaf:
+                        current_leaf_scale[0,0] = leaf_var_model.sample_one_iteration(active_forest_mean, cpp_rng, a_leaf, b_leaf)
+                        if keep_sample:
+                            self.leaf_scale_samples[sample_counter] = current_leaf_scale[0,0]
         
         # Mark the model as sampled
         self.sampled = True

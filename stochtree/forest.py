@@ -60,6 +60,8 @@ class ForestContainer:
         """
         Add a new all-root ensemble to the container, with all of the leaves set to the value / vector provided
 
+        Parameters
+        ----------
         leaf_value : :obj:`float` or :obj:`np.array`
             Value (or vector of values) to initialize root nodes in tree
         """
@@ -74,6 +76,8 @@ class ForestContainer:
         """
         Add a numeric (i.e. X[,i] <= c) split to a given tree in the ensemble
 
+        Parameters
+        ----------
         forest_num : :obj:`int`
             Index of the forest which contains the tree to be split
         tree_num : :obj:`int`
@@ -100,6 +104,8 @@ class ForestContainer:
         """
         Retrieve a vector of indices of leaf nodes for a given tree in a given forest
 
+        Parameters
+        ----------
         forest_num : :obj:`int`
             Index of the forest which contains tree `tree_num`
         tree_num : :obj:`float` or :obj:`np.array`
@@ -111,6 +117,8 @@ class ForestContainer:
         """
         Retrieve a vector of split counts for every training set variable in a given tree in a given forest
 
+        Parameters
+        ----------
         forest_num : :obj:`int`
             Index of the forest which contains tree `tree_num`
         tree_num : :obj:`int`
@@ -124,10 +132,17 @@ class ForestContainer:
         """
         Retrieve a vector of split counts for every training set variable in a given forest
 
+        Parameters
+        ----------
         forest_num : :obj:`int`
             Index of the forest which contains tree `tree_num`
         num_features : :obj:`int`
             Total number of features in the training set
+
+        Returns
+        -------
+        :obj:`np.array`
+            One-dimensional numpy array, containing the number of splits a variable receives, summed across each tree of a given forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.GetForestSplitCounts(forest_num, num_features)
 
@@ -135,8 +150,15 @@ class ForestContainer:
         """
         Retrieve a vector of split counts for every training set variable in a given forest, aggregated across ensembles and trees
 
+        Parameters
+        ----------
         num_features : :obj:`int`
             Total number of features in the training set
+
+        Returns
+        -------
+        :obj:`np.array`
+            One-dimensional numpy array, containing the number of splits a variable receives, summed across each tree of every forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.GetOverallSplitCounts(num_features)
 
@@ -144,8 +166,15 @@ class ForestContainer:
         """
         Retrieve a vector of split counts for every training set variable in a given forest, reported separately for each ensemble and tree
 
+        Parameters
+        ----------
         num_features : :obj:`int`
             Total number of features in the training set
+
+        Returns
+        -------
+        :obj:`np.array`
+            Three-dimensional numpy array, containing the number of splits a variable receives in each tree of each forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.GetGranularSplitCounts(num_features)
 
@@ -153,8 +182,15 @@ class ForestContainer:
         """
         Return the total number of leaves for a given forest in the ``ForestContainer``
 
+        Parameters
+        ----------
         forest_num : :obj:`int`
             Index of the forest to be queried
+
+        Returns
+        -------
+        :obj:`int`
+            Number of leaves in a given forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.NumLeaves(forest_num)
 
@@ -162,8 +198,15 @@ class ForestContainer:
         """
         Return the total sum of squared leaf values for a given forest in the ``ForestContainer``
 
+        Parameters
+        ----------
         forest_num : :obj:`int`
             Index of the forest to be queried
+
+        Returns
+        -------
+        :obj:`float`
+            Sum of squared leaf values in a given forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.SumLeafSquared(forest_num)
 
@@ -171,6 +214,25 @@ class Forest:
     def __init__(self, num_trees: int, output_dimension: int, leaf_constant: bool, is_exponentiated: bool) -> None:
         # Initialize a ForestCpp object
         self.forest_cpp = ForestCpp(num_trees, output_dimension, leaf_constant, is_exponentiated)
+    
+    def reset_root(self) -> None:
+        """
+        Reset forest to a forest with all single node (i.e. "root") trees
+        """
+        self.forest_cpp.ResetRoot()
+    
+    def reset(self, forest_container: ForestContainer, forest_num: int) -> None:
+        """
+        Reset forest to the forest indexed by ``forest_num`` in ``forest_container``
+
+        Parameters
+        ----------
+        forest_container : :obj:`ForestContainer`
+            Stochtree object storing tree ensembles
+        forest_num : :obj:`int`
+            Index of the ensemble used to reset the ``Forest``
+        """
+        self.forest_cpp.Reset(forest_container.forest_container_cpp, forest_num)
     
     def predict(self, dataset: Dataset) -> np.array:
         # Predict samples from Dataset
@@ -201,6 +263,8 @@ class Forest:
         """
         Add a numeric (i.e. X[,i] <= c) split to a given tree in the forest
 
+        Parameters
+        ----------
         tree_num : :obj:`int`
             Index of the tree to be split
         leaf_num : :obj:`int`
@@ -225,6 +289,8 @@ class Forest:
         """
         Retrieve a vector of indices of leaf nodes for a given tree in the forest
 
+        Parameters
+        ----------
         tree_num : :obj:`float` or :obj:`np.array`
             Index of the tree for which leaf indices will be retrieved
         """
@@ -234,6 +300,8 @@ class Forest:
         """
         Retrieve a vector of split counts for every training set variable in a given tree in the forest
 
+        Parameters
+        ----------
         tree_num : :obj:`int`
             Index of the tree for which split counts will be retrieved
         num_features : :obj:`int`
@@ -245,6 +313,8 @@ class Forest:
         """
         Retrieve a vector of split counts for every training set variable in the forest
 
+        Parameters
+        ----------
         num_features : :obj:`int`
             Total number of features in the training set
         """
@@ -254,6 +324,8 @@ class Forest:
         """
         Retrieve a vector of split counts for every training set variable in the forest, reported separately for each tree
 
+        Parameters
+        ----------
         num_features : :obj:`int`
             Total number of features in the training set
         """

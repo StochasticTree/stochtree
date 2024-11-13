@@ -13,9 +13,6 @@ resetActiveForest(active_forest, forest_samples, forest_num)
 
 \item{forest_num}{Index of forest samples from which to initialize active forest}
 }
-\value{
-\code{Forest} object
-}
 \description{
 Re-initialize an active forest from a specific forest in a \code{ForestContainer}
 }

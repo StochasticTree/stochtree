@@ -452,8 +452,12 @@ reset_active_forest_cpp <- function(active_forest, forest_samples, forest_num) {
   invisible(.Call(`_stochtree_reset_active_forest_cpp`, active_forest, forest_samples, forest_num))
 }
 
-reset_forest_model_cpp <- function(forest_tracker, data, forest_samples, forest_num) {
-  invisible(.Call(`_stochtree_reset_forest_model_cpp`, forest_tracker, data, forest_samples, forest_num))
+reset_forest_model_cpp <- function(forest_tracker, forest, data, residual, is_mean_model) {
+  invisible(.Call(`_stochtree_reset_forest_model_cpp`, forest_tracker, forest, data, residual, is_mean_model))
+}
+
+root_reset_active_forest_cpp <- function(active_forest) {
+  invisible(.Call(`_stochtree_root_reset_active_forest_cpp`, active_forest))
 }
 
 forest_container_get_max_leaf_index_cpp <- function(forest_container, forest_num) {

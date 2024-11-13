@@ -62,6 +62,12 @@ class TreeEnsemble {
     return trees_[i].get();
   }
 
+  inline void ResetRoot() {
+    for (int i = 0; i < num_trees_; i++) {
+      ResetInitTree(i);
+    }
+  }
+
   inline void ResetTree(int i) {
     trees_[i].reset(new Tree());
   }

@@ -152,6 +152,13 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     num_chains <- bart_params$num_chains
     verbose <- bart_params$verbose
     
+    # Check if there are enough GFR samples to seed num_chains samplers
+    if (num_gfr > 0) {
+        if (num_chains > num_gfr) {
+            stop("num_chains > num_gfr, meaning we do not have enough GFR samples to seed num_chains distinct MCMC chains")
+        }
+    }
+    
     # Determine whether conditional mean, variance, or both will be modeled
     if (num_trees_variance > 0) include_variance_forest = T
     else include_variance_forest = F
@@ -448,7 +455,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         if (requires_basis) init_values_mean_forest <- rep(0., ncol(W_train))
         else init_values_mean_forest <- 0.
         active_forest_mean$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mean, leaf_model_mean_forest, init_values_mean_forest)
-        active_forest_mean$adjust_residual(forest_dataset_train, outcome_train, forest_model_mean, requires_basis, FALSE)
     }
 
     # Initialize the leaves of each tree in the variance forest
@@ -459,7 +465,9 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     # Run GFR (warm start) if specified
     if (num_gfr > 0){
         for (i in 1:num_gfr) {
-            keep_sample <- ifelse(keep_gfr, T, F)
+            # Keep all GFR samples at this stage -- remove from ForestSamples after MCMC
+            # keep_sample <- ifelse(keep_gfr, T, F)
+            keep_sample <- T
             if (keep_sample) sample_counter <- sample_counter + 1
             # Print progress
             if (verbose) {
@@ -499,56 +507,81 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Run MCMC
     if (num_burnin + num_mcmc > 0) {
-        for (i in (num_gfr+1):num_samples) {
-            is_mcmc <- i > (num_gfr + num_burnin)
-            if (is_mcmc) {
-                mcmc_counter <- i - (num_gfr + num_burnin)
-                if (mcmc_counter %% keep_every == 0) keep_sample <- T
-                else keep_sample <- F
+        for (chain_num in 1:num_chains) {
+            if (num_gfr > 0) {
+                # Reset state of active_forest and forest_model based on a previous GFR sample
+                forest_ind <- num_gfr - chain_num
+                if (include_mean_forest) {
+                    resetActiveForest(active_forest_mean, forest_samples_mean, forest_ind)
+                    resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
+                }
+                if (include_variance_forest) {
+                    resetActiveForest(active_forest_variance, forest_samples_variance, forest_ind)
+                    resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
+                }
             } else {
-                if (keep_burnin) keep_sample <- T
-                else keep_sample <- F
-            }
-            if (keep_sample) sample_counter <- sample_counter + 1
-            # Print progress
-            if (verbose) {
-                if (num_burnin > 0) {
-                    if (((i - num_gfr) %% 100 == 0) || ((i - num_gfr) == num_burnin)) {
-                        cat("Sampling", i - num_gfr, "out of", num_burnin, "BART burn-in draws\n")
-                    }
+                if (include_mean_forest) {
+                    rootResetActiveForest(active_forest_mean)
+                    active_forest_mean$set_root_leaves(init_values_mean_forest / num_trees_mean)
+                    resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
                 }
-                if (num_mcmc > 0) {
-                    if (((i - num_gfr - num_burnin) %% 100 == 0) || (i == num_samples)) {
-                        cat("Sampling", i - num_burnin - num_gfr, "out of", num_mcmc, "BART MCMC draws\n")
-                    }
+                if (include_variance_forest) {
+                    rootResetActiveForest(active_forest_variance)
+                    active_forest_variance$set_root_leaves(log(variance_forest_init) / num_trees_variance)
+                    resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
                 }
             }
-            
-            if (include_mean_forest) {
-                forest_model_mean$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
-                    rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
-                )
-            }
-            if (include_variance_forest) {
-                forest_model_variance$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
-                    rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
-                )
-            }
-            if (sample_sigma_global) {
-                current_sigma2 <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
-                if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
-            }
-            if (sample_sigma_leaf) {
-                leaf_scale_double <- sample_tau_one_iteration(active_forest_mean, rng, a_leaf, b_leaf)
-                current_leaf_scale <- as.matrix(leaf_scale_double)
-                if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
-            }
-            if (has_rfx) {
-                rfx_model$sample_random_effect(rfx_dataset_train, outcome_train, rfx_tracker_train, rfx_samples, keep_sample, current_sigma2, rng)
+            for (i in (num_gfr+1):num_samples) {
+                is_mcmc <- i > (num_gfr + num_burnin)
+                if (is_mcmc) {
+                    mcmc_counter <- i - (num_gfr + num_burnin)
+                    if (mcmc_counter %% keep_every == 0) keep_sample <- T
+                    else keep_sample <- F
+                } else {
+                    if (keep_burnin) keep_sample <- T
+                    else keep_sample <- F
+                }
+                if (keep_sample) sample_counter <- sample_counter + 1
+                # Print progress
+                if (verbose) {
+                    if (num_burnin > 0) {
+                        if (((i - num_gfr) %% 100 == 0) || ((i - num_gfr) == num_burnin)) {
+                            cat("Sampling", i - num_gfr, "out of", num_burnin, "BART burn-in draws; Chain number ", chain_num, "\n")
+                        }
+                    }
+                    if (num_mcmc > 0) {
+                        if (((i - num_gfr - num_burnin) %% 100 == 0) || (i == num_samples)) {
+                            cat("Sampling", i - num_burnin - num_gfr, "out of", num_mcmc, "BART MCMC draws; Chain number ", chain_num, "\n")
+                        }
+                    }
+                }
+                
+                if (include_mean_forest) {
+                    forest_model_mean$sample_one_iteration(
+                        forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
+                        rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
+                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                    )
+                }
+                if (include_variance_forest) {
+                    forest_model_variance$sample_one_iteration(
+                        forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
+                        rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
+                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                    )
+                }
+                if (sample_sigma_global) {
+                    current_sigma2 <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
+                    if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
+                }
+                if (sample_sigma_leaf) {
+                    leaf_scale_double <- sample_tau_one_iteration(active_forest_mean, rng, a_leaf, b_leaf)
+                    current_leaf_scale <- as.matrix(leaf_scale_double)
+                    if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
+                }
+                if (has_rfx) {
+                    rfx_model$sample_random_effect(rfx_dataset_train, outcome_train, rfx_tracker_train, rfx_samples, keep_sample, current_sigma2, rng)
+                }
             }
         }
     }
@@ -617,7 +650,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         "num_gfr" = num_gfr, 
         "num_burnin" = num_burnin, 
         "num_mcmc" = num_mcmc, 
-        "num_retained_samples" = num_retained_samples,
+        "keep_every" = keep_every,
+        "num_chains" = num_chains,
         "has_basis" = !is.null(W_train), 
         "has_rfx" = has_rfx, 
         "has_rfx_basis" = has_basis_rfx, 
@@ -960,6 +994,8 @@ convertBARTModelToJson <- function(object){
     jsonobj$add_scalar("num_samples", object$model_params$num_samples)
     jsonobj$add_scalar("num_covariates", object$model_params$num_covariates)
     jsonobj$add_scalar("num_basis", object$model_params$num_basis)
+    jsonobj$add_scalar("num_chains", object$model_params$num_chains)
+    jsonobj$add_scalar("keep_every", object$model_params$keep_every)
     jsonobj$add_boolean("requires_basis", object$model_params$requires_basis)
     if (object$model_params$sample_sigma_global) {
         jsonobj$add_vector("sigma2_global_samples", object$sigma2_global_samples, "parameters")
@@ -1138,6 +1174,8 @@ createBARTModelFromJson <- function(json_object){
     model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
     model_params[["num_covariates"]] <- json_object$get_scalar("num_covariates")
     model_params[["num_basis"]] <- json_object$get_scalar("num_basis")
+    model_params[["num_chains"]] <- json_object$get_scalar("num_chains")
+    model_params[["keep_every"]] <- json_object$get_scalar("keep_every")
     model_params[["requires_basis"]] <- json_object$get_boolean("requires_basis")
     output[["model_params"]] <- model_params
     
@@ -1331,6 +1369,8 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
     model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
     model_params[["requires_basis"]] <- json_object_default$get_boolean("requires_basis")
+    model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
+    model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
 
     # Combine values that are sample-specific
     for (i in 1:length(json_object_list)) {
@@ -1474,6 +1514,8 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     model_params[["num_rfx_basis"]] <- json_object_default$get_scalar("num_rfx_basis")
     model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
     model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
+    model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
+    model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
     model_params[["requires_basis"]] <- json_object_default$get_boolean("requires_basis")
     
     # Combine values that are sample-specific

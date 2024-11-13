@@ -507,6 +507,19 @@ class ForestCpp {
     return forest_->OutputDimension();
   }
 
+  void ResetRoot() {
+    // Reset active forest using the forest held at index forest_num
+    forest_->ResetRoot();
+  }
+
+  void Reset(ForestContainerCpp& forest_container, int forest_num) {
+    // Extract raw pointer to the forest held at index forest_num
+    StochTree::TreeEnsemble* forest = forest_container.GetForest(forest_num);
+
+    // Reset active forest using the forest held at index forest_num
+    forest_->ReconstituteFromForest(*forest);
+  }
+
   py::array_t<double> Predict(ForestDatasetCpp& dataset) {
     // Predict from the forest container
     data_size_t n = dataset.NumRows();
@@ -686,6 +699,16 @@ class ForestSamplerCpp {
   ~ForestSamplerCpp() {}
 
   StochTree::ForestTracker* GetTracker() {return tracker_.get();}
+
+  void ReconstituteTrackerFromForest(ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, bool is_mean_model) {
+    // Extract raw pointer to the forest and dataset
+    StochTree::TreeEnsemble* forest_ptr = forest.GetEnsemble();
+    StochTree::ForestDataset* data_ptr = dataset.GetDataset();
+    StochTree::ColumnVector* residual_ptr = residual.GetData();
+    
+    // Reset forest tracker using the forest held at index forest_num
+    tracker_->ReconstituteFromForest(*forest_ptr, *data_ptr, *residual_ptr, is_mean_model);
+  }
 
   void SampleOneIteration(ForestContainerCpp& forest_samples, ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng, 
                           py::array_t<int> feature_types, int cutpoint_grid_size, py::array_t<double> leaf_model_scale_input, 
@@ -1243,6 +1266,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<ForestCpp>(m, "ForestCpp")
     .def(py::init<int,int,bool,bool>())
     .def("OutputDimension", &ForestCpp::OutputDimension)
+    .def("ResetRoot", &ForestCpp::ResetRoot)
+    .def("Reset", &ForestCpp::Reset)
     .def("Predict", &ForestCpp::Predict)
     .def("PredictRaw", &ForestCpp::PredictRaw)
     .def("SetRootValue", &ForestCpp::SetRootValue)
@@ -1258,6 +1283,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
 
   py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
     .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
+    .def("ReconstituteTrackerFromForest", &ForestSamplerCpp::ReconstituteTrackerFromForest)
     .def("SampleOneIteration", &ForestSamplerCpp::SampleOneIteration)
     .def("InitializeForestModel", &ForestSamplerCpp::InitializeForestModel)
     .def("PropagateBasisUpdate", &ForestSamplerCpp::PropagateBasisUpdate)

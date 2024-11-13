@@ -712,12 +712,16 @@ void reset_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> ac
 
 [[cpp11::register]]
 void reset_forest_model_cpp(cpp11::external_pointer<StochTree::ForestTracker> forest_tracker, 
+                            cpp11::external_pointer<StochTree::TreeEnsemble> forest, 
                             cpp11::external_pointer<StochTree::ForestDataset> data, 
-                            cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 
-                            int forest_num) {
-    // Extract raw pointer to the forest held at index forest_num
-    StochTree::TreeEnsemble* forest = forest_samples->GetEnsemble(forest_num);
-    
+                            cpp11::external_pointer<StochTree::ColumnVector> residual, 
+                            bool is_mean_model) {
     // Reset forest tracker using the forest held at index forest_num
-    forest_tracker->ReconstituteFromForest(*forest, *data);
+    forest_tracker->ReconstituteFromForest(*forest, *data, *residual, is_mean_model);
+}
+
+[[cpp11::register]]
+void root_reset_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
+    // Reset active forest to root
+    active_forest->ResetRoot();
 }

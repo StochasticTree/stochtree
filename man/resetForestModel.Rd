@@ -4,19 +4,18 @@
 \alias{resetForestModel}
 \title{Re-initialize a forest model (tracking data structures) from a specific forest in a \code{ForestContainer}}
 \usage{
-resetForestModel(forest_model, dataset, forest_samples, forest_num)
+resetForestModel(forest_model, forest, dataset, residual, is_mean_model)
 }
 \arguments{
 \item{forest_model}{Forest model with tracking data structures}
 
+\item{forest}{Forest from which to re-initialize forest model}
+
 \item{dataset}{Training dataset object}
 
-\item{forest_samples}{Container of forest samples from which to re-initialize active forest}
+\item{residual}{Residual which will also be updated}
 
-\item{forest_num}{Index of forest samples from which to initialize active forest}
-}
-\value{
-\code{Forest} object
+\item{is_mean_model}{Whether the model being updated is a conditional mean model}
 }
 \description{
 Re-initialize a forest model (tracking data structures) from a specific forest in a \code{ForestContainer}

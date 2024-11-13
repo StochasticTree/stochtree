@@ -196,6 +196,31 @@ static inline void UpdateModelVarianceForest(ForestTracker& tracker, ForestDatas
   tracker.SyncPredictions();
 }
 
+static inline void UpdateResidualNoTrackerUpdate(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, TreeEnsemble* forest, 
+                                                 bool requires_basis, std::function<double(double, double)> op) {
+  data_size_t n = dataset.GetCovariates().rows();
+  double tree_pred = 0.;
+  double pred_value = 0.;
+  double new_resid = 0.;
+  int32_t leaf_pred;
+  for (data_size_t i = 0; i < n; i++) {
+    for (int j = 0; j < forest->NumTrees(); j++) {
+      Tree* tree = forest->GetTree(j);
+      leaf_pred = tracker.GetNodeId(i, j);
+      if (requires_basis) {
+        tree_pred += tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+      } else {
+        tree_pred += tree->PredictFromNode(leaf_pred);
+      }
+      pred_value += tree_pred;
+    }
+    
+    // Run op (either plus or minus) on the residual and the new prediction
+    new_resid = op(residual.GetElement(i), pred_value);
+    residual.SetElement(i, new_resid);
+  }
+}
+
 static inline void UpdateResidualEntireForest(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, TreeEnsemble* forest, 
                                               bool requires_basis, std::function<double(double, double)> op) {
   data_size_t n = dataset.GetCovariates().rows();

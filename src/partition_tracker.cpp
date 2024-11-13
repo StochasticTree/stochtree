@@ -26,9 +26,15 @@ ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureTyp
   num_observations_ = num_observations;
   num_features_ = feature_types.size();
   feature_types_ = feature_types;
+  initialized_ = true;
 }
 
-void ForestTracker::ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset) {
+void ForestTracker::ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model) {
+  // Together this function:
+  // (1) Updates the residual by adding currently cached tree predictions and subtracting predictions from new tree
+  // (2) Updates sample_node_mapper_, sample_pred_mapper_, and sum_predictions_ based on the new forest
+  UpdateSampleTrackersResidual(forest, dataset, residual, is_mean_model);
+  
   // Since GFR always starts over from root, this data structure can always simply be reset
   Eigen::MatrixXd& covariates = dataset.GetCovariates();
   sorted_node_sample_tracker_.reset(new SortedNodeSampleTracker(presort_container_.get(), covariates, feature_types_));
@@ -36,8 +42,7 @@ void ForestTracker::ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& 
   // Reconstitute each of the remaining data structures in the tracker based on splits in the ensemble
   // UnsortedNodeSampleTracker
   unsorted_node_sample_tracker_->ReconstituteFromForest(forest, dataset);
-  // SampleNodeMapper, SamplePredMapper and sum_predictions_
-  UpdateSampleTrackers(forest, dataset);
+  
 }
 
 void ForestTracker::ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num) {
@@ -140,6 +145,95 @@ void ForestTracker::UpdateSampleTrackers(TreeEnsemble& forest, ForestDataset& da
     UpdateSampleTrackersInternal(forest, dataset.GetCovariates(), dataset.GetBasis());
   } else {
     UpdateSampleTrackersInternal(forest, dataset.GetCovariates());
+  }
+}
+
+void ForestTracker::UpdateSampleTrackersResidualInternalBasis(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model) {
+  double new_forest_pred, new_tree_pred, prev_tree_pred, new_resid, new_weight;
+  Eigen::MatrixXd& covariates = dataset.GetCovariates();
+  Eigen::MatrixXd& basis = dataset.GetBasis();
+  int output_dim = basis.cols();
+  if (!is_mean_model) {
+    CHECK(dataset.HasVarWeights());
+  }
+
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    new_forest_pred = 0.0;
+    for (int j = 0; j < num_trees_; j++) {
+      // Query the previously cached prediction for tree j, observation i
+      prev_tree_pred = sample_pred_mapper_->GetPred(i, j);
+      
+      // Compute the new prediction for tree j, observation i
+      new_tree_pred = 0.0;
+      Tree* tree = forest.GetTree(j);
+      std::int32_t nidx = EvaluateTree(*tree, covariates, i);
+      for (int32_t k = 0; k < output_dim; k++) {
+        new_tree_pred += tree->LeafValue(nidx, k) * basis(i, k);
+      }
+      
+      if (is_mean_model) {
+        // Adjust the residual by adding the previous prediction and subtracting the new prediction
+        new_resid = residual.GetElement(i) - new_tree_pred + prev_tree_pred;
+        residual.SetElement(i, new_resid);
+      } else {
+        // Adjust the variance weights by subtracting the previous prediction and adding the new prediction (in log scale) and then exponentiating
+        new_weight = std::log(dataset.VarWeightValue(i)) + new_tree_pred - prev_tree_pred;
+        dataset.SetVarWeightValue(i, new_weight, true);
+      }
+
+      // Update the sample node mapper and sample prediction mapper
+      sample_node_mapper_->SetNodeId(i, j, nidx);
+      sample_pred_mapper_->SetPred(i, j, new_tree_pred);
+      new_forest_pred += new_tree_pred;
+    }
+    // Update the overall cached forest prediction
+    sum_predictions_[i] = new_forest_pred;
+  }
+}
+
+void ForestTracker::UpdateSampleTrackersResidualInternalNoBasis(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model) {
+  double new_forest_pred, new_tree_pred, prev_tree_pred, new_resid, new_weight;
+  Eigen::MatrixXd& covariates = dataset.GetCovariates();
+  if (!is_mean_model) {
+    CHECK(dataset.HasVarWeights());
+  }
+
+  for (data_size_t i = 0; i < num_observations_; i++) {
+    new_forest_pred = 0.0;
+    for (int j = 0; j < num_trees_; j++) {
+      // Query the previously cached prediction for tree j, observation i
+      prev_tree_pred = sample_pred_mapper_->GetPred(i, j);
+
+      // Compute the new prediction for tree j, observation i
+      Tree* tree = forest.GetTree(j);
+      std::int32_t nidx = EvaluateTree(*tree, covariates, i);
+      new_tree_pred = tree->LeafValue(nidx, 0);
+      
+      if (is_mean_model) {
+        // Adjust the residual by adding the previous prediction and subtracting the new prediction
+        new_resid = residual.GetElement(i) - new_tree_pred + prev_tree_pred;
+        residual.SetElement(i, new_resid);
+      } else {
+        new_weight = std::log(dataset.VarWeightValue(i)) + new_tree_pred - prev_tree_pred;
+        dataset.SetVarWeightValue(i, new_weight, true);
+      }
+      
+      // Update the sample node mapper and sample prediction mapper
+      sample_node_mapper_->SetNodeId(i, j, nidx);
+      sample_pred_mapper_->SetPred(i, j, new_tree_pred);
+      new_forest_pred += new_tree_pred;
+    }
+    // Update the overall cached forest prediction
+    sum_predictions_[i] = new_forest_pred;
+  }
+}
+
+void ForestTracker::UpdateSampleTrackersResidual(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model) {
+  if (!forest.IsLeafConstant()) {
+    CHECK(dataset.HasBasis());
+    UpdateSampleTrackersResidualInternalBasis(forest, dataset, residual, is_mean_model);
+  } else {
+    UpdateSampleTrackersResidualInternalNoBasis(forest, dataset, residual, is_mean_model);
   }
 }
 

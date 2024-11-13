@@ -18,10 +18,27 @@ class ForestSampler:
         # Initialize a ForestDatasetCpp object
         self.forest_sampler_cpp = ForestSamplerCpp(dataset.dataset_cpp, feature_types, num_trees, num_obs, alpha, beta, min_samples_leaf, max_depth)
     
+    def reconstitute_from_forest(self, forest: Forest, dataset: Dataset, residual: Residual, is_mean_model: bool) -> None:
+        """
+        Re-initialize a forest sampler tracking data structures from a specific forest in a ``ForestContainer``
+
+        Parameters
+        ----------
+        dataset : :obj:`Dataset`
+            Stochtree dataset object storing covariates / bases / weights
+        residual : :obj:`Residual`
+            Stochtree object storing continuously updated partial / full residual
+        forest : :obj:`Forest`
+            Stochtree object storing tree ensemble
+        is_mean_model : :obj:`bool`
+            Indicator of whether the model being updated a conditional mean model (``True``) or a conditional variance model (``False``)
+        """
+        self.forest_sampler_cpp.ReconstituteTrackerFromForest(forest.forest_cpp, dataset.dataset_cpp, residual.residual_cpp, is_mean_model)
+    
     def sample_one_iteration(self, forest_container: ForestContainer, forest: Forest, dataset: Dataset, 
                              residual: Residual, rng: RNG, feature_types: np.array, cutpoint_grid_size: int, 
                              leaf_model_scale_input: np.array, variable_weights: np.array, a_forest: float, b_forest: float, 
-                             global_variance: float, leaf_model_int: int, keep_forest: bool, gfr: bool, pre_initialized: bool):
+                             global_variance: float, leaf_model_int: int, keep_forest: bool, gfr: bool, pre_initialized: bool) -> None:
         """
         Sample one iteration of a forest using the specified model and tree sampling algorithm
 
@@ -64,7 +81,7 @@ class ForestSampler:
                                                    feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, 
                                                    a_forest, b_forest, global_variance, leaf_model_int, keep_forest, gfr, pre_initialized)
     
-    def prepare_for_sampler(self, dataset: Dataset, residual: Residual, forest: Forest, leaf_model: int, initial_values: np.array):
+    def prepare_for_sampler(self, dataset: Dataset, residual: Residual, forest: Forest, leaf_model: int, initial_values: np.array) -> None:
         """
         Initialize forest and tracking data structures with constant root values before running a sampler
 

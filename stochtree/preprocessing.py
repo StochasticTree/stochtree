@@ -42,6 +42,7 @@ def _preprocess_bart_params(params: Optional[Dict[str, Any]] = None) -> Dict[str
         'random_seed' : -1, 
         'keep_burnin' : False, 
         'keep_gfr' : False, 
+        'num_chains' : 1, 
         'keep_every' : 1
     }
     
@@ -92,6 +93,7 @@ def _preprocess_bcf_params(params: Optional[Dict[str, Any]] = None) -> Dict[str,
         'random_seed': -1, 
         'keep_burnin': False, 
         'keep_gfr': False, 
+        'num_chains' : 1, 
         'keep_every' : 1
     }
     
