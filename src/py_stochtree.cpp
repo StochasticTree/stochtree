@@ -428,7 +428,8 @@ class ForestContainerCpp {
       StochTree::Tree* tree = ensemble->GetTree(i);
       std::vector<int32_t> split_nodes = tree->GetInternalNodes();
       for (int j = 0; j < split_nodes.size(); j++) {
-        auto split_feature = split_nodes.at(j);
+        auto node_id = split_nodes.at(j);
+        auto split_feature = tree->SplitIndex(node_id);
         accessor(split_feature)++;
       }
     }
@@ -449,7 +450,8 @@ class ForestContainerCpp {
         StochTree::Tree* tree = ensemble->GetTree(j);
         std::vector<int32_t> split_nodes = tree->GetInternalNodes();
         for (int k = 0; k < split_nodes.size(); k++) {
-          auto split_feature = split_nodes.at(k);
+          auto node_id = split_nodes.at(k);
+          auto split_feature = tree->SplitIndex(node_id);
           accessor(split_feature)++;
         }
       }
@@ -460,11 +462,11 @@ class ForestContainerCpp {
   py::array_t<int> GetGranularSplitCounts(int num_features) {
     int num_samples = forest_samples_->NumSamples();
     int num_trees = forest_samples_->NumTrees();
-    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_trees,num_features,num_samples}));
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_samples,num_trees,num_features}));
     auto accessor = result.mutable_unchecked<3>();
-    for (int i = 0; i < num_trees; i++) {
-      for (int j = 0; j < num_features; j++) {
-        for (int k = 0; k < num_samples; k++) {
+    for (int i = 0; i < num_samples; i++) {
+      for (int j = 0; j < num_trees; j++) {
+        for (int k = 0; k < num_features; k++) {
           accessor(i,j,k) = 0;
         }
       }
@@ -475,8 +477,9 @@ class ForestContainerCpp {
         StochTree::Tree* tree = ensemble->GetTree(j);
         std::vector<int32_t> split_nodes = tree->GetInternalNodes();
         for (int k = 0; k < split_nodes.size(); k++) {
-          auto split_feature = split_nodes.at(k);
-          accessor(j,split_feature,i)++;
+          auto node_id = split_nodes.at(k);
+          auto split_feature = tree->SplitIndex(node_id);
+          accessor(i,j,split_feature)++;
         }
       }
     }
