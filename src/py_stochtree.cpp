@@ -164,7 +164,7 @@ class ForestContainerCpp {
     return forest_samples_->NumSamples();
   }
 
-  int NumLeaves(int forest_num) {
+  int NumLeavesForest(int forest_num) {
     StochTree::TreeEnsemble* forest = forest_samples_->GetEnsemble(forest_num);
     return forest->NumLeaves();
   }
@@ -428,7 +428,8 @@ class ForestContainerCpp {
       StochTree::Tree* tree = ensemble->GetTree(i);
       std::vector<int32_t> split_nodes = tree->GetInternalNodes();
       for (int j = 0; j < split_nodes.size(); j++) {
-        auto split_feature = split_nodes.at(j);
+        auto node_id = split_nodes.at(j);
+        auto split_feature = tree->SplitIndex(node_id);
         accessor(split_feature)++;
       }
     }
@@ -449,7 +450,8 @@ class ForestContainerCpp {
         StochTree::Tree* tree = ensemble->GetTree(j);
         std::vector<int32_t> split_nodes = tree->GetInternalNodes();
         for (int k = 0; k < split_nodes.size(); k++) {
-          auto split_feature = split_nodes.at(k);
+          auto node_id = split_nodes.at(k);
+          auto split_feature = tree->SplitIndex(node_id);
           accessor(split_feature)++;
         }
       }
@@ -460,11 +462,11 @@ class ForestContainerCpp {
   py::array_t<int> GetGranularSplitCounts(int num_features) {
     int num_samples = forest_samples_->NumSamples();
     int num_trees = forest_samples_->NumTrees();
-    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_trees,num_features,num_samples}));
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_samples,num_trees,num_features}));
     auto accessor = result.mutable_unchecked<3>();
-    for (int i = 0; i < num_trees; i++) {
-      for (int j = 0; j < num_features; j++) {
-        for (int k = 0; k < num_samples; k++) {
+    for (int i = 0; i < num_samples; i++) {
+      for (int j = 0; j < num_trees; j++) {
+        for (int k = 0; k < num_features; k++) {
           accessor(i,j,k) = 0;
         }
       }
@@ -475,10 +477,140 @@ class ForestContainerCpp {
         StochTree::Tree* tree = ensemble->GetTree(j);
         std::vector<int32_t> split_nodes = tree->GetInternalNodes();
         for (int k = 0; k < split_nodes.size(); k++) {
-          auto split_feature = split_nodes.at(k);
-          accessor(j,split_feature,i)++;
+          auto node_id = split_nodes.at(k);
+          auto split_feature = tree->SplitIndex(node_id);
+          accessor(i,j,split_feature)++;
         }
       }
+    }
+    return result;
+  }
+
+  bool IsLeafNode(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->IsLeaf(node_id);
+  }
+
+  bool IsNumericSplitNode(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->IsNumericSplitNode(node_id);
+  }
+
+  bool IsCategoricalSplitNode(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->IsCategoricalSplitNode(node_id);
+  }
+
+  int ParentNode(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->Parent(node_id);
+  }
+
+  int LeftChildNode(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->LeftChild(node_id);
+  }
+
+  int RightChildNode(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->RightChild(node_id);
+  }
+
+  int SplitIndex(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->SplitIndex(node_id);
+  }
+
+  int NodeDepth(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->GetDepth(node_id);
+  }
+
+  double SplitThreshold(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->Threshold(node_id);
+  }
+
+  py::array_t<int> SplitCategories(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    std::vector<std::uint32_t> raw_categories = tree->CategoryList(node_id);
+    int num_categories = raw_categories.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_categories}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < num_categories; i++) {
+      accessor(i) = raw_categories.at(i);
+    }
+    return result;
+  }
+
+  py::array_t<double> NodeLeafValues(int forest_id, int tree_id, int node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    int num_outputs = tree->OutputDimension();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_outputs}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < num_outputs; i++) {
+      accessor(i) = tree->LeafValue(node_id, i);
+    }
+    return result;
+  }
+
+  int NumNodes(int forest_id, int tree_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->NumValidNodes();
+  }
+
+  int NumLeaves(int forest_id, int tree_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->NumLeaves();
+  }
+
+  int NumLeafParents(int forest_id, int tree_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->NumLeafParents();
+  }
+
+  int NumSplitNodes(int forest_id, int tree_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    return tree->NumSplitNodes();
+  }
+
+  py::array_t<int> Nodes(int forest_id, int tree_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    std::vector<std::int32_t> nodes = tree->GetNodes();
+    int num_nodes = nodes.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_nodes}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < num_nodes; i++) {
+      accessor(i) = nodes.at(i);
+    }
+    return result;
+  }
+
+  py::array_t<int> Leaves(int forest_id, int tree_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(forest_id);
+    StochTree::Tree* tree = ensemble->GetTree(tree_id);
+    std::vector<std::int32_t> leaves = tree->GetLeaves();
+    int num_leaves = leaves.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_leaves}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < num_leaves; i++) {
+      accessor(i) = leaves.at(i);
     }
     return result;
   }
@@ -1044,8 +1176,25 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("GetForestSplitCounts", &ForestContainerCpp::GetForestSplitCounts)
     .def("GetOverallSplitCounts", &ForestContainerCpp::GetOverallSplitCounts)
     .def("GetGranularSplitCounts", &ForestContainerCpp::GetGranularSplitCounts)
+    .def("NumLeavesForest", &ForestContainerCpp::NumLeavesForest)
+    .def("SumLeafSquared", &ForestContainerCpp::SumLeafSquared)
+    .def("IsLeafNode", &ForestContainerCpp::IsLeafNode)
+    .def("IsNumericSplitNode", &ForestContainerCpp::IsNumericSplitNode)
+    .def("IsCategoricalSplitNode", &ForestContainerCpp::IsCategoricalSplitNode)
+    .def("ParentNode", &ForestContainerCpp::ParentNode)
+    .def("LeftChildNode", &ForestContainerCpp::LeftChildNode)
+    .def("RightChildNode", &ForestContainerCpp::RightChildNode)
+    .def("SplitIndex", &ForestContainerCpp::SplitIndex)
+    .def("NodeDepth", &ForestContainerCpp::NodeDepth)
+    .def("SplitThreshold", &ForestContainerCpp::SplitThreshold)
+    .def("SplitCategories", &ForestContainerCpp::SplitCategories)
+    .def("NodeLeafValues", &ForestContainerCpp::NodeLeafValues)
+    .def("NumNodes", &ForestContainerCpp::NumNodes)
     .def("NumLeaves", &ForestContainerCpp::NumLeaves)
-    .def("SumLeafSquared", &ForestContainerCpp::SumLeafSquared);
+    .def("NumLeafParents", &ForestContainerCpp::NumLeafParents)
+    .def("NumSplitNodes", &ForestContainerCpp::NumSplitNodes)
+    .def("Nodes", &ForestContainerCpp::Nodes)
+    .def("Leaves", &ForestContainerCpp::Leaves);
 
   py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
     .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
