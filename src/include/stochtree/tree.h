@@ -462,6 +462,22 @@ class Tree {
   }
 
   /*!
+   * \brief Whether the node is a numeric split node
+   * \param nid ID of node being queried
+   */
+  bool IsNumericSplitNode(std::int32_t nid) const {
+    return node_type_[nid] == TreeNodeType::kNumericalSplitNode;
+  }
+
+  /*!
+   * \brief Whether the node is a numeric split node
+   * \param nid ID of node being queried
+   */
+  bool IsCategoricalSplitNode(std::int32_t nid) const {
+    return node_type_[nid] == TreeNodeType::kCategoricalSplitNode;
+  }
+
+  /*!
    * \brief Query whether this tree contains any categorical splits
    */
   bool HasCategoricalSplit() const {
@@ -500,17 +516,34 @@ class Tree {
   [[nodiscard]] std::vector<std::int32_t> const& GetInternalNodes() const {
     return internal_nodes_;
   }
+
   /*!
    * \brief Get indices of all leaf nodes.
    */
   [[nodiscard]] std::vector<std::int32_t> const& GetLeaves() const {
     return leaves_;
   }
+
   /*!
    * \brief Get indices of all leaf parent nodes.
    */
   [[nodiscard]] std::vector<std::int32_t> const& GetLeafParents() const {
     return leaf_parents_;
+  }
+  
+  /*!
+   * \brief Get indices of all valid (non-deleted) nodes.
+   */
+  [[nodiscard]] std::vector<std::int32_t> GetNodes() {
+    std::vector<std::int32_t> output;
+    auto const& self = *this;
+    this->WalkTree([&output, &self](std::int32_t nidx) {
+                    if (!self.IsDeleted(nidx)) {
+                      output.push_back(nidx);
+                    }
+                    return true;
+                  });
+    return output;
   }
 
   /*!
