@@ -241,7 +241,8 @@ cpp11::writable::integers get_tree_split_counts_forest_container_cpp(cpp11::exte
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     std::vector<int32_t> split_nodes = tree->GetInternalNodes();
     for (int i = 0; i < split_nodes.size(); i++) {
-        auto split_feature = split_nodes.at(i);
+        auto node_id = split_nodes.at(i);
+        auto split_feature = tree->SplitIndex(node_id);
         output.at(split_feature)++;
     }
     return output;
@@ -257,7 +258,8 @@ cpp11::writable::integers get_forest_split_counts_forest_container_cpp(cpp11::ex
         StochTree::Tree* tree = ensemble->GetTree(i);
         std::vector<int32_t> split_nodes = tree->GetInternalNodes();
         for (int j = 0; j < split_nodes.size(); j++) {
-            auto split_feature = split_nodes.at(j);
+            auto node_id = split_nodes.at(j);
+            auto split_feature = tree->SplitIndex(node_id);
             output.at(split_feature)++;
         }
     }
@@ -276,7 +278,8 @@ cpp11::writable::integers get_overall_split_counts_forest_container_cpp(cpp11::e
             StochTree::Tree* tree = ensemble->GetTree(j);
             std::vector<int32_t> split_nodes = tree->GetInternalNodes();
             for (int k = 0; k < split_nodes.size(); k++) {
-                auto split_feature = split_nodes.at(k);
+                auto node_id = split_nodes.at(k);
+                auto split_feature = tree->SplitIndex(node_id);
                 output.at(split_feature)++;
             }
         }
@@ -296,8 +299,9 @@ cpp11::writable::integers get_granular_split_count_array_forest_container_cpp(cp
             StochTree::Tree* tree = ensemble->GetTree(j);
             std::vector<int32_t> split_nodes = tree->GetInternalNodes();
             for (int k = 0; k < split_nodes.size(); k++) {
-                auto split_feature = split_nodes.at(k);
-                output.at(num_features*num_trees*i + split_feature*num_trees + j)++;
+                auto node_id = split_nodes.at(k);
+                auto split_feature = tree->SplitIndex(node_id);
+                output.at(split_feature*num_samples*num_trees + j*num_samples + i)++;
             }
         }
     }
