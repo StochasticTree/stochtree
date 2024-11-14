@@ -445,7 +445,9 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     # Container of variance parameter samples
     num_actual_mcmc_iter <- num_mcmc * keep_every
     num_samples <- num_gfr + num_burnin + num_actual_mcmc_iter
-    num_retained_samples <- ifelse(keep_gfr, num_gfr, 0) + ifelse(keep_burnin, num_burnin, 0) + num_mcmc
+    # Delete GFR samples from these containers after the fact if desired
+    # num_retained_samples <- ifelse(keep_gfr, num_gfr, 0) + ifelse(keep_burnin, num_burnin, 0) + num_mcmc
+    num_retained_samples <- num_gfr + ifelse(keep_burnin, num_burnin, 0) + num_mcmc * num_chains
     if (sample_sigma_global) global_var_samples <- rep(NA, num_retained_samples)
     if (sample_sigma_leaf) leaf_scale_samples <- rep(NA, num_retained_samples)
     sample_counter <- 0
@@ -514,22 +516,31 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 if (include_mean_forest) {
                     resetActiveForest(active_forest_mean, forest_samples_mean, forest_ind)
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
+                    if (sample_sigma_leaf) {
+                        leaf_scale_double <- leaf_scale_samples[forest_ind + 1]
+                        current_leaf_scale <- as.matrix(leaf_scale_double)
+                    }
                 }
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance, forest_samples_variance, forest_ind)
                     resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
                 }
+                if (sample_sigma_global) current_sigma2 <- sigma2_samples[forest_ind + 1]
             } else {
                 if (include_mean_forest) {
                     rootResetActiveForest(active_forest_mean)
                     active_forest_mean$set_root_leaves(init_values_mean_forest / num_trees_mean)
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
+                    if (sample_sigma_leaf) {
+                        current_leaf_scale <- as.matrix(tau_init)
+                    }
                 }
                 if (include_variance_forest) {
                     rootResetActiveForest(active_forest_variance)
                     active_forest_variance$set_root_leaves(log(variance_forest_init) / num_trees_variance)
                     resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
                 }
+                if (sample_sigma_global) current_sigma2 <- sigma2_init
             }
             for (i in (num_gfr+1):num_samples) {
                 is_mcmc <- i > (num_gfr + num_burnin)

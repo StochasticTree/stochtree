@@ -265,10 +265,12 @@ class BARTModel:
         self.num_burnin = num_burnin
         self.num_mcmc = num_mcmc
         num_actual_mcmc_iter = num_mcmc * keep_every * num_chains
-        num_temp_samples = num_gfr + num_burnin * num_chains + num_actual_mcmc_iter
+        num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
         num_retained_samples = num_mcmc * num_chains
-        if keep_gfr:
-            num_retained_samples += num_gfr
+        # Delete GFR samples from these containers after the fact if desired
+        # if keep_gfr:
+        #     num_retained_samples += num_gfr
+        num_retained_samples += num_gfr
         if keep_burnin:
             num_retained_samples += num_burnin * num_chains
         self.num_samples = num_retained_samples
@@ -347,7 +349,9 @@ class BARTModel:
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
             for i in range(self.num_gfr):
-                keep_sample = keep_gfr
+                # Keep all GFR samples at this stage -- remove from ForestSamples after MCMC
+                # keep_sample = keep_gfr
+                keep_sample = True
                 if keep_sample:
                     sample_counter += 1
                 # Sample the mean forest
@@ -387,6 +391,8 @@ class BARTModel:
                     if self.include_variance_forest:
                         active_forest_variance.reset(self.forest_container_variance, forest_ind)
                         forest_sampler_variance.reconstitute_from_forest(active_forest_variance, forest_dataset_train, residual_train, False)
+                    if sample_sigma_global:
+                        current_sigma2 = self.global_var_samples[forest_ind]
                 else:
                     if self.include_mean_forest:
                         active_forest_mean.reset_root()
