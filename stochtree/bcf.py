@@ -149,6 +149,7 @@ class BCFModel:
         random_seed = bcf_params['random_seed']
         keep_burnin = bcf_params['keep_burnin']
         keep_gfr = bcf_params['keep_gfr']
+        self.standardize = bcf_params['standardize']
         
         # Variable weight preprocessing (and initialization if necessary)
         if variable_weights is None:
@@ -495,8 +496,12 @@ class BCFModel:
             self.internal_propensity_model = False
 
         # Scale outcome
-        self.y_bar = np.squeeze(np.mean(y_train))
-        self.y_std = np.squeeze(np.std(y_train))
+        if self.standardize:
+            self.y_bar = np.squeeze(np.mean(y_train))
+            self.y_std = np.squeeze(np.std(y_train))
+        else:
+            self.y_bar = 0
+            self.y_std = 1
         resid_train = (y_train-self.y_bar)/self.y_std
 
         # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau (don't use regression initializer for warm-start or XBART)

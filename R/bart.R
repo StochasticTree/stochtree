@@ -41,6 +41,7 @@
 #'   - `sample_sigma_global` Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_global, b_global)`. Default: `TRUE`.
 #'   - `keep_burnin` Whether or not "burnin" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in cached predictions. Default `TRUE`. Ignored if `num_mcmc = 0`.
+#'   - `standardize` Whether or not to standardize the outcome (and store the offset / scale in the model object). Default: `TRUE`.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'
 #'   **2. Mean Forest Parameters**
@@ -146,6 +147,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     random_seed <- bart_params$random_seed
     keep_burnin <- bart_params$keep_burnin
     keep_gfr <- bart_params$keep_gfr
+    standardize <- bart_params$standardize
     verbose <- bart_params$verbose
     
     # Determine whether conditional mean, variance, or both will be modeled
@@ -309,8 +311,13 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     has_test = !is.null(X_test)
 
     # Standardize outcome separately for test and train
-    y_bar_train <- mean(y_train)
-    y_std_train <- sd(y_train)
+    if (standardize) {
+        y_bar_train <- mean(y_train)
+        y_std_train <- sd(y_train)
+    } else {
+        y_bar_train <- 0
+        y_std_train <- 1
+    }
     resid_train <- (y_train-y_bar_train)/y_std_train
     resid_train <- resid_train*sqrt(variance_scale)
     
@@ -623,6 +630,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         "b_forest" = b_forest,
         "outcome_mean" = y_bar_train,
         "outcome_scale" = y_std_train, 
+        "standardize" = standardize, 
         "output_dimension" = output_dimension,
         "is_leaf_constant" = is_leaf_constant,
         "leaf_regression" = leaf_regression,
@@ -972,6 +980,7 @@ convertBARTModelToJson <- function(object){
     jsonobj$add_scalar("variance_scale", object$model_params$variance_scale)
     jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
     jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
+    jsonobj$add_boolean("standardize", object$model_params$standardize)
     jsonobj$add_scalar("sigma2_init", object$model_params$sigma2_init)
     jsonobj$add_boolean("sample_sigma_global", object$model_params$sample_sigma_global)
     jsonobj$add_boolean("sample_sigma_leaf", object$model_params$sample_sigma_leaf)
@@ -1152,6 +1161,7 @@ createBARTModelFromJson <- function(json_object){
     model_params[["variance_scale"]] <- json_object$get_scalar("variance_scale")
     model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
+    model_params[["standardize"]] <- json_object$get_boolean("standardize")
     model_params[["sigma2_init"]] <- json_object$get_scalar("sigma2_init")
     model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
     model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
@@ -1348,6 +1358,7 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     model_params = list()
     model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
+    model_params[["standardize"]] <- json_object_default$get_boolean("standardize")
     model_params[["sigma2_init"]] <- json_object_default$get_scalar("sigma2_init")
     model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
     model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
@@ -1499,6 +1510,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     model_params[["variance_scale"]] <- json_object_default$get_scalar("variance_scale")
     model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
+    model_params[["standardize"]] <- json_object_default$get_boolean("standardize")
     model_params[["sigma2_init"]] <- json_object_default$get_scalar("sigma2_init")
     model_params[["sample_sigma_global"]] <- json_object_default$get_boolean("sample_sigma_global")
     model_params[["sample_sigma_leaf"]] <- json_object_default$get_boolean("sample_sigma_leaf")
