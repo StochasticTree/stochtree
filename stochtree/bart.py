@@ -118,6 +118,7 @@ class BARTModel:
         random_seed = bart_params['random_seed']
         keep_burnin = bart_params['keep_burnin']
         keep_gfr = bart_params['keep_gfr']
+        self.standardize = bart_params['standardize']
 
         # Determine which models (conditional mean, conditional variance, or both) we will fit
         self.include_mean_forest = True if num_trees_mean > 0 else False
@@ -213,8 +214,12 @@ class BARTModel:
                 variable_weights_variance = variable_weights_variance[original_var_indices]*variable_weights_adj
 
         # Scale outcome
-        self.y_bar = np.squeeze(np.mean(y_train))
-        self.y_std = np.squeeze(np.std(y_train))
+        if self.standardize:
+            self.y_bar = np.squeeze(np.mean(y_train))
+            self.y_std = np.squeeze(np.std(y_train))
+        else:
+            self.y_bar = 0
+            self.y_std = 1
         if variance_scale > 0:
             self.variance_scale = variance_scale
         else:
@@ -626,6 +631,7 @@ class BARTModel:
         bart_json.add_scalar("variance_scale", self.variance_scale)
         bart_json.add_scalar("outcome_scale", self.y_std)
         bart_json.add_scalar("outcome_mean", self.y_bar)
+        bart_json.add_boolean("standardize", self.standardize)
         bart_json.add_scalar("sigma2_init", self.sigma2_init)
         bart_json.add_boolean("sample_sigma_global", self.sample_sigma_global)
         bart_json.add_boolean("sample_sigma_leaf", self.sample_sigma_leaf)
@@ -680,6 +686,7 @@ class BARTModel:
         self.variance_scale = bart_json.get_scalar("variance_scale")
         self.y_std = bart_json.get_scalar("outcome_scale")
         self.y_bar = bart_json.get_scalar("outcome_mean")
+        self.standardize = bart_json.get_boolean("standardize")
         self.sigma2_init = bart_json.get_scalar("sigma2_init")
         self.sample_sigma_global = bart_json.get_boolean("sample_sigma_global")
         self.sample_sigma_leaf = bart_json.get_boolean("sample_sigma_leaf")
