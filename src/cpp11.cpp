@@ -618,122 +618,122 @@ extern "C" SEXP _stochtree_set_leaf_vector_forest_container_cpp(SEXP forest_samp
   END_CPP11
 }
 // forest.cpp
-bool is_leaf_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+bool is_leaf_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_is_leaf_node_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(is_leaf_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(is_leaf_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-bool is_numeric_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+bool is_numeric_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_is_numeric_split_node_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(is_numeric_split_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(is_numeric_split_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-bool is_categorical_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+bool is_categorical_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_is_categorical_split_node_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(is_categorical_split_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(is_categorical_split_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-int parent_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+int parent_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_parent_node_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(parent_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(parent_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-int left_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+int left_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_left_child_node_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(left_child_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(left_child_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-int right_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+int right_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_right_child_node_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(right_child_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(right_child_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-int node_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+int node_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_node_depth_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(node_depth_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(node_depth_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-int split_index_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+int split_index_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_split_index_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(split_index_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(split_index_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-double split_theshold_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+double split_theshold_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_split_theshold_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(split_theshold_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(split_theshold_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-cpp11::writable::integers split_categories_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+cpp11::writable::integers split_categories_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_split_categories_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(split_categories_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(split_categories_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-cpp11::writable::doubles leaf_values_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+cpp11::writable::doubles leaf_values_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id);
 extern "C" SEXP _stochtree_leaf_values_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
   BEGIN_CPP11
-    return cpp11::as_sexp(leaf_values_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(leaf_values_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num), cpp11::as_cpp<cpp11::decay_t<int>>(node_id)));
   END_CPP11
 }
 // forest.cpp
-int num_nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
-extern "C" SEXP _stochtree_num_nodes_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
+int num_nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num);
+extern "C" SEXP _stochtree_num_nodes_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num) {
   BEGIN_CPP11
-    return cpp11::as_sexp(num_nodes_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(num_nodes_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num)));
   END_CPP11
 }
 // forest.cpp
-int num_leaves_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
-extern "C" SEXP _stochtree_num_leaves_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
+int num_leaves_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num);
+extern "C" SEXP _stochtree_num_leaves_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num) {
   BEGIN_CPP11
-    return cpp11::as_sexp(num_leaves_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(num_leaves_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num)));
   END_CPP11
 }
 // forest.cpp
-int num_leaf_parents_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
-extern "C" SEXP _stochtree_num_leaf_parents_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
+int num_leaf_parents_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num);
+extern "C" SEXP _stochtree_num_leaf_parents_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num) {
   BEGIN_CPP11
-    return cpp11::as_sexp(num_leaf_parents_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(num_leaf_parents_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num)));
   END_CPP11
 }
 // forest.cpp
-int num_split_nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
-extern "C" SEXP _stochtree_num_split_nodes_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
+int num_split_nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num);
+extern "C" SEXP _stochtree_num_split_nodes_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num) {
   BEGIN_CPP11
-    return cpp11::as_sexp(num_split_nodes_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(num_split_nodes_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num)));
   END_CPP11
 }
 // forest.cpp
-cpp11::writable::integers nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
-extern "C" SEXP _stochtree_nodes_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
+cpp11::writable::integers nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num);
+extern "C" SEXP _stochtree_nodes_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num) {
   BEGIN_CPP11
-    return cpp11::as_sexp(nodes_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(nodes_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num)));
   END_CPP11
 }
 // forest.cpp
-cpp11::writable::integers leaves_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
-extern "C" SEXP _stochtree_leaves_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
+cpp11::writable::integers leaves_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num);
+extern "C" SEXP _stochtree_leaves_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num) {
   BEGIN_CPP11
-    return cpp11::as_sexp(leaves_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+    return cpp11::as_sexp(leaves_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num), cpp11::as_cpp<cpp11::decay_t<int>>(tree_num)));
   END_CPP11
 }
 // forest.cpp
@@ -1171,16 +1171,16 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_json_save_file_cpp",                                  (DL_FUNC) &_stochtree_json_save_file_cpp,                                   2},
     {"_stochtree_json_save_forest_container_cpp",                      (DL_FUNC) &_stochtree_json_save_forest_container_cpp,                       2},
     {"_stochtree_leaf_values_forest_container_cpp",                    (DL_FUNC) &_stochtree_leaf_values_forest_container_cpp,                     4},
-    {"_stochtree_leaves_forest_container_cpp",                         (DL_FUNC) &_stochtree_leaves_forest_container_cpp,                          4},
+    {"_stochtree_leaves_forest_container_cpp",                         (DL_FUNC) &_stochtree_leaves_forest_container_cpp,                          3},
     {"_stochtree_left_child_node_forest_container_cpp",                (DL_FUNC) &_stochtree_left_child_node_forest_container_cpp,                 4},
     {"_stochtree_node_depth_forest_container_cpp",                     (DL_FUNC) &_stochtree_node_depth_forest_container_cpp,                      4},
-    {"_stochtree_nodes_forest_container_cpp",                          (DL_FUNC) &_stochtree_nodes_forest_container_cpp,                           4},
-    {"_stochtree_num_leaf_parents_forest_container_cpp",               (DL_FUNC) &_stochtree_num_leaf_parents_forest_container_cpp,                4},
+    {"_stochtree_nodes_forest_container_cpp",                          (DL_FUNC) &_stochtree_nodes_forest_container_cpp,                           3},
+    {"_stochtree_num_leaf_parents_forest_container_cpp",               (DL_FUNC) &_stochtree_num_leaf_parents_forest_container_cpp,                3},
     {"_stochtree_num_leaves_ensemble_forest_container_cpp",            (DL_FUNC) &_stochtree_num_leaves_ensemble_forest_container_cpp,             2},
-    {"_stochtree_num_leaves_forest_container_cpp",                     (DL_FUNC) &_stochtree_num_leaves_forest_container_cpp,                      4},
-    {"_stochtree_num_nodes_forest_container_cpp",                      (DL_FUNC) &_stochtree_num_nodes_forest_container_cpp,                       4},
+    {"_stochtree_num_leaves_forest_container_cpp",                     (DL_FUNC) &_stochtree_num_leaves_forest_container_cpp,                      3},
+    {"_stochtree_num_nodes_forest_container_cpp",                      (DL_FUNC) &_stochtree_num_nodes_forest_container_cpp,                       3},
     {"_stochtree_num_samples_forest_container_cpp",                    (DL_FUNC) &_stochtree_num_samples_forest_container_cpp,                     1},
-    {"_stochtree_num_split_nodes_forest_container_cpp",                (DL_FUNC) &_stochtree_num_split_nodes_forest_container_cpp,                 4},
+    {"_stochtree_num_split_nodes_forest_container_cpp",                (DL_FUNC) &_stochtree_num_split_nodes_forest_container_cpp,                 3},
     {"_stochtree_num_trees_forest_container_cpp",                      (DL_FUNC) &_stochtree_num_trees_forest_container_cpp,                       1},
     {"_stochtree_output_dimension_forest_container_cpp",               (DL_FUNC) &_stochtree_output_dimension_forest_container_cpp,                1},
     {"_stochtree_overwrite_column_vector_cpp",                         (DL_FUNC) &_stochtree_overwrite_column_vector_cpp,                          2},

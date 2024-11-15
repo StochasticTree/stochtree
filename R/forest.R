@@ -297,7 +297,7 @@ ForestSamples <- R6::R6Class(
             n_samples <- self$num_samples()
             n_trees <- self$num_trees()
             output <- get_granular_split_count_array_forest_container_cpp(self$forest_container_ptr, num_features)
-            dim(output) <- c(n_trees, num_features, n_samples)
+            dim(output) <- c(n_samples, n_trees, num_features)
             return(output)
         }, 
 
@@ -422,6 +422,22 @@ ForestSamples <- R6::R6Class(
                 return(-1)
             } else {
                 return(split_index_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, node_id))
+            }
+        },
+        
+        #' @description
+        #' Threshold that defines a numeric split for a given node of a given tree in a given forest in a `ForestSamples` object.
+        #' Returns `Inf` if the node is a leaf or a categorical split node.
+        #' @param forest_num Index of the forest to be queried
+        #' @param tree_num Index of the tree to be queried
+        #' @param node_id Index of the node to be queried
+        #' @return Threshold defining a split for the node
+        node_split_threshold = function(forest_num, tree_num, node_id) {
+            if (self$is_leaf_node(forest_num, tree_num, node_id) || 
+                self$is_categorical_split_node(forest_num, tree_num, node_id)) {
+                return(Inf)
+            } else {
+                return(split_theshold_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, node_id))
             }
         },
         

@@ -53,6 +53,7 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-right_child_node}{\code{ForestSamples$right_child_node()}}
 \item \href{#method-ForestSamples-node_depth}{\code{ForestSamples$node_depth()}}
 \item \href{#method-ForestSamples-node_split_index}{\code{ForestSamples$node_split_index()}}
+\item \href{#method-ForestSamples-node_split_threshold}{\code{ForestSamples$node_split_threshold()}}
 \item \href{#method-ForestSamples-node_split_categories}{\code{ForestSamples$node_split_categories()}}
 \item \href{#method-ForestSamples-node_leaf_values}{\code{ForestSamples$node_leaf_values()}}
 \item \href{#method-ForestSamples-num_nodes}{\code{ForestSamples$num_nodes()}}
@@ -874,6 +875,31 @@ Split index of given node of a given tree in a given forest in a \code{ForestSam
 }
 \subsection{Returns}{
 Integer valued depth of the node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-node_split_threshold"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-node_split_threshold}{}}}
+\subsection{Method \code{node_split_threshold()}}{
+Threshold that defines a numeric split for a given node of a given tree in a given forest in a \code{ForestSamples} object.
+Returns \code{Inf} if the node is a leaf or a categorical split node.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$node_split_threshold(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Threshold defining a split for the node
 }
 }
 \if{html}{\out{<hr>}}

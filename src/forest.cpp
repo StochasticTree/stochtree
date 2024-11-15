@@ -304,70 +304,70 @@ void set_leaf_vector_forest_container_cpp(cpp11::external_pointer<StochTree::For
 }
 
 [[cpp11::register]]
-bool is_leaf_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+bool is_leaf_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->IsLeaf(node_id);
 }
 
 [[cpp11::register]]
-bool is_numeric_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+bool is_numeric_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->IsNumericSplitNode(node_id);
 }
 
 [[cpp11::register]]
-bool is_categorical_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+bool is_categorical_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->IsCategoricalSplitNode(node_id);
 }
 
 [[cpp11::register]]
-int parent_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+int parent_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->Parent(node_id);
 }
 
 [[cpp11::register]]
-int left_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+int left_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->LeftChild(node_id);
 }
 
 [[cpp11::register]]
-int right_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+int right_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->RightChild(node_id);
 }
 
 [[cpp11::register]]
-int node_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+int node_depth_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->GetDepth(node_id);
 }
 
 [[cpp11::register]]
-int split_index_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+int split_index_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->SplitIndex(node_id);
 }
 
 [[cpp11::register]]
-double split_theshold_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+double split_theshold_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->Threshold(node_id);
 }
 
 [[cpp11::register]]
-cpp11::writable::integers split_categories_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+cpp11::writable::integers split_categories_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     std::vector<std::uint32_t> raw_categories = tree->CategoryList(node_id);
@@ -376,7 +376,7 @@ cpp11::writable::integers split_categories_forest_container_cpp(cpp11::external_
 }
 
 [[cpp11::register]]
-cpp11::writable::doubles leaf_values_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+cpp11::writable::doubles leaf_values_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num, int node_id) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     int num_outputs = tree->OutputDimension();
@@ -388,35 +388,35 @@ cpp11::writable::doubles leaf_values_forest_container_cpp(cpp11::external_pointe
 }
 
 [[cpp11::register]]
-int num_nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+int num_nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->NumValidNodes();
 }
 
 [[cpp11::register]]
-int num_leaves_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+int num_leaves_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->NumLeaves();
 }
 
 [[cpp11::register]]
-int num_leaf_parents_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+int num_leaf_parents_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->NumLeafParents();
 }
 
 [[cpp11::register]]
-int num_split_nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+int num_split_nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     return tree->NumSplitNodes();
 }
 
 [[cpp11::register]]
-cpp11::writable::integers nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+cpp11::writable::integers nodes_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     std::vector<std::int32_t> leaves = tree->GetNodes();
@@ -425,7 +425,7 @@ cpp11::writable::integers nodes_forest_container_cpp(cpp11::external_pointer<Sto
 }
 
 [[cpp11::register]]
-cpp11::writable::integers leaves_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+cpp11::writable::integers leaves_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num, int tree_num) {
     StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     std::vector<std::int32_t> leaves = tree->GetLeaves();
