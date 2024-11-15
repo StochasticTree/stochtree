@@ -41,6 +41,7 @@
 #'   - `random_seed` Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
 #'   - `keep_burnin` Whether or not "burnin" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
+#'   - `standardize` Whether or not to standardize the outcome (and store the offset / scale in the model object). Default: `TRUE`.
 #'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 #'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
@@ -216,6 +217,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     random_seed <- bcf_params$random_seed
     keep_burnin <- bcf_params$keep_burnin
     keep_gfr <- bcf_params$keep_gfr
+    standardize <- bcf_params$standardize
     keep_every <- bcf_params$keep_every
     num_chains <- bcf_params$num_chains
     verbose <- bcf_params$verbose
@@ -567,8 +569,13 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     }
     
     # Standardize outcome separately for test and train
-    y_bar_train <- mean(y_train)
-    y_std_train <- sd(y_train)
+    if (standardize) {
+        y_bar_train <- mean(y_train)
+        y_std_train <- sd(y_train)
+    } else {
+        y_bar_train <- 0
+        y_std_train <- 1
+    }
     resid_train <- (y_train-y_bar_train)/y_std_train
     
     # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau
@@ -973,7 +980,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         "a_forest" = a_forest, 
         "b_forest" = b_forest,
         "outcome_mean" = y_bar_train,
-        "outcome_scale" = y_std_train, 
+        "outcome_scale" = y_std_train,
+        "standardize" = standardize, 
         "num_covariates" = num_cov_orig,
         "num_prognostic_covariates" = sum(variable_weights_mu > 0),
         "num_treatment_covariates" = sum(variable_weights_tau > 0),
@@ -1398,6 +1406,7 @@ convertBCFModelToJson <- function(object){
     # Add global parameters
     jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
     jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
+    jsonobj$add_boolean("standardize", object$model_params$standardize)
     jsonobj$add_scalar("initial_sigma2", object$model_params$initial_sigma2)
     jsonobj$add_boolean("sample_sigma_global", object$model_params$sample_sigma_global)
     jsonobj$add_boolean("sample_sigma_leaf_mu", object$model_params$sample_sigma_leaf_mu)
@@ -1686,6 +1695,7 @@ createBCFModelFromJson <- function(json_object){
     model_params = list()
     model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
+    model_params[["standardize"]] <- json_object$get_boolean("standardize")
     model_params[["initial_sigma2"]] <- json_object$get_scalar("initial_sigma2")
     model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
     model_params[["sample_sigma_leaf_mu"]] <- json_object$get_boolean("sample_sigma_leaf_mu")

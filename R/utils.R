@@ -20,7 +20,7 @@ preprocessBartParams <- function(params) {
         num_trees_mean = 200, num_trees_variance = 0, 
         sample_sigma_global = T, sample_sigma_leaf = F, 
         random_seed = -1, keep_burnin = F, keep_gfr = F, keep_every = 1, 
-        num_chains = 1, verbose = F
+        num_chains = 1, standardize = T, verbose = F
     )
     
     # Override defaults
@@ -60,7 +60,7 @@ preprocessBcfParams <- function(params) {
         sample_sigma_global = T, sample_sigma_leaf_mu = T, sample_sigma_leaf_tau = F, 
         propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, b_1 = 0.5, 
         rfx_prior_var = NULL, random_seed = -1, keep_burnin = F, keep_gfr = F, 
-        keep_every = 1, num_chains = 1, verbose = F
+        keep_every = 1, num_chains = 1, standardize = T, verbose = F
     )
     
     # Override defaults
