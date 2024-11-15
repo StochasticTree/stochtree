@@ -356,6 +356,50 @@ right_child_node_forest_container_cpp <- function(forest_samples, forest_num, tr
   .Call(`_stochtree_right_child_node_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
 }
 
+node_depth_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_node_depth_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+split_index_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_split_index_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+split_theshold_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_split_theshold_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+split_categories_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_split_categories_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+leaf_values_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_leaf_values_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+num_nodes_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_num_nodes_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+num_leaves_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_num_leaves_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+num_leaf_parents_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_num_leaf_parents_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+num_split_nodes_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_num_split_nodes_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+nodes_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_nodes_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+leaves_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_leaves_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
 initialize_forest_model_cpp <- function(data, residual, forest_samples, tracker, init_values, leaf_model_int) {
   invisible(.Call(`_stochtree_initialize_forest_model_cpp`, data, residual, forest_samples, tracker, init_values, leaf_model_int))
 }
