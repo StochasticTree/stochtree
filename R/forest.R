@@ -369,6 +369,36 @@ ForestSamples <- R6::R6Class(
         #' @return `TRUE` if node is a categorical split node, `FALSE` otherwise
         is_categorical_split_node = function(forest_num) {
             return(is_categorical_split_node_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, node_id))
+        },
+        
+        #' @description
+        #' Parent node of given node of a given tree in a given forest in a `ForestSamples` object
+        #' @param forest_num Index of the forest to be queried
+        #' @param tree_num Index of the tree to be queried
+        #' @param node_id Index of the node to be queried
+        #' @return Integer ID of the parent node
+        parent_node = function(forest_num) {
+            return(parent_node_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, node_id))
+        },
+        
+        #' @description
+        #' Left child node of given node of a given tree in a given forest in a `ForestSamples` object
+        #' @param forest_num Index of the forest to be queried
+        #' @param tree_num Index of the tree to be queried
+        #' @param node_id Index of the node to be queried
+        #' @return Integer ID of the left child node
+        left_child_node = function(forest_num) {
+            return(left_child_node_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, node_id))
+        },
+        
+        #' @description
+        #' Right child node of given node of a given tree in a given forest in a `ForestSamples` object
+        #' @param forest_num Index of the forest to be queried
+        #' @param tree_num Index of the tree to be queried
+        #' @param node_id Index of the node to be queried
+        #' @return Integer ID of the right child node
+        right_child_node = function(forest_num) {
+            return(right_child_node_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, node_id))
         }
     )
 )

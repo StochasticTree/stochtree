@@ -325,6 +325,27 @@ bool is_categorical_split_node_forest_container_cpp(cpp11::external_pointer<Stoc
 }
 
 [[cpp11::register]]
+int parent_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    return tree->Parent(node_id);
+}
+
+[[cpp11::register]]
+int left_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    return tree->LeftChild(node_id);
+}
+
+[[cpp11::register]]
+int right_child_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    return tree->RightChild(node_id);
+}
+
+[[cpp11::register]]
 void initialize_forest_model_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
                                  cpp11::external_pointer<StochTree::ColumnVector> residual, 
                                  cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 

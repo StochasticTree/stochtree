@@ -48,6 +48,9 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-is_leaf_node}{\code{ForestSamples$is_leaf_node()}}
 \item \href{#method-ForestSamples-is_numeric_split_node}{\code{ForestSamples$is_numeric_split_node()}}
 \item \href{#method-ForestSamples-is_categorical_split_node}{\code{ForestSamples$is_categorical_split_node()}}
+\item \href{#method-ForestSamples-parent_node}{\code{ForestSamples$parent_node()}}
+\item \href{#method-ForestSamples-left_child_node}{\code{ForestSamples$left_child_node()}}
+\item \href{#method-ForestSamples-right_child_node}{\code{ForestSamples$right_child_node()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -741,6 +744,78 @@ Whether or not a given node of a given tree in a given forest in the \code{Fores
 }
 \subsection{Returns}{
 \code{TRUE} if node is a categorical split node, \code{FALSE} otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-parent_node"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-parent_node}{}}}
+\subsection{Method \code{parent_node()}}{
+Parent node of given node of a given tree in a given forest in a \code{ForestSamples} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$parent_node(forest_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Integer ID of the parent node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-left_child_node"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-left_child_node}{}}}
+\subsection{Method \code{left_child_node()}}{
+Left child node of given node of a given tree in a given forest in a \code{ForestSamples} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$left_child_node(forest_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Integer ID of the left child node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-right_child_node"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-right_child_node}{}}}
+\subsection{Method \code{right_child_node()}}{
+Right child node of given node of a given tree in a given forest in a \code{ForestSamples} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$right_child_node(forest_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Integer ID of the right child node
 }
 }
 }

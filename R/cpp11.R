@@ -344,6 +344,18 @@ is_categorical_split_node_forest_container_cpp <- function(forest_samples, fores
   .Call(`_stochtree_is_categorical_split_node_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
 }
 
+parent_node_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_parent_node_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+left_child_node_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_left_child_node_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
+right_child_node_forest_container_cpp <- function(forest_samples, forest_num, tree_num, node_id) {
+  .Call(`_stochtree_right_child_node_forest_container_cpp`, forest_samples, forest_num, tree_num, node_id)
+}
+
 initialize_forest_model_cpp <- function(data, residual, forest_samples, tracker, init_values, leaf_model_int) {
   invisible(.Call(`_stochtree_initialize_forest_model_cpp`, data, residual, forest_samples, tracker, init_values, leaf_model_int))
 }
