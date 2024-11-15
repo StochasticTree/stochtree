@@ -45,8 +45,25 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-ensemble_tree_max_depth}{\code{ForestSamples$ensemble_tree_max_depth()}}
 \item \href{#method-ForestSamples-average_ensemble_max_depth}{\code{ForestSamples$average_ensemble_max_depth()}}
 \item \href{#method-ForestSamples-average_max_depth}{\code{ForestSamples$average_max_depth()}}
-\item \href{#method-ForestSamples-num_leaves}{\code{ForestSamples$num_leaves()}}
+\item \href{#method-ForestSamples-num_forest_leaves}{\code{ForestSamples$num_forest_leaves()}}
 \item \href{#method-ForestSamples-sum_leaves_squared}{\code{ForestSamples$sum_leaves_squared()}}
+\item \href{#method-ForestSamples-is_leaf_node}{\code{ForestSamples$is_leaf_node()}}
+\item \href{#method-ForestSamples-is_numeric_split_node}{\code{ForestSamples$is_numeric_split_node()}}
+\item \href{#method-ForestSamples-is_categorical_split_node}{\code{ForestSamples$is_categorical_split_node()}}
+\item \href{#method-ForestSamples-parent_node}{\code{ForestSamples$parent_node()}}
+\item \href{#method-ForestSamples-left_child_node}{\code{ForestSamples$left_child_node()}}
+\item \href{#method-ForestSamples-right_child_node}{\code{ForestSamples$right_child_node()}}
+\item \href{#method-ForestSamples-node_depth}{\code{ForestSamples$node_depth()}}
+\item \href{#method-ForestSamples-node_split_index}{\code{ForestSamples$node_split_index()}}
+\item \href{#method-ForestSamples-node_split_threshold}{\code{ForestSamples$node_split_threshold()}}
+\item \href{#method-ForestSamples-node_split_categories}{\code{ForestSamples$node_split_categories()}}
+\item \href{#method-ForestSamples-node_leaf_values}{\code{ForestSamples$node_leaf_values()}}
+\item \href{#method-ForestSamples-num_nodes}{\code{ForestSamples$num_nodes()}}
+\item \href{#method-ForestSamples-num_leaves}{\code{ForestSamples$num_leaves()}}
+\item \href{#method-ForestSamples-num_leaf_parents}{\code{ForestSamples$num_leaf_parents()}}
+\item \href{#method-ForestSamples-num_split_nodes}{\code{ForestSamples$num_split_nodes()}}
+\item \href{#method-ForestSamples-nodes}{\code{ForestSamples$nodes()}}
+\item \href{#method-ForestSamples-leaves}{\code{ForestSamples$leaves()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -605,7 +622,7 @@ Retrieve a vector of split counts for every training set variable in a given for
 \if{html}{\out{<a id="method-ForestSamples-ensemble_tree_max_depth"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-ensemble_tree_max_depth}{}}}
 \subsection{Method \code{ensemble_tree_max_depth()}}{
-Maximum depth of a specific tree in a specific ensemble in a \code{ForestContainer} object
+Maximum depth of a specific tree in a specific ensemble in a \code{ForestSamples} object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$ensemble_tree_max_depth(ensemble_num, tree_num)}\if{html}{\out{</div>}}
 }
@@ -627,7 +644,7 @@ Maximum leaf depth
 \if{html}{\out{<a id="method-ForestSamples-average_ensemble_max_depth"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-average_ensemble_max_depth}{}}}
 \subsection{Method \code{average_ensemble_max_depth()}}{
-Average the maximum depth of each tree in a given ensemble in a \code{ForestContainer} object
+Average the maximum depth of each tree in a given ensemble in a \code{ForestSamples} object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$average_ensemble_max_depth(ensemble_num)}\if{html}{\out{</div>}}
 }
@@ -657,12 +674,12 @@ Average maximum depth
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestSamples-num_leaves"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestSamples-num_leaves}{}}}
-\subsection{Method \code{num_leaves()}}{
-Number of leaves in a given ensemble in a \code{ForestContainer} object
+\if{html}{\out{<a id="method-ForestSamples-num_forest_leaves"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-num_forest_leaves}{}}}
+\subsection{Method \code{num_forest_leaves()}}{
+Number of leaves in a given ensemble in a \code{ForestSamples} object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$num_leaves(forest_num)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$num_forest_leaves(forest_num)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -680,7 +697,7 @@ Count of leaves in the ensemble stored at \code{forest_num}
 \if{html}{\out{<a id="method-ForestSamples-sum_leaves_squared"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-sum_leaves_squared}{}}}
 \subsection{Method \code{sum_leaves_squared()}}{
-Sum of squared (raw) leaf values in a given ensemble in a \code{ForestContainer} object
+Sum of squared (raw) leaf values in a given ensemble in a \code{ForestSamples} object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$sum_leaves_squared(forest_num)}\if{html}{\out{</div>}}
 }
@@ -694,6 +711,405 @@ Sum of squared (raw) leaf values in a given ensemble in a \code{ForestContainer}
 }
 \subsection{Returns}{
 Average maximum depth
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-is_leaf_node"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-is_leaf_node}{}}}
+\subsection{Method \code{is_leaf_node()}}{
+Whether or not a given node of a given tree in a given forest in the \code{ForestSamples} is a leaf
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$is_leaf_node(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+\code{TRUE} if node is a leaf, \code{FALSE} otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-is_numeric_split_node"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-is_numeric_split_node}{}}}
+\subsection{Method \code{is_numeric_split_node()}}{
+Whether or not a given node of a given tree in a given forest in the \code{ForestSamples} is a numeric split node
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$is_numeric_split_node(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+\code{TRUE} if node is a numeric split node, \code{FALSE} otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-is_categorical_split_node"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-is_categorical_split_node}{}}}
+\subsection{Method \code{is_categorical_split_node()}}{
+Whether or not a given node of a given tree in a given forest in the \code{ForestSamples} is a categorical split node
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$is_categorical_split_node(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+\code{TRUE} if node is a categorical split node, \code{FALSE} otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-parent_node"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-parent_node}{}}}
+\subsection{Method \code{parent_node()}}{
+Parent node of given node of a given tree in a given forest in a \code{ForestSamples} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$parent_node(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Integer ID of the parent node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-left_child_node"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-left_child_node}{}}}
+\subsection{Method \code{left_child_node()}}{
+Left child node of given node of a given tree in a given forest in a \code{ForestSamples} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$left_child_node(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Integer ID of the left child node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-right_child_node"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-right_child_node}{}}}
+\subsection{Method \code{right_child_node()}}{
+Right child node of given node of a given tree in a given forest in a \code{ForestSamples} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$right_child_node(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Integer ID of the right child node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-node_depth"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-node_depth}{}}}
+\subsection{Method \code{node_depth()}}{
+Depth of given node of a given tree in a given forest in a \code{ForestSamples} object, with 0 depth for the root node.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$node_depth(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Integer valued depth of the node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-node_split_index"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-node_split_index}{}}}
+\subsection{Method \code{node_split_index()}}{
+Split index of given node of a given tree in a given forest in a \code{ForestSamples} object. Returns \code{-1} is node is a leaf.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$node_split_index(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Integer valued depth of the node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-node_split_threshold"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-node_split_threshold}{}}}
+\subsection{Method \code{node_split_threshold()}}{
+Threshold that defines a numeric split for a given node of a given tree in a given forest in a \code{ForestSamples} object.
+Returns \code{Inf} if the node is a leaf or a categorical split node.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$node_split_threshold(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Threshold defining a split for the node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-node_split_categories"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-node_split_categories}{}}}
+\subsection{Method \code{node_split_categories()}}{
+Array of category indices that define a categorical split for a given node of a given tree in a given forest in a \code{ForestSamples} object.
+Returns \code{c(Inf)} if the node is a leaf or a numeric split node.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$node_split_categories(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Categories defining a split for the node
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-node_leaf_values"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-node_leaf_values}{}}}
+\subsection{Method \code{node_leaf_values()}}{
+Leaf node value(s) for a given node of a given tree in a given forest in a \code{ForestSamples} object.
+Values are stale if the node is a split node.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$node_leaf_values(forest_num, tree_num, node_id)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+
+\item{\code{node_id}}{Index of the node to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Vector (often univariate) of leaf values
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-num_nodes"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-num_nodes}{}}}
+\subsection{Method \code{num_nodes()}}{
+Number of nodes in a given tree in a given forest in a \code{ForestSamples} object.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$num_nodes(forest_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Count of total tree nodes
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-num_leaves"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-num_leaves}{}}}
+\subsection{Method \code{num_leaves()}}{
+Number of leaves in a given tree in a given forest in a \code{ForestSamples} object.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$num_leaves(forest_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Count of total tree leaves
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-num_leaf_parents"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-num_leaf_parents}{}}}
+\subsection{Method \code{num_leaf_parents()}}{
+Number of leaf parents (split nodes with two leaves as children) in a given tree in a given forest in a \code{ForestSamples} object.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$num_leaf_parents(forest_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Count of total tree leaf parents
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-num_split_nodes"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-num_split_nodes}{}}}
+\subsection{Method \code{num_split_nodes()}}{
+Number of split nodes in a given tree in a given forest in a \code{ForestSamples} object.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$num_split_nodes(forest_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Count of total tree split nodes
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-nodes"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-nodes}{}}}
+\subsection{Method \code{nodes()}}{
+Array of node indices in a given tree in a given forest in a \code{ForestSamples} object.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$nodes(forest_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Indices of tree nodes
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-leaves"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-leaves}{}}}
+\subsection{Method \code{leaves()}}{
+Array of leaf indices in a given tree in a given forest in a \code{ForestSamples} object.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$leaves(forest_num, tree_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be queried}
+
+\item{\code{tree_num}}{Index of the tree to be queried}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Indices of leaf nodes
 }
 }
 }

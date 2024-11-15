@@ -295,7 +295,6 @@ class ForestContainer:
     def node_depth(self, forest_num: int, tree_num: int, node_id: int) -> int:
         """
         Depth of given node of a given tree in a given forest in the ``ForestContainer``.
-        Returns ``-1`` if the node is a leaf.
 
         forest_num : :obj:`int`
             Index of the forest to be queried
@@ -395,7 +394,7 @@ class ForestContainer:
     
     def num_leaf_parents(self, forest_num: int, tree_num: int) -> int:
         """
-        Number of leaf parents in a given tree in a given forest in the ``ForestContainer``.
+        Number of leaf parents (split nodes with two leaves as children) in a given tree in a given forest in the ``ForestContainer``.
 
         forest_num : :obj:`int`
             Index of the forest to be queried

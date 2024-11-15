@@ -129,6 +129,7 @@ articles:
   - ModelSerialization
   - PriorCalibration
   - EnsembleKernel
+  - TreeInspection
 
 - title: Prototype Interface
   navbar: Prototype Interface
