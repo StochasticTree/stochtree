@@ -304,6 +304,27 @@ void set_leaf_vector_forest_container_cpp(cpp11::external_pointer<StochTree::For
 }
 
 [[cpp11::register]]
+bool is_leaf_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    return tree->IsLeaf(node_id);
+}
+
+[[cpp11::register]]
+bool is_numeric_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    return tree->IsNumericSplitNode(node_id);
+}
+
+[[cpp11::register]]
+bool is_categorical_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id) {
+    StochTree::TreeEnsemble* ensemble = forest_samples->GetEnsemble(forest_num);
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    return tree->IsCategoricalSplitNode(node_id);
+}
+
+[[cpp11::register]]
 void initialize_forest_model_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
                                  cpp11::external_pointer<StochTree::ColumnVector> residual, 
                                  cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 

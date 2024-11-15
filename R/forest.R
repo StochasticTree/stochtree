@@ -302,7 +302,7 @@ ForestSamples <- R6::R6Class(
         }, 
 
         #' @description
-        #' Maximum depth of a specific tree in a specific ensemble in a `ForestContainer` object
+        #' Maximum depth of a specific tree in a specific ensemble in a `ForestSamples` object
         #' @param ensemble_num Ensemble number
         #' @param tree_num Tree index within ensemble `ensemble_num`
         #' @return Maximum leaf depth
@@ -311,7 +311,7 @@ ForestSamples <- R6::R6Class(
         }, 
 
         #' @description
-        #' Average the maximum depth of each tree in a given ensemble in a `ForestContainer` object
+        #' Average the maximum depth of each tree in a given ensemble in a `ForestSamples` object
         #' @param ensemble_num Ensemble number
         #' @return Average maximum depth
         average_ensemble_max_depth = function(ensemble_num) {
@@ -326,7 +326,7 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
-        #' Number of leaves in a given ensemble in a `ForestContainer` object
+        #' Number of leaves in a given ensemble in a `ForestSamples` object
         #' @param forest_num Index of the ensemble to be queried
         #' @return Count of leaves in the ensemble stored at `forest_num`
         num_leaves = function(forest_num) {
@@ -334,11 +334,41 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
-        #' Sum of squared (raw) leaf values in a given ensemble in a `ForestContainer` object
+        #' Sum of squared (raw) leaf values in a given ensemble in a `ForestSamples` object
         #' @param forest_num Index of the ensemble to be queried
         #' @return Average maximum depth
         sum_leaves_squared = function(forest_num) {
             return(sum_leaves_squared_ensemble_forest_container_cpp(self$forest_container_ptr, forest_num))
+        },
+        
+        #' @description
+        #' Whether or not a given node of a given tree in a given forest in the `ForestSamples` is a leaf
+        #' @param forest_num Index of the forest to be queried
+        #' @param tree_num Index of the tree to be queried
+        #' @param node_id Index of the node to be queried
+        #' @return `TRUE` if node is a leaf, `FALSE` otherwise
+        is_leaf_node = function(forest_num) {
+            return(is_leaf_node_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, node_id))
+        },
+        
+        #' @description
+        #' Whether or not a given node of a given tree in a given forest in the `ForestSamples` is a numeric split node
+        #' @param forest_num Index of the forest to be queried
+        #' @param tree_num Index of the tree to be queried
+        #' @param node_id Index of the node to be queried
+        #' @return `TRUE` if node is a numeric split node, `FALSE` otherwise
+        is_numeric_split_node = function(forest_num) {
+            return(is_numeric_split_node_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, node_id))
+        },
+        
+        #' @description
+        #' Whether or not a given node of a given tree in a given forest in the `ForestSamples` is a categorical split node
+        #' @param forest_num Index of the forest to be queried
+        #' @param tree_num Index of the tree to be queried
+        #' @param node_id Index of the node to be queried
+        #' @return `TRUE` if node is a categorical split node, `FALSE` otherwise
+        is_categorical_split_node = function(forest_num) {
+            return(is_categorical_split_node_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num, node_id))
         }
     )
 )

@@ -618,6 +618,27 @@ extern "C" SEXP _stochtree_set_leaf_vector_forest_container_cpp(SEXP forest_samp
   END_CPP11
 }
 // forest.cpp
+bool is_leaf_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+extern "C" SEXP _stochtree_is_leaf_node_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(is_leaf_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+  END_CPP11
+}
+// forest.cpp
+bool is_numeric_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+extern "C" SEXP _stochtree_is_numeric_split_node_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(is_numeric_split_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+  END_CPP11
+}
+// forest.cpp
+bool is_categorical_split_node_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, bool forest_num, bool tree_num, bool node_id);
+extern "C" SEXP _stochtree_is_categorical_split_node_forest_container_cpp(SEXP forest_samples, SEXP forest_num, SEXP tree_num, SEXP node_id) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(is_categorical_split_node_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<bool>>(forest_num), cpp11::as_cpp<cpp11::decay_t<bool>>(tree_num), cpp11::as_cpp<cpp11::decay_t<bool>>(node_id)));
+  END_CPP11
+}
+// forest.cpp
 void initialize_forest_model_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::ForestTracker> tracker, cpp11::doubles init_values, int leaf_model_int);
 extern "C" SEXP _stochtree_initialize_forest_model_cpp(SEXP data, SEXP residual, SEXP forest_samples, SEXP tracker, SEXP init_values, SEXP leaf_model_int) {
   BEGIN_CPP11
@@ -1015,7 +1036,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_get_tree_split_counts_forest_container_cpp",          (DL_FUNC) &_stochtree_get_tree_split_counts_forest_container_cpp,           4},
     {"_stochtree_init_json_cpp",                                       (DL_FUNC) &_stochtree_init_json_cpp,                                        0},
     {"_stochtree_initialize_forest_model_cpp",                         (DL_FUNC) &_stochtree_initialize_forest_model_cpp,                          6},
+    {"_stochtree_is_categorical_split_node_forest_container_cpp",      (DL_FUNC) &_stochtree_is_categorical_split_node_forest_container_cpp,       4},
     {"_stochtree_is_leaf_constant_forest_container_cpp",               (DL_FUNC) &_stochtree_is_leaf_constant_forest_container_cpp,                1},
+    {"_stochtree_is_leaf_node_forest_container_cpp",                   (DL_FUNC) &_stochtree_is_leaf_node_forest_container_cpp,                    4},
+    {"_stochtree_is_numeric_split_node_forest_container_cpp",          (DL_FUNC) &_stochtree_is_numeric_split_node_forest_container_cpp,           4},
     {"_stochtree_json_add_bool_cpp",                                   (DL_FUNC) &_stochtree_json_add_bool_cpp,                                    3},
     {"_stochtree_json_add_bool_subfolder_cpp",                         (DL_FUNC) &_stochtree_json_add_bool_subfolder_cpp,                          4},
     {"_stochtree_json_add_double_cpp",                                 (DL_FUNC) &_stochtree_json_add_double_cpp,                                  3},
