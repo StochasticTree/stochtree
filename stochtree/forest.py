@@ -436,6 +436,15 @@ class ForestContainer:
         """
         return self.forest_container_cpp.Leaves(forest_num, tree_num)
     
+    def delete_sample(self, forest_num: int) -> None:
+        """
+        Modify the ``ForestContainer`` by removing the forest sample indexed by ``forest_num``.
+
+        forest_num : :obj:`int`
+            Index of the forest to be removed from the ``ForestContainer``
+        """
+        return self.forest_container_cpp.DeleteSample(forest_num)
+    
 class Forest:
     def __init__(self, num_trees: int, output_dimension: int, leaf_constant: bool, is_exponentiated: bool) -> None:
         # Initialize a ForestCpp object

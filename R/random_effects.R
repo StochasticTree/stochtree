@@ -147,6 +147,13 @@ RandomEffectSamples <- R6::R6Class(
         }, 
         
         #' @description
+        #' Modify the `RandomEffectsSamples` object by removing the parameter samples index by `sample_num`.
+        #' @param sample_num Index of the RFX sample to be removed
+        delete_sample = function(sample_num) {
+            rfx_container_delete_sample_cpp(self$rfx_container_ptr, sample_num)
+        }, 
+        
+        #' @description
         #' Convert the mapping of group IDs to random effect components indices from C++ to R native format
         #' @return List mapping group ID to random effect components.
         extract_label_mapping = function() {

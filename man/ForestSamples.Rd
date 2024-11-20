@@ -64,6 +64,7 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-num_split_nodes}{\code{ForestSamples$num_split_nodes()}}
 \item \href{#method-ForestSamples-nodes}{\code{ForestSamples$nodes()}}
 \item \href{#method-ForestSamples-leaves}{\code{ForestSamples$leaves()}}
+\item \href{#method-ForestSamples-delete_sample}{\code{ForestSamples$delete_sample()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -1110,6 +1111,23 @@ Array of leaf indices in a given tree in a given forest in a \code{ForestSamples
 }
 \subsection{Returns}{
 Indices of leaf nodes
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-delete_sample"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-delete_sample}{}}}
+\subsection{Method \code{delete_sample()}}{
+Modify the \code{ForestSamples} object by removing the forest sample indexed by `forest_num
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$delete_sample(forest_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be removed}
+}
+\if{html}{\out{</div>}}
 }
 }
 }

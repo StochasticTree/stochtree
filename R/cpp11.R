@@ -168,6 +168,10 @@ rfx_container_num_groups_cpp <- function(rfx_container) {
   .Call(`_stochtree_rfx_container_num_groups_cpp`, rfx_container)
 }
 
+rfx_container_delete_sample_cpp <- function(rfx_container, sample_num) {
+  invisible(.Call(`_stochtree_rfx_container_delete_sample_cpp`, rfx_container, sample_num))
+}
+
 rfx_model_set_working_parameter_cpp <- function(rfx_model, working_param_init) {
   invisible(.Call(`_stochtree_rfx_model_set_working_parameter_cpp`, rfx_model, working_param_init))
 }
@@ -418,6 +422,10 @@ adjust_residual_forest_container_cpp <- function(data, residual, forest_samples,
 
 propagate_basis_update_forest_container_cpp <- function(data, residual, forest_samples, tracker, forest_num) {
   invisible(.Call(`_stochtree_propagate_basis_update_forest_container_cpp`, data, residual, forest_samples, tracker, forest_num))
+}
+
+remove_sample_forest_container_cpp <- function(forest_samples, forest_num) {
+  invisible(.Call(`_stochtree_remove_sample_forest_container_cpp`, forest_samples, forest_num))
 }
 
 predict_forest_cpp <- function(forest_samples, dataset) {

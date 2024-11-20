@@ -174,6 +174,10 @@ class ForestContainerCpp {
     return forest->SumLeafSquared();
   }
 
+  void DeleteSample(int forest_num) {
+    forest_samples_->DeleteSample(forest_num);
+  }
+
   py::array_t<double> Predict(ForestDatasetCpp& dataset) {
     // Predict from the forest container
     data_size_t n = dataset.NumRows();
@@ -1495,6 +1499,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def(py::init<int,int,bool,bool>())
     .def("OutputDimension", &ForestContainerCpp::OutputDimension)
     .def("NumSamples", &ForestContainerCpp::NumSamples)
+    .def("DeleteSample", &ForestContainerCpp::DeleteSample)
     .def("Predict", &ForestContainerCpp::Predict)
     .def("PredictRaw", &ForestContainerCpp::PredictRaw)
     .def("PredictRawSingleForest", &ForestContainerCpp::PredictRawSingleForest)

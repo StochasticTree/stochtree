@@ -260,6 +260,7 @@ class RandomEffectsContainer {
   }
   ~RandomEffectsContainer() {}
   void AddSample(MultivariateRegressionRandomEffectsModel& model);
+  void DeleteSample(int sample_num);
   void Predict(RandomEffectsDataset& dataset, LabelMapper& label_mapper, std::vector<double>& output);
   int NumSamples() {return num_samples_;}
   int NumComponents() {return num_components_;}

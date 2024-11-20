@@ -534,6 +534,13 @@ ForestSamples <- R6::R6Class(
         #' @return Indices of leaf nodes
         leaves = function(forest_num, tree_num) {
             return(leaves_forest_container_cpp(self$forest_container_ptr, forest_num, tree_num))
+        },
+        
+        #' @description
+        #' Modify the ``ForestSamples`` object by removing the forest sample indexed by `forest_num
+        #' @param forest_num Index of the forest to be removed
+        delete_sample = function(forest_num) {
+            return(remove_sample_forest_container_cpp(self$forest_container_ptr, forest_num))
         }
     )
 )

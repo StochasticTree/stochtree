@@ -266,6 +266,47 @@ nlohmann::json RandomEffectsContainer::to_json() {
 return result_obj;
 }
 
+void RandomEffectsContainer::DeleteSample(int sample_num){
+  // Decrement number of samples
+  num_samples_--;
+
+  // Remove sample_num from alpha
+  // ----------------------------
+  // This code works because the data are stored in a "column-major" format, 
+  // with components comprising rows and and samples comprising columns, so that 
+  // element `sample_num*num_components_ + i` will contain the "i"-th component of the 
+  // sample indexed by sample_num. Erasing the `sample_num*num_components_ + 0` 
+  // element of the vector will move the element that was previously in position 
+  // `sample_num*num_components_ + 1` into the position `sample_num*num_components_ + 0`
+  // and thus we can repeat `alpha_.erase(alpha_.begin() + sample_num*num_components_);`
+  // exactly `num_components_` times to erase each component pertaining to this sample.
+  for (int i = 0; i < num_components_; i++) {
+    alpha_.erase(alpha_.begin() + sample_num*num_components_);
+  }
+
+  // Remove sample_num from xi and beta
+  // ----------------------------------
+  // This code works as above, with the added nuance of the three-dimensional (Fortran-aligned) array, 
+  // in which sample number is the third dimension, group number is the second dimension, and component 
+  // number is the third dimension. The nested loop assembles all `num_groups_*num_components_` offsets, 
+  // expressed as `j*num_components_ + i`. In order to remove each of the elements stored in these offsets 
+  // from `sample_num*num_groups_*num_components_`, we simply need to erase the 
+  // `sample_num*num_groups_*num_components_` element, exactly `num_groups_*num_components_` times.
+  for (int i = 0; i < num_components_; i++) {
+    for (int j = 0; j < num_groups_; j++) {
+      xi_.erase(xi_.begin() + sample_num*num_groups_*num_components_);
+      beta_.erase(beta_.begin() + sample_num*num_groups_*num_components_);
+    }
+  }
+
+  // Remove sample_num from sigma
+  // ----------------------------
+  // This code works as with alpha
+  for (int i = 0; i < num_components_; i++) {
+    sigma_xi_.erase(sigma_xi_.begin() + sample_num*num_components_);
+  }
+}
+
 void RandomEffectsContainer::from_json(const nlohmann::json& rfx_container_json) {
   int beta_size = rfx_container_json.at("beta_size");
   int alpha_size = rfx_container_json.at("alpha_size");

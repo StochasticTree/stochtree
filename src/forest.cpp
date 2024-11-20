@@ -525,6 +525,12 @@ void propagate_basis_update_forest_container_cpp(cpp11::external_pointer<StochTr
 }
 
 [[cpp11::register]]
+void remove_sample_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, 
+                                        int forest_num) {
+    forest_samples->DeleteSample(forest_num);
+}
+
+[[cpp11::register]]
 cpp11::writable::doubles_matrix<> predict_forest_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::ForestDataset> dataset) {
     // Predict from the sampled forests
     std::vector<double> output_raw = forest_samples->Predict(*dataset);

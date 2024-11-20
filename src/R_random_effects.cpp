@@ -221,6 +221,11 @@ int rfx_container_num_groups_cpp(cpp11::external_pointer<StochTree::RandomEffect
 }
 
 [[cpp11::register]]
+void rfx_container_delete_sample_cpp(cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container, int sample_num) {
+    rfx_container->DeleteSample(sample_num);
+}
+
+[[cpp11::register]]
 void rfx_model_set_working_parameter_cpp(cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model, cpp11::doubles working_param_init) {
     Eigen::VectorXd working_param_eigen(working_param_init.size());
     for (int i = 0; i < working_param_init.size(); i++) {

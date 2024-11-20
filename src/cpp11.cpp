@@ -314,6 +314,14 @@ extern "C" SEXP _stochtree_rfx_container_num_groups_cpp(SEXP rfx_container) {
   END_CPP11
 }
 // R_random_effects.cpp
+void rfx_container_delete_sample_cpp(cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container, int sample_num);
+extern "C" SEXP _stochtree_rfx_container_delete_sample_cpp(SEXP rfx_container, SEXP sample_num) {
+  BEGIN_CPP11
+    rfx_container_delete_sample_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsContainer>>>(rfx_container), cpp11::as_cpp<cpp11::decay_t<int>>(sample_num));
+    return R_NilValue;
+  END_CPP11
+}
+// R_random_effects.cpp
 void rfx_model_set_working_parameter_cpp(cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model, cpp11::doubles working_param_init);
 extern "C" SEXP _stochtree_rfx_model_set_working_parameter_cpp(SEXP rfx_model, SEXP working_param_init) {
   BEGIN_CPP11
@@ -771,6 +779,14 @@ void propagate_basis_update_forest_container_cpp(cpp11::external_pointer<StochTr
 extern "C" SEXP _stochtree_propagate_basis_update_forest_container_cpp(SEXP data, SEXP residual, SEXP forest_samples, SEXP tracker, SEXP forest_num) {
   BEGIN_CPP11
     propagate_basis_update_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(data), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestTracker>>>(tracker), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
+void remove_sample_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_num);
+extern "C" SEXP _stochtree_remove_sample_forest_container_cpp(SEXP forest_samples, SEXP forest_num) {
+  BEGIN_CPP11
+    remove_sample_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_num));
     return R_NilValue;
   END_CPP11
 }
@@ -1396,11 +1412,13 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_propagate_basis_update_active_forest_cpp",            (DL_FUNC) &_stochtree_propagate_basis_update_active_forest_cpp,             4},
     {"_stochtree_propagate_basis_update_forest_container_cpp",         (DL_FUNC) &_stochtree_propagate_basis_update_forest_container_cpp,          5},
     {"_stochtree_propagate_trees_column_vector_cpp",                   (DL_FUNC) &_stochtree_propagate_trees_column_vector_cpp,                    2},
+    {"_stochtree_remove_sample_forest_container_cpp",                  (DL_FUNC) &_stochtree_remove_sample_forest_container_cpp,                   2},
     {"_stochtree_reset_active_forest_cpp",                             (DL_FUNC) &_stochtree_reset_active_forest_cpp,                              3},
     {"_stochtree_reset_forest_model_cpp",                              (DL_FUNC) &_stochtree_reset_forest_model_cpp,                               5},
     {"_stochtree_rfx_container_append_from_json_cpp",                  (DL_FUNC) &_stochtree_rfx_container_append_from_json_cpp,                   3},
     {"_stochtree_rfx_container_append_from_json_string_cpp",           (DL_FUNC) &_stochtree_rfx_container_append_from_json_string_cpp,            3},
     {"_stochtree_rfx_container_cpp",                                   (DL_FUNC) &_stochtree_rfx_container_cpp,                                    2},
+    {"_stochtree_rfx_container_delete_sample_cpp",                     (DL_FUNC) &_stochtree_rfx_container_delete_sample_cpp,                      2},
     {"_stochtree_rfx_container_from_json_cpp",                         (DL_FUNC) &_stochtree_rfx_container_from_json_cpp,                          2},
     {"_stochtree_rfx_container_from_json_string_cpp",                  (DL_FUNC) &_stochtree_rfx_container_from_json_string_cpp,                   2},
     {"_stochtree_rfx_container_get_alpha_cpp",                         (DL_FUNC) &_stochtree_rfx_container_get_alpha_cpp,                          1},
