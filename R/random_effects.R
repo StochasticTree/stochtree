@@ -365,3 +365,59 @@ createRandomEffectsModel <- function(num_components, num_groups) {
         RandomEffectsModel$new(num_components, num_groups)
     )))
 }
+
+#' Reset a `RandomEffectsModel` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
+#'
+#' @param rfx_tracker 
+#' @param rfx_samples 
+#' @param sample_num 
+#' @param sigma_alpha_init
+#' @export
+resetRandomEffectsModel <- function(rfx_model, rfx_samples, sample_num, sigma_alpha_init) {
+    reset_rfx_model_cpp(rfx_model$rfx_model_ptr, rfx_samples$rfx_container_ptr, sample_num)
+    rfx_model$set_working_parameter_cov(sigma_alpha_init)
+}
+
+#' Reset a `RandomEffectsTracker` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
+#'
+#' @param rfx_tracker 
+#' @param rfx_model
+#' @param rfx_dataset 
+#' @param residual 
+#' @param rfx_samples 
+#' @param sample_num 
+#' @export
+resetRandomEffectsTracker <- function(rfx_tracker, rfx_model, rfx_dataset, residual, rfx_samples, sample_num) {
+    reset_rfx_tracker_cpp(rfx_tracker$rfx_tracker_ptr, rfx_dataset$data_ptr, residual$data_ptr, rfx_model$rfx_model_ptr)
+}
+
+#' Reset a `RandomEffectsModel` object to its "default" state
+#'
+#' @param rfx_model
+#' @param alpha_init
+#' @param xi_init 
+#' @param sigma_alpha_init
+#' @param sigma_xi_init
+#' @param sigma_xi_shape
+#' @param sigma_xi_scale
+#' @export
+rootResetRandomEffectsModel <- function(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+                                        sigma_xi_init, sigma_xi_shape, sigma_xi_scale) {
+    rfx_model$set_working_parameter(alpha_init)
+    rfx_model$set_group_parameters(xi_init)
+    rfx_model$set_working_parameter_cov(sigma_alpha_init)
+    rfx_model$set_group_parameter_cov(sigma_xi_init)
+    rfx_model$set_variance_prior_shape(sigma_xi_shape)
+    rfx_model$set_variance_prior_scale(sigma_xi_scale)
+}
+
+#' Reset a `RandomEffectsTracker` object to its "default" state
+#'
+#' @param rfx_tracker 
+#' @param rfx_model
+#' @param rfx_dataset 
+#' @param residual 
+#' @export
+rootResetRandomEffectsTracker <- function(rfx_tracker, rfx_model, rfx_dataset, residual) {
+    root_reset_rfx_tracker_cpp(rfx_tracker$rfx_tracker_ptr, rfx_dataset$data_ptr, residual$data_ptr, rfx_model$rfx_model_ptr)
+}

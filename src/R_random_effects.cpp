@@ -318,3 +318,29 @@ cpp11::list rfx_label_mapper_to_list_cpp(cpp11::external_pointer<StochTree::Labe
     output.push_back(values);
     return output;
 }
+
+[[cpp11::register]]
+void reset_rfx_model_cpp(cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model, 
+                         cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container, 
+                         int sample_num) {
+    // Reet the RFX tracker
+    rfx_model->ResetFromSample(*rfx_container, sample_num);
+}
+
+[[cpp11::register]]
+void reset_rfx_tracker_cpp(cpp11::external_pointer<StochTree::RandomEffectsTracker> tracker, 
+                           cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset, 
+                           cpp11::external_pointer<StochTree::ColumnVector> residual, 
+                           cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model) {
+    // Reset the RFX tracker
+    tracker->ResetFromSample(*rfx_model, *dataset, *residual);
+}
+
+[[cpp11::register]]
+void root_reset_rfx_tracker_cpp(cpp11::external_pointer<StochTree::RandomEffectsTracker> tracker, 
+                                cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset, 
+                                cpp11::external_pointer<StochTree::ColumnVector> residual, 
+                                cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model) {
+    // Reset the RFX tracker
+    tracker->RootReset(*rfx_model, *dataset, *residual);
+}

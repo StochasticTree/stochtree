@@ -220,6 +220,18 @@ rfx_label_mapper_to_list_cpp <- function(label_mapper_ptr) {
   .Call(`_stochtree_rfx_label_mapper_to_list_cpp`, label_mapper_ptr)
 }
 
+reset_rfx_model_cpp <- function(rfx_model, rfx_container, sample_num) {
+  invisible(.Call(`_stochtree_reset_rfx_model_cpp`, rfx_model, rfx_container, sample_num))
+}
+
+reset_rfx_tracker_cpp <- function(tracker, dataset, residual, rfx_model) {
+  invisible(.Call(`_stochtree_reset_rfx_tracker_cpp`, tracker, dataset, residual, rfx_model))
+}
+
+root_reset_rfx_tracker_cpp <- function(tracker, dataset, residual, rfx_model) {
+  invisible(.Call(`_stochtree_root_reset_rfx_tracker_cpp`, tracker, dataset, residual, rfx_model))
+}
+
 active_forest_cpp <- function(num_trees, output_dimension, is_leaf_constant, is_exponentiated) {
   .Call(`_stochtree_active_forest_cpp`, num_trees, output_dimension, is_leaf_constant, is_exponentiated)
 }

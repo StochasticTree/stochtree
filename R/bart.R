@@ -419,8 +419,9 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         active_forest_variance <- createForest(num_trees_variance, 1, TRUE, TRUE)
     }
     
-    # Random effects prior parameters
+    # Random effects initialization 
     if (has_rfx) {
+        # Prior parameters
         if (num_rfx_components == 1) {
             alpha_init <- c(1)
         } else if (num_rfx_components > 1) {
@@ -433,10 +434,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         sigma_xi_init <- diag(1,num_rfx_components,num_rfx_components)
         sigma_xi_shape <- 1
         sigma_xi_scale <- 1
-    }
-
-    # Random effects data structure and storage container
-    if (has_rfx) {
+        
+        # Random effects data structure and storage container
         rfx_dataset_train <- createRandomEffectsDataset(group_ids_train, rfx_basis_train)
         rfx_tracker_train <- createRandomEffectsTracker(group_ids_train)
         rfx_model <- createRandomEffectsModel(num_rfx_components, num_rfx_groups)
@@ -532,20 +531,29 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                     resetActiveForest(active_forest_variance, forest_samples_variance, forest_ind)
                     resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
                 }
-                if (sample_sigma_global) current_sigma2 <- sigma2_samples[forest_ind + 1]
+                if (has_rfx) {
+                    resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
+                    resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples, forest_ind)
+                }
+                if (sample_sigma_global) current_sigma2 <- global_var_samples[forest_ind + 1]
             } else {
                 if (include_mean_forest) {
                     rootResetActiveForest(active_forest_mean)
                     active_forest_mean$set_root_leaves(init_values_mean_forest / num_trees_mean)
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
                     if (sample_sigma_leaf) {
-                        current_leaf_scale <- as.matrix(tau_init)
+                        current_leaf_scale <- as.matrix(sigma_leaf_init)
                     }
                 }
                 if (include_variance_forest) {
                     rootResetActiveForest(active_forest_variance)
                     active_forest_variance$set_root_leaves(log(variance_forest_init) / num_trees_variance)
                     resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
+                }
+                if (has_rfx) {
+                    rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+                                                sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+                    rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
                 }
                 if (sample_sigma_global) current_sigma2 <- sigma2_init
             }

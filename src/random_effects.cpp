@@ -39,6 +39,60 @@ void LabelMapper::from_json(const nlohmann::json& rfx_label_mapper_json) {
   }
 }
 
+void RandomEffectsTracker::ResetFromSample(MultivariateRegressionRandomEffectsModel& rfx_model, 
+                                           RandomEffectsDataset& rfx_dataset, ColumnVector& residual) {
+  Eigen::MatrixXd X = rfx_dataset.GetBasis();
+  std::vector<int32_t> group_labels = rfx_dataset.GetGroupLabels();
+  CHECK_EQ(X.rows(), group_labels.size());
+  int n = X.rows();
+  double prev_pred;
+  double new_pred;
+  double new_resid;
+  Eigen::MatrixXd alpha_diag = rfx_model.GetWorkingParameter().asDiagonal().toDenseMatrix();
+  Eigen::MatrixXd xi = rfx_model.GetGroupParameters();
+  std::int32_t group_ind;
+  for (int i = 0; i < n; i++) {
+    group_ind = CategoryNumber(group_labels[i]);
+    prev_pred = GetPrediction(i);
+    new_pred = X(i, Eigen::all) * alpha_diag * xi(Eigen::all, group_ind);
+    new_resid = residual.GetElement(i) - new_pred + prev_pred;
+    residual.SetElement(i, new_resid);
+    SetPrediction(i, new_pred);
+  }
+}
+
+void RandomEffectsTracker::RootReset(MultivariateRegressionRandomEffectsModel& rfx_model, 
+                                     RandomEffectsDataset& rfx_dataset, ColumnVector& residual) {
+  int n = rfx_dataset.NumObservations();
+  CHECK_EQ(n, num_observations_);
+  double prev_pred;
+  double new_pred;
+  double new_resid;
+  for (int i = 0; i < n; i++) {
+    prev_pred = GetPrediction(i);
+    new_pred = 0.;
+    new_resid = residual.GetElement(i) - new_pred + prev_pred;
+    residual.SetElement(i, new_resid);
+    SetPrediction(i, new_pred);
+  }
+}
+
+void MultivariateRegressionRandomEffectsModel::ResetFromSample(RandomEffectsContainer& rfx_container, int sample_num) {
+    // Extract parameter vectors
+    std::vector<double>& alpha = rfx_container.GetAlpha();
+    std::vector<double>& xi = rfx_container.GetXi();
+    std::vector<double>& sigma = rfx_container.GetSigma();
+    
+    // Unpack parameters
+    for (int i = 0; i < num_components_; i++) {
+      working_parameter_(i) = alpha.at(sample_num*num_components_ + i);
+      group_parameter_covariance_(i, i) = sigma.at(sample_num*num_components_ + i);
+      for (int j = 0; j < num_groups_; j++) {
+        group_parameters_(i,j) = xi.at(sample_num*num_groups_*num_components_ + j*num_components_ + i);
+      }
+    }
+  }
+
 void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
                                                                    double global_variance, std::mt19937& gen) {
   // Update partial residual to add back in the random effects

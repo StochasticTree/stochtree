@@ -411,6 +411,30 @@ extern "C" SEXP _stochtree_rfx_label_mapper_to_list_cpp(SEXP label_mapper_ptr) {
     return cpp11::as_sexp(rfx_label_mapper_to_list_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::LabelMapper>>>(label_mapper_ptr)));
   END_CPP11
 }
+// R_random_effects.cpp
+void reset_rfx_model_cpp(cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model, cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container, int sample_num);
+extern "C" SEXP _stochtree_reset_rfx_model_cpp(SEXP rfx_model, SEXP rfx_container, SEXP sample_num) {
+  BEGIN_CPP11
+    reset_rfx_model_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel>>>(rfx_model), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsContainer>>>(rfx_container), cpp11::as_cpp<cpp11::decay_t<int>>(sample_num));
+    return R_NilValue;
+  END_CPP11
+}
+// R_random_effects.cpp
+void reset_rfx_tracker_cpp(cpp11::external_pointer<StochTree::RandomEffectsTracker> tracker, cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model);
+extern "C" SEXP _stochtree_reset_rfx_tracker_cpp(SEXP tracker, SEXP dataset, SEXP residual, SEXP rfx_model) {
+  BEGIN_CPP11
+    reset_rfx_tracker_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsTracker>>>(tracker), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel>>>(rfx_model));
+    return R_NilValue;
+  END_CPP11
+}
+// R_random_effects.cpp
+void root_reset_rfx_tracker_cpp(cpp11::external_pointer<StochTree::RandomEffectsTracker> tracker, cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model);
+extern "C" SEXP _stochtree_root_reset_rfx_tracker_cpp(SEXP tracker, SEXP dataset, SEXP residual, SEXP rfx_model) {
+  BEGIN_CPP11
+    root_reset_rfx_tracker_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsTracker>>>(tracker), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel>>>(rfx_model));
+    return R_NilValue;
+  END_CPP11
+}
 // forest.cpp
 cpp11::external_pointer<StochTree::TreeEnsemble> active_forest_cpp(int num_trees, int output_dimension, bool is_leaf_constant, bool is_exponentiated);
 extern "C" SEXP _stochtree_active_forest_cpp(SEXP num_trees, SEXP output_dimension, SEXP is_leaf_constant, SEXP is_exponentiated) {
@@ -1415,6 +1439,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_remove_sample_forest_container_cpp",                  (DL_FUNC) &_stochtree_remove_sample_forest_container_cpp,                   2},
     {"_stochtree_reset_active_forest_cpp",                             (DL_FUNC) &_stochtree_reset_active_forest_cpp,                              3},
     {"_stochtree_reset_forest_model_cpp",                              (DL_FUNC) &_stochtree_reset_forest_model_cpp,                               5},
+    {"_stochtree_reset_rfx_model_cpp",                                 (DL_FUNC) &_stochtree_reset_rfx_model_cpp,                                  3},
+    {"_stochtree_reset_rfx_tracker_cpp",                               (DL_FUNC) &_stochtree_reset_rfx_tracker_cpp,                                4},
     {"_stochtree_rfx_container_append_from_json_cpp",                  (DL_FUNC) &_stochtree_rfx_container_append_from_json_cpp,                   3},
     {"_stochtree_rfx_container_append_from_json_string_cpp",           (DL_FUNC) &_stochtree_rfx_container_append_from_json_string_cpp,            3},
     {"_stochtree_rfx_container_cpp",                                   (DL_FUNC) &_stochtree_rfx_container_cpp,                                    2},
@@ -1456,6 +1482,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_right_child_node_forest_container_cpp",               (DL_FUNC) &_stochtree_right_child_node_forest_container_cpp,                4},
     {"_stochtree_rng_cpp",                                             (DL_FUNC) &_stochtree_rng_cpp,                                              1},
     {"_stochtree_root_reset_active_forest_cpp",                        (DL_FUNC) &_stochtree_root_reset_active_forest_cpp,                         1},
+    {"_stochtree_root_reset_rfx_tracker_cpp",                          (DL_FUNC) &_stochtree_root_reset_rfx_tracker_cpp,                           4},
     {"_stochtree_sample_gfr_one_iteration_cpp",                        (DL_FUNC) &_stochtree_sample_gfr_one_iteration_cpp,                        17},
     {"_stochtree_sample_mcmc_one_iteration_cpp",                       (DL_FUNC) &_stochtree_sample_mcmc_one_iteration_cpp,                       17},
     {"_stochtree_sample_sigma2_one_iteration_cpp",                     (DL_FUNC) &_stochtree_sample_sigma2_one_iteration_cpp,                      5},
