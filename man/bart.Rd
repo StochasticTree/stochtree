@@ -17,6 +17,8 @@ bart(
   num_gfr = 5,
   num_burnin = 0,
   num_mcmc = 100,
+  previous_model_json = NULL,
+  warmstart_sample_num = NULL,
   params = list()
 )
 }
@@ -59,6 +61,10 @@ that were not in the training set.}
 \item{num_burnin}{Number of "burn-in" iterations of the MCMC sampler. Default: 0.}
 
 \item{num_mcmc}{Number of "retained" iterations of the MCMC sampler. Default: 100.}
+
+\item{previous_model_json}{(Optional) JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: \code{NULL}.}
+
+\item{warmstart_sample_num}{(Optional) Sample number from \code{previous_model_json} that will be used to warmstart this BART sampler. One-indexed (so that the first sample is used for warm-start by setting \code{warmstart_sample_num = 1}). Default: \code{NULL}.}
 
 \item{params}{The list of model parameters, each of which has a default value.
 

@@ -27,6 +27,8 @@
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
+#' @param previous_model_json (Optional) JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: `NULL`.
+#' @param warmstart_sample_num (Optional) Sample number from `previous_model_json` that will be used to warmstart this BART sampler. One-indexed (so that the first sample is used for warm-start by setting `warmstart_sample_num = 1`). Default: `NULL`.
 #' @param params The list of model parameters, each of which has a default value.
 #'
 #'   **1. Global Parameters**
@@ -116,6 +118,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                  rfx_basis_train = NULL, X_test = NULL, W_test = NULL, 
                  group_ids_test = NULL, rfx_basis_test = NULL, 
                  num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
+                 previous_model_json = NULL, warmstart_sample_num = NULL, 
                  params = list()) {
     # Extract BART parameters
     bart_params <- preprocessBartParams(params)
@@ -159,6 +162,36 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         if (num_chains > num_gfr) {
             stop("num_chains > num_gfr, meaning we do not have enough GFR samples to seed num_chains distinct MCMC chains")
         }
+    }
+    
+    # Check if previous model JSON is provided and parse it if so
+    # TODO: check that warmstart_sample_num is <= the number of samples in this previous model
+    has_prev_model <- !is.null(previous_model_json)
+    if (has_prev_model) {
+        previous_bart_model <- createBARTModelFromJsonString(previous_model_json)
+        previous_y_bar <- previous_bart_model$model_params$outcome_mean
+        previous_y_scale <- previous_bart_model$model_params$outcome_scale
+        previous_var_scale <- previous_bart_model$model_params$variance_scale
+        if (previous_bart_model$model_params$include_mean_forest) {
+            previous_forest_samples_mean <- previous_bart_model$mean_forests
+        }
+        if (previous_bart_model$model_params$include_mean_forest) {
+            previous_forest_samples_variance <- previous_bart_model$variance_forests
+        }
+        if (previous_bart_model$model_params$sample_sigma_global) {
+            previous_global_var_samples <- previous_bart_model$sigma2_global_samples*(
+                previous_var_scale / (previous_y_scale*previous_y_scale)
+            )
+        }
+        if (previous_bart_model$model_params$sample_sigma_leaf) {
+            previous_leaf_var_samples <- previous_bart_model$sigma2_leaf_samples
+        }
+        if (previous_bart_model$model_params$has_rfx) {
+            previous_rfx_samples <- previous_bart_model$rfx_samples
+        }
+    } else {
+        previous_global_var_samples <- NULL
+        previous_leaf_var_samples <- NULL
     }
     
     # Determine whether conditional mean, variance, or both will be modeled
@@ -536,6 +569,30 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                     resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples, forest_ind)
                 }
                 if (sample_sigma_global) current_sigma2 <- global_var_samples[forest_ind + 1]
+            } else if (has_prev_model) {
+                if (include_mean_forest) {
+                    resetActiveForest(active_forest_mean, previous_forest_samples_mean, warmstart_sample_num - 1)
+                    resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
+                    if (sample_sigma_leaf && (!is.null(previous_leaf_var_samples))) {
+                        leaf_scale_double <- previous_leaf_var_samples[warmstart_sample_num]
+                        current_leaf_scale <- as.matrix(leaf_scale_double)
+                    }
+                }
+                if (include_variance_forest) {
+                    resetActiveForest(active_forest_variance, previous_forest_samples_variance, warmstart_sample_num - 1)
+                    resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
+                }
+                # TODO: also initialize from previous RFX samples
+                # if (has_rfx) {
+                #     rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+                #                                 sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+                #     rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
+                # }
+                if (sample_sigma_global) {
+                    if (!is.null(previous_global_var_samples)) {
+                        current_sigma2 <- previous_global_var_samples[warmstart_sample_num]
+                    }
+                }
             } else {
                 if (include_mean_forest) {
                     rootResetActiveForest(active_forest_mean)
@@ -633,7 +690,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         rfx_preds_test <- rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std_train/sqrt(variance_scale)
         y_hat_test <- y_hat_test + rfx_preds_test
     }
-    
 
     # Global error variance
     if (sample_sigma_global) sigma2_samples <- global_var_samples*(y_std_train^2)/variance_scale
@@ -724,7 +780,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     return(result)
 }
-
 
 #' Predict from a sampled BART model on new data
 #'
@@ -1041,6 +1096,69 @@ convertBARTModelToJson <- function(object){
     return(jsonobj)
 }
 
+#' Convert in-memory BART model objects (forests, random effects, vectors) to in-memory JSON. 
+#' This function is primarily a convenience function for serialization / deserialization in a parallel BART sampler.
+#'
+#' @param param_list List containing high-level model state parameters
+#' @param mean_forest Container of conditional mean forest samples (optional). Default: `NULL`.
+#' @param variance_forest Container of conditional variance forest samples (optional). Default: `NULL`.
+#' @param rfx_samples Container of random effect samples (optional). Default: `NULL`.
+#' @param global_variance_samples Vector of global error variance samples (optional). Default: `NULL`.
+#' @param local_variance_samples Vector of leaf scale samples (optional). Default: `NULL`.
+#'
+#' @return Object of type `CppJson`
+convertBARTStateToJson <- function(param_list, mean_forest = NULL, variance_forest = NULL, 
+                                   rfx_samples = NULL, global_variance_samples = NULL, 
+                                   local_variance_samples = NULL) {
+    # Initialize JSON object
+    jsonobj <- createCppJson()
+    
+    # Add global parameters
+    jsonobj$add_scalar("variance_scale", param_list$variance_scale)
+    jsonobj$add_scalar("outcome_scale", param_list$outcome_scale)
+    jsonobj$add_scalar("outcome_mean", param_list$outcome_mean)
+    jsonobj$add_boolean("standardize", param_list$standardize)
+    jsonobj$add_scalar("sigma2_init", param_list$sigma2_init)
+    jsonobj$add_boolean("sample_sigma_global", param_list$sample_sigma_global)
+    jsonobj$add_boolean("sample_sigma_leaf", param_list$sample_sigma_leaf)
+    jsonobj$add_boolean("include_mean_forest", param_list$include_mean_forest)
+    jsonobj$add_boolean("include_variance_forest", param_list$include_variance_forest)
+    jsonobj$add_boolean("has_rfx", param_list$has_rfx)
+    jsonobj$add_boolean("has_rfx_basis", param_list$has_rfx_basis)
+    jsonobj$add_scalar("num_rfx_basis", param_list$num_rfx_basis)
+    jsonobj$add_scalar("num_gfr", param_list$num_gfr)
+    jsonobj$add_scalar("num_burnin", param_list$num_burnin)
+    jsonobj$add_scalar("num_mcmc", param_list$num_mcmc)
+    jsonobj$add_scalar("num_covariates", param_list$num_covariates)
+    jsonobj$add_scalar("num_basis", param_list$num_basis)
+    jsonobj$add_scalar("keep_every", param_list$keep_every)
+    jsonobj$add_boolean("requires_basis", param_list$requires_basis)
+    
+    # Add the forests
+    if (param_list$include_mean_forest) {
+        jsonobj$add_forest(mean_forest)
+    }
+    if (param_list$include_variance_forest) {
+        jsonobj$add_forest(object$variance_forests)
+    }
+    
+    # Add sampled parameters
+    if (param_list$sample_sigma_global) {
+        jsonobj$add_vector("sigma2_global_samples", global_variance_samples, "parameters")
+    }
+    if (param_list$sample_sigma_leaf) {
+        jsonobj$add_vector("sigma2_leaf_samples", local_variance_samples, "parameters")
+    }
+    
+    # Add random effects
+    if (param_list$has_rfx) {
+        jsonobj$add_random_effects(rfx_samples)
+        jsonobj$add_string_vector("rfx_unique_group_ids", param_list$rfx_unique_group_ids)
+    }
+    
+    return(jsonobj)
+}
+
 #' Convert the persistent aspects of a BART model to (in-memory) JSON and save to a file
 #'
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
@@ -1262,7 +1380,7 @@ createBARTModelFromJsonFile <- function(json_filename){
     # Load a `CppJson` object from file
     bart_json <- createCppJsonFile(json_filename)
     
-    # Create and return the BCF object
+    # Create and return the BART object
     bart_object <- createBARTModelFromJson(bart_json)
     
     return(bart_object)
@@ -1307,7 +1425,7 @@ createBARTModelFromJsonString <- function(json_string){
     # Load a `CppJson` object from string
     bart_json <- createCppJsonString(json_string)
     
-    # Create and return the BCF object
+    # Create and return the BART object
     bart_object <- createBARTModelFromJson(bart_json)
     
     return(bart_object)
