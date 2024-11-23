@@ -905,6 +905,29 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         }
     }
     
+    # Remove GFR samples if they are not to be retained
+    if ((!keep_gfr) && (num_gfr > 0)) {
+        for (i in 1:num_gfr) {
+            forest_samples_mu$delete_sample(i-1)
+            forest_samples_tau$delete_sample(i-1)
+            if (include_variance_forest) {
+                forest_samples_variance$delete_sample(i-1)
+            }
+            if (has_rfx) {
+                rfx_samples$delete_sample(i-1)
+            }
+        }
+        if (sample_sigma_global) {
+            global_var_samples <- global_var_samples[(num_gfr+1):length(global_var_samples)]
+        }
+        if (sample_sigma_leaf_mu) {
+            leaf_scale_mu_samples <- leaf_scale_mu_samples[(num_gfr+1):length(leaf_scale_mu_samples)]
+        }
+        if (sample_sigma_leaf_tau) {
+            leaf_scale_tau_samples <- leaf_scale_tau_samples[(num_gfr+1):length(leaf_scale_tau_samples)]
+        }
+    }
+
     # Forest predictions
     mu_hat_train <- forest_samples_mu$predict(forest_dataset_train)*y_std_train + y_bar_train
     if (adaptive_coding) {

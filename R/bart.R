@@ -669,6 +669,27 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         }
     }
     
+    # Remove GFR samples if they are not to be retained
+    if ((!keep_gfr) && (num_gfr > 0)) {
+        for (i in 1:num_gfr) {
+            if (include_mean_forest) {
+                forest_samples_mean$delete_sample(i-1)
+            }
+            if (include_variance_forest) {
+                forest_samples_variance$delete_sample(i-1)
+            }
+            if (has_rfx) {
+                rfx_samples$delete_sample(i-1)
+            }
+        }
+        if (sample_sigma_global) {
+            global_var_samples <- global_var_samples[(num_gfr+1):length(global_var_samples)]
+        }
+        if (sample_sigma_leaf) {
+            leaf_scale_samples <- leaf_scale_samples[(num_gfr+1):length(leaf_scale_samples)]
+        }
+    }
+
     # Mean forest predictions
     if (include_mean_forest) {
         y_hat_train <- forest_samples_mean$predict(forest_dataset_train)*y_std_train/sqrt(variance_scale) + y_bar_train
