@@ -563,8 +563,10 @@ class BCFModel:
         num_actual_mcmc_iter = num_mcmc * keep_every
         num_temp_samples = num_gfr + num_burnin + num_actual_mcmc_iter
         num_retained_samples = num_mcmc
-        if keep_gfr:
-            num_retained_samples += num_gfr
+        # Delete GFR samples from these containers after the fact if desired
+        # if keep_gfr:
+        #     num_retained_samples += num_gfr
+        num_retained_samples += num_gfr
         if keep_burnin:
             num_retained_samples += num_burnin
         self.num_samples = num_retained_samples
@@ -651,7 +653,9 @@ class BCFModel:
         # Run GFR (warm start) if specified
         if num_gfr > 0:
             for i in range(num_gfr):
-                keep_sample = keep_gfr
+                # Keep all GFR samples at this stage -- remove from ForestSamples after MCMC
+                # keep_sample = keep_gfr
+                keep_sample = True
                 if keep_sample:
                     sample_counter += 1
                 # Sample the prognostic forest
@@ -787,6 +791,21 @@ class BCFModel:
         
         # Mark the model as sampled
         self.sampled = True
+
+        # Remove GFR samples if they are not to be retained
+        if not keep_gfr and num_gfr > 0:
+            for i in range(num_gfr):
+                self.forest_container_mu.delete_sample(i)
+                self.forest_container_tau.delete_sample(i)
+            if self.adaptive_coding:
+                self.b1_samples = self.b1_samples[num_gfr:]
+                self.b0_samples = self.b0_samples[num_gfr:]
+            if self.sample_sigma_global:
+                self.global_var_samples = self.global_var_samples[num_gfr:]
+            if self.sample_sigma_leaf_mu:
+                self.leaf_scale_mu_samples = self.leaf_scale_mu_samples[num_gfr:]
+            if self.sample_sigma_leaf_tau:
+                self.leaf_scale_tau_samples = self.leaf_scale_tau_samples[num_gfr:]
 
         # Store predictions
         mu_raw = self.forest_container_mu.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)

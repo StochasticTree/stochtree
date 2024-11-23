@@ -455,6 +455,18 @@ class BARTModel:
         # Mark the model as sampled
         self.sampled = True
 
+        # Remove GFR samples if they are not to be retained
+        if not keep_gfr and num_gfr > 0:
+            for i in range(num_gfr):
+                if self.include_mean_forest:
+                    self.forest_container_mean.delete_sample(i)
+                if self.include_variance_forest:
+                    self.forest_container_variance.delete_sample(i)
+            if self.sample_sigma_global:
+                self.global_var_samples = self.global_var_samples[num_gfr:]
+            if self.sample_sigma_leaf:
+                self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
+
         # Store predictions
         if self.sample_sigma_global:
             self.global_var_samples = self.global_var_samples*self.y_std*self.y_std/self.variance_scale
@@ -690,7 +702,6 @@ class BARTModel:
         bart_json.add_scalar("num_samples", self.num_samples)
         bart_json.add_scalar("num_basis", self.num_basis)
         bart_json.add_boolean("requires_basis", self.has_basis)
-        bart_json.add_numeric_vector("keep_indices", self.keep_indices)
         
         # Add parameter samples
         if self.sample_sigma_global:
@@ -743,7 +754,6 @@ class BARTModel:
         self.num_samples = bart_json.get_scalar("num_samples")
         self.num_basis = bart_json.get_scalar("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
-        self.keep_indices = bart_json.get_numeric_vector("keep_indices").astype(int)
 
         # Unpack parameter samples
         if self.sample_sigma_global:
