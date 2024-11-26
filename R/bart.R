@@ -164,6 +164,9 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         }
     }
     
+    # Override keep_gfr if there are no MCMC samples
+    if (num_mcmc == 0) keep_gfr <- T
+    
     # Check if previous model JSON is provided and parse it if so
     # TODO: check that warmstart_sample_num is <= the number of samples in this previous model
     has_prev_model <- !is.null(previous_model_json)
@@ -174,24 +177,30 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         previous_var_scale <- previous_bart_model$model_params$variance_scale
         if (previous_bart_model$model_params$include_mean_forest) {
             previous_forest_samples_mean <- previous_bart_model$mean_forests
-        }
+        } else previous_forest_samples_mean <- NULL
         if (previous_bart_model$model_params$include_mean_forest) {
             previous_forest_samples_variance <- previous_bart_model$variance_forests
-        }
+        } else previous_forest_samples_variance <- NULL
         if (previous_bart_model$model_params$sample_sigma_global) {
             previous_global_var_samples <- previous_bart_model$sigma2_global_samples*(
                 previous_var_scale / (previous_y_scale*previous_y_scale)
             )
-        }
+        } else previous_global_var_samples <- NULL
         if (previous_bart_model$model_params$sample_sigma_leaf) {
             previous_leaf_var_samples <- previous_bart_model$sigma2_leaf_samples
-        }
+        } else previous_leaf_var_samples <- NULL
         if (previous_bart_model$model_params$has_rfx) {
             previous_rfx_samples <- previous_bart_model$rfx_samples
-        }
+        } else previous_rfx_samples <- NULL
     } else {
+        previous_y_bar <- NULL
+        previous_y_scale <- NULL
+        previous_var_scale <- NULL
         previous_global_var_samples <- NULL
         previous_leaf_var_samples <- NULL
+        previous_rfx_samples <- NULL
+        previous_forest_samples_mean <- NULL
+        previous_forest_samples_variance <- NULL
     }
     
     # Determine whether conditional mean, variance, or both will be modeled
