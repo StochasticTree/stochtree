@@ -1098,6 +1098,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         if (sample_sigma_leaf_tau) {
             leaf_scale_tau_samples <- leaf_scale_tau_samples[(num_gfr+1):length(leaf_scale_tau_samples)]
         }
+        num_retained_samples <- num_retained_samples - num_gfr
     }
 
     # Forest predictions

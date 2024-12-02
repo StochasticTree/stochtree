@@ -697,6 +697,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         if (sample_sigma_leaf) {
             leaf_scale_samples <- leaf_scale_samples[(num_gfr+1):length(leaf_scale_samples)]
         }
+        num_retained_samples <- num_retained_samples - num_gfr
     }
 
     # Mean forest predictions

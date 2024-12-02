@@ -175,7 +175,7 @@ for (i in 1:num_warmstart) {
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sample_tau_one_iteration(
-        active_forest, rng, a_leaf, b_leaf, i-1
+        active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
 }
@@ -200,7 +200,7 @@ for (i in (num_warmstart+1):num_samples) {
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sample_tau_one_iteration(
-        active_forest, rng, a_leaf, b_leaf, i-1
+        active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
 }
@@ -388,12 +388,13 @@ for (i in 1:num_warmstart) {
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sample_tau_one_iteration(
-        active_forest, rng, a_leaf, b_leaf, i-1
+        active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
     
     # Sample random effects model
-    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, global_var_samples[i+1], rng)
+    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, 
+                                   TRUE, global_var_samples[i+1], rng)
 }
 ```
 
@@ -416,12 +417,13 @@ for (i in (num_warmstart+1):num_samples) {
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sample_tau_one_iteration(
-        active_forest, rng, a_leaf, b_leaf, i-1
+        active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
     
     # Sample random effects model
-    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, global_var_samples[i+1], rng)
+    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, 
+                                   TRUE, global_var_samples[i+1], rng)
 }
 ```
 
@@ -621,12 +623,13 @@ for (i in 1:num_warmstart) {
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sample_tau_one_iteration(
-        active_forest, rng, a_leaf, b_leaf, i-1
+        active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
     
     # Sample random effects model
-    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, global_var_samples[i+1], rng)
+    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, 
+                                   TRUE, global_var_samples[i+1], rng)
 }
 ```
 
@@ -649,12 +652,13 @@ for (i in (num_warmstart+1):num_samples) {
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sample_tau_one_iteration(
-        active_forest, rng, a_leaf, b_leaf, i-1
+        active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
     
     # Sample random effects model
-    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, global_var_samples[i+1], rng)
+    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, 
+                                   TRUE, global_var_samples[i+1], rng)
 }
 ```
 
