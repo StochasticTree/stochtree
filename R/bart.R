@@ -571,7 +571,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 }
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance, forest_samples_variance, forest_ind)
-                    resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
+                    resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
                 if (has_rfx) {
                     resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
@@ -589,7 +589,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 }
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance, previous_forest_samples_variance, warmstart_sample_num - 1)
-                    resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
+                    resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
                 # TODO: also initialize from previous RFX samples
                 # if (has_rfx) {
@@ -614,7 +614,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 if (include_variance_forest) {
                     rootResetActiveForest(active_forest_variance)
                     active_forest_variance$set_root_leaves(log(variance_forest_init) / num_trees_variance)
-                    resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
+                    resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
                 if (has_rfx) {
                     rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,

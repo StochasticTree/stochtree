@@ -868,7 +868,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 }
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance, forest_samples_variance, forest_ind)
-                    resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
+                    resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
                 if (has_rfx) {
                     resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
@@ -893,7 +893,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 resetForestModel(forest_model_tau, active_forest_tau, forest_dataset_train, outcome_train, TRUE)
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance, previous_forest_samples_variance, warmstart_sample_num - 1)
-                    resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
+                    resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
                 if (sample_sigma_leaf_mu && (!is.null(previous_leaf_var_mu_samples))) {
                     leaf_scale_mu_double <- previous_leaf_var_mu_samples[warmstart_sample_num]
@@ -931,10 +931,10 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 }
             } else {
                 rootResetActiveForest(active_forest_mu)
-                active_forest_mu$set_root_leaves(init_mu / num_trees_mean)
+                active_forest_mu$set_root_leaves(init_mu / num_trees_mu)
                 resetForestModel(forest_model_mu, active_forest_mu, forest_dataset_train, outcome_train, TRUE)
                 rootResetActiveForest(active_forest_tau)
-                active_forest_tau$set_root_leaves(init_tau / num_trees_mean)
+                active_forest_tau$set_root_leaves(init_tau / num_trees_tau)
                 resetForestModel(forest_model_tau, active_forest_tau, forest_dataset_train, outcome_train, TRUE)
                 if (sample_sigma_leaf_mu) {
                     current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
@@ -945,7 +945,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 if (include_variance_forest) {
                     rootResetActiveForest(active_forest_variance)
                     active_forest_variance$set_root_leaves(log(variance_forest_init) / num_trees_variance)
-                    resetForestModel(forest_model_variance, forest_dataset_train, active_forest_variance, outcome_train, FALSE)
+                    resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
                 if (has_rfx) {
                     rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
