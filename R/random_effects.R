@@ -147,6 +147,13 @@ RandomEffectSamples <- R6::R6Class(
         }, 
         
         #' @description
+        #' Modify the `RandomEffectsSamples` object by removing the parameter samples index by `sample_num`.
+        #' @param sample_num Index of the RFX sample to be removed
+        delete_sample = function(sample_num) {
+            rfx_container_delete_sample_cpp(self$rfx_container_ptr, sample_num)
+        }, 
+        
+        #' @description
         #' Convert the mapping of group IDs to random effect components indices from C++ to R native format
         #' @return List mapping group ID to random effect components.
         extract_label_mapping = function() {
@@ -224,13 +231,14 @@ RandomEffectsModel <- R6::R6Class(
         #' @param residual Object of type `Outcome`
         #' @param rfx_tracker Object of type `RandomEffectsTracker`
         #' @param rfx_samples Object of type `RandomEffectSamples`
+        #' @param keep_sample Whether sample should be retained in `rfx_samples`. If `FALSE`, the state of `rfx_tracker` will be updated, but the parameter values will not be added to the sample container. Samples are commonly discarded due to burn-in or thinning.
         #' @param global_variance Scalar global variance parameter
         #' @param rng Object of type `CppRNG`
         #' @return None
-        sample_random_effect = function(rfx_dataset, residual, rfx_tracker, rfx_samples, global_variance, rng) {
+        sample_random_effect = function(rfx_dataset, residual, rfx_tracker, rfx_samples, keep_sample, global_variance, rng) {
             rfx_model_sample_random_effects_cpp(self$rfx_model_ptr, rfx_dataset$data_ptr, 
                                                 residual$data_ptr, rfx_tracker$rfx_tracker_ptr, 
-                                                rfx_samples$rfx_container_ptr, global_variance, rng$rng_ptr)
+                                                rfx_samples$rfx_container_ptr, keep_sample, global_variance, rng$rng_ptr)
         },
         
         #' @description
@@ -356,4 +364,59 @@ createRandomEffectsModel <- function(num_components, num_groups) {
     return(invisible((
         RandomEffectsModel$new(num_components, num_groups)
     )))
+}
+
+#' Reset a `RandomEffectsModel` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
+#'
+#' @param rfx_model Object of type `RandomEffectsModel`.
+#' @param rfx_samples Object of type `RandomEffectSamples`.
+#' @param sample_num Index of sample stored in `rfx_samples` from which to reset the state of a random effects model. Zero-indexed, so resetting based on the first sample would require setting `sample_num = 0`.
+#' @param sigma_alpha_init Initial value of the "working parameter" scale parameter.
+#' @export
+resetRandomEffectsModel <- function(rfx_model, rfx_samples, sample_num, sigma_alpha_init) {
+    reset_rfx_model_cpp(rfx_model$rfx_model_ptr, rfx_samples$rfx_container_ptr, sample_num)
+    rfx_model$set_working_parameter_cov(sigma_alpha_init)
+}
+
+#' Reset a `RandomEffectsTracker` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
+#'
+#' @param rfx_tracker Object of type `RandomEffectsTracker`.
+#' @param rfx_model Object of type `RandomEffectsModel`.
+#' @param rfx_dataset Object of type `RandomEffectsDataset`.
+#' @param residual Object of type `Outcome`.
+#' @param rfx_samples Object of type `RandomEffectSamples`.
+#' @export
+resetRandomEffectsTracker <- function(rfx_tracker, rfx_model, rfx_dataset, residual, rfx_samples) {
+    reset_rfx_tracker_cpp(rfx_tracker$rfx_tracker_ptr, rfx_dataset$data_ptr, residual$data_ptr, rfx_model$rfx_model_ptr)
+}
+
+#' Reset a `RandomEffectsModel` object to its "default" state
+#'
+#' @param rfx_model Object of type `RandomEffectsModel`.
+#' @param alpha_init Initial value of the "working parameter".
+#' @param xi_init Initial value of the "group parameters".
+#' @param sigma_alpha_init Initial value of the "working parameter" scale parameter.
+#' @param sigma_xi_init Initial value of the "group parameters" scale parameter.
+#' @param sigma_xi_shape Shape parameter for the inverse gamma variance model on the group parameters.
+#' @param sigma_xi_scale Scale parameter for the inverse gamma variance model on the group parameters.
+#' @export
+rootResetRandomEffectsModel <- function(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+                                        sigma_xi_init, sigma_xi_shape, sigma_xi_scale) {
+    rfx_model$set_working_parameter(alpha_init)
+    rfx_model$set_group_parameters(xi_init)
+    rfx_model$set_working_parameter_cov(sigma_alpha_init)
+    rfx_model$set_group_parameter_cov(sigma_xi_init)
+    rfx_model$set_variance_prior_shape(sigma_xi_shape)
+    rfx_model$set_variance_prior_scale(sigma_xi_scale)
+}
+
+#' Reset a `RandomEffectsTracker` object to its "default" state
+#'
+#' @param rfx_tracker Object of type `RandomEffectsTracker`.
+#' @param rfx_model Object of type `RandomEffectsModel`.
+#' @param rfx_dataset Object of type `RandomEffectsDataset`.
+#' @param residual Object of type `Outcome`.
+#' @export
+rootResetRandomEffectsTracker <- function(rfx_tracker, rfx_model, rfx_dataset, residual) {
+    root_reset_rfx_tracker_cpp(rfx_tracker$rfx_tracker_ptr, rfx_dataset$data_ptr, residual$data_ptr, rfx_model$rfx_model_ptr)
 }

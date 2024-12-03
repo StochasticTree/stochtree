@@ -24,7 +24,6 @@ pkg_core_files <- c(
     ".Rbuildignore",
     "DESCRIPTION",
     "LICENSE",
-    "LICENSE.md",
     list.files("man", recursive = TRUE, full.names = TRUE),
     "NAMESPACE",
     list.files("R", recursive = TRUE, full.names = TRUE),
@@ -250,72 +249,17 @@ if (all(file.exists(eigen_files_to_vendor_src))) {
     }
 }
 
-# Copy boost_math headers / implementations to an include/ subdirectory of src/
-boost_header_files_to_vendor_src <- c()
-boost_header_files_to_vendor_dst <- c()
-# Existing header files
-boost_header_subfolder_src <- "deps/boost_math/include/boost"
-boost_header_filenames_src <- list.files(boost_header_subfolder_src, pattern = "\\.(hpp)$", recursive = TRUE)
-boost_header_files_to_vendor_src <- file.path(boost_header_subfolder_src, boost_header_filenames_src)
-# Existing implementation files
-boost_impl_subfolder_src <- "deps/boost_math/src"
-boost_impl_filenames_src <- list.files(boost_impl_subfolder_src, pattern = "\\.(cpp)$", recursive = TRUE)
-boost_impl_files_to_vendor_src <- file.path(boost_impl_subfolder_src, boost_impl_filenames_src)
-# Destination files
-boost_header_subfolder_dst <- "src/include/boost"
-boost_header_files_to_vendor_dst <- file.path(cran_dir, boost_header_subfolder_dst, boost_header_filenames_src)
-boost_impl_files_to_vendor_dst <- file.path(cran_dir, boost_header_subfolder_dst, boost_impl_filenames_src)
-
-if (all(file.exists(boost_header_files_to_vendor_src))) {
-    n_removed <- suppressWarnings(sum(file.remove(boost_header_files_to_vendor_dst)))
-    if (n_removed > 0) {
-        cat(sprintf("Removed %d previously vendored files from src/include/boost\n", n_removed))
-    }
-    
-    cat(
-        sprintf(
-            "Vendoring files from deps/boost_math/include/boost/ to src/include/boost\n"
-        )
-    )
-    
-    # Recreate the directory structure
-    dst_dirs <- unique(dirname(boost_header_files_to_vendor_dst))
-    for (dst_dir in dst_dirs) {
-        if (!dir.exists(dst_dir)) {
-            dir.create(dst_dir, recursive = TRUE)
-        }
-    }
-    
-    if (all(file.copy(boost_header_files_to_vendor_src, boost_header_files_to_vendor_dst))) {
-        cat("All deps/boost_math/include/boost header files successfully copied to src/include/boost\n")
-    } else {
-        stop("Failed to vendor all deps/boost_math/include/boost header files")
-    }
+# Clean up pragmas that suppress warnings in Eigen and JSON headers
+# File 1: Eigen "DisableStupidWarnings" header
+cran_eigen_suppress_warnings <- file.path(cran_dir, "src/include/Eigen/src/Core/util/DisableStupidWarnings.h")
+eigen_suppress_warnings_lines <- readLines(cran_eigen_suppress_warnings)
+for (i in 1:length(eigen_suppress_warnings_lines)) {
+    line <- eigen_suppress_warnings_lines[i]
+    eigen_suppress_warnings_lines[i] <- gsub("^.*#pragma clang diagnostic.*$", "", eigen_suppress_warnings_lines[i])
+    eigen_suppress_warnings_lines[i] <- gsub("^.*#pragma diag_suppress.*$", "", eigen_suppress_warnings_lines[i])
+    eigen_suppress_warnings_lines[i] <- gsub("^.*#pragma GCC diagnostic.*$", "", eigen_suppress_warnings_lines[i])
+    eigen_suppress_warnings_lines[i] <- gsub("^.*#pragma region.*$", "", eigen_suppress_warnings_lines[i])
+    eigen_suppress_warnings_lines[i] <- gsub("^.*#pragma endregion.*$", "", eigen_suppress_warnings_lines[i])
+    eigen_suppress_warnings_lines[i] <- gsub("^.*#pragma warning.*$", "", eigen_suppress_warnings_lines[i])
 }
-
-if (all(file.exists(boost_impl_files_to_vendor_src))) {
-    n_removed <- suppressWarnings(sum(file.remove(boost_impl_files_to_vendor_dst)))
-    if (n_removed > 0) {
-        cat(sprintf("Removed %d previously vendored cpp files from src/include/boost\n", n_removed))
-    }
-    
-    cat(
-        sprintf(
-            "Vendoring files from deps/boost_math/src/ to src/include/boost\n"
-        )
-    )
-    
-    # Recreate the directory structure
-    dst_dirs <- unique(dirname(boost_impl_files_to_vendor_dst))
-    for (dst_dir in dst_dirs) {
-        if (!dir.exists(dst_dir)) {
-            dir.create(dst_dir, recursive = TRUE)
-        }
-    }
-    
-    if (all(file.copy(boost_impl_files_to_vendor_src, boost_impl_files_to_vendor_dst))) {
-        cat("All deps/boost_math/src header files successfully copied to src/include/boost\n")
-    } else {
-        stop("Failed to vendor all deps/boost_math/src header files")
-    }
-}
+writeLines(eigen_suppress_warnings_lines, cran_eigen_suppress_warnings)

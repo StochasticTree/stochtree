@@ -2,7 +2,7 @@
 % Please edit documentation in R/calibration.R
 \name{calibrate_inverse_gamma_error_variance}
 \alias{calibrate_inverse_gamma_error_variance}
-\title{Calibrate the scale parameter on an inverse gamma prior for the global error variance as in Chipman et al (2022) \link{1}}
+\title{Calibrate the scale parameter on an inverse gamma prior for the global error variance as in Chipman et al (2022)}
 \usage{
 calibrate_inverse_gamma_error_variance(
   y,
@@ -18,19 +18,19 @@ calibrate_inverse_gamma_error_variance(
 
 \item{X}{Covariates to be used to partition trees in an ensemble or series of ensemble.}
 
-\item{W}{\link{Optional} Basis used to define a "leaf regression" model for each decision tree. The "classic" BART model assumes a constant leaf parameter, which is equivalent to a "leaf regression" on a basis of all ones, though it is not necessary to pass a vector of ones, here or to the BART function. Default: \code{NULL}.}
+\item{W}{(Optional) Basis used to define a "leaf regression" model for each decision tree. The "classic" BART model assumes a constant leaf parameter, which is equivalent to a "leaf regression" on a basis of all ones, though it is not necessary to pass a vector of ones, here or to the BART function. Default: \code{NULL}.}
 
 \item{nu}{The shape parameter for the global error variance's IG prior. The scale parameter in the Sparapani et al (2021) parameterization is defined as \code{nu*lambda} where \code{lambda} is the output of this function. Default: \code{3}.}
 
-\item{quant}{\link{Optional} Quantile of the inverse gamma prior distribution represented by a linear-regression-based overestimate of \code{sigma^2}. Default: \code{0.9}.}
+\item{quant}{(Optional) Quantile of the inverse gamma prior distribution represented by a linear-regression-based overestimate of \code{sigma^2}. Default: \code{0.9}.}
 
-\item{standardize}{\link{Optional} Whether or not outcome should be standardized (\code{(y-mean(y))/sd(y)}) before calibration of \code{lambda}. Default: \code{TRUE}.}
+\item{standardize}{(Optional) Whether or not outcome should be standardized (\code{(y-mean(y))/sd(y)}) before calibration of \code{lambda}. Default: \code{TRUE}.}
 }
 \value{
 Value of \code{lambda} which determines the scale parameter of the global error variance prior (\code{sigma^2 ~ IG(nu,nu*lambda)})
 }
 \description{
-\link{1} Chipman, H., George, E., Hahn, R., McCulloch, R., Pratola, M. and Sparapani, R. (2022). Bayesian Additive Regression Trees, Computational Approaches. In Wiley StatsRef: Statistics Reference Online (eds N. Balakrishnan, T. Colton, B. Everitt, W. Piegorsch, F. Ruggeri and J.L. Teugels). https://doi.org/10.1002/9781118445112.stat08288
+Chipman, H., George, E., Hahn, R., McCulloch, R., Pratola, M. and Sparapani, R. (2022). Bayesian Additive Regression Trees, Computational Approaches. In Wiley StatsRef: Statistics Reference Online (eds N. Balakrishnan, T. Colton, B. Everitt, W. Piegorsch, F. Ruggeri and J.L. Teugels). https://doi.org/10.1002/9781118445112.stat08288
 }
 \examples{
 n <- 100

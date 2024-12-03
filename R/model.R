@@ -63,6 +63,7 @@ ForestModel <- R6::R6Class(
         #' @param forest_dataset Dataset used to sample the forest
         #' @param residual Outcome used to sample the forest
         #' @param forest_samples Container of forest samples
+        #' @param active_forest "Active" forest updated by the sampler in each iteration
         #' @param rng Wrapper around C++ random number generator
         #' @param feature_types Vector specifying the type of all p covariates in `forest_dataset` (0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
         #' @param leaf_model_int Integer specifying the leaf model type (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression)
@@ -71,26 +72,27 @@ ForestModel <- R6::R6Class(
         #' @param a_forest Shape parameter on variance forest model (if applicable)
         #' @param b_forest Scale parameter on variance forest model (if applicable)
         #' @param global_scale Global variance parameter
-        #' @param cutpoint_grid_size (Optional) Number of unique cutpoints to consider (default: 500, currently only used when `GFR = TRUE`)
-        #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm
-        #' @param pre_initialized (Optional) Whether or not the leaves are pre-initialized outside of the sampling loop (before any samples are drawn). In multi-forest implementations like BCF, this is true, though in the single-forest supervised learning implementation, we can let C++ do the initialization. Default: F.
-        sample_one_iteration = function(forest_dataset, residual, forest_samples, rng, feature_types, 
+        #' @param cutpoint_grid_size (Optional) Number of unique cutpoints to consider (default: `500`, currently only used when `GFR = TRUE`)
+        #' @param keep_forest (Optional) Whether the updated forest sample should be saved to `forest_samples`. Default: `T`.
+        #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: `T`.
+        #' @param pre_initialized (Optional) Whether or not the leaves are pre-initialized outside of the sampling loop (before any samples are drawn). In multi-forest implementations like BCF, this is true, though in the single-forest supervised learning implementation, we can let C++ do the initialization. Default: `F`.
+        sample_one_iteration = function(forest_dataset, residual, forest_samples, active_forest, rng, feature_types, 
                                         leaf_model_int, leaf_model_scale, variable_weights, 
                                         a_forest, b_forest, global_scale, cutpoint_grid_size = 500, 
-                                        gfr = T, pre_initialized = F) {
+                                        keep_forest = T, gfr = T, pre_initialized = F) {
             if (gfr) {
                 sample_gfr_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
-                    forest_samples$forest_container_ptr, self$tracker_ptr, self$tree_prior_ptr, 
-                    rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, pre_initialized
+                    forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
+                    self$tree_prior_ptr, rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, pre_initialized
                 )
             } else {
                 sample_mcmc_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
-                    forest_samples$forest_container_ptr, self$tracker_ptr, self$tree_prior_ptr,
-                    rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, pre_initialized
+                    forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
+                    self$tree_prior_ptr, rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, pre_initialized
                 ) 
             }
         }, 
@@ -106,17 +108,16 @@ ForestModel <- R6::R6Class(
         #' changed and this should be reflected through to the residual before the next sampling loop is run.
         #' @param dataset `ForestDataset` object storing the covariates and bases for a given forest
         #' @param outcome `Outcome` object storing the residuals to be updated based on forest predictions
-        #' @param forest_samples `ForestSamples` object storing draws of tree ensembles
-        #' @param forest_num Index of forest used to update residuals (starting at 1, in R style)
-        propagate_basis_update = function(dataset, outcome, forest_samples, forest_num) {
+        #' @param active_forest "Active" forest updated by the sampler in each iteration
+        propagate_basis_update = function(dataset, outcome, active_forest) {
             stopifnot(!is.null(dataset$data_ptr))
             stopifnot(!is.null(outcome$data_ptr))
             stopifnot(!is.null(self$tracker_ptr))
-            stopifnot(!is.null(forest_samples$forest_container_ptr))
+            stopifnot(!is.null(active_forest$forest_ptr))
             
-            propagate_basis_update_forest_container_cpp(
-                dataset$data_ptr, outcome$data_ptr, forest_samples$forest_container_ptr, 
-                self$tracker_ptr, forest_num
+            propagate_basis_update_active_forest_cpp(
+                dataset$data_ptr, outcome$data_ptr, active_forest$forest_ptr, 
+                self$tracker_ptr
             )
         }, 
         
@@ -152,6 +153,7 @@ createRNG <- function(random_seed = -1){
 #' @param alpha Root node split probability in tree prior
 #' @param beta Depth prior penalty in tree prior
 #' @param min_samples_leaf Minimum number of samples in a tree leaf
+#' @param max_depth Maximum depth of any tree in the ensemble in the mean model. Setting to ``-1`` does not enforce any depth limits on trees.
 #'
 #' @return `ForestModel` object
 #' @export

@@ -174,6 +174,10 @@ class ForestContainerCpp {
     return forest->SumLeafSquared();
   }
 
+  void DeleteSample(int forest_num) {
+    forest_samples_->DeleteSample(forest_num);
+  }
+
   py::array_t<double> Predict(ForestDatasetCpp& dataset) {
     // Predict from the forest container
     data_size_t n = dataset.NumRows();
@@ -623,6 +627,320 @@ class ForestContainerCpp {
   bool is_exponentiated_;
 };
 
+class ForestCpp {
+ public:
+  ForestCpp(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
+    // Initialize pointer to C++ TreeEnsemble class
+    forest_ = std::make_unique<StochTree::TreeEnsemble>(num_trees, output_dimension, is_leaf_constant, is_exponentiated);
+    num_trees_ = num_trees;
+    output_dimension_ = output_dimension;
+    is_leaf_constant_ = is_leaf_constant;
+    is_exponentiated_ = is_exponentiated;
+  }
+  ~ForestCpp() {}
+
+  int OutputDimension() {
+    return forest_->OutputDimension();
+  }
+
+  int NumLeavesForest() {
+    return forest_->NumLeaves();
+  }
+
+  double SumLeafSquared(int forest_num) {
+    return forest_->SumLeafSquared();
+  }
+
+  void ResetRoot() {
+    // Reset active forest using the forest held at index forest_num
+    forest_->ResetRoot();
+  }
+
+  void Reset(ForestContainerCpp& forest_container, int forest_num) {
+    // Extract raw pointer to the forest held at index forest_num
+    StochTree::TreeEnsemble* forest = forest_container.GetForest(forest_num);
+
+    // Reset active forest using the forest held at index forest_num
+    forest_->ReconstituteFromForest(*forest);
+  }
+
+  py::array_t<double> Predict(ForestDatasetCpp& dataset) {
+    // Predict from the forest container
+    data_size_t n = dataset.NumRows();
+    StochTree::ForestDataset* data_ptr = dataset.GetDataset();
+    std::vector<double> output_raw = forest_->Predict(*data_ptr);
+
+    // Convert result to a matrix
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < n; i++) {
+        accessor(i) = output_raw[i];
+    }
+
+    return result;
+  }
+
+  py::array_t<double> PredictRaw(ForestDatasetCpp& dataset) {
+    // Predict from the forest container
+    data_size_t n = dataset.NumRows();
+    int output_dim = this->OutputDimension();
+    StochTree::ForestDataset* data_ptr = dataset.GetDataset();
+    std::vector<double> output_raw = forest_->PredictRaw(*data_ptr);
+
+    // Convert result to 2 dimensional array (n x output_dim)
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, output_dim}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (size_t i = 0; i < n; i++) {
+      for (int j = 0; j < output_dim; j++) {
+          accessor(i,j) = output_raw[i*output_dim + j];
+      }
+    }
+
+    return result;
+  }
+
+  void SetRootValue(double leaf_value) {
+    forest_->SetLeafValue(leaf_value);
+  }
+
+  void SetRootVector(py::array_t<double>& leaf_vector, int leaf_size) {
+    std::vector<double> leaf_vector_converted(leaf_size);
+    for (int i = 0; i < leaf_size; i++) {
+        leaf_vector_converted[i] = leaf_vector.at(i);
+    }
+    forest_->SetLeafVector(leaf_vector_converted);
+  }
+
+  void AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, bool add);
+
+  StochTree::TreeEnsemble* GetEnsemble() {
+    return forest_.get();
+  }
+
+  void AddNumericSplitValue(int tree_num, int leaf_num, int feature_num, double split_threshold, 
+                            double left_leaf_value, double right_leaf_value) {
+    if (forest_->OutputDimension() != 1) {
+      StochTree::Log::Fatal("left_leaf_value must match forest leaf dimension");
+    }
+    if (forest_->OutputDimension() != 1) {
+      StochTree::Log::Fatal("right_leaf_value must match forest leaf dimension");
+    }
+    StochTree::TreeEnsemble* ensemble = forest_.get();
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    if (!tree->IsLeaf(leaf_num)) {
+      StochTree::Log::Fatal("leaf_num is not a leaf");
+    }
+    tree->ExpandNode(leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value);
+  }
+
+  void AddNumericSplitVector(int tree_num, int leaf_num, int feature_num, double split_threshold, 
+                             py::array_t<double> left_leaf_vector, py::array_t<double> right_leaf_vector) {
+    if (forest_->OutputDimension() != left_leaf_vector.size()) {
+      StochTree::Log::Fatal("left_leaf_vector must match forest leaf dimension");
+    }
+    if (forest_->OutputDimension() != right_leaf_vector.size()) {
+      StochTree::Log::Fatal("right_leaf_vector must match forest leaf dimension");
+    }
+    std::vector<double> left_leaf_vector_cast(left_leaf_vector.size());
+    std::vector<double> right_leaf_vector_cast(right_leaf_vector.size());
+    for (int i = 0; i < left_leaf_vector.size(); i++) left_leaf_vector_cast.at(i) = left_leaf_vector.at(i);
+    for (int i = 0; i < right_leaf_vector.size(); i++) right_leaf_vector_cast.at(i) = right_leaf_vector.at(i);
+    StochTree::TreeEnsemble* ensemble = forest_.get();
+    StochTree::Tree* tree = ensemble->GetTree(tree_num);
+    if (!tree->IsLeaf(leaf_num)) {
+      StochTree::Log::Fatal("leaf_num is not a leaf");
+    }
+    tree->ExpandNode(leaf_num, feature_num, split_threshold, left_leaf_vector_cast, right_leaf_vector_cast);
+  }
+
+  py::array_t<int> GetTreeLeaves(int tree_num) {
+    StochTree::Tree* tree = forest_->GetTree(tree_num);
+    std::vector<int32_t> leaves_raw = tree->GetLeaves();
+    int num_leaves = leaves_raw.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_leaves}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < num_leaves; i++) {
+      accessor(i) = leaves_raw.at(i);
+    }
+    return result;
+  }
+
+  py::array_t<int> GetTreeSplitCounts(int tree_num, int num_features) {
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_features}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < num_features; i++) {
+      accessor(i) = 0;
+    }
+    StochTree::Tree* tree = forest_->GetTree(tree_num);
+    std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+    for (int i = 0; i < split_nodes.size(); i++) {
+        auto node_id = split_nodes.at(i);
+        auto split_feature = tree->SplitIndex(node_id);
+        accessor(split_feature)++;
+    }
+    return result;
+  }
+
+  py::array_t<int> GetOverallSplitCounts(int num_features) {
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_features}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < num_features; i++) {
+      accessor(i) = 0;
+    }
+    int num_trees = forest_->NumTrees();
+    for (int i = 0; i < num_trees; i++) {
+      StochTree::Tree* tree = forest_->GetTree(i);
+      std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+      for (int j = 0; j < split_nodes.size(); j++) {
+        auto node_id = split_nodes.at(j);
+        auto split_feature = tree->SplitIndex(node_id);
+        accessor(split_feature)++;
+      }
+    }
+    return result;
+  }
+
+  py::array_t<int> GetGranularSplitCounts(int num_features) {
+    int num_trees = forest_->NumTrees();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_trees,num_features}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (int i = 0; i < num_trees; i++) {
+      for (int j = 0; j < num_features; j++) {
+        accessor(i,j) = 0;
+      }
+    }
+    for (int i = 0; i < num_trees; i++) {
+      StochTree::Tree* tree = forest_->GetTree(i);
+      std::vector<int32_t> split_nodes = tree->GetInternalNodes();
+      for (int j = 0; j < split_nodes.size(); j++) {
+        auto node_id = split_nodes.at(i);
+        auto split_feature = tree->SplitIndex(node_id);
+        accessor(i,split_feature)++;
+      }
+    }
+    return result;
+  }
+
+  bool IsLeafNode(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->IsLeaf(node_id);
+  }
+
+  bool IsNumericSplitNode(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->IsNumericSplitNode(node_id);
+  }
+
+  bool IsCategoricalSplitNode(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->IsCategoricalSplitNode(node_id);
+  }
+
+  int ParentNode(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->Parent(node_id);
+  }
+
+  int LeftChildNode(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->LeftChild(node_id);
+  }
+
+  int RightChildNode(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->RightChild(node_id);
+  }
+
+  int SplitIndex(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->SplitIndex(node_id);
+  }
+
+  int NodeDepth(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->GetDepth(node_id);
+  }
+
+  double SplitThreshold(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->Threshold(node_id);
+  }
+
+  py::array_t<int> SplitCategories(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    std::vector<std::uint32_t> raw_categories = tree->CategoryList(node_id);
+    int num_categories = raw_categories.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_categories}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < num_categories; i++) {
+      accessor(i) = raw_categories.at(i);
+    }
+    return result;
+  }
+
+  py::array_t<double> NodeLeafValues(int tree_id, int node_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    int num_outputs = tree->OutputDimension();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_outputs}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < num_outputs; i++) {
+      accessor(i) = tree->LeafValue(node_id, i);
+    }
+    return result;
+  }
+
+  int NumNodes(int tree_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->NumValidNodes();
+  }
+
+  int NumLeaves(int tree_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->NumLeaves();
+  }
+
+  int NumLeafParents(int tree_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->NumLeafParents();
+  }
+
+  int NumSplitNodes(int tree_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    return tree->NumSplitNodes();
+  }
+
+  py::array_t<int> Nodes(int tree_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    std::vector<std::int32_t> nodes = tree->GetNodes();
+    int num_nodes = nodes.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_nodes}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < num_nodes; i++) {
+      accessor(i) = nodes.at(i);
+    }
+    return result;
+  }
+
+  py::array_t<int> Leaves(int tree_id) {
+    StochTree::Tree* tree = forest_->GetTree(tree_id);
+    std::vector<std::int32_t> leaves = tree->GetLeaves();
+    int num_leaves = leaves.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_leaves}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < num_leaves; i++) {
+      accessor(i) = leaves.at(i);
+    }
+    return result;
+  }
+
+ private:
+  std::unique_ptr<StochTree::TreeEnsemble> forest_;
+  int num_trees_;
+  int output_dimension_;
+  bool is_leaf_constant_;
+  bool is_exponentiated_;
+};
+
 class ForestSamplerCpp {
  public:
   ForestSamplerCpp(ForestDatasetCpp& dataset, py::array_t<int> feature_types, int num_trees, data_size_t num_obs, double alpha, double beta, int min_samples_leaf, int max_depth) {
@@ -641,10 +959,20 @@ class ForestSamplerCpp {
 
   StochTree::ForestTracker* GetTracker() {return tracker_.get();}
 
-  void SampleOneIteration(ForestContainerCpp& forest_samples, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng, 
+  void ReconstituteTrackerFromForest(ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, bool is_mean_model) {
+    // Extract raw pointer to the forest and dataset
+    StochTree::TreeEnsemble* forest_ptr = forest.GetEnsemble();
+    StochTree::ForestDataset* data_ptr = dataset.GetDataset();
+    StochTree::ColumnVector* residual_ptr = residual.GetData();
+    
+    // Reset forest tracker using the forest held at index forest_num
+    tracker_->ReconstituteFromForest(*forest_ptr, *data_ptr, *residual_ptr, is_mean_model);
+  }
+
+  void SampleOneIteration(ForestContainerCpp& forest_samples, ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng, 
                           py::array_t<int> feature_types, int cutpoint_grid_size, py::array_t<double> leaf_model_scale_input, 
                           py::array_t<double> variable_weights, double a_forest, double b_forest, double global_variance, 
-                          int leaf_model_int, bool gfr = true, bool pre_initialized = false) {
+                          int leaf_model_int, bool keep_forest = true, bool gfr = true, bool pre_initialized = false) {
     // Unpack feature types
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
     for (int i = 0; i < feature_types.size(); i++) {
@@ -686,34 +1014,35 @@ class ForestSamplerCpp {
     
     // Run one iteration of the sampler
     StochTree::ForestContainer* forest_sample_ptr = forest_samples.GetContainer();
+    StochTree::TreeEnsemble* active_forest_ptr = forest.GetEnsemble();
     StochTree::ForestDataset* forest_data_ptr = dataset.GetDataset();
     StochTree::ColumnVector* residual_data_ptr = residual.GetData();
     int num_basis = forest_data_ptr->NumBasis();
     std::mt19937* rng_ptr = rng.GetRng();
     if (gfr) {
       if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
-        StochTree::GFRSampleOneIter<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(*(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianConstantLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, pre_initialized, true);
+        StochTree::GFRSampleOneIter<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianConstantLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true);
       } else if (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) {
-        StochTree::GFRSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(*(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianUnivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, pre_initialized, true);
+        StochTree::GFRSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianUnivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true);
       } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
-        StochTree::GFRSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, pre_initialized, true, num_basis);
+        StochTree::GFRSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true, num_basis);
       } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
-        StochTree::GFRSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, pre_initialized, false);
+        StochTree::GFRSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, false);
       }
     } else {
       if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
-        StochTree::MCMCSampleOneIter<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(*(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianConstantLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, pre_initialized, true);
+        StochTree::MCMCSampleOneIter<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianConstantLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, keep_forest, pre_initialized, true);
       } else if (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) {
-        StochTree::MCMCSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(*(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianUnivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, pre_initialized, true);
+        StochTree::MCMCSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianUnivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, keep_forest, pre_initialized, true);
       } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
-        StochTree::MCMCSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, pre_initialized, true, num_basis);
+        StochTree::MCMCSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, keep_forest, pre_initialized, true, num_basis);
       } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
-        StochTree::MCMCSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, pre_initialized, false);
+        StochTree::MCMCSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, keep_forest, pre_initialized, false);
       }
     }
   }
 
-  void InitializeForestModel(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestContainerCpp& forest_samples, 
+  void InitializeForestModel(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestCpp& forest, 
                              int leaf_model_int, py::array_t<double> initial_values) {
     // Convert leaf model type to enum
     StochTree::ModelType model_type;
@@ -724,10 +1053,10 @@ class ForestSamplerCpp {
     else StochTree::Log::Fatal("Invalid model type");
     
     // Unpack initial value
-    StochTree::ForestContainer* forest_sample_ptr = forest_samples.GetContainer();
+    StochTree::TreeEnsemble* forest_ptr = forest.GetEnsemble();
     StochTree::ForestDataset* forest_data_ptr = dataset.GetDataset();
     StochTree::ColumnVector* residual_data_ptr = residual.GetData();
-    int num_trees = forest_sample_ptr->NumTrees();
+    int num_trees = forest_ptr->NumTrees();
     double init_val;
     std::vector<double> init_value_vector;
     if ((model_type == StochTree::ModelType::kConstantLeafGaussian) || 
@@ -743,30 +1072,34 @@ class ForestSamplerCpp {
     }
     
     // Initialize the models accordingly
+    double leaf_init_val;
     if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
-        forest_samples.InitializeRootValue(init_val / static_cast<double>(num_trees));
-        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_sample_ptr->GetEnsemble(0), false, std::minus<double>());
-        tracker_->UpdatePredictions(forest_sample_ptr->GetEnsemble(0), *forest_data_ptr);
+        leaf_init_val = init_val / static_cast<double>(num_trees);
+        forest_ptr->SetLeafValue(leaf_init_val);
+        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, false, std::minus<double>());
+        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
     } else if (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) {
-        forest_samples.InitializeRootValue(init_val / static_cast<double>(num_trees));
-        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_sample_ptr->GetEnsemble(0), true, std::minus<double>());
-        tracker_->UpdatePredictions(forest_sample_ptr->GetEnsemble(0), *forest_data_ptr);
+        leaf_init_val = init_val / static_cast<double>(num_trees);
+        forest_ptr->SetLeafValue(leaf_init_val);
+        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, true, std::minus<double>());
+        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
     } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
-        forest_samples.InitializeRootVector(init_value_vector);
-        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_sample_ptr->GetEnsemble(0), true, std::minus<double>());
-        tracker_->UpdatePredictions(forest_sample_ptr->GetEnsemble(0), *forest_data_ptr);
+        forest_ptr->SetLeafVector(init_value_vector);
+        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, true, std::minus<double>());
+        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
     } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
-        forest_samples.InitializeRootValue(std::log(init_val) / static_cast<double>(num_trees));
-        tracker_->UpdatePredictions(forest_sample_ptr->GetEnsemble(0), *forest_data_ptr);
+        leaf_init_val = std::log(init_val) / static_cast<double>(num_trees);
+        forest_ptr->SetLeafValue(leaf_init_val);
+        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
         int n = forest_data_ptr->NumObservations();
         std::vector<double> initial_preds(n, init_val);
         forest_data_ptr->AddVarianceWeights(initial_preds.data(), n);
     }
   }
 
-  void PropagateBasisUpdate(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestContainerCpp& forest_samples, int forest_num) {
+  void PropagateBasisUpdate(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestCpp& forest) {
     // Perform the update operation
-    StochTree::UpdateResidualNewBasis(*tracker_, *(dataset.GetDataset()), *(residual.GetData()), forest_samples.GetForest(forest_num));
+    StochTree::UpdateResidualNewBasis(*tracker_, *(dataset.GetDataset()), *(residual.GetData()), forest.GetEnsemble());
   }
 
   void PropagateResidualUpdate(ResidualCpp& residual) {
@@ -805,10 +1138,10 @@ class LeafVarianceModelCpp {
   }
   ~LeafVarianceModelCpp() {}
 
-  double SampleOneIteration(ForestContainerCpp& forest_samples, RngCpp& rng, double a, double b, int sample_num) {
-    StochTree::ForestContainer* forest_sample_ptr = forest_samples.GetContainer();
+  double SampleOneIteration(ForestCpp& forest, RngCpp& rng, double a, double b) {
+    StochTree::TreeEnsemble* forest_ptr = forest.GetEnsemble();
     std::mt19937* rng_ptr = rng.GetRng();
-    return var_model_.SampleVarianceParameter(forest_sample_ptr->GetEnsemble(sample_num), a, b, *rng_ptr);
+    return var_model_.SampleVarianceParameter(forest_ptr, a, b, *rng_ptr);
   }
 
  private:
@@ -823,6 +1156,16 @@ void ForestContainerCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& 
   
   // Perform the update (addition / subtraction) operation
   StochTree::UpdateResidualEntireForest(*(sampler.GetTracker()), *(dataset.GetDataset()), *(residual.GetData()), forest_samples_->GetEnsemble(forest_num), requires_basis, op);
+}
+
+void ForestCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, bool add) {
+  // Determine whether or not we are adding forest_num to the residuals
+  std::function<double(double, double)> op;
+  if (add) op = std::plus<double>();
+  else op = std::minus<double>();
+  
+  // Perform the update (addition / subtraction) operation
+  StochTree::UpdateResidualEntireForest(*(sampler.GetTracker()), *(dataset.GetDataset()), *(residual.GetData()), forest_.get(), requires_basis, op);
 }
 
 class JsonCpp {
@@ -1156,6 +1499,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def(py::init<int,int,bool,bool>())
     .def("OutputDimension", &ForestContainerCpp::OutputDimension)
     .def("NumSamples", &ForestContainerCpp::NumSamples)
+    .def("DeleteSample", &ForestContainerCpp::DeleteSample)
     .def("Predict", &ForestContainerCpp::Predict)
     .def("PredictRaw", &ForestContainerCpp::PredictRaw)
     .def("PredictRawSingleForest", &ForestContainerCpp::PredictRawSingleForest)
@@ -1196,8 +1540,48 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("Nodes", &ForestContainerCpp::Nodes)
     .def("Leaves", &ForestContainerCpp::Leaves);
 
+  py::class_<ForestCpp>(m, "ForestCpp")
+    .def(py::init<int,int,bool,bool>())
+    .def("OutputDimension", &ForestCpp::OutputDimension)
+    .def("NumLeavesForest", &ForestCpp::NumLeavesForest)
+    .def("SumLeafSquared", &ForestCpp::SumLeafSquared)
+    .def("ResetRoot", &ForestCpp::ResetRoot)
+    .def("Reset", &ForestCpp::Reset)
+    .def("Predict", &ForestCpp::Predict)
+    .def("PredictRaw", &ForestCpp::PredictRaw)
+    .def("SetRootValue", &ForestCpp::SetRootValue)
+    .def("SetRootVector", &ForestCpp::SetRootVector)
+    .def("AdjustResidual", &ForestCpp::AdjustResidual)
+    .def("AddNumericSplitValue", &ForestCpp::AddNumericSplitValue)
+    .def("AddNumericSplitVector", &ForestCpp::AddNumericSplitVector)
+    .def("GetEnsemble", &ForestCpp::GetEnsemble)
+    .def("GetTreeLeaves", &ForestCpp::GetTreeLeaves)
+    .def("GetTreeSplitCounts", &ForestCpp::GetTreeSplitCounts)
+    .def("GetOverallSplitCounts", &ForestCpp::GetOverallSplitCounts)
+    .def("GetGranularSplitCounts", &ForestCpp::GetGranularSplitCounts)
+    .def("NumLeavesForest", &ForestCpp::NumLeavesForest)
+    .def("SumLeafSquared", &ForestCpp::SumLeafSquared)
+    .def("IsLeafNode", &ForestCpp::IsLeafNode)
+    .def("IsNumericSplitNode", &ForestCpp::IsNumericSplitNode)
+    .def("IsCategoricalSplitNode", &ForestCpp::IsCategoricalSplitNode)
+    .def("ParentNode", &ForestCpp::ParentNode)
+    .def("LeftChildNode", &ForestCpp::LeftChildNode)
+    .def("RightChildNode", &ForestCpp::RightChildNode)
+    .def("SplitIndex", &ForestCpp::SplitIndex)
+    .def("NodeDepth", &ForestCpp::NodeDepth)
+    .def("SplitThreshold", &ForestCpp::SplitThreshold)
+    .def("SplitCategories", &ForestCpp::SplitCategories)
+    .def("NodeLeafValues", &ForestCpp::NodeLeafValues)
+    .def("NumNodes", &ForestCpp::NumNodes)
+    .def("NumLeaves", &ForestCpp::NumLeaves)
+    .def("NumLeafParents", &ForestCpp::NumLeafParents)
+    .def("NumSplitNodes", &ForestCpp::NumSplitNodes)
+    .def("Nodes", &ForestCpp::Nodes)
+    .def("Leaves", &ForestCpp::Leaves);
+
   py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
     .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
+    .def("ReconstituteTrackerFromForest", &ForestSamplerCpp::ReconstituteTrackerFromForest)
     .def("SampleOneIteration", &ForestSamplerCpp::SampleOneIteration)
     .def("InitializeForestModel", &ForestSamplerCpp::InitializeForestModel)
     .def("PropagateBasisUpdate", &ForestSamplerCpp::PropagateBasisUpdate)

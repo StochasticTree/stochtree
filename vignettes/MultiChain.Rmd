@@ -2,7 +2,7 @@
 title: "Running Multiple Chains (Sequentially or in Parallel) in StochTree"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Prototype-Interface}
+  %\VignetteIndexEntry{Multiple-Chains}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 bibliography: vignettes.bib
@@ -182,6 +182,131 @@ bart_model_outputs <- foreach (i = 1:num_chains) %dopar% {
   bart_model <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, X_test = X_test, W_test = W_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, params = bart_params
+  )
+  bart_model_string <- stochtree::saveBARTModelToJsonString(bart_model)
+  y_hat_test <- bart_model$y_hat_test
+  list(model=bart_model_string, yhat=y_hat_test)
+}
+```
+
+Close the parallel cluster (not evaluated here, as explained above).
+
+```{r, eval=FALSE}
+stopCluster(cl)
+```
+
+Now, if we want to combine the forests from each of these BART models into a 
+single forest, we can do so as follows
+
+```{r}
+bart_model_strings <- list()
+bart_model_yhats <- matrix(NA, nrow = length(y_test), ncol = num_chains)
+for (i in 1:length(bart_model_outputs)) {
+    bart_model_strings[[i]] <- bart_model_outputs[[i]]$model
+    bart_model_yhats[,i] <- rowMeans(bart_model_outputs[[i]]$yhat)
+}
+combined_bart <- createBARTModelFromCombinedJsonString(bart_model_strings)
+```
+
+We can predict from this combined forest as follows
+
+```{r}
+yhat_combined <- predict(combined_bart, X_test, W_test)$y_hat
+```
+
+Compare average predictions from each chain to the original predictions.
+
+```{r}
+par(mfrow = c(1,2))
+for (i in 1:num_chains) {
+    offset <- (i-1)*num_mcmc
+    inds_start <- offset + 1
+    inds_end <- offset + num_mcmc
+    plot(rowMeans(yhat_combined[,inds_start:inds_end]), bart_model_yhats[,i],
+         xlab = "deserialized", ylab = "original", 
+         main = paste0("Chain ", i, "\nPredictions"))
+    abline(0,1,col="red",lty=3,lwd=3)
+}
+par(mfrow = c(1,1))
+```
+
+And to the true $y$ values.
+
+```{r}
+par(mfrow = c(1,2))
+for (i in 1:num_chains) {
+    offset <- (i-1)*num_mcmc
+    inds_start <- offset + 1
+    inds_end <- offset + num_mcmc
+    plot(rowMeans(yhat_combined[,inds_start:inds_end]), y_test,
+         xlab = "predicted", ylab = "actual", 
+         main = paste0("Chain ", i, "\nPredictions"))
+    abline(0,1,col="red",lty=3,lwd=3)
+}
+par(mfrow = c(1,1))
+```
+
+## Warmstarting Multiple Chains in Parallel
+
+In the above example, we ran multiple parallel chains with each MCMC sampler 
+starting from a "root" forest. Consider instead the "warmstart" approach 
+of @he2023stochastic, where forests are sampled using the fast "grow-from-root" (GFR)
+algorithm and then several MCMC chains are run using different GFR forests.
+
+We use the same high-level parameters as in the parallel demo. 
+
+```{r}
+num_chains <- 4
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 100
+num_trees <- 100
+```
+
+First, we sample this model using the grow-from-root algorithm in the main R session 
+for several iterations (we will use these forests to see independent parallel chains in a moment).
+
+```{r}
+xbart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, 
+                     num_trees_mean = num_trees)
+xbart_model <- stochtree::bart(
+    X_train = X_train, W_train = W_train, y_train = y_train, X_test = X_test, W_test = W_test, 
+    num_gfr = num_gfr, num_burnin = 0, num_mcmc = 0, params = xbart_params
+)
+xbart_model_string <- stochtree::saveBARTModelToJsonString(xbart_model)
+```
+
+
+In order to run this sampler in parallel, a parallel backend must be registered in your R environment. 
+The code below will register a parallel backend with access to as many cores are available on your machine.
+Note that we do not **evaluate** the code snippet below in order to interact nicely with CRAN / Github Actions environments.
+
+```{r, eval=FALSE}
+ncores <- parallel::detectCores()
+cl <- makeCluster(ncores)
+registerDoParallel(cl)
+```
+
+Note that the `bartmodel` object contains external pointers to forests created by 
+the `stochtree` shared object, and when `stochtree::bart()` is run in parallel 
+on independent subprocesses, these pointers are not generally accessible in the 
+session that kicked off the parallel run. 
+
+To overcome this, you can return a JSON representation of a `bartmodel` in memory 
+and combine them into a single in-memory `bartmodel` object.
+
+The first step of this process is to run the sampler in parallel, 
+storing the resulting BART JSON strings in a list.
+
+```{r}
+bart_model_outputs <- foreach (i = 1:num_chains) %dopar% {
+  random_seed <- i
+  bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, 
+                      num_trees_mean = num_trees, random_seed = random_seed)
+  bart_model <- stochtree::bart(
+      X_train = X_train, W_train = W_train, y_train = y_train, X_test = X_test, W_test = W_test, 
+      num_gfr = 0, num_burnin = num_burnin, num_mcmc = num_mcmc, params = bart_params, 
+      previous_model_json = xbart_model_string, warmstart_sample_num = num_gfr - i + 1, 
   )
   bart_model_string <- stochtree::saveBARTModelToJsonString(bart_model)
   y_hat_test <- bart_model$y_hat_test

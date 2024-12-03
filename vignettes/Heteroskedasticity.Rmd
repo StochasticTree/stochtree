@@ -2,7 +2,7 @@
 title: "Bayesian Supervised Learning with Heteroskedasticity in StochTree"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Bayesian-Supervised-Learning}
+  %\VignetteIndexEntry{Heteroskedasticity}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 bibliography: vignettes.bib

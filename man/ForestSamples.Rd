@@ -33,6 +33,8 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-num_samples}{\code{ForestSamples$num_samples()}}
 \item \href{#method-ForestSamples-num_trees}{\code{ForestSamples$num_trees()}}
 \item \href{#method-ForestSamples-output_dimension}{\code{ForestSamples$output_dimension()}}
+\item \href{#method-ForestSamples-is_constant_leaf}{\code{ForestSamples$is_constant_leaf()}}
+\item \href{#method-ForestSamples-is_exponentiated}{\code{ForestSamples$is_exponentiated()}}
 \item \href{#method-ForestSamples-add_forest_with_constant_leaves}{\code{ForestSamples$add_forest_with_constant_leaves()}}
 \item \href{#method-ForestSamples-add_numeric_split_tree}{\code{ForestSamples$add_numeric_split_tree()}}
 \item \href{#method-ForestSamples-get_tree_leaves}{\code{ForestSamples$get_tree_leaves()}}
@@ -62,6 +64,7 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-num_split_nodes}{\code{ForestSamples$num_split_nodes()}}
 \item \href{#method-ForestSamples-nodes}{\code{ForestSamples$nodes()}}
 \item \href{#method-ForestSamples-leaves}{\code{ForestSamples$leaves()}}
+\item \href{#method-ForestSamples-delete_sample}{\code{ForestSamples$delete_sample()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -443,6 +446,32 @@ Leaf node parameter size
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-is_constant_leaf"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-is_constant_leaf}{}}}
+\subsection{Method \code{is_constant_leaf()}}{
+Return constant leaf status of trees in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$is_constant_leaf()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+\code{T} if leaves are constant, \code{F} otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-is_exponentiated"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-is_exponentiated}{}}}
+\subsection{Method \code{is_exponentiated()}}{
+Return exponentiation status of trees in a \code{ForestContainer} object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$is_exponentiated()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+\code{T} if leaf predictions must be exponentiated, \code{F} otherwise
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ForestSamples-add_forest_with_constant_leaves"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-add_forest_with_constant_leaves}{}}}
 \subsection{Method \code{add_forest_with_constant_leaves()}}{
@@ -464,7 +493,7 @@ set to the value / vector provided
 \if{html}{\out{<a id="method-ForestSamples-add_numeric_split_tree"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-add_numeric_split_tree}{}}}
 \subsection{Method \code{add_numeric_split_tree()}}{
-Add a numeric (i.e. X\link{,i} <= c) split to a given tree in the ensemble
+Add a numeric (i.e. \code{X[,i] <= c}) split to a given tree in the ensemble
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$add_numeric_split_tree(
   forest_num,
@@ -1082,6 +1111,23 @@ Array of leaf indices in a given tree in a given forest in a \code{ForestSamples
 }
 \subsection{Returns}{
 Indices of leaf nodes
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-delete_sample"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-delete_sample}{}}}
+\subsection{Method \code{delete_sample()}}{
+Modify the \code{ForestSamples} object by removing the forest sample indexed by `forest_num
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$delete_sample(forest_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest_num}}{Index of the forest to be removed}
+}
+\if{html}{\out{</div>}}
 }
 }
 }

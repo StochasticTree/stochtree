@@ -9,8 +9,6 @@ preprocessTrainData(input_data)
 }
 \arguments{
 \item{input_data}{Covariates, provided as either a dataframe or a matrix}
-
-\item{variable_weights}{Numeric weights reflecting the relative probability of splitting on each variable}
 }
 \value{
 List with preprocessed (unmodified) data and details on the number of each type

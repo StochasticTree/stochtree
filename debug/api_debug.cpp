@@ -532,6 +532,7 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   double outcome_scale;
   OutcomeOffsetScale(residual, outcome_offset, outcome_scale);
   
+  // Prepare random effects sampling (if desired)
   RandomEffectsDataset rfx_dataset;
   std::vector<int> rfx_init(n, 0);
   RandomEffectsTracker rfx_tracker = RandomEffectsTracker(rfx_init);
@@ -577,6 +578,9 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   } else {
     forest_exponentiated = false;
   }
+  // "Active" tree ensemble
+  TreeEnsemble active_forest = TreeEnsemble(num_trees, output_dimension, is_leaf_constant, forest_exponentiated);
+  // Stored forest samples
   ForestContainer forest_samples = ForestContainer(num_trees, output_dimension, is_leaf_constant, forest_exponentiated);
 
   // Initialize a leaf model
@@ -605,8 +609,9 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   Eigen::MatrixXd leaf_scale_matrix(omega_cols, omega_cols);
   Eigen::MatrixXd leaf_scale_matrix_init(omega_cols, omega_cols);
   if (omega_cols > 0) {
-    leaf_scale_matrix_init << 1.0, 0.0, 0.0, 1.0;
-    leaf_scale_matrix = leaf_scale_matrix_init;
+    leaf_scale_matrix_init = Eigen::MatrixXd::Identity(omega_cols, omega_cols);
+    // leaf_scale_matrix_init << 1.0, 0.0, 0.0, 1.0;
+    leaf_scale_matrix = leaf_scale_matrix_init / num_trees;
   }
 
   // Set global variance
@@ -636,27 +641,27 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   if (model_type == kConstantLeafGaussian) {
     init_val_glob = ComputeMeanOutcome(residual);
     init_val = init_val_glob / static_cast<double>(num_trees);
-    forest_samples.InitializeRoot(init_val);
-    UpdateResidualEntireForest(tracker, dataset, residual, forest_samples.GetEnsemble(0), false, std::minus<double>());
-    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
+    active_forest.SetLeafValue(init_val);
+    UpdateResidualEntireForest(tracker, dataset, residual, &active_forest, false, std::minus<double>());
+    tracker.UpdatePredictions(&active_forest, dataset);
   } else if (model_type == kUnivariateRegressionLeafGaussian) {
     init_val_glob = ComputeMeanOutcome(residual);
     init_val = init_val_glob / static_cast<double>(num_trees);
-    forest_samples.InitializeRoot(init_val);
-    UpdateResidualEntireForest(tracker, dataset, residual, forest_samples.GetEnsemble(0), true, std::minus<double>());
-    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
+    active_forest.SetLeafValue(init_val);
+    UpdateResidualEntireForest(tracker, dataset, residual, &active_forest, true, std::minus<double>());
+    tracker.UpdatePredictions(&active_forest, dataset);
   } else if (model_type == kMultivariateRegressionLeafGaussian) {
     init_val_glob = ComputeMeanOutcome(residual);
     init_val = init_val_glob / static_cast<double>(num_trees);
     init_vec = std::vector<double>(omega_cols, init_val);
-    forest_samples.InitializeRoot(init_vec);
-    UpdateResidualEntireForest(tracker, dataset, residual, forest_samples.GetEnsemble(0), true, std::minus<double>());
-    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
+    active_forest.SetLeafVector(init_vec);
+    UpdateResidualEntireForest(tracker, dataset, residual, &active_forest, true, std::minus<double>());
+    tracker.UpdatePredictions(&active_forest, dataset);
   } else if (model_type == kLogLinearVariance) {
     init_val_glob = ComputeVarianceOutcome(residual) * 0.4;
     init_val = std::log(init_val_glob) / static_cast<double>(num_trees);
-    forest_samples.InitializeRoot(init_val);
-    tracker.UpdatePredictions(forest_samples.GetEnsemble(0), dataset);
+    active_forest.SetLeafValue(init_val);
+    tracker.UpdatePredictions(&active_forest, dataset);
     std::vector<double> initial_preds(n, init_val_glob);
     dataset.AddVarianceWeights(initial_preds.data(), n);
   }
@@ -678,13 +683,13 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
 
       // Sample tree ensemble
       if (model_type == ModelType::kConstantLeafGaussian) {
-        GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true);
+        GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true, true);
       } else if (model_type == ModelType::kUnivariateRegressionLeafGaussian) {
-        GFRSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true);
+        GFRSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true, true);
       } else if (model_type == ModelType::kMultivariateRegressionLeafGaussian) {
-        GFRSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true, omega_cols);
+        GFRSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(active_forest, tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true, true, omega_cols);
       } else if (model_type == ModelType::kLogLinearVariance) {
-        GFRSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(tracker, forest_samples, std::get<LogLinearVarianceLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, false);
+        GFRSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(active_forest, tracker, forest_samples, std::get<LogLinearVarianceLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true, false);
       }
 
       if (rfx_included) {
@@ -694,7 +699,7 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
       }
 
       // Sample leaf node variance
-      leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, gen));
+      leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(&active_forest, a_leaf, b_leaf, gen));
 
       // Sample global variance
       global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), a_global, b_global, gen));
@@ -715,13 +720,13 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
 
       // Sample tree ensemble
       if (model_type == ModelType::kConstantLeafGaussian) {
-        MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true);
+        MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true, true);
       } else if (model_type == ModelType::kUnivariateRegressionLeafGaussian) {
-        MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true);
+        MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true, true);
       } else if (model_type == ModelType::kMultivariateRegressionLeafGaussian) {
-        MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true, omega_cols);
+        MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(active_forest, tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true, true, omega_cols);
       } else if (model_type == ModelType::kLogLinearVariance) {
-        MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(tracker, forest_samples, std::get<LogLinearVarianceLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, false);
+        MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(active_forest, tracker, forest_samples, std::get<LogLinearVarianceLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true, false);
       }
 
       if (rfx_included) {
@@ -731,7 +736,7 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
       }
 
       // Sample leaf node variance
-      leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(forest_samples.GetEnsemble(i), a_leaf, b_leaf, gen));
+      leaf_variance_samples.push_back(leaf_var_model.SampleVarianceParameter(&active_forest, a_leaf, b_leaf, gen));
 
       // Sample global variance
       global_variance_samples.push_back(global_var_model.SampleVarianceParameter(residual.GetData(), a_global, b_global, gen));

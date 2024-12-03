@@ -29,6 +29,8 @@ createForestModel(
 \item{beta}{Depth prior penalty in tree prior}
 
 \item{min_samples_leaf}{Minimum number of samples in a tree leaf}
+
+\item{max_depth}{Maximum depth of any tree in the ensemble in the mean model. Setting to \code{-1} does not enforce any depth limits on trees.}
 }
 \value{
 \code{ForestModel} object

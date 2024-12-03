@@ -28,6 +28,11 @@
 
 namespace StochTree {
 
+/*! \brief Forward declarations */
+class LabelMapper;
+class MultivariateRegressionRandomEffectsModel;
+class RandomEffectsContainer;
+
 /*! \brief Wrapper around data structures for random effects sampling algorithms */
 class RandomEffectsTracker {
  public:
@@ -49,6 +54,14 @@ class RandomEffectsTracker {
   std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) {return category_sample_tracker_->NodeIndicesInternalIndex(internal_category_id);}
   double GetPrediction(data_size_t observation_num) {return rfx_predictions_.at(observation_num);}
   void SetPrediction(data_size_t observation_num, double pred) {rfx_predictions_.at(observation_num) = pred;}
+  /*! \brief Resets RFX tracker based on a specific sample. Assumes tracker already exists in main memory. */
+  void ResetFromSample(MultivariateRegressionRandomEffectsModel& rfx_model, 
+                       RandomEffectsDataset& rfx_dataset, ColumnVector& residual);
+  /*! \brief Resets RFX tracker to initial default. Assumes tracker already exists in main memory. 
+   *         Assumes that the initial "clean slate" prediction of a random effects model is 0.
+   */
+  void RootReset(MultivariateRegressionRandomEffectsModel& rfx_model, 
+                 RandomEffectsDataset& rfx_dataset, ColumnVector& residual);
 
  private:
   /*! \brief Mapper from observations to category indices */
@@ -102,6 +115,9 @@ class MultivariateRegressionRandomEffectsModel {
     working_parameter_covariance_ = Eigen::MatrixXd(num_components_, num_components_);
   }
   ~MultivariateRegressionRandomEffectsModel() {}
+
+  /*! \brief Reconstruction from serialized model parameter samples */
+  void ResetFromSample(RandomEffectsContainer& rfx_container, int sample_num);
   
   /*! \brief Samplers */
   void SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, std::mt19937& gen);
@@ -260,6 +276,7 @@ class RandomEffectsContainer {
   }
   ~RandomEffectsContainer() {}
   void AddSample(MultivariateRegressionRandomEffectsModel& model);
+  void DeleteSample(int sample_num);
   void Predict(RandomEffectsDataset& dataset, LabelMapper& label_mapper, std::vector<double>& output);
   int NumSamples() {return num_samples_;}
   int NumComponents() {return num_components_;}

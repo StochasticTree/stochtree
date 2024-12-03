@@ -73,8 +73,7 @@ bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
                  rfx_basis_test = rfx_basis_test, 
-                 num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
-                 sample_sigma_leaf_mu = TRUE, sample_sigma_leaf_tau = FALSE)
+                 num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 # bcf_json <- saveBCFModelToJsonString(bcf_model)
 # bcf_model_roundtrip <- createBCFModelFromJsonString(bcf_json)
 }

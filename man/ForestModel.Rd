@@ -79,6 +79,7 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
   forest_dataset,
   residual,
   forest_samples,
+  active_forest,
   rng,
   feature_types,
   leaf_model_int,
@@ -88,6 +89,7 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
   b_forest,
   global_scale,
   cutpoint_grid_size = 500,
+  keep_forest = T,
   gfr = T,
   pre_initialized = F
 )}\if{html}{\out{</div>}}
@@ -101,6 +103,8 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
 \item{\code{residual}}{Outcome used to sample the forest}
 
 \item{\code{forest_samples}}{Container of forest samples}
+
+\item{\code{active_forest}}{"Active" forest updated by the sampler in each iteration}
 
 \item{\code{rng}}{Wrapper around C++ random number generator}
 
@@ -118,11 +122,13 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
 
 \item{\code{global_scale}}{Global variance parameter}
 
-\item{\code{cutpoint_grid_size}}{(Optional) Number of unique cutpoints to consider (default: 500, currently only used when \code{GFR = TRUE})}
+\item{\code{cutpoint_grid_size}}{(Optional) Number of unique cutpoints to consider (default: \code{500}, currently only used when \code{GFR = TRUE})}
 
-\item{\code{gfr}}{(Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm}
+\item{\code{keep_forest}}{(Optional) Whether the updated forest sample should be saved to \code{forest_samples}. Default: \code{T}.}
 
-\item{\code{pre_initialized}}{(Optional) Whether or not the leaves are pre-initialized outside of the sampling loop (before any samples are drawn). In multi-forest implementations like BCF, this is true, though in the single-forest supervised learning implementation, we can let C++ do the initialization. Default: F.}
+\item{\code{gfr}}{(Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: \code{T}.}
+
+\item{\code{pre_initialized}}{(Optional) Whether or not the leaves are pre-initialized outside of the sampling loop (before any samples are drawn). In multi-forest implementations like BCF, this is true, though in the single-forest supervised learning implementation, we can let C++ do the initialization. Default: \code{F}.}
 }
 \if{html}{\out{</div>}}
 }
@@ -140,12 +146,7 @@ of a tree sampler (as with e.g. adaptive coding for binary treatment BCF).
 Once a basis has been updated, the overall "function" represented by a tree model has
 changed and this should be reflected through to the residual before the next sampling loop is run.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestModel$propagate_basis_update(
-  dataset,
-  outcome,
-  forest_samples,
-  forest_num
-)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$propagate_basis_update(dataset, outcome, active_forest)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -155,9 +156,7 @@ changed and this should be reflected through to the residual before the next sam
 
 \item{\code{outcome}}{\code{Outcome} object storing the residuals to be updated based on forest predictions}
 
-\item{\code{forest_samples}}{\code{ForestSamples} object storing draws of tree ensembles}
-
-\item{\code{forest_num}}{Index of forest used to update residuals (starting at 1, in R style)}
+\item{\code{active_forest}}{"Active" forest updated by the sampler in each iteration}
 }
 \if{html}{\out{</div>}}
 }

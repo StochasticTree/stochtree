@@ -59,14 +59,14 @@ bart_model = BARTModel()
 bart_model.sample(X_train=X_train, y_train=y_train, basis_train=basis_train, X_test=X_test, basis_test=basis_test, num_gfr=10, num_mcmc=100)
 
 # Inspect the MCMC (BART) samples
-forest_preds_y_mcmc = bart_model.y_hat_test[:,bart_model.num_gfr:]
+forest_preds_y_mcmc = bart_model.y_hat_test
 y_avg_mcmc = np.squeeze(forest_preds_y_mcmc).mean(axis = 1, keepdims = True)
 y_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(y_test,1), y_avg_mcmc), axis = 1), columns=["True outcome", "Average estimated outcome"])
 sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples - bart_model.num_gfr),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
 sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
 plt.show()
 
@@ -82,14 +82,14 @@ X_test_aug = np.c_[X_test, basis_test]
 bart_model.sample(X_train=X_train_aug, y_train=y_train, X_test=X_test_aug, num_gfr=10, num_mcmc=100)
 
 # Inspect the MCMC (BART) samples
-forest_preds_y_mcmc = bart_model.y_hat_test[:,bart_model.num_gfr:]
+forest_preds_y_mcmc = bart_model.y_hat_test
 y_avg_mcmc = np.squeeze(forest_preds_y_mcmc).mean(axis = 1, keepdims = True)
 y_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(y_test,1), y_avg_mcmc), axis = 1), columns=["True outcome", "Average estimated outcome"])
 sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples - bart_model.num_gfr),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
 sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
 plt.show()
 
@@ -103,14 +103,14 @@ bart_model = BARTModel()
 bart_model.sample(X_train=X_train, y_train=y_train, X_test=X_test, num_gfr=10, num_mcmc=100)
 
 # Inspect the MCMC (BART) samples
-forest_preds_y_mcmc = bart_model.y_hat_test[:,bart_model.num_gfr:]
+forest_preds_y_mcmc = bart_model.y_hat_test
 y_avg_mcmc = np.squeeze(forest_preds_y_mcmc).mean(axis = 1, keepdims = True)
 y_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(y_test,1), y_avg_mcmc), axis = 1), columns=["True outcome", "Average estimated outcome"])
 sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples - bart_model.num_gfr),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
 sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
 plt.show()
 

@@ -1,11 +1,13 @@
 """
 Bayesian Additive Regression Trees (BART) module
 """
+from numbers import Number, Integral
+from math import log
 import numpy as np
 import pandas as pd
 from typing import Optional, Dict, Any
 from .data import Dataset, Residual
-from .forest import ForestContainer
+from .forest import ForestContainer, Forest
 from .preprocessing import CovariateTransformer, _preprocess_bart_params
 from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
@@ -80,6 +82,7 @@ class BARTModel:
             * ``random_seed`` (``int``): Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to ``std::random_device``.
             * ``keep_burnin`` (``bool``): Whether or not "burnin" samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
             * ``keep_gfr`` (``bool``): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
+            * ``keep_every`` (``int``): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to ``1``. Setting ``keep_every = k`` for some ``k > 1`` will "thin" the MCMC samples by retaining every ``k``-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 
         Returns
         -------
@@ -119,7 +122,18 @@ class BARTModel:
         keep_burnin = bart_params['keep_burnin']
         keep_gfr = bart_params['keep_gfr']
         self.standardize = bart_params['standardize']
+        num_chains = bart_params['num_chains']
+        keep_every = bart_params['keep_every']
+    
+        # Check that num_chains >= 1
+        if not isinstance(num_chains, Integral) or num_chains < 1:
+            raise ValueError("num_chains must be an integer greater than 0")
 
+        # Check if there are enough GFR samples to seed num_chains samplers
+        if num_gfr > 0:
+            if num_chains > num_gfr:
+                raise ValueError("num_chains > num_gfr, meaning we do not have enough GFR samples to seed num_chains distinct MCMC chains")
+        
         # Determine which models (conditional mean, conditional variance, or both) we will fit
         self.include_mean_forest = True if num_trees_mean > 0 else False
         self.include_variance_forest = True if num_trees_variance > 0 else False
@@ -255,13 +269,23 @@ class BARTModel:
         self.num_gfr = num_gfr
         self.num_burnin = num_burnin
         self.num_mcmc = num_mcmc
-        self.num_samples = num_gfr + num_burnin + num_mcmc
+        num_actual_mcmc_iter = num_mcmc * keep_every * num_chains
+        num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
+        num_retained_samples = num_mcmc * num_chains
+        # Delete GFR samples from these containers after the fact if desired
+        # if keep_gfr:
+        #     num_retained_samples += num_gfr
+        num_retained_samples += num_gfr
+        if keep_burnin:
+            num_retained_samples += num_burnin * num_chains
+        self.num_samples = num_retained_samples
         self.sample_sigma_global = sample_sigma_global
         self.sample_sigma_leaf = sample_sigma_leaf
         if sample_sigma_global:
-            self.global_var_samples = np.zeros(self.num_samples)
+            self.global_var_samples = np.empty(self.num_samples, dtype = np.float64)
         if sample_sigma_leaf:
-            self.leaf_scale_samples = np.zeros(self.num_samples)
+            self.leaf_scale_samples = np.empty(self.num_samples, dtype = np.float64)
+        sample_counter = -1
         
         # Forest Dataset (covariates and optional basis)
         forest_dataset_train = Dataset()
@@ -303,8 +327,10 @@ class BARTModel:
         # Container of forest samples
         if self.include_mean_forest:
             self.forest_container_mean = ForestContainer(num_trees_mean, 1, True, False) if not self.has_basis else ForestContainer(num_trees_mean, self.num_basis, False, False)
+            active_forest_mean = Forest(num_trees_mean, 1, True, False) if not self.has_basis else Forest(num_trees_mean, self.num_basis, False, False)
         if self.include_variance_forest:
             self.forest_container_variance = ForestContainer(num_trees_variance, 1, True, True)
+            active_forest_variance = Forest(num_trees_variance, 1, True, True)
         
         # Variance samplers
         if self.sample_sigma_global:
@@ -318,123 +344,156 @@ class BARTModel:
                 init_val_mean = np.repeat(0., basis_train.shape[1])
             else:
                 init_val_mean = np.array([0.])
-            forest_sampler_mean.prepare_for_sampler(forest_dataset_train, residual_train, self.forest_container_mean, leaf_model_mean_forest, init_val_mean)
+            forest_sampler_mean.prepare_for_sampler(forest_dataset_train, residual_train, active_forest_mean, leaf_model_mean_forest, init_val_mean)
 
         # Initialize the leaves of each tree in the variance forest
         if self.include_variance_forest:
             init_val_variance = np.array([variance_forest_leaf_init])
-            forest_sampler_variance.prepare_for_sampler(forest_dataset_train, residual_train, self.forest_container_variance, leaf_model_variance_forest, init_val_variance)
+            forest_sampler_variance.prepare_for_sampler(forest_dataset_train, residual_train, active_forest_variance, leaf_model_variance_forest, init_val_variance)
 
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
-            gfr_indices = np.arange(self.num_gfr)
             for i in range(self.num_gfr):
+                # Keep all GFR samples at this stage -- remove from ForestSamples after MCMC
+                # keep_sample = keep_gfr
+                keep_sample = True
+                if keep_sample:
+                    sample_counter += 1
                 # Sample the mean forest
                 if self.include_mean_forest:
                     forest_sampler_mean.sample_one_iteration(
-                        self.forest_container_mean, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                        cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
-                        current_sigma2, leaf_model_mean_forest, True, True
+                        self.forest_container_mean, active_forest_mean, forest_dataset_train, residual_train, 
+                        cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
+                        current_sigma2, leaf_model_mean_forest, keep_sample, True, True
                     )
                 
                 # Sample the variance forest
                 if self.include_variance_forest:
                     forest_sampler_variance.sample_one_iteration(
-                        self.forest_container_variance, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                        cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
-                        current_sigma2, leaf_model_variance_forest, True, True
+                        self.forest_container_variance, active_forest_variance, forest_dataset_train, residual_train, 
+                        cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
+                        current_sigma2, leaf_model_variance_forest, keep_sample, True, True
                     )
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma_global:
                     current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
-                    self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std/self.variance_scale
+                    if keep_sample:
+                        self.global_var_samples[sample_counter] = current_sigma2
                 if self.sample_sigma_leaf:
-                    self.leaf_scale_samples[i] = leaf_var_model.sample_one_iteration(self.forest_container_mean, cpp_rng, a_leaf, b_leaf, i)
-                    current_leaf_scale[0,0] = self.leaf_scale_samples[i]
+                    current_leaf_scale[0,0] = leaf_var_model.sample_one_iteration(active_forest_mean, cpp_rng, a_leaf, b_leaf)
+                    if keep_sample:
+                        self.leaf_scale_samples[sample_counter] = current_leaf_scale[0,0]
         
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
-            if self.num_burnin > 0:
-                burnin_indices = np.arange(self.num_gfr, self.num_gfr + self.num_burnin)
-            if self.num_mcmc > 0:
-                mcmc_indices = np.arange(self.num_gfr + self.num_burnin, self.num_gfr + self.num_burnin + self.num_mcmc)
-            for i in range(self.num_gfr, self.num_samples):
-                # Sample the mean forest
-                if self.include_mean_forest:
-                    forest_sampler_mean.sample_one_iteration(
-                        self.forest_container_mean, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                        cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
-                        current_sigma2, leaf_model_mean_forest, False, True
-                    )
-                
-                # Sample the variance forest
-                if self.include_variance_forest:
-                    forest_sampler_variance.sample_one_iteration(
-                        self.forest_container_variance, forest_dataset_train, residual_train, cpp_rng, feature_types, 
-                        cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
-                        current_sigma2, leaf_model_variance_forest, False, True
-                    )
+            for chain_num in range(num_chains):
+                if num_gfr > 0:
+                    forest_ind = num_gfr - chain_num - 1
+                    if self.include_mean_forest:
+                        active_forest_mean.reset(self.forest_container_mean, forest_ind)
+                        forest_sampler_mean.reconstitute_from_forest(active_forest_mean, forest_dataset_train, residual_train, True)
+                    if self.include_variance_forest:
+                        active_forest_variance.reset(self.forest_container_variance, forest_ind)
+                        forest_sampler_variance.reconstitute_from_forest(active_forest_variance, forest_dataset_train, residual_train, False)
+                    if sample_sigma_global:
+                        current_sigma2 = self.global_var_samples[forest_ind]
+                else:
+                    if self.include_mean_forest:
+                        active_forest_mean.reset_root()
+                        if init_val_mean.shape[0] == 1:
+                            active_forest_mean.set_root_leaves(init_val_mean[0] / num_trees_mean)
+                        else:
+                            active_forest_mean.set_root_leaves(init_val_mean / num_trees_mean)
+                        forest_sampler_mean.reconstitute_from_forest(active_forest_mean, forest_dataset_train, residual_train, True)
+                    if self.include_variance_forest:
+                        active_forest_variance.reset_root()
+                        active_forest_variance.set_root_leaves(log(variance_forest_leaf_init) / num_trees_mean)
+                        forest_sampler_variance.reconstitute_from_forest(active_forest_variance, forest_dataset_train, residual_train, False)
+            
+                for i in range(self.num_gfr, num_temp_samples):
+                    is_mcmc = i + 1 > num_gfr + num_burnin
+                    if is_mcmc:
+                        mcmc_counter = i - num_gfr - num_burnin + 1
+                        if (mcmc_counter % keep_every == 0):
+                            keep_sample = True
+                        else:
+                            keep_sample = False
+                    else:
+                        if keep_burnin:
+                            keep_sample = True
+                        else:
+                            keep_sample = False
+                    if keep_sample:
+                        sample_counter += 1
+                    # Sample the mean forest
+                    if self.include_mean_forest:
+                        forest_sampler_mean.sample_one_iteration(
+                            self.forest_container_mean, active_forest_mean, forest_dataset_train, residual_train, 
+                            cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_mean, a_forest, b_forest, 
+                            current_sigma2, leaf_model_mean_forest, keep_sample, False, True
+                        )
+                    
+                    # Sample the variance forest
+                    if self.include_variance_forest:
+                        forest_sampler_variance.sample_one_iteration(
+                            self.forest_container_variance, active_forest_variance, forest_dataset_train, residual_train, 
+                            cpp_rng, feature_types, cutpoint_grid_size, current_leaf_scale, variable_weights_variance, a_forest, b_forest, 
+                            current_sigma2, leaf_model_variance_forest, keep_sample, False, True
+                        )
 
-                # Sample variance parameters (if requested)
-                if self.sample_sigma_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
-                    self.global_var_samples[i] = current_sigma2*self.y_std*self.y_std/self.variance_scale
-                if self.sample_sigma_leaf:
-                    self.leaf_scale_samples[i] = leaf_var_model.sample_one_iteration(self.forest_container_mean, cpp_rng, a_leaf, b_leaf, i)
-                    current_leaf_scale[0,0] = self.leaf_scale_samples[i]
+                    # Sample variance parameters (if requested)
+                    if self.sample_sigma_global:
+                        current_sigma2 = global_var_model.sample_one_iteration(residual_train, cpp_rng, a_global, b_global)
+                        if keep_sample:
+                            self.global_var_samples[sample_counter] = current_sigma2
+                    if self.sample_sigma_leaf:
+                        current_leaf_scale[0,0] = leaf_var_model.sample_one_iteration(active_forest_mean, cpp_rng, a_leaf, b_leaf)
+                        if keep_sample:
+                            self.leaf_scale_samples[sample_counter] = current_leaf_scale[0,0]
         
         # Mark the model as sampled
         self.sampled = True
 
-        # Prediction indices to be stored
-        if self.num_mcmc > 0:
-            self.keep_indices = mcmc_indices
-            if keep_gfr:
-                self.keep_indices = np.concatenate((gfr_indices, self.keep_indices))
-            else:
-                # Don't retain both GFR and burnin samples
-                if keep_burnin:
-                    self.keep_indices = np.concatenate((burnin_indices, self.keep_indices))
-        else:
-            if self.num_gfr > 0 and self.num_burnin > 0:
-                # Override keep_gfr = False since there are no MCMC samples
-                # Don't retain both GFR and burnin samples
-                self.keep_indices = gfr_indices
-            elif self.num_gfr <= 0 and self.num_burnin > 0:
-                self.keep_indices = burnin_indices
-            elif self.num_gfr > 0 and self.num_burnin <= 0:
-                self.keep_indices = gfr_indices
-            else:
-                raise RuntimeError("There are no samples to retain!")
-        
+        # Remove GFR samples if they are not to be retained
+        if not keep_gfr and num_gfr > 0:
+            for i in range(num_gfr):
+                if self.include_mean_forest:
+                    self.forest_container_mean.delete_sample(i)
+                if self.include_variance_forest:
+                    self.forest_container_variance.delete_sample(i)
+            if self.sample_sigma_global:
+                self.global_var_samples = self.global_var_samples[num_gfr:]
+            if self.sample_sigma_leaf:
+                self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
+
         # Store predictions
         if self.sample_sigma_global:
-            self.global_var_samples = self.global_var_samples[self.keep_indices]
+            self.global_var_samples = self.global_var_samples*self.y_std*self.y_std/self.variance_scale
 
         if self.sample_sigma_leaf:
-            self.leaf_scale_samples = self.leaf_scale_samples[self.keep_indices]
+            self.leaf_scale_samples = self.leaf_scale_samples
         
         if self.include_mean_forest:
-            yhat_train_raw = self.forest_container_mean.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)[:,self.keep_indices]
+            yhat_train_raw = self.forest_container_mean.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)
             self.y_hat_train = yhat_train_raw*self.y_std/np.sqrt(self.variance_scale) + self.y_bar
             if self.has_test:
-                yhat_test_raw = self.forest_container_mean.forest_container_cpp.Predict(forest_dataset_test.dataset_cpp)[:,self.keep_indices]
+                yhat_test_raw = self.forest_container_mean.forest_container_cpp.Predict(forest_dataset_test.dataset_cpp)
                 self.y_hat_test = yhat_test_raw*self.y_std/np.sqrt(self.variance_scale) + self.y_bar
         
         if self.include_variance_forest:
-            sigma_x_train_raw = self.forest_container_variance.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)[:,self.keep_indices]
+            sigma_x_train_raw = self.forest_container_variance.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)
             if self.sample_sigma_global:
                 self.sigma_x_train = sigma_x_train_raw
-                for i in range(self.keep_indices.shape[0]):
+                for i in range(num_retained_samples):
                     self.sigma_x_train[:,i] = np.sqrt(sigma_x_train_raw[:,i]*self.global_var_samples[i])
             else:
                 self.sigma_x_train = np.sqrt(sigma_x_train_raw*self.sigma2_init)*self.y_std/np.sqrt(self.variance_scale)
             if self.has_test:
-                sigma_x_test_raw = self.forest_container_variance.forest_container_cpp.Predict(forest_dataset_test.dataset_cpp)[:,self.keep_indices]
+                sigma_x_test_raw = self.forest_container_variance.forest_container_cpp.Predict(forest_dataset_test.dataset_cpp)
                 if self.sample_sigma_global:
                     self.sigma_x_test = sigma_x_test_raw
-                    for i in range(self.keep_indices.shape[0]):
+                    for i in range(num_retained_samples):
                         self.sigma_x_test[:,i] = np.sqrt(sigma_x_test_raw[:,i]*self.global_var_samples[i])
                 else:
                     self.sigma_x_test = np.sqrt(sigma_x_test_raw*self.sigma2_init)*self.y_std/np.sqrt(self.variance_scale)
@@ -478,13 +537,13 @@ class BARTModel:
         if basis is not None:
             pred_dataset.add_basis(basis)
         if self.include_mean_forest:
-            mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(pred_dataset.dataset_cpp)[:,self.keep_indices]
+            mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(pred_dataset.dataset_cpp)
             mean_pred = mean_pred_raw*self.y_std/np.sqrt(self.variance_scale) + self.y_bar
         if self.include_variance_forest:
-            variance_pred_raw = self.forest_container_variance.forest_container_cpp.Predict(pred_dataset.dataset_cpp)[:,self.keep_indices]
+            variance_pred_raw = self.forest_container_variance.forest_container_cpp.Predict(pred_dataset.dataset_cpp)
             if self.sample_sigma_global:
                 variance_pred = variance_pred_raw
-                for i in range(self.keep_indices.shape[0]):
+                for i in range(self.num_samples):
                     variance_pred[:,i] = np.sqrt(variance_pred_raw[:,i]*self.global_var_samples[i])
             else:
                 variance_pred = np.sqrt(variance_pred_raw*self.sigma2_init)*self.y_std/np.sqrt(self.variance_scale)
@@ -541,7 +600,7 @@ class BARTModel:
         pred_dataset.add_covariates(covariates)
         if basis is not None:
             pred_dataset.add_basis(basis)
-        mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(pred_dataset.dataset_cpp)[:,self.keep_indices]
+        mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(pred_dataset.dataset_cpp)
         mean_pred = mean_pred_raw*self.y_std/np.sqrt(self.variance_scale) + self.y_bar
 
         return mean_pred
@@ -591,10 +650,10 @@ class BARTModel:
         pred_dataset.add_covariates(covariates)
         # if basis is not None:
         #     pred_dataset.add_basis(basis)
-        variance_pred_raw = self.forest_container_variance.forest_container_cpp.Predict(pred_dataset.dataset_cpp)[:,self.keep_indices]
+        variance_pred_raw = self.forest_container_variance.forest_container_cpp.Predict(pred_dataset.dataset_cpp)
         if self.sample_sigma_global:
             variance_pred = variance_pred_raw
-            for i in range(self.keep_indices.shape[0]):
+            for i in range(self.num_samples):
                 variance_pred[:,i] = np.sqrt(variance_pred_raw[:,i]*self.global_var_samples[i])
         else:
             variance_pred = np.sqrt(variance_pred_raw*self.sigma2_init)*self.y_std/np.sqrt(self.variance_scale)
@@ -643,7 +702,6 @@ class BARTModel:
         bart_json.add_scalar("num_samples", self.num_samples)
         bart_json.add_scalar("num_basis", self.num_basis)
         bart_json.add_boolean("requires_basis", self.has_basis)
-        bart_json.add_numeric_vector("keep_indices", self.keep_indices)
         
         # Add parameter samples
         if self.sample_sigma_global:
@@ -696,7 +754,6 @@ class BARTModel:
         self.num_samples = bart_json.get_scalar("num_samples")
         self.num_basis = bart_json.get_scalar("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
-        self.keep_indices = bart_json.get_numeric_vector("keep_indices").astype(int)
 
         # Unpack parameter samples
         if self.sample_sigma_global:

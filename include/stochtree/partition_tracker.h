@@ -59,11 +59,14 @@ class ForestTracker {
    */
   ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations);
   ~ForestTracker() {}
+  void ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model);
   void AssignAllSamplesToRoot();
   void AssignAllSamplesToRoot(int32_t tree_num);
   void AssignAllSamplesToConstantPrediction(double value);
   void AssignAllSamplesToConstantPrediction(int32_t tree_num, double value);
   void UpdatePredictions(TreeEnsemble* ensemble, ForestDataset& dataset);
+  void UpdateSampleTrackers(TreeEnsemble& forest, ForestDataset& dataset);
+  void UpdateSampleTrackersResidual(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model);
   void ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num);
   void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
   void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
@@ -109,9 +112,14 @@ class ForestTracker {
   int num_trees_;
   int num_observations_;
   int num_features_;
+  bool initialized_{false};
 
   void UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis);
   void UpdatePredictionsInternal(TreeEnsemble* ensemble, Eigen::MatrixXd& covariates);
+  void UpdateSampleTrackersInternal(TreeEnsemble& forest, Eigen::MatrixXd& covariates, Eigen::MatrixXd& basis);
+  void UpdateSampleTrackersInternal(TreeEnsemble& forest, Eigen::MatrixXd& covariates);
+  void UpdateSampleTrackersResidualInternalBasis(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model);
+  void UpdateSampleTrackersResidualInternalNoBasis(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model);
 };
 
 /*! \brief Class storing sample-prediction map for each tree in an ensemble */
@@ -229,6 +237,9 @@ class FeatureUnsortedPartition {
  public:
   FeatureUnsortedPartition(data_size_t n);
 
+  /*! \brief Reconstitute a tree partition tracker from root based on a tree */
+  void ReconstituteFromTree(Tree& tree, ForestDataset& dataset);
+
   /*! \brief Partition a node based on a new split rule */
   void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int left_node_id, int right_node_id, int feature_split, TreeSplit& split);
 
@@ -305,6 +316,9 @@ class UnsortedNodeSampleTracker {
       feature_partitions_[i].reset(new FeatureUnsortedPartition(n));
     }
   }
+
+  /*! \brief Reconstruct the node sample tracker based on the splits in a forest */
+  void ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& dataset);
 
   /*! \brief Partition a node based on a new split rule */
   void PartitionTreeNode(Eigen::MatrixXd& covariates, int tree_id, int node_id, int left_node_id, int right_node_id, int feature_split, TreeSplit& split) {
