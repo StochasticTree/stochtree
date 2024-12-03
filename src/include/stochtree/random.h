@@ -33,7 +33,7 @@ class Random {
     x = seed;
   }
   /*!
-  * \brief Generate random integer, int16 range. [0, 65536]
+  * \brief Generate random integer, int16 range. `[0, 65536]`
   * \param lower_bound lower bound
   * \param upper_bound upper bound
   * \return The random integer between [lower_bound, upper_bound)
@@ -54,17 +54,17 @@ class Random {
 
   /*!
   * \brief Generate random float data
-  * \return The random float between [0.0, 1.0)
+  * \return The random float between `[0.0, 1.0)`
   */
   inline float NextFloat() {
-    // get random float in [0,1)
+    // get random float in `[0,1)`
     return static_cast<float>(RandInt16()) / (32768.0f);
   }
   /*!
-  * \brief Sample K data from {0,1,...,N-1}
+  * \brief Sample K data from `{0,1,...,N-1}`
   * \param N
   * \param K
-  * \return K Ordered sampled data from {0,1,...,N-1}
+  * \return K Ordered sampled data from `{0,1,...,N-1}`
   */
   inline std::vector<int> Sample(int N, int K) {
     std::vector<int> ret;
