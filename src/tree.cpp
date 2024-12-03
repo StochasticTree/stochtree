@@ -607,6 +607,7 @@ void JsonToTreeNodeVectors(const json& tree_json, Tree* tree) {
     tree->cright_.push_back(tree_json.at("right").at(i));
     tree->split_index_.push_back(tree_json.at("split_index").at(i));
     if (is_univariate) tree->leaf_value_.push_back(tree_json.at("leaf_value").at(i));
+    else tree->leaf_value_.push_back(0.);
     tree->threshold_.push_back(tree_json.at("threshold").at(i));
     tree->node_deleted_.push_back(tree_json.at("node_deleted").at(i));
     // Handle type conversions for node_type, leaf_vector_begin/end, and category_list_begin/end
