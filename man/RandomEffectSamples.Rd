@@ -33,6 +33,7 @@ needed for prediction / serialization
 \item \href{#method-RandomEffectSamples-append_from_json_string}{\code{RandomEffectSamples$append_from_json_string()}}
 \item \href{#method-RandomEffectSamples-predict}{\code{RandomEffectSamples$predict()}}
 \item \href{#method-RandomEffectSamples-extract_parameter_samples}{\code{RandomEffectSamples$extract_parameter_samples()}}
+\item \href{#method-RandomEffectSamples-delete_sample}{\code{RandomEffectSamples$delete_sample()}}
 \item \href{#method-RandomEffectSamples-extract_label_mapping}{\code{RandomEffectSamples$extract_label_mapping()}}
 }
 }
@@ -241,6 +242,23 @@ and sigma (group-independent prior variance for each component of xi).
 List of arrays. The alpha array has dimension (\code{num_components}, \code{num_samples}) and is simply a vector if \code{num_components = 1}.
 The xi and beta arrays have dimension (\code{num_components}, \code{num_groups}, \code{num_samples}) and is simply a matrix if \code{num_components = 1}.
 The sigma array has dimension (\code{num_components}, \code{num_samples}) and is simply a vector if \code{num_components = 1}.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectSamples-delete_sample"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectSamples-delete_sample}{}}}
+\subsection{Method \code{delete_sample()}}{
+Modify the \code{RandomEffectsSamples} object by removing the parameter samples index by \code{sample_num}.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectSamples$delete_sample(sample_num)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{sample_num}}{Index of the RFX sample to be removed}
+}
+\if{html}{\out{</div>}}
 }
 }
 \if{html}{\out{<hr>}}

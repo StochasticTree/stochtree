@@ -49,10 +49,8 @@ class TreeEnsemble {
     trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
     for (int i = 0; i < num_trees_; i++) {
       trees_[i].reset(new Tree());
-      // trees_[i]->Init(output_dimension);
     }
     // Clone trees in the ensemble
-    // trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
     for (int j = 0; j < num_trees_; j++) {
       Tree* tree = ensemble.GetTree(j);
       this->CloneFromExistingTree(j, tree);
@@ -62,6 +60,12 @@ class TreeEnsemble {
 
   inline Tree* GetTree(int i) {
     return trees_[i].get();
+  }
+
+  inline void ResetRoot() {
+    for (int i = 0; i < num_trees_; i++) {
+      ResetInitTree(i);
+    }
   }
 
   inline void ResetTree(int i) {
@@ -77,6 +81,41 @@ class TreeEnsemble {
     return trees_[i]->CloneFromTree(tree);
   }
 
+  inline void ReconstituteFromForest(TreeEnsemble& ensemble) {
+    // Delete old tree pointers
+    trees_.clear();
+    // Unpack ensemble configurations
+    num_trees_ = ensemble.num_trees_;
+    output_dimension_ = ensemble.output_dimension_;
+    is_leaf_constant_ = ensemble.is_leaf_constant_;
+    is_exponentiated_ = ensemble.is_exponentiated_;
+    // Initialize trees in the ensemble
+    trees_ = std::vector<std::unique_ptr<Tree>>(num_trees_);
+    for (int i = 0; i < num_trees_; i++) {
+      trees_[i].reset(new Tree());
+    }
+    // Clone trees in the ensemble
+    for (int j = 0; j < num_trees_; j++) {
+      Tree* tree = ensemble.GetTree(j);
+      this->CloneFromExistingTree(j, tree);
+    }
+  }
+
+  std::vector<double> Predict(ForestDataset& dataset) {
+    data_size_t n = dataset.NumObservations();
+    std::vector<double> output(n);
+    PredictInplace(dataset, output, 0);
+    return output;
+  }
+
+  std::vector<double> PredictRaw(ForestDataset& dataset) {
+    data_size_t n = dataset.NumObservations();
+    data_size_t total_output_size = n * output_dimension_;
+    std::vector<double> output(total_output_size);
+    PredictRawInplace(dataset, output, 0);
+    return output;
+  }
+  
   inline void PredictInplace(ForestDataset& dataset, std::vector<double> &output, data_size_t offset = 0) {
     PredictInplace(dataset, output, 0, trees_.size(), offset);
   }

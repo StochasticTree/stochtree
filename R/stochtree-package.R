@@ -1,4 +1,5 @@
 ## usethis namespace: start
+#' @importFrom stats coef
 #' @importFrom stats lm
 #' @importFrom stats model.matrix
 #' @importFrom stats qgamma

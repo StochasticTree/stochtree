@@ -3,6 +3,7 @@ PKGROOT=..
 
 STOCHTREE_CPPFLAGS = -DSTOCHTREE_R_BUILD
 
+# PKG_CPPFLAGS= -I$(PKGROOT)/include -I$(PKGROOT)/deps/eigen -I$(PKGROOT)/deps/fmt/include -I$(PKGROOT)/deps/fast_double_parser/include -I$(PKGROOT)/deps/boost_math/include $(STOCHTREE_CPPFLAGS)
 PKG_CPPFLAGS= -I$(PKGROOT)/src/include $(STOCHTREE_CPPFLAGS)
 
 CXX_STD=CXX17

@@ -2,7 +2,7 @@
 title: "Deeper Dive on Sampled Forests in StochTree"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Bayesian-Supervised-Learning}
+  %\VignetteIndexEntry{Tree-Inspection}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 bibliography: vignettes.bib

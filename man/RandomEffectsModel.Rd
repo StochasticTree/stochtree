@@ -65,6 +65,7 @@ Sample from random effects model.
   residual,
   rfx_tracker,
   rfx_samples,
+  keep_sample,
   global_variance,
   rng
 )}\if{html}{\out{</div>}}
@@ -80,6 +81,8 @@ Sample from random effects model.
 \item{\code{rfx_tracker}}{Object of type \code{RandomEffectsTracker}}
 
 \item{\code{rfx_samples}}{Object of type \code{RandomEffectSamples}}
+
+\item{\code{keep_sample}}{Whether sample should be retained in \code{rfx_samples}. If \code{FALSE}, the state of \code{rfx_tracker} will be updated, but the parameter values will not be added to the sample container. Samples are commonly discarded due to burn-in or thinning.}
 
 \item{\code{global_variance}}{Scalar global variance parameter}
 

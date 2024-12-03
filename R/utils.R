@@ -19,8 +19,8 @@ preprocessBartParams <- function(params) {
         variable_weights_mean = NULL, variable_weights_variance = NULL, 
         num_trees_mean = 200, num_trees_variance = 0, 
         sample_sigma_global = T, sample_sigma_leaf = F, 
-        random_seed = -1, keep_burnin = F, keep_gfr = F, 
-        standardize = T, verbose = F
+        random_seed = -1, keep_burnin = F, keep_gfr = F, keep_every = 1, 
+        num_chains = 1, standardize = T, verbose = F
     )
     
     # Override defaults
@@ -50,16 +50,17 @@ preprocessBcfParams <- function(params) {
         beta_mu = 2.0, beta_tau = 3.0, beta_variance = 2.0, 
         min_samples_leaf_mu = 5, min_samples_leaf_tau = 5, min_samples_leaf_variance = 5, 
         max_depth_mu = 10, max_depth_tau = 5, max_depth_variance = 10, 
-        a_global = 0, b_global = 0, a_leaf_mu = 3, a_leaf_tau = 3, b_leaf_mu = NULL, b_leaf_tau = NULL, 
-        a_forest = NULL, b_forest = NULL, sigma2_init = NULL, variance_forest_init = NULL, 
-        pct_var_sigma2_init = 1, pct_var_variance_forest_init = 1, 
+        a_global = 0, b_global = 0, a_leaf_mu = 3, a_leaf_tau = 3, b_leaf_mu = NULL, 
+        b_leaf_tau = NULL, a_forest = NULL, b_forest = NULL, sigma2_init = NULL, 
+        variance_forest_init = NULL, pct_var_sigma2_init = 1, pct_var_variance_forest_init = 1, 
         variable_weights = NULL, keep_vars_mu = NULL, drop_vars_mu = NULL, 
         keep_vars_tau = NULL, drop_vars_tau = NULL, keep_vars_variance = NULL, 
-        drop_vars_variance = NULL, num_trees_mu = 250, num_trees_tau = 50, num_trees_variance = 0, 
-        num_gfr = 5, num_burnin = 0, num_mcmc = 100, sample_sigma_global = T, sample_sigma_leaf_mu = T, 
-        sample_sigma_leaf_tau = F, propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, b_1 = 0.5, 
+        drop_vars_variance = NULL, num_trees_mu = 250, num_trees_tau = 50, 
+        num_trees_variance = 0, num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
+        sample_sigma_global = T, sample_sigma_leaf_mu = T, sample_sigma_leaf_tau = F, 
+        propensity_covariate = "mu", adaptive_coding = T, b_0 = -0.5, b_1 = 0.5, 
         rfx_prior_var = NULL, random_seed = -1, keep_burnin = F, keep_gfr = F, 
-        standardize = T, verbose = F
+        keep_every = 1, num_chains = 1, standardize = T, verbose = F
     )
     
     # Override defaults
@@ -79,7 +80,6 @@ preprocessBcfParams <- function(params) {
 #' types. Matrices will be passed through assuming all columns are numeric.
 #'
 #' @param input_data Covariates, provided as either a dataframe or a matrix
-#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable
 #'
 #' @return List with preprocessed (unmodified) data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
@@ -735,8 +735,10 @@ orderedCatInitializeAndPreprocess <- function(x_input) {
 #' @export
 #'
 #' @examples
-#' x_levels <- c("1. Strongly disagree", "2. Disagree", "3. Neither agree nor disagree", "4. Agree", "5. Strongly agree")
-#' x <- c("1. Strongly disagree", "3. Neither agree nor disagree", "2. Disagree", "4. Agree", "3. Neither agree nor disagree", "5. Strongly agree", "4. Agree")
+#' x_levels <- c("1. Strongly disagree", "2. Disagree", "3. Neither agree nor disagree", 
+#'               "4. Agree", "5. Strongly agree")
+#' x <- c("1. Strongly disagree", "3. Neither agree nor disagree", "2. Disagree", 
+#'        "4. Agree", "3. Neither agree nor disagree", "5. Strongly agree", "4. Agree")
 #' x_processed <- orderedCatPreprocess(x, x_levels)
 orderedCatPreprocess <- function(x_input, unique_levels, var_name = NULL) {
     stopifnot((is.null(dim(x_input)) && length(x_input) > 0))
