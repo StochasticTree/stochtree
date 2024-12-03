@@ -7,11 +7,13 @@
 resetRandomEffectsModel(rfx_model, rfx_samples, sample_num, sigma_alpha_init)
 }
 \arguments{
-\item{rfx_samples}{}
+\item{rfx_model}{Object of type \code{RandomEffectsModel}.}
 
-\item{sample_num}{}
+\item{rfx_samples}{Object of type \code{RandomEffectSamples}.}
 
-\item{rfx_tracker}{}
+\item{sample_num}{Index of sample stored in \code{rfx_samples} from which to reset the state of a random effects model. Zero-indexed, so resetting based on the first sample would require setting \code{sample_num = 0}.}
+
+\item{sigma_alpha_init}{Initial value of the "working parameter" scale parameter.}
 }
 \description{
 Reset a \code{RandomEffectsModel} object based on the parameters indexed by \code{sample_num} in a \code{RandomEffectsSamples} object

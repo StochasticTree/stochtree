@@ -16,11 +16,6 @@ reference:
   contents:
   - bcf
   - predict.bcf
-  - saveBCFModelToJsonFile
-  - createBCFModelFromJsonFile
-  - createBCFModelFromJsonString
-  - convertBCFModelToJson
-  - createBCFModelFromJson
 
 - title: Low-level functionality
 
@@ -39,6 +34,7 @@ reference:
   - loadVectorJson
   - loadScalarJson
   - convertBARTModelToJson
+  - convertBARTStateToJson
   - createBARTModelFromCombinedJson
   - createBARTModelFromCombinedJsonString
   - createBARTModelFromJson
@@ -48,7 +44,13 @@ reference:
   - loadRandomEffectSamplesCombinedJsonString
   - saveBARTModelToJsonFile
   - saveBARTModelToJsonString
+  - saveBCFModelToJsonFile
   - saveBCFModelToJsonString
+  - createBCFModelFromJsonFile
+  - createBCFModelFromJsonString
+  - convertBCFModelToJson
+  - createBCFModelFromJson
+  - createBCFModelFromCombinedJsonString
 
 - subtitle: Data
   desc: >
@@ -91,6 +93,9 @@ reference:
   - computeMaxLeafIndex
   - computeForestLeafIndices
   - computeForestLeafVariances
+  - resetActiveForest
+  - resetForestModel
+  - rootResetActiveForest
 
 - subtitle: Random Effects
   desc: >
@@ -107,6 +112,10 @@ reference:
   - getRandomEffectSamples.bcf
   - sample_sigma2_one_iteration
   - sample_tau_one_iteration
+  - resetRandomEffectsModel
+  - resetRandomEffectsTracker
+  - rootResetRandomEffectsModel
+  - rootResetRandomEffectsTracker
 
 - title: Package info
   desc: >

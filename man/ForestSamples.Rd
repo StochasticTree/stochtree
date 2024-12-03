@@ -493,7 +493,7 @@ set to the value / vector provided
 \if{html}{\out{<a id="method-ForestSamples-add_numeric_split_tree"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-add_numeric_split_tree}{}}}
 \subsection{Method \code{add_numeric_split_tree()}}{
-Add a numeric (i.e. X\link{,i} <= c) split to a given tree in the ensemble
+Add a numeric (i.e. \code{X[,i] <= c}) split to a given tree in the ensemble
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$add_numeric_split_tree(
   forest_num,

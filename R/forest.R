@@ -256,7 +256,7 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
-        #' Add a numeric (i.e. X[,i] <= c) split to a given tree in the ensemble
+        #' Add a numeric (i.e. `X[,i] <= c`) split to a given tree in the ensemble
         #' @param forest_num Index of the forest which contains the tree to be split
         #' @param tree_num Index of the tree to be split
         #' @param leaf_num Leaf to be split
@@ -695,7 +695,7 @@ Forest <- R6::R6Class(
         }, 
         
         #' @description
-        #' Add a numeric (i.e. X[,i] <= c) split to a given tree in the ensemble
+        #' Add a numeric (i.e. `X[,i] <= c`) split to a given tree in the ensemble
         #' @param tree_num Index of the tree to be split
         #' @param leaf_num Leaf to be split
         #' @param feature_num Feature that defines the new split

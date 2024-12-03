@@ -575,7 +575,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 }
                 if (has_rfx) {
                     resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
-                    resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples, forest_ind)
+                    resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
                 }
                 if (sample_sigma_global) current_sigma2 <- global_var_samples[forest_ind + 1]
             } else if (has_prev_model) {

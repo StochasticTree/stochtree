@@ -9,20 +9,19 @@ resetRandomEffectsTracker(
   rfx_model,
   rfx_dataset,
   residual,
-  rfx_samples,
-  sample_num
+  rfx_samples
 )
 }
 \arguments{
-\item{rfx_tracker}{}
+\item{rfx_tracker}{Object of type \code{RandomEffectsTracker}.}
 
-\item{rfx_dataset}{}
+\item{rfx_model}{Object of type \code{RandomEffectsModel}.}
 
-\item{residual}{}
+\item{rfx_dataset}{Object of type \code{RandomEffectsDataset}.}
 
-\item{rfx_samples}{}
+\item{residual}{Object of type \code{Outcome}.}
 
-\item{sample_num}{}
+\item{rfx_samples}{Object of type \code{RandomEffectSamples}.}
 }
 \description{
 Reset a \code{RandomEffectsTracker} object based on the parameters indexed by \code{sample_num} in a \code{RandomEffectsSamples} object

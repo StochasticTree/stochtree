@@ -2,7 +2,7 @@
 title: "Running Multiple Chains (Sequentially or in Parallel) in StochTree"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Prototype-Interface}
+  %\VignetteIndexEntry{Multiple-Chains}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 bibliography: vignettes.bib

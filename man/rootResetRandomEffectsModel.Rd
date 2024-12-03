@@ -15,7 +15,19 @@ rootResetRandomEffectsModel(
 )
 }
 \arguments{
-\item{xi_init}{}
+\item{rfx_model}{Object of type \code{RandomEffectsModel}.}
+
+\item{alpha_init}{Initial value of the "working parameter".}
+
+\item{xi_init}{Initial value of the "group parameters".}
+
+\item{sigma_alpha_init}{Initial value of the "working parameter" scale parameter.}
+
+\item{sigma_xi_init}{Initial value of the "group parameters" scale parameter.}
+
+\item{sigma_xi_shape}{Shape parameter for the inverse gamma variance model on the group parameters.}
+
+\item{sigma_xi_scale}{Scale parameter for the inverse gamma variance model on the group parameters.}
 }
 \description{
 Reset a \code{RandomEffectsModel} object to its "default" state

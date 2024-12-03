@@ -2,7 +2,7 @@
 title: "Custom Sampling Routines in StochTree"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Prototype-Interface}
+  %\VignetteIndexEntry{Custom-Sampling-Routine}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 bibliography: vignettes.bib

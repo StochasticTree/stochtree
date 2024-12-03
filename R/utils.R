@@ -80,7 +80,6 @@ preprocessBcfParams <- function(params) {
 #' types. Matrices will be passed through assuming all columns are numeric.
 #'
 #' @param input_data Covariates, provided as either a dataframe or a matrix
-#' @param variable_weights Numeric weights reflecting the relative probability of splitting on each variable
 #'
 #' @return List with preprocessed (unmodified) data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
@@ -736,8 +735,10 @@ orderedCatInitializeAndPreprocess <- function(x_input) {
 #' @export
 #'
 #' @examples
-#' x_levels <- c("1. Strongly disagree", "2. Disagree", "3. Neither agree nor disagree", "4. Agree", "5. Strongly agree")
-#' x <- c("1. Strongly disagree", "3. Neither agree nor disagree", "2. Disagree", "4. Agree", "3. Neither agree nor disagree", "5. Strongly agree", "4. Agree")
+#' x_levels <- c("1. Strongly disagree", "2. Disagree", "3. Neither agree nor disagree", 
+#'               "4. Agree", "5. Strongly agree")
+#' x <- c("1. Strongly disagree", "3. Neither agree nor disagree", "2. Disagree", 
+#'        "4. Agree", "3. Neither agree nor disagree", "5. Strongly agree", "4. Agree")
 #' x_processed <- orderedCatPreprocess(x, x_levels)
 orderedCatPreprocess <- function(x_input, unique_levels, var_name = NULL) {
     stopifnot((is.null(dim(x_input)) && length(x_input) > 0))

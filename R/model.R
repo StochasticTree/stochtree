@@ -153,6 +153,7 @@ createRNG <- function(random_seed = -1){
 #' @param alpha Root node split probability in tree prior
 #' @param beta Depth prior penalty in tree prior
 #' @param min_samples_leaf Minimum number of samples in a tree leaf
+#' @param max_depth Maximum depth of any tree in the ensemble in the mean model. Setting to ``-1`` does not enforce any depth limits on trees.
 #'
 #' @return `ForestModel` object
 #' @export

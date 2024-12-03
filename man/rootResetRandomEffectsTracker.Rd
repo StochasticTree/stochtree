@@ -7,11 +7,13 @@
 rootResetRandomEffectsTracker(rfx_tracker, rfx_model, rfx_dataset, residual)
 }
 \arguments{
-\item{rfx_tracker}{}
+\item{rfx_tracker}{Object of type \code{RandomEffectsTracker}.}
 
-\item{rfx_dataset}{}
+\item{rfx_model}{Object of type \code{RandomEffectsModel}.}
 
-\item{residual}{}
+\item{rfx_dataset}{Object of type \code{RandomEffectsDataset}.}
+
+\item{residual}{Object of type \code{Outcome}.}
 }
 \description{
 Reset a \code{RandomEffectsTracker} object to its "default" state

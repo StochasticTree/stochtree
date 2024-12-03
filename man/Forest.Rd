@@ -245,7 +245,7 @@ Return exponentiation status of trees in a \code{Forest} object
 \if{html}{\out{<a id="method-Forest-add_numeric_split_tree"></a>}}
 \if{latex}{\out{\hypertarget{method-Forest-add_numeric_split_tree}{}}}
 \subsection{Method \code{add_numeric_split_tree()}}{
-Add a numeric (i.e. X\link{,i} <= c) split to a given tree in the ensemble
+Add a numeric (i.e. \code{X[,i] <= c}) split to a given tree in the ensemble
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{Forest$add_numeric_split_tree(
   tree_num,

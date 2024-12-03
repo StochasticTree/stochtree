@@ -68,13 +68,14 @@ rfx_basis_test <- rfx_basis[test_inds,]
 rfx_basis_train <- rfx_basis[train_inds,]
 rfx_term_test <- rfx_term[test_inds]
 rfx_term_train <- rfx_term[train_inds]
+bcf_params <- list(sample_sigma_leaf_mu = TRUE, sample_sigma_leaf_tau = FALSE)
 bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
                  pi_train = pi_train, group_ids_train = group_ids_train, 
                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
                  rfx_basis_test = rfx_basis_test, 
                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
-                 sample_sigma_leaf_mu = TRUE, sample_sigma_leaf_tau = FALSE)
+                 params = bcf_params)
 # saveBCFModelToJsonFile(bcf_model, "test.json")
 # bcf_model_roundtrip <- createBCFModelFromJsonFile("test.json")
 }

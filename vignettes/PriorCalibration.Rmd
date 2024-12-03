@@ -2,7 +2,7 @@
 title: "Prior Calibration Approaches for Parametric Components of Stochastic Tree Ensembles"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Ensemble-Kernel}
+  %\VignetteIndexEntry{Prior-Calibration}
   %\VignetteEncoding{UTF-8}
   %\VignetteEngine{knitr::rmarkdown}
 bibliography: vignettes.bib
