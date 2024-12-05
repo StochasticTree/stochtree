@@ -706,7 +706,7 @@ class BARTModel:
         # Add parameter samples
         if self.sample_sigma_global:
             bart_json.add_numeric_vector("sigma2_global_samples", self.global_var_samples, "parameters")
-        if self.sample_sigma_global:
+        if self.sample_sigma_leaf:
             bart_json.add_numeric_vector("sigma2_leaf_samples", self.leaf_scale_samples, "parameters")
         
         return bart_json.return_json_string()
@@ -758,7 +758,7 @@ class BARTModel:
         # Unpack parameter samples
         if self.sample_sigma_global:
             self.global_var_samples = bart_json.get_numeric_vector("sigma2_global_samples", "parameters")
-        if self.sample_sigma_global:
+        if self.sample_sigma_leaf:
             self.leaf_scale_samples = bart_json.get_numeric_vector("sigma2_leaf_samples", "parameters")
         
         # Mark the deserialized model as "sampled"
