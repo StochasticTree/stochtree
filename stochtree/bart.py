@@ -269,7 +269,6 @@ class BARTModel:
         self.num_gfr = num_gfr
         self.num_burnin = num_burnin
         self.num_mcmc = num_mcmc
-        num_actual_mcmc_iter = num_mcmc * keep_every * num_chains
         num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
         num_retained_samples = num_mcmc * num_chains
         # Delete GFR samples from these containers after the fact if desired
@@ -466,6 +465,7 @@ class BARTModel:
                 self.global_var_samples = self.global_var_samples[num_gfr:]
             if self.sample_sigma_leaf:
                 self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
+            self.num_samples -= num_gfr
 
         # Store predictions
         if self.sample_sigma_global:
@@ -485,7 +485,7 @@ class BARTModel:
             sigma_x_train_raw = self.forest_container_variance.forest_container_cpp.Predict(forest_dataset_train.dataset_cpp)
             if self.sample_sigma_global:
                 self.sigma_x_train = sigma_x_train_raw
-                for i in range(num_retained_samples):
+                for i in range(self.num_samples):
                     self.sigma_x_train[:,i] = np.sqrt(sigma_x_train_raw[:,i]*self.global_var_samples[i])
             else:
                 self.sigma_x_train = np.sqrt(sigma_x_train_raw*self.sigma2_init)*self.y_std/np.sqrt(self.variance_scale)
@@ -493,7 +493,7 @@ class BARTModel:
                 sigma_x_test_raw = self.forest_container_variance.forest_container_cpp.Predict(forest_dataset_test.dataset_cpp)
                 if self.sample_sigma_global:
                     self.sigma_x_test = sigma_x_test_raw
-                    for i in range(num_retained_samples):
+                    for i in range(self.num_samples):
                         self.sigma_x_test[:,i] = np.sqrt(sigma_x_test_raw[:,i]*self.global_var_samples[i])
                 else:
                     self.sigma_x_test = np.sqrt(sigma_x_test_raw*self.sigma2_init)*self.y_std/np.sqrt(self.variance_scale)
