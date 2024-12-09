@@ -10,6 +10,7 @@ from .data import Dataset, Residual
 from .forest import ForestContainer, Forest
 from .preprocessing import CovariateTransformer, _preprocess_bcf_params
 from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
+from .serialization import JSONSerializer
 from .utils import NotSampledError
 
 class BCFModel:
@@ -1012,3 +1013,111 @@ class BCFModel:
         
         # Return result matrices as a tuple
         return (tau_x, mu_x, yhat_x)
+
+    def to_json(self) -> str:
+        """
+        Converts a sampled BART model to JSON string representation (which can then be saved to a file or 
+        processed using the ``json`` library)
+
+        Returns
+        -------
+        :obj:`str`
+            JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
+        """
+        if not self.is_sampled:
+            msg = (
+                "This BARTModel instance has not yet been sampled. "
+                "Call 'fit' with appropriate arguments before using this model."
+            )
+            raise NotSampledError(msg)
+        
+        # Initialize JSONSerializer object
+        bcf_json = JSONSerializer()
+        
+        # Add the forests
+        bcf_json.add_forest(self.forest_container_mu)
+        bcf_json.add_forest(self.forest_container_tau)
+        if self.include_variance_forest:
+            bcf_json.add_forest(self.forest_container_variance)
+        
+        # Add global parameters
+        bcf_json.add_scalar("variance_scale", self.variance_scale)
+        bcf_json.add_scalar("outcome_scale", self.y_std)
+        bcf_json.add_scalar("outcome_mean", self.y_bar)
+        bcf_json.add_boolean("standardize", self.standardize)
+        bcf_json.add_scalar("sigma2_init", self.sigma2_init)
+        bcf_json.add_boolean("sample_sigma_global", self.sample_sigma_global)
+        bcf_json.add_boolean("sample_sigma_leaf_mu", self.sample_sigma_leaf_mu)
+        bcf_json.add_boolean("sample_sigma_leaf_tau", self.sample_sigma_leaf_tau)
+        bcf_json.add_boolean("include_variance_forest", self.include_variance_forest)
+        bcf_json.add_scalar("num_gfr", self.num_gfr)
+        bcf_json.add_scalar("num_burnin", self.num_burnin)
+        bcf_json.add_scalar("num_mcmc", self.num_mcmc)
+        bcf_json.add_scalar("num_samples", self.num_samples)
+        bcf_json.add_scalar("adaptive_coding", self.adaptive_coding)
+        
+        # Add parameter samples
+        if self.sample_sigma_global:
+            bcf_json.add_numeric_vector("sigma2_global_samples", self.global_var_samples, "parameters")
+        if self.sample_sigma_leaf_mu:
+            bcf_json.add_numeric_vector("sigma2_leaf_mu_samples", self.leaf_scale_mu_samples, "parameters")
+        if self.sample_sigma_leaf_tau:
+            bcf_json.add_numeric_vector("sigma2_leaf_tau_samples", self.leaf_scale_tau_samples, "parameters")
+        if self.adaptive_coding:
+            bcf_json.add_numeric_vector("b0_samples", self.b0_samples, "parameters")
+            bcf_json.add_numeric_vector("b1_samples", self.b1_samples, "parameters")
+        
+        return bcf_json.return_json_string()
+
+    def from_json(self, json_string: str) -> None:
+        """
+        Converts a JSON string to an in-memory BART model.
+
+        Parameters
+        ----------
+        json_string : :obj:`str`
+            JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
+        """
+        # Parse string to a JSON object in C++
+        bart_json = JSONSerializer()
+        bart_json.load_from_json_string(json_string)
+        
+        # Unpack forests
+        self.include_variance_forest = bart_json.get_boolean("include_variance_forest")
+        # TODO: don't just make this a placeholder that we overwrite
+        self.forest_container_mu = ForestContainer(0, 0, False, False)
+        self.forest_container_mu.forest_container_cpp.LoadFromJson(bart_json.json_cpp, "forest_0")
+        # TODO: don't just make this a placeholder that we overwrite
+        self.forest_container_tau = ForestContainer(0, 0, False, False)
+        self.forest_container_tau.forest_container_cpp.LoadFromJson(bart_json.json_cpp, "forest_1")
+        if self.include_variance_forest:
+            # TODO: don't just make this a placeholder that we overwrite
+            self.forest_container_variance = ForestContainer(0, 0, False, False)
+            self.forest_container_variance.forest_container_cpp.LoadFromJson(bart_json.json_cpp, "forest_2")
+        
+        # Unpack global parameters
+        self.variance_scale = bart_json.get_scalar("variance_scale")
+        self.y_std = bart_json.get_scalar("outcome_scale")
+        self.y_bar = bart_json.get_scalar("outcome_mean")
+        self.standardize = bart_json.get_boolean("standardize")
+        self.sigma2_init = bart_json.get_scalar("sigma2_init")
+        self.sample_sigma_global = bart_json.get_boolean("sample_sigma_global")
+        self.sample_sigma_leaf_mu = bart_json.get_boolean("sample_sigma_leaf_mu")
+        self.sample_sigma_leaf_tau = bart_json.get_boolean("sample_sigma_leaf_tau")
+        self.num_gfr = bart_json.get_scalar("num_gfr")
+        self.num_burnin = bart_json.get_scalar("num_burnin")
+        self.num_mcmc = bart_json.get_scalar("num_mcmc")
+        self.num_samples = bart_json.get_scalar("num_samples")
+        self.adaptive_coding = bart_json.get_scalar("adaptive_coding")
+
+        # Unpack parameter samples
+        if self.sample_sigma_global:
+            self.global_var_samples = bart_json.get_numeric_vector("sigma2_global_samples", "parameters")
+        if self.sample_sigma_leaf_mu:
+            self.leaf_scale_mu_samples = bart_json.get_numeric_vector("sigma2_leaf_mu_samples", "parameters")
+        if self.sample_sigma_leaf_tau:
+            self.leaf_scale_tau_samples = bart_json.get_numeric_vector("sigma2_leaf_tau_samples", "parameters")
+        
+        # Mark the deserialized model as "sampled"
+        self.sampled = True
+
