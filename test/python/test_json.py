@@ -239,7 +239,6 @@ class TestJson:
         bcf_reloaded = BCFModel()
         bcf_reloaded.from_json(bcf_json_string)
         mu_hat_reloaded, tau_hat_reloaded, y_hat_reloaded = bcf_reloaded.predict(X, Z, pi_X)
-        # print(y_hat_reloaded)
         np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)
         np.testing.assert_almost_equal(tau_hat_orig, tau_hat_reloaded)
         np.testing.assert_almost_equal(mu_hat_orig, mu_hat_reloaded)
