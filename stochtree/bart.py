@@ -505,7 +505,7 @@ class BARTModel:
         ----------
         covariates : :obj:`np.array`
             Test set covariates.
-        basis_train : :obj:`np.array`, optional
+        basis : :obj:`np.array`, optional
             Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
         
         Returns
@@ -562,7 +562,7 @@ class BARTModel:
         ----------
         covariates : :obj:`np.array`
             Test set covariates.
-        basis_train : :obj:`np.array`, optional
+        basis : :obj:`np.array`, optional
             Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
         
         Returns
