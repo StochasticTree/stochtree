@@ -1039,7 +1039,13 @@ EXCLUDE                = src/cpp11.cpp \
                          src/R_random_effects.cpp \
                          src/sampler.cpp \
                          src/serialization.cpp \
-                         src/stochtree_types.h
+                         src/stochtree_types.h \
+                         include/stochtree/common.h \
+                         include/stochtree/export.h \
+                         include/stochtree/io.h \
+                         include/stochtree/log.h \
+                         include/stochtree/meta.h \
+                         include/stochtree/random.h
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded
@@ -1075,7 +1081,7 @@ EXCLUDE_PATTERNS       = */test/* \
 # wildcard * is used, a substring. Examples: ANamespace, AClass,
 # ANamespace::AClass, ANamespace::*Test
 
-EXCLUDE_SYMBOLS        =
+EXCLUDE_SYMBOLS        = StochTree::CommonC
 
 # The EXAMPLE_PATH tag can be used to specify one or more files or directories
 # that contain example code fragments that are included (see the \include
@@ -1295,7 +1301,7 @@ GENERATE_HTML          = NO
 # The default directory is: html.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_OUTPUT            = html
+HTML_OUTPUT            = doxygen
 
 # The HTML_FILE_EXTENSION tag can be used to specify the file extension for each
 # generated HTML page (for example: .htm, .php, .asp).
