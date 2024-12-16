@@ -20,12 +20,14 @@
 
 namespace StochTree {
 
+/*!
+ * \brief Container of `TreeEnsemble` forest objects
+ */
 class ForestContainer {
  public:
   ForestContainer(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false);
   ForestContainer(int num_samples, int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false);
   ~ForestContainer() {}
-
   void DeleteSample(int sample_num);
   void AddSample(TreeEnsemble& forest);
   void InitializeRoot(double leaf_value);

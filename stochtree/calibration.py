@@ -12,20 +12,20 @@ def calibrate_global_error_variance(X: np.array, y: np.array, nu: float = 3, q: 
 
     Parameters
     ----------
-    X : :obj:`np.array`
+    X : `np.array`
         Covariates to be used as split candidates for constructing trees.
-    y : :obj:`np.array`
+    y : `np.array`
         Outcome to be used as target for constructing trees.
-    nu : :obj:`float`, optional
+    nu : `float`, optional
         Shape parameter in the ``IG(nu, nu*lamb)`` global error variance model. Defaults to ``3``.
-    q : :obj:`float`, optional
+    q : `float`, optional
         Quantile used to calibrated ``lamb`` as in Sparapani et al (2021). Defaults to ``0.9``.
-    standardize : :obj:`bool`, optional
+    standardize : `bool`, optional
         Whether or not ``y`` should be standardized before calibration. Defaults to ``True``.
     
     Returns
     -------
-    lamb : :obj:`float`
+    lamb : `float`
         Part of scale parameter of global error variance model
     """
     # Convert X and y to expected dimensions

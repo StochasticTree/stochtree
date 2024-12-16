@@ -14,7 +14,47 @@ from .serialization import JSONSerializer
 from .utils import NotSampledError
 
 class BCFModel:
-    """Class that handles sampling, storage, and serialization of causal BART models like BCF, XBCF, and Warm-Start BCF
+    r"""
+    Class that handles sampling, storage, and serialization of stochastic forest models for causal effect estimation. 
+    The class takes its name from Bayesian Causal Forests, an MCMC sampler originally developed in 
+    Hahn, Murray, Carvalho (2020), but supports several sampling algorithms:
+
+    * MCMC: The "classic" sampler defined in Hahn, Murray, Carvalho (2020). In order to run the MCMC sampler, 
+    set `num_gfr = 0` (explained below) and then define a sampler according to several parameters:
+        * `num_burnin`: the number of iterations to run before "retaining" samples for further analysis. These "burned in" samples 
+        are helpful for allowing a sampler to converge before retaining samples.
+        * `num_chains`: the number of independent sequences of MCMC samples to generate (typically referred to in the literature as "chains")
+        * `num_mcmc`: the number of "retained" samples of the posterior distribution
+        * `keep_every`: after a sampler has "burned in", we will run the sampler for `keep_every` * `num_mcmc` iterations, retaining one of each `keep_every` iteration in a chain.
+    * GFR (Grow-From-Root): A fast, greedy approximation of the BART MCMC sampling algorithm introduced in Krantsevich, He, and Hahn (2023). GFR sampler iterations are 
+    governed by the `num_gfr` parameter, and there are two primary ways to use this sampler:
+        * Standalone: setting `num_gfr > 0` and both `num_burnin = 0` and `num_mcmc = 0` will only run and retain GFR samples of the posterior. This is typically referred to as "XBART" (accelerated BART).
+        * Initializer for MCMC: setting `num_gfr > 0` and `num_mcmc > 0` will use ensembles from the GFR algorithm to initialize `num_chains` independent MCMC BART samplers, which are run for `num_mcmc` iterations. 
+        This is typically referred to as "warm start BART".
+    
+    In addition to enabling multiple samplers, we support a broad set of models. First, note that the original BCF model of Hahn, Murray, Carvalho (2020) is
+
+    \begin{equation*}
+    \begin{aligned}
+    y &= \mu(X) + b_z(X) + \epsilon\\
+    b_z(X) &= (b_1 Z + b_0 (1-Z)) \tau(X)\\
+    b_0, b_1 &\sim N(0, \frac{1}{2})\\\\
+    \mu(X) &\sim \text{BART}(\cdot)\\
+    \tau(X) &\sim \text{BART}(\cdot)\\
+    \epsilon &\sim N(0, \sigma^2)\\
+    \sigma^2 &\sim IG(\nu, \nu\lambda)
+    \end{aligned}
+    \end{equation*}
+
+    for continuous outcome $y$, binary treatment $Z$, and covariates $X$.
+
+    In words, there are two nonparametric mean functions -- a "prognostic" function and a treatment effect function -- governed by tree ensembles with BART priors and an additive (mean-zero) Gaussian error 
+    term, whose variance is parameterized with an inverse gamma prior.
+
+    The `BCFModel` class supports the following extensions of this model:
+    
+    - Continuous Treatment: If $Z$ is continuous rather than binary, we define $b_z(X) & = \tau(X, Z) = Z \tau(X)$, where the "leaf model" for the $\tau$ forest is essentially a regression on continuous $Z$.
+    - Heteroskedasticity: Rather than define $\epsilon$ parameterically, we can let a forest $\sigma^2(X)$ model a conditional error variance function. This can be done by setting `num_trees_variance > 0` in the `params` dictionary passed to the `sample` method.
     """
 
     def __init__(self) -> None:
@@ -33,28 +73,28 @@ class BCFModel:
 
         Parameters
         ----------
-        X_train : :obj:`np.array` or :obj:`pd.DataFrame`
+        X_train : `np.array` or `pd.DataFrame`
             Covariates used to split trees in the ensemble. Can be passed as either a matrix or dataframe.
-        Z_train : :obj:`np.array`
+        Z_train : `np.array`
             Array of (continuous or binary; univariate or multivariate) treatment assignments.
-        y_train : :obj:`np.array`
+        y_train : `np.array`
             Outcome to be modeled by the ensemble.
-        pi_train : :obj:`np.array`
+        pi_train : `np.array`
             Optional vector of propensity scores. If not provided, this will be estimated from the data.
-        X_test : :obj:`np.array`, optional
+        X_test : `np.array`, optional
             Optional test set of covariates used to define "out of sample" evaluation data.
-        Z_test : :obj:`np.array`, optional
+        Z_test : `np.array`, optional
             Optional test set of (continuous or binary) treatment assignments.
             Must be provided if ``X_test`` is provided.
-        pi_test : :obj:`np.array`, optional
+        pi_test : `np.array`, optional
             Optional test set vector of propensity scores. If not provided (but ``X_test`` and ``Z_test`` are), this will be estimated from the data.
-        num_gfr : :obj:`int`, optional
+        num_gfr : `int`, optional
             Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Defaults to ``5``.
-        num_burnin : :obj:`int`, optional
+        num_burnin : `int`, optional
             Number of "burn-in" iterations of the MCMC sampler. Defaults to ``0``. Ignored if ``num_gfr > 0``.
-        num_mcmc : :obj:`int`, optional
+        num_mcmc : `int`, optional
             Number of "retained" iterations of the MCMC sampler. Defaults to ``100``. If this is set to 0, GFR (XBART) samples will be retained.
-        params : :obj:`dict`, optional
+        params : `dict`, optional
             Dictionary of model parameters, each of which has a default value.
 
             * ``cutpoint_grid_size`` (``int``): Maximum number of cutpoints to consider for each feature. Defaults to ``100``.
@@ -1025,7 +1065,7 @@ class BCFModel:
             Test set covariates.
         Z : np.array
             Test set treatment indicators.
-        propensity : :obj:`np.array`, optional
+        propensity : `np.array`, optional
             Optional test set propensities. Must be provided if propensities were provided when the model was sampled.
         
         Returns
@@ -1103,7 +1143,7 @@ class BCFModel:
         
         Returns
         -------
-        tuple of :obj:`np.array`
+        tuple of `np.array`
             Tuple of arrays of predictions corresponding to the variance forest. Each array will contain as many rows as in ``covariates`` and as many columns as retained samples of the algorithm.
         """
         if not self.is_sampled():
@@ -1163,7 +1203,7 @@ class BCFModel:
             Test set covariates.
         Z : np.array
             Test set treatment indicators.
-        propensity : :obj:`np.array`, optional
+        propensity : `np.array`, optional
             Optional test set propensities. Must be provided if propensities were provided when the model was sampled.
         
         Returns
@@ -1254,7 +1294,7 @@ class BCFModel:
 
         Returns
         -------
-        :obj:`str`
+        `str`
             JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
         """
         if not self.is_sampled:
@@ -1309,7 +1349,7 @@ class BCFModel:
 
         Parameters
         ----------
-        json_string : :obj:`str`
+        json_string : `str`
             JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
         """
         # Parse string to a JSON object in C++

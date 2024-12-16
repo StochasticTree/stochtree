@@ -24,8 +24,18 @@ using json = nlohmann::json;
 
 namespace StochTree {
 
+/*! \brief Class storing a "forest," or an ensemble of decision trees.
+ */
 class TreeEnsemble {
  public:
+  /*!
+   * \brief Initialize a new TreeEnsemble
+   * 
+   * \param num_trees Number of trees in a forest
+   * \param output_dimension Dimension of the leaf node parameter
+   * \param is_leaf_constant Whether or not the leaves of each tree are treated as "constant." If true, then predicting from an ensemble is simply a matter or determining which leaf node an observation falls into. If false, prediction will multiply a leaf node's parameter(s) for a given observation by a basis vector.
+   * \param is_exponentiated Whether or not the leaves of each tree are stored in log scale. If true, leaf predictions are exponentiated before their prediction is returned.
+   */
   TreeEnsemble(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
     // Initialize trees in the ensemble
     trees_ = std::vector<std::unique_ptr<Tree>>(num_trees);
@@ -39,6 +49,12 @@ class TreeEnsemble {
     is_leaf_constant_ = is_leaf_constant;
     is_exponentiated_ = is_exponentiated;
   }
+  
+  /*!
+   * \brief Initialize an ensemble based on the state of an existing ensemble
+   * 
+   * \param ensemble `TreeEnsemble` used to initialize the current ensemble
+   */
   TreeEnsemble(TreeEnsemble& ensemble) {
     // Unpack ensemble configurations
     num_trees_ = ensemble.num_trees_;
@@ -56,31 +72,64 @@ class TreeEnsemble {
       this->CloneFromExistingTree(j, tree);
     }
   }
+  
   ~TreeEnsemble() {}
 
+  /*!
+   * \brief Return a pointer to a tree in the forest
+   * 
+   * \param i Index (0-based) of a tree to be queried
+   * \return Tree* 
+   */
   inline Tree* GetTree(int i) {
     return trees_[i].get();
   }
 
+  /*!
+   * \brief Reset a `TreeEnsemble` to all single-node "root" trees
+   */
   inline void ResetRoot() {
     for (int i = 0; i < num_trees_; i++) {
       ResetInitTree(i);
     }
   }
 
+  /*!
+   * \brief Reset a single tree in an ensemble
+   * \todo Consider refactoring this and `ResetInitTree`
+   * 
+   * \param i Index (0-based) of the tree to be reset
+   */
   inline void ResetTree(int i) {
     trees_[i].reset(new Tree());
   }
 
+  /*!
+   * \brief Reset a single tree in an ensemble
+   * \todo Consider refactoring this and `ResetTree`
+   * 
+   * \param i Index (0-based) of the tree to be reset
+   */
   inline void ResetInitTree(int i) {
     trees_[i].reset(new Tree());
     trees_[i]->Init(output_dimension_, is_exponentiated_);
   }
 
+  /*!
+   * \brief Clone a single tree in an ensemble from an existing tree, overwriting current tree
+   * 
+   * \param i Index of the tree to be overwritten
+   * \param tree Pointer to tree used to clone tree `i`
+   */
   inline void CloneFromExistingTree(int i, Tree* tree) {
     return trees_[i]->CloneFromTree(tree);
   }
 
+  /*!
+   * \brief Reset an ensemble to clone another ensemble
+   * 
+   * \param ensemble Reference to an existing `TreeEnsemble`
+   */
   inline void ReconstituteFromForest(TreeEnsemble& ensemble) {
     // Delete old tree pointers
     trees_.clear();

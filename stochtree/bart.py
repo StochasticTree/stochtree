@@ -14,7 +14,38 @@ from .serialization import JSONSerializer
 from .utils import NotSampledError
 
 class BARTModel:
-    """Class that handles sampling, storage, and serialization of stochastic forest models like BART, XBART, and Warm-Start BART
+    r"""
+    Class that handles sampling, storage, and serialization of stochastic forest models for supervised learning. 
+    The class takes its name from Bayesian Additive Regression Trees, an MCMC sampler originally developed in 
+    Chipman, George, McCulloch (2010), but supports several sampling algorithms:
+
+    - MCMC: The "classic" sampler defined in Chipman, George, McCulloch (2010). In order to run the MCMC sampler, set `num_gfr = 0` (explained below) and then define a sampler according to several parameters:
+        - `num_burnin`: the number of iterations to run before "retaining" samples for further analysis. These "burned in" samples are helpful for allowing a sampler to converge before retaining samples.
+        - `num_chains`: the number of independent sequences of MCMC samples to generate (typically referred to in the literature as "chains")
+        - `num_mcmc`: the number of "retained" samples of the posterior distribution
+        - `keep_every`: after a sampler has "burned in", we will run the sampler for `keep_every` * `num_mcmc` iterations, retaining one of each `keep_every` iteration in a chain.
+    - GFR (Grow-From-Root): A fast, greedy approximation of the BART MCMC sampling algorithm introduced in He and Hahn (2021). GFR sampler iterations are governed by the `num_gfr` parameter, and there are two primary ways to use this sampler:
+        - Standalone: setting `num_gfr > 0` and both `num_burnin = 0` and `num_mcmc = 0` will only run and retain GFR samples of the posterior. This is typically referred to as "XBART" (accelerated BART).
+        - Initializer for MCMC: setting `num_gfr > 0` and `num_mcmc > 0` will use ensembles from the GFR algorithm to initialize `num_chains` independent MCMC BART samplers, which are run for `num_mcmc` iterations. This is typically referred to as "warm start BART".
+    
+    In addition to enabling multiple samplers, we support a broad set of models. First, note that the original BART model of Chipman, George, McCulloch (2010) is
+
+    \begin{equation*}
+    \begin{aligned}
+    y &= f(X) + \epsilon\\
+    f(X) &\sim \text{BART}(\cdot)\\
+    \epsilon &\sim N(0, \sigma^2)\\
+    \sigma^2 &\sim IG(\nu, \nu\lambda)
+    \end{aligned}
+    \end{equation*}
+
+    In words, there is a nonparametric mean function governed by a tree ensemble with a BART prior and an additive (mean-zero) Gaussian error 
+    term, whose variance is parameterized with an inverse gamma prior.
+
+    The `BARTModel` class supports the following extensions of this model:
+    
+    - Leaf Regression: Rather than letting `f(X)` define a standard decision tree ensemble, in which each tree uses `X` to partition the data and then serve up constant predictions, we allow for models `f(X,Z)` in which `X` and `Z` together define a partitioned linear model (`X` partitions the data and `Z` serves as the basis for regression models). This model can be run by specifying `basis_train` in the `sample` method.
+    - Heteroskedasticity: Rather than define $\epsilon$ parameterically, we can let a forest $\sigma^2(X)$ model a conditional error variance function. This can be done by setting `num_trees_variance > 0` in the `params` dictionary passed to the `sample` method.
     """
 
     def __init__(self) -> None:
@@ -32,24 +63,24 @@ class BARTModel:
 
         Parameters
         ----------
-        X_train : :obj:`np.array`
+        X_train : `np.array`
             Training set covariates on which trees may be partitioned.
-        y_train : :obj:`np.array`
+        y_train : `np.array`
             Training set outcome.
-        basis_train : :obj:`np.array`, optional
+        basis_train : `np.array`, optional
             Optional training set basis vector used to define a regression to be run in the leaves of each tree.
-        X_test : :obj:`np.array`, optional
+        X_test : `np.array`, optional
             Optional test set covariates.
-        basis_test : :obj:`np.array`, optional
+        basis_test : `np.array`, optional
             Optional test set basis vector used to define a regression to be run in the leaves of each tree. 
             Must be included / omitted consistently (i.e. if basis_train is provided, then basis_test must be provided alongside X_test).
-        num_gfr : :obj:`int`, optional
+        num_gfr : `int`, optional
             Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Defaults to ``5``.
-        num_burnin : :obj:`int`, optional
+        num_burnin : `int`, optional
             Number of "burn-in" iterations of the MCMC sampler. Defaults to ``0``. Ignored if ``num_gfr > 0``.
-        num_mcmc : :obj:`int`, optional
+        num_mcmc : `int`, optional
             Number of "retained" iterations of the MCMC sampler. Defaults to ``100``. If this is set to 0, GFR (XBART) samples will be retained.
-        params : :obj:`dict`, optional
+        params : `dict`, optional
             Dictionary of model parameters, each of which has a default value.
 
             * ``cutpoint_grid_size`` (``int``): Maximum number of cutpoints to consider for each feature. Defaults to ``100``.
@@ -82,6 +113,7 @@ class BARTModel:
             * ``random_seed`` (``int``): Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to ``std::random_device``.
             * ``keep_burnin`` (``bool``): Whether or not "burnin" samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
             * ``keep_gfr`` (``bool``): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
+            * ``num_chains`` (``int``): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`.
             * ``keep_every`` (``int``): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to ``1``. Setting ``keep_every = k`` for some ``k > 1`` will "thin" the MCMC samples by retaining every ``k``-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 
         Returns
@@ -503,14 +535,14 @@ class BARTModel:
 
         Parameters
         ----------
-        covariates : :obj:`np.array`
+        covariates : `np.array`
             Test set covariates.
-        basis : :obj:`np.array`, optional
+        basis : `np.array`, optional
             Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
         
         Returns
         -------
-        tuple of :obj:`np.array`
+        tuple of `np.array`
             Tuple of arrays of predictions corresponding to each forest (mean and variance, depending on whether either / both was included). Each array will contain as many rows as in ``covariates`` and as many columns as retained samples of the algorithm.
         """
         if not self.is_sampled():
@@ -560,14 +592,14 @@ class BARTModel:
 
         Parameters
         ----------
-        covariates : :obj:`np.array`
+        covariates : `np.array`
             Test set covariates.
-        basis : :obj:`np.array`, optional
+        basis : `np.array`, optional
             Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
         
         Returns
         -------
-        tuple of :obj:`np.array`
+        tuple of `np.array`
             Tuple of arrays of predictions corresponding to each forest (mean and variance, depending on whether either / both was included). Each array will contain as many rows as in ``covariates`` and as many columns as retained samples of the algorithm.
         """
         if not self.is_sampled():
@@ -615,7 +647,7 @@ class BARTModel:
         
         Returns
         -------
-        tuple of :obj:`np.array`
+        tuple of `np.array`
             Tuple of arrays of predictions corresponding to the variance forest. Each array will contain as many rows as in ``covariates`` and as many columns as retained samples of the algorithm.
         """
         if not self.is_sampled():
@@ -655,7 +687,7 @@ class BARTModel:
 
         Returns
         -------
-        :obj:`str`
+        `str`
             JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
         """
         if not self.is_sampled:
@@ -705,7 +737,7 @@ class BARTModel:
 
         Parameters
         ----------
-        json_string : :obj:`str`
+        json_string : `str`
             JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
         """
         # Parse string to a JSON object in C++
