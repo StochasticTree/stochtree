@@ -1,6 +1,3 @@
-"""
-Python classes wrapping C++ data objects
-"""
 import numpy as np
 from stochtree_cpp import ForestDatasetCpp, ResidualCpp
 

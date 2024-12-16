@@ -364,7 +364,7 @@ class CovariateTransformer:
 
         Parameters
         ----------
-        covariates : :obj:`np.array` or :obj:`pd.DataFrame`
+        covariates : `np.array` or `pd.DataFrame`
             Covariates to be preprocessed.
         
         Returns

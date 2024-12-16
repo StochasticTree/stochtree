@@ -24,13 +24,13 @@ class ForestSampler:
 
         Parameters
         ----------
-        dataset : :obj:`Dataset`
+        dataset : `Dataset`
             Stochtree dataset object storing covariates / bases / weights
-        residual : :obj:`Residual`
+        residual : `Residual`
             Stochtree object storing continuously updated partial / full residual
-        forest : :obj:`Forest`
+        forest : `Forest`
             Stochtree object storing tree ensemble
-        is_mean_model : :obj:`bool`
+        is_mean_model : `bool`
             Indicator of whether the model being updated a conditional mean model (``True``) or a conditional variance model (``False``)
         """
         self.forest_sampler_cpp.ReconstituteTrackerFromForest(forest.forest_cpp, dataset.dataset_cpp, residual.residual_cpp, is_mean_model)
@@ -44,37 +44,37 @@ class ForestSampler:
 
         Parameters
         ----------
-        forest_container : :obj:`ForestContainer`
+        forest_container : `ForestContainer`
             Stochtree object storing tree ensembles
-        forest : :obj:`Forest`
+        forest : `Forest`
             Stochtree object storing the "active" forest being sampled
-        dataset : :obj:`Dataset`
+        dataset : `Dataset`
             Stochtree dataset object storing covariates / bases / weights
-        residual : :obj:`Residual`
+        residual : `Residual`
             Stochtree object storing continuously updated partial / full residual
-        rng : :obj:`RNG`
+        rng : `RNG`
             Stochtree object storing C++ random number generator to be used sampling algorithm
-        feature_types : :obj:`np.array`
+        feature_types : `np.array`
             Array of integer-coded feature types (0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
-        cutpoint_grid_size : :obj:`int`
+        cutpoint_grid_size : `int`
             Maximum size of a grid of available cutpoints (which thins the number of possible splits, particularly useful in the grow-from-root algorithm)
-        leaf_model_scale_input : :obj:`np.array`
+        leaf_model_scale_input : `np.array`
             Numpy array containing leaf model scale parameter (if the leaf model is univariate, this is essentially a scalar which is used as such in the C++ source, but stored as a numpy array)
-        variable_weights : :obj:`np.array`
+        variable_weights : `np.array`
             Numpy array containing sampling probabilities for each feature
-        a_forest : :obj:`float`
+        a_forest : `float`
             Scale parameter for the inverse gamma outcome model for heteroskedasticity forest
-        b_forest : :obj:`float`
+        b_forest : `float`
             Scale parameter for the inverse gamma outcome model for heteroskedasticity forest
-        global_variance : :obj:`float`
+        global_variance : `float`
             Current value of the global error variance parameter
-        leaf_model_int : :obj:`int`
+        leaf_model_int : `int`
             Integer encoding the leaf model type (0 = constant Gaussian leaf mean model, 1 = univariate Gaussian leaf regression mean model, 2 = multivariate Gaussian leaf regression mean model, 3 = univariate Inverse Gamma constant leaf variance model)
-        keep_forest : :obj:`bool`
+        keep_forest : `bool`
             Whether or not the resulting forest should be retained in ``forest_container`` or discarded (due to burnin or thinning for example)
-        gfr : :obj:`bool`
+        gfr : `bool`
             Whether or not the "grow-from-root" (GFR) sampler is run (if this is ``True`` and ``leaf_model_int=0`` this is equivalent to XBART, if this is ``FALSE`` and ``leaf_model_int=0`` this is equivalent to the original BART)
-        pre_initialized : :obj:`bool`
+        pre_initialized : `bool`
             Whether or not the forest being sampled has already been initialized
         """
         self.forest_sampler_cpp.SampleOneIteration(forest_container.forest_container_cpp, forest.forest_cpp, dataset.dataset_cpp, residual.residual_cpp, rng.rng_cpp, 
@@ -87,15 +87,15 @@ class ForestSampler:
 
         Parameters
         ----------
-        dataset : :obj:`Dataset`
+        dataset : `Dataset`
             Stochtree dataset object storing covariates / bases / weights
-        residual : :obj:`Residual`
+        residual : `Residual`
             Stochtree object storing continuously updated partial / full residual
-        forest : :obj:`Forest`
+        forest : `Forest`
             Stochtree object storing the "active" forest being sampled
-        leaf_model : :obj:`int`
+        leaf_model : `int`
             Integer encoding the leaf model type
-        initial_values : :obj:`np.array`
+        initial_values : `np.array`
             Constant root node value(s) at which to initialize forest prediction (internally, it is divided by the number of trees and typically it is 0 for mean models and 1 for variance models).
         """
         self.forest_sampler_cpp.InitializeForestModel(dataset.dataset_cpp, residual.residual_cpp, forest.forest_cpp, leaf_model, initial_values)
@@ -109,15 +109,15 @@ class ForestSampler:
 
         Parameters
         ----------
-        dataset : :obj:`Dataset`
+        dataset : `Dataset`
             Stochtree dataset object storing covariates / bases / weights
-        residual : :obj:`Residual`
+        residual : `Residual`
             Stochtree object storing continuously updated partial / full residual
-        forest : :obj:`Forest`
+        forest : `Forest`
             Stochtree object storing the "active" forest being sampled
-        requires_basis : :obj:`bool`
+        requires_basis : `bool`
             Whether or not the forest requires a basis dot product when predicting
-        add : :obj:`bool`
+        add : `bool`
             Whether the predictions of each tree are added (if ``add=True``) or subtracted (``add=False``) from the outcome to form the new residual
         """
         forest.forest_cpp.AdjustResidual(dataset.dataset_cpp, residual.residual_cpp, self.forest_sampler_cpp, requires_basis, add)
@@ -133,11 +133,11 @@ class ForestSampler:
 
         Parameters
         ----------
-        dataset : :obj:`Dataset`
+        dataset : `Dataset`
             Stochtree dataset object storing covariates / bases / weights
-        residual : :obj:`Residual`
+        residual : `Residual`
             Stochtree object storing continuously updated partial / full residual
-        forest : :obj:`Forest`
+        forest : `Forest`
             Stochtree object storing the "active" forest being sampled
         """
         self.forest_sampler_cpp.PropagateBasisUpdate(dataset.dataset_cpp, residual.residual_cpp, forest.forest_cpp)

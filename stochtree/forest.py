@@ -66,7 +66,7 @@ class ForestContainer:
 
         Parameters
         ----------
-        leaf_value : :obj:`float` or :obj:`np.array`
+        leaf_value : `float` or `np.array`
             Value (or vector of values) to initialize root nodes in tree
         """
         if isinstance(leaf_value, np.ndarray):
@@ -82,19 +82,19 @@ class ForestContainer:
 
         Parameters
         ----------
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest which contains the tree to be split
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be split
-        leaf_num : :obj:`int`
+        leaf_num : `int`
             Leaf to be split
-        feature_num : :obj:`int`
+        feature_num : `int`
             Feature that defines the new split
-        split_threshold : :obj:`float`
+        split_threshold : `float`
             Value that defines the cutoff of the new split
-        left_leaf_value : :obj:`float` or :obj:`np.array`
+        left_leaf_value : `float` or `np.array`
             Value (or array of values) to assign to the newly created left node
-        right_leaf_value : :obj:`float` or :obj:`np.array`
+        right_leaf_value : `float` or `np.array`
             Value (or array of values) to assign to the newly created right node
         """
         if isinstance(left_leaf_value, np.ndarray):
@@ -110,9 +110,9 @@ class ForestContainer:
 
         Parameters
         ----------
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest which contains tree `tree_num`
-        tree_num : :obj:`float` or :obj:`np.array`
+        tree_num : `float` or `np.array`
             Index of the tree for which leaf indices will be retrieved
         """
         return self.forest_container_cpp.GetTreeLeaves(forest_num, tree_num)
@@ -123,11 +123,11 @@ class ForestContainer:
 
         Parameters
         ----------
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest which contains tree `tree_num`
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree for which split counts will be retrieved
-        num_features : :obj:`int`
+        num_features : `int`
             Total number of features in the training set
         """
         return self.forest_container_cpp.GetTreeSplitCounts(forest_num, tree_num, num_features)
@@ -138,14 +138,14 @@ class ForestContainer:
 
         Parameters
         ----------
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest which contains tree `tree_num`
-        num_features : :obj:`int`
+        num_features : `int`
             Total number of features in the training set
 
         Returns
         -------
-        :obj:`np.array`
+        `np.array`
             One-dimensional numpy array, containing the number of splits a variable receives, summed across each tree of a given forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.GetForestSplitCounts(forest_num, num_features)
@@ -156,12 +156,12 @@ class ForestContainer:
 
         Parameters
         ----------
-        num_features : :obj:`int`
+        num_features : `int`
             Total number of features in the training set
 
         Returns
         -------
-        :obj:`np.array`
+        `np.array`
             One-dimensional numpy array, containing the number of splits a variable receives, summed across each tree of every forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.GetOverallSplitCounts(num_features)
@@ -172,12 +172,12 @@ class ForestContainer:
 
         Parameters
         ----------
-        num_features : :obj:`int`
+        num_features : `int`
             Total number of features in the training set
 
         Returns
         -------
-        :obj:`np.array`
+        `np.array`
             Three-dimensional numpy array, containing the number of splits a variable receives in each tree of each forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.GetGranularSplitCounts(num_features)
@@ -188,12 +188,12 @@ class ForestContainer:
 
         Parameters
         ----------
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
 
         Returns
         -------
-        :obj:`int`
+        `int`
             Number of leaves in a given forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.NumLeavesForest(forest_num)
@@ -204,12 +204,12 @@ class ForestContainer:
 
         Parameters
         ----------
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
 
         Returns
         -------
-        :obj:`float`
+        `float`
             Sum of squared leaf values in a given forest in a ``ForestContainer``
         """
         return self.forest_container_cpp.SumLeafSquared(forest_num)
@@ -218,11 +218,11 @@ class ForestContainer:
         """
         Whether or not a given node of a given tree in a given forest in the ``ForestContainer`` is a leaf
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_container_cpp.IsLeafNode(forest_num, tree_num, node_id)
@@ -231,11 +231,11 @@ class ForestContainer:
         """
         Whether or not a given node of a given tree in a given forest in the ``ForestContainer`` is a numeric split node
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_container_cpp.IsNumericSplitNode(forest_num, tree_num, node_id)
@@ -244,11 +244,11 @@ class ForestContainer:
         """
         Whether or not a given node of a given tree in a given forest in the ``ForestContainer`` is a categorical split node
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_container_cpp.IsCategoricalSplitNode(forest_num, tree_num, node_id)
@@ -257,11 +257,11 @@ class ForestContainer:
         """
         Parent node of given node of a given tree in a given forest in the ``ForestContainer``
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_container_cpp.ParentNode(forest_num, tree_num, node_id)
@@ -270,11 +270,11 @@ class ForestContainer:
         """
         Left child node of given node of a given tree in a given forest in the ``ForestContainer``
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_container_cpp.LeftChildNode(forest_num, tree_num, node_id)
@@ -283,11 +283,11 @@ class ForestContainer:
         """
         Right child node of given node of a given tree in a given forest in the ``ForestContainer``
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_container_cpp.RightChildNode(forest_num, tree_num, node_id)
@@ -296,11 +296,11 @@ class ForestContainer:
         """
         Depth of given node of a given tree in a given forest in the ``ForestContainer``.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_container_cpp.NodeDepth(forest_num, tree_num, node_id)
@@ -310,11 +310,11 @@ class ForestContainer:
         Split index of given node of a given tree in a given forest in the ``ForestContainer``.
         Returns ``-1`` if the node is a leaf.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         if self.is_leaf_node(forest_num, tree_num, node_id):
@@ -327,11 +327,11 @@ class ForestContainer:
         Threshold that defines a numeric split for a given node of a given tree in a given forest in the ``ForestContainer``.
         Returns ``np.Inf`` if the node is a leaf or a categorical split node.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         if self.is_leaf_node(forest_num, tree_num, node_id) or self.is_categorical_split_node(forest_num, tree_num, node_id):
@@ -344,11 +344,11 @@ class ForestContainer:
         Array of category indices that define a categorical split for a given node of a given tree in a given forest in the ``ForestContainer``.
         Returns ``np.array([np.Inf])`` if the node is a leaf or a numeric split node.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         if self.is_leaf_node(forest_num, tree_num, node_id) or self.is_numeric_split_node(forest_num, tree_num, node_id):
@@ -361,11 +361,11 @@ class ForestContainer:
         Leaf node value(s) for a given node of a given tree in a given forest in the ``ForestContainer``.
         Values are stale if the node is a split node.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_container_cpp.NodeLeafValues(forest_num, tree_num, node_id)
@@ -374,9 +374,9 @@ class ForestContainer:
         """
         Number of nodes in a given tree in a given forest in the ``ForestContainer``.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_container_cpp.NumNodes(forest_num, tree_num)
@@ -385,9 +385,9 @@ class ForestContainer:
         """
         Number of leaves in a given tree in a given forest in the ``ForestContainer``.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_container_cpp.NumLeaves(forest_num, tree_num)
@@ -396,9 +396,9 @@ class ForestContainer:
         """
         Number of leaf parents (split nodes with two leaves as children) in a given tree in a given forest in the ``ForestContainer``.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_container_cpp.NumLeafParents(forest_num, tree_num)
@@ -407,9 +407,9 @@ class ForestContainer:
         """
         Number of split_nodes in a given tree in a given forest in the ``ForestContainer``.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_container_cpp.NumSplitNodes(forest_num, tree_num)
@@ -418,9 +418,9 @@ class ForestContainer:
         """
         Array of node indices in a given tree in a given forest in the ``ForestContainer``.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_container_cpp.Nodes(forest_num, tree_num)
@@ -429,9 +429,9 @@ class ForestContainer:
         """
         Array of leaf indices in a given tree in a given forest in the ``ForestContainer``.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be queried
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_container_cpp.Leaves(forest_num, tree_num)
@@ -440,7 +440,7 @@ class ForestContainer:
         """
         Modify the ``ForestContainer`` by removing the forest sample indexed by ``forest_num``.
 
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the forest to be removed from the ``ForestContainer``
         """
         return self.forest_container_cpp.DeleteSample(forest_num)
@@ -462,9 +462,9 @@ class Forest:
 
         Parameters
         ----------
-        forest_container : :obj:`ForestContainer`
+        forest_container : `ForestContainer`
             Stochtree object storing tree ensembles
-        forest_num : :obj:`int`
+        forest_num : `int`
             Index of the ensemble used to reset the ``Forest``
         """
         self.forest_cpp.Reset(forest_container.forest_container_cpp, forest_num)
@@ -500,17 +500,17 @@ class Forest:
 
         Parameters
         ----------
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be split
-        leaf_num : :obj:`int`
+        leaf_num : `int`
             Leaf to be split
-        feature_num : :obj:`int`
+        feature_num : `int`
             Feature that defines the new split
-        split_threshold : :obj:`float`
+        split_threshold : `float`
             Value that defines the cutoff of the new split
-        left_leaf_value : :obj:`float` or :obj:`np.array`
+        left_leaf_value : `float` or `np.array`
             Value (or array of values) to assign to the newly created left node
-        right_leaf_value : :obj:`float` or :obj:`np.array`
+        right_leaf_value : `float` or `np.array`
             Value (or array of values) to assign to the newly created right node
         """
         if isinstance(left_leaf_value, np.ndarray):
@@ -526,7 +526,7 @@ class Forest:
 
         Parameters
         ----------
-        tree_num : :obj:`float` or :obj:`np.array`
+        tree_num : `float` or `np.array`
             Index of the tree for which leaf indices will be retrieved
         """
         return self.forest_cpp.GetTreeLeaves(tree_num)
@@ -537,9 +537,9 @@ class Forest:
 
         Parameters
         ----------
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree for which split counts will be retrieved
-        num_features : :obj:`int`
+        num_features : `int`
             Total number of features in the training set
         """
         return self.forest_cpp.GetTreeSplitCounts(tree_num, num_features)
@@ -550,7 +550,7 @@ class Forest:
 
         Parameters
         ----------
-        num_features : :obj:`int`
+        num_features : `int`
             Total number of features in the training set
         """
         return self.forest_cpp.GetOverallSplitCounts(num_features)
@@ -561,7 +561,7 @@ class Forest:
 
         Parameters
         ----------
-        num_features : :obj:`int`
+        num_features : `int`
             Total number of features in the training set
         """
         return self.forest_cpp.GetGranularSplitCounts(num_features)
@@ -572,7 +572,7 @@ class Forest:
 
         Returns
         -------
-        :obj:`int`
+        `int`
             Number of leaves in a forest
         """
         return self.forest_cpp.NumLeavesForest()
@@ -583,7 +583,7 @@ class Forest:
 
         Returns
         -------
-        :obj:`float`
+        `float`
             Sum of squared leaf values in a forest
         """
         return self.forest_cpp.SumLeafSquared()
@@ -592,9 +592,9 @@ class Forest:
         """
         Whether or not a given node of a given tree of a forest is a leaf
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_cpp.IsLeafNode(tree_num, node_id)
@@ -603,9 +603,9 @@ class Forest:
         """
         Whether or not a given node of a given tree of a forest is a numeric split node
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_cpp.IsNumericSplitNode(tree_num, node_id)
@@ -614,9 +614,9 @@ class Forest:
         """
         Whether or not a given node of a given tree of a forest is a categorical split node
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_cpp.IsCategoricalSplitNode(tree_num, node_id)
@@ -625,9 +625,9 @@ class Forest:
         """
         Parent node of given node of a given tree of a forest
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_cpp.ParentNode(tree_num, node_id)
@@ -636,9 +636,9 @@ class Forest:
         """
         Left child node of given node of a given tree of a forest
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_cpp.LeftChildNode(tree_num, node_id)
@@ -647,9 +647,9 @@ class Forest:
         """
         Right child node of given node of a given tree of a forest
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_cpp.RightChildNode(tree_num, node_id)
@@ -659,9 +659,9 @@ class Forest:
         Depth of given node of a given tree of a forest
         Returns ``-1`` if the node is a leaf.
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_cpp.NodeDepth(tree_num, node_id)
@@ -671,9 +671,9 @@ class Forest:
         Split index of given node of a given tree of a forest. 
         Returns ``-1`` if the node is a leaf.
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         if self.is_leaf_node(tree_num, node_id):
@@ -686,9 +686,9 @@ class Forest:
         Threshold that defines a numeric split for a given node of a given tree of a forest. 
         Returns ``np.Inf`` if the node is a leaf or a categorical split node.
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         if self.is_leaf_node(tree_num, node_id) or self.is_categorical_split_node(tree_num, node_id):
@@ -701,9 +701,9 @@ class Forest:
         Array of category indices that define a categorical split for a given node of a given tree of a forest. 
         Returns ``np.array([np.Inf])`` if the node is a leaf or a numeric split node.
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         if self.is_leaf_node(tree_num, node_id) or self.is_numeric_split_node(tree_num, node_id):
@@ -716,9 +716,9 @@ class Forest:
         Leaf node value(s) for a given node of a given tree of a forest. 
         Values are stale if the node is a split node.
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
-        node_id : :obj:`int`
+        node_id : `int`
             Index of the node to be queried
         """
         return self.forest_cpp.NodeLeafValues(tree_num, node_id)
@@ -727,7 +727,7 @@ class Forest:
         """
         Number of nodes in a given tree of a forest
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_cpp.NumNodes(tree_num)
@@ -736,7 +736,7 @@ class Forest:
         """
         Number of leaves in a given tree of a forest
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_cpp.NumLeaves(tree_num)
@@ -745,7 +745,7 @@ class Forest:
         """
         Number of leaf parents in a given tree of a forest
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_cpp.NumLeafParents(tree_num)
@@ -754,7 +754,7 @@ class Forest:
         """
         Number of split_nodes in a given tree of a forest
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_cpp.NumSplitNodes(tree_num)
@@ -763,7 +763,7 @@ class Forest:
         """
         Array of node indices in a given tree of a forest
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_cpp.Nodes(tree_num)
@@ -772,7 +772,7 @@ class Forest:
         """
         Array of leaf indices in a given tree of a forest
 
-        tree_num : :obj:`int`
+        tree_num : `int`
             Index of the tree to be queried
         """
         return self.forest_cpp.Leaves(tree_num)
