@@ -10,7 +10,6 @@ class JSONSerializer:
     """
     Class that handles serialization and deserialization of stochastic forest models
     """
-
     def __init__(self) -> None:
         self.json_cpp = JsonCpp()
         self.num_forests = 0
@@ -22,18 +21,18 @@ class JSONSerializer:
 
         Returns
         -------
-        `str`
+        str
             JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
         """
         return self.json_cpp.DumpJson()
     
     def load_from_json_string(self, json_string: str) -> None:
         """
-        Parse in-memory JSON string to ``JsonCpp`` object
+        Parse in-memory JSON string to `JsonCpp` object
 
         Parameters
         -------
-        json_string : `str`
+        json_string : str
             JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
         """
         self.json_cpp.LoadFromString(json_string)
@@ -43,7 +42,7 @@ class JSONSerializer:
 
         Parameters
         ----------
-        forest_samples : `ForestContainer`
+        forest_samples : ForestContainer
             Samples of a tree ensemble
         """
         forest_label = self.json_cpp.AddForest(forest_samples.forest_container_cpp)
@@ -55,12 +54,12 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the numeric value will be stored
-        field_value : `float`
+        field_value : float
             Numeric value to be stored
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` to be stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
         """
         if subfolder_name is None:
             self.json_cpp.AddDouble(field_name, field_value)
@@ -72,12 +71,12 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the boolean value will be stored
-        field_value : `bool`
+        field_value : bool
             Boolean value to be stored
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` to be stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
         """
         if subfolder_name is None:
             self.json_cpp.AddBool(field_name, field_value)
@@ -89,12 +88,12 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the numeric value will be stored
-        field_value : `str`
+        field_value : str
             String field to be stored
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` to be stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
         """
         if subfolder_name is None:
             self.json_cpp.AddString(field_name, field_value)
@@ -106,12 +105,12 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the numeric vector will be stored
-        field_vector : `np.array`
+        field_vector : np.array
             Numpy array containing the vector to be stored in json. Should be one-dimensional.
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` to be stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
         """
         # Runtime checks
         if not isinstance(field_vector, np.ndarray):
@@ -131,12 +130,12 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the string list will be stored
-        field_vector : `list`
+        field_vector : list
             Python list of strings containing the array to be stored in json
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` to be stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
         """
         # Runtime checks
         if not isinstance(field_vector, list):
@@ -152,10 +151,10 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the numeric value is stored
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` is stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` is stored in the json hierarchy
         """
         if subfolder_name is None:
             return self.json_cpp.ExtractDouble(field_name)
@@ -167,10 +166,10 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the boolean value is stored
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` is stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` is stored in the json hierarchy
         """
         if subfolder_name is None:
             return self.json_cpp.ExtractBool(field_name)
@@ -182,10 +181,10 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the numeric value is stored
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` is stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` is stored in the json hierarchy
         """
         if subfolder_name is None:
             return self.json_cpp.ExtractString(field_name)
@@ -197,10 +196,10 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the numeric vector is stored
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` to be stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
         """
         if subfolder_name is None:
             return self.json_cpp.ExtractDoubleVector(field_name)
@@ -212,10 +211,10 @@ class JSONSerializer:
 
         Parameters
         ----------
-        field_name : `str`
+        field_name : str
             Name of the json field / label under which the string list is stored
-        subfolder_name : `str`, optional
-            Name of "subfolder" under which ``field_name`` to be stored in the json hierarchy
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
         """
         if subfolder_name is None:
             return self.json_cpp.ExtractStringVector(field_name)
@@ -227,12 +226,12 @@ class JSONSerializer:
 
         Parameters
         ----------
-        forest_str : `str`
+        forest_str : str
             String containing the JSON representation of a `ForestContainer`
         
         Returns
         -------
-        `ForestContainer`
+        ForestContainer
             In-memory `ForestContainer` python object, created from JSON string
         """
         # TODO: read this from JSON

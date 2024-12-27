@@ -5,7 +5,6 @@ Copyright (c) 2007-2024 The scikit-learn developers.
 """
 from typing import Union, Optional, Any, Dict
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
-from sklearn.utils.validation import check_array, column_or_1d
 import numpy as np
 import pandas as pd
 import warnings
@@ -122,9 +121,10 @@ def _preprocess_bcf_params(params: Optional[Dict[str, Any]] = None) -> Dict[str,
 
 
 class CovariateTransformer:
-    """Class that transforms covariates to a format that can be used to define tree splits
     """
-
+    Class that transforms covariates to a format that can be used to define tree splits. 
+    Modeled after the [scikit-learn preprocessing classes](https://scikit-learn.org/1.5/modules/preprocessing.html).
+    """
     def __init__(self) -> None:
         self._is_fitted = False
         self._ordinal_encoders = []
@@ -337,50 +337,88 @@ class CovariateTransformer:
         return self._is_fitted
 
     def fit(self, covariates: Union[pd.DataFrame, np.array]) -> None:
-        """Fits a ``CovariateTransformer`` by unpacking (and storing) data type information on the input (raw) covariates
+        r"""Fits a `CovariateTransformer` by unpacking (and storing) data type information on the input (raw) covariates
         and then converting to a numpy array which can be passed to a tree ensemble sampler.
 
-        If ``covariates`` is a ``pd.DataFrame``, `column dtypes <https://pandas.pydata.org/docs/user_guide/basics.html#basics-dtypes>`_ 
+        If `covariates` is a `pd.DataFrame`, [column dtypes](https://pandas.pydata.org/docs/user_guide/basics.html#basics-dtypes) 
         will be handled as follows:
         
-        * ``category``: one-hot encoded if unordered, ordinal encoded if ordered
-        * ``string``: one-hot encoded
-        * ``boolean``: passed through as binary integer, treated as ordered categorical by tree samplers
-        * integer (i.e. ``Int8``, ``Int16``, etc...): passed through as double (**note**: if you have categorical data stored as integers, you should explicitly convert it to categorical in pandas, see this `user guide <https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html>`_)
-        * float (i.e. ``Float32``, ``Float64``): passed through as double
-        * ``object``: currently unsupported, convert object columns to numeric or categorical before passing
-        * Datetime (i.e. ``datetime64``): currently unsupported, though datetime columns can be converted to numeric features, see `here <https://pandas.pydata.org/docs/reference/api/pandas.Timestamp.html#pandas.Timestamp>`_
-        * Period (i.e. ``period[<freq>]``): currently unsupported, though period columns can be converted to numeric features, see `here <https://pandas.pydata.org/docs/reference/api/pandas.Period.html#pandas.Period>`_
-        * Interval (i.e. ``interval``, ``Interval[datetime64[ns]]``): currently unsupported, though interval columns can be converted to numeric or categorical features, see `here <https://pandas.pydata.org/docs/reference/api/pandas.Interval.html#pandas.Interval>`_
-        * Sparse (i.e. ``Sparse``, ``Sparse[float]``): currently unsupported, convert sparse columns to dense before passing
+        * `category`: one-hot encoded if unordered, ordinal encoded if ordered
+        * `string`: one-hot encoded
+        * `boolean`: passed through as binary integer, treated as ordered categorical by tree samplers
+        * integer (i.e. `Int8`, `Int16`, etc...): passed through as double (**note**: if you have categorical data stored as integers, you should explicitly convert it to categorical in pandas, see this [user guide](https://pandas.pydata.org/pandas-docs/stable/user_guide/categorical.html))
+        * float (i.e. `Float32`, `Float64`): passed through as double
+        * `object`: currently unsupported, convert object columns to numeric or categorical before passing
+        * Datetime (i.e. `datetime64`): currently unsupported, though datetime columns can be converted to numeric features, see [here](https://pandas.pydata.org/docs/reference/api/pandas.Timestamp.html#pandas.Timestamp)
+        * Period (i.e. `period[<freq>]`): currently unsupported, though period columns can be converted to numeric features, see [here](https://pandas.pydata.org/docs/reference/api/pandas.Period.html#pandas.Period)
+        * Interval (i.e. `interval`, `Interval[datetime64[ns]]`): currently unsupported, though interval columns can be converted to numeric or categorical features, see [here](https://pandas.pydata.org/docs/reference/api/pandas.Interval.html#pandas.Interval)
+        * Sparse (i.e. `Sparse`, `Sparse[float]`): currently unsupported, convert sparse columns to dense before passing
 
         Columns with unsupported types will be ignored, with a warning.
         
-        If ``covariates`` is a ``np.array``, columns must be numeric and the only preprocessing done by ``CovariateTransformer.fit()`` is to 
+        If `covariates` is a `np.array`, columns must be numeric and the only preprocessing done by `CovariateTransformer.fit()` is to 
         auto-detect binary columns. All other integer-valued columns will be passed through to the tree sampler as (continuous) numeric data. 
         If you would like to treat integer-valued data as categorical, you can either convert your numpy array to a pandas dataframe and 
-        explicitly tag such columns as ordered / unordered categorical, or preprocess manually using ``sklearn.preprocessing.OneHotEncoder`` 
-        and ``sklearn.preprocessing.OrdinalEncoder``.
+        explicitly tag such columns as ordered / unordered categorical, or preprocess manually using `sklearn.preprocessing.OneHotEncoder` 
+        and `sklearn.preprocessing.OrdinalEncoder`.
 
         Parameters
         ----------
-        covariates : `np.array` or `pd.DataFrame`
+        covariates : np.array or pd.DataFrame
             Covariates to be preprocessed.
-        
-        Returns
-        -------
-        self : CovariateTransformer
-            Fitted CovariateTransformer.
         """
         self._fit(covariates)
         return self
 
     def transform(self, covariates: Union[pd.DataFrame, np.array]) -> np.array:
+        r"""Run a fitted a `CovariateTransformer` on a new covariate set, 
+        returning a numpy array of covariates preprocessed into a format needed 
+        to sample or predict from a `stochtree` ensemble.
+
+        Parameters
+        ----------
+        covariates : np.array or pd.DataFrame
+            Covariates to be preprocessed.
+        
+        Returns
+        -------
+        np.array
+            Numpy array of preprocessed covariates, with as many rows as in `covariates` 
+            and as many columns as were created during pre-processing (including one-hot encoding 
+            categorical features).
+        """
         return self._transform(covariates)
 
     def fit_transform(self, covariates: Union[pd.DataFrame, np.array]) -> np.array:
+        r"""Runs the `fit()` and `transform()` methods in sequence.
+
+        Parameters
+        ----------
+        covariates : np.array or pd.DataFrame
+            Covariates to be preprocessed.
+        
+        Returns
+        -------
+        np.array
+            Numpy array of preprocessed covariates, with as many rows as in `covariates` 
+            and as many columns as were created during pre-processing (including one-hot encoding 
+            categorical features).
+        """
         self._fit(covariates)
         return self._transform(covariates)
     
     def fetch_original_feature_indices(self) -> list:
+        r"""Map features in a preprocessed covariate set back to the 
+        original set of features provided to a `CovariateTransformer`.
+
+        Returns
+        -------
+        list
+            List with as many entries as features in the preprocessed results 
+            returned by a fitted `CovariateTransformer`. Each element is a feature 
+            index indicating the feature from which a given preprocessed feature was generated.
+            If a single categorical feature were one-hot encoded into 5 binary features, 
+            this method would return a list `[0,0,0,0,0]`. If the transformer merely passes
+            through `k` numeric features, this method would return a list `[0,...,k-1]`.
+        """
         return self._original_feature_indices
