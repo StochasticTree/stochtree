@@ -53,7 +53,7 @@ class BCFModel:
 
     The `BCFModel` class supports the following extensions of this model:
     
-    - Continuous Treatment: If $Z$ is continuous rather than binary, we define $b_z(X) & = \tau(X, Z) = Z \tau(X)$, where the "leaf model" for the $\tau$ forest is essentially a regression on continuous $Z$.
+    - Continuous Treatment: If $Z$ is continuous rather than binary, we define $b_z(X) = \tau(X, Z) = Z \tau(X)$, where the "leaf model" for the $\tau$ forest is essentially a regression on continuous $Z$.
     - Heteroskedasticity: Rather than define $\epsilon$ parameterically, we can let a forest $\sigma^2(X)$ model a conditional error variance function. This can be done by setting `num_trees_variance > 0` in the `params` dictionary passed to the `sample` method.
     """
     def __init__(self) -> None:
