@@ -10,7 +10,9 @@ class Dataset:
     3. Variance weights used to define heteroskedastic or otherwise weighted models. This is optional but may be included via the `add_variance_weights` method.
     """
     def __init__(self) -> None:
-        # Initialize a ForestDatasetCpp object
+        """
+        Initialize a `Dataset` object
+        """
         self.dataset_cpp = ForestDatasetCpp()
     
     def add_covariates(self, covariates: np.array):
@@ -78,13 +80,16 @@ class Residual:
     Typically this object is initialized with the original outcome and then "residualized" 
     by subtracting out the initial prediction value of every tree in every forest term 
     (as well as the predictions of any other model term).
-
-    Parameters
-    ----------
-    residual : np.array
-        Univariate numpy array of residual values.
     """
     def __init__(self, residual: np.array) -> None:
+        """
+        Initialize a `Residual` object        
+
+        Parameters
+        ----------
+        residual : np.array
+            Univariate numpy array of residual values.
+        """
         n = residual.size
         self.residual_cpp = ResidualCpp(residual, n)
     

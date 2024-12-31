@@ -36,19 +36,19 @@ class BCFModel:
 
     \begin{equation*}
     \begin{aligned}
-    y &= \mu(X) + b_z(X) + \epsilon\\
-    b_z(X) &= (b_1 Z + b_0 (1-Z)) \tau(X)\\
+    y &= a(X) + b_z(X) + \epsilon\\
+    b_z(X) &= (b_1 Z + b_0 (1-Z)) t(X)\\
     b_0, b_1 &\sim N(0, \frac{1}{2})\\\\
-    \mu(X) &\sim \text{BART}(\cdot)\\
-    \tau(X) &\sim \text{BART}(\cdot)\\
+    a(X) &\sim \text{BART}()\\
+    t(X) &\sim \text{BART}()\\
     \epsilon &\sim N(0, \sigma^2)\\
-    \sigma^2 &\sim IG(\nu, \nu\lambda)
+    \sigma^2 &\sim IG(a, b)
     \end{aligned}
     \end{equation*}
 
     for continuous outcome $y$, binary treatment $Z$, and covariates $X$.
 
-    In words, there are two nonparametric mean functions -- a "prognostic" function and a treatment effect function -- governed by tree ensembles with BART priors and an additive (mean-zero) Gaussian error 
+    In words, there are two nonparametric mean functions -- a "prognostic" function and a "treatment effect" function -- governed by tree ensembles with BART priors and an additive (mean-zero) Gaussian error 
     term, whose variance is parameterized with an inverse gamma prior.
 
     The `BCFModel` class supports the following extensions of this model:
@@ -56,7 +56,6 @@ class BCFModel:
     - Continuous Treatment: If $Z$ is continuous rather than binary, we define $b_z(X) & = \tau(X, Z) = Z \tau(X)$, where the "leaf model" for the $\tau$ forest is essentially a regression on continuous $Z$.
     - Heteroskedasticity: Rather than define $\epsilon$ parameterically, we can let a forest $\sigma^2(X)$ model a conditional error variance function. This can be done by setting `num_trees_variance > 0` in the `params` dictionary passed to the `sample` method.
     """
-
     def __init__(self) -> None:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
