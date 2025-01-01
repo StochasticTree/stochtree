@@ -33,5 +33,5 @@ SystemRequirements: C++17
 Imports: 
     R6,
     stats
-URL: https://stochastictree.github.io/stochtree-r/
+URL: https://stochtree.ai
 Config/testthat/edition: 3
