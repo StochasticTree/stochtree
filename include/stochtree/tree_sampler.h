@@ -409,39 +409,6 @@ static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateExist
   return std::tuple<double, double, data_size_t, data_size_t>(split_log_ml, no_split_log_ml, left_n, right_n);
 }
 
-// template <typename LeafModel>
-// static inline void ModelInitialization(ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model,
-//                                        ForestDataset& dataset, ColumnVector& residual, TreePrior& tree_prior,
-//                                        std::mt19937& gen, std::vector<double>& variable_weights, double global_variance,
-//                                        bool pre_initialized, bool backfitting, int prev_num_samples, bool var_trees = false) {
-//   if ((prev_num_samples == 0) && (!pre_initialized)) {
-//     // Add new forest to the container
-//     forests.AddSamples(1);
-    
-//     // Set initial value for each leaf in the forest
-//     double leaf_value;
-//     if (var_trees) {
-//       leaf_value = std::log(ComputeVarianceOutcome(residual)) / static_cast<double>(forests.NumTrees());
-//     } else {
-//       leaf_value = ComputeMeanOutcome(residual) / static_cast<double>(forests.NumTrees());
-//     }
-//     TreeEnsemble* ensemble = forests.GetEnsemble(0);
-//     leaf_model.SetEnsembleRootPredictedValue(dataset, ensemble, leaf_value);
-//     tracker.AssignAllSamplesToConstantPrediction(leaf_value);
-//   } else if (prev_num_samples > 0) {
-//     // Add new forest to the container
-//     forests.AddSamples(1);
-
-//     // NOTE: only doing this for the simplicity of the partial residual step
-//     // We could alternatively "reach back" to the tree predictions from a previous
-//     // sample (whenever there is more than one sample). This is cleaner / quicker
-//     // to implement during this refactor.
-//     forests.CopyFromPreviousSample(prev_num_samples, prev_num_samples - 1);
-//   } else {
-//     forests.IncrementSampleCount();
-//   }
-// }
-
 template <typename LeafModel>
 static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
                                                  ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
