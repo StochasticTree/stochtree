@@ -23,6 +23,12 @@
 
 namespace StochTree {
 
+/*! \brief Leaf models for the forest sampler:
+ * 1. `kConstantLeafGaussian`: Every leaf node has a zero-centered univariate normal prior and every leaf is constant.
+ * 2. `kUnivariateRegressionLeafGaussian`: Every leaf node has a zero-centered univariate normal prior and every leaf is a linear model, multiplying the leaf parameter by a (fixed) basis.
+ * 3. `kMultivariateRegressionLeafGaussian`: Every leaf node has a multivariate normal prior, centered around the zero vector, and every leaf is a linear model, matrix-multiplying the leaf parameters by a (fixed) basis vector.
+ * 4. `kLogLinearVariance`: Every leaf node has a inverse gamma prior and every leaf is constant.
+ */
 enum ModelType {
   kConstantLeafGaussian, 
   kUnivariateRegressionLeafGaussian, 
