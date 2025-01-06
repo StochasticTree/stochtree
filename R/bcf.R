@@ -596,6 +596,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     }
     
     # Update feature_types and covariates
+    feature_types <- as.integer(feature_types)
     if (propensity_covariate != "none") {
         feature_types <- as.integer(c(feature_types,0))
         X_train <- cbind(X_train, pi_train)
