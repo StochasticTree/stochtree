@@ -23,6 +23,41 @@
 
 namespace StochTree {
 
+/*! 
+ * \defgroup leaf_model_group Leaf Model API
+ * 
+ * \brief Classes / functions for implementing leaf models.
+ * 
+ * Stochastic tree algorithms are all essentially hierarchical 
+ * models with an adaptive group structure defined by an ensemble 
+ * of decision trees. Each novel model is governed by 
+ * 
+ * - A `LeafModel` class, defining the integrated likelihood and posterior, conditional on a particular tree structure
+ * - A `SuffStat` class that tracks and accumulates sufficient statistics necessary for a `LeafModel`
+ * 
+ * \section gaussian_constant_leaf_model Gaussian Constant Leaf Model
+ * 
+ * This leaf model corresponds to the "classic" BART model of <a href="https://projecteuclid.org/journals/annals-of-applied-statistics/volume-4/issue-1/BART-Bayesian-additive-regression-trees/10.1214/09-AOAS285.full">Chipman et al (2010)</a> 
+ * as well as its "XBART" extension (<a href="https://www.tandfonline.com/doi/full/10.1080/01621459.2021.1942012">He and Hahn (2023)</a>).
+ * 
+ * \section gaussian_multivariate_regression_leaf_model Gaussian Multivariate Regression Leaf Model
+ *
+ * This is an extension of the single-tree model of <a href="https://link.springer.com/article/10.1023/A:1013916107446">Chipman et al (2002)</a>, with:
+ * 
+ * - Support for using a separate basis for leaf model than the partitioning (i.e. tree) model
+ * - Support for multiple trees and sampling via grow-from-root (GFR) or MCMC
+ *  
+ * \section gaussian_univariate_regression_leaf_model Gaussian Univariate Regression Leaf Model
+ * 
+ * This specializes the Gaussian Multivariate Regression Leaf Model for a univariate leaf basis, which allows for several computational speedups (replacing generalized matrix operations with simple summation or sum-product operations).
+ * 
+ * \section inverse_gamma_leaf_model Inverse Gamma Leaf Model
+ * 
+ * This model allows for forest-based heteroskedasticity modeling using an inverse gamma prior on the exponentiated leaf parameter, as discussed in <a href="https://www.tandfonline.com/doi/full/10.1080/01621459.2020.1813587">Murray (2021)</a>
+ * 
+ * \{
+ */
+
 /*! \brief Leaf models for the forest sampler:
  * 1. `kConstantLeafGaussian`: Every leaf node has a zero-centered univariate normal prior and every leaf is constant.
  * 2. `kUnivariateRegressionLeafGaussian`: Every leaf node has a zero-centered univariate normal prior and every leaf is a linear model, multiplying the leaf parameter by a (fixed) basis.
@@ -428,6 +463,8 @@ static inline void AccumulateCutpointBinSuffStat(SuffStatType& left_suff_stat, F
     left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
   }
 }
+
+/*! \} */ // end of leaf_model_group
 
 } // namespace StochTree
 
