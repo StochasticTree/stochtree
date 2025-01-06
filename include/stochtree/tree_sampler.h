@@ -22,6 +22,31 @@
 
 namespace StochTree {
 
+/*!
+ * \defgroup sampling_group Forest Sampler API
+ *
+ * \brief Functions for sampling from a forest. The core interfce of these functions, 
+ * as used by the R, Python, and standalone C++ program, is defined by 
+ * \ref MCMCSampleOneIter, which runs one iteration of the MCMC sampler for a 
+ * given forest, and \ref GFRSampleOneIter, which runs one iteration of the 
+ * grow-from-root (GFR) algorithm for a given forest. All other functions are 
+ * essentially helpers used in a sampling function, which are documented here 
+ * to make extending the C++ codebase more straightforward.
+ *
+ * \{
+ */
+
+/*!
+ * \brief Computer the range of available split values for a continuous variable, given the current structure of a tree.
+ * 
+ * \param tracker Tracking data structures that speed up sampler operations.
+ * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights.
+ * \param tree_num Index of the tree for which a split is proposed.
+ * \param leaf_split Index of the leaf in `tree_num` for which a split is proposed.
+ * \param feature_split Index of the feature that we will query the available range.
+ * \param var_min Current minimum feature value (called by refence and modified by this function).
+ * \param var_max Current maximum feature value (called by refence and modified by this function).
+ */
 static inline void VarSplitRange(ForestTracker& tracker, ForestDataset& dataset, int tree_num, int leaf_split, int feature_split, double& var_min, double& var_max) {
   var_min = std::numeric_limits<double>::max();
   var_max = std::numeric_limits<double>::min();
@@ -41,6 +66,17 @@ static inline void VarSplitRange(ForestTracker& tracker, ForestDataset& dataset,
   }
 }
 
+/*!
+ * \brief Determines whether a proposed split creates two leaf nodes with constant values for every feature (thus ensuring that the tree cannot split further).
+ * 
+ * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights.
+ * \param tracker Tracking data structures that speed up sampler operations.
+ * \param split Proposed split of tree `tree_num` at node `leaf_split`.
+ * \param tree_num Index of the tree for which a split is proposed.
+ * \param leaf_split Index of the leaf in `tree_num` for which a split is proposed.
+ * \param feature_split Index of the feature to which `split` will be applied
+ * \return `true` if `split` creates two nodes with constant values for every feature in `dataset`, `false` otherwise. 
+ */
 static inline bool NodesNonConstantAfterSplit(ForestDataset& dataset, ForestTracker& tracker, TreeSplit& split, int tree_num, int leaf_split, int feature_split) {
   int p = dataset.GetCovariates().cols();
   data_size_t idx;
@@ -696,6 +732,34 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
   }
 }
 
+/*! 
+ * Runs one iteration of the MCMC sampler for a tree ensemble model, which consists of two steps for every tree in a forest:
+ * 1. Sampling "birth-death" tree modifications via the Metropolis-Hastings algorithm
+ * 2. Sampling leaf node parameters, conditional on a (possibly-updated) tree, via a Gibbs sampler
+ * 
+ * \tparam LeafModel Leaf model type (i.e. `GaussianConstantLeafModel`, `GaussianUnivariateRegressionLeafModel`, etc...)
+ * \tparam LeafSuffStat Leaf sufficient statistic type (i.e. `GaussianConstantSuffStat`, `GaussianUnivariateRegressionSuffStat`, etc...)
+ * \tparam LeafSuffStatConstructorArgs Type of constructor arguments used to initialize `LeafSuffStat` class. For `GaussianMultivariateRegressionSuffStat`, 
+ * this is `int`, while each of the other three sufficient statistic classes do not take a constructor argument.
+ * \param active_forest Current state of an ensemble from the sampler's perspective. This is managed through an "active forest" class, as distinct from a "forest container" class
+ * of stored ensemble samples because we often wish to update model state without saving the result (e.g. during burn-in or thinning of an MCMC sampler).
+ * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state.
+ * \param forests Container of "stored" forests.
+ * \param leaf_model Leaf model object -- type is determined by template argument `LeafModel`.
+ * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights.
+ * \param residual Data object containing residual used in training. The state of `residual` is updated by this function (the prior predictions of `active_forest` are added to the residual and the updated predictions from `active_forest` are subtracted back out).
+ * \param tree_prior Configuration for tree prior (i.e. max depth, min samples in a leaf, depth-defined split probability).
+ * \param gen Random number generator for sampler.
+ * \param variable_weights Vector of selection weights for each variable in `dataset`.
+ * \param global_variance Current value of (possibly stochastic) global error variance parameter.
+ * \param feature_types Enum-coded vector of feature types (see \ref FeatureType) for each feature in `dataset`.
+ * \param cutpoint_grid_size Maximum size of a grid of potential cutpoints (the grow-from-root algorithm evaluates a series of potential cutpoints for each feature and this parameter "thins" the cutpoint candidates for numeric variables).
+ * \param keep_forest Whether or not `active_forest` should be retained in `forests`.
+ * \param pre_initialized Whether or not `active_forest` has already been initialized (note: this parameter will be refactored out soon).
+ * \param backfitting Whether or not the sampler uses "backfitting" (wherein the sampler for a given tree only depends on the other trees via
+ * their effect on the residual) or the more general "blocked MCMC" (wherein the state of other trees must be more explicitly considered).
+ * \param leaf_suff_stat_args Any arguments which must be supplied to initialize a `LeafSuffStat` object.
+ */
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
@@ -1041,6 +1105,8 @@ static inline void MCMCSampleOneIter(TreeEnsemble& active_forest, ForestTracker&
     forests.AddSample(active_forest);
   }
 }
+
+/*! \} */ // end of sampling_group
 
 } // namespace StochTree
 

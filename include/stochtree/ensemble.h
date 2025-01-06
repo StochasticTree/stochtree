@@ -24,6 +24,14 @@ using json = nlohmann::json;
 
 namespace StochTree {
 
+/*!
+ * \defgroup forest_group Forest (i.e. ensemble of trees) API
+ *
+ * \brief Classes / functions for creating and modifying forests.
+ *
+ * \{
+ */
+
 /*! \brief Class storing a "forest," or an ensemble of decision trees.
  */
 class TreeEnsemble {
@@ -510,6 +518,8 @@ class TreeEnsemble {
   bool is_leaf_constant_;
   bool is_exponentiated_;
 };
+
+/*! \} */ // end of forest_group
 
 } // namespace StochTree
 
