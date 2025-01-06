@@ -729,7 +729,7 @@ Forest <- R6::R6Class(
         #' Retrieve a vector of split counts for every training set variable in the forest
         #' @param num_features Total number of features in the training set
         get_forest_split_counts = function(num_features) {
-            return(get_forest_split_counts_active_forest_cpp(self$forest_ptr, num_features))
+            return(get_overall_split_counts_active_forest_cpp(self$forest_ptr, num_features))
         }, 
         
         #' @description
