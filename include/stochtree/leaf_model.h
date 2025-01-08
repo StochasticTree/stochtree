@@ -35,10 +35,143 @@ namespace StochTree {
  * - A `LeafModel` class, defining the integrated likelihood and posterior, conditional on a particular tree structure
  * - A `SuffStat` class that tracks and accumulates sufficient statistics necessary for a `LeafModel`
  * 
+ * To provide a thorough overview of this interface (and, importantly, how to extend it), we must introduce some mathematical notation. 
+ * Any forest-based regression model involves an outcome, which we'll call \f$y\f$, and features (or "covariates"), which we'll call \f$X\f$.
+ * Our goal is to predict \f$y\f$ as a function of \f$X\f$, which we'll call \f$f(X)\f$. 
+ * 
+ * <i>NOTE:</i> if we have a more complicated, but still additive, model, such as \f$y = X\beta + f(X)\f$, then we can just model 
+ * \f$y - X\beta = f(X)\f$, treating the residual \f$y - X\beta\f$ as the outcome data, and we are back to the general setting above.
+ * 
+ * Now, since \f$f(X)\f$ is an additive tree ensemble, we can think of it as the sum of \f$b\f$ separate decision tree functions, 
+ * where \f$b\f$ is the number of trees in an ensemble, so that
+ * 
+ *  \f[
+ *    f(X) = f_1(X) + \dots + f_b(X)
+ *  \f]
+ * 
+ * and each decision tree function \f$f_j\f$ has the property that features \f$X\f$ are used to determine which leaf node an observation 
+ * falls into, and then the parameters attached to that leaf node are used to compute \f$f_j(X)\f$. The exact mechanics of this process 
+ * are model-dependent, so now we introduce the "leaf node" models that `stochtree` supports.
+ *
  * \section gaussian_constant_leaf_model Gaussian Constant Leaf Model
  * 
+ * The most standard and common tree ensemble is a sum of "constant leaf" trees, in which a leaf node's parameter uniquely determines the prediction
+ * for all observations that fall into that leaf. For example, if leaf 2 for a tree is reached by the conditions that \f$X_1 < 0.4 \& X_2 > 0.6\f$, then 
+ * every observation whose first feature is less than 0.4 and whose second feature is greater than 0.6 will receive the same prediction. Mathematically, 
+ * for an observation \f$i\f$ this looks like
+ * 
+ *  \f[
+ *    f_j(X_i) = \sum_{\ell in L} \mathbb{1}(X_i \in \ell) \mu_{\ell}
+ *  \f]
+ * 
+ * where \f$L\f$ denotes the indices of every leaf node, \f$\mu_{\ell}\f$ is the parameter attached to leaf node \f$\ell\f$, and \f$\mathbb{1}(X \in \ell)\f$
+ * checks whether \f$X_i\f$ falls into leaf node \f$\ell\f$.
+ * 
+ * The way that we make such a model "stochastic" is by attaching to the leaf node parameters \f$\mu_{\ell}\f$ a "prior" distribution.
  * This leaf model corresponds to the "classic" BART model of <a href="https://projecteuclid.org/journals/annals-of-applied-statistics/volume-4/issue-1/BART-Bayesian-additive-regression-trees/10.1214/09-AOAS285.full">Chipman et al (2010)</a> 
- * as well as its "XBART" extension (<a href="https://www.tandfonline.com/doi/full/10.1080/01621459.2021.1942012">He and Hahn (2023)</a>).
+ * as well as its "XBART" extension (<a href="https://www.tandfonline.com/doi/full/10.1080/01621459.2021.1942012">He and Hahn (2023)</a>). 
+ * We assign each leaf node parameter a prior
+ * 
+ *  \f[
+ *    \mu \sim \mathcal{N}\left(0, \tau\right)
+ *  \f]
+ * 
+ * Assuming a homoskedastic Gaussian outcome likelihood, the log marginal likelihood in this model, for node \f$\ell\f$ of tree \f$j\f$ is given by 
+ * 
+ *  \f[
+ *    f(y \mid -) = -\frac{n_{\ell}}{2}\log(2\pi) - n_{\ell}\log(\sigma) + \frac{1}{2} \log\left(\frac{\sigma^2}{n_{\ell} \tau + \sigma^2}\right) - \frac{s_{yy,\ell}}{2\sigma^2} + \frac{\tau s_{y,\ell}^2}{2\sigma^2(n_{\ell} \tau + \sigma^2)}
+ *  \f]
+ * 
+ * where
+ * 
+ *  \f[
+ *    n_{\ell} = \sum_{i : X_i \in \ell} 1
+ *  \f]
+ * 
+ *  \f[
+ *    s_{y,\ell} = \sum_{i : X_i \in \ell} r_i
+ *  \f]
+ * 
+ *  \f[
+ *    s_{yy,\ell} = \sum_{i : X_i \in \ell} r_i^2
+ *  \f]
+ * 
+ *  \f[
+ *    r_i = y_i - \sum_{k \neq j} \mu_k(X_i)
+ *  \f]
+ *
+ * In words, this model depends on the data only through three sufficient statistics, \f$n_{\ell}\f$, \f$s_{y,\ell}\f$, and \f$s_{yy,\ell}\f$, 
+ * and it only depends on the other trees in the ensemble through the "partial residual" \f$r_i\f$. The posterior distribution for 
+ * node \f$\ell\f$'s leaf parameter is similarly defined as:
+ * 
+ *  \f[
+ *    \mu_{\ell} \mid - \sim \mathcal{N}\left(\frac{\tau s_{y,\ell}}{n_{\ell} \tau + \sigma^2}, \frac{\tau \sigma^2}{n_{\ell} \tau + \sigma^2}\right)
+ *  \f]
+ * 
+ * Now, consider the possibility that each observation carries a unique weight \f$w_i\f$. These could be "case weights" in a survey context or 
+ * individual-level variances ("heteroskedasticity"). These case weights transform the outcome distribution (and associated likelihood) to
+ * 
+ *  \f[
+ *    y_i \mid - \sim \mathcal{N}\left(\mu(X_i), \frac{\sigma^2}{w_i}\right) 
+ *  \f]
+ * 
+ * This gives a modified log marginal likelihood of 
+ * 
+ *  \f[
+ *    f(y \mid -) = -\frac{n_{\ell}}{2}\log(2\pi) - \sum_{i : X_i \in \ell} \log\left(\frac{\sigma^2}{w_i}\right) + \frac{1}{2} \log\left(\frac{\sigma^2}{s_{w,\ell} \tau + \sigma^2}\right) - \frac{s_{wyy,\ell}}{2\sigma^2} + \frac{\tau s_{wy,\ell}^2}{2\sigma^2(n_{\ell} \tau + \sigma^2)}
+ *  \f]
+ * 
+ * where
+ * 
+ *  \f[
+ *    s_{w,\ell} = \sum_{i : X_i \in \ell} w_i
+ *  \f]
+ * 
+ *  \f[
+ *    s_{wy,\ell} = \sum_{i : X_i \in \ell} w_i r_i
+ *  \f]
+ * 
+ *  \f[
+ *    s_{wyy,\ell} = \sum_{i : X_i \in \ell} w_i r_i^2
+ *  \f]
+ * 
+ * Finally, note that when we consider splitting leaf \f$\ell\f$ into new left and right leaves, 
+ * we compute the original log marginal likelihood and the new log marginal likelihoods of the 
+ * leaf and right leaves and compare these three values. 
+ * 
+ * The terms \f$\frac{n_{\ell}}{2}\log(2\pi)\f$, \f$\sum_{i : X_i \in \ell} \log\left(\frac{\sigma^2}{w_i}\right)\f$, and \f$\frac{s_{wyy,\ell}}{2\sigma^2}\f$ 
+ * are such that their left and right node values will always sum to the respective value in the original log marginal likelihood, so they can be ignored 
+ * when evaluating splits or prunes and thus the reduced log marginal likelihood is
+ * 
+ *  \f[
+ *    f(y \mid -) \propto \frac{1}{2} \log\left(\frac{\sigma^2}{s_{w,\ell} \tau + \sigma^2}\right) + \frac{\tau s_{wy,\ell}^2}{2\sigma^2(n_{\ell} \tau + \sigma^2)}
+ *  \f]
+ * 
+ * So the \ref StochTree::GaussianConstantSuffStat "GaussianConstantSuffStat" class tracks a generalized version of these three statistics
+ * (which allows for each observation to have a weight \f$w_i \neq 1\f$):
+ * 
+ * - \f$n_{\ell}\f$: `data_size_t n`
+ * - \f$s_{w,\ell}\f$: `double sum_w`
+ * - \f$s_{wy,\ell}\f$: `double sum_yw`
+ * 
+ * And these values are used by the \ref StochTree::GaussianConstantLeafModel "GaussianConstantLeafModel" class in the 
+ * \ref StochTree::GaussianConstantLeafModel::SplitLogMarginalLikelihood "SplitLogMarginalLikelihood", 
+ * \ref StochTree::GaussianConstantLeafModel::NoSplitLogMarginalLikelihood "NoSplitLogMarginalLikelihood", 
+ * \ref StochTree::GaussianConstantLeafModel::PosteriorParameterMean "PosteriorParameterMean", and 
+ * \ref StochTree::GaussianConstantLeafModel::PosteriorParameterVariance "PosteriorParameterVariance" methods. 
+ * To give one example, below is the implementation of \ref StochTree::GaussianConstantLeafModel::SplitLogMarginalLikelihood "SplitLogMarginalLikelihood":
+ * 
+ * \code{.cpp}
+ * double left_log_ml = (
+ *    -0.5*std::log(1 + tau_*(left_stat.sum_w/global_variance)) + ((tau_*left_stat.sum_yw*left_stat.sum_yw)/(2.0*global_variance*(tau_*left_stat.sum_w + global_variance)))
+ * );
+ * 
+ * double right_log_ml = (
+ *    -0.5*std::log(1 + tau_*(right_stat.sum_w/global_variance)) + ((tau_*right_stat.sum_yw*right_stat.sum_yw)/(2.0*global_variance*(tau_*right_stat.sum_w + global_variance)))
+ * );
+ * 
+ * return left_log_ml + right_log_ml;
+ * \endcode 
  * 
  * \section gaussian_multivariate_regression_leaf_model Gaussian Multivariate Regression Leaf Model
  *
@@ -123,9 +256,34 @@ class GaussianConstantLeafModel {
  public:
   GaussianConstantLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
   ~GaussianConstantLeafModel() {}
+  /*!
+   * \brief Log marginal likelihood for a proposed split, evaluated only for observations that fall into the node being split.
+   * 
+   * \param left_stat Sufficient statistics of the left node formed by the proposed split
+   * \param right_stat Sufficient statistics of the right node formed by the proposed split
+   * \param global_variance Global error variance parameter
+   */
   double SplitLogMarginalLikelihood(GaussianConstantSuffStat& left_stat, GaussianConstantSuffStat& right_stat, double global_variance);
+  /*!
+   * \brief Log marginal likelihood of a node, evaluated only for observations that fall into the node being split.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double NoSplitLogMarginalLikelihood(GaussianConstantSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Leaf node posterior mean.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double PosteriorParameterMean(GaussianConstantSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Leaf node posterior mean.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double PosteriorParameterVariance(GaussianConstantSuffStat& suff_stat, double global_variance);
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
