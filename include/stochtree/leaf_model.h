@@ -56,12 +56,12 @@ namespace StochTree {
  * \section gaussian_constant_leaf_model Gaussian Constant Leaf Model
  * 
  * The most standard and common tree ensemble is a sum of "constant leaf" trees, in which a leaf node's parameter uniquely determines the prediction
- * for all observations that fall into that leaf. For example, if leaf 2 for a tree is reached by the conditions that \f$X_1 < 0.4 \& X_2 > 0.6\f$, then 
+ * for all observations that fall into that leaf. For example, if leaf 2 for a tree is reached by the conditions that \f$X_1 < 0.4 \; \& \; X_2 > 0.6\f$, then 
  * every observation whose first feature is less than 0.4 and whose second feature is greater than 0.6 will receive the same prediction. Mathematically, 
  * for an observation \f$i\f$ this looks like
  * 
  *  \f[
- *    f_j(X_i) = \sum_{\ell in L} \mathbb{1}(X_i \in \ell) \mu_{\ell}
+ *    f_j(X_i) = \sum_{\ell \in L} \mathbb{1}(X_i \in \ell) \mu_{\ell}
  *  \f]
  * 
  * where \f$L\f$ denotes the indices of every leaf node, \f$\mu_{\ell}\f$ is the parameter attached to leaf node \f$\ell\f$, and \f$\mathbb{1}(X \in \ell)\f$
@@ -76,10 +76,11 @@ namespace StochTree {
  *    \mu \sim \mathcal{N}\left(0, \tau\right)
  *  \f]
  * 
- * Assuming a homoskedastic Gaussian outcome likelihood, the log marginal likelihood in this model, for node \f$\ell\f$ of tree \f$j\f$ is given by 
+ * Assuming a homoskedastic Gaussian outcome likelihood (i.e. \f$y_i \sim \mathcal{N}\left(f(X_i),\sigma^2\right)\f$), 
+ * the log marginal likelihood in this model, for the outcome data in node \f$\ell\f$ of tree \f$j\f$ is given by 
  * 
  *  \f[
- *    f(y \mid -) = -\frac{n_{\ell}}{2}\log(2\pi) - n_{\ell}\log(\sigma) + \frac{1}{2} \log\left(\frac{\sigma^2}{n_{\ell} \tau + \sigma^2}\right) - \frac{s_{yy,\ell}}{2\sigma^2} + \frac{\tau s_{y,\ell}^2}{2\sigma^2(n_{\ell} \tau + \sigma^2)}
+ *    L(y) = -\frac{n_{\ell}}{2}\log(2\pi) - n_{\ell}\log(\sigma) + \frac{1}{2} \log\left(\frac{\sigma^2}{n_{\ell} \tau + \sigma^2}\right) - \frac{s_{yy,\ell}}{2\sigma^2} + \frac{\tau s_{y,\ell}^2}{2\sigma^2(n_{\ell} \tau + \sigma^2)}
  *  \f]
  * 
  * where
@@ -100,7 +101,7 @@ namespace StochTree {
  *    r_i = y_i - \sum_{k \neq j} \mu_k(X_i)
  *  \f]
  *
- * In words, this model depends on the data only through three sufficient statistics, \f$n_{\ell}\f$, \f$s_{y,\ell}\f$, and \f$s_{yy,\ell}\f$, 
+ * In words, this model depends on the data for a given leaf node only through three sufficient statistics, \f$n_{\ell}\f$, \f$s_{y,\ell}\f$, and \f$s_{yy,\ell}\f$, 
  * and it only depends on the other trees in the ensemble through the "partial residual" \f$r_i\f$. The posterior distribution for 
  * node \f$\ell\f$'s leaf parameter is similarly defined as:
  * 
@@ -118,7 +119,7 @@ namespace StochTree {
  * This gives a modified log marginal likelihood of 
  * 
  *  \f[
- *    f(y \mid -) = -\frac{n_{\ell}}{2}\log(2\pi) - \sum_{i : X_i \in \ell} \log\left(\frac{\sigma^2}{w_i}\right) + \frac{1}{2} \log\left(\frac{\sigma^2}{s_{w,\ell} \tau + \sigma^2}\right) - \frac{s_{wyy,\ell}}{2\sigma^2} + \frac{\tau s_{wy,\ell}^2}{2\sigma^2(n_{\ell} \tau + \sigma^2)}
+ *    L(y) = -\frac{n_{\ell}}{2}\log(2\pi) - \frac{1}{2} \sum_{i : X_i \in \ell} \log\left(\frac{\sigma^2}{w_i}\right) + \frac{1}{2} \log\left(\frac{\sigma^2}{s_{w,\ell} \tau + \sigma^2}\right) - \frac{s_{wyy,\ell}}{2\sigma^2} + \frac{\tau s_{wy,\ell}^2}{2\sigma^2(s_{w,\ell} \tau + \sigma^2)}
  *  \f]
  * 
  * where
@@ -135,16 +136,15 @@ namespace StochTree {
  *    s_{wyy,\ell} = \sum_{i : X_i \in \ell} w_i r_i^2
  *  \f]
  * 
- * Finally, note that when we consider splitting leaf \f$\ell\f$ into new left and right leaves, 
- * we compute the original log marginal likelihood and the new log marginal likelihoods of the 
- * leaf and right leaves and compare these three values. 
+ * Finally, note that when we consider splitting leaf \f$\ell\f$ into new left and right leaves, or pruning two nodes into a single leaf node, 
+ * we compute the log marginal likelihood of the combined data and the log marginal likelihoods of the left and right leaves and compare these three values. 
  * 
  * The terms \f$\frac{n_{\ell}}{2}\log(2\pi)\f$, \f$\sum_{i : X_i \in \ell} \log\left(\frac{\sigma^2}{w_i}\right)\f$, and \f$\frac{s_{wyy,\ell}}{2\sigma^2}\f$ 
- * are such that their left and right node values will always sum to the respective value in the original log marginal likelihood, so they can be ignored 
+ * are such that their left and right node values will always sum to the respective value in the combined log marginal likelihood, so they can be ignored 
  * when evaluating splits or prunes and thus the reduced log marginal likelihood is
  * 
  *  \f[
- *    f(y \mid -) \propto \frac{1}{2} \log\left(\frac{\sigma^2}{s_{w,\ell} \tau + \sigma^2}\right) + \frac{\tau s_{wy,\ell}^2}{2\sigma^2(n_{\ell} \tau + \sigma^2)}
+ *    L(y) \propto \frac{1}{2} \log\left(\frac{\sigma^2}{s_{w,\ell} \tau + \sigma^2}\right) + \frac{\tau s_{wy,\ell}^2}{2\sigma^2(n_{\ell} \tau + \sigma^2)}
  *  \f]
  * 
  * So the \ref StochTree::GaussianConstantSuffStat "GaussianConstantSuffStat" class tracks a generalized version of these three statistics
@@ -174,19 +174,170 @@ namespace StochTree {
  * \endcode 
  * 
  * \section gaussian_multivariate_regression_leaf_model Gaussian Multivariate Regression Leaf Model
- *
+ * 
+ * In this model, the tree defines a "partitioned linear model" in which leaf node parameters define regression weights 
+ * that are multiplied by a "basis" \f$\Omega\f$ to determine the prediction for an observation.
+ * 
+ *  \f[
+ *    f_j(X_i) = \sum_{\ell \in L} \mathbb{1}(X_i \in \ell) \Omega_i \vec{\beta_{\ell}}
+ *  \f]
+ * 
+ * and we assign \f$\beta_{\ell}\f$ a prior of
+ * 
+ *  \f[
+ *    \vec{\beta_{\ell}} \sim \mathcal{N}\left(\vec{\beta_0}, \Sigma_0\right)
+ *  \f]
+ * 
+ * where \f$\vec{\beta_0}\f$ is typically a vector of zeros. The outcome likelihood is still
+ * 
+ *  \f[
+ *    y_i \sim \mathcal{N}\left(f(X_i), \sigma^2\right)
+ *  \f]
+ * 
+ * This gives a reduced log integrated likelihood of
+ * 
+ *  \f[
+ *    L(y) \propto - \frac{1}{2} \log\left(\textrm{det}\left(I_p + \frac{\Sigma_0\Omega'\Omega}{\sigma^2}\right)\right) + \frac{1}{2}\frac{y'\Omega}{\sigma^2}\left(\Sigma_0^{-1} + \frac{\Omega'\Omega}{\sigma^2}\right)^{-1}\frac{\Omega'y}{\sigma^2}
+ *  \f]
+ * 
+ * where \f$\Omega\f$ is a matrix of bases for every observation in leaf \f$\ell\f$ and \f$p\f$ is the dimension of \f$\Omega\f$. The posterior for \f$\vec{\beta_{\ell}}\f$ is 
+ * 
+ *  \f[
+ *    \vec{\beta_{\ell}} \sim \mathcal{N}\left(\left(\Sigma_0^{-1} + \frac{\Omega'\Omega}{\sigma^2}\right)^{-1}\left(\frac{\Omega'y}{\sigma^2}\right),\left(\Sigma_0^{-1} + \frac{\Omega'\Omega}{\sigma^2}\right)^{-1}\right)
+ *  \f]
+ * 
  * This is an extension of the single-tree model of <a href="https://link.springer.com/article/10.1023/A:1013916107446">Chipman et al (2002)</a>, with:
  * 
- * - Support for using a separate basis for leaf model than the partitioning (i.e. tree) model
+ * - Support for using a separate basis for leaf model than the partitioning (i.e. tree) model (i.e. \f$X \neq \Omega\f$)
  * - Support for multiple trees and sampling via grow-from-root (GFR) or MCMC
+ * 
+ * We can also enable heteroskedasticity by defining a (diagonal) covariance matrix for the outcome likelihood
+ * 
+ *  \f[
+ *    \Sigma_y = \text{diag}\left(\sigma^2 / w_1,\sigma^2 / w_2,\dots,\sigma^2 / w_n\right)
+ *  \f]
+ * 
+ * This updates the reduced log integrated likelihood to
+ * 
+ *  \f[
+ *    L(y) \propto - \frac{1}{2} \log\left(\textrm{det}\left(I_p + \Sigma_{0}\Omega'\Sigma_y^{-1}\Omega\right)\right) + \frac{1}{2}y'\Sigma_{y}^{-1}\Omega\left(\Sigma_{0}^{-1} + \Omega'\Sigma_{y}^{-1}\Omega\right)^{-1}\Omega'\Sigma_{y}^{-1}y
+ *  \f]
+ * 
+ * and a posterior for \f$\vec{\beta_{\ell}}\f$ of 
+ * 
+ *  \f[
+ *    \vec{\beta_{\ell}} \sim \mathcal{N}\left(\left(\Sigma_{0}^{-1} + \Omega'\Sigma_{y}^{-1}\Omega\right)^{-1}\left(\Omega'\Sigma_{y}^{-1}y\right),\left(\Sigma_{0}^{-1} + \Omega'\Sigma_{y}^{-1}\Omega\right)^{-1}\right)
+ *  \f]
  *  
  * \section gaussian_univariate_regression_leaf_model Gaussian Univariate Regression Leaf Model
  * 
  * This specializes the Gaussian Multivariate Regression Leaf Model for a univariate leaf basis, which allows for several computational speedups (replacing generalized matrix operations with simple summation or sum-product operations).
+ * We simplify \f$\Omega\f$ to \f$\omega\f$, a univariate basis for every observation, so that \f$\Omega'\Omega = \sum_{i:i \in \ell}\omega_i^2\f$ and \f$\Omega'y = \sum_{i:i \in \ell}\omega_ir_i\f$. Similarly, the prior for the leaf 
+ * parameter becomes univariate normal as in \ref gaussian_constant_leaf_model: 
+ * 
+ *  \f[
+ *    \beta \sim \mathcal{N}\left(0, \tau\right)
+ *  \f]
+ * 
+ * Allowing for case / variance weights $w_i$ as above, we derive a reduced log marginal likelihood of 
+ * 
+ *  \f[
+ *    L(y) \propto \frac{1}{2} \log\left(\frac{\sigma^2}{s_{wxx,\ell} \tau + \sigma^2}\right) + \frac{\tau s_{wyx,\ell}^2}{2\sigma^2(s_{wxx,\ell} \tau + \sigma^2)}
+ *  \f]
+ * 
+ * where
+ * 
+ *  \f[
+ *    s_{wxx,\ell} = \sum_{i : X_i \in \ell} w_i \omega_i \omega_i
+ *  \f]
+ * 
+ *  \f[
+ *    s_{wyx,\ell} = \sum_{i : X_i \in \ell} w_i r_i \omega_i
+ *  \f]
+ * 
+ * and a posterior of 
+ * 
+ *  \f[
+ *    \beta_{\ell} \mid - \sim \mathcal{N}\left(\frac{\tau s_{wyx,\ell}}{s_{wxx,\ell} \tau + \sigma^2}, \frac{\tau \sigma^2}{s_{wxx,\ell} \tau + \sigma^2}\right)
+ *  \f]
  * 
  * \section inverse_gamma_leaf_model Inverse Gamma Leaf Model
  * 
- * This model allows for forest-based heteroskedasticity modeling using an inverse gamma prior on the exponentiated leaf parameter, as discussed in <a href="https://www.tandfonline.com/doi/full/10.1080/01621459.2020.1813587">Murray (2021)</a>
+ * Each of the above models is a variation on a theme: a conjugate, partitioned Gaussian leaf model. 
+ * The inverse gamma leaf model allows for forest-based heteroskedasticity modeling using an inverse gamma prior on the exponentiated leaf parameter, as discussed in <a href="https://www.tandfonline.com/doi/full/10.1080/01621459.2020.1813587">Murray (2021)</a>
+ * Define a variance function based on an ensemble of \f$b\f$ trees as
+ * 
+ *  \f[
+ *    \sigma^2(X) = \exp\left(s_1(X) + \dots + s_b(X)\right)
+ *  \f]
+ * 
+ * where each tree function \f$s_j(X)\f$ is defined as 
+ * 
+ *  \f[
+ *    s_j(X_i) = \sum_{\ell \in L} \mathbb{1}(X_i \in \ell) \lambda_{\ell}
+ *  \f]
+ * 
+ * We reparameterize \f$\lambda_{\ell} = \log(\mu_{\ell})\f$ and we place an inverse gamma prior on \f$\mu_{\ell}\f$
+ * 
+ *  \f[
+ *    \mu_{\ell} \sim \text{IG}\left(a, b\right)
+ *  \f]
+ * 
+ * As noted in <a href="https://www.tandfonline.com/doi/full/10.1080/01621459.2020.1813587">Murray (2021)</a>, this model no longer enables the "Bayesian backfitting" simplification 
+ * of conjugated Gaussian leaf models, in which sampling updates for a given tree only depend on other trees in the ensemble via their imprint on the partial residual 
+ * \f$r_i = y_i - \sum_{k \neq j} \mu_k(X_i)\f$. 
+ * However, this model is part of a broader class of models with convenient "blocked MCMC" sampling updates (another important example being multinomial classification).
+ * 
+ * Under an outcome model
+ * 
+ *  \f[
+ *    y \sim \mathcal{N}\left(f(X), \sigma_0^2 \sigma^2(X)\right)
+ *  \f]
+ * 
+ * updates to \f$\mu_{\ell}\f$ for a given tree \f$j\f$ are based on a reduced log marginal likelihood of
+ * 
+ *  \f[
+ *    L(y) \propto a \log (b) - \log \Gamma (a) + \log \Gamma \left(a + \frac{n_{\ell}}{2}\right) - \left(a + \frac{n_{\ell}}{2}\right) \left(b + \frac{s_{\sigma,\ell}}{2\sigma_0^2}\right)
+ *  \f]
+ * 
+ * where
+ * 
+ *  \f[
+ *    n_{\ell} = \sum_{i : X_i \in \ell} 1
+ *  \f]
+ * 
+ *  \f[
+ *    s_{\sigma,\ell} = \sum_{i: i \in \ell} \frac{(y_i - f(X_i))^2}{\prod_{k \neq j} s_k(X_i)}
+ *  \f]
+ * 
+ * and a posterior of 
+ * 
+ *  \f[
+ *    \mu_{\ell} \mid - \sim \text{IG}\left( a + \frac{n_{\ell}}{2} , b + \frac{s_{\sigma,\ell}}{2\sigma_0^2} \right)
+ *  \f]
+ * 
+ * Thus, as above, we implement a sufficient statistic class (\ref StochTree::LogLinearVarianceSuffStat "LogLinearVarianceSuffStat"), which tracks
+ * 
+ * - \f$n_{\ell}\f$: `data_size_t n`
+ * - \f$s_{\sigma,\ell}\f$: `double weighted_sum_ei`
+ * 
+ * And these values are used by the \ref StochTree::LogLinearVarianceLeafModel "LogLinearVarianceLeafModel" class in the 
+ * \ref StochTree::LogLinearVarianceLeafModel::SplitLogMarginalLikelihood "SplitLogMarginalLikelihood", 
+ * \ref StochTree::LogLinearVarianceLeafModel::NoSplitLogMarginalLikelihood "NoSplitLogMarginalLikelihood", 
+ * \ref StochTree::LogLinearVarianceLeafModel::PosteriorParameterShape "PosteriorParameterShape", and 
+ * \ref StochTree::LogLinearVarianceLeafModel::PosteriorParameterScale "PosteriorParameterScale" methods. 
+ * To give one example, below is the implementation of \ref StochTree::LogLinearVarianceLeafModel::NoSplitLogMarginalLikelihood "NoSplitLogMarginalLikelihood":
+ * 
+ * \code{.cpp}
+ * double prior_terms = a_ * std::log(b_) - boost::math::lgamma(a_);
+ * double a_term = a_ + 0.5 * suff_stat.n;
+ * double b_term = b_ + ((0.5 * suff_stat.weighted_sum_ei) / global_variance);
+ * double log_b_term = std::log(b_term);
+ * double lgamma_a_term = boost::math::lgamma(a_term);
+ * double resid_term = a_term * log_b_term;
+ * double log_ml = prior_terms + lgamma_a_term - resid_term;
+ * return log_ml;
+ * \endcode 
  * 
  * \{
  */
@@ -279,12 +430,23 @@ class GaussianConstantLeafModel {
    */
   double PosteriorParameterMean(GaussianConstantSuffStat& suff_stat, double global_variance);
   /*!
-   * \brief Leaf node posterior mean.
+   * \brief Leaf node posterior variance.
    * 
    * \param suff_stat Sufficient statistics of the node being evaluated
    * \param global_variance Global error variance parameter
    */
   double PosteriorParameterVariance(GaussianConstantSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Draw new parameters for every leaf node in `tree`, using a Gibbs update that conditions on the data, every other tree in the forest, and all model parameters
+   * 
+   * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights
+   * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state
+   * \param residual Data object containing the "partial" residual net of all the model's other mean terms, aside from `tree`
+   * \param tree Tree to be updated
+   * \param tree_num Integer index of tree to be updated
+   * \param global_variance Value of the global error variance parameter
+   * \param gen C++ random number generator
+   */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetScale(double tau) {tau_ = tau;}
@@ -346,10 +508,46 @@ class GaussianUnivariateRegressionLeafModel {
  public:
   GaussianUnivariateRegressionLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
   ~GaussianUnivariateRegressionLeafModel() {}
+  /*!
+   * \brief Log marginal likelihood for a proposed split, evaluated only for observations that fall into the node being split.
+   * 
+   * \param left_stat Sufficient statistics of the left node formed by the proposed split
+   * \param right_stat Sufficient statistics of the right node formed by the proposed split
+   * \param global_variance Global error variance parameter
+   */
   double SplitLogMarginalLikelihood(GaussianUnivariateRegressionSuffStat& left_stat, GaussianUnivariateRegressionSuffStat& right_stat, double global_variance);
+  /*!
+   * \brief Log marginal likelihood of a node, evaluated only for observations that fall into the node being split.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double NoSplitLogMarginalLikelihood(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Leaf node posterior mean.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double PosteriorParameterMean(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Leaf node posterior variance.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double PosteriorParameterVariance(GaussianUnivariateRegressionSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Draw new parameters for every leaf node in `tree`, using a Gibbs update that conditions on the data, every other tree in the forest, and all model parameters
+   * 
+   * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights
+   * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state
+   * \param residual Data object containing the "partial" residual net of all the model's other mean terms, aside from `tree`
+   * \param tree Tree to be updated
+   * \param tree_num Integer index of tree to be updated
+   * \param global_variance Value of the global error variance parameter
+   * \param gen C++ random number generator
+   */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetScale(double tau) {tau_ = tau;}
@@ -411,12 +609,53 @@ class GaussianMultivariateRegressionSuffStat {
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class GaussianMultivariateRegressionLeafModel {
  public:
+  /*!
+   * \brief Construct a new GaussianMultivariateRegressionLeafModel object
+   * 
+   * \param Sigma_0 Prior covariance, must have the same number of rows and columns as dimensions of the basis vector for the multivariate regression problem
+   */
   GaussianMultivariateRegressionLeafModel(Eigen::MatrixXd& Sigma_0) {Sigma_0_ = Sigma_0; multivariate_normal_sampler_ = MultivariateNormalSampler();}
   ~GaussianMultivariateRegressionLeafModel() {}
+  /*!
+   * \brief Log marginal likelihood for a proposed split, evaluated only for observations that fall into the node being split.
+   * 
+   * \param left_stat Sufficient statistics of the left node formed by the proposed split
+   * \param right_stat Sufficient statistics of the right node formed by the proposed split
+   * \param global_variance Global error variance parameter
+   */
   double SplitLogMarginalLikelihood(GaussianMultivariateRegressionSuffStat& left_stat, GaussianMultivariateRegressionSuffStat& right_stat, double global_variance);
+  /*!
+   * \brief Log marginal likelihood of a node, evaluated only for observations that fall into the node being split.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double NoSplitLogMarginalLikelihood(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Leaf node posterior mean.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   Eigen::VectorXd PosteriorParameterMean(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Leaf node posterior variance.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   Eigen::MatrixXd PosteriorParameterVariance(GaussianMultivariateRegressionSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Draw new parameters for every leaf node in `tree`, using a Gibbs update that conditions on the data, every other tree in the forest, and all model parameters
+   * 
+   * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights
+   * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state
+   * \param residual Data object containing the "partial" residual net of all the model's other mean terms, aside from `tree`
+   * \param tree Tree to be updated
+   * \param tree_num Integer index of tree to be updated
+   * \param global_variance Value of the global error variance parameter
+   * \param gen C++ random number generator
+   */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetScale(Eigen::MatrixXd& Sigma_0) {Sigma_0_ = Sigma_0;}
@@ -467,11 +706,47 @@ class LogLinearVarianceLeafModel {
  public:
   LogLinearVarianceLeafModel(double a, double b) {a_ = a; b_ = b; gamma_sampler_ = GammaSampler();}
   ~LogLinearVarianceLeafModel() {}
+  /*!
+   * \brief Log marginal likelihood for a proposed split, evaluated only for observations that fall into the node being split.
+   * 
+   * \param left_stat Sufficient statistics of the left node formed by the proposed split
+   * \param right_stat Sufficient statistics of the right node formed by the proposed split
+   * \param global_variance Global error variance parameter
+   */
   double SplitLogMarginalLikelihood(LogLinearVarianceSuffStat& left_stat, LogLinearVarianceSuffStat& right_stat, double global_variance);
+  /*!
+   * \brief Log marginal likelihood of a node, evaluated only for observations that fall into the node being split.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double NoSplitLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance);
   double SuffStatLogMarginalLikelihood(LogLinearVarianceSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Leaf node posterior shape parameter.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double PosteriorParameterShape(LogLinearVarianceSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Leaf node posterior scale parameter.
+   * 
+   * \param suff_stat Sufficient statistics of the node being evaluated
+   * \param global_variance Global error variance parameter
+   */
   double PosteriorParameterScale(LogLinearVarianceSuffStat& suff_stat, double global_variance);
+  /*!
+   * \brief Draw new parameters for every leaf node in `tree`, using a Gibbs update that conditions on the data, every other tree in the forest, and all model parameters
+   * 
+   * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights
+   * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state
+   * \param residual Data object containing the "full" residual net of all the model's mean terms
+   * \param tree Tree to be updated
+   * \param tree_num Integer index of tree to be updated
+   * \param global_variance Value of the global error variance parameter
+   * \param gen C++ random number generator
+   */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetPriorShape(double a) {a_ = a;}

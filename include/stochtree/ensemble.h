@@ -25,9 +25,9 @@ using json = nlohmann::json;
 namespace StochTree {
 
 /*!
- * \defgroup forest_group Forest (i.e. ensemble of trees) API
+ * \defgroup forest_group Forest API
  *
- * \brief Classes / functions for creating and modifying forests.
+ * \brief Classes / functions for creating and modifying forests (i.e. ensembles of trees).
  *
  * \{
  */

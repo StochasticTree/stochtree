@@ -733,9 +733,9 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
 }
 
 /*! 
- * Runs one iteration of the MCMC sampler for a tree ensemble model, which consists of two steps for every tree in a forest:
- * 1. Sampling "birth-death" tree modifications via the Metropolis-Hastings algorithm
- * 2. Sampling leaf node parameters, conditional on a (possibly-updated) tree, via a Gibbs sampler
+ * Runs one iteration of the "grow-from-root" (GFR) sampler for a tree ensemble model, which consists of two steps for every tree in a forest:
+ * 1. Grow a tree by recursively sampling cutpoint via the GFR algorithm
+ * 2. Sampling leaf node parameters, conditional on an updated tree, via a Gibbs sampler
  * 
  * \tparam LeafModel Leaf model type (i.e. `GaussianConstantLeafModel`, `GaussianUnivariateRegressionLeafModel`, etc...)
  * \tparam LeafSuffStat Leaf sufficient statistic type (i.e. `GaussianConstantSuffStat`, `GaussianUnivariateRegressionSuffStat`, etc...)
