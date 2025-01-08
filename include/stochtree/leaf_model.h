@@ -98,7 +98,7 @@ namespace StochTree {
  *  \f]
  * 
  *  \f[
- *    r_i = y_i - \sum_{k \neq j} \mu_k(X_i)
+ *    r_i = y_i - \sum_{k \neq j} f_k(X_i)
  *  \f]
  *
  * In words, this model depends on the data for a given leaf node only through three sufficient statistics, \f$n_{\ell}\f$, \f$s_{y,\ell}\f$, and \f$s_{yy,\ell}\f$, 
