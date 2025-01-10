@@ -361,11 +361,23 @@ class GaussianConstantSuffStat {
   data_size_t n;
   double sum_w;
   double sum_yw;
+  /*!
+   * \brief Construct a new GaussianConstantSuffStat object, setting all sufficient statistics to zero
+   */
   GaussianConstantSuffStat() {
     n = 0;
     sum_w = 0.0;
     sum_yw = 0.0;
   }
+  /*!
+   * \brief Accumulate data from observation `row_idx` into the sufficient statistics
+   * 
+   * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights
+   * \param outcome Data object containing the "partial" residual net of all the model's other mean terms, aside from `tree`
+   * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state
+   * \param row_idx Index of the training data observation from which the sufficient statistics should be updated
+   * \param tree_idx Index of the tree being updated in the course of this sufficient statistic update
+   */
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
@@ -376,27 +388,55 @@ class GaussianConstantSuffStat {
       sum_yw += outcome(row_idx, 0);
     }
   }
+  /*!
+   * \brief Reset all of the sufficient statistics to zero
+   */
   void ResetSuffStat() {
     n = 0;
     sum_w = 0.0;
     sum_yw = 0.0;
   }
+  /*!
+   * \brief Set the value of each sufficient statistic to the sum of the values provided by `lhs` and `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
   void AddSuffStat(GaussianConstantSuffStat& lhs, GaussianConstantSuffStat& rhs) {
     n = lhs.n + rhs.n;
     sum_w = lhs.sum_w + rhs.sum_w;
     sum_yw = lhs.sum_yw + rhs.sum_yw;
   }
+  /*!
+   * \brief Set the value of each sufficient statistic to the difference between the values provided by `lhs` and those provided by `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
   void SubtractSuffStat(GaussianConstantSuffStat& lhs, GaussianConstantSuffStat& rhs) {
     n = lhs.n - rhs.n;
     sum_w = lhs.sum_w - rhs.sum_w;
     sum_yw = lhs.sum_yw - rhs.sum_yw;
   }
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than some threshold
+   * 
+   * \param threshold Value used to compute `n > threshold`
+   */
   bool SampleGreaterThan(data_size_t threshold) {
     return n > threshold;
   }
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than or equal to some threshold
+   * 
+   * \param threshold Value used to compute `n >= threshold`
+   */
   bool SampleGreaterThanEqual(data_size_t threshold) {
     return n >= threshold;
   }
+  /*!
+   * \brief Return the sample size accumulated by a sufficient stat object
+   */
   data_size_t SampleSize() {
     return n;
   }
@@ -405,6 +445,11 @@ class GaussianConstantSuffStat {
 /*! \brief Marginal likelihood and posterior computation for gaussian homoskedastic constant leaf outcome model */
 class GaussianConstantLeafModel {
  public:
+  /*!
+   * \brief Construct a new GaussianConstantLeafModel object
+   * 
+   * \param tau Leaf node prior scale parameter
+   */
   GaussianConstantLeafModel(double tau) {tau_ = tau; normal_sampler_ = UnivariateNormalSampler();}
   ~GaussianConstantLeafModel() {}
   /*!
@@ -449,7 +494,15 @@ class GaussianConstantLeafModel {
    */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
+  /*!
+   * \brief Set a new value for the leaf node scale parameter
+   * 
+   * \param tau Leaf node prior scale parameter
+   */
   void SetScale(double tau) {tau_ = tau;}
+  /*!
+   * \brief Whether this model requires a basis vector for posterior inference and prediction
+   */
   inline bool RequiresBasis() {return false;}
  private:
   double tau_;
@@ -462,11 +515,23 @@ class GaussianUnivariateRegressionSuffStat {
   data_size_t n;
   double sum_xxw;
   double sum_yxw;
+  /*!
+   * \brief Construct a new GaussianUnivariateRegressionSuffStat object, setting all sufficient statistics to zero
+   */
   GaussianUnivariateRegressionSuffStat() {
     n = 0;
     sum_xxw = 0.0;
     sum_yxw = 0.0;
   }
+  /*!
+   * \brief Accumulate data from observation `row_idx` into the sufficient statistics
+   * 
+   * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights
+   * \param outcome Data object containing the "partial" residual net of all the model's other mean terms, aside from `tree`
+   * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state
+   * \param row_idx Index of the training data observation from which the sufficient statistics should be updated
+   * \param tree_idx Index of the tree being updated in the course of this sufficient statistic update
+   */
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
@@ -477,27 +542,55 @@ class GaussianUnivariateRegressionSuffStat {
       sum_yxw += outcome(row_idx, 0)*dataset.BasisValue(row_idx, 0);
     }
   }
+  /*!
+   * \brief Reset all of the sufficient statistics to zero
+   */
   void ResetSuffStat() {
     n = 0;
     sum_xxw = 0.0;
     sum_yxw = 0.0;
   }
+  /*!
+   * \brief Set the value of each sufficient statistic to the sum of the values provided by `lhs` and `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
   void AddSuffStat(GaussianUnivariateRegressionSuffStat& lhs, GaussianUnivariateRegressionSuffStat& rhs) {
     n = lhs.n + rhs.n;
     sum_xxw = lhs.sum_xxw + rhs.sum_xxw;
     sum_yxw = lhs.sum_yxw + rhs.sum_yxw;
   }
+  /*!
+   * \brief Set the value of each sufficient statistic to the difference between the values provided by `lhs` and those provided by `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
   void SubtractSuffStat(GaussianUnivariateRegressionSuffStat& lhs, GaussianUnivariateRegressionSuffStat& rhs) {
     n = lhs.n - rhs.n;
     sum_xxw = lhs.sum_xxw - rhs.sum_xxw;
     sum_yxw = lhs.sum_yxw - rhs.sum_yxw;
   }
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than some threshold
+   * 
+   * \param threshold Value used to compute `n > threshold`
+   */
   bool SampleGreaterThan(data_size_t threshold) {
     return n > threshold;
   }
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than or equal to some threshold
+   * 
+   * \param threshold Value used to compute `n >= threshold`
+   */
   bool SampleGreaterThanEqual(data_size_t threshold) {
     return n >= threshold;
   }
+  /*!
+   * \brief Return the sample size accumulated by a sufficient stat object
+   */
   data_size_t SampleSize() {
     return n;
   }
@@ -564,12 +657,26 @@ class GaussianMultivariateRegressionSuffStat {
   int p;
   Eigen::MatrixXd XtWX;
   Eigen::MatrixXd ytWX;
+  /*!
+   * \brief Construct a new GaussianMultivariateRegressionSuffStat object
+   * 
+   * \param basis_dim Size of the basis vector that defines the leaf regression
+   */
   GaussianMultivariateRegressionSuffStat(int basis_dim) {
     n = 0;
     XtWX = Eigen::MatrixXd::Zero(basis_dim, basis_dim);
     ytWX = Eigen::MatrixXd::Zero(1, basis_dim);
     p = basis_dim;
   }
+  /*!
+   * \brief Accumulate data from observation `row_idx` into the sufficient statistics
+   * 
+   * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights
+   * \param outcome Data object containing the "partial" residual net of all the model's other mean terms, aside from `tree`
+   * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state
+   * \param row_idx Index of the training data observation from which the sufficient statistics should be updated
+   * \param tree_idx Index of the tree being updated in the course of this sufficient statistic update
+   */
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     if (dataset.HasVarWeights()) {
@@ -580,27 +687,55 @@ class GaussianMultivariateRegressionSuffStat {
       ytWX += (outcome(row_idx, 0)*(dataset.GetBasis()(row_idx, Eigen::all)));
     }
   }
+  /*!
+   * \brief Reset all of the sufficient statistics to zero
+   */
   void ResetSuffStat() {
     n = 0;
     XtWX = Eigen::MatrixXd::Zero(p, p);
     ytWX = Eigen::MatrixXd::Zero(1, p);
   }
+  /*!
+   * \brief Set the value of each sufficient statistic to the sum of the values provided by `lhs` and `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
   void AddSuffStat(GaussianMultivariateRegressionSuffStat& lhs, GaussianMultivariateRegressionSuffStat& rhs) {
     n = lhs.n + rhs.n;
     XtWX = lhs.XtWX + rhs.XtWX;
     ytWX = lhs.ytWX + rhs.ytWX;
   }
+  /*!
+   * \brief Set the value of each sufficient statistic to the difference between the values provided by `lhs` and those provided by `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
   void SubtractSuffStat(GaussianMultivariateRegressionSuffStat& lhs, GaussianMultivariateRegressionSuffStat& rhs) {
     n = lhs.n - rhs.n;
     XtWX = lhs.XtWX - rhs.XtWX;
     ytWX = lhs.ytWX - rhs.ytWX;
   }
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than some threshold
+   * 
+   * \param threshold Value used to compute `n > threshold`
+   */
   bool SampleGreaterThan(data_size_t threshold) {
     return n > threshold;
   }
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than or equal to some threshold
+   * 
+   * \param threshold Value used to compute `n >= threshold`
+   */
   bool SampleGreaterThanEqual(data_size_t threshold) {
     return n >= threshold;
   }
+  /*!
+   * \brief Return the sample size accumulated by a sufficient stat object
+   */
   data_size_t SampleSize() {
     return n;
   }
@@ -674,28 +809,65 @@ class LogLinearVarianceSuffStat {
     n = 0;
     weighted_sum_ei = 0.0;
   }
+  /*!
+   * \brief Accumulate data from observation `row_idx` into the sufficient statistics
+   * 
+   * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights
+   * \param outcome Data object containing the "partial" residual net of all the model's other mean terms, aside from `tree`
+   * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state
+   * \param row_idx Index of the training data observation from which the sufficient statistics should be updated
+   * \param tree_idx Index of the tree being updated in the course of this sufficient statistic update
+   */
   void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
     n += 1;
     weighted_sum_ei += std::exp(std::log(outcome(row_idx)*outcome(row_idx)) - tracker.GetSamplePrediction(row_idx) + tracker.GetTreeSamplePrediction(row_idx, tree_idx));
   }
+  /*!
+   * \brief Reset all of the sufficient statistics to zero
+   */
   void ResetSuffStat() {
     n = 0;
     weighted_sum_ei = 0.0;
   }
+  /*!
+   * \brief Set the value of each sufficient statistic to the sum of the values provided by `lhs` and `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
   void AddSuffStat(LogLinearVarianceSuffStat& lhs, LogLinearVarianceSuffStat& rhs) {
     n = lhs.n + rhs.n;
     weighted_sum_ei = lhs.weighted_sum_ei + rhs.weighted_sum_ei;
   }
+  /*!
+   * \brief Set the value of each sufficient statistic to the difference between the values provided by `lhs` and those provided by `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
   void SubtractSuffStat(LogLinearVarianceSuffStat& lhs, LogLinearVarianceSuffStat& rhs) {
     n = lhs.n - rhs.n;
     weighted_sum_ei = lhs.weighted_sum_ei - rhs.weighted_sum_ei;
   }
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than some threshold
+   * 
+   * \param threshold Value used to compute `n > threshold`
+   */
   bool SampleGreaterThan(data_size_t threshold) {
     return n > threshold;
   }
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than or equal to some threshold
+   * 
+   * \param threshold Value used to compute `n >= threshold`
+   */
   bool SampleGreaterThanEqual(data_size_t threshold) {
     return n >= threshold;
   }
+  /*!
+   * \brief Return the sample size accumulated by a sufficient stat object
+   */
   data_size_t SampleSize() {
     return n;
   }
@@ -758,11 +930,27 @@ class LogLinearVarianceLeafModel {
   GammaSampler gamma_sampler_;
 };
 
+/*!
+ * \brief Unifying layer for disparate sufficient statistic class types
+ * 
+ * Joins together GaussianConstantSuffStat, GaussianUnivariateRegressionSuffStat, 
+ * GaussianMultivariateRegressionSuffStat, and LogLinearVarianceSuffStat 
+ * as a combined "variant" type. See <a href="https://en.cppreference.com/w/cpp/utility/variant">the std::variant documentation</a> 
+ * for more detail.
+ */
 using SuffStatVariant = std::variant<GaussianConstantSuffStat, 
                                      GaussianUnivariateRegressionSuffStat, 
                                      GaussianMultivariateRegressionSuffStat, 
                                      LogLinearVarianceSuffStat>;
 
+/*!
+ * \brief Unifying layer for disparate leaf model class types
+ * 
+ * Joins together GaussianConstantLeafModel, GaussianUnivariateRegressionLeafModel, 
+ * GaussianMultivariateRegressionLeafModel, and LogLinearVarianceLeafModel 
+ * as a combined "variant" type. See <a href="https://en.cppreference.com/w/cpp/utility/variant">the std::variant documentation</a> 
+ * for more detail.
+ */
 using LeafModelVariant = std::variant<GaussianConstantLeafModel, 
                                       GaussianUnivariateRegressionLeafModel, 
                                       GaussianMultivariateRegressionLeafModel, 
@@ -778,6 +966,12 @@ static inline LeafModelVariant createLeafModel(LeafModelConstructorArgs... leaf_
   return LeafModelType(leaf_model_args...);
 }
 
+/*!
+ * \brief Factory function that creates a new `SuffStat` object for the specified model type
+ * 
+ * \param model_type Enumeration storing the model type
+ * \param basis_dim [Optional] dimension of the basis vector, only used if `model_type = kMultivariateRegressionLeafGaussian`
+ */
 static inline SuffStatVariant suffStatFactory(ModelType model_type, int basis_dim = 0) {
   if (model_type == kConstantLeafGaussian) {
     return createSuffStat<GaussianConstantSuffStat>();
@@ -785,11 +979,22 @@ static inline SuffStatVariant suffStatFactory(ModelType model_type, int basis_di
     return createSuffStat<GaussianUnivariateRegressionSuffStat>();
   } else if (model_type == kMultivariateRegressionLeafGaussian) {
     return createSuffStat<GaussianMultivariateRegressionSuffStat, int>(basis_dim);
-  } else {
+  } else if (model_type == kLogLinearVariance) {
     return createSuffStat<LogLinearVarianceSuffStat>();
+  } else {
+    Log::Fatal("Incompatible model type provided to suff stat factory");
   }
 }
 
+/*!
+ * \brief Factory function that creates a new `LeafModel` object for the specified model type
+ * 
+ * \param model_type Enumeration storing the model type
+ * \param tau Value of the leaf node prior scale parameter, only used if `model_type = kConstantLeafGaussian` or `model_type = kUnivariateRegressionLeafGaussian`
+ * \param Sigma0 Value of the leaf node prior covariance matrix, only used if `model_type = kMultivariateRegressionLeafGaussian`
+ * \param a Value of the leaf node inverse gamma prior shape parameter, only used if `model_type = kLogLinearVariance`
+ * \param b Value of the leaf node inverse gamma prior scale parameter, only used if `model_type = kLogLinearVariance`
+ */
 static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau, Eigen::MatrixXd& Sigma0, double a, double b) {
   if (model_type == kConstantLeafGaussian) {
     return createLeafModel<GaussianConstantLeafModel, double>(tau);
