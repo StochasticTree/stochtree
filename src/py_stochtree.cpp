@@ -1109,6 +1109,22 @@ class ForestSamplerCpp {
     StochTree::UpdateResidualNewOutcome(*tracker_, *residual_ptr);
   }
 
+  void UpdateAlpha(double alpha) {
+    split_prior_->SetAlpha(alpha);
+  }
+
+  void UpdateBeta(double beta) {
+    split_prior_->SetBeta(beta);
+  }
+
+  void UpdateMinSamplesLeaf(int min_samples_leaf) {
+    split_prior_->SetMinSamplesLeaf(min_samples_leaf);
+  }
+
+  void UpdateMaxDepth(int max_depth) {
+    split_prior_->SetMaxDepth(max_depth);
+  }
+
  private:
   std::unique_ptr<StochTree::ForestTracker> tracker_;
   std::unique_ptr<StochTree::TreePrior> split_prior_;
@@ -1585,7 +1601,11 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("SampleOneIteration", &ForestSamplerCpp::SampleOneIteration)
     .def("InitializeForestModel", &ForestSamplerCpp::InitializeForestModel)
     .def("PropagateBasisUpdate", &ForestSamplerCpp::PropagateBasisUpdate)
-    .def("PropagateResidualUpdate", &ForestSamplerCpp::PropagateResidualUpdate);
+    .def("PropagateResidualUpdate", &ForestSamplerCpp::PropagateResidualUpdate)
+    .def("UpdateAlpha", &ForestSamplerCpp::UpdateAlpha)
+    .def("UpdateBeta", &ForestSamplerCpp::UpdateBeta)
+    .def("UpdateMinSamplesLeaf", &ForestSamplerCpp::UpdateMinSamplesLeaf)
+    .def("UpdateMaxDepth", &ForestSamplerCpp::UpdateMaxDepth);
 
   py::class_<GlobalVarianceModelCpp>(m, "GlobalVarianceModelCpp")
     .def(py::init<>())

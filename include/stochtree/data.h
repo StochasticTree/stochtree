@@ -13,7 +13,25 @@
 
 namespace StochTree {
 
-/*! \brief Extract local features from memory */
+/*!
+ * \defgroup data_group Dataset API
+ *
+ * \brief Functions for loading, using, and modifying training / test data for forest samplers.
+ *
+ * \{
+ */
+
+/*!
+ * \brief Extract multiple features from the raw data loaded from a file into an `Eigen::MatrixXd`. 
+ * Lightly modified from LightGBM's datasetloader interface to support `stochtree`'s use cases.
+ * \internal
+ * 
+ * \param text_data Vector of data reads as string from a file.
+ * \param parser Pointer to a parser object (i.e. `CSVParser`).
+ * \param column_indices Integer labels of columns to be extracted from `text_data` into `data`.
+ * \param data Eigen matrix into which `text_data` will be parsed and unpacked.
+ * \param num_rows Number of observations in the data being loaded.
+ */
 static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* text_data, const Parser* parser,
                                                      std::vector<int32_t>& column_indices, Eigen::MatrixXd& data,
                                                      data_size_t num_rows) {
@@ -45,7 +63,17 @@ static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* t
   text_data->clear();
 }
 
-/*! \brief Extract local features from memory */
+/*!
+* \brief Extract a single feature from the raw data loaded from a file into an `Eigen::VectorXd`. 
+ * Lightly modified from LightGBM's datasetloader interface to support `stochtree`'s use cases.
+ * \internal
+ * 
+ * \param text_data Vector of data reads as string from a file.
+ * \param parser Pointer to a parser object (i.e. `CSVParser`).
+ * \param column_index Integer labels of columns to be extracted from `text_data` into `data`.
+ * \param data Eigen vector into which `text_data` will be parsed and unpacked.
+ * \param num_rows Number of observations in the data being loaded.
+ */
 static inline void ExtractSingleFeatureFromMemory(std::vector<std::string>* text_data, const Parser* parser,
                                                   int32_t column_index, Eigen::VectorXd& data, data_size_t num_rows) {
   std::vector<std::pair<int, double>> oneline_features;
@@ -99,42 +127,148 @@ static inline std::vector<int> Str2FeatureVec(const char* parameters) {
   return feature_vec;
 }
 
+/*!
+ * \brief Internal wrapper around `Eigen::MatrixXd` interface for multidimensional floating point data.
+ */
 class ColumnMatrix {
  public:
   ColumnMatrix() {}
+  /*!
+   * \brief Construct a new `ColumnMatrix` object from in-memory data buffer.
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a matrix.
+   * \param num_row Number of rows in the matrix.
+   * \param num_col Number of columns / covariates in the matrix.
+   * \param is_row_major Whether or not the data in `data_ptr` are organized in a row-major or column-major fashion.
+   */
   ColumnMatrix(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
+  /*!
+   * \brief Construct a new ColumnMatrix object from CSV file
+   * 
+   * \param filename Name of the file (including any necessary path prefixes).
+   * \param column_index_string Comma-delimited string listing columns to extract into covariates matrix.
+   * \param header Whether or not the file contains a header of column names / non-data.
+   * \param precise_float_parser Whether floating point numbers in the CSV should be parsed precisely.
+   */
   ColumnMatrix(std::string filename, std::string column_index_string, bool header = true, bool precise_float_parser = false);
   ~ColumnMatrix() {}
+  /*!
+   * \brief Returns the value stored at (`row`, `col`) in the object's internal `Eigen::MatrixXd`.
+   * 
+   * \param row Row number to query in the matrix
+   * \param col Column number to query in the matrix
+   */
   double GetElement(data_size_t row_num, int32_t col_num) {return data_(row_num, col_num);}
+  /*!
+   * \brief Update an observation in the object's internal `Eigen::MatrixXd` to a new value.
+   *
+   * \param row Row number to be overwritten.
+   * \param col Column number to be overwritten.
+   * \param value New value to write in (`row`, `col`) in the object's internal `Eigen::MatrixXd`.
+   */
   void SetElement(data_size_t row_num, int32_t col_num, double value) {data_(row_num, col_num) = value;}
+  /*!
+   * \brief Update the data in a `ColumnMatrix` object from an in-memory data buffer. This will erase the existing matrix.
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a matrix.
+   * \param num_row Number of rows in the matrix.
+   * \param num_col Number of columns / covariates in the matrix.
+   * \param is_row_major Whether or not the data in `data_ptr` are organized in a row-major or column-major fashion.
+   */
   void LoadData(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
+  /*! \brief Number of rows in the object's internal `Eigen::MatrixXd`. */
   inline data_size_t NumRows() {return data_.rows();}
+  /*! \brief Number of columns in the object's internal `Eigen::MatrixXd`. */
   inline int NumCols() {return data_.cols();}
+  /*! \brief Return a reference to the object's internal `Eigen::MatrixXd`, for interfaces that require a raw matrix. */
   inline Eigen::MatrixXd& GetData() {return data_;}
  private:
   Eigen::MatrixXd data_;
 };
 
+/*!
+ * \brief Internal wrapper around `Eigen::VectorXd` interface for univariate floating point data. 
+ * The (frequently updated) full / partial residual used in sampling forests is stored internally 
+ * as a `ColumnVector` by the sampling functions (see \ref sampling_group).
+ */
 class ColumnVector {
  public:
   ColumnVector() {}
+  /*!
+   * \brief Construct a new `ColumnVector` object from in-memory data buffer.
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
+   * \param num_row Number of rows / elements in the vector.
+   */
   ColumnVector(double* data_ptr, data_size_t num_row);
+  /*!
+   * \brief Construct a new ColumnMatrix object from CSV file
+   * 
+   * \param filename Name of the file (including any necessary path prefixes).
+   * \param column_index Integer index of the column in `filename` to be unpacked as a vector.
+   * \param header Whether or not the file contains a header of column names / non-data.
+   * \param precise_float_parser Whether floating point numbers in the CSV should be parsed precisely.
+   */
   ColumnVector(std::string filename, int32_t column_index, bool header = true, bool precise_float_parser = false);
   ~ColumnVector() {}
-  double GetElement(data_size_t row_num) {return data_(row_num);}
-  void SetElement(data_size_t row_num, double value) {data_(row_num) = value;}
+  /*!
+   * \brief Returns the value stored at position `row` in the object's internal `Eigen::VectorXd`.
+   * 
+   * \param row Row number to query in the vector
+   */
+  double GetElement(data_size_t row) {return data_(row);}
+  /*!
+   * \brief Returns the value stored at position `row` in the object's internal `Eigen::VectorXd`.
+   * 
+   * \param row Row number to query in the vector
+   * \param value New value to write to element `row` of the object's internal `Eigen::VectorXd`.
+   */
+  void SetElement(data_size_t row, double value) {data_(row) = value;}
+  /*!
+   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer. This will erase the existing vector.
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
+   * \param num_row Number of rows / elements in the vector.
+   */
   void LoadData(double* data_ptr, data_size_t num_row);
+  /*!
+   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer, by adding each value obtained 
+   * in `data_ptr` to the existing values in the object's internal `Eigen::VectorXd`.
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
+   * \param num_row Number of rows / elements in the vector.
+   */
   void AddToData(double* data_ptr, data_size_t num_row);
+  /*!
+   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer, by subtracting each value obtained 
+   * in `data_ptr` from the existing values in the object's internal `Eigen::VectorXd`.
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
+   * \param num_row Number of rows / elements in the vector.
+   */
   void SubtractFromData(double* data_ptr, data_size_t num_row);
+  /*!
+   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer, by substituting each value obtained 
+   * in `data_ptr` for the existing values in the object's internal `Eigen::VectorXd`.
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
+   * \param num_row Number of rows / elements in the vector.
+   */
   void OverwriteData(double* data_ptr, data_size_t num_row);
+  /*! \brief Number of rows in the object's internal `Eigen::VectorXd`. */
   inline data_size_t NumRows() {return data_.size();}
+  /*! \brief Return a reference to the object's internal `Eigen::VectorXd`, for interfaces that require a raw vector. */
   inline Eigen::VectorXd& GetData() {return data_;}
  private:
   Eigen::VectorXd data_;
   void UpdateData(double* data_ptr, data_size_t num_row, std::function<double(double, double)> op);
 };
 
-/*! \brief API for loading and accessing data used to sample tree ensembles */
+/*! 
+ * \brief API for loading and accessing data used to sample tree ensembles 
+ * The covariates / bases / weights used in sampling forests are stored internally 
+ * as a `ForestDataset` by the sampling functions (see \ref sampling_group).
+ */
 class ForestDataset {
  public:
   /*! \brief Default constructor. No data is loaded at construction time. */
@@ -304,6 +438,27 @@ class ForestDataset {
     }
   }
   /*!
+   * \brief Update an observation in the internal covariate matrix to a new value
+   *
+   * \param row Row number to be overwritten in the covariate matrix
+   * \param col Column number to be overwritten in the covariate matrix
+   * \param new_value New covariate value
+   */
+  void SetCovariateValue(data_size_t row_id, int col, double new_value) {
+    covariates_.SetElement(row_id, col, new_value);
+  }
+  /*!
+   * \brief Update an observation in the internal basis matrix to a new value
+   *
+   * \param row Row number to be overwritten in the basis matrix
+   * \param col Column number to be overwritten in the basis matrix
+   * \param new_value New basis value
+   */
+  void SetBasisValue(data_size_t row_id, int col, double new_value) {
+    CHECK(has_basis_);
+    basis_.SetElement(row_id, col, new_value);
+  }
+  /*!
    * \brief Update an observation in the internal variance weight vector to a new value
    *
    * \param row_id Row ID in the variance weight vector to be overwritten
@@ -418,6 +573,8 @@ class RandomEffectsDataset {
   bool has_var_weights_{false};
   bool has_group_labels_{false};
 };
+
+/*! \} */ // end of data_group
 
 } // namespace StochTree
 
