@@ -97,12 +97,13 @@ Run the sampler, storing the resulting BART objects in a list
 
 ```{r}
 bart_models <- list()
-bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, num_trees_mean = num_trees)
+general_params <- list(sample_sigma2_global = T)
+mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = num_trees)
 for (i in 1:num_chains) {
     bart_models[[i]] <- stochtree::bart(
         X_train = X_train, W_train = W_train, y_train = y_train, X_test = X_test, 
         W_test = W_test, num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-        params = bart_params
+        general_params = general_params, mean_forest_params = mean_forest_params
     )
 }
 ```
@@ -177,11 +178,12 @@ storing the resulting BART JSON strings in a list.
 ```{r}
 bart_model_outputs <- foreach (i = 1:num_chains) %dopar% {
   random_seed <- i
-  bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, 
-                      num_trees_mean = num_trees, random_seed = random_seed)
+  general_params <- list(sample_sigma2_global = T, random_seed = random_seed)
+  mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = num_trees)
   bart_model <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, X_test = X_test, W_test = W_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, params = bart_params
+    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+    general_params = general_params, mean_forest_params = mean_forest_params
   )
   bart_model_string <- stochtree::saveBARTModelToJsonString(bart_model)
   y_hat_test <- bart_model$y_hat_test
@@ -267,11 +269,12 @@ First, we sample this model using the grow-from-root algorithm in the main R ses
 for several iterations (we will use these forests to see independent parallel chains in a moment).
 
 ```{r}
-xbart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, 
-                     num_trees_mean = num_trees)
+general_params <- list(sample_sigma2_global = T)
+mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = num_trees)
 xbart_model <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, X_test = X_test, W_test = W_test, 
-    num_gfr = num_gfr, num_burnin = 0, num_mcmc = 0, params = xbart_params
+    num_gfr = num_gfr, num_burnin = 0, num_mcmc = 0, 
+    general_params = general_params, mean_forest_params = mean_forest_params
 )
 xbart_model_string <- stochtree::saveBARTModelToJsonString(xbart_model)
 ```
@@ -303,9 +306,12 @@ bart_model_outputs <- foreach (i = 1:num_chains) %dopar% {
   random_seed <- i
   bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, 
                       num_trees_mean = num_trees, random_seed = random_seed)
+  general_params <- list(sample_sigma2_global = T, random_seed = random_seed)
+  mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = num_trees)
   bart_model <- stochtree::bart(
       X_train = X_train, W_train = W_train, y_train = y_train, X_test = X_test, W_test = W_test, 
-      num_gfr = 0, num_burnin = num_burnin, num_mcmc = num_mcmc, params = bart_params, 
+      num_gfr = 0, num_burnin = num_burnin, num_mcmc = num_mcmc, 
+      general_params = general_params, mean_forest_params = mean_forest_params, 
       previous_model_json = xbart_model_string, warmstart_sample_num = num_gfr - i + 1, 
   )
   bart_model_string <- stochtree::saveBARTModelToJsonString(bart_model)

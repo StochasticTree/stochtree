@@ -8,7 +8,7 @@ from typing import Optional, Union, Dict, Any
 from .bart import BARTModel
 from .data import Dataset, Residual
 from .forest import ForestContainer, Forest
-from .preprocessing import CovariateTransformer, _preprocess_bcf_params
+from .preprocessing import CovariateTransformer, _preprocess_params
 from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import NotSampledError
@@ -27,7 +27,9 @@ class BCFModel:
     
     def sample(self, X_train: Union[pd.DataFrame, np.array], Z_train: np.array, y_train: np.array, pi_train: np.array = None, 
                X_test: Union[pd.DataFrame, np.array] = None, Z_test: np.array = None, pi_test: np.array = None, 
-               num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, params: Optional[Dict[str, Any]] = None) -> None:
+               num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, general_params: Optional[Dict[str, Any]] = None, 
+               mu_forest_params: Optional[Dict[str, Any]] = None, tau_forest_params: Optional[Dict[str, Any]] = None, 
+               variance_forest_params: Optional[Dict[str, Any]] = None) -> None:
         """Runs a BCF sampler on provided training set. Outcome predictions and estimates of the prognostic and treatment effect functions 
         will be cached for the training set and (if provided) the test set.
 
@@ -54,152 +56,219 @@ class BCFModel:
             Number of "burn-in" iterations of the MCMC sampler. Defaults to ``0``. Ignored if ``num_gfr > 0``.
         num_mcmc : :obj:`int`, optional
             Number of "retained" iterations of the MCMC sampler. Defaults to ``100``. If this is set to 0, GFR (XBART) samples will be retained.
-        params : :obj:`dict`, optional
-            Dictionary of model parameters, each of which has a default value.
+        general_params : :obj:`dict`, optional
+            Dictionary of general model parameters, each of which has a default value processed internally, so this argument is optional.
 
             * ``cutpoint_grid_size`` (``int``): Maximum number of cutpoints to consider for each feature. Defaults to ``100``.
-            * ``sigma_leaf_mu`` (``float``): Starting value of leaf node scale parameter for the prognostic forest. Calibrated internally as ``2/num_trees_mu`` if not set here.
-            * ``sigma_leaf_tau`` (``float`` or ``np.array``): Starting value of leaf node scale parameter for the treatment effect forest. 
-                When treatment (``Z_train``) is multivariate, this can be either a ``float`` or a square 2-dimensional ``np.array`` 
-                with ``sigma_leaf_tau.shape[0] == Z_train.shape[1]`` and ``sigma_leaf_tau.shape[1] == Z_train.shape[1]``.
-                If ``sigma_leaf_tau`` is provided as a float for multivariate treatment, the leaf scale term will be set as a 
-                diagonal matrix with ``sigma_leaf_tau`` on every diagonal. If not passed as an argument, this parameter is 
-                calibrated internally as ``1/num_trees_tau`` (and propagated to a diagonal matrix if necessary).
-            * ``alpha_mu`` (``float``): Prior probability of splitting for a tree of depth 0 for the prognostic forest. 
-                Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``.
-            * ``alpha_tau`` (``float``): Prior probability of splitting for a tree of depth 0 for the treatment effect forest. 
-                Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``.
-            * ``alpha_variance`` (``float``): Prior probability of splitting for a tree of depth 0 in the conditional variance model. Tree split prior combines ``alpha_variance`` and ``beta_variance`` via ``alpha_variance*(1+node_depth)^-beta_variance``.
-            * ``beta_mu`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 for the prognostic forest. 
-                Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``.
-            * ``beta_tau`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 for the treatment effect forest. 
-                Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``.
-            * ``beta_variance`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional variance model. Tree split prior combines ``alpha_variance`` and ``beta_variance`` via ``alpha_variance*(1+node_depth)^-beta_variance``.
-            * ``min_samples_leaf_mu`` (``int``): Minimum allowable size of a leaf, in terms of training samples, for the prognostic forest. Defaults to ``5``.
-            * ``min_samples_leaf_tau`` (``int``): Minimum allowable size of a leaf, in terms of training samples, for the treatment effect forest. Defaults to ``5``.
-            * ``min_samples_leaf_variance`` (``int``): Minimum allowable size of a leaf, in terms of training samples in the conditional variance model. Defaults to ``5``.
-            * ``max_depth_mu`` (``int``): Maximum depth of any tree in the mu ensemble. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-            * ``max_depth_tau`` (``int``): Maximum depth of any tree in the tau ensemble. Defaults to ``5``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-            * ``max_depth_variance`` (``int``): Maximum depth of any tree in the ensemble in the conditional variance model. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-            * ``a_global`` (``float``): Shape parameter in the ``IG(a_global, b_global)`` global error variance model. Defaults to ``0``.
-            * ``b_global`` (``float``): Component of the scale parameter in the ``IG(a_global, b_global)`` global error variance prior. Defaults to ``0``.
-            * ``a_leaf_mu`` (``float``): Shape parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model for the prognostic forest. Defaults to ``3``.
-            * ``a_leaf_tau`` (``float``): Shape parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model for the treatment effect forest. Defaults to ``3``.
-            * ``b_leaf_mu`` (``float``): Scale parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model for the prognostic forest. Calibrated internally as ``0.5/num_trees`` if not set here.
-            * ``b_leaf_tau`` (``float``): Scale parameter in the ``IG(a_leaf, b_leaf)`` leaf node parameter variance model for the treatment effect forest. Calibrated internally as ``0.5/num_trees`` if not set here.
-            * ``sigma2_init`` (``float``): Starting value of global variance parameter. Calibrated internally as in Sparapani et al (2021) if not set here.
-            * ``variance_forest_leaf_init`` (``float``): Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as ``np.log(pct_var_variance_forest_init*np.var((y-np.mean(y))/np.std(y)))/num_trees_variance`` if not set.
-            * ``pct_var_sigma2_init`` (``float``): Percentage of standardized outcome variance used to initialize global error variance parameter. Superseded by ``sigma2``. Defaults to ``0.25``.
-            * ``pct_var_variance_forest_init`` (``float``): Percentage of standardized outcome variance used to initialize global error variance parameter. Default: ``1``. Superseded by ``variance_forest_init``.
-            * ``variable_weights_mean`` (`np.`array``): Numeric weights reflecting the relative probability of splitting on each variable in the prognostic and treatment effect forests. Does not need to sum to 1 but cannot be negative. Defaults to ``np.repeat(1/X_train.shape[1], X_train.shape[1])`` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to ``1/X_train.shape[1]``. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in ``X_train`` and then set ``propensity_covariate`` to ``'none'`` and adjust ``keep_vars_mu`` and ``keep_vars_tau`` accordingly.
-            * ``variable_weights_variance`` (``np.array``): Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
-            * ``keep_vars_mu`` (``list`` or ``np.array``): Vector of variable names or column indices denoting variables that should be included in the prognostic (``mu(X)``) forest. Defaults to ``None``.
-            * ``drop_vars_mu`` (``list`` or ``np.array``): Vector of variable names or column indices denoting variables that should be excluded from the prognostic (``mu(X)``) forest. Defaults to ``None``. If both ``drop_vars_mu`` and ``keep_vars_mu`` are set, ``drop_vars_mu`` will be ignored.
-            * ``drop_vars_variance`` (``list`` or ``np.array``): Vector of variable names or column indices denoting variables that should be excluded from the variance (``sigma^2(X)``) forest. Defaults to ``None``. If both ``drop_vars_variance`` and ``keep_vars_variance`` are set, ``drop_vars_variance`` will be ignored.
-            * ``keep_vars_tau`` (``list`` or ``np.array``): Vector of variable names or column indices denoting variables that should be included in the treatment effect (``tau(X)``) forest. Defaults to ``None``.
-            * ``drop_vars_tau`` (``list`` or ``np.array``): Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (``tau(X)``) forest. Defaults to ``None``. If both ``drop_vars_tau`` and ``keep_vars_tau`` are set, ``drop_vars_tau`` will be ignored.
-            * ``drop_vars_variance`` (``list`` or ``np.array``): Vector of variable names or column indices denoting variables that should be excluded from the variance (``sigma^2(X)``) forest. Defaults to ``None``. If both ``drop_vars_variance`` and ``keep_vars_variance`` are set, ``drop_vars_variance`` will be ignored.
-            * ``keep_vars_variance`` (``list`` or ``np.array``): Vector of variable names or column indices denoting variables that should be included in the variance (``sigma^2(X)``) forest. Defaults to ``None``.
-            * ``num_trees_mu`` (``int``): Number of trees in the prognostic forest. Defaults to ``200``.
-            * ``num_trees_tau`` (``int``): Number of trees in the treatment effect forest. Defaults to ``50``.
-            * ``num_trees_variance`` (``int``): Number of trees in the ensemble for the conditional variance model. Defaults to ``0``. Variance is only modeled using a tree / forest if ``num_trees_variance > 0``.
-            * ``sample_sigma_global`` (``bool``): Whether or not to update the ``sigma^2`` global error variance parameter based on ``IG(a_global, b_global)``. Defaults to ``True``.
-            * ``sample_sigma_leaf_mu`` (``bool``): Whether or not to update the ``tau`` leaf scale variance parameter based on ``IG(a_leaf, b_leaf)`` for the prognostic forest. 
-                Cannot (currently) be set to true if ``basis_train`` has more than one column. Defaults to ``True``.
-            * ``sample_sigma_leaf_tau`` (``bool``): Whether or not to update the ``tau`` leaf scale variance parameter based on ``IG(a_leaf, b_leaf)`` for the treatment effect forest. 
-                Cannot (currently) be set to true if ``basis_train`` has more than one column. Defaults to ``True``.
+            * ``standardize`` (``bool``): Whether or not to standardize the outcome (and store the offset / scale in the model object). Defaults to ``True``.
+            * ``sample_sigma2_global`` (``bool``): Whether or not to update the ``sigma^2`` global error variance parameter based on ``IG(sigma2_global_shape, sigma2_global_scale)``. Defaults to ``True``.
+            * ``sigma2_global_init`` (``float``): Starting value of global variance parameter. Set internally to the outcome variance (standardized if `standardize = True`) if not set here.
+            * ``sigma2_global_shape`` (``float``): Shape parameter in the ``IG(sigma2_global_shape, b_glsigma2_global_scaleobal)`` global error variance model. Defaults to ``0``.
+            * ``sigma2_global_scale`` (``float``): Scale parameter in the ``IG(sigma2_global_shape, b_glsigma2_global_scaleobal)`` global error variance model. Defaults to ``0``.
+            * ``variable_weights`` (`np.`array``): Numeric weights reflecting the relative probability of splitting on each variable in each of the forests. Does not need to sum to 1 but cannot be negative. Defaults to ``np.repeat(1/X_train.shape[1], X_train.shape[1])`` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to ``1/X_train.shape[1]``. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in ``X_train`` and then set ``propensity_covariate`` to ``'none'`` and adjust ``keep_vars`` accordingly for the mu or tau forests.
             * ``propensity_covariate`` (``str``): Whether to include the propensity score as a covariate in either or both of the forests. Enter ``"none"`` for neither, ``"mu"`` for the prognostic forest, ``"tau"`` for the treatment forest, and ``"both"`` for both forests. 
                 If this is not ``"none"`` and a propensity score is not provided, it will be estimated from (``X_train``, ``Z_train``) using ``BARTModel``. Defaults to ``"mu"``.
             * ``adaptive_coding`` (``bool``): Whether or not to use an "adaptive coding" scheme in which a binary treatment variable is not coded manually as (0,1) or (-1,1) but learned via 
                 parameters ``b_0`` and ``b_1`` that attach to the outcome model ``[b_0 (1-Z) + b_1 Z] tau(X)``. This is ignored when Z is not binary. Defaults to True.
-            * ``b_0`` (``float``): Initial value of the "control" group coding parameter. This is ignored when ``Z`` is not binary. Default: ``-0.5``.
-            * ``b_1`` (``float``): Initial value of the "treated" group coding parameter. This is ignored when ``Z`` is not binary. Default: ``0.5``.
+            * ``control_coding_init`` (``float``): Initial value of the "control" group coding parameter. This is ignored when ``Z`` is not binary. Default: ``-0.5``.
+            * ``treated_coding_init`` (``float``): Initial value of the "treated" group coding parameter. This is ignored when ``Z`` is not binary. Default: ``0.5``.
             * ``random_seed`` (``int``): Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to ``std::random_device``.
             * ``keep_burnin`` (``bool``): Whether or not "burnin" samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
             * ``keep_gfr`` (``bool``): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
             * ``keep_every`` (``int``): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to ``1``. Setting ``keep_every = k`` for some ``k > 1`` will "thin" the MCMC samples by retaining every ``k``-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
+            * ``num_chains`` (``int``): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
+        
+        mu_forest_params : :obj:`dict`, optional
+            Dictionary of prognostic forest model parameters, each of which has a default value processed internally, so this argument is optional.
+
+            * ``num_trees`` (``int``): Number of trees in the prognostic forest. Defaults to ``250``. Must be a positive integer.
+            * ``alpha`` (``float``): Prior probability of splitting for a tree of depth 0 in the prognostic forest. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``0.95``.
+            * ``beta`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 in the prognostic forest. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``2``.
+            * ``min_samples_leaf`` (``int``): Minimum allowable size of a leaf, in terms of training samples, in the prognostic forest. Defaults to ``5``.
+            * ``max_depth`` (``int``): Maximum depth of any tree in the ensemble in the prognostic forest. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+            * ``variable_weights`` (``np.array``): Numeric weights reflecting the relative probability of splitting on each variable in the prognostic forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
+            * ``sample_sigma2_leaf`` (``bool``): Whether or not to update the ``tau`` leaf scale variance parameter based on ``IG(sigma2_leaf_shape, sigma2_leaf_scale)``. Cannot (currently) be set to true if ``basis_train`` has more than one column. Defaults to ``False``.
+            * ``sigma2_leaf_init`` (``float``): Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
+            * ``sigma2_leaf_shape`` (``float``): Shape parameter in the ``IG(sigma2_leaf_shape, sigma2_leaf_scale)`` leaf node parameter variance model. Defaults to ``3``.
+            * ``sigma2_leaf_scale`` (``float``): Scale parameter in the ``IG(sigma2_leaf_shape, sigma2_leaf_scale)`` leaf node parameter variance model. Calibrated internally as ``0.5/num_trees`` if not set here.
+            * ``keep_vars`` (``list`` or ``np.array``): Vector of variable names or column indices denoting variables that should be included in the prognostic (``mu(X)``) forest. Defaults to ``None``.
+            * ``drop_vars`` (``list`` or ``np.array``): Vector of variable names or column indices denoting variables that should be excluded from the prognostic (``mu(X)``) forest. Defaults to ``None``. If both ``drop_vars_mu`` and ``keep_vars_mu`` are set, ``drop_vars_mu`` will be ignored.
+
+        tau_forest_params : :obj:`dict`, optional
+            Dictionary of treatment effect forest model parameters, each of which has a default value processed internally, so this argument is optional.
+
+            * ``num_trees`` (``int``): Number of trees in the treatment effect forest. Defaults to ``50``. Must be a positive integer.
+            * ``alpha`` (``float``): Prior probability of splitting for a tree of depth 0 in the treatment effect forest. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``0.25``.
+            * ``beta`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 in the treatment effect forest. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``3``.
+            * ``min_samples_leaf`` (``int``): Minimum allowable size of a leaf, in terms of training samples, in the treatment effect forest. Defaults to ``5``.
+            * ``max_depth`` (``int``): Maximum depth of any tree in the ensemble in the treatment effect forest. Defaults to ``5``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+            * ``variable_weights`` (``np.array``): Numeric weights reflecting the relative probability of splitting on each variable in the treatment effect forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
+            * ``sample_sigma2_leaf`` (``bool``): Whether or not to update the ``tau`` leaf scale variance parameter based on ``IG(sigma2_leaf_shape, sigma2_leaf_scale)``. Cannot (currently) be set to true if ``basis_train`` has more than one column. Defaults to ``False``.
+            * ``sigma2_leaf_init`` (``float``): Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
+            * ``sigma2_leaf_shape`` (``float``): Shape parameter in the ``IG(sigma2_leaf_shape, sigma2_leaf_scale)`` leaf node parameter variance model. Defaults to ``3``.
+            * ``sigma2_leaf_scale`` (``float``): Scale parameter in the ``IG(sigma2_leaf_shape, sigma2_leaf_scale)`` leaf node parameter variance model. Calibrated internally as ``0.5/num_trees`` if not set here.            
+
+        variance_forest_params : :obj:`dict`, optional
+            Dictionary of variance forest model  parameters, each of which has a default value processed internally, so this argument is optional.
+
+            * ``num_trees`` (``int``): Number of trees in the conditional variance model. Defaults to ``0``. Variance is only modeled using a tree / forest if ``num_trees > 0``.
+            * ``alpha`` (``float``): Prior probability of splitting for a tree of depth 0 in the conditional variance model. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``0.95``.
+            * ``beta`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional variance model. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``2``.
+            * ``min_samples_leaf`` (``int``): Minimum allowable size of a leaf, in terms of training samples, in the conditional variance model. Defaults to ``5``.
+            * ``max_depth`` (``int``): Maximum depth of any tree in the ensemble in the conditional variance model. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
+            * ``variable_weights`` (``np.array``): Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
+            * ``var_forest_leaf_init`` (``float``): Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as ``np.log(0.6*np.var(y_train))/num_trees_variance``, where `y_train` is the possibly standardized outcome, if not set.
+            * ``var_forest_prior_shape`` (``float``): Shape parameter in the [optional] ``IG(var_forest_prior_shape, var_forest_prior_scale)`` conditional error variance forest (which is only sampled if ``num_trees > 0``). Calibrated internally as ``num_trees / 1.5^2 + 0.5`` if not set here.
+            * ``var_forest_prior_scale`` (``float``): Scale parameter in the [optional] ``IG(var_forest_prior_shape, var_forest_prior_scale)`` conditional error variance forest (which is only sampled if ``num_trees > 0``). Calibrated internally as ``num_trees / 1.5^2`` if not set here.
         
         Returns
         -------
         self : BCFModel
             Sampled BCF Model.
         """
-        # Unpack parameters
-        bcf_params = _preprocess_bcf_params(params)
-        cutpoint_grid_size = bcf_params['cutpoint_grid_size']
-        sigma_leaf_mu = bcf_params['sigma_leaf_mu']
-        sigma_leaf_tau = bcf_params['sigma_leaf_tau']
-        alpha_mu = bcf_params['alpha_mu']
-        alpha_tau = bcf_params['alpha_tau']
-        alpha_variance = bcf_params['alpha_variance']
-        beta_mu = bcf_params['beta_mu']
-        beta_tau = bcf_params['beta_tau']
-        beta_variance = bcf_params['beta_variance']
-        min_samples_leaf_mu = bcf_params['min_samples_leaf_mu']
-        min_samples_leaf_tau = bcf_params['min_samples_leaf_tau']
-        min_samples_leaf_variance = bcf_params['min_samples_leaf_variance']
-        max_depth_mu = bcf_params['max_depth_mu']
-        max_depth_tau = bcf_params['max_depth_tau']
-        max_depth_variance = bcf_params['max_depth_variance']
-        a_global = bcf_params['a_global']
-        b_global = bcf_params['b_global']
-        a_forest = bcf_params['a_forest']
-        b_forest = bcf_params['b_forest']
-        a_leaf_mu = bcf_params['a_leaf_mu']
-        a_leaf_tau = bcf_params['a_leaf_tau']
-        b_leaf_mu = bcf_params['b_leaf_mu']
-        b_leaf_tau = bcf_params['b_leaf_tau']
-        sigma2_init = bcf_params['sigma2_init']
-        variance_forest_leaf_init = bcf_params['variance_forest_leaf_init']
-        pct_var_sigma2_init = bcf_params['pct_var_sigma2_init']
-        pct_var_variance_forest_init = bcf_params['pct_var_variance_forest_init']
-        variable_weights_mu = bcf_params['variable_weights_mu']
-        variable_weights_tau = bcf_params['variable_weights_tau']
-        variable_weights_variance = bcf_params['variable_weights_variance']
-        keep_vars_mu = bcf_params['keep_vars_mu']
-        drop_vars_mu = bcf_params['drop_vars_mu']
-        keep_vars_tau = bcf_params['keep_vars_tau']
-        drop_vars_tau = bcf_params['drop_vars_tau']
-        keep_vars_variance = bcf_params['keep_vars_variance']
-        drop_vars_variance = bcf_params['drop_vars_variance']
-        num_trees_mu = bcf_params['num_trees_mu']
-        num_trees_tau = bcf_params['num_trees_tau']
-        num_trees_variance = bcf_params['num_trees_variance']
-        sample_sigma_global = bcf_params['sample_sigma_global']
-        sample_sigma_leaf_mu = bcf_params['sample_sigma_leaf_mu']
-        sample_sigma_leaf_tau = bcf_params['sample_sigma_leaf_tau']
-        propensity_covariate = bcf_params['propensity_covariate']
-        adaptive_coding = bcf_params['adaptive_coding']
-        b_0 = bcf_params['b_0']
-        b_1 = bcf_params['b_1']
-        random_seed = bcf_params['random_seed']
-        keep_burnin = bcf_params['keep_burnin']
-        keep_gfr = bcf_params['keep_gfr']
-        self.standardize = bcf_params['standardize']
-        keep_every = bcf_params['keep_every']
+        # Update general BART parameters
+        general_params_default = {
+            'cutpoint_grid_size' : 100, 
+            'standardize' : True, 
+            'sample_sigma2_global' : True, 
+            'sigma2_global_init' : None, 
+            'sigma2_global_shape' : 0, 
+            'sigma2_global_scale' : 0, 
+            'variable_weights' : None, 
+            'propensity_covariate' : "mu", 
+            'adaptive_coding' : True, 
+            'control_coding_init' : -0.5, 
+            'treated_coding_init' : 0.5, 
+            'random_seed' : -1, 
+            'keep_burnin' : False, 
+            'keep_gfr' : False, 
+            'keep_every' : 1, 
+            'num_chains' : 1
+        }
+        general_params_updated = _preprocess_params(
+            general_params_default, general_params
+        )
+
+        # Update mu forest BART parameters
+        mu_forest_params_default = {
+            'num_trees' : 250, 
+            'alpha' : 0.95, 
+            'beta' : 2.0, 
+            'min_samples_leaf' : 5, 
+            'max_depth' : 10, 
+            'sample_sigma2_leaf' : True, 
+            'sigma2_leaf_init' : None, 
+            'sigma2_leaf_shape' : 3, 
+            'sigma2_leaf_scale' : None, 
+            'keep_vars' : None, 
+            'drop_vars' : None
+        }
+        mu_forest_params_updated = _preprocess_params(
+            mu_forest_params_default, mu_forest_params
+        )
+
+        # Update tau forest BART parameters
+        tau_forest_params_default = {
+            'num_trees' : 50, 
+            'alpha' : 0.25, 
+            'beta' : 3.0, 
+            'min_samples_leaf' : 5, 
+            'max_depth' : 5, 
+            'sample_sigma2_leaf' : False, 
+            'sigma2_leaf_init' : None, 
+            'sigma2_leaf_shape' : 3, 
+            'sigma2_leaf_scale' : None, 
+            'keep_vars' : None, 
+            'drop_vars' : None
+        }
+        tau_forest_params_updated = _preprocess_params(
+            tau_forest_params_default, tau_forest_params
+        )
         
+        # Update variance forest BART parameters
+        variance_forest_params_default = {
+            'num_trees' : 0, 
+            'alpha' : 0.95, 
+            'beta' : 2.0, 
+            'min_samples_leaf' : 5, 
+            'max_depth' : 10, 
+            'var_forest_leaf_init' : None, 
+            'var_forest_prior_shape' : None, 
+            'var_forest_prior_scale' : None, 
+            'keep_vars' : None, 
+            'drop_vars' : None
+        }
+        variance_forest_params_updated = _preprocess_params(
+            variance_forest_params_default, variance_forest_params
+        )
+
+        ### Unpack all parameter values
+        # 1. General parameters
+        cutpoint_grid_size = general_params_updated['cutpoint_grid_size']
+        self.standardize = general_params_updated['standardize']
+        sample_sigma_global = general_params_updated['sample_sigma2_global']
+        sigma2_init = general_params_updated['sigma2_global_init']
+        a_global = general_params_updated['sigma2_global_shape']
+        b_global = general_params_updated['sigma2_global_scale']
+        variable_weights = general_params_updated['variable_weights']
+        propensity_covariate = general_params_updated['propensity_covariate']
+        adaptive_coding = general_params_updated['adaptive_coding']
+        b_0 = general_params_updated['control_coding_init']
+        b_1 = general_params_updated['treated_coding_init']
+        random_seed = general_params_updated['random_seed']
+        keep_burnin = general_params_updated['keep_burnin']
+        keep_gfr = general_params_updated['keep_gfr']
+        keep_every = general_params_updated['keep_every']
+
+        # 2. Mu forest parameters
+        num_trees_mu = mu_forest_params_updated['num_trees']
+        alpha_mu = mu_forest_params_updated['alpha']
+        beta_mu = mu_forest_params_updated['beta']
+        min_samples_leaf_mu = mu_forest_params_updated['min_samples_leaf']
+        max_depth_mu = mu_forest_params_updated['max_depth']
+        sample_sigma_leaf_mu = mu_forest_params_updated['sample_sigma2_leaf']
+        sigma_leaf_mu = mu_forest_params_updated['sigma2_leaf_init']
+        a_leaf_mu = mu_forest_params_updated['sigma2_leaf_shape']
+        b_leaf_mu = mu_forest_params_updated['sigma2_leaf_scale']
+        keep_vars_mu = mu_forest_params_updated['keep_vars']
+        drop_vars_mu = mu_forest_params_updated['drop_vars']
+
+        # 3. Tau forest parameters
+        num_trees_tau = tau_forest_params_updated['num_trees']
+        alpha_tau = tau_forest_params_updated['alpha']
+        beta_tau = tau_forest_params_updated['beta']
+        min_samples_leaf_tau = tau_forest_params_updated['min_samples_leaf']
+        max_depth_tau = tau_forest_params_updated['max_depth']
+        sample_sigma_leaf_tau = tau_forest_params_updated['sample_sigma2_leaf']
+        sigma_leaf_tau = tau_forest_params_updated['sigma2_leaf_init']
+        a_leaf_tau = tau_forest_params_updated['sigma2_leaf_shape']
+        b_leaf_tau = tau_forest_params_updated['sigma2_leaf_scale']
+        keep_vars_tau = tau_forest_params_updated['keep_vars']
+        drop_vars_tau = tau_forest_params_updated['drop_vars']
+
+        # 4. Variance forest parameters
+        num_trees_variance = variance_forest_params_updated['num_trees']
+        alpha_variance = variance_forest_params_updated['alpha']
+        beta_variance = variance_forest_params_updated['beta']
+        min_samples_leaf_variance = variance_forest_params_updated['min_samples_leaf']
+        max_depth_variance = variance_forest_params_updated['max_depth']
+        variance_forest_leaf_init = variance_forest_params_updated['var_forest_leaf_init']
+        a_forest = variance_forest_params_updated['var_forest_prior_shape']
+        b_forest = variance_forest_params_updated['var_forest_prior_scale']
+        keep_vars_variance = variance_forest_params_updated['keep_vars']
+        drop_vars_variance = variance_forest_params_updated['drop_vars']
+                
         # Variable weight preprocessing (and initialization if necessary)
-        if variable_weights_mu is None:
+        if variable_weights is None:
             if X_train.ndim > 1:
-                variable_weights_mu = np.repeat(1/X_train.shape[1], X_train.shape[1])
+                variable_weights = np.repeat(1/X_train.shape[1], X_train.shape[1])
             else:
-                variable_weights_mu = np.repeat(1., 1)
-        if np.any(variable_weights_mu < 0):
-            raise ValueError("variable_weights_mu cannot have any negative weights")
-        if variable_weights_tau is None:
-            if X_train.ndim > 1:
-                variable_weights_tau = np.repeat(1/X_train.shape[1], X_train.shape[1])
-            else:
-                variable_weights_tau = np.repeat(1., 1)
-        if np.any(variable_weights_tau < 0):
-            raise ValueError("variable_weights_tau cannot have any negative weights")
-        if variable_weights_variance is None:
-            if X_train.ndim > 1:
-                variable_weights_variance = np.repeat(1/X_train.shape[1], X_train.shape[1])
-            else:
-                variable_weights_variance = np.repeat(1., 1)
-        if np.any(variable_weights_variance < 0):
-            raise ValueError("variable_weights_variance cannot have any negative weights")
+                variable_weights = np.repeat(1., 1)
+        if np.any(variable_weights < 0):
+            raise ValueError("variable_weights cannot have any negative weights")
+        variable_weights_mu = variable_weights
+        variable_weights_tau = variable_weights
+        variable_weights_variance = variable_weights
         
         # Determine whether conditional variance model will be fit
         self.include_variance_forest = True if num_trees_variance > 0 else False
@@ -611,9 +680,9 @@ class BCFModel:
 
         # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau (don't use regression initializer for warm-start or XBART)
         if not sigma2_init:
-            sigma2_init = pct_var_sigma2_init*np.var(resid_train)
+            sigma2_init = 1.0*np.var(resid_train)
         if not variance_forest_leaf_init:
-            variance_forest_leaf_init = pct_var_variance_forest_init*np.var(resid_train)
+            variance_forest_leaf_init = 0.6*np.var(resid_train)
         b_leaf_mu = np.squeeze(np.var(resid_train)) / num_trees_mu if b_leaf_mu is None else b_leaf_mu
         b_leaf_tau = np.squeeze(np.var(resid_train)) / (2*num_trees_tau) if b_leaf_tau is None else b_leaf_tau
         sigma_leaf_mu = np.squeeze(np.var(resid_train)) / num_trees_mu if sigma_leaf_mu is None else sigma_leaf_mu
@@ -639,7 +708,6 @@ class BCFModel:
             if not b_forest:
                 b_forest = 1.
 
-
         # Update variable weights
         variable_counts = [original_var_indices.count(i) for i in original_var_indices]
         variable_weights_mu_adj = [1/i for i in variable_counts]
@@ -649,7 +717,7 @@ class BCFModel:
         variable_weights_tau = variable_weights_tau[original_var_indices]*variable_weights_tau_adj
         variable_weights_variance = variable_weights_variance[original_var_indices]*variable_weights_variance_adj
 
-        # Create mu, tau, and variance specific variable weights with weights zeroed out for excluded variables
+        # Zero out weights for excluded variables
         variable_weights_mu[[variable_subset_mu.count(i) == 0 for i in original_var_indices]] = 0
         variable_weights_tau[[variable_subset_tau.count(i) == 0 for i in original_var_indices]] = 0
         variable_weights_variance[[variable_subset_variance.count(i) == 0 for i in original_var_indices]] = 0

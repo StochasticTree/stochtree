@@ -29,63 +29,45 @@
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
 #' @param previous_model_json (Optional) JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: `NULL`.
 #' @param warmstart_sample_num (Optional) Sample number from `previous_model_json` that will be used to warmstart this BART sampler. One-indexed (so that the first sample is used for warm-start by setting `warmstart_sample_num = 1`). Default: `NULL`.
-#' @param params The list of model parameters, each of which has a default value.
+#' @param general_params (Optional) A list of general (non-forest-specific) model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
-#'   **1. Global Parameters**
-#'
-#'   - `cutpoint_grid_size` Maximum size of the "grid" of potential cutpoints to consider. Default: `100`.
-#'   - `sigma2_init` Starting value of global error variance parameter. Calibrated internally as `pct_var_sigma2_init*var((y-mean(y))/sd(y))` if not set.
-#'   - `pct_var_sigma2_init` Percentage of standardized outcome variance used to initialize global error variance parameter. Default: `1`. Superseded by `sigma2_init`.
-#'   - `variance_scale` Variance after the data have been scaled. Default: `1`.
-#'   - `a_global` Shape parameter in the `IG(a_global, b_global)` global error variance model. Default: `0`.
-#'   - `b_global` Scale parameter in the `IG(a_global, b_global)` global error variance model. Default: `0`.
-#'   - `random_seed` Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
-#'   - `sample_sigma_global` Whether or not to update the `sigma^2` global error variance parameter based on `IG(a_global, b_global)`. Default: `TRUE`.
-#'   - `keep_burnin` Whether or not "burnin" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
-#'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in cached predictions. Default `FALSE`. Ignored if `num_mcmc = 0`.
+#'   - `cutpoint_grid_size` Maximum size of the "grid" of potential cutpoints to consider in the GFR algorithm. Default: `100`.
 #'   - `standardize` Whether or not to standardize the outcome (and store the offset / scale in the model object). Default: `TRUE`.
+#'   - `sample_sigma2_global` Whether or not to update the `sigma^2` global error variance parameter based on `IG(sigma2_global_shape, sigma2_global_scale)`. Default: `TRUE`.
+#'   - `sigma2_global_init` Starting value of global error variance parameter. Calibrated internally as `1.0*var(y_train)`, where `y_train` is the possibly standardized outcome, if not set.
+#'   - `sigma2_global_shape` Shape parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
+#'   - `sigma2_global_scale` Scale parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
+#'   - `random_seed` Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
+#'   - `keep_burnin` Whether or not "burnin" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
+#'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 #'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'
-#'   **2. Mean Forest Parameters**
-#'   
-#'   - `num_trees_mean` Number of trees in the ensemble for the conditional mean model. Default: `200`. If `num_trees_mean = 0`, the conditional mean will not be modeled using a forest, and the function will only proceed if `num_trees_variance > 0`.
-#'   - `sample_sigma_leaf` Whether or not to update the `tau` leaf scale variance parameter based on `IG(a_leaf, b_leaf)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: `FALSE`.
+#' @param mean_forest_params (Optional) A list of mean forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
-#'   **2.1. Tree Prior Parameters**
-#'   
-#'   - `alpha_mean` Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: `0.95`.
-#'   - `beta_mean` Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha_mean` and `beta_mean` via `alpha_mean*(1+node_depth)^-beta_mean`. Default: `2`.
-#'   - `min_samples_leaf_mean` Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: `5`.
-#'   - `max_depth_mean` Maximum depth of any tree in the ensemble in the mean model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
+#'   - `num_trees` Number of trees in the ensemble for the conditional mean model. Default: `200`. If `num_trees = 0`, the conditional mean will not be modeled using a forest, and the function will only proceed if `num_trees > 0` for the variance forest.
+#'   - `alpha` Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `0.95`.
+#'   - `beta` Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `2`.
+#'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: `5`.
+#'   - `max_depth` Maximum depth of any tree in the ensemble in the mean model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
+#'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
+#'   - `sample_sigma2_leaf` Whether or not to update the leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: `FALSE`.
+#'   - `sigma2_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
+#'   - `sigma2_leaf_shape` Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Default: `3`.
+#'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
 #'
-#'   **2.2. Leaf Model Parameters**
-#'   
-#'   - `variable_weights_mean` Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
-#'   - `sigma_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees_mean` if not set here.
-#'   - `a_leaf` Shape parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Default: `3`.
-#'   - `b_leaf` Scale parameter in the `IG(a_leaf, b_leaf)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees_mean` if not set here.
+#' @param variance_forest_params (Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
-#'   **3. Conditional Variance Forest Parameters**
-#'   
-#'   - `num_trees_variance` Number of trees in the ensemble for the conditional variance model. Default: `0`. Variance is only modeled using a tree / forest if `num_trees_variance > 0`.
-#'   - `variance_forest_init` Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance` if not set.
-#'   - `pct_var_variance_forest_init` Percentage of standardized outcome variance used to initialize global error variance parameter. Default: `1`. Superseded by `variance_forest_init`.
-#'
-#'   **3.1. Tree Prior Parameters**
-#'   
-#'   - `alpha_variance` Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`. Default: `0.95`.
-#'   - `beta_variance` Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines `alpha_variance` and `beta_variance` via `alpha_variance*(1+node_depth)^-beta_variance`. Default: `2`.
-#'   - `min_samples_leaf_variance` Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: `5`.
-#'   - `max_depth_variance` Maximum depth of any tree in the ensemble in the variance model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
-#'
-#'   **3.2. Leaf Model Parameters**
-#'   
-#'   - `variable_weights_variance` Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
-#'   - `sigma_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees_mean` if not set here.
-#'   - `a_forest` Shape parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `num_trees_variance > 0`). Calibrated internally as `num_trees_variance / 1.5^2 + 0.5` if not set.
-#'   - `b_forest` Scale parameter in the `IG(a_forest, b_forest)` conditional error variance model (which is only sampled if `num_trees_variance > 0`). Calibrated internally as `num_trees_variance / 1.5^2` if not set.
+#'   - `num_trees` Number of trees in the ensemble for the conditional variance model. Default: `0`. Variance is only modeled using a tree / forest if `num_trees > 0`.
+#'   - `alpha` Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `0.95`.
+#'   - `beta` Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `2`.
+#'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: `5`.
+#'   - `max_depth` Maximum depth of any tree in the ensemble in the variance model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
+#'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
+#'   - `var_forest_leaf_init` Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(0.6*var(y_train))/num_trees`, where `y_train` is the possibly standardized outcome, if not set.
+#'   - `var_forest_prior_shape` Shape parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2 + 0.5` if not set.
+#'   - `var_forest_prior_scale` Scale parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2` if not set.
 #'   
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
@@ -119,43 +101,80 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                  group_ids_test = NULL, rfx_basis_test = NULL, 
                  num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
                  previous_model_json = NULL, warmstart_sample_num = NULL, 
-                 params = list()) {
-    # Extract BART parameters
-    bart_params <- preprocessBartParams(params)
-    cutpoint_grid_size <- bart_params$cutpoint_grid_size
-    sigma_leaf_init <- bart_params$sigma_leaf_init
-    alpha_mean <- bart_params$alpha_mean
-    beta_mean <- bart_params$beta_mean
-    min_samples_leaf_mean <- bart_params$min_samples_leaf_mean
-    max_depth_mean <- bart_params$max_depth_mean
-    alpha_variance <- bart_params$alpha_variance
-    beta_variance <- bart_params$beta_variance
-    min_samples_leaf_variance <- bart_params$min_samples_leaf_variance
-    max_depth_variance <- bart_params$max_depth_variance
-    a_global <- bart_params$a_global
-    b_global <- bart_params$b_global
-    a_leaf <- bart_params$a_leaf
-    b_leaf <- bart_params$b_leaf
-    a_forest <- bart_params$a_forest
-    b_forest <- bart_params$b_forest
-    variance_scale <- bart_params$variance_scale
-    sigma2_init <- bart_params$sigma2_init
-    variance_forest_init <- bart_params$variance_forest_init
-    pct_var_sigma2_init <- bart_params$pct_var_sigma2_init
-    pct_var_variance_forest_init <- bart_params$pct_var_variance_forest_init
-    variable_weights_mean <- bart_params$variable_weights_mean
-    variable_weights_variance <- bart_params$variable_weights_variance
-    num_trees_mean <- bart_params$num_trees_mean
-    num_trees_variance <- bart_params$num_trees_variance
-    sample_sigma_global <- bart_params$sample_sigma_global
-    sample_sigma_leaf <- bart_params$sample_sigma_leaf
-    random_seed <- bart_params$random_seed
-    keep_burnin <- bart_params$keep_burnin
-    keep_gfr <- bart_params$keep_gfr
-    standardize <- bart_params$standardize
-    keep_every <- bart_params$keep_every
-    num_chains <- bart_params$num_chains
-    verbose <- bart_params$verbose
+                 general_params = list(), mean_forest_params = list(), 
+                 variance_forest_params = list()) {
+    # Update general BART parameters
+    general_params_default <- list(
+        cutpoint_grid_size = 100, standardize = T, 
+        sample_sigma2_global = T, sigma2_global_init = NULL, 
+        sigma2_global_shape = 0, sigma2_global_scale = 0, 
+        random_seed = -1, keep_burnin = F, keep_gfr = F, 
+        keep_every = 1, num_chains = 1, verbose = F
+    )
+    general_params_updated <- preprocessParams(
+        general_params_default, general_params
+    )
+    
+    # Update mean forest BART parameters
+    mean_forest_params_default <- list(
+        num_trees = 200, alpha = 0.95, beta = 2.0, 
+        min_samples_leaf = 5, max_depth = 10, 
+        variable_weights = NULL, 
+        sample_sigma2_leaf = T, sigma2_leaf_init = NULL, 
+        sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL
+    )
+    mean_forest_params_updated <- preprocessParams(
+        mean_forest_params_default, mean_forest_params
+    )
+    
+    # Update variance forest BART parameters
+    variance_forest_params_default <- list(
+        num_trees = 0, alpha = 0.95, beta = 2.0, 
+        min_samples_leaf = 5, max_depth = 10, 
+        variable_weights = NULL, var_forest_leaf_init = NULL,
+        var_forest_prior_shape = NULL, var_forest_prior_scale = NULL
+    )
+    variance_forest_params_updated <- preprocessParams(
+        variance_forest_params_default, variance_forest_params
+    )
+    
+    ### Unpack all parameter values
+    # 1. General parameters
+    cutpoint_grid_size <- general_params_updated$cutpoint_grid_size
+    standardize <- general_params_updated$standardize
+    sample_sigma_global <- general_params_updated$sample_sigma2_global
+    sigma2_init <- general_params_updated$sigma2_global_init
+    a_global <- general_params_updated$sigma2_global_shape
+    b_global <- general_params_updated$sigma2_global_scale
+    random_seed <- general_params_updated$random_seed
+    keep_burnin <- general_params_updated$keep_burnin
+    keep_gfr <- general_params_updated$keep_gfr
+    keep_every <- general_params_updated$keep_every
+    num_chains <- general_params_updated$num_chains
+    verbose <- general_params_updated$verbose
+    
+    # 2. Mean forest parameters
+    num_trees_mean <- mean_forest_params_updated$num_trees
+    alpha_mean <- mean_forest_params_updated$alpha
+    beta_mean <- mean_forest_params_updated$beta
+    min_samples_leaf_mean <- mean_forest_params_updated$min_samples_leaf
+    max_depth_mean <- mean_forest_params_updated$max_depth
+    variable_weights_mean <- mean_forest_params_updated$variable_weights
+    sample_sigma_leaf <- mean_forest_params_updated$sample_sigma2_leaf
+    sigma_leaf_init <- mean_forest_params_updated$sigma2_leaf_init
+    a_leaf <- mean_forest_params_updated$sigma2_leaf_shape
+    b_leaf <- mean_forest_params_updated$sigma2_leaf_scale
+    
+    # 3. Variance forest parameters
+    num_trees_variance <- variance_forest_params_updated$num_trees
+    alpha_variance <- variance_forest_params_updated$alpha
+    beta_variance <- variance_forest_params_updated$beta
+    min_samples_leaf_variance <- variance_forest_params_updated$min_samples_leaf
+    max_depth_variance <- variance_forest_params_updated$max_depth
+    variable_weights_variance <- variance_forest_params_updated$variable_weights
+    variance_forest_init <- variance_forest_params_updated$var_forest_leaf_init
+    a_forest <- variance_forest_params_updated$var_forest_prior_shape
+    b_forest <- variance_forest_params_updated$var_forest_prior_scale
     
     # Check if there are enough GFR samples to seed num_chains samplers
     if (num_gfr > 0) {
@@ -174,7 +193,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         previous_bart_model <- createBARTModelFromJsonString(previous_model_json)
         previous_y_bar <- previous_bart_model$model_params$outcome_mean
         previous_y_scale <- previous_bart_model$model_params$outcome_scale
-        previous_var_scale <- previous_bart_model$model_params$variance_scale
         if (previous_bart_model$model_params$include_mean_forest) {
             previous_forest_samples_mean <- previous_bart_model$mean_forests
         } else previous_forest_samples_mean <- NULL
@@ -182,8 +200,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             previous_forest_samples_variance <- previous_bart_model$variance_forests
         } else previous_forest_samples_variance <- NULL
         if (previous_bart_model$model_params$sample_sigma_global) {
-            previous_global_var_samples <- previous_bart_model$sigma2_global_samples*(
-                previous_var_scale / (previous_y_scale*previous_y_scale)
+            previous_global_var_samples <- previous_bart_model$sigma2_global_samples / (
+                previous_y_scale*previous_y_scale
             )
         } else previous_global_var_samples <- NULL
         if (previous_bart_model$model_params$sample_sigma_leaf) {
@@ -195,7 +213,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     } else {
         previous_y_bar <- NULL
         previous_y_scale <- NULL
-        previous_var_scale <- NULL
         previous_global_var_samples <- NULL
         previous_leaf_var_samples <- NULL
         previous_rfx_samples <- NULL
@@ -372,14 +389,13 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         y_std_train <- 1
     }
     resid_train <- (y_train-y_bar_train)/y_std_train
-    resid_train <- resid_train*sqrt(variance_scale)
     
     # Compute initial value of root nodes in mean forest
     init_val_mean <- mean(resid_train)
 
     # Calibrate priors for sigma^2 and tau
-    if (is.null(sigma2_init)) sigma2_init <- pct_var_sigma2_init*var(resid_train)
-    if (is.null(variance_forest_init)) variance_forest_init <- pct_var_variance_forest_init*var(resid_train)
+    if (is.null(sigma2_init)) sigma2_init <- 1.0*var(resid_train)
+    if (is.null(variance_forest_init)) variance_forest_init <- 1.0*var(resid_train)
     if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees_mean)
     if (has_basis) {
         if (ncol(W_train) > 1) {
@@ -702,8 +718,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 
     # Mean forest predictions
     if (include_mean_forest) {
-        y_hat_train <- forest_samples_mean$predict(forest_dataset_train)*y_std_train/sqrt(variance_scale) + y_bar_train
-        if (has_test) y_hat_test <- forest_samples_mean$predict(forest_dataset_test)*y_std_train/sqrt(variance_scale) + y_bar_train
+        y_hat_train <- forest_samples_mean$predict(forest_dataset_train)*y_std_train + y_bar_train
+        if (has_test) y_hat_test <- forest_samples_mean$predict(forest_dataset_test)*y_std_train + y_bar_train
     }
     
     # Variance forest predictions
@@ -714,16 +730,16 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Random effects predictions
     if (has_rfx) {
-        rfx_preds_train <- rfx_samples$predict(group_ids_train, rfx_basis_train)*y_std_train/sqrt(variance_scale)
+        rfx_preds_train <- rfx_samples$predict(group_ids_train, rfx_basis_train)*y_std_train
         y_hat_train <- y_hat_train + rfx_preds_train
     }
     if ((has_rfx_test) && (has_test)) {
-        rfx_preds_test <- rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std_train/sqrt(variance_scale)
+        rfx_preds_test <- rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std_train
         y_hat_test <- y_hat_test + rfx_preds_test
     }
 
     # Global error variance
-    if (sample_sigma_global) sigma2_samples <- global_var_samples*(y_std_train^2)/variance_scale
+    if (sample_sigma_global) sigma2_samples <- global_var_samples*(y_std_train^2)
     
     # Leaf parameter variance
     if (sample_sigma_leaf) tau_samples <- leaf_scale_samples
@@ -734,14 +750,12 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             sigma_x_hat_train <- sapply(1:num_retained_samples, function(i) sqrt(sigma_x_hat_train[,i]*sigma2_samples[i]))
             if (has_test) sigma_x_hat_test <- sapply(1:num_retained_samples, function(i) sqrt(sigma_x_hat_test[,i]*sigma2_samples[i]))
         } else {
-            sigma_x_hat_train <- sqrt(sigma_x_hat_train*sigma2_init)*y_std_train/sqrt(variance_scale)
-            if (has_test) sigma_x_hat_test <- sqrt(sigma_x_hat_test*sigma2_init)*y_std_train/sqrt(variance_scale)
+            sigma_x_hat_train <- sqrt(sigma_x_hat_train*sigma2_init)*y_std_train
+            if (has_test) sigma_x_hat_test <- sqrt(sigma_x_hat_test*sigma2_init)*y_std_train
         }
     }
     
     # Return results as a list
-    # TODO: store variance_scale and propagate through predict function
-    # TODO: refactor out the "num_retained_samples" variable now that we burn-in/thin correctly
     model_params <- list(
         "sigma2_init" = sigma2_init, 
         "sigma_leaf_init" = sigma_leaf_init,
@@ -773,8 +787,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         "sample_sigma_global" = sample_sigma_global,
         "sample_sigma_leaf" = sample_sigma_leaf,
         "include_mean_forest" = include_mean_forest,
-        "include_variance_forest" = include_variance_forest,
-        "variance_scale" = variance_scale
+        "include_variance_forest" = include_variance_forest
     )
     result <- list(
         "model_params" = model_params, 
@@ -910,12 +923,11 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     
     # Compute mean forest predictions
     num_samples <- bart$model_params$num_samples
-    variance_scale <- bart$model_params$variance_scale
     y_std <- bart$model_params$outcome_scale
     y_bar <- bart$model_params$outcome_mean
     sigma2_init <- bart$model_params$sigma2_init
     if (bart$model_params$include_mean_forest) {
-        mean_forest_predictions <- bart$mean_forests$predict(prediction_dataset)*y_std/sqrt(variance_scale) + y_bar
+        mean_forest_predictions <- bart$mean_forests$predict(prediction_dataset)*y_std + y_bar
     }
     
     # Compute variance forest predictions
@@ -925,7 +937,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     
     # Compute rfx predictions (if needed)
     if (bart$model_params$has_rfx) {
-        rfx_predictions <- bart$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std/sqrt(variance_scale)
+        rfx_predictions <- bart$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std
     }
     
     # Scale variance forest predictions
@@ -934,7 +946,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
             sigma2_samples <- bart$sigma2_global_samples
             variance_forest_predictions <- sapply(1:num_samples, function(i) sqrt(s_x_raw[,i]*sigma2_samples[i]))
         } else {
-            variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std/sqrt(variance_scale)
+            variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std
         }
     }
 
@@ -1090,7 +1102,6 @@ convertBARTModelToJson <- function(object){
     }
     
     # Add global parameters
-    jsonobj$add_scalar("variance_scale", object$model_params$variance_scale)
     jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
     jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
     jsonobj$add_boolean("standardize", object$model_params$standardize)
@@ -1145,7 +1156,6 @@ convertBARTStateToJson <- function(param_list, mean_forest = NULL, variance_fore
     jsonobj <- createCppJson()
     
     # Add global parameters
-    jsonobj$add_scalar("variance_scale", param_list$variance_scale)
     jsonobj$add_scalar("outcome_scale", param_list$outcome_scale)
     jsonobj$add_scalar("outcome_mean", param_list$outcome_mean)
     jsonobj$add_boolean("standardize", param_list$standardize)
@@ -1334,7 +1344,6 @@ createBARTModelFromJson <- function(json_object){
     
     # Unpack model params
     model_params = list()
-    model_params[["variance_scale"]] <- json_object$get_scalar("variance_scale")
     model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
     model_params[["standardize"]] <- json_object$get_boolean("standardize")
@@ -1680,7 +1689,6 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
 
     # Unpack model params
     model_params = list()
-    model_params[["variance_scale"]] <- json_object_default$get_scalar("variance_scale")
     model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
     model_params[["standardize"]] <- json_object_default$get_boolean("standardize")
