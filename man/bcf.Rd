@@ -21,7 +21,10 @@ bcf(
   num_mcmc = 100,
   previous_model_json = NULL,
   warmstart_sample_num = NULL,
-  params = list()
+  general_params = list(),
+  mu_forest_params = list(),
+  tau_forest_params = list(),
+  variance_forest_params = list()
 )
 }
 \arguments{
@@ -67,101 +70,73 @@ that were not in the training set.}
 
 \item{warmstart_sample_num}{(Optional) Sample number from \code{previous_model_json} that will be used to warmstart this BCF sampler. One-indexed (so that the first sample is used for warm-start by setting \code{warmstart_sample_num = 1}). Default: \code{NULL}.}
 
-\item{params}{The list of model parameters, each of which has a default value.
-
-\strong{1. Global Parameters}
+\item{general_params}{(Optional) A list of general (non-forest-specific) model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
-\item \code{cutpoint_grid_size} Maximum size of the "grid" of potential cutpoints to consider. Default: \code{100}.
-\item \code{a_global} Shape parameter in the \code{IG(a_global, b_global)} global error variance model. Default: \code{0}.
-\item \code{b_global} Scale parameter in the \code{IG(a_global, b_global)} global error variance model. Default: \code{0}.
-\item \code{sigma2_init} Starting value of global error variance parameter. Calibrated internally as \code{pct_var_sigma2_init*var((y-mean(y))/sd(y))} if not set.
-\item \code{pct_var_sigma2_init} Percentage of standardized outcome variance used to initialize global error variance parameter. Default: \code{1}. Superseded by \code{sigma2_init}.
+\item \code{cutpoint_grid_size} Maximum size of the "grid" of potential cutpoints to consider in the GFR algorithm. Default: \code{100}.
+\item \code{standardize} Whether or not to standardize the outcome (and store the offset / scale in the model object). Default: \code{TRUE}.
+\item \code{sample_sigma2_global} Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(sigma2_global_shape, sigma2_global_scale)}. Default: \code{TRUE}.
+\item \code{sigma2_init} Starting value of global error variance parameter. Calibrated internally as \code{1.0*var((y_train-mean(y_train))/sd(y_train))} if not set.
+\item \code{sigma2_global_shape} Shape parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
+\item \code{sigma2_global_scale} Scale parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
 \item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to \code{1/ncol(X_train)}. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in \code{X_train} and then set \code{propensity_covariate} to \code{'none'} adjust \code{keep_vars_mu}, \code{keep_vars_tau} and \code{keep_vars_variance} accordingly.
 \item \code{propensity_covariate} Whether to include the propensity score as a covariate in either or both of the forests. Enter \code{"none"} for neither, \code{"mu"} for the prognostic forest, \code{"tau"} for the treatment forest, and \code{"both"} for both forests. If this is not \code{"none"} and a propensity score is not provided, it will be estimated from (\code{X_train}, \code{Z_train}) using \code{stochtree::bart()}. Default: \code{"mu"}.
 \item \code{adaptive_coding} Whether or not to use an "adaptive coding" scheme in which a binary treatment variable is not coded manually as (0,1) or (-1,1) but learned via parameters \code{b_0} and \code{b_1} that attach to the outcome model \verb{[b_0 (1-Z) + b_1 Z] tau(X)}. This is ignored when Z is not binary. Default: \code{TRUE}.
-\item \code{b_0} Initial value of the "control" group coding parameter. This is ignored when Z is not binary. Default: \code{-0.5}.
-\item \code{b_1} Initial value of the "treatment" group coding parameter. This is ignored when Z is not binary. Default: \code{0.5}.
+\item \code{control_coding_init} Initial value of the "control" group coding parameter. This is ignored when Z is not binary. Default: \code{-0.5}.
+\item \code{treated_coding_init} Initial value of the "treatment" group coding parameter. This is ignored when Z is not binary. Default: \code{0.5}.
+\item \code{rfx_prior_var} Prior on the (diagonals of the) covariance of the additive group-level random regression coefficients. Must be a vector of length \code{ncol(rfx_basis_train)}. Default: \code{rep(1, ncol(rfx_basis_train))}
 \item \code{random_seed} Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to \code{std::random_device}.
-\item \code{keep_burnin} Whether or not "burnin" samples should be included in cached predictions. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
-\item \code{keep_gfr} Whether or not "grow-from-root" samples should be included in cached predictions. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
-\item \code{standardize} Whether or not to standardize the outcome (and store the offset / scale in the model object). Default: \code{TRUE}.
+\item \code{keep_burnin} Whether or not "burnin" samples should be included in the stored samples of forests and other parameters. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
+\item \code{keep_gfr} Whether or not "grow-from-root" samples should be included in the stored samples of forests and other parameters. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
 \item \code{keep_every} How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default \code{1}. Setting \code{keep_every <- k} for some \code{k > 1} will "thin" the MCMC samples by retaining every \code{k}-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 \item \code{num_chains} How many independent MCMC chains should be sampled. If \code{num_mcmc = 0}, this is ignored. If \code{num_gfr = 0}, then each chain is run from root for \code{num_mcmc * keep_every + num_burnin} iterations, with \code{num_mcmc} samples retained. If \code{num_gfr > 0}, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that \code{num_gfr >= num_chains}. Default: \code{1}.
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
-\item \code{sample_sigma_global} Whether or not to update the \code{sigma^2} global error variance parameter based on \code{IG(a_global, b_global)}. Default: \code{TRUE}.
-}
+}}
 
-\strong{2. Prognostic Forest Parameters}
+\item{mu_forest_params}{(Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
-\item \code{num_trees_mu} Number of trees in the prognostic forest. Default: \code{200}.
-\item \code{sample_sigma_leaf_mu} Whether or not to update the \code{sigma_leaf_mu} leaf scale variance parameter in the prognostic forest based on \code{IG(a_leaf_mu, b_leaf_mu)}. Default: \code{TRUE}.
-}
+\item \code{num_trees} Number of trees in the ensemble for the conditional mean model. Default: \code{200}. If \code{num_trees = 0}, the conditional mean will not be modeled using a forest, and the function will only proceed if \code{num_trees > 0} for the variance forest.
+\item \code{alpha} Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{0.95}.
+\item \code{beta} Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{2}.
+\item \code{min_samples_leaf} Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: \code{5}.
+\item \code{max_depth} Maximum depth of any tree in the ensemble in the mean model. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
+\item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.
+\item \code{sample_sigma2_leaf} Whether or not to update the leaf scale variance parameter based on \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: \code{FALSE}.
+\item \code{sigma2_leaf_init} Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees} if not set here.
+\item \code{sigma2_leaf_shape} Shape parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Default: \code{3}.
+\item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
+\item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
+\item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+}}
 
-\strong{2.1. Tree Prior Parameters}
+\item{tau_forest_params}{(Optional) A list of treatment effect forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
-\item \code{alpha_mu} Prior probability of splitting for a tree of depth 0 for the prognostic forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha_mu*(1+node_depth)^-beta_mu}. Default: \code{0.95}.
-\item \code{beta_mu} Exponent that decreases split probabilities for nodes of depth > 0 for the prognostic forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha_mu*(1+node_depth)^-beta_mu}. Default: \code{2.0}.
-\item \code{min_samples_leaf_mu} Minimum allowable size of a leaf, in terms of training samples, for the prognostic forest. Default: \code{5}.
-\item \code{max_depth_mu} Maximum depth of any tree in the mu ensemble. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
-}
+\item \code{num_trees} Number of trees in the ensemble for the conditional mean model. Default: \code{200}. If \code{num_trees = 0}, the conditional mean will not be modeled using a forest, and the function will only proceed if \code{num_trees > 0} for the variance forest.
+\item \code{alpha} Prior probability of splitting for a tree of depth 0 in the mean model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{0.95}.
+\item \code{beta} Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{2}.
+\item \code{min_samples_leaf} Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: \code{5}.
+\item \code{max_depth} Maximum depth of any tree in the ensemble in the mean model. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
+\item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.
+\item \code{sample_sigma2_leaf} Whether or not to update the leaf scale variance parameter based on \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: \code{FALSE}.
+\item \code{sigma2_leaf_init} Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees} if not set here.
+\item \code{sigma2_leaf_shape} Shape parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Default: \code{3}.
+\item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
+\item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
+\item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+}}
 
-\strong{2.2. Leaf Model Parameters}
+\item{variance_forest_params}{(Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
-\item \code{keep_vars_mu} Vector of variable names or column indices denoting variables that should be included in the prognostic (\code{mu(X)}) forest. Default: \code{NULL}.
-\item \code{drop_vars_mu} Vector of variable names or column indices denoting variables that should be excluded from the prognostic (\code{mu(X)}) forest. Default: \code{NULL}. If both \code{drop_vars_mu} and \code{keep_vars_mu} are set, \code{drop_vars_mu} will be ignored.
-\item \code{sigma_leaf_mu} Starting value of leaf node scale parameter for the prognostic forest. Calibrated internally as \code{1/num_trees_mu} if not set here.
-\item \code{a_leaf_mu} Shape parameter in the \code{IG(a_leaf_mu, b_leaf_mu)} leaf node parameter variance model for the prognostic forest. Default: \code{3}.
-\item \code{b_leaf_mu} Scale parameter in the \code{IG(a_leaf_mu, b_leaf_mu)} leaf node parameter variance model for the prognostic forest. Calibrated internally as \code{0.5/num_trees} if not set here.
-}
-
-\strong{3. Treatment Effect Forest Parameters}
-\itemize{
-\item \code{num_trees_tau} Number of trees in the treatment effect forest. Default: \code{50}.
-\item \code{sample_sigma_leaf_tau} Whether or not to update the \code{sigma_leaf_tau} leaf scale variance parameter in the treatment effect forest based on \code{IG(a_leaf_tau, b_leaf_tau)}. Default: \code{TRUE}.
-}
-
-\strong{3.1. Tree Prior Parameters}
-\itemize{
-\item \code{alpha_tau} Prior probability of splitting for a tree of depth 0 for the treatment effect forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha_tau*(1+node_depth)^-beta_tau}. Default: \code{0.25}.
-\item \code{beta_tau} Exponent that decreases split probabilities for nodes of depth > 0 for the treatment effect forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha_tau*(1+node_depth)^-beta_tau}. Default: \code{3.0}.
-\item \code{min_samples_leaf_tau} Minimum allowable size of a leaf, in terms of training samples, for the treatment effect forest. Default: \code{5}.
-\item \code{max_depth_tau} Maximum depth of any tree in the tau ensemble. Default: \code{5}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
-}
-
-\strong{3.2. Leaf Model Parameters}
-\itemize{
-\item \code{a_leaf_tau} Shape parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model for the treatment effect forest. Default: \code{3}.
-\item \code{b_leaf_tau} Scale parameter in the \code{IG(a_leaf, b_leaf)} leaf node parameter variance model for the treatment effect forest. Calibrated internally as \code{0.5/num_trees} if not set here.
-\item \code{keep_vars_tau} Vector of variable names or column indices denoting variables that should be included in the treatment effect (\code{tau(X)}) forest. Default: \code{NULL}.
-\item \code{drop_vars_tau} Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (\code{tau(X)}) forest. Default: \code{NULL}. If both \code{drop_vars_tau} and \code{keep_vars_tau} are set, \code{drop_vars_tau} will be ignored.
-}
-
-\strong{4. Conditional Variance Forest Parameters}
-\itemize{
-\item \code{num_trees_variance} Number of trees in the (optional) conditional variance forest model. Default: \code{0}.
-\item \code{variance_forest_init} Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as \code{log(pct_var_variance_forest_init*var((y-mean(y))/sd(y)))/num_trees_variance} if not set.
-\item \code{pct_var_variance_forest_init} Percentage of standardized outcome variance used to initialize global error variance parameter. Default: \code{1}. Superseded by \code{variance_forest_init}.
-}
-
-\strong{4.1. Tree Prior Parameters}
-\itemize{
-\item \code{alpha_variance} Prior probability of splitting for a tree of depth 0 in the (optional) conditional variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance}. Default: \code{0.95}.
-\item \code{beta_variance} Exponent that decreases split probabilities for nodes of depth > 0 in the (optional) conditional variance model. Tree split prior combines \code{alpha_variance} and \code{beta_variance} via \code{alpha_variance*(1+node_depth)^-beta_variance}. Default: \code{2.0}.
-\item \code{min_samples_leaf_variance} Minimum allowable size of a leaf, in terms of training samples, in the (optional) conditional variance model. Default: \code{5}.
-\item \code{max_depth_variance} Maximum depth of any tree in the ensemble in the (optional) conditional variance model. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
-}
-
-\strong{4.2. Leaf Model Parameters}
-\itemize{
-\item \code{a_forest} Shape parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2 + 0.5} if not set.
-\item \code{b_forest} Scale parameter in the \code{IG(a_forest, b_forest)} conditional error variance model (which is only sampled if \code{num_trees_variance > 0}). Calibrated internally as \code{num_trees_variance / 1.5^2} if not set.
-\item \code{keep_vars_variance} Vector of variable names or column indices denoting variables that should be included in the (optional) conditional variance forest. Default: \code{NULL}.
-\item \code{drop_vars_variance} Vector of variable names or column indices denoting variables that should be excluded from the (optional) conditional variance forest. Default: NULL. If both \code{drop_vars_variance} and \code{keep_vars_variance} are set, \code{drop_vars_variance} will be ignored.
-}
-
-\strong{5. Random Effects Parameters}
-\itemize{
-\item \code{rfx_prior_var} Prior on the (diagonals of the) covariance of the additive group-level random regression coefficients. Must be a vector of length \code{ncol(rfx_basis_train)}. Default: \code{rep(1, ncol(rfx_basis_train))}
+\item \code{num_trees} Number of trees in the ensemble for the conditional variance model. Default: \code{0}. Variance is only modeled using a tree / forest if \code{num_trees > 0}.
+\item \code{alpha} Prior probability of splitting for a tree of depth 0 in the variance model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{0.95}.
+\item \code{beta} Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{2}.
+\item \code{min_samples_leaf} Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: \code{5}.
+\item \code{max_depth} Maximum depth of any tree in the ensemble in the variance model. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
+\item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.
+\item \code{init_root_val} Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as \code{log(0.6*var((y_train-mean(y_train))/sd(y_train)))/num_trees} if not set.
+\item \code{var_forest_prior_shape} Shape parameter in the \code{IG(var_forest_prior_shape, var_forest_prior_scale)} conditional error variance model (which is only sampled if \code{num_trees > 0}). Calibrated internally as \code{num_trees / 1.5^2 + 0.5} if not set.
+\item \code{var_forest_prior_scale} Scale parameter in the \code{IG(var_forest_prior_shape, var_forest_prior_scale)} conditional error variance model (which is only sampled if \code{num_trees > 0}). Calibrated internally as \code{num_trees / 1.5^2} if not set.
+\item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
+\item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
 }}
 }
 \value{

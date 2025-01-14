@@ -24,35 +24,35 @@ test_that("MCMC BART", {
     y_train <- y[train_inds]
     
     # 1 chain, no thinning
-    param_list <- list(num_chains = 1, keep_every = 1)
+    general_param_list <- list(num_chains = 1, keep_every = 1)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 0, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
     
     # 3 chains, no thinning
-    param_list <- list(num_chains = 3, keep_every = 1)
+    general_param_list <- list(num_chains = 3, keep_every = 1)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 0, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
     
     # 1 chain, thinning
-    param_list <- list(num_chains = 1, keep_every = 5)
+    general_param_list <- list(num_chains = 1, keep_every = 5)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 0, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
     
     # 3 chains, thinning
-    param_list <- list(num_chains = 3, keep_every = 5)
+    general_param_list <- list(num_chains = 3, keep_every = 5)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 0, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
 })
 
@@ -82,50 +82,50 @@ test_that("GFR BART", {
     y_train <- y[train_inds]
     
     # 1 chain, no thinning
-    param_list <- list(num_chains = 1, keep_every = 1)
+    general_param_list <- list(num_chains = 1, keep_every = 1)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 10, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
     
     # 3 chains, no thinning
-    param_list <- list(num_chains = 3, keep_every = 1)
+    general_param_list <- list(num_chains = 3, keep_every = 1)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 10, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
     
     # 1 chain, thinning
-    param_list <- list(num_chains = 1, keep_every = 5)
+    general_param_list <- list(num_chains = 1, keep_every = 5)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 10, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
     
     # 3 chains, thinning
-    param_list <- list(num_chains = 3, keep_every = 5)
+    general_param_list <- list(num_chains = 3, keep_every = 5)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 10, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
     
     # Check for error when more chains than GFR forests
-    param_list <- list(num_chains = 11, keep_every = 1)
+    general_param_list <- list(num_chains = 11, keep_every = 1)
     expect_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 10, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
     
     # Check for error when more chains than GFR forests
-    param_list <- list(num_chains = 11, keep_every = 5)
+    general_param_list <- list(num_chains = 11, keep_every = 5)
     expect_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            num_gfr = 10, num_burnin = 10, num_mcmc = 10, 
-                           params = param_list)
+                           general_params = general_param_list)
     )
 })
