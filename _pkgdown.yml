@@ -88,6 +88,7 @@ reference:
   - CppRNG
   - createRNG
   - calibrate_inverse_gamma_error_variance
+  - preprocessParams
   - preprocessBartParams
   - preprocessBcfParams
   - computeMaxLeafIndex
