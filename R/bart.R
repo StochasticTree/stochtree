@@ -34,7 +34,7 @@
 #'   - `cutpoint_grid_size` Maximum size of the "grid" of potential cutpoints to consider in the GFR algorithm. Default: `100`.
 #'   - `standardize` Whether or not to standardize the outcome (and store the offset / scale in the model object). Default: `TRUE`.
 #'   - `sample_sigma2_global` Whether or not to update the `sigma^2` global error variance parameter based on `IG(sigma2_global_shape, sigma2_global_scale)`. Default: `TRUE`.
-#'   - `sigma2_init` Starting value of global error variance parameter. Calibrated internally as `1.0*var((y_train-mean(y_train))/sd(y_train))` if not set.
+#'   - `sigma2_global_init` Starting value of global error variance parameter. Calibrated internally as `1.0*var(y_train)`, where `y_train` is the possibly standardized outcome, if not set.
 #'   - `sigma2_global_shape` Shape parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
 #'   - `sigma2_global_scale` Scale parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
 #'   - `random_seed` Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
@@ -65,7 +65,7 @@
 #'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: `5`.
 #'   - `max_depth` Maximum depth of any tree in the ensemble in the variance model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
 #'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
-#'   - `init_root_val` Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(0.6*var((y_train-mean(y_train))/sd(y_train)))/num_trees` if not set.
+#'   - `var_forest_leaf_init` Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(0.6*var(y_train))/num_trees`, where `y_train` is the possibly standardized outcome, if not set.
 #'   - `var_forest_prior_shape` Shape parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2 + 0.5` if not set.
 #'   - `var_forest_prior_scale` Scale parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2` if not set.
 #'   
@@ -112,7 +112,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         keep_every = 1, num_chains = 1, verbose = F
     )
     general_params_updated <- preprocessParams(
-        general_params, general_params_default
+        general_params_default, general_params
     )
     
     # Update mean forest BART parameters
@@ -124,18 +124,18 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL
     )
     mean_forest_params_updated <- preprocessParams(
-        mean_forest_params, mean_forest_params_default
+        mean_forest_params_default, mean_forest_params
     )
     
     # Update variance forest BART parameters
     variance_forest_params_default <- list(
         num_trees = 0, alpha = 0.95, beta = 2.0, 
         min_samples_leaf = 5, max_depth = 10, 
-        variable_weights = NULL, init_root_val = NULL,
+        variable_weights = NULL, var_forest_leaf_init = NULL,
         var_forest_prior_shape = NULL, var_forest_prior_scale = NULL
     )
     variance_forest_params_updated <- preprocessParams(
-        variance_forest_params, variance_forest_params_default
+        variance_forest_params_default, variance_forest_params
     )
     
     ### Unpack all parameter values
@@ -172,7 +172,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     min_samples_leaf_variance <- variance_forest_params_updated$min_samples_leaf
     max_depth_variance <- variance_forest_params_updated$max_depth
     variable_weights_variance <- variance_forest_params_updated$variable_weights
-    variance_forest_init <- variance_forest_params_updated$init_root_val
+    variance_forest_init <- variance_forest_params_updated$var_forest_leaf_init
     a_forest <- variance_forest_params_updated$var_forest_prior_shape
     b_forest <- variance_forest_params_updated$var_forest_prior_scale
     

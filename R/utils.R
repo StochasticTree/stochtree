@@ -1,16 +1,18 @@
 #' Preprocess a parameter list, overriding defaults with any provided parameters.
 #'
-#' @param user_params User-supplied overrides to `default_params`.
 #' @param default_params List of parameters with default values set.
+#' @param user_params (Optional) User-supplied overrides to `default_params`.
 #'
 #' @return Parameter list with defaults overriden by values supplied in `user_params`
 #' @export
-preprocessParams <- function(user_params, default_params) {
+preprocessParams <- function(default_params, user_params = NULL) {
     # Override defaults from general_params
-    for (key in names(user_params)) {
-        if (key %in% names(default_params)) {
-            val <- user_params[[key]]
-            if (!is.null(val)) default_params[[key]] <- val
+    if (!is.null(user_params)) {
+        for (key in names(user_params)) {
+            if (key %in% names(default_params)) {
+                val <- user_params[[key]]
+                if (!is.null(val)) default_params[[key]] <- val
+            }
         }
     }
 
