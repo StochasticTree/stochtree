@@ -224,9 +224,11 @@ class TestBART:
         
         # Run BCF with test set and propensity score
         bart_model = BARTModel()
-        bart_params = {'num_trees_variance': 50, 'sample_sigma_global': True}
-        bart_model.sample(X_train=X_train, y_train=y_train, X_test=X_test, params=bart_params, 
-                          num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc)
+        general_params = {'sample_sigma2_global': True}
+        variance_forest_params = {'num_trees': 50}
+        bart_model.sample(X_train=X_train, y_train=y_train, X_test=X_test, general_params=general_params, 
+                          variance_forest_params=variance_forest_params, num_gfr=num_gfr, 
+                          num_burnin=num_burnin, num_mcmc=num_mcmc)
 
         # Assertions
         assert (bart_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -293,10 +295,12 @@ class TestBART:
         
         # Run BCF with test set and propensity score
         bart_model = BARTModel()
-        bart_params = {'num_trees_variance': 50, 'sample_sigma_global': True}
+        general_params = {'sample_sigma2_global': True}
+        variance_forest_params = {'num_trees': 50}
         bart_model.sample(X_train=X_train, y_train=y_train, basis_train=basis_train, 
                           X_test=X_test, basis_test=basis_test, num_gfr=num_gfr, 
-                          num_burnin=num_burnin, num_mcmc=num_mcmc, params=bart_params)
+                          num_burnin=num_burnin, num_mcmc=num_mcmc, general_params=general_params, 
+                          variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bart_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -363,10 +367,12 @@ class TestBART:
         
         # Run BCF with test set and propensity score
         bart_model = BARTModel()
-        bart_params = {'num_trees_variance': 50, 'sample_sigma_global': True}
+        general_params = {'sample_sigma2_global': True}
+        variance_forest_params = {'num_trees': 50}
         bart_model.sample(X_train=X_train, y_train=y_train, basis_train=basis_train, 
                           X_test=X_test, basis_test=basis_test, num_gfr=num_gfr, 
-                          num_burnin=num_burnin, num_mcmc=num_mcmc, params=bart_params)
+                          num_burnin=num_burnin, num_mcmc=num_mcmc, general_params=general_params, 
+                          variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bart_model.y_hat_train.shape == (n_train, num_mcmc))

@@ -49,10 +49,10 @@ class TestBCF:
         
         # Run BCF with test set and propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, pi_train=pi_train, 
                          X_test=X_test, Z_test=Z_test, pi_test=pi_test, num_gfr=num_gfr, 
-                         num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_burnin=num_burnin, num_mcmc=num_mcmc, variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -74,9 +74,10 @@ class TestBCF:
 
         # Run BCF without test set and with propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, pi_train=pi_train, 
-                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                         variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -95,10 +96,11 @@ class TestBCF:
 
         # Run BCF with test set and without propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, 
                          X_test=X_test, Z_test=Z_test, num_gfr=num_gfr, 
-                         num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                         variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -122,9 +124,10 @@ class TestBCF:
 
         # Run BCF without test set and without propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, 
-                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                         variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -186,10 +189,11 @@ class TestBCF:
         
         # Run BCF with test set and propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, pi_train=pi_train, 
                          X_test=X_test, Z_test=Z_test, pi_test=pi_test, num_gfr=num_gfr, 
-                         num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                         variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -211,9 +215,10 @@ class TestBCF:
 
         # Run BCF without test set and with propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, pi_train=pi_train, 
-                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                         variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -232,10 +237,11 @@ class TestBCF:
 
         # Run BCF with test set and without propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, 
                          X_test=X_test, Z_test=Z_test, num_gfr=num_gfr, 
-                         num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                         variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -259,9 +265,10 @@ class TestBCF:
 
         # Run BCF without test set and without propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, 
-                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                         variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -325,10 +332,11 @@ class TestBCF:
         
         # Run BCF with test set and propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, pi_train=pi_train, 
                          X_test=X_test, Z_test=Z_test, pi_test=pi_test, num_gfr=num_gfr, 
-                         num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                         variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -350,9 +358,10 @@ class TestBCF:
 
         # Run BCF without test set and with propensity score
         bcf_model = BCFModel()
-        bcf_params = {'num_trees_variance': 0}
+        variance_forest_params = {'num_trees': 0}
         bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, pi_train=pi_train, 
-                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                         num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                         variance_forest_params=variance_forest_params)
 
         # Assertions
         assert (bcf_model.y_hat_train.shape == (n_train, num_mcmc))
@@ -372,14 +381,16 @@ class TestBCF:
         # Run BCF with test set and without propensity score
         with pytest.raises(ValueError):
             bcf_model = BCFModel()
-            bcf_params = {'num_trees_variance': 0}
+            variance_forest_params = {'num_trees': 0}
             bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, 
                             X_test=X_test, Z_test=Z_test, num_gfr=num_gfr, 
-                            num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                            num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                            variance_forest_params=variance_forest_params)
 
         # Run BCF without test set and without propensity score
         with pytest.raises(ValueError):
             bcf_model = BCFModel()
-            bcf_params = {'num_trees_variance': 0}
+            variance_forest_params = {'num_trees': 0}
             bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, 
-                            num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, params=bcf_params)
+                            num_gfr=num_gfr, num_burnin=num_burnin, num_mcmc=num_mcmc, 
+                            variance_forest_params=variance_forest_params)

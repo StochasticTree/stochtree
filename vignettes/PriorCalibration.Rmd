@@ -87,10 +87,10 @@ lambda <- calibrate_inverse_gamma_error_variance(y_train, X_train, nu = nu)
 Now we run a BART model with this variance parameterization
 
 ```{r}
-bart_params <- list(a_global = nu/2, b_global = (nu*lambda)/2)
+general_params <- list(sigma2_global_shape = nu/2, sigma2_global_scale = (nu*lambda)/2)
 bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                    num_gfr = 0, num_burnin = 1000, num_mcmc = 100, 
-                   params = bart_params)
+                   general_params = general_params)
 ```
 
 Inspect the out-of-sample predictions of the model

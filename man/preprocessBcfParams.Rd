@@ -7,10 +7,16 @@
 preprocessBcfParams(params)
 }
 \arguments{
-\item{params}{Parameter list}
+\item{general_params}{List of any non-forest-specific parameters}
+
+\item{mu_forest_params}{List of any mu forest parameters}
+
+\item{tau_forest_params}{List of any tau forest parameters}
+
+\item{variance_forest_params}{List of any variance forest parameters}
 }
 \value{
-Parameter list with defaults overriden by values supplied in \code{params}
+Parameter list with defaults overriden by values supplied in parameter lists
 }
 \description{
 Preprocess BCF parameter list. Override defaults with any provided parameters.

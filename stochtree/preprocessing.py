@@ -9,6 +9,15 @@ import numpy as np
 import pandas as pd
 import warnings
 
+def _preprocess_params(default_params: Dict[str, Any], user_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if user_params:
+        for key, value in user_params.items():
+            if key in default_params:
+                default_params[key] = value
+    
+    return default_params
+
+
 def _preprocess_bart_params(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     processed_params = {
         'cutpoint_grid_size' : 100, 
