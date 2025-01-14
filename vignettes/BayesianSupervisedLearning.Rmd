@@ -73,11 +73,12 @@ num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, num_trees_mean = 100)
+general_params <- list(sample_sigma2_global = T)
+mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = 100)
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params
 )
 ```
 
@@ -100,11 +101,12 @@ num_gfr <- 0
 num_burnin <- 100
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, num_trees_mean = 100)
+general_params <- list(sample_sigma2_global = T)
+mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = 100)
 bart_model_root <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc,
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params
 )
 ```
 
@@ -168,11 +170,12 @@ num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, num_trees_mean = 100)
+general_params <- list(sample_sigma2_global = T)
+mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = 100)
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, X_test = X_test, W_test = W_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params
 )
 ```
 
@@ -195,11 +198,12 @@ num_gfr <- 0
 num_burnin <- 100
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, num_trees_mean = 100)
+general_params <- list(sample_sigma2_global = T)
+mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = 100)
 bart_model_root <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, X_test = X_test, W_test = W_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params
 )
 ```
 
@@ -272,12 +276,13 @@ num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, num_trees_mean = 100)
+general_params <- list(sample_sigma2_global = T)
+mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = 100)
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, group_ids_train = group_ids_train, 
     rfx_basis_train = rfx_basis_train, X_test = X_test, W_test = W_test, group_ids_test = group_ids_test,
     rfx_basis_test = rfx_basis_test, num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params
 )
 ```
 
@@ -300,12 +305,13 @@ num_gfr <- 0
 num_burnin <- 100
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(sample_sigma_global = T, sample_sigma_leaf = T, num_trees_mean = 100)
+general_params <- list(sample_sigma2_global = T)
+mean_forest_params <- list(sample_sigma2_leaf = T, num_trees = 100)
 bart_model_root <- stochtree::bart(
     X_train = X_train, W_train = W_train, y_train = y_train, group_ids_train = group_ids_train, 
     rfx_basis_train = rfx_basis_train, X_test = X_test, W_test = W_test, group_ids_test = group_ids_test,
     rfx_basis_test = rfx_basis_test, num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params
 )
 ```
 

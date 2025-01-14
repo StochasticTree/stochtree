@@ -4,13 +4,21 @@
 \alias{preprocessBartParams}
 \title{Preprocess BART parameter list. Override defaults with any provided parameters.}
 \usage{
-preprocessBartParams(params)
+preprocessBartParams(
+  general_params,
+  mean_forest_params,
+  variance_forest_params
+)
 }
 \arguments{
-\item{params}{Parameter list}
+\item{general_params}{List of any non-forest-specific parameters}
+
+\item{mean_forest_params}{List of any mean forest parameters}
+
+\item{variance_forest_params}{List of any variance forest parameters}
 }
 \value{
-Parameter list with defaults overriden by values supplied in \code{params}
+Parameter list with defaults overriden by values supplied in parameter lists
 }
 \description{
 Preprocess BART parameter list. Override defaults with any provided parameters.

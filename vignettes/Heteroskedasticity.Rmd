@@ -93,12 +93,14 @@ num_mcmc <- 100
 num_trees <- 20
 a_0 <- 1.5
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(num_trees_mean = 0, num_trees_variance = num_trees, 
-                    sample_sigma_global = F, sample_sigma_leaf = F)
+general_params <- list(sample_sigma2_global = F)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 0)
+variance_forest_params <- list(num_trees = num_trees)
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params, 
+    variance_forest_params = variance_forest_params
 )
 ```
 
@@ -120,12 +122,14 @@ num_gfr <- 0
 num_burnin <- 1000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(num_trees_mean = 0, num_trees_variance = 50, 
-                    sample_sigma_global = F, sample_sigma_leaf = F)
+general_params <- list(sample_sigma2_global = F)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 0)
+variance_forest_params <- list(num_trees = num_trees)
 bart_model_mcmc <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params, 
+    variance_forest_params = variance_forest_params
 )
 ```
 
@@ -198,18 +202,21 @@ initialization (@he2023stochastic). This is the default in
 `stochtree`.
 
 ```{r}
+num_trees <- 20
 num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(num_trees_mean = 0, num_trees_variance = 50, 
-                    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-                    alpha_variance = 0.95, beta_variance = 1.25, min_samples_leaf_variance = 1, 
-                    sample_sigma_global = F, sample_sigma_leaf = F)
+general_params <- list(sample_sigma2_global = F)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 0, 
+                           alpha = 0.95, beta = 2, min_samples_leaf = 5)
+variance_forest_params <- list(num_trees = num_trees, alpha = 0.95, 
+                               beta = 1.25, min_samples_leaf = 1)
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params, 
+    variance_forest_params = variance_forest_params
 )
 ```
 
@@ -231,14 +238,16 @@ num_gfr <- 0
 num_burnin <- 1000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(num_trees_mean = 0, num_trees_variance = 50, 
-                    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-                    alpha_variance = 0.95, beta_variance = 1.25, min_samples_leaf_variance = 5, 
-                    sample_sigma_global = F, sample_sigma_leaf = F)
+general_params <- list(sample_sigma2_global = F)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 0, 
+                           alpha = 0.95, beta = 2, min_samples_leaf = 5)
+variance_forest_params <- list(num_trees = num_trees, alpha = 0.95, 
+                               beta = 1.25, min_samples_leaf = 1)
 bart_model_mcmc <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params, 
+    variance_forest_params = variance_forest_params
 )
 ```
 
@@ -326,14 +335,16 @@ num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(num_trees_mean = 50, num_trees_variance = 50, 
-                    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-                    alpha_variance = 0.95, beta_variance = 1.25, min_samples_leaf_variance = 5, 
-                    sample_sigma_global = F, sample_sigma_leaf = F)
+general_params <- list(sample_sigma2_global = F)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 50, 
+                           alpha = 0.95, beta = 2, min_samples_leaf = 5)
+variance_forest_params <- list(num_trees = 50, alpha = 0.95, 
+                               beta = 1.25, min_samples_leaf = 5)
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params, 
+    variance_forest_params = variance_forest_params
 )
 ```
 
@@ -358,14 +369,16 @@ num_gfr <- 0
 num_burnin <- 1000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(num_trees_mean = 50, num_trees_variance = 50, 
-                    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-                    alpha_variance = 0.95, beta_variance = 1.25, min_samples_leaf_variance = 5, 
-                    sample_sigma_global = F, sample_sigma_leaf = F)
+general_params <- list(sample_sigma2_global = F)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 50, 
+                           alpha = 0.95, beta = 2, min_samples_leaf = 5)
+variance_forest_params <- list(num_trees = 50, alpha = 0.95, 
+                               beta = 1.25, min_samples_leaf = 5)
 bart_model_mcmc <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params, 
+    variance_forest_params = variance_forest_params
 )
 ```
 
@@ -457,14 +470,16 @@ num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(num_trees_mean = 50, num_trees_variance = 50, 
-                    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-                    alpha_variance = 0.95, beta_variance = 1.25, min_samples_leaf_variance = 5, 
-                    sample_sigma_global = F, sample_sigma_leaf = F)
+general_params <- list(sample_sigma2_global = F)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 50, 
+                           alpha = 0.95, beta = 2, min_samples_leaf = 5)
+variance_forest_params <- list(num_trees = 50, alpha = 0.95, 
+                               beta = 1.25, min_samples_leaf = 5)
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params, 
+    variance_forest_params = variance_forest_params
 )
 ```
 
@@ -489,14 +504,16 @@ num_gfr <- 0
 num_burnin <- 1000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-bart_params <- list(num_trees_mean = 50, num_trees_variance = 50, 
-                    alpha_mean = 0.95, beta_mean = 2, min_samples_leaf_mean = 5, 
-                    alpha_variance = 0.95, beta_variance = 1.25, min_samples_leaf_variance = 5, 
-                    sample_sigma_global = F, sample_sigma_leaf = F)
+general_params <- list(sample_sigma2_global = F)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 50, 
+                           alpha = 0.95, beta = 2, min_samples_leaf = 5)
+variance_forest_params <- list(num_trees = 50, alpha = 0.95, 
+                               beta = 1.25, min_samples_leaf = 5)
 bart_model_mcmc <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params, mean_forest_params = mean_forest_params, 
+    variance_forest_params = variance_forest_params
 )
 ```
 
