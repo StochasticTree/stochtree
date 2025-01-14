@@ -66,11 +66,11 @@ Run BART.
 num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
-bart_params <- list(keep_gfr = T)
+general_params <- list(keep_gfr = T)
 bart_model <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    params = bart_params
+    general_params = general_params
 )
 ```
 

@@ -200,8 +200,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             previous_forest_samples_variance <- previous_bart_model$variance_forests
         } else previous_forest_samples_variance <- NULL
         if (previous_bart_model$model_params$sample_sigma_global) {
-            previous_global_var_samples <- previous_bart_model$sigma2_global_samples*(
-                previous_var_scale / (previous_y_scale*previous_y_scale)
+            previous_global_var_samples <- previous_bart_model$sigma2_global_samples / (
+                previous_y_scale*previous_y_scale
             )
         } else previous_global_var_samples <- NULL
         if (previous_bart_model$model_params$sample_sigma_leaf) {
@@ -213,7 +213,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     } else {
         previous_y_bar <- NULL
         previous_y_scale <- NULL
-        previous_var_scale <- NULL
         previous_global_var_samples <- NULL
         previous_leaf_var_samples <- NULL
         previous_rfx_samples <- NULL
