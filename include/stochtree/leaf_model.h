@@ -979,10 +979,8 @@ static inline SuffStatVariant suffStatFactory(ModelType model_type, int basis_di
     return createSuffStat<GaussianUnivariateRegressionSuffStat>();
   } else if (model_type == kMultivariateRegressionLeafGaussian) {
     return createSuffStat<GaussianMultivariateRegressionSuffStat, int>(basis_dim);
-  } else if (model_type == kLogLinearVariance) {
-    return createSuffStat<LogLinearVarianceSuffStat>();
   } else {
-    Log::Fatal("Incompatible model type provided to suff stat factory");
+    return createSuffStat<LogLinearVarianceSuffStat>();
   }
 }
 
@@ -1002,10 +1000,8 @@ static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau
     return createLeafModel<GaussianUnivariateRegressionLeafModel, double>(tau);
   } else if (model_type == kMultivariateRegressionLeafGaussian) {
     return createLeafModel<GaussianMultivariateRegressionLeafModel, Eigen::MatrixXd>(Sigma0);
-  } else if (model_type == kLogLinearVariance) {
-    return createLeafModel<LogLinearVarianceLeafModel, double, double>(a, b);
   } else {
-    Log::Fatal("Incompatible model type provided to leaf model factory");
+    return createLeafModel<LogLinearVarianceLeafModel, double, double>(a, b);
   }
 }
 
