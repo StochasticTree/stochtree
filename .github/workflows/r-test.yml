@@ -34,7 +34,8 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::testthat, any::decor
+          extra-packages: any::testthat, any::decor, any::rcmdcheck
+          needs: check
 
       - name: Create a CRAN-ready version of the R package
         run: |
