@@ -9,6 +9,32 @@
 # https://github.com/microsoft/LightGBM/blob/master/build-cran-package.sh, 
 # which is MIT licensed with the following copyright:
 # Copyright (c) Microsoft Corporation
+# 
+# Includes one command line argument:
+#   include_vignettes : 1 to include the vignettes folder in the R package subfolder
+#                       0 to exclude vignettes
+# 
+# Run this script from the command line via
+# 
+# Explicitly include vignettes
+# ----------------------------
+#   Rscript cran-bootstrap.R 1
+# 
+# Explicitly exclude vignettes
+# ----------------------------
+#   Rscript cran-bootstrap.R 0
+# 
+# Exclude vignettes by default
+# ----------------------------
+#   Rscript cran-bootstrap.R
+
+# Unpack command line arguments
+args <- commandArgs(trailingOnly = T)
+if (length(args) > 0){
+    include_vignettes <- as.logical(as.integer(args[1]))
+} else{
+    include_vignettes <- F
+}
 
 # Create the stochtree_cran folder
 cran_dir <- "stochtree_cran"
@@ -27,9 +53,13 @@ pkg_core_files <- c(
     list.files("man", recursive = TRUE, full.names = TRUE),
     "NAMESPACE",
     list.files("R", recursive = TRUE, full.names = TRUE),
-    r_src_files, 
-    list.files("vignettes", pattern = ".(Rmd|bib)$", recursive = TRUE, full.names = TRUE)
+    r_src_files
 )
+if (include_vignettes) {
+    pkg_core_files <- c(
+        pkg_core_files, list.files("vignettes", pattern = ".(Rmd|bib)$", recursive = TRUE, full.names = TRUE)
+    ) 
+}
 pkg_core_files_dst <- file.path(cran_dir, pkg_core_files)
 # Handle tests separately (move from test/R/ folder to tests/ folder)
 test_files_src <- list.files("test/R", recursive = TRUE, full.names = TRUE)
@@ -68,6 +98,16 @@ cran_makevars <- file.path(cran_dir, "src/Makevars")
 makevars_lines <- readLines(cran_makevars)
 makevars_lines[grep("^(PKG_CPPFLAGS)", makevars_lines)] <- "PKG_CPPFLAGS= -I$(PKGROOT)/src/include $(STOCHTREE_CPPFLAGS)"
 writeLines(makevars_lines, cran_makevars)
+
+# Remove vignette deps from DESCRIPTION if no vignettes
+if (!include_vignettes) {
+    cran_description <- file.path(cran_dir, "DESCRIPTION")
+    description_lines <- readLines(cran_description)
+    suggestion_begin <- grep("Suggests:", description_lines) + 2
+    suggestion_end <- grep("VignetteBuilder:", description_lines)
+    description_lines <- description_lines[-(suggestion_begin:suggestion_end)]
+    writeLines(description_lines, cran_description)
+}
 
 # Copy fast_double_parser header to an include/ subdirectory of src/
 header_folders <- c("nlohmann", "stochtree")

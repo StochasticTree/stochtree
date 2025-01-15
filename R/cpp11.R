@@ -580,6 +580,22 @@ tree_prior_cpp <- function(alpha, beta, min_samples_leaf, max_depth) {
   .Call(`_stochtree_tree_prior_cpp`, alpha, beta, min_samples_leaf, max_depth)
 }
 
+update_alpha_tree_prior_cpp <- function(tree_prior_ptr, alpha) {
+  invisible(.Call(`_stochtree_update_alpha_tree_prior_cpp`, tree_prior_ptr, alpha))
+}
+
+update_beta_tree_prior_cpp <- function(tree_prior_ptr, beta) {
+  invisible(.Call(`_stochtree_update_beta_tree_prior_cpp`, tree_prior_ptr, beta))
+}
+
+update_min_samples_leaf_tree_prior_cpp <- function(tree_prior_ptr, min_samples_leaf) {
+  invisible(.Call(`_stochtree_update_min_samples_leaf_tree_prior_cpp`, tree_prior_ptr, min_samples_leaf))
+}
+
+update_max_depth_tree_prior_cpp <- function(tree_prior_ptr, max_depth) {
+  invisible(.Call(`_stochtree_update_max_depth_tree_prior_cpp`, tree_prior_ptr, max_depth))
+}
+
 forest_tracker_cpp <- function(data, feature_types, num_trees, n) {
   .Call(`_stochtree_forest_tracker_cpp`, data, feature_types, num_trees, n)
 }

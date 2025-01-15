@@ -4,12 +4,12 @@
 \alias{preprocessParams}
 \title{Preprocess a parameter list, overriding defaults with any provided parameters.}
 \usage{
-preprocessParams(user_params, default_params)
+preprocessParams(default_params, user_params = NULL)
 }
 \arguments{
-\item{user_params}{User-supplied overrides to \code{default_params}.}
-
 \item{default_params}{List of parameters with default values set.}
+
+\item{user_params}{(Optional) User-supplied overrides to \code{default_params}.}
 }
 \value{
 Parameter list with defaults overriden by values supplied in \code{user_params}

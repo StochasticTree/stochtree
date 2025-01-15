@@ -36,7 +36,10 @@ jobs:
         with:
           extra-packages: any::testthat, any::decor
 
-      - name: Run unit tests
+      - name: Create a CRAN-ready version of the R package
         run: |
-          Rscript cran-bootstrap.R
-          Rscript -e 'testthat::test_local("stochtree_cran")'
+          Rscript cran-bootstrap.R 0
+      
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: '"stochtree_cran"'

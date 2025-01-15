@@ -1180,7 +1180,7 @@ convertBARTStateToJson <- function(param_list, mean_forest = NULL, variance_fore
         jsonobj$add_forest(mean_forest)
     }
     if (param_list$include_variance_forest) {
-        jsonobj$add_forest(object$variance_forests)
+        jsonobj$add_forest(variance_forest)
     }
     
     # Add sampled parameters

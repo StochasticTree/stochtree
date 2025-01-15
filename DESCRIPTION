@@ -17,6 +17,7 @@ RoxygenNote: 7.3.2
 LinkingTo: 
     cpp11, BH
 Suggests: 
+    testthat (>= 3.0.0), 
     doParallel, 
     foreach, 
     ggplot2,
@@ -26,7 +27,6 @@ Suggests:
     MASS,
     mvtnorm,
     rmarkdown,
-    testthat (>= 3.0.0), 
     tgp
 VignetteBuilder: knitr
 SystemRequirements: C++17
