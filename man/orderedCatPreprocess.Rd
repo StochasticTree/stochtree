@@ -28,7 +28,8 @@ ordered levels to integers if necessary, and storing the unique levels of a
 variable.
 }
 \examples{
-x_levels <- c("1. Strongly disagree", "2. Disagree", "3. Neither agree nor disagree", 
+x_levels <- c("1. Strongly disagree", "2. Disagree", 
+              "3. Neither agree nor disagree", 
               "4. Agree", "5. Strongly agree")
 x <- c("1. Strongly disagree", "3. Neither agree nor disagree", "2. Disagree", 
        "4. Agree", "3. Neither agree nor disagree", "5. Strongly agree", "4. Agree")
