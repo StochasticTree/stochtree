@@ -1,6 +1,6 @@
 Package: stochtree
 Title: Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference
-Version: 0.0.0.9000
+Version: 0.0.1
 Authors@R: 
   c(
     person("Drew", "Herren", email = "drewherrenopensource@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0003-4109-6611")), 
@@ -17,21 +17,10 @@ RoxygenNote: 7.3.2
 LinkingTo: 
     cpp11, BH
 Suggests: 
-    doParallel, 
-    foreach, 
-    ggplot2,
-    knitr,
-    latex2exp,
-    Matrix,
-    MASS,
-    mvtnorm,
-    rmarkdown,
     testthat (>= 3.0.0), 
-    tgp
-VignetteBuilder: knitr
 SystemRequirements: C++17
 Imports: 
     R6,
     stats
-URL: https://stochastictree.github.io/stochtree-r/
+URL: https://stochtree.ai
 Config/testthat/edition: 3

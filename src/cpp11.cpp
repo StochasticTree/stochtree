@@ -1072,6 +1072,38 @@ extern "C" SEXP _stochtree_tree_prior_cpp(SEXP alpha, SEXP beta, SEXP min_sample
   END_CPP11
 }
 // sampler.cpp
+void update_alpha_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr, double alpha);
+extern "C" SEXP _stochtree_update_alpha_tree_prior_cpp(SEXP tree_prior_ptr, SEXP alpha) {
+  BEGIN_CPP11
+    update_alpha_tree_prior_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(tree_prior_ptr), cpp11::as_cpp<cpp11::decay_t<double>>(alpha));
+    return R_NilValue;
+  END_CPP11
+}
+// sampler.cpp
+void update_beta_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr, double beta);
+extern "C" SEXP _stochtree_update_beta_tree_prior_cpp(SEXP tree_prior_ptr, SEXP beta) {
+  BEGIN_CPP11
+    update_beta_tree_prior_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(tree_prior_ptr), cpp11::as_cpp<cpp11::decay_t<double>>(beta));
+    return R_NilValue;
+  END_CPP11
+}
+// sampler.cpp
+void update_min_samples_leaf_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr, int min_samples_leaf);
+extern "C" SEXP _stochtree_update_min_samples_leaf_tree_prior_cpp(SEXP tree_prior_ptr, SEXP min_samples_leaf) {
+  BEGIN_CPP11
+    update_min_samples_leaf_tree_prior_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(tree_prior_ptr), cpp11::as_cpp<cpp11::decay_t<int>>(min_samples_leaf));
+    return R_NilValue;
+  END_CPP11
+}
+// sampler.cpp
+void update_max_depth_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr, int max_depth);
+extern "C" SEXP _stochtree_update_max_depth_tree_prior_cpp(SEXP tree_prior_ptr, SEXP max_depth) {
+  BEGIN_CPP11
+    update_max_depth_tree_prior_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(tree_prior_ptr), cpp11::as_cpp<cpp11::decay_t<int>>(max_depth));
+    return R_NilValue;
+  END_CPP11
+}
+// sampler.cpp
 cpp11::external_pointer<StochTree::ForestTracker> forest_tracker_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, cpp11::integers feature_types, int num_trees, StochTree::data_size_t n);
 extern "C" SEXP _stochtree_forest_tracker_cpp(SEXP data, SEXP feature_types, SEXP num_trees, SEXP n) {
   BEGIN_CPP11
@@ -1497,6 +1529,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_subtract_from_column_vector_cpp",                     (DL_FUNC) &_stochtree_subtract_from_column_vector_cpp,                      2},
     {"_stochtree_sum_leaves_squared_ensemble_forest_container_cpp",    (DL_FUNC) &_stochtree_sum_leaves_squared_ensemble_forest_container_cpp,     2},
     {"_stochtree_tree_prior_cpp",                                      (DL_FUNC) &_stochtree_tree_prior_cpp,                                       4},
+    {"_stochtree_update_alpha_tree_prior_cpp",                         (DL_FUNC) &_stochtree_update_alpha_tree_prior_cpp,                          2},
+    {"_stochtree_update_beta_tree_prior_cpp",                          (DL_FUNC) &_stochtree_update_beta_tree_prior_cpp,                           2},
+    {"_stochtree_update_max_depth_tree_prior_cpp",                     (DL_FUNC) &_stochtree_update_max_depth_tree_prior_cpp,                      2},
+    {"_stochtree_update_min_samples_leaf_tree_prior_cpp",              (DL_FUNC) &_stochtree_update_min_samples_leaf_tree_prior_cpp,               2},
     {NULL, NULL, 0}
 };
 }

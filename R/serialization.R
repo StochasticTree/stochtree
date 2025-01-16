@@ -413,7 +413,7 @@ loadRandomEffectSamplesCombinedJsonString <- function(json_string_list, json_rfx
     json_rfx_mapper_label <- paste0("random_effect_label_mapper_", json_rfx_num)
     json_rfx_groupids_label <- paste0("random_effect_groupids_", json_rfx_num)
     invisible(output <- RandomEffectSamples$new())
-    for (i in 1:length(json_object_list)) {
+    for (i in 1:length(json_string_list)) {
         json_string <- json_string_list[[i]]
         if (i == 1) {
             output$load_from_json_string(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label)

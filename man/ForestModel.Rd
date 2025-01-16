@@ -24,6 +24,10 @@ trees, and exposes functionality to run a forest sampler
 \item \href{#method-ForestModel-sample_one_iteration}{\code{ForestModel$sample_one_iteration()}}
 \item \href{#method-ForestModel-propagate_basis_update}{\code{ForestModel$propagate_basis_update()}}
 \item \href{#method-ForestModel-propagate_residual_update}{\code{ForestModel$propagate_residual_update()}}
+\item \href{#method-ForestModel-update_alpha}{\code{ForestModel$update_alpha()}}
+\item \href{#method-ForestModel-update_beta}{\code{ForestModel$update_beta()}}
+\item \href{#method-ForestModel-update_min_samples_leaf}{\code{ForestModel$update_min_samples_leaf()}}
+\item \href{#method-ForestModel-update_max_depth}{\code{ForestModel$update_max_depth()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -175,6 +179,86 @@ This function is run after the \code{Outcome} class's \code{update_data} method,
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{residual}}{Outcome used to sample the forest}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-update_alpha"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-update_alpha}{}}}
+\subsection{Method \code{update_alpha()}}{
+Update alpha in the tree prior
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$update_alpha(alpha)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{alpha}}{New value of alpha to be used}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-update_beta"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-update_beta}{}}}
+\subsection{Method \code{update_beta()}}{
+Update beta in the tree prior
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$update_beta(beta)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{beta}}{New value of beta to be used}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-update_min_samples_leaf"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-update_min_samples_leaf}{}}}
+\subsection{Method \code{update_min_samples_leaf()}}{
+Update min_samples_leaf in the tree prior
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$update_min_samples_leaf(min_samples_leaf)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{min_samples_leaf}}{New value of min_samples_leaf to be used}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+NULL
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-update_max_depth"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-update_max_depth}{}}}
+\subsection{Method \code{update_max_depth()}}{
+Update max_depth in the tree prior
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$update_max_depth(max_depth)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{max_depth}}{New value of max_depth to be used}
 }
 \if{html}{\out{</div>}}
 }

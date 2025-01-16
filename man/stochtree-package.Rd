@@ -11,7 +11,7 @@ Stochastic tree ensembles (XBART and BART) for supervised learning and causal in
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://stochastictree.github.io/stochtree-r/}
+  \item \url{https://stochtree.ai}
 }
 
 }

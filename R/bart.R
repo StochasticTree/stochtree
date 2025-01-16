@@ -1015,9 +1015,9 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train, 
-#'                    group_ids_train = group_ids_train, rfx_basis_train = rfx_basis_train, 
-#'                    X_test = X_test, group_ids_test = group_ids_test, rfx_basis_test = rfx_basis_test, 
+#' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
+#'                    group_ids_train = group_ids_train, group_ids_test = group_ids_test, 
+#'                    rfx_basis_train = rfx_basis_train, rfx_basis_test = rfx_basis_test, 
 #'                    num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' rfx_samples <- getRandomEffectSamples(bart_model)
 getRandomEffectSamples.bartmodel <- function(object, ...){
@@ -1180,7 +1180,7 @@ convertBARTStateToJson <- function(param_list, mean_forest = NULL, variance_fore
         jsonobj$add_forest(mean_forest)
     }
     if (param_list$include_variance_forest) {
-        jsonobj$add_forest(object$variance_forests)
+        jsonobj$add_forest(variance_forest)
     }
     
     # Add sampled parameters
