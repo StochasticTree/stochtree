@@ -55,7 +55,17 @@ enum FeatureSplitType {
 /*! \brief Forward declaration of TreeSplit class */
 class TreeSplit;
 
-/*! \brief API for constructing decision trees (splitting, pruning, setting parameter values) */
+/*! 
+ * \defgroup tree_group Tree API
+ * 
+ * \brief Classes / functions for creating and modifying decision trees.
+ * 
+ * \section tree_design Design
+ * 
+ * \{
+ */
+
+/*! \brief Decision tree data structure */
 class Tree {
  public:
   static constexpr std::int32_t kInvalidNodeId{-1};
@@ -960,6 +970,8 @@ class TreeSplit {
   double split_value_;
   std::vector<std::uint32_t> split_categories_;
 };
+
+/*! \} */ // end of tree_group
 
 } // namespace StochTree
 

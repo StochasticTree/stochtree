@@ -159,7 +159,7 @@ computeForestLeafVariances <- function(model_object, forest_type, forest_inds=NU
     }
     
     # Preprocess forest indices
-    num_forests <- forest_container$num_samples()
+    num_forests <- model_object$model_params$num_samples
     if (is.null(forest_inds)) {
         forest_inds <- as.integer(1:num_forests)
     } else {

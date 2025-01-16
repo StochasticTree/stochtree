@@ -5,7 +5,7 @@ from numbers import Number, Integral
 from math import log
 import numpy as np
 import pandas as pd
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from .data import Dataset, Residual
 from .forest import ForestContainer, Forest
 from .preprocessing import CovariateTransformer, _preprocess_params
@@ -14,16 +14,43 @@ from .serialization import JSONSerializer
 from .utils import NotSampledError
 
 class BARTModel:
-    """Class that handles sampling, storage, and serialization of stochastic forest models like BART, XBART, and Warm-Start BART
-    """
+    r"""
+    Class that handles sampling, storage, and serialization of stochastic forest models for supervised learning. 
+    The class takes its name from Bayesian Additive Regression Trees, an MCMC sampler originally developed in 
+    Chipman, George, McCulloch (2010), but supports several sampling algorithms:
 
+    - MCMC: The "classic" sampler defined in Chipman, George, McCulloch (2010). In order to run the MCMC sampler, set `num_gfr = 0` (explained below) and then define a sampler according to several parameters:
+        - `num_burnin`: the number of iterations to run before "retaining" samples for further analysis. These "burned in" samples are helpful for allowing a sampler to converge before retaining samples.
+        - `num_chains`: the number of independent sequences of MCMC samples to generate (typically referred to in the literature as "chains")
+        - `num_mcmc`: the number of "retained" samples of the posterior distribution
+        - `keep_every`: after a sampler has "burned in", we will run the sampler for `keep_every` * `num_mcmc` iterations, retaining one of each `keep_every` iteration in a chain.
+    - GFR (Grow-From-Root): A fast, greedy approximation of the BART MCMC sampling algorithm introduced in He and Hahn (2021). GFR sampler iterations are governed by the `num_gfr` parameter, and there are two primary ways to use this sampler:
+        - Standalone: setting `num_gfr > 0` and both `num_burnin = 0` and `num_mcmc = 0` will only run and retain GFR samples of the posterior. This is typically referred to as "XBART" (accelerated BART).
+        - Initializer for MCMC: setting `num_gfr > 0` and `num_mcmc > 0` will use ensembles from the GFR algorithm to initialize `num_chains` independent MCMC BART samplers, which are run for `num_mcmc` iterations. This is typically referred to as "warm start BART".
+    
+    In addition to enabling multiple samplers, we support a broad set of models. First, note that the original BART model of Chipman, George, McCulloch (2010) is
+
+    \begin{equation*}
+    \begin{aligned}
+    y &= f(X) + \epsilon\\
+    f(X) &\sim \text{BART}(\cdot)\\
+    \epsilon &\sim N(0, \sigma^2)\\
+    \sigma^2 &\sim IG(\nu, \nu\lambda)
+    \end{aligned}
+    \end{equation*}
+
+    In words, there is a nonparametric mean function governed by a tree ensemble with a BART prior and an additive (mean-zero) Gaussian error 
+    term, whose variance is parameterized with an inverse gamma prior.
+
+    The `BARTModel` class supports the following extensions of this model:
+    
+    - Leaf Regression: Rather than letting `f(X)` define a standard decision tree ensemble, in which each tree uses `X` to partition the data and then serve up constant predictions, we allow for models `f(X,Z)` in which `X` and `Z` together define a partitioned linear model (`X` partitions the data and `Z` serves as the basis for regression models). This model can be run by specifying `basis_train` in the `sample` method.
+    - Heteroskedasticity: Rather than define $\epsilon$ parameterically, we can let a forest $\sigma^2(X)$ model a conditional error variance function. This can be done by setting `num_trees_variance > 0` in the `params` dictionary passed to the `sample` method.
+    """
     def __init__(self) -> None:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
         self.rng = np.random.default_rng()
-    
-    def is_sampled(self) -> bool:
-        return self.sampled
     
     def sample(self, X_train: np.array, y_train: np.array, basis_train: np.array = None, X_test: np.array = None, basis_test: np.array = None, 
                num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, general_params: Optional[Dict[str, Any]] = None, 
@@ -33,64 +60,64 @@ class BARTModel:
 
         Parameters
         ----------
-        X_train : :obj:`np.array`
+        X_train : np.array
             Training set covariates on which trees may be partitioned.
-        y_train : :obj:`np.array`
+        y_train : np.array
             Training set outcome.
-        basis_train : :obj:`np.array`, optional
+        basis_train : np.array, optional
             Optional training set basis vector used to define a regression to be run in the leaves of each tree.
-        X_test : :obj:`np.array`, optional
+        X_test : np.array, optional
             Optional test set covariates.
-        basis_test : :obj:`np.array`, optional
+        basis_test : np.array, optional
             Optional test set basis vector used to define a regression to be run in the leaves of each tree. 
             Must be included / omitted consistently (i.e. if basis_train is provided, then basis_test must be provided alongside X_test).
-        num_gfr : :obj:`int`, optional
-            Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Defaults to ``5``.
-        num_burnin : :obj:`int`, optional
-            Number of "burn-in" iterations of the MCMC sampler. Defaults to ``0``. Ignored if ``num_gfr > 0``.
-        num_mcmc : :obj:`int`, optional
-            Number of "retained" iterations of the MCMC sampler. Defaults to ``100``. If this is set to 0, GFR (XBART) samples will be retained.
-        general_params : :obj:`dict`, optional
+        num_gfr : int, optional
+            Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Defaults to `5`.
+        num_burnin : int, optional
+            Number of "burn-in" iterations of the MCMC sampler. Defaults to `0`. Ignored if `num_gfr > 0`.
+        num_mcmc : int, optional
+            Number of "retained" iterations of the MCMC sampler. Defaults to `100`. If this is set to 0, GFR (XBART) samples will be retained.
+        general_params : dict, optional
             Dictionary of general model parameters, each of which has a default value processed internally, so this argument is optional.
 
-            * ``cutpoint_grid_size`` (``int``): Maximum number of cutpoints to consider for each feature. Defaults to ``100``.
-            * ``standardize`` (``bool``): Whether or not to standardize the outcome (and store the offset / scale in the model object). Defaults to ``True``.
-            * ``sample_sigma2_global`` (``bool``): Whether or not to update the ``sigma^2`` global error variance parameter based on ``IG(sigma2_global_shape, sigma2_global_scale)``. Defaults to ``True``.
-            * ``sigma2_init`` (``float``): Starting value of global variance parameter. Set internally to the outcome variance (standardized if `standardize = True`) if not set here.
-            * ``sigma2_global_shape`` (``float``): Shape parameter in the ``IG(sigma2_global_shape, b_glsigma2_global_scaleobal)`` global error variance model. Defaults to ``0``.
-            * ``sigma2_global_scale`` (``float``): Scale parameter in the ``IG(sigma2_global_shape, b_glsigma2_global_scaleobal)`` global error variance model. Defaults to ``0``.
-            * ``random_seed`` (``int``): Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to ``std::random_device``.
-            * ``keep_burnin`` (``bool``): Whether or not "burnin" samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
-            * ``keep_gfr`` (``bool``): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to ``False``. Ignored if ``num_mcmc == 0``.
-            * ``keep_every`` (``int``): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to ``1``. Setting ``keep_every = k`` for some ``k > 1`` will "thin" the MCMC samples by retaining every ``k``-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
-            * ``num_chains`` (``int``): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
+            * `cutpoint_grid_size` (`int`): Maximum number of cutpoints to consider for each feature. Defaults to `100`.
+            * `standardize` (`bool`): Whether or not to standardize the outcome (and store the offset / scale in the model object). Defaults to `True`.
+            * `sample_sigma2_global` (`bool`): Whether or not to update the `sigma^2` global error variance parameter based on `IG(sigma2_global_shape, sigma2_global_scale)`. Defaults to `True`.
+            * `sigma2_init` (`float`): Starting value of global variance parameter. Set internally to the outcome variance (standardized if `standardize = True`) if not set here.
+            * `sigma2_global_shape` (`float`): Shape parameter in the `IG(sigma2_global_shape, b_glsigma2_global_scaleobal)` global error variance model. Defaults to `0`.
+            * `sigma2_global_scale` (`float`): Scale parameter in the `IG(sigma2_global_shape, b_glsigma2_global_scaleobal)` global error variance model. Defaults to `0`.
+            * `random_seed` (`int`): Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
+            * `keep_burnin` (`bool`): Whether or not "burnin" samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
+            * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
+            * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
+            * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
             
-        mean_forest_params : :obj:`dict`, optional
+        mean_forest_params : dict, optional
             Dictionary of mean forest model parameters, each of which has a default value processed internally, so this argument is optional.
 
-            * ``num_trees`` (``int``): Number of trees in the conditional mean model. Defaults to ``200``. If ``num_trees = 0``, the conditional mean will not be modeled using a forest and sampling will only proceed if ``num_trees > 0`` for the variance forest.
-            * ``alpha`` (``float``): Prior probability of splitting for a tree of depth 0 in the conditional mean model. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``0.95``.
-            * ``beta`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional mean model. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``2``.
-            * ``min_samples_leaf`` (``int``): Minimum allowable size of a leaf, in terms of training samples, in the conditional mean model. Defaults to ``5``.
-            * ``max_depth`` (``int``): Maximum depth of any tree in the ensemble in the conditional mean model. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-            * ``variable_weights`` (``np.array``): Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
-            * ``sample_sigma2_leaf`` (``bool``): Whether or not to update the ``tau`` leaf scale variance parameter based on ``IG(sigma2_leaf_shape, sigma2_leaf_scale)``. Cannot (currently) be set to true if ``basis_train`` has more than one column. Defaults to ``False``.
-            * ``sigma2_leaf_init`` (``float``): Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
-            * ``sigma2_leaf_shape`` (``float``): Shape parameter in the ``IG(sigma2_leaf_shape, sigma2_leaf_scale)`` leaf node parameter variance model. Defaults to ``3``.
-            * ``sigma2_leaf_scale`` (``float``): Scale parameter in the ``IG(sigma2_leaf_shape, sigma2_leaf_scale)`` leaf node parameter variance model. Calibrated internally as ``0.5/num_trees`` if not set here.            
+            * `num_trees` (`int`): Number of trees in the conditional mean model. Defaults to `200`. If `num_trees = 0`, the conditional mean will not be modeled using a forest and sampling will only proceed if `num_trees > 0` for the variance forest.
+            * `alpha` (`float`): Prior probability of splitting for a tree of depth 0 in the conditional mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `0.95`.
+            * `beta` (`float`): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `2`.
+            * `min_samples_leaf` (`int`): Minimum allowable size of a leaf, in terms of training samples, in the conditional mean model. Defaults to `5`.
+            * `max_depth` (`int`): Maximum depth of any tree in the ensemble in the conditional mean model. Defaults to `10`. Can be overriden with `-1` which does not enforce any depth limits on trees.
+            * `variable_weights` (`np.array`): Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of `X_train` if not provided.
+            * `sample_sigma2_leaf` (`bool`): Whether or not to update the `tau` leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `basis_train` has more than one column. Defaults to `False`.
+            * `sigma2_leaf_init` (`float`): Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
+            * `sigma2_leaf_shape` (`float`): Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Defaults to `3`.
+            * `sigma2_leaf_scale` (`float`): Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.            
 
-        variance_forest_params : :obj:`dict`, optional
+        variance_forest_params : dict, optional
             Dictionary of variance forest model  parameters, each of which has a default value processed internally, so this argument is optional.
 
-            * ``num_trees`` (``int``): Number of trees in the conditional variance model. Defaults to ``0``. Variance is only modeled using a tree / forest if ``num_trees > 0``.
-            * ``alpha`` (``float``): Prior probability of splitting for a tree of depth 0 in the conditional variance model. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``0.95``.
-            * ``beta`` (``float``): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional variance model. Tree split prior combines ``alpha`` and ``beta`` via ``alpha*(1+node_depth)^-beta``. Defaults to ``2``.
-            * ``min_samples_leaf`` (``int``): Minimum allowable size of a leaf, in terms of training samples, in the conditional variance model. Defaults to ``5``.
-            * ``max_depth`` (``int``): Maximum depth of any tree in the ensemble in the conditional variance model. Defaults to ``10``. Can be overriden with ``-1`` which does not enforce any depth limits on trees.
-            * ``variable_weights`` (``np.array``): Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of ``X_train`` if not provided.
-            * ``var_forest_leaf_init`` (``float``): Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as ``np.log(0.6*np.var(y_train))/num_trees_variance``, where `y_train` is the possibly standardized outcome, if not set.
-            * ``var_forest_prior_shape`` (``float``): Shape parameter in the [optional] ``IG(var_forest_prior_shape, var_forest_prior_scale)`` conditional error variance forest (which is only sampled if ``num_trees > 0``). Calibrated internally as ``num_trees / 1.5^2 + 0.5`` if not set here.
-            * ``var_forest_prior_scale`` (``float``): Scale parameter in the [optional] ``IG(var_forest_prior_shape, var_forest_prior_scale)`` conditional error variance forest (which is only sampled if ``num_trees > 0``). Calibrated internally as ``num_trees / 1.5^2`` if not set here.
+            * `num_trees` (`int`): Number of trees in the conditional variance model. Defaults to `0`. Variance is only modeled using a tree / forest if `num_trees > 0`.
+            * `alpha` (`float`): Prior probability of splitting for a tree of depth 0 in the conditional variance model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `0.95`.
+            * `beta` (`float`): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional variance model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `2`.
+            * `min_samples_leaf` (`int`): Minimum allowable size of a leaf, in terms of training samples, in the conditional variance model. Defaults to `5`.
+            * `max_depth` (`int`): Maximum depth of any tree in the ensemble in the conditional variance model. Defaults to `10`. Can be overriden with `-1` which does not enforce any depth limits on trees.
+            * `variable_weights` (`np.array`): Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of `X_train` if not provided.
+            * `var_forest_leaf_init` (`float`): Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `np.log(0.6*np.var(y_train))/num_trees_variance`, where `y_train` is the possibly standardized outcome, if not set.
+            * `var_forest_prior_shape` (`float`): Shape parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2 + 0.5` if not set here.
+            * `var_forest_prior_scale` (`float`): Scale parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2` if not set here.
 
         Returns
         -------
@@ -553,20 +580,24 @@ class BARTModel:
                 else:
                     self.sigma2_x_test = sigma_x_test_raw*self.sigma2_init*self.y_std*self.y_std
 
-    def predict(self, covariates: np.array, basis: np.array = None) -> np.array:
-        """Return predictions from every forest sampled (either / both of mean and variance)
+    def predict(self, covariates: np.array, basis: np.array = None) -> Union[np.array, tuple]:
+        """Return predictions from every forest sampled (either / both of mean and variance). 
+        Return type is either a single array of predictions, if a BART model only includes a 
+        mean or variance term, or a tuple of prediction arrays, if a BART model includes both.
 
         Parameters
         ----------
-        covariates : :obj:`np.array`
+        covariates : np.array
             Test set covariates.
-        basis : :obj:`np.array`, optional
+        basis : np.array, optional
             Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
         
         Returns
         -------
-        tuple of :obj:`np.array`
-            Tuple of arrays of predictions corresponding to each forest (mean and variance, depending on whether either / both was included). Each array will contain as many rows as in ``covariates`` and as many columns as retained samples of the algorithm.
+        mu_x : np.array, optional
+            Mean forest predictions.
+        sigma2_x : np.array, optional
+            Variance forest predictions.
         """
         if not self.is_sampled():
             msg = (
@@ -615,15 +646,15 @@ class BARTModel:
 
         Parameters
         ----------
-        covariates : :obj:`np.array`
+        covariates : np.array
             Test set covariates.
-        basis : :obj:`np.array`, optional
+        basis : np.array, optional
             Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
         
         Returns
         -------
-        tuple of :obj:`np.array`
-            Tuple of arrays of predictions corresponding to each forest (mean and variance, depending on whether either / both was included). Each array will contain as many rows as in ``covariates`` and as many columns as retained samples of the algorithm.
+        np.array
+            Mean forest predictions.
         """
         if not self.is_sampled():
             msg = (
@@ -670,8 +701,8 @@ class BARTModel:
         
         Returns
         -------
-        tuple of :obj:`np.array`
-            Tuple of arrays of predictions corresponding to the variance forest. Each array will contain as many rows as in ``covariates`` and as many columns as retained samples of the algorithm.
+        np.array
+            Variance forest predictions.
         """
         if not self.is_sampled():
             msg = (
@@ -706,11 +737,11 @@ class BARTModel:
     def to_json(self) -> str:
         """
         Converts a sampled BART model to JSON string representation (which can then be saved to a file or 
-        processed using the ``json`` library)
+        processed using the `json` library)
 
         Returns
         -------
-        :obj:`str`
+        str
             JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
         """
         if not self.is_sampled:
@@ -759,7 +790,7 @@ class BARTModel:
 
         Parameters
         ----------
-        json_string : :obj:`str`
+        json_string : str
             JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
         """
         # Parse string to a JSON object in C++
@@ -804,3 +835,13 @@ class BARTModel:
         
         # Mark the deserialized model as "sampled"
         self.sampled = True
+    
+    def is_sampled(self) -> bool:
+        """Whether or not a BART model has been sampled.
+
+        Returns
+        -------
+        bool
+            `True` if a BART model has been sampled, `False` otherwise
+        """
+        return self.sampled
