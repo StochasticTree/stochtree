@@ -1402,6 +1402,7 @@ class BCFModel:
         bcf_json.add_scalar("num_samples", self.num_samples)
         bcf_json.add_boolean("adaptive_coding", self.adaptive_coding)
         bcf_json.add_string("propensity_covariate", self.propensity_covariate)
+        bcf_json.add_boolean("internal_propensity_model", self.internal_propensity_model)
         
         # Add parameter samples
         if self.sample_sigma_global:
@@ -1413,6 +1414,11 @@ class BCFModel:
         if self.adaptive_coding:
             bcf_json.add_numeric_vector("b0_samples", self.b0_samples, "parameters")
             bcf_json.add_numeric_vector("b1_samples", self.b1_samples, "parameters")
+        
+        # Add propensity model (if it exists)
+        if self.internal_propensity_model:
+            bart_propensity_string = self.bart_propensity_model.to_json()
+            bcf_json.add_string("bart_propensity_model", bart_propensity_string)
         
         return bcf_json.return_json_string()
 
@@ -1457,6 +1463,7 @@ class BCFModel:
         self.num_samples = int(bcf_json.get_scalar("num_samples"))
         self.adaptive_coding = bcf_json.get_boolean("adaptive_coding")
         self.propensity_covariate = bcf_json.get_string("propensity_covariate")
+        self.internal_propensity_model  = bcf_json.get_boolean("internal_propensity_model")
 
         # Unpack parameter samples
         if self.sample_sigma_global:
@@ -1468,6 +1475,12 @@ class BCFModel:
         if self.adaptive_coding:
             self.b1_samples = bcf_json.get_numeric_vector("b1_samples", "parameters")
             self.b0_samples = bcf_json.get_numeric_vector("b0_samples", "parameters")
+        
+        # Unpack internal propensity model
+        if self.internal_propensity_model:
+            bart_propensity_string = bcf_json.get_string("bart_propensity_model")
+            self.bart_propensity_model = BARTModel()
+            self.bart_propensity_model.from_json(bart_propensity_string)
         
         # Mark the deserialized model as "sampled"
         self.sampled = True
