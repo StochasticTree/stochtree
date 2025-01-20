@@ -613,11 +613,13 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     }
     
     # Estimate if pre-estimated propensity score is not provided
+    internal_propensity_model <- F
     if ((is.null(pi_train)) && (propensity_covariate != "none")) {
+        internal_propensity_model <- T
         # Estimate using the last of several iterations of GFR BART
         num_burnin <- 10
         num_total <- 50
-        bart_model_propensity <- bart(X_train = X_train_raw, y_train = as.numeric(Z_train), X_test = X_test_raw, 
+        bart_model_propensity <- bart(X_train = X_train, y_train = as.numeric(Z_train), X_test = X_test_raw, 
                                       num_gfr = num_total, num_burnin = 0, num_mcmc = 0)
         pi_train <- rowMeans(bart_model_propensity$y_hat_train[,(num_burnin+1):num_total])
         if ((is.null(dim(pi_train))) && (!is.null(pi_train))) {
@@ -1233,6 +1235,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         "propensity_covariate" = propensity_covariate, 
         "binary_treatment" = binary_treatment, 
         "adaptive_coding" = adaptive_coding, 
+        "internal_propensity_model" = internal_propensity_model, 
         "num_samples" = num_retained_samples, 
         "num_gfr" = num_gfr, 
         "num_burnin" = num_burnin, 
@@ -1277,6 +1280,9 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         result[["rfx_unique_group_ids"]] = levels(group_ids_factor)
     }
     if ((has_rfx_test) && (has_test)) result[["rfx_preds_test"]] = rfx_preds_test
+    if (internal_propensity_model) {
+        result[["bart_propensity_model"]] = bart_model_propensity
+    }
     class(result) <- "bcf"
     
     return(result)
@@ -1366,7 +1372,11 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
     
     # Data checks
     if ((bcf$model_params$propensity_covariate != "none") && (is.null(pi_test))) {
-        stop("pi_test must be provided for this model")
+        if (!bcf$model_params$internal_propensity_model) {
+            stop("pi_test must be provided for this model")
+        }
+        # Compute propensity score using the internal bart model
+        pi_test <- rowMeans(predict(bcf$bart_propensity_model, X_test)$y_hat)
     }
     if (nrow(X_test) != nrow(Z_test)) {
         stop("X_test and Z_test must have the same number of rows")
@@ -1662,6 +1672,7 @@ convertBCFModelToJson <- function(object){
     jsonobj$add_boolean("has_rfx_basis", object$model_params$has_rfx_basis)
     jsonobj$add_scalar("num_rfx_basis", object$model_params$num_rfx_basis)
     jsonobj$add_boolean("adaptive_coding", object$model_params$adaptive_coding)
+    jsonobj$add_boolean("internal_propensity_model", object$model_params$internal_propensity_model)
     jsonobj$add_scalar("num_gfr", object$model_params$num_gfr)
     jsonobj$add_scalar("num_burnin", object$model_params$num_burnin)
     jsonobj$add_scalar("num_mcmc", object$model_params$num_mcmc)
@@ -1687,6 +1698,14 @@ convertBCFModelToJson <- function(object){
     if (object$model_params$has_rfx) {
         jsonobj$add_random_effects(object$rfx_samples)
         jsonobj$add_string_vector("rfx_unique_group_ids", object$rfx_unique_group_ids)
+    }
+    
+    # Add propensity model (if it exists)
+    if (object$model_params$internal_propensity_model) {
+        bart_propensity_string <- saveBARTModelToJsonString(
+            object$bart_propensity_model
+        )
+        jsonobj$add_string("bart_propensity_model", bart_propensity_string)
     }
     
     return(jsonobj)
@@ -1962,6 +1981,7 @@ createBCFModelFromJson <- function(json_object){
     model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
     model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
     model_params[["adaptive_coding"]] <- json_object$get_boolean("adaptive_coding")
+    model_params[["internal_propensity_model"]] <- json_object$get_boolean("internal_propensity_model")
     model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
     model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
     model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
@@ -1988,6 +2008,14 @@ createBCFModelFromJson <- function(json_object){
     if (model_params[["has_rfx"]]) {
         output[["rfx_unique_group_ids"]] <- json_object$get_string_vector("rfx_unique_group_ids")
         output[["rfx_samples"]] <- loadRandomEffectSamplesJson(json_object, 0)
+    }
+    
+    # Unpack propensity model (if it exists)
+    if (model_params[["internal_propensity_model"]]) {
+        bart_propensity_string <- json_object$get_string("bart_propensity_model")
+        output[["bart_propensity_model"]] <- createBARTModelFromJsonString(
+            bart_propensity_string
+        )
     }
     
     class(output) <- "bcf"
@@ -2229,6 +2257,12 @@ createBCFModelFromCombinedJsonString <- function(json_string_list){
     for (i in 1:length(json_string_list)) {
         json_string <- json_string_list[[i]]
         json_object_list[[i]] <- createCppJsonString(json_string)
+        # Add runtime check for separately serialized propensity models
+        # We don't support merging BCF models with independent propensity models
+        # this way at the moment
+        if (json_object_list[[i]]$get_boolean("internal_propensity_model")) {
+            stop("Combining separate BCF models with cached internal propensity models is currently unsupported. To make this work, please first train a propensity model and then pass the propensities as data to the separate BCF models before sampling.")
+        }
     }
     
     # For scalar / preprocessing details which aren't sample-dependent, 
@@ -2279,6 +2313,7 @@ createBCFModelFromCombinedJsonString <- function(json_string_list){
     model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
     model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
     model_params[["adaptive_coding"]] <- json_object_default$get_boolean("adaptive_coding")
+    model_params[["internal_propensity_model"]] <- json_object_default$get_boolean("internal_propensity_model")
     
     # Combine values that are sample-specific
     for (i in 1:length(json_object_list)) {
