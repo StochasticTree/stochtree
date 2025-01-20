@@ -86,6 +86,7 @@ class BARTModel:
             * `sigma2_init` (`float`): Starting value of global variance parameter. Set internally to the outcome variance (standardized if `standardize = True`) if not set here.
             * `sigma2_global_shape` (`float`): Shape parameter in the `IG(sigma2_global_shape, b_glsigma2_global_scaleobal)` global error variance model. Defaults to `0`.
             * `sigma2_global_scale` (`float`): Scale parameter in the `IG(sigma2_global_shape, b_glsigma2_global_scaleobal)` global error variance model. Defaults to `0`.
+            * `variable_weights` (`np.array`): Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of `X_train` if not provided.
             * `random_seed` (`int`): Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
             * `keep_burnin` (`bool`): Whether or not "burnin" samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
@@ -100,11 +101,12 @@ class BARTModel:
             * `beta` (`float`): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `2`.
             * `min_samples_leaf` (`int`): Minimum allowable size of a leaf, in terms of training samples, in the conditional mean model. Defaults to `5`.
             * `max_depth` (`int`): Maximum depth of any tree in the ensemble in the conditional mean model. Defaults to `10`. Can be overriden with `-1` which does not enforce any depth limits on trees.
-            * `variable_weights` (`np.array`): Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of `X_train` if not provided.
             * `sample_sigma2_leaf` (`bool`): Whether or not to update the `tau` leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `basis_train` has more than one column. Defaults to `False`.
             * `sigma2_leaf_init` (`float`): Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
             * `sigma2_leaf_shape` (`float`): Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Defaults to `3`.
-            * `sigma2_leaf_scale` (`float`): Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.            
+            * `sigma2_leaf_scale` (`float`): Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
+            * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the mean forest. Defaults to `None`.
+            * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the mean forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 
         variance_forest_params : dict, optional
             Dictionary of variance forest model  parameters, each of which has a default value processed internally, so this argument is optional.
@@ -114,10 +116,12 @@ class BARTModel:
             * `beta` (`float`): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional variance model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `2`.
             * `min_samples_leaf` (`int`): Minimum allowable size of a leaf, in terms of training samples, in the conditional variance model. Defaults to `5`.
             * `max_depth` (`int`): Maximum depth of any tree in the ensemble in the conditional variance model. Defaults to `10`. Can be overriden with `-1` which does not enforce any depth limits on trees.
-            * `variable_weights` (`np.array`): Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to uniform over the columns of `X_train` if not provided.
+            * `leaf_prior_calibration_param` (`float`): Hyperparameter used to calibrate the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model. If `var_forest_prior_shape` and `var_forest_prior_scale` are not set below, this calibration parameter is used to set these values to `num_trees / leaf_prior_calibration_param^2 + 0.5` and `num_trees / leaf_prior_calibration_param^2`, respectively. Defaults to `1.5`.
             * `var_forest_leaf_init` (`float`): Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `np.log(0.6*np.var(y_train))/num_trees_variance`, where `y_train` is the possibly standardized outcome, if not set.
-            * `var_forest_prior_shape` (`float`): Shape parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2 + 0.5` if not set here.
-            * `var_forest_prior_scale` (`float`): Scale parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2` if not set here.
+            * `var_forest_prior_shape` (`float`): Shape parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2 + 0.5` if not set here.
+            * `var_forest_prior_scale` (`float`): Scale parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2` if not set here.
+            * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the variance forest. Defaults to `None`.
+            * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the variance forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 
         Returns
         -------
@@ -132,6 +136,7 @@ class BARTModel:
             'sigma2_init' : None, 
             'sigma2_global_shape' : 0, 
             'sigma2_global_scale' : 0, 
+            'variable_weights' : None, 
             'random_seed' : -1, 
             'keep_burnin' : False, 
             'keep_gfr' : False, 
@@ -149,11 +154,12 @@ class BARTModel:
             'beta' : 2.0, 
             'min_samples_leaf' : 5, 
             'max_depth' : 10, 
-            'variable_weights' : None, 
             'sample_sigma2_leaf' : True, 
             'sigma2_leaf_init' : None, 
             'sigma2_leaf_shape' : 3, 
-            'sigma2_leaf_scale' : None
+            'sigma2_leaf_scale' : None, 
+            'keep_vars' : None, 
+            'drop_vars' : None
         }
         mean_forest_params_updated = _preprocess_params(
             mean_forest_params_default, mean_forest_params
@@ -166,10 +172,12 @@ class BARTModel:
             'beta' : 2.0, 
             'min_samples_leaf' : 5, 
             'max_depth' : 10, 
-            'variable_weights' : None, 
+            'leaf_prior_calibration_param': 1.5, 
             'var_forest_leaf_init' : None, 
             'var_forest_prior_shape' : None, 
-            'var_forest_prior_scale' : None
+            'var_forest_prior_scale' : None, 
+            'keep_vars' : None, 
+            'drop_vars' : None
         }
         variance_forest_params_updated = _preprocess_params(
             variance_forest_params_default, variance_forest_params
@@ -183,6 +191,7 @@ class BARTModel:
         sigma2_init = general_params_updated['sigma2_init']
         a_global = general_params_updated['sigma2_global_shape']
         b_global = general_params_updated['sigma2_global_scale']
+        variable_weights = general_params_updated['variable_weights']
         random_seed = general_params_updated['random_seed']
         keep_burnin = general_params_updated['keep_burnin']
         keep_gfr = general_params_updated['keep_gfr']
@@ -195,11 +204,12 @@ class BARTModel:
         beta_mean = mean_forest_params_updated['beta']
         min_samples_leaf_mean = mean_forest_params_updated['min_samples_leaf']
         max_depth_mean = mean_forest_params_updated['max_depth']
-        variable_weights_mean = mean_forest_params_updated['variable_weights']
         sample_sigma_leaf = mean_forest_params_updated['sample_sigma2_leaf']
         sigma_leaf = mean_forest_params_updated['sigma2_leaf_init']
         a_leaf = mean_forest_params_updated['sigma2_leaf_shape']
         b_leaf = mean_forest_params_updated['sigma2_leaf_scale']
+        keep_vars_mean = mean_forest_params_updated['keep_vars']
+        drop_vars_mean = mean_forest_params_updated['drop_vars']
 
         # 3. Variance forest parameters
         num_trees_variance = variance_forest_params_updated['num_trees']
@@ -207,10 +217,12 @@ class BARTModel:
         beta_variance = variance_forest_params_updated['beta']
         min_samples_leaf_variance = variance_forest_params_updated['min_samples_leaf']
         max_depth_variance = variance_forest_params_updated['max_depth']
-        variable_weights_variance = variance_forest_params_updated['variable_weights']
+        a_0 = variance_forest_params_updated['leaf_prior_calibration_param']
         variance_forest_leaf_init = variance_forest_params_updated['var_forest_leaf_init']
         a_forest = variance_forest_params_updated['var_forest_prior_shape']
         b_forest = variance_forest_params_updated['var_forest_prior_scale']
+        keep_vars_variance = variance_forest_params_updated['keep_vars']
+        drop_vars_variance = variance_forest_params_updated['drop_vars']
     
         # Check that num_chains >= 1
         if not isinstance(num_chains, Integral) or num_chains < 1:
@@ -276,14 +288,17 @@ class BARTModel:
             if X_test.shape[0] != basis_test.shape[0]:
                 raise ValueError("X_test and basis_test must have the same number of rows")
 
-        # Compute variable weights
+        # Variable weight preprocessing (and initialization if necessary)
         p = X_train.shape[1]
-        if self.include_mean_forest:
-            if not variable_weights_mean:
-                variable_weights_mean = np.repeat(1.0/p, p)
-        if self.include_variance_forest:
-            if not variable_weights_variance:
-                variable_weights_variance = np.repeat(1.0/p, p)
+        if variable_weights is None:
+            if X_train.ndim > 1:
+                variable_weights = np.repeat(1.0/p, p)
+            else:
+                variable_weights = np.repeat(1., 1)
+        if np.any(variable_weights < 0):
+            raise ValueError("variable_weights cannot have any negative weights")
+        variable_weights_mean = variable_weights
+        variable_weights_variance = variable_weights
         
         # Covariate preprocessing
         self._covariate_transformer = CovariateTransformer()
@@ -292,6 +307,7 @@ class BARTModel:
         if X_test is not None:
             X_test_processed = self._covariate_transformer.transform(X_test)
         feature_types = np.asarray(self._covariate_transformer._processed_feature_types)
+        original_var_indices = self._covariate_transformer.fetch_original_feature_indices()
 
         # Determine whether a test set is provided
         self.has_test = X_test is not None
@@ -304,16 +320,138 @@ class BARTModel:
         self.n_test = X_test_processed.shape[0] if self.has_test else 0
         self.num_covariates = X_train_processed.shape[1]
         self.num_basis = basis_train.shape[1] if self.has_basis else 0
+
+        # Standardize the keep variable lists to numeric indices
+        if keep_vars_mean is not None:
+            if isinstance(keep_vars_mean, list):
+                if all(isinstance(i, str) for i in keep_vars_mean):
+                    if not np.all(np.isin(keep_vars_mean, X_train.columns)):
+                        raise ValueError("keep_vars_mean includes some variable names that are not in X_train")
+                    variable_subset_mean = [i for i in X_train.shape[1] if keep_vars_mean.count(X_train.columns.array[i]) > 0]
+                elif all(isinstance(i, int) for i in keep_vars_mean):
+                    if any(i >= X_train.shape[1] for i in keep_vars_mean):
+                        raise ValueError("keep_vars_mean includes some variable indices that exceed the number of columns in X_train")
+                    if any(i < 0 for i in keep_vars_mean):
+                        raise ValueError("keep_vars_mean includes some negative variable indices")
+                    variable_subset_mean = keep_vars_mean
+                else:
+                    raise ValueError("keep_vars_mean must be a list of variable names (str) or column indices (int)")
+            elif isinstance(keep_vars_mean, np.ndarray):
+                if keep_vars_mean.dtype == np.str_:
+                    if not np.all(np.isin(keep_vars_mean, X_train.columns)):
+                        raise ValueError("keep_vars_mean includes some variable names that are not in X_train")
+                    variable_subset_mean = [i for i in X_train.shape[1] if keep_vars_mean.count(X_train.columns.array[i]) > 0]
+                else:
+                    if np.any(keep_vars_mean >= X_train.shape[1]):
+                        raise ValueError("keep_vars_mean includes some variable indices that exceed the number of columns in X_train")
+                    if np.any(keep_vars_mean < 0):
+                        raise ValueError("keep_vars_mean includes some negative variable indices")
+                    variable_subset_mean = [i for i in keep_vars_mean]
+            else:
+                raise ValueError("keep_vars_mean must be a list or np.array")
+        elif keep_vars_mean is None and drop_vars_mean is not None:
+            if isinstance(drop_vars_mean, list):
+                if all(isinstance(i, str) for i in drop_vars_mean):
+                    if not np.all(np.isin(drop_vars_mean, X_train.columns)):
+                        raise ValueError("drop_vars_mean includes some variable names that are not in X_train")
+                    variable_subset_mean = [i for i in range(X_train.shape[1]) if drop_vars_mean.count(X_train.columns.array[i]) == 0]
+                elif all(isinstance(i, int) for i in drop_vars_mean):
+                    if any(i >= X_train.shape[1] for i in drop_vars_mean):
+                        raise ValueError("drop_vars_mean includes some variable indices that exceed the number of columns in X_train")
+                    if any(i < 0 for i in drop_vars_mean):
+                        raise ValueError("drop_vars_mean includes some negative variable indices")
+                    variable_subset_mean = [i for i in range(X_train.shape[1]) if drop_vars_mean.count(i) == 0]
+                else:
+                    raise ValueError("drop_vars_mean must be a list of variable names (str) or column indices (int)")
+            elif isinstance(drop_vars_mean, np.ndarray):
+                if drop_vars_mean.dtype == np.str_:
+                    if not np.all(np.isin(drop_vars_mean, X_train.columns)):
+                        raise ValueError("drop_vars_mean includes some variable names that are not in X_train")
+                    keep_inds = ~np.isin(X_train.columns.array, drop_vars_mean)
+                    variable_subset_mean = [i for i in keep_inds]
+                else:
+                    if np.any(drop_vars_mean >= X_train.shape[1]):
+                        raise ValueError("drop_vars_mean includes some variable indices that exceed the number of columns in X_train")
+                    if np.any(drop_vars_mean < 0):
+                        raise ValueError("drop_vars_mean includes some negative variable indices")
+                    keep_inds = ~np.isin(np.arange(X_train.shape[1]), drop_vars_mean)
+                    variable_subset_mean = [i for i in keep_inds]
+            else:
+                raise ValueError("drop_vars_mean must be a list or np.array")
+        else:
+            variable_subset_mean = [i for i in range(X_train.shape[1])]
+        if keep_vars_variance is not None:
+            if isinstance(keep_vars_variance, list):
+                if all(isinstance(i, str) for i in keep_vars_variance):
+                    if not np.all(np.isin(keep_vars_variance, X_train.columns)):
+                        raise ValueError("keep_vars_variance includes some variable names that are not in X_train")
+                    variable_subset_variance = [i for i in X_train.shape[1] if keep_vars_variance.count(X_train.columns.array[i]) > 0]
+                elif all(isinstance(i, int) for i in keep_vars_variance):
+                    if any(i >= X_train.shape[1] for i in keep_vars_variance):
+                        raise ValueError("keep_vars_variance includes some variable indices that exceed the number of columns in X_train")
+                    if any(i < 0 for i in keep_vars_variance):
+                        raise ValueError("keep_vars_variance includes some negative variable indices")
+                    variable_subset_variance = keep_vars_variance
+                else:
+                    raise ValueError("keep_vars_variance must be a list of variable names (str) or column indices (int)")
+            elif isinstance(keep_vars_variance, np.ndarray):
+                if keep_vars_variance.dtype == np.str_:
+                    if not np.all(np.isin(keep_vars_variance, X_train.columns)):
+                        raise ValueError("keep_vars_variance includes some variable names that are not in X_train")
+                    variable_subset_variance = [i for i in X_train.shape[1] if keep_vars_variance.count(X_train.columns.array[i]) > 0]
+                else:
+                    if np.any(keep_vars_variance >= X_train.shape[1]):
+                        raise ValueError("keep_vars_variance includes some variable indices that exceed the number of columns in X_train")
+                    if np.any(keep_vars_variance < 0):
+                        raise ValueError("keep_vars_variance includes some negative variable indices")
+                    variable_subset_variance = [i for i in keep_vars_variance]
+            else:
+                raise ValueError("keep_vars_variance must be a list or np.array")
+        elif keep_vars_variance is None and drop_vars_variance is not None:
+            if isinstance(drop_vars_variance, list):
+                if all(isinstance(i, str) for i in drop_vars_variance):
+                    if not np.all(np.isin(drop_vars_variance, X_train.columns)):
+                        raise ValueError("drop_vars_variance includes some variable names that are not in X_train")
+                    variable_subset_variance = [i for i in range(X_train.shape[1]) if drop_vars_variance.count(X_train.columns.array[i]) == 0]
+                elif all(isinstance(i, int) for i in drop_vars_variance):
+                    if any(i >= X_train.shape[1] for i in drop_vars_variance):
+                        raise ValueError("drop_vars_variance includes some variable indices that exceed the number of columns in X_train")
+                    if any(i < 0 for i in drop_vars_variance):
+                        raise ValueError("drop_vars_variance includes some negative variable indices")
+                    variable_subset_variance = [i for i in range(X_train.shape[1]) if drop_vars_variance.count(i) == 0]
+                else:
+                    raise ValueError("drop_vars_variance must be a list of variable names (str) or column indices (int)")
+            elif isinstance(drop_vars_variance, np.ndarray):
+                if drop_vars_variance.dtype == np.str_:
+                    if not np.all(np.isin(drop_vars_variance, X_train.columns)):
+                        raise ValueError("drop_vars_variance includes some variable names that are not in X_train")
+                    keep_inds = ~np.isin(X_train.columns.array, drop_vars_variance)
+                    variable_subset_variance = [i for i in keep_inds]
+                else:
+                    if np.any(drop_vars_variance >= X_train.shape[1]):
+                        raise ValueError("drop_vars_variance includes some variable indices that exceed the number of columns in X_train")
+                    if np.any(drop_vars_variance < 0):
+                        raise ValueError("drop_vars_variance includes some negative variable indices")
+                    keep_inds = ~np.isin(np.arange(X_train.shape[1]), drop_vars_variance)
+                    variable_subset_variance = [i for i in keep_inds]
+            else:
+                raise ValueError("drop_vars_variance must be a list or np.array")
+        else:
+            variable_subset_variance = [i for i in range(X_train.shape[1])]
         
         # Update variable weights if the covariates have been resized (by e.g. one-hot encoding)
         if X_train_processed.shape[1] != X_train.shape[1]:
-            original_var_indices = self._covariate_transformer._original_feature_indices
-            variable_weights_adj = np.array([1/np.sum(original_var_indices==i) for i in original_var_indices])
+            variable_counts = [original_var_indices.count(i) for i in original_var_indices]
+            variable_weights_adj = np.array([1/i for i in variable_counts])
             if self.include_mean_forest:
                 variable_weights_mean = variable_weights_mean[original_var_indices]*variable_weights_adj
             if self.include_variance_forest:
                 variable_weights_variance = variable_weights_variance[original_var_indices]*variable_weights_adj
-
+        
+        # Zero out weights for excluded variables
+        variable_weights_mean[[variable_subset_mean.count(i) == 0 for i in original_var_indices]] = 0
+        variable_weights_variance[[variable_subset_variance.count(i) == 0 for i in original_var_indices]] = 0
+        
         # Scale outcome
         if self.standardize:
             self.y_bar = np.squeeze(np.mean(y_train))
@@ -338,9 +476,9 @@ class BARTModel:
             current_leaf_scale = np.array([[1.]])
         if self.include_variance_forest:
             if not a_forest:
-                a_forest = num_trees_variance / 1.5**2 + 0.5
+                a_forest = num_trees_variance / a_0**2 + 0.5
             if not b_forest:
-                b_forest = num_trees_variance / 1.5**2
+                b_forest = num_trees_variance / a_0**2
         else:
             if not a_forest:
                 a_forest = 1.

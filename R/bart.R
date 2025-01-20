@@ -37,6 +37,7 @@
 #'   - `sigma2_global_init` Starting value of global error variance parameter. Calibrated internally as `1.0*var(y_train)`, where `y_train` is the possibly standardized outcome, if not set.
 #'   - `sigma2_global_shape` Shape parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
 #'   - `sigma2_global_scale` Scale parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
+#'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/ncol(X_train)`.
 #'   - `random_seed` Integer parameterizing the C++ random number generator. If not specified, the C++ random number generator is seeded according to `std::random_device`.
 #'   - `keep_burnin` Whether or not "burnin" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
@@ -51,11 +52,12 @@
 #'   - `beta` Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `2`.
 #'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: `5`.
 #'   - `max_depth` Maximum depth of any tree in the ensemble in the mean model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
-#'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable in the mean forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
 #'   - `sample_sigma2_leaf` Whether or not to update the leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: `FALSE`.
 #'   - `sigma2_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
 #'   - `sigma2_leaf_shape` Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Default: `3`.
 #'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
+#'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
+#'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 #'
 #' @param variance_forest_params (Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -64,10 +66,12 @@
 #'   - `beta` Exponent that decreases split probabilities for nodes of depth > 0 in the variance model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `2`.
 #'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the variance model. Default: `5`.
 #'   - `max_depth` Maximum depth of any tree in the ensemble in the variance model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
-#'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable in the variance forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
+#'   - `leaf_prior_calibration_param` Hyperparameter used to calibrate the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model. If `var_forest_prior_shape` and `var_forest_prior_scale` are not set below, this calibration parameter is used to set these values to `num_trees / leaf_prior_calibration_param^2 + 0.5` and `num_trees / leaf_prior_calibration_param^2`, respectively. Default: `1.5`.
 #'   - `var_forest_leaf_init` Starting value of root forest prediction in conditional (heteroskedastic) error variance model. Calibrated internally as `log(0.6*var(y_train))/num_trees`, where `y_train` is the possibly standardized outcome, if not set.
-#'   - `var_forest_prior_shape` Shape parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2 + 0.5` if not set.
-#'   - `var_forest_prior_scale` Scale parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2` if not set.
+#'   - `var_forest_prior_shape` Shape parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2 + 0.5` if not set.
+#'   - `var_forest_prior_scale` Scale parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2` if not set.
+#'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
+#'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 #'   
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
@@ -108,8 +112,9 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         cutpoint_grid_size = 100, standardize = T, 
         sample_sigma2_global = T, sigma2_global_init = NULL, 
         sigma2_global_shape = 0, sigma2_global_scale = 0, 
-        random_seed = -1, keep_burnin = F, keep_gfr = F, 
-        keep_every = 1, num_chains = 1, verbose = F
+        variable_weights = NULL, random_seed = -1, 
+        keep_burnin = F, keep_gfr = F, keep_every = 1, 
+        num_chains = 1, verbose = F
     )
     general_params_updated <- preprocessParams(
         general_params_default, general_params
@@ -119,9 +124,9 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     mean_forest_params_default <- list(
         num_trees = 200, alpha = 0.95, beta = 2.0, 
         min_samples_leaf = 5, max_depth = 10, 
-        variable_weights = NULL, 
         sample_sigma2_leaf = T, sigma2_leaf_init = NULL, 
-        sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL
+        sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL, 
+        keep_vars = NULL, drop_vars = NULL
     )
     mean_forest_params_updated <- preprocessParams(
         mean_forest_params_default, mean_forest_params
@@ -131,8 +136,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     variance_forest_params_default <- list(
         num_trees = 0, alpha = 0.95, beta = 2.0, 
         min_samples_leaf = 5, max_depth = 10, 
-        variable_weights = NULL, var_forest_leaf_init = NULL,
-        var_forest_prior_shape = NULL, var_forest_prior_scale = NULL
+        leaf_prior_calibration_param = 1.5, 
+        var_forest_leaf_init = NULL,
+        var_forest_prior_shape = NULL, 
+        var_forest_prior_scale = NULL, 
+        keep_vars = NULL, drop_vars = NULL
     )
     variance_forest_params_updated <- preprocessParams(
         variance_forest_params_default, variance_forest_params
@@ -146,6 +154,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     sigma2_init <- general_params_updated$sigma2_global_init
     a_global <- general_params_updated$sigma2_global_shape
     b_global <- general_params_updated$sigma2_global_scale
+    variable_weights <- general_params_updated$variable_weights
     random_seed <- general_params_updated$random_seed
     keep_burnin <- general_params_updated$keep_burnin
     keep_gfr <- general_params_updated$keep_gfr
@@ -159,11 +168,12 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     beta_mean <- mean_forest_params_updated$beta
     min_samples_leaf_mean <- mean_forest_params_updated$min_samples_leaf
     max_depth_mean <- mean_forest_params_updated$max_depth
-    variable_weights_mean <- mean_forest_params_updated$variable_weights
     sample_sigma_leaf <- mean_forest_params_updated$sample_sigma2_leaf
     sigma_leaf_init <- mean_forest_params_updated$sigma2_leaf_init
     a_leaf <- mean_forest_params_updated$sigma2_leaf_shape
     b_leaf <- mean_forest_params_updated$sigma2_leaf_scale
+    keep_vars_mean <- mean_forest_params_updated$keep_vars
+    drop_vars_mean <- mean_forest_params_updated$drop_vars
     
     # 3. Variance forest parameters
     num_trees_variance <- variance_forest_params_updated$num_trees
@@ -171,10 +181,12 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     beta_variance <- variance_forest_params_updated$beta
     min_samples_leaf_variance <- variance_forest_params_updated$min_samples_leaf
     max_depth_variance <- variance_forest_params_updated$max_depth
-    variable_weights_variance <- variance_forest_params_updated$variable_weights
+    a_0 <- variance_forest_params_updated$leaf_prior_calibration_param
     variance_forest_init <- variance_forest_params_updated$var_forest_leaf_init
     a_forest <- variance_forest_params_updated$var_forest_prior_shape
     b_forest <- variance_forest_params_updated$var_forest_prior_scale
+    keep_vars_variance <- variance_forest_params_updated$keep_vars
+    drop_vars_variance <- variance_forest_params_updated$drop_vars
     
     # Check if there are enough GFR samples to seed num_chains samplers
     if (num_gfr > 0) {
@@ -228,7 +240,6 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Set the variance forest priors if not set
     if (include_variance_forest) {
-        a_0 <- 1.5
         if (is.null(a_forest)) a_forest <- num_trees_variance / (a_0^2) + 0.5
         if (is.null(b_forest)) b_forest <- num_trees_variance / (a_0^2)
     } else {
@@ -240,21 +251,90 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if (!include_mean_forest) sample_sigma_leaf <- F
     
     # Variable weight preprocessing (and initialization if necessary)
-    if (include_mean_forest) {
-        if (is.null(variable_weights_mean)) {
-            variable_weights_mean = rep(1/ncol(X_train), ncol(X_train))
-        }
-        if (any(variable_weights_mean < 0)) {
-            stop("variable_weights_mean cannot have any negative weights")
+    if (is.null(variable_weights)) {
+        variable_weights = rep(1/ncol(X_train), ncol(X_train))
+    }
+    if (any(variable_weights < 0)) {
+        stop("variable_weights cannot have any negative weights")
+    }
+
+    # Check covariates are matrix or dataframe
+    if ((!is.data.frame(X_train)) && (!is.matrix(X_train))) {
+        stop("X_train must be a matrix or dataframe")
+    }
+    if (!is.null(X_test)){
+        if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
+            stop("X_test must be a matrix or dataframe")
         }
     }
-    if (include_variance_forest) {
-        if (is.null(variable_weights_variance)) {
-            variable_weights_variance = rep(1/ncol(X_train), ncol(X_train))
+    num_cov_orig <- ncol(X_train)
+
+    # Standardize the keep variable lists to numeric indices
+    if (!is.null(keep_vars_mean)) {
+        if (is.character(keep_vars_mean)) {
+            if (!all(keep_vars_mean %in% names(X_train))) {
+                stop("keep_vars_mean includes some variable names that are not in X_train")
+            }
+            variable_subset_mu <- unname(which(names(X_train) %in% keep_vars_mean))
+        } else {
+            if (any(keep_vars_mean > ncol(X_train))) {
+                stop("keep_vars_mean includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(keep_vars_mean < 0)) {
+                stop("keep_vars_mean includes some negative variable indices")
+            }
+            variable_subset_mu <- keep_vars_mean
         }
-        if (any(variable_weights_variance < 0)) {
-            stop("variable_weights_variance cannot have any negative weights")
+    } else if ((is.null(keep_vars_mean)) && (!is.null(drop_vars_mean))) {
+        if (is.character(drop_vars_mean)) {
+            if (!all(drop_vars_mean %in% names(X_train))) {
+                stop("drop_vars_mean includes some variable names that are not in X_train")
+            }
+            variable_subset_mean <- unname(which(!(names(X_train) %in% drop_vars_mean)))
+        } else {
+            if (any(drop_vars_mean > ncol(X_train))) {
+                stop("drop_vars_mean includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(drop_vars_mean < 0)) {
+                stop("drop_vars_mean includes some negative variable indices")
+            }
+            variable_subset_mean <- (1:ncol(X_train))[!(1:ncol(X_train) %in% drop_vars_mean)]
         }
+    } else {
+        variable_subset_mean <- 1:ncol(X_train)
+    }
+    if (!is.null(keep_vars_variance)) {
+        if (is.character(keep_vars_variance)) {
+            if (!all(keep_vars_variance %in% names(X_train))) {
+                stop("keep_vars_variance includes some variable names that are not in X_train")
+            }
+            variable_subset_variance <- unname(which(names(X_train) %in% keep_vars_variance))
+        } else {
+            if (any(keep_vars_variance > ncol(X_train))) {
+                stop("keep_vars_variance includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(keep_vars_variance < 0)) {
+                stop("keep_vars_variance includes some negative variable indices")
+            }
+            variable_subset_variance <- keep_vars_variance
+        }
+    } else if ((is.null(keep_vars_variance)) && (!is.null(drop_vars_variance))) {
+        if (is.character(drop_vars_variance)) {
+            if (!all(drop_vars_variance %in% names(X_train))) {
+                stop("drop_vars_variance includes some variable names that are not in X_train")
+            }
+            variable_subset_variance <- unname(which(!(names(X_train) %in% drop_vars_variance)))
+        } else {
+            if (any(drop_vars_variance > ncol(X_train))) {
+                stop("drop_vars_variance includes some variable indices that exceed the number of columns in X_train")
+            }
+            if (any(drop_vars_variance < 0)) {
+                stop("drop_vars_variance includes some negative variable indices")
+            }
+            variable_subset_variance <- (1:ncol(X_train))[!(1:ncol(X_train) %in% drop_vars_variance)]
+        }
+    } else {
+        variable_subset_variance <- 1:ncol(X_train)
     }
     
     # Preprocess covariates
@@ -266,11 +346,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             stop("X_test must be a matrix or dataframe")
         }
     }
-    if ((ncol(X_train) != length(variable_weights_mean)) && (include_mean_forest)) {
-        stop("length(variable_weights_mean) must equal ncol(X_train)")
-    }
-    if ((ncol(X_train) != length(variable_weights_variance)) && (include_variance_forest)) {
-        stop("length(variable_weights_variance) must equal ncol(X_train)")
+    if (ncol(X_train) != length(variable_weights)) {
+        stop("length(variable_weights) must equal ncol(X_train)")
     }
     train_cov_preprocess_list <- preprocessTrainData(X_train)
     X_train_metadata <- train_cov_preprocess_list$metadata
@@ -280,14 +357,17 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if (!is.null(X_test)) X_test <- preprocessPredictionData(X_test, X_train_metadata)
     
     # Update variable weights
+    variable_weights_mean <- variable_weights_variance <- variable_weights
     variable_weights_adj <- 1/sapply(original_var_indices, function(x) sum(original_var_indices == x))
     if (include_mean_forest) {
         variable_weights_mean <- variable_weights_mean[original_var_indices]*variable_weights_adj
+        variable_weights_mean[!(original_var_indices %in% variable_subset_mean)] <- 0
     }
     if (include_variance_forest) {
         variable_weights_variance <- variable_weights_variance[original_var_indices]*variable_weights_adj
+        variable_weights_variance[!(original_var_indices %in% variable_subset_variance)] <- 0
     }
-    
+
     # Convert all input data to matrices if not already converted
     if ((is.null(dim(W_train))) && (!is.null(W_train))) {
         W_train <- as.matrix(W_train)
