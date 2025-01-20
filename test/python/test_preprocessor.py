@@ -71,3 +71,22 @@ class TestPreprocessor:
         df_3_transformed = cov_transformer.fit_transform(df_3)
         np.testing.assert_array_equal(np_3, df_3_transformed)
         assert cov_transformer._processed_feature_types == [0,1,1,1,0]
+
+        df_4 = pd.DataFrame(
+            {"x1": [1.5, 2.7, 3.6, 4.4, 5.3, 6.1, 7.6],
+             "x2": pd.Categorical(['a', 'b', 'c', 'a', 'b', 'c', 'd'], ordered=False, categories=['c', 'b', 'a']),
+             "x3": [1.2, 5.4, 9.3, 10.4, 3.6, 4.4, 3.4]}
+        )
+        np_4 = np.array(
+            [[1.5, 0, 0, 1, 0, 1.2],
+             [2.7, 0, 1, 0, 0, 5.4],
+             [3.6, 1, 0, 0, 0, 9.3],
+             [4.4, 0, 0, 1, 0, 10.4],
+             [5.3, 0, 1, 0, 0, 3.6],
+             [6.1, 1, 0, 0, 1, 4.4]]
+        )
+        cov_transformer = CovariateTransformer()
+        with np.testing.assert_raises(ValueError):
+            df_4_transformed = cov_transformer.fit_transform(df_4)
+            # np.testing.assert_array_equal(np_4, df_4_transformed)
+            # assert cov_transformer._processed_feature_types == [0,1,1,1,1,0]
