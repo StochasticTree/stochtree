@@ -8,7 +8,7 @@ import pandas as pd
 from typing import Optional, Dict, Any, Union
 from .data import Dataset, Residual
 from .forest import ForestContainer, Forest
-from .preprocessing import CovariateTransformer, _preprocess_params
+from .preprocessing import CovariatePreprocessor, _preprocess_params
 from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import NotSampledError
@@ -301,7 +301,7 @@ class BARTModel:
         variable_weights_variance = variable_weights
         
         # Covariate preprocessing
-        self._covariate_transformer = CovariateTransformer()
+        self._covariate_transformer = CovariatePreprocessor()
         self._covariate_transformer.fit(X_train)
         X_train_processed = self._covariate_transformer.transform(X_train)
         if X_test is not None:

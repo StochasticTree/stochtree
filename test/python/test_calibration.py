@@ -3,7 +3,6 @@ import pandas as pd
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error
 from scipy.stats import gamma
-from stochtree import CovariateTransformer
 from stochtree import calibrate_global_error_variance
 import pytest
 

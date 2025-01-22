@@ -8,7 +8,7 @@ from typing import Optional, Union, Dict, Any
 from .bart import BARTModel
 from .data import Dataset, Residual
 from .forest import ForestContainer, Forest
-from .preprocessing import CovariateTransformer, _preprocess_params
+from .preprocessing import CovariatePreprocessor, _preprocess_params
 from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import NotSampledError
@@ -38,7 +38,7 @@ class BCFModel:
     \begin{aligned}
     y &= a(X) + b_z(X) + \epsilon\\
     b_z(X) &= (b_1 Z + b_0 (1-Z)) t(X)\\
-    b_0, b_1 &\sim N(0, \frac{1}{2})\\\\
+    b_0, b_1 &\sim N\left(0, \frac{1}{2}\right)\\\\
     a(X) &\sim \text{BART}()\\
     t(X) &\sim \text{BART}()\\
     \epsilon &\sim N(0, \sigma^2)\\
@@ -663,7 +663,7 @@ class BCFModel:
             variable_subset_variance = [i for i in range(X_train.shape[1])]
         
         # Covariate preprocessing
-        self._covariate_transformer = CovariateTransformer()
+        self._covariate_transformer = CovariatePreprocessor()
         self._covariate_transformer.fit(X_train)
         X_train_processed = self._covariate_transformer.transform(X_train)
         if X_test is not None:

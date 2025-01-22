@@ -1,7 +1,8 @@
 import numpy as np
+import pandas as pd
 from stochtree import (
     BARTModel, BCFModel, JSONSerializer, ForestContainer, Forest, Dataset, Residual, 
-    RNG, ForestSampler, ForestContainer, GlobalVarianceModel
+    RNG, ForestSampler, ForestContainer, GlobalVarianceModel, CovariatePreprocessor
 )
 
 class TestJson:
@@ -25,6 +26,28 @@ class TestJson:
         json_test.add_string_vector("b", b)
         np.testing.assert_array_equal(a, json_test.get_numeric_vector("a"))
         assert b == json_test.get_string_vector("b")
+
+    def test_preprocessor(self):
+        df = pd.DataFrame(
+            {"x1": [1.5, 2.7, 3.6, 4.4, 5.3, 6.1],
+             "x2": pd.Categorical(['a', 'b', 'c', 'a', 'b', 'c'], ordered=False, categories=['c', 'b', 'a']),
+             "x3": [1.2, 5.4, 9.3, 10.4, 3.6, 4.4]}
+        )
+        # arr = np.array(
+        #     [[1.5, 0, 0, 1, 1.2],
+        #      [2.7, 0, 1, 0, 5.4],
+        #      [3.6, 1, 0, 0, 9.3],
+        #      [4.4, 0, 0, 1, 10.4],
+        #      [5.3, 0, 1, 0, 3.6],
+        #      [6.1, 1, 0, 0, 4.4]]
+        # )
+        cov_transformer = CovariatePreprocessor()
+        df_transformed_orig = cov_transformer.fit_transform(df)
+        cov_transformer_json = cov_transformer.to_json()
+        cov_transformer_reloaded = CovariatePreprocessor()
+        cov_transformer_reloaded.from_json(cov_transformer_json)
+        df_transformed_reloaded = cov_transformer_reloaded.transform(df)
+        np.testing.assert_array_equal(df_transformed_orig, df_transformed_reloaded)
 
     def test_forest(self):
         # Generate sample data

@@ -7,7 +7,9 @@ from typing import Union, Optional, Any, Dict
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 import numpy as np
 import pandas as pd
+from scipy import sparse
 import warnings
+from .serialization import JSONSerializer
 
 def _preprocess_params(default_params: Dict[str, Any], user_params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     if user_params:
@@ -129,20 +131,44 @@ def _preprocess_bcf_params(params: Optional[Dict[str, Any]] = None) -> Dict[str,
     return processed_params
 
 
-class CovariateTransformer:
+def _map_to_integer(values: Union[np.array, list], uniques: Union[np.array, list]) -> np.array:
+    r"""
+    Slightly modified version of a [scikit-learn function](https://github.com/scikit-learn/scikit-learn/blob/43d440f1f874ac2117ed848b10a6f07d9083488d/sklearn/utils/_encode.py#L170) by the same name.
+    Converts dataframe column values (which might be string, categorical, etc...) to numpy integer indices.
+
+    Parameters
+    ----------
+    values : np.array or list
+        Array of series values.
+    uniques : np.array or list
+        Sorted array / list of unique values in the series.
     """
-    Class that transforms covariates to a format that can be used to define tree splits. 
-    Modeled after the [scikit-learn preprocessing classes](https://scikit-learn.org/1.5/modules/preprocessing.html).
+    table = dict({val: i for i, val in enumerate(uniques)})
+    return np.asarray([table[v] for v in values])
+
+
+class CovariatePreprocessor:
+    r"""
+    Preprocessing engine for covariates provided as either `np.array` or `pd.DataFrame`, which standardizes inputs as a `np.array`.
+
+    `CovariatePreprocessor` uses [column dtypes](https://pandas.pydata.org/docs/user_guide/basics.html#basics-dtypes) in provided 
+    dataframes to convert string / categorical variables to numeric variables, either by mapping ordinal variables to integers 
+    or by one-hot encoding unordered categorical variables.
+    
+    This class is modeled after the [scikit-learn preprocessing classes](https://scikit-learn.org/1.5/modules/preprocessing.html).
     """
     def __init__(self) -> None:
         self._is_fitted = False
-        self._ordinal_encoders = []
-        self._onehot_encoders = []
-        self._ordinal_feature_index = []
-        self._onehot_feature_index = []
-        self._processed_feature_types = []
-        self._original_feature_types = []
-        self._original_feature_indices = []
+        self._num_ordinal_features = 0
+        self._num_onehot_features = 0
+        self._num_original_features = 0
+        self._ordinal_categories_list = []
+        self._onehot_categories_list = []
+        self._ordinal_feature_index = None
+        self._onehot_feature_index = None
+        self._processed_feature_types = None
+        self._original_feature_types = None
+        self._original_feature_indices = None
     
     def _check_is_numeric_dtype(self, dtype: np.dtype) -> bool:
         if dtype.kind == "b" or dtype.kind == "i" or dtype.kind == "u" or dtype.kind == "f":
@@ -150,27 +176,41 @@ class CovariateTransformer:
         else:
             return False
     
-    def _process_unordered_categorical(self, covariate: pd.Series) -> int:
-        num_onehot = len(self._onehot_encoders)
-        category_list = covariate.array.categories.to_list()
-        enc = OneHotEncoder(categories=[category_list], sparse_output=False)
-        enc.fit(pd.DataFrame(covariate))
-        self._onehot_encoders.append(enc)
-        return num_onehot
+    def _extract_categories_unordered_categorical(self, covariate: pd.Series) -> int:
+        covariate_categories = covariate.array.categories.to_numpy()
+        self._onehot_categories_list.append(covariate_categories)
+        return self._num_onehot_features
     
-    def _process_ordered_categorical(self, covariate: pd.Series) -> int:
-        num_ord = len(self._ordinal_encoders)
-        category_list = covariate.array.categories.to_list()
-        enc = OrdinalEncoder(categories=[category_list])
-        enc.fit(pd.DataFrame(covariate))
-        self._ordinal_encoders.append(enc)
-        return num_ord
+    def _extract_categories_ordered_categorical(self, covariate: pd.Series) -> int:
+        covariate_categories = covariate.array.categories.to_numpy()
+        self._ordinal_categories_list.append(covariate_categories)
+        return self._num_ordinal_features
+    
+    def _transform_unordered_categorical(self, covariate: pd.Series, covariate_categories: np.array) -> np.array:
+        """
+        Adapted from https://github.com/scikit-learn/scikit-learn/blob/8f2c1cab50262bcf4a1ade070446c40028ee27f4/sklearn/preprocessing/_encoders.py#L1000
+        """
+        covariate_data = covariate.array.to_numpy()
+        n = len(covariate_data)
+        integer_indices = _map_to_integer(covariate_data, covariate_categories)
+        row_offsets = np.arange(n + 1, dtype=int)
+        onehot_data = np.ones(row_offsets[-1])
+        out = sparse.csr_matrix(
+            (onehot_data, integer_indices, row_offsets),
+            shape=(n, len(covariate_categories)),
+            dtype=np.float64,
+        )
+        return out.toarray()
+    
+    def _transform_ordered_categorical(self, covariate: pd.Series, covariate_categories: np.array) -> np.array:
+        covariate_data = covariate.array.to_numpy()
+        return _map_to_integer(covariate_data, covariate_categories)
 
     def _fit_pandas(self, covariates: pd.DataFrame) -> None:
         self._num_original_features = covariates.shape[1]
-        self._ordinal_feature_index = [-1 for i in range(self._num_original_features)]
-        self._onehot_feature_index = [-1 for i in range(self._num_original_features)]
-        self._original_feature_types = [-1 for i in range(self._num_original_features)]
+        self._ordinal_feature_index = np.array([-1 for i in range(self._num_original_features)], dtype=int)
+        self._onehot_feature_index = np.array([-1 for i in range(self._num_original_features)], dtype=int)
+        original_feature_types = [-1 for i in range(self._num_original_features)]
         datetime_types = covariates.apply(lambda x: pd.api.types.is_datetime64_any_dtype(x))
         object_types = covariates.apply(lambda x: pd.api.types.is_object_dtype(x))
         interval_types = covariates.apply(lambda x: isinstance(x.dtype, pd.IntervalDtype))
@@ -214,36 +254,42 @@ class CovariateTransformer:
             warn_msg = "The following columns are a type unsupported by stochtree (object) and will be ignored: {}"
             warnings.warn(warn_msg.format(object_cols))
         
+        processed_feature_types = []
         for i in range(covariates.shape[1]):
             covariate = covariates.iloc[:,i]
             if categorical_types.iloc[i]:
-                self._original_feature_types[i] = "category"
+                original_feature_types[i] = "category"
                 if covariate.array.ordered:
-                    ord_index = self._process_ordered_categorical(covariate)
+                    ord_index = self._extract_categories_ordered_categorical(covariate)
                     self._ordinal_feature_index[i] = ord_index
-                    self._processed_feature_types.append(1)
+                    processed_feature_types.append(1)
+                    self._num_ordinal_features += 1
                 else:
-                    onehot_index = self._process_unordered_categorical(covariate)
+                    onehot_index = self._extract_categories_unordered_categorical(covariate)
                     self._onehot_feature_index[i] = onehot_index
                     feature_ones = np.repeat(1, len(covariate.array.categories)).tolist()
-                    self._processed_feature_types.extend(feature_ones)
+                    processed_feature_types.extend(feature_ones)
+                    self._num_onehot_features += 1
             elif string_types.iloc[i]:
-                self._original_feature_types[i] = "string"
-                onehot_index = self._process_unordered_categorical(covariate)
+                original_feature_types[i] = "string"
+                onehot_index = self._extract_categories_unordered_categorical(covariate)
                 self._onehot_feature_index[i] = onehot_index
                 feature_ones = np.repeat(1, len(self._onehot_encoders[onehot_index].categories_[0])).tolist()
-                self._processed_feature_types.extend(feature_ones)
+                processed_feature_types.extend(feature_ones)
             elif bool_types.iloc[i]:
-                self._original_feature_types[i] = "boolean"
-                self._processed_feature_types.append(1)
+                original_feature_types[i] = "boolean"
+                processed_feature_types.append(1)
             elif integer_types.iloc[i]:
-                self._original_feature_types[i] = "integer"
-                self._processed_feature_types.append(0)
+                original_feature_types[i] = "integer"
+                processed_feature_types.append(0)
             elif float_types.iloc[i]:
-                self._original_feature_types[i] = "float"
-                self._processed_feature_types.append(0)
+                original_feature_types[i] = "float"
+                processed_feature_types.append(0)
             else:
-                self._original_feature_types[i] = "unsupported"
+                original_feature_types[i] = "unsupported"
+        
+        self._processed_feature_types = np.array(processed_feature_types, dtype=int)
+        self._original_feature_types = np.array(original_feature_types)
     
     def _fit_numpy(self, covariates: np.array) -> None:
         if covariates.ndim == 1:
@@ -252,9 +298,9 @@ class CovariateTransformer:
             raise ValueError("Covariates passed as a numpy array must be 1d or 2d")
         
         self._num_original_features = covariates.shape[1]
-        self._ordinal_feature_index = [-1 for i in range(self._num_original_features)]
-        self._onehot_feature_index = [-1 for i in range(self._num_original_features)]
-        self._original_feature_types = ["float" for i in range(self._num_original_features)]
+        self._ordinal_feature_index = np.array([-1 for i in range(self._num_original_features)], dtype=int)
+        self._onehot_feature_index = np.array([-1 for i in range(self._num_original_features)], dtype=int)
+        self._original_feature_types = np.array(["float" for i in range(self._num_original_features)])
 
         # Check whether the array is numeric
         cov_dtype = covariates.dtype
@@ -269,12 +315,16 @@ class CovariateTransformer:
             raise ValueError("Covariates passed as np.array must all be simple numeric types (bool, integer, unsigned integer, floating point)")
         
         # Scan for binary columns
+        processed_feature_types = []
         for i in range(self._num_original_features):
             num_unique = np.unique(covariates[:,i]).size
             if num_unique == 2:
-                self._processed_feature_types.append(1)
+                processed_feature_types.append(1)
             else:
-                self._processed_feature_types.append(0)
+                processed_feature_types.append(0)
+            # TODO: Convert to integer if not passed as integer
+        
+        self._processed_feature_types = np.array(processed_feature_types, dtype=int)
 
     def _fit(self, covariates: Union[pd.DataFrame, np.array]) -> None:
         if isinstance(covariates, pd.DataFrame):
@@ -291,33 +341,38 @@ class CovariateTransformer:
         
         output_array = np.empty((covariates.shape[0], len(self._processed_feature_types)), dtype=np.float64)
         output_iter = 0
-        self._original_feature_indices = []
+        original_feature_indices = []
+        print(self._original_feature_types)
         for i in range(covariates.shape[1]):
             covariate = covariates.iloc[:,i]
             if self._original_feature_types[i] == "category" or self._original_feature_types[i] == "string":
                 if self._ordinal_feature_index[i] != -1:
                     ord_ind = self._ordinal_feature_index[i]
-                    covariate_transformed = self._ordinal_encoders[ord_ind].transform(pd.DataFrame(covariate))
+                    covariate_categories = self._ordinal_categories_list[ord_ind]
+                    covariate_transformed = self._transform_ordered_categorical(covariate, covariate_categories)
                     output_array[:,output_iter] = np.squeeze(covariate_transformed)
                     output_iter += 1
-                    self._original_feature_indices.append(i)
+                    original_feature_indices.append(i)
                 else:
                     onehot_ind = self._onehot_feature_index[i]
-                    covariate_transformed = self._onehot_encoders[onehot_ind].transform(pd.DataFrame(covariate))
+                    covariate_categories = self._onehot_categories_list[onehot_ind]
+                    covariate_transformed = self._transform_unordered_categorical(covariate, covariate_categories)
                     output_dim = covariate_transformed.shape[1]
                     output_array[:,np.arange(output_iter, output_iter + output_dim)] = np.squeeze(covariate_transformed)
                     output_iter += output_dim
-                    self._original_feature_indices.extend([i for _ in range(output_dim)])
+                    original_feature_indices.extend([i for _ in range(output_dim)])
             
             elif self._original_feature_types[i] == "boolean":
                 output_array[:,output_iter] = (covariate*1.0).to_numpy()
                 output_iter += 1
-                self._original_feature_indices.append(i)
+                original_feature_indices.append(i)
             
             elif self._original_feature_types[i] == "integer" or self._original_feature_types[i] == "float":
                 output_array[:,output_iter] = (covariate).to_numpy()
                 output_iter += 1
-                self._original_feature_indices.append(i)
+                original_feature_indices.append(i)
+        
+        self._original_feature_indices = np.array(original_feature_indices, dtype=int)
         
         return output_array
 
@@ -346,7 +401,7 @@ class CovariateTransformer:
         return self._is_fitted
 
     def fit(self, covariates: Union[pd.DataFrame, np.array]) -> None:
-        r"""Fits a `CovariateTransformer` by unpacking (and storing) data type information on the input (raw) covariates
+        r"""Fits a `CovariatePreprocessor` by unpacking (and storing) data type information on the input (raw) covariates
         and then converting to a numpy array which can be passed to a tree ensemble sampler.
 
         If `covariates` is a `pd.DataFrame`, [column dtypes](https://pandas.pydata.org/docs/user_guide/basics.html#basics-dtypes) 
@@ -431,3 +486,105 @@ class CovariateTransformer:
             through `k` numeric features, this method would return a list `[0,...,k-1]`.
         """
         return self._original_feature_indices
+    
+    def to_json(self) -> str:
+        """
+        Converts a covariate preprocessor to JSON string representation (which can then be saved to a file or 
+        processed using the `json` library)
+
+        Returns
+        -------
+        str
+            JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
+        """
+        # Initialize JSONSerializer object
+        preprocessor_json = JSONSerializer()
+        
+        # Add internal scalars
+        preprocessor_json.add_boolean("is_fitted", self._is_fitted)
+        preprocessor_json.add_integer("num_ordinal_features", self._num_ordinal_features)
+        preprocessor_json.add_integer("num_onehot_features", self._num_onehot_features)
+        preprocessor_json.add_integer("num_original_features", self._num_original_features)
+
+        # Add internal lists
+        for i in range(self._num_ordinal_features):
+            dtype_name = "dtype_{:d}".format(i)
+            list_name = "cats_{:d}".format(i)
+            if np.issubdtype(self._ordinal_categories_list[i].dtype, np.integer):
+                array_type = "int"
+                preprocessor_json.add_integer_vector(list_name, self._ordinal_categories_list[i], "ordinal_categories_list")
+            elif np.issubdtype(self._ordinal_categories_list[i].dtype, np.floating):
+                array_type = "float"
+                preprocessor_json.add_numeric_vector(list_name, self._ordinal_categories_list[i], "ordinal_categories_list")
+            else:
+                array_type = "str"
+                preprocessor_json.add_string_vector(list_name, self._ordinal_categories_list[i], "ordinal_categories_list")
+            preprocessor_json.add_string(dtype_name, array_type, "ordinal_dtype_list")
+        for i in range(self._num_onehot_features):
+            dtype_name = "dtype_{:d}".format(i)
+            list_name = "cats_{:d}".format(i)
+            if np.issubdtype(self._onehot_categories_list[i].dtype, np.integer):
+                array_type = "int"
+                preprocessor_json.add_integer_vector(list_name, self._onehot_categories_list[i], "onehot_categories_list")
+            elif np.issubdtype(self._onehot_categories_list[i].dtype, np.floating):
+                array_type = "float"
+                preprocessor_json.add_numeric_vector(list_name, self._onehot_categories_list[i], "onehot_categories_list")
+            else:
+                array_type = "str"
+                preprocessor_json.add_string_vector(list_name, self._onehot_categories_list[i], "onehot_categories_list")
+            preprocessor_json.add_string(dtype_name, array_type, "onehot_dtype_list")
+        preprocessor_json.add_integer_vector("ordinal_feature_index", self._ordinal_feature_index)
+        preprocessor_json.add_integer_vector("onehot_feature_index", self._onehot_feature_index)
+        preprocessor_json.add_integer_vector("processed_feature_types", self._processed_feature_types)
+        preprocessor_json.add_string_vector("original_feature_types", self._original_feature_types)
+        preprocessor_json.add_integer_vector("original_feature_indices", self._original_feature_indices)
+        
+        return preprocessor_json.return_json_string()
+
+    def from_json(self, json_string: str) -> None:
+        """
+        Converts a JSON string to an in-memory BART model.
+
+        Parameters
+        ----------
+        json_string : str
+            JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
+        """
+        # Parse string to a JSON object in C++
+        preprocessor_json = JSONSerializer()
+        preprocessor_json.load_from_json_string(json_string)
+        
+        # Unpack internal scalars
+        self._is_fitted = preprocessor_json.get_boolean("is_fitted")
+        self._num_ordinal_features = preprocessor_json.get_integer("num_ordinal_features")
+        self._num_onehot_features = preprocessor_json.get_integer("num_onehot_features")
+        self._num_original_features = preprocessor_json.get_integer("num_original_features")
+
+        # Unpack internal lists
+        self._ordinal_categories_list = []
+        for i in range(self._num_ordinal_features):
+            dtype_name = "dtype_{:d}".format(i)
+            list_name = "cats_{:d}".format(i)
+            array_type = preprocessor_json.get_string(dtype_name, "ordinal_dtype_list")
+            if array_type == "int":
+                self._ordinal_categories_list.append(preprocessor_json.get_integer_vector(list_name, "ordinal_categories_list"))
+            elif array_type == "float":
+                self._ordinal_categories_list.append(preprocessor_json.get_numeric_vector(list_name, "ordinal_categories_list"))
+            else:
+                self._ordinal_categories_list.append(preprocessor_json.get_string_vector(list_name, "ordinal_categories_list"))
+        self._onehot_categories_list = []
+        for i in range(self._num_onehot_features):
+            dtype_name = "dtype_{:d}".format(i)
+            list_name = "cats_{:d}".format(i)
+            array_type = preprocessor_json.get_string(dtype_name, "onehot_dtype_list")
+            if array_type == "int":
+                self._onehot_categories_list.append(preprocessor_json.get_integer_vector(list_name, "onehot_categories_list"))
+            elif array_type == "float":
+                self._onehot_categories_list.append(preprocessor_json.get_numeric_vector(list_name, "onehot_categories_list"))
+            else:
+                self._onehot_categories_list.append(np.array(preprocessor_json.get_string_vector(list_name, "onehot_categories_list")))
+        self._ordinal_feature_index = preprocessor_json.get_integer_vector("ordinal_feature_index")
+        self._onehot_feature_index = preprocessor_json.get_integer_vector("onehot_feature_index")
+        self._processed_feature_types = preprocessor_json.get_integer_vector("processed_feature_types")
+        self._original_feature_types = preprocessor_json.get_string_vector("original_feature_types")
+        self._original_feature_indices = preprocessor_json.get_integer_vector("original_feature_indices")

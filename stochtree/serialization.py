@@ -1,6 +1,7 @@
 import warnings
 import numpy as np
 import pandas as pd
+from typing import Union
 from scipy.linalg import lstsq
 from scipy.stats import gamma
 from .forest import ForestContainer
@@ -66,6 +67,23 @@ class JSONSerializer:
         else:
             self.json_cpp.AddDoubleSubfolder(subfolder_name, field_name, field_value)
     
+    def add_integer(self, field_name: str, field_value: int, subfolder_name: str = None) -> None:
+        """Adds an integer value to a json object
+
+        Parameters
+        ----------
+        field_name : str
+            Name of the json field / label under which the numeric value will be stored
+        field_value : int
+            Integer value to be stored
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
+        """
+        if subfolder_name is None:
+            self.json_cpp.AddInteger(field_name, field_value)
+        else:
+            self.json_cpp.AddIntegerSubfolder(subfolder_name, field_name, field_value)
+    
     def add_boolean(self, field_name: str, field_value: bool, subfolder_name: str = None) -> None:
         """Adds a scalar (boolean) value to a json object
 
@@ -125,6 +143,33 @@ class JSONSerializer:
         else:
             self.json_cpp.AddDoubleVectorSubfolder(subfolder_name, field_name, field_vector)
     
+    def add_integer_vector(self, field_name: str, field_vector: np.array, subfolder_name: str = None) -> None:
+        """Adds a integer vector (stored as a numpy array) to a json object
+
+        Parameters
+        ----------
+        field_name : str
+            Name of the json field / label under which the integer vector will be stored
+        field_vector : np.array
+            Numpy array containing the vector to be stored in json. Should be one-dimensional.
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
+        """
+        # Runtime checks
+        if not isinstance(field_vector, np.ndarray):
+            raise ValueError("field_vector must be a numpy array")
+        if not np.issubdtype(field_vector.dtype, np.integer):
+            raise ValueError("field_vector must be a numpy array with integer data types")
+        field_vector = np.squeeze(field_vector)
+        if field_vector.ndim > 1:
+            warnings.warn("field_vector has more than 1 dimension. It will be flattened in row-major order using np.ravel()")
+            field_vector = np.ravel(field_vector, order = "C")
+        
+        if subfolder_name is None:
+            self.json_cpp.AddIntegerVector(field_name, field_vector)
+        else:
+            self.json_cpp.AddIntegerVectorSubfolder(subfolder_name, field_name, field_vector)
+    
     def add_string_vector(self, field_name: str, field_vector: list, subfolder_name: str = None) -> None:
         """Adds a list of strings to a json object as an array
 
@@ -138,9 +183,11 @@ class JSONSerializer:
             Name of "subfolder" under which `field_name` to be stored in the json hierarchy
         """
         # Runtime checks
-        if not isinstance(field_vector, list):
-            raise ValueError("field_vector must be a list")
+        if not isinstance(field_vector, list) and not isinstance(field_vector, np.ndarray):
+            raise ValueError("field_vector must be a list or numpy object array")
         
+        if isinstance(field_vector, np.ndarray):
+            field_vector = field_vector.tolist()
         if subfolder_name is None:
             self.json_cpp.AddStringVector(field_name, field_vector)
         else:
@@ -161,6 +208,21 @@ class JSONSerializer:
         else:
             return self.json_cpp.ExtractDoubleSubfolder(subfolder_name, field_name)
     
+    def get_integer(self, field_name: str, subfolder_name: str = None) -> int:
+        """Retrieves an integer value from a json object
+
+        Parameters
+        ----------
+        field_name : str
+            Name of the json field / label under which the numeric value is stored
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` is stored in the json hierarchy
+        """
+        if subfolder_name is None:
+            return self.json_cpp.ExtractInteger(field_name)
+        else:
+            return self.json_cpp.ExtractIntegerSubfolder(subfolder_name, field_name)
+    
     def get_boolean(self, field_name: str, subfolder_name: str = None) -> bool:
         """Retrieves a scalar (boolean) value from a json object
 
@@ -177,12 +239,12 @@ class JSONSerializer:
             return self.json_cpp.ExtractBoolSubfolder(subfolder_name, field_name)
     
     def get_string(self, field_name: str, subfolder_name: str = None) -> str:
-        """Retrieve a string to a json object
+        """Retrieve a string from a json object
 
         Parameters
         ----------
         field_name : str
-            Name of the json field / label under which the numeric value is stored
+            Name of the json field / label under which the string is stored
         subfolder_name : str, optional
             Name of "subfolder" under which `field_name` is stored in the json hierarchy
         """
@@ -192,7 +254,7 @@ class JSONSerializer:
             return self.json_cpp.ExtractStringSubfolder(subfolder_name, field_name)
     
     def get_numeric_vector(self, field_name: str, subfolder_name: str = None) -> np.array:
-        """Adds a string to a json object
+        """Retrieve numeric vector from a json object
 
         Parameters
         ----------
@@ -205,6 +267,21 @@ class JSONSerializer:
             return self.json_cpp.ExtractDoubleVector(field_name)
         else:
             return self.json_cpp.ExtractDoubleVectorSubfolder(subfolder_name, field_name)
+    
+    def get_integer_vector(self, field_name: str, subfolder_name: str = None) -> np.array:
+        """Retrieve integer vector from a json object
+
+        Parameters
+        ----------
+        field_name : str
+            Name of the json field / label under which the integer vector is stored
+        subfolder_name : str, optional
+            Name of "subfolder" under which `field_name` to be stored in the json hierarchy
+        """
+        if subfolder_name is None:
+            return self.json_cpp.ExtractIntegerVector(field_name)
+        else:
+            return self.json_cpp.ExtractIntegerVectorSubfolder(subfolder_name, field_name)
     
     def get_string_vector(self, field_name: str, subfolder_name: str = None) -> list:
         """Adds a string to a json object
