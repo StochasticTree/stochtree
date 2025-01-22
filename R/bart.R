@@ -1215,6 +1215,12 @@ convertBARTModelToJson <- function(object){
         jsonobj$add_string_vector("rfx_unique_group_ids", object$rfx_unique_group_ids)
     }
     
+    # Add covariate preprocessor metadata
+    preprocessor_metadata_string <- savePreprocessorToJsonString(
+        object$train_set_metadata
+    )
+    jsonobj$add_string("preprocessor_metadata", preprocessor_metadata_string)
+    
     return(jsonobj)
 }
 
@@ -1322,7 +1328,7 @@ saveBARTModelToJsonFile <- function(object, filename){
 #' Convert the persistent aspects of a BART model to (in-memory) JSON string
 #'
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
-#' @return JSON string
+#' @return in-memory JSON string
 #' @export
 #'
 #' @examples
@@ -1459,6 +1465,12 @@ createBARTModelFromJson <- function(json_object){
         output[["rfx_unique_group_ids"]] <- json_object$get_string_vector("rfx_unique_group_ids")
         output[["rfx_samples"]] <- loadRandomEffectSamplesJson(json_object, 0)
     }
+    
+    # Unpack covariate preprocessor
+    preprocessor_metadata_string <- json_object$get_string("preprocessor_metadata")
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+        preprocessor_metadata_string
+    )
     
     class(output) <- "bartmodel"
     return(output)
@@ -1686,6 +1698,12 @@ createBARTModelFromCombinedJson <- function(json_object_list){
         output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(json_object_list, 0)
     }
     
+    # Unpack covariate preprocessor
+    preprocessor_metadata_string <- json_object$get_string("preprocessor_metadata")
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+        preprocessor_metadata_string
+    )
+    
     class(output) <- "bartmodel"
     return(output)
 }
@@ -1831,6 +1849,12 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
         output[["rfx_unique_group_ids"]] <- json_object_default$get_string_vector("rfx_unique_group_ids")
         output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(json_object_list, 0)
     }
+    
+    # Unpack covariate preprocessor
+    preprocessor_metadata_string <- json_object$get_string("preprocessor_metadata")
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+        preprocessor_metadata_string
+    )
     
     class(output) <- "bartmodel"
     return(output)

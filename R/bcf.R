@@ -1708,6 +1708,12 @@ convertBCFModelToJson <- function(object){
         jsonobj$add_string("bart_propensity_model", bart_propensity_string)
     }
     
+    # Add covariate preprocessor metadata
+    preprocessor_metadata_string <- savePreprocessorToJsonString(
+        object$train_set_metadata
+    )
+    jsonobj$add_string("preprocessor_metadata", preprocessor_metadata_string)
+
     return(jsonobj)
 }
 
@@ -1716,7 +1722,7 @@ convertBCFModelToJson <- function(object){
 #' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #' @param filename String of filepath, must end in ".json"
 #'
-#' @return NULL
+#' @return in-memory JSON string
 #' @export
 #'
 #' @examples
@@ -2018,6 +2024,12 @@ createBCFModelFromJson <- function(json_object){
         )
     }
     
+    # Unpack covariate preprocessor
+    preprocessor_metadata_string <- json_object$get_string("preprocessor_metadata")
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+        preprocessor_metadata_string
+    )
+
     class(output) <- "bcf"
     return(output)
 }
@@ -2392,6 +2404,12 @@ createBCFModelFromCombinedJsonString <- function(json_string_list){
         output[["rfx_unique_group_ids"]] <- json_object_default$get_string_vector("rfx_unique_group_ids")
         output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(json_object_list, 0)
     }
+    
+    # Unpack covariate preprocessor
+    preprocessor_metadata_string <- json_object_default$get_string("preprocessor_metadata")
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+        preprocessor_metadata_string
+    )
     
     class(output) <- "bcf"
     return(output)

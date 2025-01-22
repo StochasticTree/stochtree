@@ -11,6 +11,9 @@ saveBCFModelToJsonFile(object, filename)
 
 \item{filename}{String of filepath, must end in ".json"}
 }
+\value{
+in-memory JSON string
+}
 \description{
 Convert the persistent aspects of a BCF model to (in-memory) JSON and save to a file
 }
