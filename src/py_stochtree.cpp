@@ -1243,6 +1243,27 @@ class JsonCpp {
     }
   }
 
+  void AddInteger(std::string field_name, int field_value) {
+    if (json_->contains(field_name)) {
+      json_->at(field_name) = field_value;
+    } else {
+      json_->emplace(std::pair(field_name, field_value));
+    }
+  }
+
+  void AddIntegerSubfolder(std::string subfolder_name, std::string field_name, int field_value) {
+    if (json_->contains(subfolder_name)) {
+      if (json_->at(subfolder_name).contains(field_name)) {
+        json_->at(subfolder_name).at(field_name) = field_value;
+      } else {
+        json_->at(subfolder_name).emplace(std::pair(field_name, field_value));
+      }
+    } else {
+      json_->emplace(std::pair(subfolder_name, nlohmann::json::object()));
+      json_->at(subfolder_name).emplace(std::pair(field_name, field_value));
+    }
+  }
+
   void AddBool(std::string field_name, bool field_value) {
     if (json_->contains(field_name)) {
       json_->at(field_name) = field_value;
@@ -1302,6 +1323,46 @@ class JsonCpp {
   }
 
   void AddDoubleVectorSubfolder(std::string subfolder_name, std::string field_name, py::array_t<double> field_vector) {
+    int vec_length = field_vector.size();
+    auto accessor = field_vector.mutable_unchecked<1>();
+    if (json_->contains(subfolder_name)) {
+      if (json_->at(subfolder_name).contains(field_name)) {
+        json_->at(subfolder_name).at(field_name).clear();
+        for (int i = 0; i < vec_length; i++) {
+          json_->at(subfolder_name).at(field_name).emplace_back(accessor(i));
+        }
+      } else {
+        json_->at(subfolder_name).emplace(std::pair(field_name, nlohmann::json::array()));
+        for (int i = 0; i < vec_length; i++) {
+          json_->at(subfolder_name).at(field_name).emplace_back(accessor(i));
+        }
+      }
+    } else {
+      json_->emplace(std::pair(subfolder_name, nlohmann::json::object()));
+      json_->at(subfolder_name).emplace(std::pair(field_name, nlohmann::json::array()));
+      for (int i = 0; i < vec_length; i++) {
+        json_->at(subfolder_name).at(field_name).emplace_back(accessor(i));
+      }
+    }
+  }
+
+  void AddIntegerVector(std::string field_name, py::array_t<int> field_vector) {
+    int vec_length = field_vector.size();
+    auto accessor = field_vector.mutable_unchecked<1>();
+    if (json_->contains(field_name)) {
+      json_->at(field_name).clear();
+      for (int i = 0; i < vec_length; i++) {
+        json_->at(field_name).emplace_back(accessor(i));
+      }
+    } else {
+      json_->emplace(std::pair(field_name, nlohmann::json::array()));
+      for (int i = 0; i < vec_length; i++) {
+        json_->at(field_name).emplace_back(accessor(i));
+      }
+    }
+  }
+
+  void AddIntegerVectorSubfolder(std::string subfolder_name, std::string field_name, py::array_t<int> field_vector) {
     int vec_length = field_vector.size();
     auto accessor = field_vector.mutable_unchecked<1>();
     if (json_->contains(subfolder_name)) {
@@ -1391,6 +1452,14 @@ class JsonCpp {
     return json_->at(subfolder_name).at(field_name);
   }
 
+  int ExtractInteger(std::string field_name) {
+    return json_->at(field_name);
+  }
+
+  int ExtractIntegerSubfolder(std::string subfolder_name, std::string field_name) {
+    return json_->at(subfolder_name).at(field_name);
+  }
+
   bool ExtractBool(std::string field_name) {
     return json_->at(field_name);
   }
@@ -1422,6 +1491,28 @@ class JsonCpp {
     auto json_vec = json_->at(subfolder_name).at(field_name);
     py::ssize_t json_vec_length = json_->at(subfolder_name).at(field_name).size();
     auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({json_vec_length}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < json_vec_length; i++) {
+      accessor(i) = json_vec.at(i);
+    }
+    return result;
+  }
+
+  py::array_t<int> ExtractIntegerVector(std::string field_name) {
+    auto json_vec = json_->at(field_name);
+    py::ssize_t json_vec_length = json_->at(field_name).size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({json_vec_length}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < json_vec_length; i++) {
+      accessor(i) = json_vec.at(i);
+    }
+    return result;
+  }
+
+  py::array_t<int> ExtractIntegerVectorSubfolder(std::string subfolder_name, std::string field_name) {
+    auto json_vec = json_->at(subfolder_name).at(field_name);
+    py::ssize_t json_vec_length = json_->at(subfolder_name).at(field_name).size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({json_vec_length}));
     auto accessor = result.mutable_unchecked<1>();
     for (size_t i = 0; i < json_vec_length; i++) {
       accessor(i) = json_vec.at(i);
@@ -1472,12 +1563,16 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("DumpJson", &JsonCpp::DumpJson)
     .def("AddDouble", &JsonCpp::AddDouble)
     .def("AddDoubleSubfolder", &JsonCpp::AddDoubleSubfolder)
+    .def("AddInteger", &JsonCpp::AddInteger)
+    .def("AddIntegerSubfolder", &JsonCpp::AddIntegerSubfolder)
     .def("AddBool", &JsonCpp::AddBool)
     .def("AddBoolSubfolder", &JsonCpp::AddBoolSubfolder)
     .def("AddString", &JsonCpp::AddString)
     .def("AddStringSubfolder", &JsonCpp::AddStringSubfolder)
     .def("AddDoubleVector", &JsonCpp::AddDoubleVector)
     .def("AddDoubleVectorSubfolder", &JsonCpp::AddDoubleVectorSubfolder)
+    .def("AddIntegerVector", &JsonCpp::AddIntegerVector)
+    .def("AddIntegerVectorSubfolder", &JsonCpp::AddIntegerVectorSubfolder)
     .def("AddStringVector", &JsonCpp::AddStringVector)
     .def("AddStringVectorSubfolder", &JsonCpp::AddStringVectorSubfolder)
     .def("AddForest", &JsonCpp::AddForest)
@@ -1485,12 +1580,16 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("ContainsFieldSubfolder", &JsonCpp::ContainsFieldSubfolder)
     .def("ExtractDouble", &JsonCpp::ExtractDouble)
     .def("ExtractDoubleSubfolder", &JsonCpp::ExtractDoubleSubfolder)
+    .def("ExtractInteger", &JsonCpp::ExtractInteger)
+    .def("ExtractIntegerSubfolder", &JsonCpp::ExtractIntegerSubfolder)
     .def("ExtractBool", &JsonCpp::ExtractBool)
     .def("ExtractBoolSubfolder", &JsonCpp::ExtractBoolSubfolder)
     .def("ExtractString", &JsonCpp::ExtractString)
     .def("ExtractStringSubfolder", &JsonCpp::ExtractStringSubfolder)
     .def("ExtractDoubleVector", &JsonCpp::ExtractDoubleVector)
     .def("ExtractDoubleVectorSubfolder", &JsonCpp::ExtractDoubleVectorSubfolder)
+    .def("ExtractIntegerVector", &JsonCpp::ExtractIntegerVector)
+    .def("ExtractIntegerVectorSubfolder", &JsonCpp::ExtractIntegerVectorSubfolder)
     .def("ExtractStringVector", &JsonCpp::ExtractStringVector)
     .def("ExtractStringVectorSubfolder", &JsonCpp::ExtractStringVectorSubfolder)
     .def("SubsetJsonForest", &JsonCpp::SubsetJsonForest);

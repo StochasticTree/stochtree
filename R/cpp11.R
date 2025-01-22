@@ -612,6 +612,14 @@ json_add_double_cpp <- function(json_ptr, field_name, field_value) {
   invisible(.Call(`_stochtree_json_add_double_cpp`, json_ptr, field_name, field_value))
 }
 
+json_add_integer_subfolder_cpp <- function(json_ptr, subfolder_name, field_name, field_value) {
+  invisible(.Call(`_stochtree_json_add_integer_subfolder_cpp`, json_ptr, subfolder_name, field_name, field_value))
+}
+
+json_add_integer_cpp <- function(json_ptr, field_name, field_value) {
+  invisible(.Call(`_stochtree_json_add_integer_cpp`, json_ptr, field_name, field_value))
+}
+
 json_add_bool_subfolder_cpp <- function(json_ptr, subfolder_name, field_name, field_value) {
   invisible(.Call(`_stochtree_json_add_bool_subfolder_cpp`, json_ptr, subfolder_name, field_name, field_value))
 }
@@ -626,6 +634,14 @@ json_add_vector_subfolder_cpp <- function(json_ptr, subfolder_name, field_name, 
 
 json_add_vector_cpp <- function(json_ptr, field_name, field_vector) {
   invisible(.Call(`_stochtree_json_add_vector_cpp`, json_ptr, field_name, field_vector))
+}
+
+json_add_integer_vector_subfolder_cpp <- function(json_ptr, subfolder_name, field_name, field_vector) {
+  invisible(.Call(`_stochtree_json_add_integer_vector_subfolder_cpp`, json_ptr, subfolder_name, field_name, field_vector))
+}
+
+json_add_integer_vector_cpp <- function(json_ptr, field_name, field_vector) {
+  invisible(.Call(`_stochtree_json_add_integer_vector_cpp`, json_ptr, field_name, field_vector))
 }
 
 json_add_string_vector_subfolder_cpp <- function(json_ptr, subfolder_name, field_name, field_vector) {
@@ -660,6 +676,14 @@ json_extract_double_cpp <- function(json_ptr, field_name) {
   .Call(`_stochtree_json_extract_double_cpp`, json_ptr, field_name)
 }
 
+json_extract_integer_subfolder_cpp <- function(json_ptr, subfolder_name, field_name) {
+  .Call(`_stochtree_json_extract_integer_subfolder_cpp`, json_ptr, subfolder_name, field_name)
+}
+
+json_extract_integer_cpp <- function(json_ptr, field_name) {
+  .Call(`_stochtree_json_extract_integer_cpp`, json_ptr, field_name)
+}
+
 json_extract_bool_subfolder_cpp <- function(json_ptr, subfolder_name, field_name) {
   .Call(`_stochtree_json_extract_bool_subfolder_cpp`, json_ptr, subfolder_name, field_name)
 }
@@ -682,6 +706,14 @@ json_extract_vector_subfolder_cpp <- function(json_ptr, subfolder_name, field_na
 
 json_extract_vector_cpp <- function(json_ptr, field_name) {
   .Call(`_stochtree_json_extract_vector_cpp`, json_ptr, field_name)
+}
+
+json_extract_integer_vector_subfolder_cpp <- function(json_ptr, subfolder_name, field_name) {
+  .Call(`_stochtree_json_extract_integer_vector_subfolder_cpp`, json_ptr, subfolder_name, field_name)
+}
+
+json_extract_integer_vector_cpp <- function(json_ptr, field_name) {
+  .Call(`_stochtree_json_extract_integer_vector_cpp`, json_ptr, field_name)
 }
 
 json_extract_string_vector_subfolder_cpp <- function(json_ptr, subfolder_name, field_name) {
