@@ -663,13 +663,13 @@ class BCFModel:
             variable_subset_variance = [i for i in range(X_train.shape[1])]
         
         # Covariate preprocessing
-        self._covariate_transformer = CovariatePreprocessor()
-        self._covariate_transformer.fit(X_train)
-        X_train_processed = self._covariate_transformer.transform(X_train)
+        self._covariate_preprocessor = CovariatePreprocessor()
+        self._covariate_preprocessor.fit(X_train)
+        X_train_processed = self._covariate_preprocessor.transform(X_train)
         if X_test is not None:
-            X_test_processed = self._covariate_transformer.transform(X_test)
-        feature_types = np.asarray(self._covariate_transformer._processed_feature_types)
-        original_var_indices = self._covariate_transformer.fetch_original_feature_indices()
+            X_test_processed = self._covariate_preprocessor.transform(X_test)
+        feature_types = np.asarray(self._covariate_preprocessor._processed_feature_types)
+        original_var_indices = self._covariate_preprocessor.fetch_original_feature_indices()
 
         # Determine whether a test set is provided
         self.has_test = X_test is not None
@@ -1420,6 +1420,10 @@ class BCFModel:
             bart_propensity_string = self.bart_propensity_model.to_json()
             bcf_json.add_string("bart_propensity_model", bart_propensity_string)
         
+        # Add covariate preprocessor
+        covariate_preprocessor_string = self._covariate_preprocessor.to_json()
+        bcf_json.add_string("covariate_preprocessor", covariate_preprocessor_string)
+        
         return bcf_json.return_json_string()
 
     def from_json(self, json_string: str) -> None:
@@ -1481,6 +1485,11 @@ class BCFModel:
             bart_propensity_string = bcf_json.get_string("bart_propensity_model")
             self.bart_propensity_model = BARTModel()
             self.bart_propensity_model.from_json(bart_propensity_string)
+        
+        # Unpack covariate preprocessor
+        covariate_preprocessor_string = bcf_json.get_string("covariate_preprocessor")
+        self._covariate_preprocessor = CovariatePreprocessor()
+        self._covariate_preprocessor.from_json(covariate_preprocessor_string)
         
         # Mark the deserialized model as "sampled"
         self.sampled = True

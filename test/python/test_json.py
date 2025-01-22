@@ -56,6 +56,17 @@ class TestJson:
         df_transformed_reloaded_2 = cov_transformer_reloaded_2.transform(df_2)
         np.testing.assert_array_equal(df_transformed_orig_2, df_transformed_reloaded_2)
 
+        np_3 = np.array(
+            [[1.5, 1.2], [2.7, 5.4], [3.6, 9.3], [4.4, 10.4], [5.3, 3.6], [6.1, 4.4]]
+        )
+        cov_transformer_3 = CovariatePreprocessor()
+        df_transformed_orig_3 = cov_transformer_3.fit_transform(np_3)
+        cov_transformer_json_3 = cov_transformer_3.to_json()
+        cov_transformer_reloaded_3 = CovariatePreprocessor()
+        cov_transformer_reloaded_3.from_json(cov_transformer_json_3)
+        df_transformed_reloaded_3 = cov_transformer_reloaded_3.transform(np_3)
+        np.testing.assert_array_equal(df_transformed_orig_3, df_transformed_reloaded_3)
+
     def test_forest(self):
         # Generate sample data
         random_seed = 1234

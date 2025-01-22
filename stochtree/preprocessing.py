@@ -383,7 +383,7 @@ class CovariatePreprocessor:
             raise ValueError("Covariates passed as a numpy array must be 1d or 2d")
         if self._num_original_features != covariates.shape[1]:
             raise ValueError("Attempting to call transform from a CovariateTransformer that was fit on a dataset with different dimensionality")
-        self._original_feature_indices = [i for i in range(covariates.shape[1])]
+        self._original_feature_indices = np.array([i for i in range(covariates.shape[1])])
         return covariates
 
     def _transform(self, covariates: Union[pd.DataFrame, np.array]) -> np.array:
@@ -485,7 +485,7 @@ class CovariatePreprocessor:
             this method would return a list `[0,0,0,0,0]`. If the transformer merely passes
             through `k` numeric features, this method would return a list `[0,...,k-1]`.
         """
-        return self._original_feature_indices
+        return self._original_feature_indices.tolist()
     
     def to_json(self) -> str:
         """

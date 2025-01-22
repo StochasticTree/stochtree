@@ -1,6 +1,7 @@
 """
 Bayesian Additive Regression Trees (BART) module
 """
+import warnings
 from numbers import Number, Integral
 from math import log
 import numpy as np
@@ -52,7 +53,8 @@ class BARTModel:
         self.sampled = False
         self.rng = np.random.default_rng()
     
-    def sample(self, X_train: np.array, y_train: np.array, basis_train: np.array = None, X_test: np.array = None, basis_test: np.array = None, 
+    def sample(self, X_train: Union[np.array, pd.DataFrame], y_train: np.array, basis_train: np.array = None, 
+               X_test: Union[np.array, pd.DataFrame] = None, basis_test: np.array = None, 
                num_gfr: int = 5, num_burnin: int = 0, num_mcmc: int = 100, general_params: Optional[Dict[str, Any]] = None, 
                mean_forest_params: Optional[Dict[str, Any]] = None, variance_forest_params: Optional[Dict[str, Any]] = None) -> None:
         """Runs a BART sampler on provided training set. Predictions will be cached for the training set and (if provided) the test set. 
@@ -301,13 +303,13 @@ class BARTModel:
         variable_weights_variance = variable_weights
         
         # Covariate preprocessing
-        self._covariate_transformer = CovariatePreprocessor()
-        self._covariate_transformer.fit(X_train)
-        X_train_processed = self._covariate_transformer.transform(X_train)
+        self._covariate_preprocessor = CovariatePreprocessor()
+        self._covariate_preprocessor.fit(X_train)
+        X_train_processed = self._covariate_preprocessor.transform(X_train)
         if X_test is not None:
-            X_test_processed = self._covariate_transformer.transform(X_test)
-        feature_types = np.asarray(self._covariate_transformer._processed_feature_types)
-        original_var_indices = self._covariate_transformer.fetch_original_feature_indices()
+            X_test_processed = self._covariate_preprocessor.transform(X_test)
+        feature_types = np.asarray(self._covariate_preprocessor._processed_feature_types)
+        original_var_indices = self._covariate_preprocessor.fetch_original_feature_indices()
 
         # Determine whether a test set is provided
         self.has_test = X_test is not None
@@ -718,7 +720,7 @@ class BARTModel:
                 else:
                     self.sigma2_x_test = sigma_x_test_raw*self.sigma2_init*self.y_std*self.y_std
 
-    def predict(self, covariates: np.array, basis: np.array = None) -> Union[np.array, tuple]:
+    def predict(self, covariates: Union[np.array, pd.DataFrame], basis: np.array = None) -> Union[np.array, tuple]:
         """Return predictions from every forest sampled (either / both of mean and variance). 
         Return type is either a single array of predictions, if a BART model only includes a 
         mean or variance term, or a tuple of prediction arrays, if a BART model includes both.
@@ -744,22 +746,44 @@ class BARTModel:
             )
             raise NotSampledError(msg)
         
+        # Data checks
+        if not isinstance(covariates, pd.DataFrame) and not isinstance(covariates, np.ndarray):
+            raise ValueError("covariates must be a pandas dataframe or numpy array")
+        if basis is not None:
+            if not isinstance(basis, np.ndarray):
+                raise ValueError("basis must be a numpy array")
+            if basis.shape[0] != covariates.shape[0]:
+                raise ValueError("covariates and basis must have the same number of rows")
+        
         # Convert everything to standard shape (2-dimensional)
-        if covariates.ndim == 1:
-            covariates = np.expand_dims(covariates, 1)
+        if isinstance(covariates, np.ndarray):
+            if covariates.ndim == 1:
+                covariates = np.expand_dims(covariates, 1)
         if basis is not None:
             if basis.ndim == 1:
                 basis = np.expand_dims(basis, 1)
         
-        # Data checks
-        if basis is not None:
-            if basis.shape[0] != covariates.shape[0]:
-                raise ValueError("covariates and basis must have the same number of rows")
+        # Covariate preprocessing
+        if not self._covariate_preprocessor._check_is_fitted():
+            if not isinstance(covariates, np.ndarray):
+                raise ValueError("Prediction cannot proceed on a pandas dataframe, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe.")
+            else:
+                warnings.warn("This BART model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.", RuntimeWarning)
+                if not np.issubdtype(covariates.dtype, np.floating) and not np.issubdtype(covariates.dtype, np.integer):
+                    raise ValueError("Prediction cannot proceed on a non-numeric numpy array, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe.")
+                covariates_processed = covariates
+        else:
+            self._covariate_preprocessor = CovariatePreprocessor()
+            self._covariate_preprocessor.fit(covariates)
+            covariates_processed = self._covariate_preprocessor.transform(covariates)
 
+        # Dataset construction
         pred_dataset = Dataset()
-        pred_dataset.add_covariates(covariates)
+        pred_dataset.add_covariates(covariates_processed)
         if basis is not None:
             pred_dataset.add_basis(basis)
+        
+        # Forest predictions
         if self.include_mean_forest:
             mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(pred_dataset.dataset_cpp)
             mean_pred = mean_pred_raw*self.y_std + self.y_bar
@@ -808,22 +832,44 @@ class BARTModel:
             )
             raise NotSampledError(msg)
         
+        # Data checks
+        if not isinstance(covariates, pd.DataFrame) and not isinstance(covariates, np.ndarray):
+            raise ValueError("covariates must be a pandas dataframe or numpy array")
+        if basis is not None:
+            if not isinstance(basis, np.ndarray):
+                raise ValueError("basis must be a numpy array")
+            if basis.shape[0] != covariates.shape[0]:
+                raise ValueError("covariates and basis must have the same number of rows")
+        
         # Convert everything to standard shape (2-dimensional)
-        if covariates.ndim == 1:
-            covariates = np.expand_dims(covariates, 1)
+        if isinstance(covariates, np.ndarray):
+            if covariates.ndim == 1:
+                covariates = np.expand_dims(covariates, 1)
         if basis is not None:
             if basis.ndim == 1:
                 basis = np.expand_dims(basis, 1)
         
-        # Data checks
-        if basis is not None:
-            if basis.shape[0] != covariates.shape[0]:
-                raise ValueError("covariates and basis must have the same number of rows")
+        # Covariate preprocessing
+        if not self._covariate_preprocessor._check_is_fitted():
+            if not isinstance(covariates, np.ndarray):
+                raise ValueError("Prediction cannot proceed on a pandas dataframe, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe.")
+            else:
+                warnings.warn("This BART model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.", RuntimeWarning)
+                if not np.issubdtype(covariates.dtype, np.floating) and not np.issubdtype(covariates.dtype, np.integer):
+                    raise ValueError("Prediction cannot proceed on a non-numeric numpy array, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe.")
+                covariates_processed = covariates
+        else:
+            self._covariate_preprocessor = CovariatePreprocessor()
+            self._covariate_preprocessor.fit(covariates)
+            covariates_processed = self._covariate_preprocessor.transform(covariates)
 
+        # Dataset construction
         pred_dataset = Dataset()
-        pred_dataset.add_covariates(covariates)
+        pred_dataset.add_covariates(covariates_processed)
         if basis is not None:
             pred_dataset.add_basis(basis)
+        
+        # Mean forest predictions
         mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(pred_dataset.dataset_cpp)
         mean_pred = mean_pred_raw*self.y_std + self.y_bar
 
@@ -856,12 +902,42 @@ class BARTModel:
             )
             raise NotSampledError(msg)
         
-        # Convert everything to standard shape (2-dimensional)
-        if covariates.ndim == 1:
-            covariates = np.expand_dims(covariates, 1)
+        # Data checks
+        if not isinstance(covariates, pd.DataFrame) and not isinstance(covariates, np.ndarray):
+            raise ValueError("covariates must be a pandas dataframe or numpy array")
+        if basis is not None:
+            if not isinstance(basis, np.ndarray):
+                raise ValueError("basis must be a numpy array")
+            if basis.shape[0] != covariates.shape[0]:
+                raise ValueError("covariates and basis must have the same number of rows")
         
+        # Convert everything to standard shape (2-dimensional)
+        if isinstance(covariates, np.ndarray):
+            if covariates.ndim == 1:
+                covariates = np.expand_dims(covariates, 1)
+        if basis is not None:
+            if basis.ndim == 1:
+                basis = np.expand_dims(basis, 1)
+        
+        # Covariate preprocessing
+        if not self._covariate_preprocessor._check_is_fitted():
+            if not isinstance(covariates, np.ndarray):
+                raise ValueError("Prediction cannot proceed on a pandas dataframe, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe.")
+            else:
+                warnings.warn("This BART model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.", RuntimeWarning)
+                if not np.issubdtype(covariates.dtype, np.floating) and not np.issubdtype(covariates.dtype, np.integer):
+                    raise ValueError("Prediction cannot proceed on a non-numeric numpy array, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe.")
+                covariates_processed = covariates
+        else:
+            self._covariate_preprocessor = CovariatePreprocessor()
+            self._covariate_preprocessor.fit(covariates)
+            covariates_processed = self._covariate_preprocessor.transform(covariates)
+        
+        # Dataset construction
         pred_dataset = Dataset()
-        pred_dataset.add_covariates(covariates)
+        pred_dataset.add_covariates(covariates_processed)
+        
+        # Variance forest predictions
         variance_pred_raw = self.forest_container_variance.forest_container_cpp.Predict(pred_dataset.dataset_cpp)
         if self.sample_sigma_global:
             variance_pred = variance_pred_raw
@@ -920,6 +996,10 @@ class BARTModel:
         if self.sample_sigma_leaf:
             bart_json.add_numeric_vector("sigma2_leaf_samples", self.leaf_scale_samples, "parameters")
         
+        # Add covariate preprocessor
+        covariate_preprocessor_string = self._covariate_preprocessor.to_json()
+        bart_json.add_string("covariate_preprocessor", covariate_preprocessor_string)
+        
         return bart_json.return_json_string()
 
     def from_json(self, json_string: str) -> None:
@@ -970,6 +1050,11 @@ class BARTModel:
             self.global_var_samples = bart_json.get_numeric_vector("sigma2_global_samples", "parameters")
         if self.sample_sigma_leaf:
             self.leaf_scale_samples = bart_json.get_numeric_vector("sigma2_leaf_samples", "parameters")
+        
+        # Unpack covariate preprocessor
+        covariate_preprocessor_string = bart_json.get_string("covariate_preprocessor")
+        self._covariate_preprocessor = CovariatePreprocessor()
+        self._covariate_preprocessor.from_json(covariate_preprocessor_string)
         
         # Mark the deserialized model as "sampled"
         self.sampled = True
