@@ -1134,6 +1134,22 @@ extern "C" SEXP _stochtree_json_add_double_cpp(SEXP json_ptr, SEXP field_name, S
   END_CPP11
 }
 // serialization.cpp
+void json_add_integer_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name, int field_value);
+extern "C" SEXP _stochtree_json_add_integer_subfolder_cpp(SEXP json_ptr, SEXP subfolder_name, SEXP field_name, SEXP field_value) {
+  BEGIN_CPP11
+    json_add_integer_subfolder_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(subfolder_name), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name), cpp11::as_cpp<cpp11::decay_t<int>>(field_value));
+    return R_NilValue;
+  END_CPP11
+}
+// serialization.cpp
+void json_add_integer_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string field_name, int field_value);
+extern "C" SEXP _stochtree_json_add_integer_cpp(SEXP json_ptr, SEXP field_name, SEXP field_value) {
+  BEGIN_CPP11
+    json_add_integer_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name), cpp11::as_cpp<cpp11::decay_t<int>>(field_value));
+    return R_NilValue;
+  END_CPP11
+}
+// serialization.cpp
 void json_add_bool_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name, bool field_value);
 extern "C" SEXP _stochtree_json_add_bool_subfolder_cpp(SEXP json_ptr, SEXP subfolder_name, SEXP field_name, SEXP field_value) {
   BEGIN_CPP11
@@ -1162,6 +1178,22 @@ void json_add_vector_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::
 extern "C" SEXP _stochtree_json_add_vector_cpp(SEXP json_ptr, SEXP field_name, SEXP field_vector) {
   BEGIN_CPP11
     json_add_vector_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(field_vector));
+    return R_NilValue;
+  END_CPP11
+}
+// serialization.cpp
+void json_add_integer_vector_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name, cpp11::integers field_vector);
+extern "C" SEXP _stochtree_json_add_integer_vector_subfolder_cpp(SEXP json_ptr, SEXP subfolder_name, SEXP field_name, SEXP field_vector) {
+  BEGIN_CPP11
+    json_add_integer_vector_subfolder_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(subfolder_name), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(field_vector));
+    return R_NilValue;
+  END_CPP11
+}
+// serialization.cpp
+void json_add_integer_vector_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string field_name, cpp11::integers field_vector);
+extern "C" SEXP _stochtree_json_add_integer_vector_cpp(SEXP json_ptr, SEXP field_name, SEXP field_vector) {
+  BEGIN_CPP11
+    json_add_integer_vector_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(field_vector));
     return R_NilValue;
   END_CPP11
 }
@@ -1226,6 +1258,20 @@ extern "C" SEXP _stochtree_json_extract_double_cpp(SEXP json_ptr, SEXP field_nam
   END_CPP11
 }
 // serialization.cpp
+int json_extract_integer_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name);
+extern "C" SEXP _stochtree_json_extract_integer_subfolder_cpp(SEXP json_ptr, SEXP subfolder_name, SEXP field_name) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(json_extract_integer_subfolder_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(subfolder_name), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name)));
+  END_CPP11
+}
+// serialization.cpp
+int json_extract_integer_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string field_name);
+extern "C" SEXP _stochtree_json_extract_integer_cpp(SEXP json_ptr, SEXP field_name) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(json_extract_integer_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name)));
+  END_CPP11
+}
+// serialization.cpp
 bool json_extract_bool_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name);
 extern "C" SEXP _stochtree_json_extract_bool_subfolder_cpp(SEXP json_ptr, SEXP subfolder_name, SEXP field_name) {
   BEGIN_CPP11
@@ -1265,6 +1311,20 @@ cpp11::writable::doubles json_extract_vector_cpp(cpp11::external_pointer<nlohman
 extern "C" SEXP _stochtree_json_extract_vector_cpp(SEXP json_ptr, SEXP field_name) {
   BEGIN_CPP11
     return cpp11::as_sexp(json_extract_vector_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name)));
+  END_CPP11
+}
+// serialization.cpp
+cpp11::writable::integers json_extract_integer_vector_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name);
+extern "C" SEXP _stochtree_json_extract_integer_vector_subfolder_cpp(SEXP json_ptr, SEXP subfolder_name, SEXP field_name) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(json_extract_integer_vector_subfolder_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(subfolder_name), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name)));
+  END_CPP11
+}
+// serialization.cpp
+cpp11::writable::integers json_extract_integer_vector_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string field_name);
+extern "C" SEXP _stochtree_json_extract_integer_vector_cpp(SEXP json_ptr, SEXP field_name) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(json_extract_integer_vector_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name)));
   END_CPP11
 }
 // serialization.cpp
@@ -1415,6 +1475,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_json_add_double_cpp",                                 (DL_FUNC) &_stochtree_json_add_double_cpp,                                  3},
     {"_stochtree_json_add_double_subfolder_cpp",                       (DL_FUNC) &_stochtree_json_add_double_subfolder_cpp,                        4},
     {"_stochtree_json_add_forest_cpp",                                 (DL_FUNC) &_stochtree_json_add_forest_cpp,                                  2},
+    {"_stochtree_json_add_integer_cpp",                                (DL_FUNC) &_stochtree_json_add_integer_cpp,                                 3},
+    {"_stochtree_json_add_integer_subfolder_cpp",                      (DL_FUNC) &_stochtree_json_add_integer_subfolder_cpp,                       4},
+    {"_stochtree_json_add_integer_vector_cpp",                         (DL_FUNC) &_stochtree_json_add_integer_vector_cpp,                          3},
+    {"_stochtree_json_add_integer_vector_subfolder_cpp",               (DL_FUNC) &_stochtree_json_add_integer_vector_subfolder_cpp,                4},
     {"_stochtree_json_add_rfx_container_cpp",                          (DL_FUNC) &_stochtree_json_add_rfx_container_cpp,                           2},
     {"_stochtree_json_add_rfx_groupids_cpp",                           (DL_FUNC) &_stochtree_json_add_rfx_groupids_cpp,                            2},
     {"_stochtree_json_add_rfx_label_mapper_cpp",                       (DL_FUNC) &_stochtree_json_add_rfx_label_mapper_cpp,                        2},
@@ -1430,6 +1494,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_json_extract_bool_subfolder_cpp",                     (DL_FUNC) &_stochtree_json_extract_bool_subfolder_cpp,                      3},
     {"_stochtree_json_extract_double_cpp",                             (DL_FUNC) &_stochtree_json_extract_double_cpp,                              2},
     {"_stochtree_json_extract_double_subfolder_cpp",                   (DL_FUNC) &_stochtree_json_extract_double_subfolder_cpp,                    3},
+    {"_stochtree_json_extract_integer_cpp",                            (DL_FUNC) &_stochtree_json_extract_integer_cpp,                             2},
+    {"_stochtree_json_extract_integer_subfolder_cpp",                  (DL_FUNC) &_stochtree_json_extract_integer_subfolder_cpp,                   3},
+    {"_stochtree_json_extract_integer_vector_cpp",                     (DL_FUNC) &_stochtree_json_extract_integer_vector_cpp,                      2},
+    {"_stochtree_json_extract_integer_vector_subfolder_cpp",           (DL_FUNC) &_stochtree_json_extract_integer_vector_subfolder_cpp,            3},
     {"_stochtree_json_extract_string_cpp",                             (DL_FUNC) &_stochtree_json_extract_string_cpp,                              2},
     {"_stochtree_json_extract_string_subfolder_cpp",                   (DL_FUNC) &_stochtree_json_extract_string_subfolder_cpp,                    3},
     {"_stochtree_json_extract_string_vector_cpp",                      (DL_FUNC) &_stochtree_json_extract_string_vector_cpp,                       2},

@@ -359,6 +359,116 @@ preprocessPredictionDataFrame <- function(input_df, metadata) {
     return(X)
 }
 
+#' Convert the persistent aspects of a covariate preprocessor to (in-memory) C++ JSON object
+#'
+#' @param object List containing information on variables, including train set 
+#' categories for categorical variables 
+#'
+#' @return wrapper around in-memory C++ JSON object
+#' @export
+#'
+#' @examples
+#' cov_mat <- matrix(1:12, ncol = 3)
+#' preprocess_list <- preprocessTrainData(cov_mat)
+#' preprocessor_json <- convertPreprocessorToJson(preprocess_list$metadata)
+convertPreprocessorToJson <- function(object) {
+    jsonobj <- createCppJson()
+    if (is.null(object$feature_types)) {
+        stop("This covariate preprocessor has not yet been fit")
+    }
+    
+    # Add internal scalars
+    jsonobj$add_integer("num_numeric_vars", object$num_numeric_vars)
+    jsonobj$add_integer("num_ordered_cat_vars", object$num_ordered_cat_vars)
+    jsonobj$add_integer("num_unordered_cat_vars", object$num_unordered_cat_vars)
+    
+    # Add internal vectors
+    jsonobj$add_vector("feature_types", object$feature_types)
+    jsonobj$add_vector("original_var_indices", object$original_var_indices)
+    if (object$num_numeric_vars > 0) {
+        jsonobj$add_string_vector("numeric_vars", object$numeric_vars)
+    }
+    if (object$num_ordered_cat_vars > 0) {
+        jsonobj$add_string_vector("ordered_cat_vars", object$ordered_cat_vars)
+        jsonobj$add_string_vector("ordered_unique_levels", object$ordered_unique_levels)
+    }
+    if (object$num_unordered_cat_vars > 0) {
+        jsonobj$add_string_vector("unordered_cat_vars", object$unordered_cat_vars)
+        jsonobj$add_string_vector("unordered_unique_levels", object$unordered_unique_levels)
+    }
+    
+    return(jsonobj)
+}
+
+#' Convert the persistent aspects of a covariate preprocessor to (in-memory) JSON string
+#'
+#' @param object List containing information on variables, including train set 
+#' categories for categorical variables  
+#'
+#' @return in-memory JSON string
+#' @export
+#'
+#' @examples
+#' cov_mat <- matrix(1:12, ncol = 3)
+#' preprocess_list <- preprocessTrainData(cov_mat)
+#' preprocessor_json_string <- savePreprocessorToJsonString(preprocess_list$metadata)
+savePreprocessorToJsonString <- function(object){
+    # Convert to Json
+    jsonobj <- convertPreprocessorToJson(object)
+    
+    # Dump to string
+    return(jsonobj$return_json_string())
+}
+
+#' Reload a covariate preprocessor object from a JSON string containing a serialized preprocessor
+#'
+#' @param json_object in-memory wrapper around JSON C++ object containing covariate preprocessor metadata
+#'
+#' @returns Preprocessor object that can be used with the `preprocessPredictionData` function
+#' @export
+createPreprocessorFromJson <- function(json_object){
+    # Initialize the metadata list
+    metadata <- list()
+    
+    # Unpack internal scalars
+    metadata[["num_numeric_vars"]] <- json_object$get_integer("num_numeric_vars")
+    metadata[["num_ordered_cat_vars"]] <- json_object$get_integer("num_ordered_cat_vars")
+    metadata[["num_unordered_cat_vars"]] <- json_object$get_integer("num_unordered_cat_vars")
+    
+    # Unpack internal vectors
+    metadata[["feature_types"]] <- json_object$get_vector("feature_types")
+    metadata[["original_var_indices"]] <- json_object$get_vector("original_var_indices")
+    if (metadata$num_numeric_vars > 0) {
+        metadata[["numeric_vars"]] <- json_object$get_string_vector("numeric_vars")
+    }
+    if (metadata$num_ordered_cat_vars > 0) {
+        metadata[["ordered_cat_vars"]] <- json_object$get_string_vector("ordered_cat_vars")
+        metadata[["ordered_unique_levels"]] <- json_object$get_string_vector("ordered_unique_levels")
+    }
+    if (metadata$num_unordered_cat_vars > 0) {
+        metadata[["unordered_cat_vars"]] <- json_object$get_string_vector("unordered_cat_vars")
+        metadata[["unordered_unique_levels"]] <- json_object$get_string_vector("unordered_unique_levels")
+    }
+    
+    return(metadata)
+}
+
+#' Reload a covariate preprocessor object from a JSON string containing a serialized preprocessor
+#'
+#' @param json_string in-memory JSON string containing covariate preprocessor metadata
+#'
+#' @return Preprocessor object that can be used with the `preprocessPredictionData` function
+#' @export
+createPreprocessorFromJsonString <- function(json_string){
+    # Load a `CppJson` object from string
+    preprocessor_json <- createCppJsonString(json_string)
+    
+    # Create and return the BCF object
+    preprocessor_object <- createPreprocessorFromJson(preprocessor_json)
+    
+    return(preprocessor_object)
+}
+
 #' Preprocess a dataframe of covariate values, converting categorical variables 
 #' to integers and one-hot encoding if need be. Returns a list including a 
 #' matrix of preprocessed covariate values and associated tracking.
