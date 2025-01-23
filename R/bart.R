@@ -944,7 +944,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 #' y_hat_test <- predict(bart_model, X_test)
 #' # plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
 #' # abline(0,1,col="red",lty=3,lwd=3)
-predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL){
+predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL, ...){
     # Preprocess covariates
     if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
         stop("X_test must be a matrix or dataframe")
