@@ -1,0 +1,11 @@
+stochtree
+Copyright 2023-2025 stochtree contributors
+
+This project includes software from the xgboost project (Apache, 2.0).
+* Copyright 2015-2024, XGBoost Contributors
+
+This project includes software from the LightGBM project (MIT).
+* Copyright (c) 2016 Microsoft Corporation
+
+This project includes software from the scikit-learn project (BSD, 3-clause).
+* Copyright (c) 2007-2024 The scikit-learn developers

@@ -48,10 +48,13 @@ pybind_src_files <- list.files("src", pattern = "^(py_)", recursive = TRUE, full
 r_src_files <- src_files[!(src_files %in% pybind_src_files)]
 pkg_core_files <- c(
     ".Rbuildignore",
+    "cran-comments.md",
     "DESCRIPTION",
+    "inst/COPYRIGHTS",
     "LICENSE",
     list.files("man", recursive = TRUE, full.names = TRUE),
     "NAMESPACE",
+    "NEWS.md",
     list.files("R", recursive = TRUE, full.names = TRUE),
     r_src_files
 )
