@@ -74,6 +74,10 @@ reference:
   - oneHotInitializeAndEncode
   - orderedCatPreprocess
   - orderedCatInitializeAndPreprocess
+  - convertPreprocessorToJson
+  - savePreprocessorToJsonString
+  - createPreprocessorFromJson
+  - createPreprocessorFromJsonString
 
 - subtitle: Forest
   desc: >

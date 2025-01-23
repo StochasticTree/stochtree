@@ -390,11 +390,19 @@ convertPreprocessorToJson <- function(object) {
     }
     if (object$num_ordered_cat_vars > 0) {
         jsonobj$add_string_vector("ordered_cat_vars", object$ordered_cat_vars)
-        jsonobj$add_string_vector("ordered_unique_levels", object$ordered_unique_levels)
+        for (i in 1:object$num_ordered_cat_vars) {
+            var_key <- names(object$ordered_unique_levels)[i]
+            jsonobj$add_string(paste0("key_", i), var_key, "ordered_unique_level_keys")
+            jsonobj$add_string_vector(var_key, object$ordered_unique_levels[[i]], "ordered_unique_levels")
+        }
     }
     if (object$num_unordered_cat_vars > 0) {
         jsonobj$add_string_vector("unordered_cat_vars", object$unordered_cat_vars)
-        jsonobj$add_string_vector("unordered_unique_levels", object$unordered_unique_levels)
+        for (i in 1:object$num_unordered_cat_vars) {
+            var_key <- names(object$unordered_unique_levels)[i]
+            jsonobj$add_string(paste0("key_", i), var_key, "unordered_unique_level_keys")
+            jsonobj$add_string_vector(var_key, object$unordered_unique_levels[[i]], "unordered_unique_levels")
+        }
     }
     
     return(jsonobj)
@@ -443,11 +451,21 @@ createPreprocessorFromJson <- function(json_object){
     }
     if (metadata$num_ordered_cat_vars > 0) {
         metadata[["ordered_cat_vars"]] <- json_object$get_string_vector("ordered_cat_vars")
-        metadata[["ordered_unique_levels"]] <- json_object$get_string_vector("ordered_unique_levels")
+        ordered_unique_levels <- list()
+        for (i in 1:metadata$num_ordered_cat_vars) {
+            var_key <- json_object$get_string(paste0("key_", i), "ordered_unique_level_keys")
+            ordered_unique_levels[[var_key]] <- json_object$get_string_vector(var_key, "ordered_unique_levels")
+        }
+        metadata[["ordered_unique_levels"]] <- ordered_unique_levels
     }
     if (metadata$num_unordered_cat_vars > 0) {
         metadata[["unordered_cat_vars"]] <- json_object$get_string_vector("unordered_cat_vars")
-        metadata[["unordered_unique_levels"]] <- json_object$get_string_vector("unordered_unique_levels")
+        unordered_unique_levels <- list()
+        for (i in 1:metadata$num_unordered_cat_vars) {
+            var_key <- json_object$get_string(paste0("key_", i), "unordered_unique_level_keys")
+            unordered_unique_levels[[var_key]] <- json_object$get_string_vector(var_key, "unordered_unique_levels")
+        }
+        metadata[["unordered_unique_levels"]] <- unordered_unique_levels
     }
     
     return(metadata)
