@@ -5,15 +5,16 @@
 \title{Predict from a sampled BART model on new data}
 \usage{
 \method{predict}{bartmodel}(
-  bart,
+  object,
   X_test,
   W_test = NULL,
   group_ids_test = NULL,
-  rfx_basis_test = NULL
+  rfx_basis_test = NULL,
+  ...
 )
 }
 \arguments{
-\item{bart}{Object of type \code{bart} containing draws of a regression forest and associated sampling outputs.}
+\item{object}{Object of type \code{bart} containing draws of a regression forest and associated sampling outputs.}
 
 \item{X_test}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
 
@@ -24,6 +25,8 @@ We do not currently support (but plan to in the near future), test set evaluatio
 that were not in the training set.}
 
 \item{rfx_basis_test}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
+
+\item{...}{(Optional) Other prediction parameters.}
 }
 \value{
 List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest.

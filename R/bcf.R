@@ -1290,7 +1290,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 
 #' Predict from a sampled BCF model on new data
 #'
-#' @param bcf Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
+#' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #' @param X_test Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.
 #' @param Z_test Treatments used for prediction.
 #' @param pi_test (Optional) Propensities used for prediction.
@@ -1298,8 +1298,9 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param ... (Optional) Other prediction parameters.
 #'
-#' @return List of 3-5 `nrow(X_test)` by `bcf$num_samples` matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
+#' @return List of 3-5 `nrow(X_test)` by `object$num_samples` matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
 #' @export
 #'
 #' @examples
@@ -1351,12 +1352,12 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 #' # plot(rowMeans(preds$tau_hat), tau_test, xlab = "predicted", 
 #' #      ylab = "actual", main = "Treatment effect")
 #' # abline(0,1,col="red",lty=3,lwd=3)
-predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL, ...){
+predict.bcf <- function(object, X_test, Z_test, pi_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL, ...){
     # Preprocess covariates
     if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
         stop("X_test must be a matrix or dataframe")
     }
-    train_set_metadata <- bcf$train_set_metadata
+    train_set_metadata <- object$train_set_metadata
     X_test <- preprocessPredictionData(X_test, train_set_metadata)
     
     # Convert all input data to matrices if not already converted
@@ -1371,33 +1372,33 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
     }
     
     # Data checks
-    if ((bcf$model_params$propensity_covariate != "none") && (is.null(pi_test))) {
-        if (!bcf$model_params$internal_propensity_model) {
+    if ((object$model_params$propensity_covariate != "none") && (is.null(pi_test))) {
+        if (!object$model_params$internal_propensity_model) {
             stop("pi_test must be provided for this model")
         }
         # Compute propensity score using the internal bart model
-        pi_test <- rowMeans(predict(bcf$bart_propensity_model, X_test)$y_hat)
+        pi_test <- rowMeans(predict(object$bart_propensity_model, X_test)$y_hat)
     }
     if (nrow(X_test) != nrow(Z_test)) {
         stop("X_test and Z_test must have the same number of rows")
     }
-    if (bcf$model_params$num_covariates != ncol(X_test)) {
+    if (object$model_params$num_covariates != ncol(X_test)) {
         stop("X_test and must have the same number of columns as the covariates used to train the model")
     }
-    if ((bcf$model_params$has_rfx) && (is.null(group_ids_test))) {
+    if ((object$model_params$has_rfx) && (is.null(group_ids_test))) {
         stop("Random effect group labels (group_ids_test) must be provided for this model")
     }
-    if ((bcf$model_params$has_rfx_basis) && (is.null(rfx_basis_test))) {
+    if ((object$model_params$has_rfx_basis) && (is.null(rfx_basis_test))) {
         stop("Random effects basis (rfx_basis_test) must be provided for this model")
     }
-    if ((bcf$model_params$num_rfx_basis > 0) && (ncol(rfx_basis_test) != bcf$model_params$num_rfx_basis)) {
+    if ((object$model_params$num_rfx_basis > 0) && (ncol(rfx_basis_test) != object$model_params$num_rfx_basis)) {
         stop("Random effects basis has a different dimension than the basis used to train this model")
     }
     
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
     has_rfx <- F
     if (!is.null(group_ids_test)) {
-        rfx_unique_group_ids <- bcf$rfx_unique_group_ids
+        rfx_unique_group_ids <- object$rfx_unique_group_ids
         group_ids_factor_test <- factor(group_ids_test, levels = rfx_unique_group_ids)
         if (sum(is.na(group_ids_factor_test)) > 0) {
             stop("All random effect group labels provided in group_ids_test must be present in group_ids_train")
@@ -1407,12 +1408,12 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
     }
 
     # Produce basis for the "intercept-only" random effects case
-    if ((bcf$model_params$has_rfx) && (is.null(rfx_basis_test))) {
+    if ((object$model_params$has_rfx) && (is.null(rfx_basis_test))) {
         rfx_basis_test <- matrix(rep(1, nrow(X_test)), ncol = 1)
     }
     
     # Add propensities to covariate set if necessary
-    if (bcf$model_params$propensity_covariate != "none") {
+    if (object$model_params$propensity_covariate != "none") {
         X_test_combined <- cbind(X_test, pi_test)
     }
     
@@ -1420,34 +1421,34 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
     forest_dataset_pred <- createForestDataset(X_test_combined, Z_test)
 
     # Compute forest predictions
-    num_samples <- bcf$model_params$num_samples
-    y_std <- bcf$model_params$outcome_scale
-    y_bar <- bcf$model_params$outcome_mean
-    initial_sigma2 <- bcf$model_params$initial_sigma2
-    mu_hat_test <- bcf$forests_mu$predict(forest_dataset_pred)*y_std + y_bar
-    if (bcf$model_params$adaptive_coding) {
-        tau_hat_test_raw <- bcf$forests_tau$predict_raw(forest_dataset_pred)
-        tau_hat_test <- t(t(tau_hat_test_raw) * (bcf$b_1_samples - bcf$b_0_samples))*y_std
+    num_samples <- object$model_params$num_samples
+    y_std <- object$model_params$outcome_scale
+    y_bar <- object$model_params$outcome_mean
+    initial_sigma2 <- object$model_params$initial_sigma2
+    mu_hat_test <- object$forests_mu$predict(forest_dataset_pred)*y_std + y_bar
+    if (object$model_params$adaptive_coding) {
+        tau_hat_test_raw <- object$forests_tau$predict_raw(forest_dataset_pred)
+        tau_hat_test <- t(t(tau_hat_test_raw) * (object$b_1_samples - object$b_0_samples))*y_std
     } else {
-        tau_hat_test <- bcf$forests_tau$predict_raw(forest_dataset_pred)*y_std
+        tau_hat_test <- object$forests_tau$predict_raw(forest_dataset_pred)*y_std
     }
-    if (bcf$model_params$include_variance_forest) {
-        s_x_raw <- bcf$variance_forests$predict(forest_dataset_pred)
+    if (object$model_params$include_variance_forest) {
+        s_x_raw <- object$variance_forests$predict(forest_dataset_pred)
     }
     
     # Compute rfx predictions (if needed)
-    if (bcf$model_params$has_rfx) {
-        rfx_predictions <- bcf$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std
+    if (object$model_params$has_rfx) {
+        rfx_predictions <- object$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std
     }
     
     # Compute overall "y_hat" predictions
     y_hat_test <- mu_hat_test + tau_hat_test * as.numeric(Z_test)
-    if (bcf$model_params$has_rfx) y_hat_test <- y_hat_test + rfx_predictions
+    if (object$model_params$has_rfx) y_hat_test <- y_hat_test + rfx_predictions
     
     # Scale variance forest predictions
-    if (bcf$model_params$include_variance_forest) {
-        if (bcf$model_params$sample_sigma_global) {
-            sigma2_samples <- bcf$sigma2_global_samples
+    if (object$model_params$include_variance_forest) {
+        if (object$model_params$sample_sigma_global) {
+            sigma2_samples <- object$sigma2_global_samples
             variance_forest_predictions <- sapply(1:num_samples, function(i) sqrt(s_x_raw[,i]*sigma2_samples[i]))
         } else {
             variance_forest_predictions <- sqrt(s_x_raw*initial_sigma2)*y_std
@@ -1459,10 +1460,10 @@ predict.bcf <- function(bcf, X_test, Z_test, pi_test = NULL, group_ids_test = NU
         "tau_hat" = tau_hat_test, 
         "y_hat" = y_hat_test
     )
-    if (bcf$model_params$has_rfx) {
+    if (object$model_params$has_rfx) {
         result[["rfx_predictions"]] = rfx_predictions
     }
-    if (bcf$model_params$include_variance_forest) {
+    if (object$model_params$include_variance_forest) {
         result[["variance_forest_predictions"]] = variance_forest_predictions
     }
     return(result)

@@ -10,7 +10,7 @@ saveBARTModelToJsonString(object)
 \item{object}{Object of type \code{bartmodel} containing draws of a BART model and associated sampling outputs.}
 }
 \value{
-JSON string
+in-memory JSON string
 }
 \description{
 Convert the persistent aspects of a BART model to (in-memory) JSON string

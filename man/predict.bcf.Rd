@@ -5,16 +5,17 @@
 \title{Predict from a sampled BCF model on new data}
 \usage{
 \method{predict}{bcf}(
-  bcf,
+  object,
   X_test,
   Z_test,
   pi_test = NULL,
   group_ids_test = NULL,
-  rfx_basis_test = NULL
+  rfx_basis_test = NULL,
+  ...
 )
 }
 \arguments{
-\item{bcf}{Object of type \code{bcf} containing draws of a Bayesian causal forest model and associated sampling outputs.}
+\item{object}{Object of type \code{bcf} containing draws of a Bayesian causal forest model and associated sampling outputs.}
 
 \item{X_test}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
 
@@ -27,9 +28,11 @@ We do not currently support (but plan to in the near future), test set evaluatio
 that were not in the training set.}
 
 \item{rfx_basis_test}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
+
+\item{...}{(Optional) Other prediction parameters.}
 }
 \value{
-List of 3-5 \code{nrow(X_test)} by \code{bcf$num_samples} matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
+List of 3-5 \code{nrow(X_test)} by \code{object$num_samples} matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
 }
 \description{
 Predict from a sampled BCF model on new data

@@ -907,13 +907,14 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 
 #' Predict from a sampled BART model on new data
 #'
-#' @param bart Object of type `bart` containing draws of a regression forest and associated sampling outputs.
+#' @param object Object of type `bart` containing draws of a regression forest and associated sampling outputs.
 #' @param X_test Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.
 #' @param W_test (Optional) Bases used for prediction (by e.g. dot product with leaf values). Default: `NULL`.
 #' @param group_ids_test (Optional) Test set group labels used for an additive random effects model. 
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest. 
 #' If the model does have random effects, the list has three elements -- forest predictions, random effects predictions, and their sum (`y_hat`).
@@ -944,12 +945,12 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 #' y_hat_test <- predict(bart_model, X_test)
 #' # plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
 #' # abline(0,1,col="red",lty=3,lwd=3)
-predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL, ...){
+predict.bartmodel <- function(object, X_test, W_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL, ...){
     # Preprocess covariates
     if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
         stop("X_test must be a matrix or dataframe")
     }
-    train_set_metadata <- bart$train_set_metadata
+    train_set_metadata <- object$train_set_metadata
     X_test <- preprocessPredictionData(X_test, train_set_metadata)
     
     # Convert all input data to matrices if not already converted
@@ -961,29 +962,29 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     }
     
     # Data checks
-    if ((bart$model_params$requires_basis) && (is.null(W_test))) {
+    if ((object$model_params$requires_basis) && (is.null(W_test))) {
         stop("Basis (W_test) must be provided for this model")
     }
     if ((!is.null(W_test)) && (nrow(X_test) != nrow(W_test))) {
         stop("X_test and W_test must have the same number of rows")
     }
-    if (bart$model_params$num_covariates != ncol(X_test)) {
+    if (object$model_params$num_covariates != ncol(X_test)) {
         stop("X_test and W_test must have the same number of rows")
     }
-    if ((bart$model_params$has_rfx) && (is.null(group_ids_test))) {
+    if ((object$model_params$has_rfx) && (is.null(group_ids_test))) {
         stop("Random effect group labels (group_ids_test) must be provided for this model")
     }
-    if ((bart$model_params$has_rfx_basis) && (is.null(rfx_basis_test))) {
+    if ((object$model_params$has_rfx_basis) && (is.null(rfx_basis_test))) {
         stop("Random effects basis (rfx_basis_test) must be provided for this model")
     }
-    if ((bart$model_params$num_rfx_basis > 0) && (ncol(rfx_basis_test) != bart$model_params$num_rfx_basis)) {
+    if ((object$model_params$num_rfx_basis > 0) && (ncol(rfx_basis_test) != object$model_params$num_rfx_basis)) {
         stop("Random effects basis has a different dimension than the basis used to train this model")
     }
     
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
     has_rfx <- F
     if (!is.null(group_ids_test)) {
-        rfx_unique_group_ids <- bcf$rfx_unique_group_ids
+        rfx_unique_group_ids <- object$rfx_unique_group_ids
         group_ids_factor_test <- factor(group_ids_test, levels = rfx_unique_group_ids)
         if (sum(is.na(group_ids_factor_test)) > 0) {
             stop("All random effect group labels provided in group_ids_test must be present in group_ids_train")
@@ -993,7 +994,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     }
     
     # Produce basis for the "intercept-only" random effects case
-    if ((bart$model_params$has_rfx) && (is.null(rfx_basis_test))) {
+    if ((object$model_params$has_rfx) && (is.null(rfx_basis_test))) {
         rfx_basis_test <- matrix(rep(1, nrow(X_test)), ncol = 1)
     }
     
@@ -1002,53 +1003,53 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
     else prediction_dataset <- createForestDataset(X_test)
     
     # Compute mean forest predictions
-    num_samples <- bart$model_params$num_samples
-    y_std <- bart$model_params$outcome_scale
-    y_bar <- bart$model_params$outcome_mean
-    sigma2_init <- bart$model_params$sigma2_init
-    if (bart$model_params$include_mean_forest) {
-        mean_forest_predictions <- bart$mean_forests$predict(prediction_dataset)*y_std + y_bar
+    num_samples <- object$model_params$num_samples
+    y_std <- object$model_params$outcome_scale
+    y_bar <- object$model_params$outcome_mean
+    sigma2_init <- object$model_params$sigma2_init
+    if (object$model_params$include_mean_forest) {
+        mean_forest_predictions <- object$mean_forests$predict(prediction_dataset)*y_std + y_bar
     }
     
     # Compute variance forest predictions
-    if (bart$model_params$include_variance_forest) {
-        s_x_raw <- bart$variance_forests$predict(prediction_dataset)
+    if (object$model_params$include_variance_forest) {
+        s_x_raw <- object$variance_forests$predict(prediction_dataset)
     }
     
     # Compute rfx predictions (if needed)
-    if (bart$model_params$has_rfx) {
-        rfx_predictions <- bart$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std
+    if (object$model_params$has_rfx) {
+        rfx_predictions <- object$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std
     }
     
     # Scale variance forest predictions
-    if (bart$model_params$include_variance_forest) {
-        if (bart$model_params$sample_sigma_global) {
-            sigma2_samples <- bart$sigma2_global_samples
+    if (object$model_params$include_variance_forest) {
+        if (object$model_params$sample_sigma_global) {
+            sigma2_samples <- object$sigma2_global_samples
             variance_forest_predictions <- sapply(1:num_samples, function(i) sqrt(s_x_raw[,i]*sigma2_samples[i]))
         } else {
             variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std
         }
     }
 
-    if ((bart$model_params$include_mean_forest) && (bart$model_params$has_rfx)) {
+    if ((object$model_params$include_mean_forest) && (object$model_params$has_rfx)) {
         y_hat <- mean_forest_predictions + rfx_predictions
-    } else if ((bart$model_params$include_mean_forest) && (!bart$model_params$has_rfx)) {
+    } else if ((object$model_params$include_mean_forest) && (!object$model_params$has_rfx)) {
         y_hat <- mean_forest_predictions
-    } else if ((!bart$model_params$include_mean_forest) && (bart$model_params$has_rfx)) {
+    } else if ((!object$model_params$include_mean_forest) && (object$model_params$has_rfx)) {
         y_hat <- rfx_predictions
     } 
     
     result <- list()
-    if ((bart$model_params$has_rfx) || (bart$model_params$include_mean_forest)) {
+    if ((object$model_params$has_rfx) || (object$model_params$include_mean_forest)) {
         result[["y_hat"]] = y_hat
     }
-    if (bart$model_params$include_mean_forest) {
+    if (object$model_params$include_mean_forest) {
         result[["mean_forest_predictions"]] = mean_forest_predictions
     }
-    if (bart$model_params$has_rfx) {
+    if (object$model_params$has_rfx) {
         result[["rfx_predictions"]] = rfx_predictions
     }
-    if (bart$model_params$include_variance_forest) {
+    if (object$model_params$include_variance_forest) {
         result[["variance_forest_predictions"]] = variance_forest_predictions
     }
     return(result)
