@@ -913,7 +913,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
 #' @param rfx_group_ids (Optional) Test set group labels used for an additive random effects model. 
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
-#' @param rfx_basis_tes (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param rfx_basis (Optional) Test set basis for "random-slope" regression in additive random effects model.
 #' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest. 

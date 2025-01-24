@@ -24,9 +24,9 @@
 We do not currently support (but plan to in the near future), test set evaluation for group labels
 that were not in the training set.}
 
-\item{...}{(Optional) Other prediction parameters.}
+\item{rfx_basis}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
 
-\item{rfx_basis_tes}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
+\item{...}{(Optional) Other prediction parameters.}
 }
 \value{
 List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest.

@@ -241,7 +241,7 @@ f_XW <- (
     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5*leaf_basis[,1]) + 
     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5*leaf_basis[,1])
 )
-rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
+rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 noise_sd <- sd(f_XW) / snr
 y <- f_XW + rfx_term + rnorm(n, 0, 1)*noise_sd
 

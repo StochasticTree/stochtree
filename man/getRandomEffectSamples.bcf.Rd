@@ -42,7 +42,7 @@ snr <- 3
 rfx_group_ids <- rep(c(1,2), n \%/\% 2)
 rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 rfx_basis <- cbind(1, runif(n, -1, 1))
-rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
+rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
 X <- as.data.frame(X)
 X$x4 <- factor(X$x4, ordered = TRUE)
