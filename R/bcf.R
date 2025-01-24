@@ -7,17 +7,17 @@
 #' that the column is ordered categorical).
 #' @param Z_train Vector of (continuous or binary) treatment assignments.
 #' @param y_train Outcome to be modeled by the ensemble.
-#' @param pi_train (Optional) Vector of propensity scores. If not provided, this will be estimated from the data.
-#' @param group_ids_train (Optional) Group labels used for an additive random effects model.
+#' @param propensity_train (Optional) Vector of propensity scores. If not provided, this will be estimated from the data.
+#' @param rfx_group_ids_train (Optional) Group labels used for an additive random effects model.
 #' @param rfx_basis_train (Optional) Basis for "random-slope" regression in an additive random effects model.
-#' If `group_ids_train` is provided with a regression basis, an intercept-only random effects model 
+#' If `rfx_group_ids_train` is provided with a regression basis, an intercept-only random effects model 
 #' will be estimated.
 #' @param X_test (Optional) Test set of covariates used to define "out of sample" evaluation data. 
 #' May be provided either as a dataframe or a matrix, but the format of `X_test` must be consistent with 
 #' that of `X_train`.
 #' @param Z_test (Optional) Test set of (continuous or binary) treatment assignments.
-#' @param pi_test (Optional) Vector of propensity scores. If not provided, this will be estimated from the data.
-#' @param group_ids_test (Optional) Test set group labels used for an additive random effects model. 
+#' @param propensity_test (Optional) Vector of propensity scores. If not provided, this will be estimated from the data.
+#' @param rfx_group_ids_test (Optional) Test set group labels used for an additive random effects model. 
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
@@ -25,7 +25,7 @@
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
 #' @param previous_model_json (Optional) JSON string containing a previous BCF model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: `NULL`.
-#' @param warmstart_sample_num (Optional) Sample number from `previous_model_json` that will be used to warmstart this BCF sampler. One-indexed (so that the first sample is used for warm-start by setting `warmstart_sample_num = 1`). Default: `NULL`.
+#' @param previous_model_warmstart_sample_num (Optional) Sample number from `previous_model_json` that will be used to warmstart this BCF sampler. One-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 1`). Default: `NULL`.
 #' @param general_params (Optional) A list of general (non-forest-specific) model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
 #'   - `cutpoint_grid_size` Maximum size of the "grid" of potential cutpoints to consider in the GFR algorithm. Default: `100`.
@@ -55,7 +55,7 @@
 #'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the prognostic forest. Default: `5`.
 #'   - `max_depth` Maximum depth of any tree in the ensemble in the prognostic forest. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
 #'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable in the prognostic forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
-#'   - `sample_sigma2_leaf` Whether or not to update the leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: `FALSE`.
+#'   - `sample_sigma2_leaf` Whether or not to update the leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`.
 #'   - `sigma2_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
 #'   - `sigma2_leaf_shape` Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Default: `3`.
 #'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
@@ -70,7 +70,7 @@
 #'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the treatment effect forest. Default: `5`.
 #'   - `max_depth` Maximum depth of any tree in the ensemble in the treatment effect forest. Default: `5`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
 #'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable in the treatment effect forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
-#'   - `sample_sigma2_leaf` Whether or not to update the leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: `FALSE`.
+#'   - `sample_sigma2_leaf` Whether or not to update the leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `ncol(Z_train)>1`. Default: `FALSE`.
 #'   - `sigma2_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
 #'   - `sigma2_leaf_shape` Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Default: `3`.
 #'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
@@ -135,19 +135,20 @@
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, pi_train = pi_train, 
-#'                  X_test = X_test, Z_test = Z_test, pi_test = pi_test)
+#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
+#'                  propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
+#'                  propensity_test = pi_test)
 #' # plot(rowMeans(bcf_model$mu_hat_test), mu_test, xlab = "predicted", 
 #' #      ylab = "actual", main = "Prognostic function")
 #' # abline(0,1,col="red",lty=3,lwd=3)
 #' # plot(rowMeans(bcf_model$tau_hat_test), tau_test, xlab = "predicted", 
 #' #      ylab = "actual", main = "Treatment effect")
 #' # abline(0,1,col="red",lty=3,lwd=3)
-bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NULL, 
-                rfx_basis_train = NULL, X_test = NULL, Z_test = NULL, pi_test = NULL, 
-                group_ids_test = NULL, rfx_basis_test = NULL, 
+bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_ids_train = NULL, 
+                rfx_basis_train = NULL, X_test = NULL, Z_test = NULL, propensity_test = NULL, 
+                rfx_group_ids_test = NULL, rfx_basis_test = NULL, 
                 num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
-                previous_model_json = NULL, warmstart_sample_num = NULL, 
+                previous_model_json = NULL, previous_model_warmstart_sample_num = NULL, 
                 general_params = list(), mu_forest_params = list(), 
                 tau_forest_params = list(), variance_forest_params = list()) {
     # Update general BCF parameters
@@ -267,7 +268,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     if (num_mcmc == 0) keep_gfr <- T
     
     # Check if previous model JSON is provided and parse it if so
-    # TODO: check that warmstart_sample_num is <= the number of samples in this previous model
+    # TODO: check that `previous_model_warmstart_sample_num` is <= the number of samples in this previous model
     has_prev_model <- !is.null(previous_model_json)
     if (has_prev_model) {
         previous_bcf_model <- createBCFModelFromJsonString(previous_model_json)
@@ -464,14 +465,14 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     if ((is.null(dim(Z_train))) && (!is.null(Z_train))) {
         Z_train <- as.matrix(as.numeric(Z_train))
     }
-    if ((is.null(dim(pi_train))) && (!is.null(pi_train))) {
-        pi_train <- as.matrix(pi_train)
+    if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
+        propensity_train <- as.matrix(propensity_train)
     }
     if ((is.null(dim(Z_test))) && (!is.null(Z_test))) {
         Z_test <- as.matrix(as.numeric(Z_test))
     }
-    if ((is.null(dim(pi_test))) && (!is.null(pi_test))) {
-        pi_test <- as.matrix(pi_test)
+    if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
+        propensity_test <- as.matrix(propensity_test)
     }
     if ((is.null(dim(rfx_basis_train))) && (!is.null(rfx_basis_train))) {
         rfx_basis_train <- as.matrix(rfx_basis_train)
@@ -483,16 +484,16 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
     has_rfx <- F
     has_rfx_test <- F
-    if (!is.null(group_ids_train)) {
-        group_ids_factor <- factor(group_ids_train)
-        group_ids_train <- as.integer(group_ids_factor)
+    if (!is.null(rfx_group_ids_train)) {
+        group_ids_factor <- factor(rfx_group_ids_train)
+        rfx_group_ids_train <- as.integer(group_ids_factor)
         has_rfx <- T
-        if (!is.null(group_ids_test)) {
-            group_ids_factor_test <- factor(group_ids_test, levels = levels(group_ids_factor))
+        if (!is.null(rfx_group_ids_test)) {
+            group_ids_factor_test <- factor(rfx_group_ids_test, levels = levels(group_ids_factor))
             if (sum(is.na(group_ids_factor_test)) > 0) {
-                stop("All random effect group labels provided in group_ids_test must be present in group_ids_train")
+                stop("All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train")
             }
-            group_ids_test <- as.integer(group_ids_factor_test)
+            rfx_group_ids_test <- as.integer(group_ids_factor_test)
             has_rfx_test <- T
         }
     }
@@ -514,14 +515,14 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     if ((!is.null(Z_train)) && (nrow(Z_train) != nrow(X_train))) {
         stop("Z_train and X_train must have the same number of rows")
     }
-    if ((!is.null(pi_train)) && (nrow(pi_train) != nrow(X_train))) {
-        stop("pi_train and X_train must have the same number of rows")
+    if ((!is.null(propensity_train)) && (nrow(propensity_train) != nrow(X_train))) {
+        stop("propensity_train and X_train must have the same number of rows")
     }
     if ((!is.null(Z_test)) && (nrow(Z_test) != nrow(X_test))) {
         stop("Z_test and X_test must have the same number of rows")
     }
-    if ((!is.null(pi_test)) && (nrow(pi_test) != nrow(X_test))) {
-        stop("pi_test and X_test must have the same number of rows")
+    if ((!is.null(propensity_test)) && (nrow(propensity_test) != nrow(X_test))) {
+        stop("propensity_test and X_test must have the same number of rows")
     }
     if (nrow(X_train) != length(y_train)) {
         stop("X_train and y_train must have the same number of observations")
@@ -529,8 +530,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     if ((!is.null(rfx_basis_test)) && (ncol(rfx_basis_test) != ncol(rfx_basis_train))) {
         stop("rfx_basis_train and rfx_basis_test must have the same number of columns")
     }
-    if (!is.null(group_ids_train)) {
-        if (!is.null(group_ids_test)) {
+    if (!is.null(rfx_group_ids_train)) {
+        if (!is.null(rfx_group_ids_test)) {
             if ((!is.null(rfx_basis_train)) && (is.null(rfx_basis_test))) {
                 stop("rfx_basis_train is provided but rfx_basis_test is not provided")
             }
@@ -569,7 +570,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
             has_basis_rfx <- T
             num_basis_rfx <- ncol(rfx_basis_train)
         }
-        num_rfx_groups <- length(unique(group_ids_train))
+        num_rfx_groups <- length(unique(rfx_group_ids_train))
         num_rfx_components <- ncol(rfx_basis_train)
         if (num_rfx_groups == 1) warning("Only one group was provided for random effect sampling, so the 'redundant parameterization' is likely overkill")
     }
@@ -614,48 +615,48 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     
     # Estimate if pre-estimated propensity score is not provided
     internal_propensity_model <- F
-    if ((is.null(pi_train)) && (propensity_covariate != "none")) {
+    if ((is.null(propensity_train)) && (propensity_covariate != "none")) {
         internal_propensity_model <- T
         # Estimate using the last of several iterations of GFR BART
         num_burnin <- 10
         num_total <- 50
         bart_model_propensity <- bart(X_train = X_train, y_train = as.numeric(Z_train), X_test = X_test_raw, 
                                       num_gfr = num_total, num_burnin = 0, num_mcmc = 0)
-        pi_train <- rowMeans(bart_model_propensity$y_hat_train[,(num_burnin+1):num_total])
-        if ((is.null(dim(pi_train))) && (!is.null(pi_train))) {
-            pi_train <- as.matrix(pi_train)
+        propensity_train <- rowMeans(bart_model_propensity$y_hat_train[,(num_burnin+1):num_total])
+        if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
+            propensity_train <- as.matrix(propensity_train)
         }
         if (has_test) {
-            pi_test <- rowMeans(bart_model_propensity$y_hat_test[,(num_burnin+1):num_total])
-            if ((is.null(dim(pi_test))) && (!is.null(pi_test))) {
-                pi_test <- as.matrix(pi_test)
+            propensity_test <- rowMeans(bart_model_propensity$y_hat_test[,(num_burnin+1):num_total])
+            if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
+                propensity_test <- as.matrix(propensity_test)
             }
         }
     }
 
     if (has_test) {
-        if (is.null(pi_test)) stop("Propensity score must be provided for the test set if provided for the training set")
+        if (is.null(propensity_test)) stop("Propensity score must be provided for the test set if provided for the training set")
     }
     
     # Update feature_types and covariates
     feature_types <- as.integer(feature_types)
     if (propensity_covariate != "none") {
         feature_types <- as.integer(c(feature_types,0))
-        X_train <- cbind(X_train, pi_train)
+        X_train <- cbind(X_train, propensity_train)
         if (propensity_covariate == "mu") {
-            variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(pi_train)))
+            variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(propensity_train)))
             variable_weights_tau <- c(variable_weights_tau, 0)
             if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, 0)
         } else if (propensity_covariate == "tau") {
             variable_weights_mu <- c(variable_weights_mu, 0)
-            variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(pi_train)))
+            variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(propensity_train)))
             if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, 0)
         } else if (propensity_covariate == "both") {
-            variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(pi_train)))
-            variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(pi_train)))
+            variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(propensity_train)))
+            variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(propensity_train)))
             if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, 0)
         }
-        if (has_test) X_test <- cbind(X_test, pi_test)
+        if (has_test) X_test <- cbind(X_test, propensity_test)
     }
     
     # Renormalize variable weights
@@ -699,7 +700,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
         # Initialize each group parameter based on a regression of outcome on basis in that grou
         xi_init <- matrix(0,num_rfx_components,num_rfx_groups)
         for (i in 1:num_rfx_groups) {
-            group_subset_indices <- group_ids_train == i
+            group_subset_indices <- rfx_group_ids_train == i
             basis_group <- rfx_basis_train[group_subset_indices,]
             resid_group <- resid_train[group_subset_indices]
             rfx_group_model <- lm(resid_group ~ 0+basis_group)
@@ -713,8 +714,8 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
     
     # Random effects data structure and storage container
     if (has_rfx) {
-        rfx_dataset_train <- createRandomEffectsDataset(group_ids_train, rfx_basis_train)
-        rfx_tracker_train <- createRandomEffectsTracker(group_ids_train)
+        rfx_dataset_train <- createRandomEffectsDataset(rfx_group_ids_train, rfx_basis_train)
+        rfx_tracker_train <- createRandomEffectsTracker(rfx_group_ids_train)
         rfx_model <- createRandomEffectsModel(num_rfx_components, num_rfx_groups)
         rfx_model$set_working_parameter(alpha_init)
         rfx_model$set_group_parameters(xi_init)
@@ -932,28 +933,28 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 }
                 if (sample_sigma_global) current_sigma2 <- global_var_samples[forest_ind + 1]
             } else if (has_prev_model) {
-                resetActiveForest(active_forest_mu, previous_forest_samples_mu, warmstart_sample_num - 1)
+                resetActiveForest(active_forest_mu, previous_forest_samples_mu, previous_model_warmstart_sample_num - 1)
                 resetForestModel(forest_model_mu, active_forest_mu, forest_dataset_train, outcome_train, TRUE)
-                resetActiveForest(active_forest_tau, previous_forest_samples_tau, warmstart_sample_num - 1)
+                resetActiveForest(active_forest_tau, previous_forest_samples_tau, previous_model_warmstart_sample_num - 1)
                 resetForestModel(forest_model_tau, active_forest_tau, forest_dataset_train, outcome_train, TRUE)
                 if (include_variance_forest) {
-                    resetActiveForest(active_forest_variance, previous_forest_samples_variance, warmstart_sample_num - 1)
+                    resetActiveForest(active_forest_variance, previous_forest_samples_variance, previous_model_warmstart_sample_num - 1)
                     resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
                 if (sample_sigma_leaf_mu && (!is.null(previous_leaf_var_mu_samples))) {
-                    leaf_scale_mu_double <- previous_leaf_var_mu_samples[warmstart_sample_num]
+                    leaf_scale_mu_double <- previous_leaf_var_mu_samples[previous_model_warmstart_sample_num]
                     current_leaf_scale_mu <- as.matrix(leaf_scale_mu_double)
                 }
                 if (sample_sigma_leaf_tau && (!is.null(previous_leaf_var_tau_samples))) {
-                    leaf_scale_tau_double <- previous_leaf_var_tau_samples[warmstart_sample_num]
+                    leaf_scale_tau_double <- previous_leaf_var_tau_samples[previous_model_warmstart_sample_num]
                     current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
                 }
                 if (adaptive_coding) {
                     if (!is.null(previous_b_1_samples)) {
-                        current_b_1 <- previous_b_1_samples[warmstart_sample_num]
+                        current_b_1 <- previous_b_1_samples[previous_model_warmstart_sample_num]
                     }
                     if (!is.null(previous_b_0_samples)) {
-                        current_b_0 <- previous_b_0_samples[warmstart_sample_num]
+                        current_b_0 <- previous_b_0_samples[previous_model_warmstart_sample_num]
                     }
                     tau_basis_train <- (1-Z_train)*current_b_0 + Z_train*current_b_1
                     forest_dataset_train$update_basis(tau_basis_train)
@@ -971,7 +972,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
                 # }
                 if (sample_sigma_global) {
                     if (!is.null(previous_global_var_samples)) {
-                        current_sigma2 <- previous_global_var_samples[warmstart_sample_num]
+                        current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]
                     }
                 }
             } else {
@@ -1176,11 +1177,11 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 
     # Random effects predictions
     if (has_rfx) {
-        rfx_preds_train <- rfx_samples$predict(group_ids_train, rfx_basis_train)*y_std_train
+        rfx_preds_train <- rfx_samples$predict(rfx_group_ids_train, rfx_basis_train)*y_std_train
         y_hat_train <- y_hat_train + rfx_preds_train
     }
     if ((has_rfx_test) && (has_test)) {
-        rfx_preds_test <- rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std_train
+        rfx_preds_test <- rfx_samples$predict(rfx_group_ids_test, rfx_basis_test)*y_std_train
         y_hat_test <- y_hat_test + rfx_preds_test
     }
     
@@ -1291,16 +1292,16 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 #' Predict from a sampled BCF model on new data
 #'
 #' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
-#' @param X_test Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.
-#' @param Z_test Treatments used for prediction.
-#' @param pi_test (Optional) Propensities used for prediction.
-#' @param group_ids_test (Optional) Test set group labels used for an additive random effects model. 
+#' @param X Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.
+#' @param Z Treatments used for prediction.
+#' @param propensity (Optional) Propensities used for prediction.
+#' @param rfx_group_ids (Optional) Test set group labels used for an additive random effects model. 
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
-#' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param rfx_basis (Optional) Test set basis for "random-slope" regression in additive random effects model.
 #' @param ... (Optional) Other prediction parameters.
 #'
-#' @return List of 3-5 `nrow(X_test)` by `object$num_samples` matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
+#' @return List of 3-5 `nrow(X)` by `object$num_samples` matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
 #' @export
 #'
 #' @examples
@@ -1344,7 +1345,7 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, pi_train = pi_train)
+#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train)
 #' preds <- predict(bcf_model, X_test, Z_test, pi_test)
 #' # plot(rowMeans(preds$mu_hat), mu_test, xlab = "predicted",
 #' #      ylab = "actual", main = "Prognostic function")
@@ -1352,85 +1353,85 @@ bcf <- function(X_train, Z_train, y_train, pi_train = NULL, group_ids_train = NU
 #' # plot(rowMeans(preds$tau_hat), tau_test, xlab = "predicted", 
 #' #      ylab = "actual", main = "Treatment effect")
 #' # abline(0,1,col="red",lty=3,lwd=3)
-predict.bcf <- function(object, X_test, Z_test, pi_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL, ...){
+predict.bcf <- function(object, X, Z, propensity = NULL, rfx_group_ids = NULL, rfx_basis = NULL, ...){
     # Preprocess covariates
-    if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
-        stop("X_test must be a matrix or dataframe")
+    if ((!is.data.frame(X)) && (!is.matrix(X))) {
+        stop("X must be a matrix or dataframe")
     }
     train_set_metadata <- object$train_set_metadata
-    X_test <- preprocessPredictionData(X_test, train_set_metadata)
+    X <- preprocessPredictionData(X, train_set_metadata)
     
     # Convert all input data to matrices if not already converted
-    if ((is.null(dim(Z_test))) && (!is.null(Z_test))) {
-        Z_test <- as.matrix(as.numeric(Z_test))
+    if ((is.null(dim(Z))) && (!is.null(Z))) {
+        Z <- as.matrix(as.numeric(Z))
     }
-    if ((is.null(dim(pi_test))) && (!is.null(pi_test))) {
-        pi_test <- as.matrix(pi_test)
+    if ((is.null(dim(propensity))) && (!is.null(propensity))) {
+        propensity <- as.matrix(propensity)
     }
-    if ((is.null(dim(rfx_basis_test))) && (!is.null(rfx_basis_test))) {
-        rfx_basis_test <- as.matrix(rfx_basis_test)
+    if ((is.null(dim(rfx_basis))) && (!is.null(rfx_basis))) {
+        rfx_basis <- as.matrix(rfx_basis)
     }
     
     # Data checks
-    if ((object$model_params$propensity_covariate != "none") && (is.null(pi_test))) {
+    if ((object$model_params$propensity_covariate != "none") && (is.null(propensity))) {
         if (!object$model_params$internal_propensity_model) {
-            stop("pi_test must be provided for this model")
+            stop("propensity must be provided for this model")
         }
         # Compute propensity score using the internal bart model
-        pi_test <- rowMeans(predict(object$bart_propensity_model, X_test)$y_hat)
+        propensity <- rowMeans(predict(object$bart_propensity_model, X)$y_hat)
     }
-    if (nrow(X_test) != nrow(Z_test)) {
-        stop("X_test and Z_test must have the same number of rows")
+    if (nrow(X) != nrow(Z)) {
+        stop("X and Z must have the same number of rows")
     }
-    if (object$model_params$num_covariates != ncol(X_test)) {
-        stop("X_test and must have the same number of columns as the covariates used to train the model")
+    if (object$model_params$num_covariates != ncol(X)) {
+        stop("X and must have the same number of columns as the covariates used to train the model")
     }
-    if ((object$model_params$has_rfx) && (is.null(group_ids_test))) {
-        stop("Random effect group labels (group_ids_test) must be provided for this model")
+    if ((object$model_params$has_rfx) && (is.null(rfx_group_ids))) {
+        stop("Random effect group labels (rfx_group_ids) must be provided for this model")
     }
-    if ((object$model_params$has_rfx_basis) && (is.null(rfx_basis_test))) {
-        stop("Random effects basis (rfx_basis_test) must be provided for this model")
+    if ((object$model_params$has_rfx_basis) && (is.null(rfx_basis))) {
+        stop("Random effects basis (rfx_basis) must be provided for this model")
     }
-    if ((object$model_params$num_rfx_basis > 0) && (ncol(rfx_basis_test) != object$model_params$num_rfx_basis)) {
+    if ((object$model_params$num_rfx_basis > 0) && (ncol(rfx_basis) != object$model_params$num_rfx_basis)) {
         stop("Random effects basis has a different dimension than the basis used to train this model")
     }
     
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
     has_rfx <- F
-    if (!is.null(group_ids_test)) {
+    if (!is.null(rfx_group_ids)) {
         rfx_unique_group_ids <- object$rfx_unique_group_ids
-        group_ids_factor_test <- factor(group_ids_test, levels = rfx_unique_group_ids)
-        if (sum(is.na(group_ids_factor_test)) > 0) {
-            stop("All random effect group labels provided in group_ids_test must be present in group_ids_train")
+        group_ids_factor <- factor(rfx_group_ids, levels = rfx_unique_group_ids)
+        if (sum(is.na(group_ids_factor)) > 0) {
+            stop("All random effect group labels provided in rfx_group_ids must be present in rfx_group_ids_train")
         }
-        group_ids_test <- as.integer(group_ids_factor_test)
+        rfx_group_ids <- as.integer(group_ids_factor)
         has_rfx <- T
     }
 
     # Produce basis for the "intercept-only" random effects case
-    if ((object$model_params$has_rfx) && (is.null(rfx_basis_test))) {
-        rfx_basis_test <- matrix(rep(1, nrow(X_test)), ncol = 1)
+    if ((object$model_params$has_rfx) && (is.null(rfx_basis))) {
+        rfx_basis <- matrix(rep(1, nrow(X)), ncol = 1)
     }
     
     # Add propensities to covariate set if necessary
     if (object$model_params$propensity_covariate != "none") {
-        X_test_combined <- cbind(X_test, pi_test)
+        X_combined <- cbind(X, propensity)
     }
     
     # Create prediction datasets
-    forest_dataset_pred <- createForestDataset(X_test_combined, Z_test)
+    forest_dataset_pred <- createForestDataset(X_combined, Z)
 
     # Compute forest predictions
     num_samples <- object$model_params$num_samples
     y_std <- object$model_params$outcome_scale
     y_bar <- object$model_params$outcome_mean
     initial_sigma2 <- object$model_params$initial_sigma2
-    mu_hat_test <- object$forests_mu$predict(forest_dataset_pred)*y_std + y_bar
+    mu_hat <- object$forests_mu$predict(forest_dataset_pred)*y_std + y_bar
     if (object$model_params$adaptive_coding) {
-        tau_hat_test_raw <- object$forests_tau$predict_raw(forest_dataset_pred)
-        tau_hat_test <- t(t(tau_hat_test_raw) * (object$b_1_samples - object$b_0_samples))*y_std
+        tau_hat_raw <- object$forests_tau$predict_raw(forest_dataset_pred)
+        tau_hat <- t(t(tau_hat_raw) * (object$b_1_samples - object$b_0_samples))*y_std
     } else {
-        tau_hat_test <- object$forests_tau$predict_raw(forest_dataset_pred)*y_std
+        tau_hat <- object$forests_tau$predict_raw(forest_dataset_pred)*y_std
     }
     if (object$model_params$include_variance_forest) {
         s_x_raw <- object$variance_forests$predict(forest_dataset_pred)
@@ -1438,12 +1439,12 @@ predict.bcf <- function(object, X_test, Z_test, pi_test = NULL, group_ids_test =
     
     # Compute rfx predictions (if needed)
     if (object$model_params$has_rfx) {
-        rfx_predictions <- object$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std
+        rfx_predictions <- object$rfx_samples$predict(rfx_group_ids, rfx_basis)*y_std
     }
     
     # Compute overall "y_hat" predictions
-    y_hat_test <- mu_hat_test + tau_hat_test * as.numeric(Z_test)
-    if (object$model_params$has_rfx) y_hat_test <- y_hat_test + rfx_predictions
+    y_hat <- mu_hat + tau_hat * as.numeric(Z)
+    if (object$model_params$has_rfx) y_hat <- y_hat + rfx_predictions
     
     # Scale variance forest predictions
     if (object$model_params$include_variance_forest) {
@@ -1456,9 +1457,9 @@ predict.bcf <- function(object, X_test, Z_test, pi_test = NULL, group_ids_test =
     }
 
     result <- list(
-        "mu_hat" = mu_hat_test, 
-        "tau_hat" = tau_hat_test, 
-        "y_hat" = y_hat_test
+        "mu_hat" = mu_hat, 
+        "tau_hat" = tau_hat, 
+        "y_hat" = y_hat
     )
     if (object$model_params$has_rfx) {
         result[["rfx_predictions"]] = rfx_predictions
@@ -1498,7 +1499,7 @@ predict.bcf <- function(object, X_test, Z_test, pi_test = NULL, group_ids_test =
 #' Z <- rbinom(n,1,pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
-#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
 #' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
@@ -1523,8 +1524,8 @@ predict.bcf <- function(object, X_test, Z_test, pi_test = NULL, group_ids_test =
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' group_ids_test <- group_ids[test_inds]
-#' group_ids_train <- group_ids[train_inds]
+#' rfx_group_ids_test <- rfx_group_ids[test_inds]
+#' rfx_group_ids_train <- rfx_group_ids[train_inds]
 #' rfx_basis_test <- rfx_basis[test_inds,]
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
@@ -1532,9 +1533,9 @@ predict.bcf <- function(object, X_test, Z_test, pi_test = NULL, group_ids_test =
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  pi_train = pi_train, group_ids_train = group_ids_train, 
+#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1587,7 +1588,7 @@ getRandomEffectSamples.bcf <- function(object, ...){
 #' Z <- rbinom(n,1,pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
-#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
 #' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
@@ -1612,8 +1613,8 @@ getRandomEffectSamples.bcf <- function(object, ...){
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' group_ids_test <- group_ids[test_inds]
-#' group_ids_train <- group_ids[train_inds]
+#' rfx_group_ids_test <- rfx_group_ids[test_inds]
+#' rfx_group_ids_train <- rfx_group_ids[train_inds]
 #' rfx_basis_test <- rfx_basis[test_inds,]
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
@@ -1621,9 +1622,9 @@ getRandomEffectSamples.bcf <- function(object, ...){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  pi_train = pi_train, group_ids_train = group_ids_train, 
+#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1746,7 +1747,7 @@ convertBCFModelToJson <- function(object){
 #' Z <- rbinom(n,1,pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
-#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
 #' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
@@ -1771,8 +1772,8 @@ convertBCFModelToJson <- function(object){
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' group_ids_test <- group_ids[test_inds]
-#' group_ids_train <- group_ids[train_inds]
+#' rfx_group_ids_test <- rfx_group_ids[test_inds]
+#' rfx_group_ids_train <- rfx_group_ids[train_inds]
 #' rfx_basis_test <- rfx_basis[test_inds,]
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
@@ -1780,9 +1781,9 @@ convertBCFModelToJson <- function(object){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  pi_train = pi_train, group_ids_train = group_ids_train, 
+#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1822,7 +1823,7 @@ saveBCFModelToJsonFile <- function(object, filename){
 #' Z <- rbinom(n,1,pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
-#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
 #' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
@@ -1847,8 +1848,8 @@ saveBCFModelToJsonFile <- function(object, filename){
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' group_ids_test <- group_ids[test_inds]
-#' group_ids_train <- group_ids[train_inds]
+#' rfx_group_ids_test <- rfx_group_ids[test_inds]
+#' rfx_group_ids_train <- rfx_group_ids[train_inds]
 #' rfx_basis_test <- rfx_basis[test_inds,]
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
@@ -1856,9 +1857,9 @@ saveBCFModelToJsonFile <- function(object, filename){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  pi_train = pi_train, group_ids_train = group_ids_train, 
+#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1900,7 +1901,7 @@ saveBCFModelToJsonString <- function(object){
 #' Z <- rbinom(n,1,pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
-#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
 #' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
@@ -1925,8 +1926,8 @@ saveBCFModelToJsonString <- function(object){
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' group_ids_test <- group_ids[test_inds]
-#' group_ids_train <- group_ids[train_inds]
+#' rfx_group_ids_test <- rfx_group_ids[test_inds]
+#' rfx_group_ids_train <- rfx_group_ids[train_inds]
 #' rfx_basis_test <- rfx_basis[test_inds,]
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
@@ -1934,9 +1935,9 @@ saveBCFModelToJsonString <- function(object){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  pi_train = pi_train, group_ids_train = group_ids_train, 
+#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -2063,7 +2064,7 @@ createBCFModelFromJson <- function(json_object){
 #' Z <- rbinom(n,1,pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
-#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
 #' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
@@ -2088,8 +2089,8 @@ createBCFModelFromJson <- function(json_object){
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' group_ids_test <- group_ids[test_inds]
-#' group_ids_train <- group_ids[train_inds]
+#' rfx_group_ids_test <- rfx_group_ids[test_inds]
+#' rfx_group_ids_train <- rfx_group_ids[train_inds]
 #' rfx_basis_test <- rfx_basis[test_inds,]
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
@@ -2097,9 +2098,9 @@ createBCFModelFromJson <- function(json_object){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  pi_train = pi_train, group_ids_train = group_ids_train, 
+#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -2144,7 +2145,7 @@ createBCFModelFromJsonFile <- function(json_filename){
 #' Z <- rbinom(n,1,pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
-#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
 #' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
@@ -2169,16 +2170,16 @@ createBCFModelFromJsonFile <- function(json_filename){
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' group_ids_test <- group_ids[test_inds]
-#' group_ids_train <- group_ids[train_inds]
+#' rfx_group_ids_test <- rfx_group_ids[test_inds]
+#' rfx_group_ids_train <- rfx_group_ids[train_inds]
 #' rfx_basis_test <- rfx_basis[test_inds,]
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  pi_train = pi_train, group_ids_train = group_ids_train, 
+#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' # bcf_json <- saveBCFModelToJsonString(bcf_model)
@@ -2222,7 +2223,7 @@ createBCFModelFromJsonString <- function(json_string){
 #' Z <- rbinom(n,1,pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
-#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
 #' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
@@ -2247,16 +2248,16 @@ createBCFModelFromJsonString <- function(json_string){
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' group_ids_test <- group_ids[test_inds]
-#' group_ids_train <- group_ids[train_inds]
+#' rfx_group_ids_test <- rfx_group_ids[test_inds]
+#' rfx_group_ids_train <- rfx_group_ids[train_inds]
 #' rfx_basis_test <- rfx_basis[test_inds,]
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  pi_train = pi_train, group_ids_train = group_ids_train, 
+#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' # bcf_json_string_list <- list(saveBCFModelToJsonString(bcf_model))
