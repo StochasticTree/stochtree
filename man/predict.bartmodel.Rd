@@ -6,27 +6,27 @@
 \usage{
 \method{predict}{bartmodel}(
   object,
-  X_test,
-  W_test = NULL,
-  group_ids_test = NULL,
-  rfx_basis_test = NULL,
+  X,
+  leaf_basis = NULL,
+  rfx_group_ids = NULL,
+  rfx_basis = NULL,
   ...
 )
 }
 \arguments{
 \item{object}{Object of type \code{bart} containing draws of a regression forest and associated sampling outputs.}
 
-\item{X_test}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
+\item{X}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
 
-\item{W_test}{(Optional) Bases used for prediction (by e.g. dot product with leaf values). Default: \code{NULL}.}
+\item{leaf_basis}{(Optional) Bases used for prediction (by e.g. dot product with leaf values). Default: \code{NULL}.}
 
-\item{group_ids_test}{(Optional) Test set group labels used for an additive random effects model.
+\item{rfx_group_ids}{(Optional) Test set group labels used for an additive random effects model.
 We do not currently support (but plan to in the near future), test set evaluation for group labels
 that were not in the training set.}
 
-\item{rfx_basis_test}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
-
 \item{...}{(Optional) Other prediction parameters.}
+
+\item{rfx_basis_tes}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
 }
 \value{
 List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest.

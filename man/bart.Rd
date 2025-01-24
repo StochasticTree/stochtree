@@ -7,18 +7,18 @@
 bart(
   X_train,
   y_train,
-  W_train = NULL,
-  group_ids_train = NULL,
+  leaf_basis_train = NULL,
+  rfx_group_ids_train = NULL,
   rfx_basis_train = NULL,
   X_test = NULL,
-  W_test = NULL,
-  group_ids_test = NULL,
+  leaf_basis_test = NULL,
+  rfx_group_ids_test = NULL,
   rfx_basis_test = NULL,
   num_gfr = 5,
   num_burnin = 0,
   num_mcmc = 100,
   previous_model_json = NULL,
-  warmstart_sample_num = NULL,
+  previous_model_warmstart_sample_num = NULL,
   general_params = list(),
   mean_forest_params = list(),
   variance_forest_params = list()
@@ -33,26 +33,26 @@ that the column is ordered categorical).}
 
 \item{y_train}{Outcome to be modeled by the ensemble.}
 
-\item{W_train}{(Optional) Bases used to define a regression model \code{y ~ W} in
+\item{leaf_basis_train}{(Optional) Bases used to define a regression model \code{y ~ W} in
 each leaf of each regression tree. By default, BART assumes constant leaf node
 parameters, implicitly regressing on a constant basis of ones (i.e. \code{y ~ 1}).}
 
-\item{group_ids_train}{(Optional) Group labels used for an additive random effects model.}
+\item{rfx_group_ids_train}{(Optional) Group labels used for an additive random effects model.}
 
 \item{rfx_basis_train}{(Optional) Basis for "random-slope" regression in an additive random effects model.
-If \code{group_ids_train} is provided with a regression basis, an intercept-only random effects model
+If \code{rfx_group_ids_train} is provided with a regression basis, an intercept-only random effects model
 will be estimated.}
 
 \item{X_test}{(Optional) Test set of covariates used to define "out of sample" evaluation data.
 May be provided either as a dataframe or a matrix, but the format of \code{X_test} must be consistent with
 that of \code{X_train}.}
 
-\item{W_test}{(Optional) Test set of bases used to define "out of sample" evaluation data.
+\item{leaf_basis_test}{(Optional) Test set of bases used to define "out of sample" evaluation data.
 While a test set is optional, the structure of any provided test set must match that
-of the training set (i.e. if both X_train and W_train are provided, then a test set must
-consist of X_test and W_test with the same number of columns).}
+of the training set (i.e. if both \code{X_train} and \code{leaf_basis_train} are provided, then a test set must
+consist of \code{X_test} and \code{leaf_basis_test} with the same number of columns).}
 
-\item{group_ids_test}{(Optional) Test set group labels used for an additive random effects model.
+\item{rfx_group_ids_test}{(Optional) Test set group labels used for an additive random effects model.
 We do not currently support (but plan to in the near future), test set evaluation for group labels
 that were not in the training set.}
 
@@ -66,7 +66,7 @@ that were not in the training set.}
 
 \item{previous_model_json}{(Optional) JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: \code{NULL}.}
 
-\item{warmstart_sample_num}{(Optional) Sample number from \code{previous_model_json} that will be used to warmstart this BART sampler. One-indexed (so that the first sample is used for warm-start by setting \code{warmstart_sample_num = 1}). Default: \code{NULL}.}
+\item{previous_model_warmstart_sample_num}{(Optional) Sample number from \code{previous_model_json} that will be used to warmstart this BART sampler. One-indexed (so that the first sample is used for warm-start by setting \code{previous_model_warmstart_sample_num = 1}). Default: \code{NULL}.}
 
 \item{general_params}{(Optional) A list of general (non-forest-specific) model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
@@ -92,7 +92,7 @@ that were not in the training set.}
 \item \code{beta} Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{2}.
 \item \code{min_samples_leaf} Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: \code{5}.
 \item \code{max_depth} Maximum depth of any tree in the ensemble in the mean model. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
-\item \code{sample_sigma2_leaf} Whether or not to update the leaf scale variance parameter based on \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: \code{FALSE}.
+\item \code{sample_sigma2_leaf} Whether or not to update the leaf scale variance parameter based on \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)}. Cannot (currently) be set to true if \code{ncol(leaf_basis_train)>1}. Default: \code{FALSE}.
 \item \code{sigma2_leaf_init} Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees} if not set here.
 \item \code{sigma2_leaf_shape} Shape parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Default: \code{3}.
 \item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
