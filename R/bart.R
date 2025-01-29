@@ -1150,8 +1150,8 @@ getRandomEffectSamples.bartmodel <- function(object, ...){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' bart_json <- convertBARTModelToJson(bart_model)
-convertBARTModelToJson <- function(object){
+#' bart_json <- saveBARTModelToJson(bart_model)
+saveBARTModelToJson <- function(object){
     jsonobj <- createCppJson()
     
     if (is.null(object$model_params)) {
@@ -1260,7 +1260,7 @@ convertBARTModelToJson <- function(object){
 #' unlink(tmpjson)
 saveBARTModelToJsonFile <- function(object, filename){
     # Convert to Json
-    jsonobj <- convertBARTModelToJson(object)
+    jsonobj <- saveBARTModelToJson(object)
     
     # Save to file
     jsonobj$save_file(filename)
@@ -1297,7 +1297,7 @@ saveBARTModelToJsonFile <- function(object, filename){
 #' bart_json_string <- saveBARTModelToJsonString(bart_model)
 saveBARTModelToJsonString <- function(object){
     # Convert to Json
-    jsonobj <- convertBARTModelToJson(object)
+    jsonobj <- saveBARTModelToJson(object)
     
     # Dump to string
     return(jsonobj$return_json_string())
@@ -1333,7 +1333,7 @@ saveBARTModelToJsonString <- function(object){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' bart_json <- convertBARTModelToJson(bart_model)
+#' bart_json <- saveBARTModelToJson(bart_model)
 #' bart_model_roundtrip <- createBARTModelFromJson(bart_json)
 createBARTModelFromJson <- function(json_object){
     # Initialize the BCF model
@@ -1536,7 +1536,7 @@ createBARTModelFromJsonString <- function(json_string){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' bart_json <- list(convertBARTModelToJson(bart_model))
+#' bart_json <- list(saveBARTModelToJson(bart_model))
 #' bart_model_roundtrip <- createBARTModelFromCombinedJson(bart_json)
 createBARTModelFromCombinedJson <- function(json_object_list){
     # Initialize the BCF model

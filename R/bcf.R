@@ -1629,8 +1629,8 @@ getRandomEffectSamples.bcf <- function(object, ...){
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
-#' # bcf_json <- convertBCFModelToJson(bcf_model)
-convertBCFModelToJson <- function(object){
+#' # bcf_json <- saveBCFModelToJson(bcf_model)
+saveBCFModelToJson <- function(object){
     jsonobj <- createCppJson()
     
     if (is.null(object$model_params)) {
@@ -1791,7 +1791,7 @@ convertBCFModelToJson <- function(object){
 #' # saveBCFModelToJsonFile(bcf_model, "test.json")
 saveBCFModelToJsonFile <- function(object, filename){
     # Convert to Json
-    jsonobj <- convertBCFModelToJson(object)
+    jsonobj <- saveBCFModelToJson(object)
     
     # Save to file
     jsonobj$save_file(filename)
@@ -1867,7 +1867,7 @@ saveBCFModelToJsonFile <- function(object, filename){
 #' # saveBCFModelToJsonString(bcf_model)
 saveBCFModelToJsonString <- function(object){
     # Convert to Json
-    jsonobj <- convertBCFModelToJson(object)
+    jsonobj <- saveBCFModelToJson(object)
     
     # Dump to string
     return(jsonobj$return_json_string())
@@ -1942,8 +1942,8 @@ saveBCFModelToJsonString <- function(object){
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
-#' # bcf_json <- convertBCFModelToJson(bcf_model)
-#' # bcf_model_roundtrip <- createBCFModelFromJson(bcf_json)
+#' bcf_json <- saveBCFModelToJson(bcf_model)
+#' bcf_model_roundtrip <- createBCFModelFromJson(bcf_json)
 createBCFModelFromJson <- function(json_object){
     # Initialize the BCF model
     output <- list()
