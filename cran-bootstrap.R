@@ -10,30 +10,39 @@
 # which is MIT licensed with the following copyright:
 # Copyright (c) Microsoft Corporation
 # 
-# Includes one command line argument:
+# Includes two command line arguments:
 #   include_vignettes : 1 to include the vignettes folder in the R package subfolder
-#                       0 to exclude vignettes
+#                       0 to exclude vignettes (overriden to 1 if pkgdown_build = 1 below)
+# 
+#   pkgdown_build : 1 to include pkgdown specific files (R_Readm)
+#                   0 to exclude vignettes
 # 
 # Run this script from the command line via
 # 
-# Explicitly include vignettes
-# ----------------------------
-#   Rscript cran-bootstrap.R 1
+# Explicitly include vignettes and build pkgdown site
+# ---------------------------------------------------
+#   Rscript cran-bootstrap.R 1 1
 # 
-# Explicitly exclude vignettes
-# ----------------------------
-#   Rscript cran-bootstrap.R 0
+# Explicitly include vignettes but don't build pkgdown site
+# ---------------------------------------------------------
+#   Rscript cran-bootstrap.R 1 0
 # 
-# Exclude vignettes by default
-# ----------------------------
+# Explicitly exclude vignettes and don't build pkgdown site
+# ---------------------------------------------------------
+#   Rscript cran-bootstrap.R 0 0
+# 
+# Exclude vignettes and pkgdown by default
+# ----------------------------------------
 #   Rscript cran-bootstrap.R
 
 # Unpack command line arguments
 args <- commandArgs(trailingOnly = T)
 if (length(args) > 0){
     include_vignettes <- as.logical(as.integer(args[1]))
+    pkgdown_build <- as.logical(as.integer(args[2]))
 } else{
     include_vignettes <- F
+    pkgdown_build <- F
 }
 
 # Create the stochtree_cran folder
@@ -64,6 +73,27 @@ if (include_vignettes) {
     ) 
 }
 pkg_core_files_dst <- file.path(cran_dir, pkg_core_files)
+
+# Handle README separately (change name from R_README.md to README.md)
+readme_file_src <- file.path("R_README.md")
+readme_file_dst <- file.path(cran_dir, c("README.md"))
+if (file.copy(readme_file_src, readme_file_dst)) {
+    cat("Copied R README.md to CRAN subdirectory\n")
+} else {
+    stop("Failed to copy R README.md")
+}
+
+# Copy _pkgdown.yml if requested
+if (pkgdown_build) {
+    pkgdown_yml_src <- file.path("_pkgdown.yml")
+    pkgdown_yml_dst <- file.path(cran_dir, c("_pkgdown.yml"))
+    if (file.copy(pkgdown_yml_src, pkgdown_yml_dst)) {
+        cat("Copied _pkgdown.yml to CRAN subdirectory\n")
+    } else {
+        stop("Failed to copy _pkgdown.yml")
+    }
+}
+
 # Handle tests separately (move from test/R/ folder to tests/ folder)
 test_files_src <- list.files("test/R", recursive = TRUE, full.names = TRUE)
 test_files_dst <- file.path(cran_dir, gsub("test/R", "tests", test_files_src))
