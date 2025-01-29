@@ -80,10 +80,10 @@ tau_test <- tau_x[test_inds]
 tau_train <- tau_x[train_inds]
 bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train)
 preds <- predict(bcf_model, X_test, Z_test, pi_test)
-# plot(rowMeans(preds$mu_hat), mu_test, xlab = "predicted",
-#      ylab = "actual", main = "Prognostic function")
-# abline(0,1,col="red",lty=3,lwd=3)
-# plot(rowMeans(preds$tau_hat), tau_test, xlab = "predicted", 
-#      ylab = "actual", main = "Treatment effect")
-# abline(0,1,col="red",lty=3,lwd=3)
+plot(rowMeans(preds$mu_hat), mu_test, xlab = "predicted",
+     ylab = "actual", main = "Prognostic function")
+abline(0,1,col="red",lty=3,lwd=3)
+plot(rowMeans(preds$tau_hat), tau_test, xlab = "predicted", 
+     ylab = "actual", main = "Treatment effect")
+abline(0,1,col="red",lty=3,lwd=3)
 }

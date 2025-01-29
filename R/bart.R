@@ -98,8 +98,8 @@
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test)
-#' # plot(rowMeans(bart_model$y_hat_test), y_test, xlab = "predicted", ylab = "actual")
-#' # abline(0,1,col="red",lty=3,lwd=3)
+#' plot(rowMeans(bart_model$y_hat_test), y_test, xlab = "predicted", ylab = "actual")
+#' abline(0,1,col="red",lty=3,lwd=3)
 bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train = NULL, 
                  rfx_basis_train = NULL, X_test = NULL, leaf_basis_test = NULL, 
                  rfx_group_ids_test = NULL, rfx_basis_test = NULL, 
@@ -942,9 +942,9 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' y_hat_test <- predict(bart_model, X_test)
-#' # plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
-#' # abline(0,1,col="red",lty=3,lwd=3)
+#' y_hat_test <- predict(bart_model, X_test)$y_hat
+#' plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
+#' abline(0,1,col="red",lty=3,lwd=3)
 predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL, rfx_basis = NULL, ...){
     # Preprocess covariates
     if ((!is.data.frame(X)) && (!is.matrix(X))) {

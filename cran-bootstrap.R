@@ -142,6 +142,16 @@ if (!include_vignettes) {
     writeLines(description_lines, cran_description)
 }
 
+# Remove vignettes from _pkgdown.yml if no vignettes
+if ((!include_vignettes) & (pkgdown_build)) {
+    pkgdown_yml <- file.path(cran_dir, "_pkgdown.yml")
+    pkgdown_yml_lines <- readLines(pkgdown_yml)
+    articles_begin <- grep("articles:", pkgdown_yml_lines)
+    articles_end <- length(pkgdown_yml_lines)
+    pkgdown_yml_lines <- pkgdown_yml_lines[-(articles_begin:articles_end)]
+    writeLines(pkgdown_yml_lines, pkgdown_yml)
+}
+
 # Copy fast_double_parser header to an include/ subdirectory of src/
 header_folders <- c("nlohmann", "stochtree")
 header_files_to_vendor_src <- c()
