@@ -91,7 +91,7 @@ reference:
   - createForestContainer
   - CppRNG
   - createRNG
-  - calibrate_inverse_gamma_error_variance
+  - calibrateInverseGammaErrorVariance
   - preprocessParams
   - computeMaxLeafIndex
   - computeForestLeafIndices

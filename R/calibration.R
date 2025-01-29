@@ -21,7 +21,7 @@
 #' lambda <- calibrate_inverse_gamma_error_variance(y, X, nu = nu)
 #' sigma2hat <- mean(resid(lm(y~X))^2)
 #' mean(var(y)/rgamma(100000, nu, rate = nu*lambda) < sigma2hat)
-calibrate_inverse_gamma_error_variance <- function(y, X, W = NULL, nu = 3, quant = 0.9, standardize = TRUE) {
+calibrateInverseGammaErrorVariance <- function(y, X, W = NULL, nu = 3, quant = 0.9, standardize = TRUE) {
     # Compute regression basis
     if (!is.null(W)) basis <- cbind(X, W)
     else basis <- X
