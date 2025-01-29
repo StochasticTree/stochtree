@@ -2194,12 +2194,222 @@ createBCFModelFromJsonString <- function(json_string){
     return(bcf_object)
 }
 
-#' Convert a list of (in-memory) JSON strings that represent BART models to a single combined BART model object 
+#' Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object 
 #' which can be used for prediction, etc...
 #'
-#' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BART model
+#' @param json_object_list List of objects of type `CppJson` containing Json representation of a BCF model
 #'
-#' @return Object of type `bartmodel`
+#' @return Object of type `bcf`
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' x1 <- rnorm(n)
+#' x2 <- rnorm(n)
+#' x3 <- rnorm(n)
+#' x4 <- rnorm(n)
+#' x5 <- rnorm(n)
+#' X <- cbind(x1,x2,x3,x4,x5)
+#' p <- ncol(X)
+#' g <- function(x) {ifelse(x[,5] < -0.44,2,ifelse(x[,5] < 0.44,-1,4))}
+#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
+#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
+#' tau1 <- function(x) {rep(3,nrow(x))}
+#' tau2 <- function(x) {1+2*x[,2]*(x[,4] > 0)}
+#' mu_x <- mu1(X)
+#' tau_x <- tau2(X)
+#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
+#' Z <- rbinom(n,1,pi_x)
+#' E_XZ <- mu_x + Z*tau_x
+#' snr <- 3
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
+#' rfx_basis <- cbind(1, runif(n, -1, 1))
+#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
+#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
+#' X <- as.data.frame(X)
+#' X$x4 <- factor(X$x4, ordered = TRUE)
+#' X$x5 <- factor(X$x5, ordered = TRUE)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' pi_test <- pi_x[test_inds]
+#' pi_train <- pi_x[train_inds]
+#' Z_test <- Z[test_inds]
+#' Z_train <- Z[train_inds]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' mu_test <- mu_x[test_inds]
+#' mu_train <- mu_x[train_inds]
+#' tau_test <- tau_x[test_inds]
+#' tau_train <- tau_x[train_inds]
+#' rfx_group_ids_test <- rfx_group_ids[test_inds]
+#' rfx_group_ids_train <- rfx_group_ids[train_inds]
+#' rfx_basis_test <- rfx_basis[test_inds,]
+#' rfx_basis_train <- rfx_basis[train_inds,]
+#' rfx_term_test <- rfx_term[test_inds]
+#' rfx_term_train <- rfx_term[train_inds]
+#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
+#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
+#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  rfx_basis_test = rfx_basis_test, 
+#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
+#' # bcf_json_list <- list(saveBCFModelToJson(bcf_model))
+#' # bcf_model_roundtrip <- createBCFModelFromCombinedJson(bcf_json_list)
+createBCFModelFromCombinedJson <- function(json_string_list){
+    # Initialize the BCF model
+    output <- list()
+    
+    # For scalar / preprocessing details which aren't sample-dependent, 
+    # defer to the first json
+    json_object_default <- json_object_list[[1]]
+    
+    # Unpack the forests
+    output[["forests_mu"]] <- loadForestContainerCombinedJson(json_object_list, "forest_0")
+    output[["forests_tau"]] <- loadForestContainerCombinedJson(json_object_list, "forest_1")
+    include_variance_forest <- json_object_default$get_boolean("include_variance_forest")
+    if (include_variance_forest) {
+        output[["forests_variance"]] <- loadForestContainerCombinedJson(json_object_list, "forest_2")
+    }
+    
+    # Unpack metadata
+    train_set_metadata = list()
+    train_set_metadata[["num_numeric_vars"]] <- json_object_default$get_scalar("num_numeric_vars")
+    train_set_metadata[["num_ordered_cat_vars"]] <- json_object_default$get_scalar("num_ordered_cat_vars")
+    train_set_metadata[["num_unordered_cat_vars"]] <- json_object_default$get_scalar("num_unordered_cat_vars")
+    if (train_set_metadata[["num_numeric_vars"]] > 0) {
+        train_set_metadata[["numeric_vars"]] <- json_object_default$get_string_vector("numeric_vars")
+    }
+    if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
+        train_set_metadata[["ordered_cat_vars"]] <- json_object_default$get_string_vector("ordered_cat_vars")
+        train_set_metadata[["ordered_unique_levels"]] <- json_object_default$get_string_list("ordered_unique_levels", train_set_metadata[["ordered_cat_vars"]])
+    }
+    if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
+        train_set_metadata[["unordered_cat_vars"]] <- json_object_default$get_string_vector("unordered_cat_vars")
+        train_set_metadata[["unordered_unique_levels"]] <- json_object_default$get_string_list("unordered_unique_levels", train_set_metadata[["unordered_cat_vars"]])
+    }
+    output[["train_set_metadata"]] <- train_set_metadata
+    
+    # Unpack model params
+    model_params = list()
+    model_params[["outcome_scale"]] <- json_object_default$get_scalar("outcome_scale")
+    model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
+    model_params[["standardize"]] <- json_object_default$get_boolean("standardize")
+    model_params[["initial_sigma2"]] <- json_object_default$get_scalar("initial_sigma2")
+    model_params[["sample_sigma_global"]] <- json_object_default$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf_mu"]] <- json_object_default$get_boolean("sample_sigma_leaf_mu")
+    model_params[["sample_sigma_leaf_tau"]] <- json_object_default$get_boolean("sample_sigma_leaf_tau")
+    model_params[["include_variance_forest"]] <- include_variance_forest
+    model_params[["propensity_covariate"]] <- json_object_default$get_string("propensity_covariate")
+    model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
+    model_params[["has_rfx_basis"]] <- json_object_default$get_boolean("has_rfx_basis")
+    model_params[["num_rfx_basis"]] <- json_object_default$get_scalar("num_rfx_basis")
+    model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
+    model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
+    model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
+    model_params[["adaptive_coding"]] <- json_object_default$get_boolean("adaptive_coding")
+    model_params[["internal_propensity_model"]] <- json_object_default$get_boolean("internal_propensity_model")
+    
+    # Combine values that are sample-specific
+    for (i in 1:length(json_object_list)) {
+        json_object <- json_object_list[[i]]
+        if (i == 1) {
+            model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
+        } else {
+            prev_json <- json_object_list[[i-1]]
+            model_params[["num_gfr"]] <- model_params[["num_gfr"]] + json_object$get_scalar("num_gfr")
+            model_params[["num_burnin"]] <- model_params[["num_burnin"]] + json_object$get_scalar("num_burnin")
+            model_params[["num_mcmc"]] <- model_params[["num_mcmc"]] + json_object$get_scalar("num_mcmc")
+            model_params[["num_samples"]] <- model_params[["num_samples"]] + json_object$get_scalar("num_samples")
+        }
+    }
+    output[["model_params"]] <- model_params
+    
+    # Unpack sampled parameters
+    if (model_params[["sample_sigma_global"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma2_samples"]] <- json_object$get_vector("sigma2_samples", "parameters")
+            } else {
+                output[["sigma2_samples"]] <- c(output[["sigma2_samples"]], json_object$get_vector("sigma2_samples", "parameters"))
+            }
+        }
+    }
+    if (model_params[["sample_sigma_leaf_mu"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma_leaf_mu_samples"]] <- json_object$get_vector("sigma_leaf_mu_samples", "parameters")
+            } else {
+                output[["sigma_leaf_mu_samples"]] <- c(output[["sigma_leaf_mu_samples"]], json_object$get_vector("sigma_leaf_mu_samples", "parameters"))
+            }
+        }
+    }
+    if (model_params[["sample_sigma_leaf_tau"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma_leaf_tau_samples"]] <- json_object$get_vector("sigma_leaf_tau_samples", "parameters")
+            } else {
+                output[["sigma_leaf_tau_samples"]] <- c(output[["sigma_leaf_tau_samples"]], json_object$get_vector("sigma_leaf_tau_samples", "parameters"))
+            }
+        }
+    }
+    if (model_params[["sample_sigma_leaf_tau"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["sigma_leaf_tau_samples"]] <- json_object$get_vector("sigma_leaf_tau_samples", "parameters")
+            } else {
+                output[["sigma_leaf_tau_samples"]] <- c(output[["sigma_leaf_tau_samples"]], json_object$get_vector("sigma_leaf_tau_samples", "parameters"))
+            }
+        }
+    }
+    if (model_params[["adaptive_coding"]]) {
+        for (i in 1:length(json_object_list)) {
+            json_object <- json_object_list[[i]]
+            if (i == 1) {
+                output[["b_1_samples"]] <- json_object$get_vector("b_1_samples", "parameters")
+                output[["b_0_samples"]] <- json_object$get_vector("b_0_samples", "parameters")
+            } else {
+                output[["b_1_samples"]] <- c(output[["b_1_samples"]], json_object$get_vector("b_1_samples", "parameters"))
+                output[["b_0_samples"]] <- c(output[["b_0_samples"]], json_object$get_vector("b_0_samples", "parameters"))
+            }
+        }
+    }
+    
+    # Unpack random effects
+    if (model_params[["has_rfx"]]) {
+        output[["rfx_unique_group_ids"]] <- json_object_default$get_string_vector("rfx_unique_group_ids")
+        output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(json_object_list, 0)
+    }
+    
+    # Unpack covariate preprocessor
+    preprocessor_metadata_string <- json_object_default$get_string("preprocessor_metadata")
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+        preprocessor_metadata_string
+    )
+    
+    class(output) <- "bcf"
+    return(output)
+}
+
+#' Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object 
+#' which can be used for prediction, etc...
+#'
+#' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BCF model
+#'
+#' @return Object of type `bcf`
 #' @export
 #'
 #' @examples
@@ -2416,4 +2626,3 @@ createBCFModelFromCombinedJsonString <- function(json_string_list){
     class(output) <- "bcf"
     return(output)
 }
-

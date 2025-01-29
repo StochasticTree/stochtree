@@ -30,25 +30,26 @@ reference:
   - loadForestContainerJson
   - loadForestContainerCombinedJson
   - loadForestContainerCombinedJsonString
-  - loadRandomEffectSamplesJson
   - loadVectorJson
   - loadScalarJson
+  - loadRandomEffectSamplesJson
+  - loadRandomEffectSamplesCombinedJson
+  - loadRandomEffectSamplesCombinedJsonString
   - saveBARTModelToJson
   - saveBARTModelToJsonFile
   - saveBARTModelToJsonString
-  - saveBCFModelToJson
-  - saveBCFModelToJsonFile
-  - saveBCFModelToJsonString
-  - createBARTModelFromCombinedJson
-  - createBARTModelFromCombinedJsonString
   - createBARTModelFromJson
   - createBARTModelFromJsonFile
   - createBARTModelFromJsonString
-  - loadRandomEffectSamplesCombinedJson
-  - loadRandomEffectSamplesCombinedJsonString
+  - createBARTModelFromCombinedJson
+  - createBARTModelFromCombinedJsonString
+  - saveBCFModelToJson
+  - saveBCFModelToJsonFile
+  - saveBCFModelToJsonString
   - createBCFModelFromJsonFile
   - createBCFModelFromJsonString
   - createBCFModelFromJson
+  - createBCFModelFromCombinedJson
   - createBCFModelFromCombinedJsonString
 
 - subtitle: Data
