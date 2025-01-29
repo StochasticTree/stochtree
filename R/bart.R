@@ -536,7 +536,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     
     # Random number generator (std::mt19937)
     if (is.null(random_seed)) random_seed = sample(1:10000,1,F)
-    rng <- createRNG(random_seed)
+    rng <- createCppRNG(random_seed)
     
     # Sampling data structures
     feature_types <- as.integer(feature_types)
@@ -549,11 +549,11 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     
     # Container of forest samples
     if (include_mean_forest) {
-        forest_samples_mean <- createForestContainer(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
+        forest_samples_mean <- createForestSamples(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
         active_forest_mean <- createForest(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
     }
     if (include_variance_forest) {
-        forest_samples_variance <- createForestContainer(num_trees_variance, 1, TRUE, TRUE)
+        forest_samples_variance <- createForestSamples(num_trees_variance, 1, TRUE, TRUE)
         active_forest_variance <- createForest(num_trees_variance, 1, TRUE, TRUE)
     }
     

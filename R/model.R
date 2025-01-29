@@ -170,7 +170,7 @@ ForestModel <- R6::R6Class(
 #'
 #' @return `CppRng` object
 #' @export
-createRNG <- function(random_seed = -1){
+createCppRNG <- function(random_seed = -1){
     return(invisible((
         CppRNG$new(random_seed)
     )))

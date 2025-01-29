@@ -18,7 +18,7 @@
 #' X <- matrix(runif(n*p), ncol = p)
 #' y <- 10*X[,1] - 20*X[,2] + rnorm(n)
 #' nu <- 3
-#' lambda <- calibrate_inverse_gamma_error_variance(y, X, nu = nu)
+#' lambda <- calibrateInverseGammaErrorVariance(y, X, nu = nu)
 #' sigma2hat <- mean(resid(lm(y~X))^2)
 #' mean(var(y)/rgamma(100000, nu, rate = nu*lambda) < sigma2hat)
 calibrateInverseGammaErrorVariance <- function(y, X, W = NULL, nu = 3, quant = 0.9, standardize = TRUE) {

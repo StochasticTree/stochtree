@@ -128,7 +128,7 @@ if (leaf_regression) {
 outcome <- createOutcome(resid)
 
 # Random number generator (std::mt19937)
-rng <- createRNG()
+rng <- createCppRNG()
 
 # Sampling data structures
 forest_model <- createForestModel(forest_dataset, feature_types, 
@@ -139,10 +139,10 @@ forest_model <- createForestModel(forest_dataset, feature_types,
 # container of forest samples (which is written to when 
 # a sample is not discarded due to burn-in / thinning)
 if (leaf_regression) {
-    forest_samples <- createForestContainer(num_trees, 1, F)
+    forest_samples <- createForestSamples(num_trees, 1, F)
     active_forest <- createForest(num_trees, 1, F)
 } else {
-    forest_samples <- createForestContainer(num_trees, 1, T)
+    forest_samples <- createForestSamples(num_trees, 1, T)
     active_forest <- createForest(num_trees, 1, T)
 }
 ```
@@ -317,7 +317,7 @@ if (leaf_regression) {
 outcome <- createOutcome(resid)
 
 # Random number generator (std::mt19937)
-rng <- createRNG()
+rng <- createCppRNG()
 
 # Sampling data structures
 forest_model <- createForestModel(forest_dataset, feature_types, 
@@ -328,10 +328,10 @@ forest_model <- createForestModel(forest_dataset, feature_types,
 # container of forest samples (which is written to when 
 # a sample is not discarded due to burn-in / thinning)
 if (leaf_regression) {
-    forest_samples <- createForestContainer(num_trees, 1, F)
+    forest_samples <- createForestSamples(num_trees, 1, F)
     active_forest <- createForest(num_trees, 1, F)
 } else {
-    forest_samples <- createForestContainer(num_trees, 1, T)
+    forest_samples <- createForestSamples(num_trees, 1, T)
     active_forest <- createForest(num_trees, 1, T)
 }
 
@@ -552,7 +552,7 @@ if (leaf_regression) {
 outcome <- createOutcome(resid)
 
 # Random number generator (std::mt19937)
-rng <- createRNG()
+rng <- createCppRNG()
 
 # Sampling data structures
 forest_model <- createForestModel(forest_dataset, feature_types, 
@@ -563,10 +563,10 @@ forest_model <- createForestModel(forest_dataset, feature_types,
 # container of forest samples (which is written to when 
 # a sample is not discarded due to burn-in / thinning)
 if (leaf_regression) {
-    forest_samples <- createForestContainer(num_trees, 1, F)
+    forest_samples <- createForestSamples(num_trees, 1, F)
     active_forest <- createForest(num_trees, 1, F)
 } else {
-    forest_samples <- createForestContainer(num_trees, 1, T)
+    forest_samples <- createForestSamples(num_trees, 1, T)
     active_forest <- createForest(num_trees, 1, T)
 }
 
@@ -786,7 +786,7 @@ if (leaf_regression) {
 outcome <- createOutcome(resid)
 
 # Random number generator (std::mt19937)
-rng <- createRNG()
+rng <- createCppRNG()
 
 # Sampling data structures
 forest_model <- createForestModel(forest_dataset, feature_types, 
@@ -797,10 +797,10 @@ forest_model <- createForestModel(forest_dataset, feature_types,
 # container of forest samples (which is written to when 
 # a sample is not discarded due to burn-in / thinning)
 if (leaf_regression) {
-    forest_samples <- createForestContainer(num_trees, 1, F)
+    forest_samples <- createForestSamples(num_trees, 1, F)
     active_forest <- createForest(num_trees, 1, F)
 } else {
-    forest_samples <- createForestContainer(num_trees, 1, T)
+    forest_samples <- createForestSamples(num_trees, 1, T)
     active_forest <- createForest(num_trees, 1, T)
 }
 ```
@@ -1132,7 +1132,7 @@ forest_dataset_tau <- createForestDataset(X_tau, tau_basis)
 outcome <- createOutcome(resid)
 
 # Random number generator (std::mt19937)
-rng <- createRNG()
+rng <- createCppRNG()
 
 # Sampling data structures
 forest_model_mu <- createForestModel(
@@ -1145,9 +1145,9 @@ forest_model_tau <- createForestModel(
 )
 
 # Container of forest samples
-forest_samples_mu <- createForestContainer(num_trees_mu, 1, T)
+forest_samples_mu <- createForestSamples(num_trees_mu, 1, T)
 active_forest_mu <- createForest(num_trees_mu, 1, T)
-forest_samples_tau <- createForestContainer(num_trees_tau, 1, F)
+forest_samples_tau <- createForestSamples(num_trees_tau, 1, F)
 active_forest_tau <- createForest(num_trees_tau, 1, F)
 
 # Initialize the leaves of each tree in the prognostic forest

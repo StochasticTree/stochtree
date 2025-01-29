@@ -88,9 +88,9 @@ reference:
   - ForestModel
   - createForestModel
   - ForestSamples
-  - createForestContainer
+  - createForestSamples
   - CppRNG
-  - createRNG
+  - createCppRNG
   - calibrateInverseGammaErrorVariance
   - preprocessParams
   - computeMaxLeafIndex

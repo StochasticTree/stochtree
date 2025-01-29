@@ -760,7 +760,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     
     # Random number generator (std::mt19937)
     if (is.null(random_seed)) random_seed = sample(1:10000,1,F)
-    rng <- createRNG(random_seed)
+    rng <- createCppRNG(random_seed)
     
     # Sampling data structures
     forest_model_mu <- createForestModel(forest_dataset_train, feature_types, num_trees_mu, nrow(X_train), alpha_mu, beta_mu, min_samples_leaf_mu, max_depth_mu)
@@ -770,12 +770,12 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     }
     
     # Container of forest samples
-    forest_samples_mu <- createForestContainer(num_trees_mu, 1, T)
-    forest_samples_tau <- createForestContainer(num_trees_tau, 1, F)
+    forest_samples_mu <- createForestSamples(num_trees_mu, 1, T)
+    forest_samples_tau <- createForestSamples(num_trees_tau, 1, F)
     active_forest_mu <- createForest(num_trees_mu, 1, T)
     active_forest_tau <- createForest(num_trees_tau, 1, F)
     if (include_variance_forest) {
-        forest_samples_variance <- createForestContainer(num_trees_variance, 1, TRUE, TRUE)
+        forest_samples_variance <- createForestSamples(num_trees_variance, 1, TRUE, TRUE)
         active_forest_variance <- createForest(num_trees_variance, 1, TRUE, TRUE)
     }
     

@@ -11,7 +11,7 @@ test_that("Prediction from trees with constant leaf", {
     n <- nrow(X)
     p <- ncol(X)
     forest_dataset = createForestDataset(X)
-    forest_samples <- createForestContainer(num_trees, 1, T)
+    forest_samples <- createForestSamples(num_trees, 1, T)
     
     # Initialize a forest with constant root predictions
     forest_samples$add_forest_with_constant_leaves(0.)
@@ -65,7 +65,7 @@ test_that("Prediction from trees with univariate leaf basis", {
     n <- nrow(X)
     p <- ncol(X)
     forest_dataset = createForestDataset(X,W)
-    forest_samples <- createForestContainer(num_trees, 1, F)
+    forest_samples <- createForestSamples(num_trees, 1, F)
     
     # Initialize a forest with constant root predictions
     forest_samples$add_forest_with_constant_leaves(0.)
@@ -123,7 +123,7 @@ test_that("Prediction from trees with multivariate leaf basis", {
     p <- ncol(X)
     W = matrix(c(1,1,1,1,1,1,-1,-1,-1,1,1,1), byrow=F, nrow=6)
     forest_dataset = createForestDataset(X,W)
-    forest_samples <- createForestContainer(num_trees, output_dim, F)
+    forest_samples <- createForestSamples(num_trees, output_dim, F)
     
     # Initialize a forest with constant root predictions
     forest_samples$add_forest_with_constant_leaves(c(1.,1.))

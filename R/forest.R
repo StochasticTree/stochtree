@@ -758,7 +758,7 @@ Forest <- R6::R6Class(
 #'
 #' @return `ForestSamples` object
 #' @export
-createForestContainer <- function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+createForestSamples <- function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
     return(invisible((
         ForestSamples$new(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
     )))
