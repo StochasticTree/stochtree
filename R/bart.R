@@ -1225,68 +1225,6 @@ convertBARTModelToJson <- function(object){
     return(jsonobj)
 }
 
-#' Convert in-memory BART model objects (forests, random effects, vectors) to in-memory JSON. 
-#' This function is primarily a convenience function for serialization / deserialization in a parallel BART sampler.
-#'
-#' @param param_list List containing high-level model state parameters
-#' @param mean_forest Container of conditional mean forest samples (optional). Default: `NULL`.
-#' @param variance_forest Container of conditional variance forest samples (optional). Default: `NULL`.
-#' @param rfx_samples Container of random effect samples (optional). Default: `NULL`.
-#' @param global_variance_samples Vector of global error variance samples (optional). Default: `NULL`.
-#' @param local_variance_samples Vector of leaf scale samples (optional). Default: `NULL`.
-#'
-#' @return Object of type `CppJson`
-convertBARTStateToJson <- function(param_list, mean_forest = NULL, variance_forest = NULL, 
-                                   rfx_samples = NULL, global_variance_samples = NULL, 
-                                   local_variance_samples = NULL) {
-    # Initialize JSON object
-    jsonobj <- createCppJson()
-    
-    # Add global parameters
-    jsonobj$add_scalar("outcome_scale", param_list$outcome_scale)
-    jsonobj$add_scalar("outcome_mean", param_list$outcome_mean)
-    jsonobj$add_boolean("standardize", param_list$standardize)
-    jsonobj$add_scalar("sigma2_init", param_list$sigma2_init)
-    jsonobj$add_boolean("sample_sigma_global", param_list$sample_sigma_global)
-    jsonobj$add_boolean("sample_sigma_leaf", param_list$sample_sigma_leaf)
-    jsonobj$add_boolean("include_mean_forest", param_list$include_mean_forest)
-    jsonobj$add_boolean("include_variance_forest", param_list$include_variance_forest)
-    jsonobj$add_boolean("has_rfx", param_list$has_rfx)
-    jsonobj$add_boolean("has_rfx_basis", param_list$has_rfx_basis)
-    jsonobj$add_scalar("num_rfx_basis", param_list$num_rfx_basis)
-    jsonobj$add_scalar("num_gfr", param_list$num_gfr)
-    jsonobj$add_scalar("num_burnin", param_list$num_burnin)
-    jsonobj$add_scalar("num_mcmc", param_list$num_mcmc)
-    jsonobj$add_scalar("num_covariates", param_list$num_covariates)
-    jsonobj$add_scalar("num_basis", param_list$num_basis)
-    jsonobj$add_scalar("keep_every", param_list$keep_every)
-    jsonobj$add_boolean("requires_basis", param_list$requires_basis)
-    
-    # Add the forests
-    if (param_list$include_mean_forest) {
-        jsonobj$add_forest(mean_forest)
-    }
-    if (param_list$include_variance_forest) {
-        jsonobj$add_forest(variance_forest)
-    }
-    
-    # Add sampled parameters
-    if (param_list$sample_sigma_global) {
-        jsonobj$add_vector("sigma2_global_samples", global_variance_samples, "parameters")
-    }
-    if (param_list$sample_sigma_leaf) {
-        jsonobj$add_vector("sigma2_leaf_samples", local_variance_samples, "parameters")
-    }
-    
-    # Add random effects
-    if (param_list$has_rfx) {
-        jsonobj$add_random_effects(rfx_samples)
-        jsonobj$add_string_vector("rfx_unique_group_ids", param_list$rfx_unique_group_ids)
-    }
-    
-    return(jsonobj)
-}
-
 #' Convert the persistent aspects of a BART model to (in-memory) JSON and save to a file
 #'
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.

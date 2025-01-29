@@ -34,7 +34,6 @@ reference:
   - loadVectorJson
   - loadScalarJson
   - convertBARTModelToJson
-  - convertBARTStateToJson
   - createBARTModelFromCombinedJson
   - createBARTModelFromCombinedJsonString
   - createBARTModelFromJson
