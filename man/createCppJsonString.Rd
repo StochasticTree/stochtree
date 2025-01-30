@@ -15,3 +15,10 @@ createCppJsonString(json_string)
 \description{
 Create a C++ Json object from a Json string
 }
+\examples{
+example_vec <- runif(10)
+example_json <- createCppJson()
+example_json$add_vector("myvec", example_vec)
+example_json_string <- example_json$return_json_string()
+example_json_roundtrip <- createCppJsonString(example_json_string)
+}

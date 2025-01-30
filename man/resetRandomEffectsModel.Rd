@@ -18,3 +18,25 @@ resetRandomEffectsModel(rfx_model, rfx_samples, sample_num, sigma_alpha_init)
 \description{
 Reset a \code{RandomEffectsModel} object based on the parameters indexed by \code{sample_num} in a \code{RandomEffectsSamples} object
 }
+\examples{
+n <- 100
+p <- 10
+rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+rfx_basis <- matrix(rep(1.0, n), ncol=1)
+rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
+y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+y_std <- (y-mean(y))/sd(y)
+outcome <- createOutcome(y_std)
+rng <- createCppRNG(1234)
+num_groups <- length(unique(rfx_group_ids))
+num_components <- ncol(rfx_basis)
+rfx_model <- createRandomEffectsModel(num_components, num_groups)
+rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
+rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+for (i in 1:3) {
+    rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome, 
+                                   rfx_tracker=rfx_tracker, rfx_samples=rfx_samples, 
+                                   keep_sample=TRUE, global_variance=1.0, rng=rng)
+}
+resetRandomEffectsModel(rfx_model, rfx_samples, 0, 1.0)
+}

@@ -15,3 +15,8 @@ createOutcome(outcome)
 \description{
 Create an outcome object
 }
+\examples{
+X <- matrix(runif(10*100), ncol = 10)
+y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+outcome <- createOutcome(y)
+}

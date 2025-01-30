@@ -2,9 +2,9 @@
 #'
 #' @param default_params List of parameters with default values set.
 #' @param user_params (Optional) User-supplied overrides to `default_params`.
+#' @noRd
 #'
 #' @return Parameter list with defaults overriden by values supplied in `user_params`
-#' @export
 preprocessParams <- function(default_params, user_params = NULL) {
     # Override defaults from general_params
     if (!is.null(user_params)) {
@@ -89,7 +89,7 @@ preprocessPredictionData <- function(input_data, metadata) {
 #' @return List with preprocessed (unmodified) data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
 #' vector of feature types needed for calls to BART and BCF.
-#' @export
+#' @noRd
 #'
 #' @examples
 #' cov_mat <- matrix(1:12, ncol = 3)
@@ -137,7 +137,7 @@ preprocessTrainMatrix <- function(input_matrix) {
 #' categories for categorical variables
 #'
 #' @return Preprocessed data with categorical variables appropriately preprocessed
-#' @export
+#' @noRd
 #'
 #' @examples
 #' cov_mat <- matrix(c(1:5, 5:1, 6:10), ncol = 3)
@@ -162,16 +162,11 @@ preprocessPredictionMatrix <- function(input_matrix, metadata) {
 #'
 #' @param input_df Dataframe of covariates. Users must pre-process any 
 #' categorical variables as factors (ordered for ordered categorical).
+#' @noRd
 #'
 #' @return List with preprocessed data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
 #' vector of feature types needed for calls to BART and BCF.
-#' @export
-#'
-#' @examples
-#' cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
-#' preprocess_list <- preprocessTrainDataFrame(cov_df)
-#' X <- preprocess_list$X
 preprocessTrainDataFrame <- function(input_df) {
     # Input checks / details
     if (!is.data.frame(input_df)) {
@@ -291,7 +286,7 @@ preprocessTrainDataFrame <- function(input_df) {
 #' categories for categorical variables
 #'
 #' @return Preprocessed data with categorical variables appropriately preprocessed
-#' @export
+#' @noRd
 #'
 #' @examples
 #' cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
@@ -434,6 +429,12 @@ savePreprocessorToJsonString <- function(object){
 #'
 #' @returns Preprocessor object that can be used with the `preprocessPredictionData` function
 #' @export
+#'
+#' @examples
+#' cov_mat <- matrix(1:12, ncol = 3)
+#' preprocess_list <- preprocessTrainData(cov_mat)
+#' preprocessor_json <- convertPreprocessorToJson(preprocess_list$metadata)
+#' preprocessor_roundtrip <- createPreprocessorFromJson(preprocessor_json)
 createPreprocessorFromJson <- function(json_object){
     # Initialize the metadata list
     metadata <- list()
@@ -477,6 +478,12 @@ createPreprocessorFromJson <- function(json_object){
 #'
 #' @return Preprocessor object that can be used with the `preprocessPredictionData` function
 #' @export
+#'
+#' @examples
+#' cov_mat <- matrix(1:12, ncol = 3)
+#' preprocess_list <- preprocessTrainData(cov_mat)
+#' preprocessor_json_string <- savePreprocessorToJsonString(preprocess_list$metadata)
+#' preprocessor_roundtrip <- createPreprocessorFromJsonString(preprocessor_json_string)
 createPreprocessorFromJsonString <- function(json_string){
     # Load a `CppJson` object from string
     preprocessor_json <- createCppJsonString(json_string)
@@ -499,7 +506,7 @@ createPreprocessorFromJsonString <- function(json_string){
 #' @return List with preprocessed data and details on the number of each type 
 #' of variable, unique categories associated with categorical variables, and the 
 #' vector of feature types needed for calls to BART and BCF.
-#' @export
+#' @noRd
 #'
 #' @examples
 #' cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
@@ -614,7 +621,7 @@ createForestCovariates <- function(input_data, ordered_cat_vars = NULL, unordere
 #' categories for categorical variables
 #'
 #' @return Preprocessed data with categorical variables appropriately preprocessed
-#' @export
+#' @noRd
 #'
 #' @examples
 #' cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
@@ -701,7 +708,7 @@ createForestCovariatesFromMetadata <- function(input_data, metadata) {
 #'
 #' @return List containing a binary one-hot matrix and the unique levels of the 
 #' input variable. These unique levels are used in the BCF and BART functions.
-#' @export
+#' @noRd
 #'
 #' @examples
 #' x <- c("a","c","b","c","d","a","c","a","b","d")
@@ -733,7 +740,7 @@ oneHotInitializeAndEncode <- function(x_input) {
 #' the initial one-hot matrix (typically a training set)
 #'
 #' @return Binary one-hot matrix
-#' @export
+#' @noRd
 #'
 #' @examples
 #' x <- sample(1:8, 100, TRUE)
@@ -771,7 +778,7 @@ oneHotEncode <- function(x_input, unique_levels) {
 #' @return List containing a preprocessed vector of integer-converted ordered 
 #' categorical observations and the unique level of the original ordered 
 #' categorical feature.
-#' @export
+#' @noRd
 #'
 #' @examples
 #' x <- c("1. Strongly disagree", "3. Neither agree nor disagree", "2. Disagree", 
@@ -805,7 +812,7 @@ orderedCatInitializeAndPreprocess <- function(x_input) {
 #' @return List containing a preprocessed vector of integer-converted ordered 
 #' categorical observations and the unique level of the original ordered 
 #' categorical feature.
-#' @export
+#' @noRd
 #'
 #' @examples
 #' x_levels <- c("1. Strongly disagree", "2. Disagree", 

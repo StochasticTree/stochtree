@@ -7,7 +7,7 @@
 saveBCFModelToJsonFile(object, filename)
 }
 \arguments{
-\item{object}{Object of type \code{bcf} containing draws of a Bayesian causal forest model and associated sampling outputs.}
+\item{object}{Object of type \code{bcfmodel} containing draws of a Bayesian causal forest model and associated sampling outputs.}
 
 \item{filename}{String of filepath, must end in ".json"}
 }
@@ -37,10 +37,10 @@ pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
 Z <- rbinom(n,1,pi_x)
 E_XZ <- mu_x + Z*tau_x
 snr <- 3
-group_ids <- rep(c(1,2), n \%/\% 2)
+rfx_group_ids <- rep(c(1,2), n \%/\% 2)
 rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
 rfx_basis <- cbind(1, runif(n, -1, 1))
-rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
+rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
 X <- as.data.frame(X)
 X$x4 <- factor(X$x4, ordered = TRUE)
@@ -62,8 +62,8 @@ mu_test <- mu_x[test_inds]
 mu_train <- mu_x[train_inds]
 tau_test <- tau_x[test_inds]
 tau_train <- tau_x[train_inds]
-group_ids_test <- group_ids[test_inds]
-group_ids_train <- group_ids[train_inds]
+rfx_group_ids_test <- rfx_group_ids[test_inds]
+rfx_group_ids_train <- rfx_group_ids[train_inds]
 rfx_basis_test <- rfx_basis[test_inds,]
 rfx_basis_train <- rfx_basis[train_inds,]
 rfx_term_test <- rfx_term[test_inds]
@@ -71,9 +71,9 @@ rfx_term_train <- rfx_term[train_inds]
 mu_params <- list(sample_sigma_leaf = TRUE)
 tau_params <- list(sample_sigma_leaf = FALSE)
 bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-                 pi_train = pi_train, group_ids_train = group_ids_train, 
+                 propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-                 Z_test = Z_test, pi_test = pi_test, group_ids_test = group_ids_test,
+                 Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
                  rfx_basis_test = rfx_basis_test, 
                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
                  mu_forest_params = mu_params, 

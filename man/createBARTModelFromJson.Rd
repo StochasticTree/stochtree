@@ -39,6 +39,6 @@ X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
 bart_model <- bart(X_train = X_train, y_train = y_train)
-# bart_json <- convertBARTModelToJson(bart_model)
-# bart_model_roundtrip <- createBARTModelFromJson(bart_json)
+bart_json <- saveBARTModelToJson(bart_model)
+bart_model_roundtrip <- createBARTModelFromJson(bart_json)
 }

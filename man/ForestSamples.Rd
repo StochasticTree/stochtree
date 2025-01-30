@@ -32,7 +32,7 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-load_json}{\code{ForestSamples$load_json()}}
 \item \href{#method-ForestSamples-num_samples}{\code{ForestSamples$num_samples()}}
 \item \href{#method-ForestSamples-num_trees}{\code{ForestSamples$num_trees()}}
-\item \href{#method-ForestSamples-output_dimension}{\code{ForestSamples$output_dimension()}}
+\item \href{#method-ForestSamples-leaf_dimension}{\code{ForestSamples$leaf_dimension()}}
 \item \href{#method-ForestSamples-is_constant_leaf}{\code{ForestSamples$is_constant_leaf()}}
 \item \href{#method-ForestSamples-is_exponentiated}{\code{ForestSamples$is_exponentiated()}}
 \item \href{#method-ForestSamples-add_forest_with_constant_leaves}{\code{ForestSamples$add_forest_with_constant_leaves()}}
@@ -75,7 +75,7 @@ Create a new ForestContainer object.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$new(
   num_trees,
-  output_dimension = 1,
+  leaf_dimension = 1,
   is_leaf_constant = F,
   is_exponentiated = F
 )}\if{html}{\out{</div>}}
@@ -86,7 +86,7 @@ Create a new ForestContainer object.
 \describe{
 \item{\code{num_trees}}{Number of trees}
 
-\item{\code{output_dimension}}{Dimensionality of the outcome model}
+\item{\code{leaf_dimension}}{Dimensionality of the outcome model}
 
 \item{\code{is_leaf_constant}}{Whether leaf is constant}
 
@@ -433,12 +433,12 @@ Tree count
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestSamples-output_dimension"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestSamples-output_dimension}{}}}
-\subsection{Method \code{output_dimension()}}{
+\if{html}{\out{<a id="method-ForestSamples-leaf_dimension"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-leaf_dimension}{}}}
+\subsection{Method \code{leaf_dimension()}}{
 Return output dimension of trees in a \code{ForestContainer} object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$output_dimension()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$leaf_dimension()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{

@@ -6,21 +6,21 @@
 #' categorical columns stored as ordered factors will passed as integers to the core algorithm, along with the metadata 
 #' that the column is ordered categorical).
 #' @param y_train Outcome to be modeled by the ensemble.
-#' @param W_train (Optional) Bases used to define a regression model `y ~ W` in 
+#' @param leaf_basis_train (Optional) Bases used to define a regression model `y ~ W` in 
 #' each leaf of each regression tree. By default, BART assumes constant leaf node 
 #' parameters, implicitly regressing on a constant basis of ones (i.e. `y ~ 1`).
-#' @param group_ids_train (Optional) Group labels used for an additive random effects model.
+#' @param rfx_group_ids_train (Optional) Group labels used for an additive random effects model.
 #' @param rfx_basis_train (Optional) Basis for "random-slope" regression in an additive random effects model.
-#' If `group_ids_train` is provided with a regression basis, an intercept-only random effects model 
+#' If `rfx_group_ids_train` is provided with a regression basis, an intercept-only random effects model 
 #' will be estimated.
 #' @param X_test (Optional) Test set of covariates used to define "out of sample" evaluation data. 
 #' May be provided either as a dataframe or a matrix, but the format of `X_test` must be consistent with 
 #' that of `X_train`.
-#' @param W_test (Optional) Test set of bases used to define "out of sample" evaluation data. 
+#' @param leaf_basis_test (Optional) Test set of bases used to define "out of sample" evaluation data. 
 #' While a test set is optional, the structure of any provided test set must match that 
-#' of the training set (i.e. if both X_train and W_train are provided, then a test set must 
-#' consist of X_test and W_test with the same number of columns).
-#' @param group_ids_test (Optional) Test set group labels used for an additive random effects model. 
+#' of the training set (i.e. if both `X_train` and `leaf_basis_train` are provided, then a test set must 
+#' consist of `X_test` and `leaf_basis_test` with the same number of columns).
+#' @param rfx_group_ids_test (Optional) Test set group labels used for an additive random effects model. 
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
@@ -28,7 +28,7 @@
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
 #' @param previous_model_json (Optional) JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: `NULL`.
-#' @param warmstart_sample_num (Optional) Sample number from `previous_model_json` that will be used to warmstart this BART sampler. One-indexed (so that the first sample is used for warm-start by setting `warmstart_sample_num = 1`). Default: `NULL`.
+#' @param previous_model_warmstart_sample_num (Optional) Sample number from `previous_model_json` that will be used to warmstart this BART sampler. One-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 1`). Default: `NULL`.
 #' @param general_params (Optional) A list of general (non-forest-specific) model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
 #'   - `cutpoint_grid_size` Maximum size of the "grid" of potential cutpoints to consider in the GFR algorithm. Default: `100`.
@@ -52,7 +52,7 @@
 #'   - `beta` Exponent that decreases split probabilities for nodes of depth > 0 in the mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `2`.
 #'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the mean model. Default: `5`.
 #'   - `max_depth` Maximum depth of any tree in the ensemble in the mean model. Default: `10`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
-#'   - `sample_sigma2_leaf` Whether or not to update the leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `ncol(W_train)>1`. Default: `FALSE`.
+#'   - `sample_sigma2_leaf` Whether or not to update the leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `ncol(leaf_basis_train)>1`. Default: `FALSE`.
 #'   - `sigma2_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
 #'   - `sigma2_leaf_shape` Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Default: `3`.
 #'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
@@ -98,13 +98,13 @@
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test)
-#' # plot(rowMeans(bart_model$y_hat_test), y_test, xlab = "predicted", ylab = "actual")
-#' # abline(0,1,col="red",lty=3,lwd=3)
-bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL, 
-                 rfx_basis_train = NULL, X_test = NULL, W_test = NULL, 
-                 group_ids_test = NULL, rfx_basis_test = NULL, 
+#' plot(rowMeans(bart_model$y_hat_test), y_test, xlab = "predicted", ylab = "actual")
+#' abline(0,1,col="red",lty=3,lwd=3)
+bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train = NULL, 
+                 rfx_basis_train = NULL, X_test = NULL, leaf_basis_test = NULL, 
+                 rfx_group_ids_test = NULL, rfx_basis_test = NULL, 
                  num_gfr = 5, num_burnin = 0, num_mcmc = 100, 
-                 previous_model_json = NULL, warmstart_sample_num = NULL, 
+                 previous_model_json = NULL, previous_model_warmstart_sample_num = NULL, 
                  general_params = list(), mean_forest_params = list(), 
                  variance_forest_params = list()) {
     # Update general BART parameters
@@ -199,7 +199,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if (num_mcmc == 0) keep_gfr <- T
     
     # Check if previous model JSON is provided and parse it if so
-    # TODO: check that warmstart_sample_num is <= the number of samples in this previous model
+    # TODO: check that `previous_model_warmstart_sample_num` is <= the number of samples in this previous model
     has_prev_model <- !is.null(previous_model_json)
     if (has_prev_model) {
         previous_bart_model <- createBARTModelFromJsonString(previous_model_json)
@@ -369,11 +369,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     }
 
     # Convert all input data to matrices if not already converted
-    if ((is.null(dim(W_train))) && (!is.null(W_train))) {
-        W_train <- as.matrix(W_train)
+    if ((is.null(dim(leaf_basis_train))) && (!is.null(leaf_basis_train))) {
+        leaf_basis_train <- as.matrix(leaf_basis_train)
     }
-    if ((is.null(dim(W_test))) && (!is.null(W_test))) {
-        W_test <- as.matrix(W_test)
+    if ((is.null(dim(leaf_basis_test))) && (!is.null(leaf_basis_test))) {
+        leaf_basis_test <- as.matrix(leaf_basis_test)
     }
     if ((is.null(dim(rfx_basis_train))) && (!is.null(rfx_basis_train))) {
         rfx_basis_train <- as.matrix(rfx_basis_train)
@@ -385,16 +385,16 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
     has_rfx <- F
     has_rfx_test <- F
-    if (!is.null(group_ids_train)) {
-        group_ids_factor <- factor(group_ids_train)
-        group_ids_train <- as.integer(group_ids_factor)
+    if (!is.null(rfx_group_ids_train)) {
+        group_ids_factor <- factor(rfx_group_ids_train)
+        rfx_group_ids_train <- as.integer(group_ids_factor)
         has_rfx <- T
-        if (!is.null(group_ids_test)) {
-            group_ids_factor_test <- factor(group_ids_test, levels = levels(group_ids_factor))
+        if (!is.null(rfx_group_ids_test)) {
+            group_ids_factor_test <- factor(rfx_group_ids_test, levels = levels(group_ids_factor))
             if (sum(is.na(group_ids_factor_test)) > 0) {
-                stop("All random effect group labels provided in group_ids_test must be present in group_ids_train")
+                stop("All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train")
             }
-            group_ids_test <- as.integer(group_ids_factor_test)
+            rfx_group_ids_test <- as.integer(group_ids_factor_test)
             has_rfx_test <- T
         }
     }
@@ -403,14 +403,14 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if ((!is.null(X_test)) && (ncol(X_test) != ncol(X_train))) {
         stop("X_train and X_test must have the same number of columns")
     }
-    if ((!is.null(W_test)) && (ncol(W_test) != ncol(W_train))) {
-        stop("W_train and W_test must have the same number of columns")
+    if ((!is.null(leaf_basis_test)) && (ncol(leaf_basis_test) != ncol(leaf_basis_train))) {
+        stop("leaf_basis_train and leaf_basis_test must have the same number of columns")
     }
-    if ((!is.null(W_train)) && (nrow(W_train) != nrow(X_train))) {
-        stop("W_train and X_train must have the same number of rows")
+    if ((!is.null(leaf_basis_train)) && (nrow(leaf_basis_train) != nrow(X_train))) {
+        stop("leaf_basis_train and X_train must have the same number of rows")
     }
-    if ((!is.null(W_test)) && (nrow(W_test) != nrow(X_test))) {
-        stop("W_test and X_test must have the same number of rows")
+    if ((!is.null(leaf_basis_test)) && (nrow(leaf_basis_test) != nrow(X_test))) {
+        stop("leaf_basis_test and X_test must have the same number of rows")
     }
     if (nrow(X_train) != length(y_train)) {
         stop("X_train and y_train must have the same number of observations")
@@ -418,8 +418,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if ((!is.null(rfx_basis_test)) && (ncol(rfx_basis_test) != ncol(rfx_basis_train))) {
         stop("rfx_basis_train and rfx_basis_test must have the same number of columns")
     }
-    if (!is.null(group_ids_train)) {
-        if (!is.null(group_ids_test)) {
+    if (!is.null(rfx_group_ids_train)) {
+        if (!is.null(rfx_group_ids_test)) {
             if ((!is.null(rfx_basis_train)) && (is.null(rfx_basis_test))) {
                 stop("rfx_basis_train is provided but rfx_basis_test is not provided")
             }
@@ -436,7 +436,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
             has_basis_rfx <- T
             num_basis_rfx <- ncol(rfx_basis_train)
         }
-        num_rfx_groups <- length(unique(group_ids_train))
+        num_rfx_groups <- length(unique(rfx_group_ids_train))
         num_rfx_components <- ncol(rfx_basis_train)
         if (num_rfx_groups == 1) warning("Only one group was provided for random effect sampling, so the 'redundant parameterization' is likely overkill")
     }
@@ -455,7 +455,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     }
     
     # Determine whether a basis vector is provided
-    has_basis = !is.null(W_train)
+    has_basis = !is.null(leaf_basis_train)
     
     # Determine whether a test set is provided
     has_test = !is.null(X_test)
@@ -478,8 +478,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     if (is.null(variance_forest_init)) variance_forest_init <- 1.0*var(resid_train)
     if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees_mean)
     if (has_basis) {
-        if (ncol(W_train) > 1) {
-            if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(var(resid_train)/(num_trees_mean), ncol(W_train))
+        if (ncol(leaf_basis_train) > 1) {
+            if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(var(resid_train)/(num_trees_mean), ncol(leaf_basis_train))
             current_leaf_scale <- sigma_leaf_init
         } else {
             if (is.null(sigma_leaf_init)) sigma_leaf_init <- var(resid_train)/(num_trees_mean)
@@ -493,28 +493,28 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 
     # Determine leaf model type
     if (!has_basis) leaf_model_mean_forest <- 0
-    else if (ncol(W_train) == 1) leaf_model_mean_forest <- 1
-    else if (ncol(W_train) > 1) leaf_model_mean_forest <- 2
-    else stop("W_train passed must be a matrix with at least 1 column")
+    else if (ncol(leaf_basis_train) == 1) leaf_model_mean_forest <- 1
+    else if (ncol(leaf_basis_train) > 1) leaf_model_mean_forest <- 2
+    else stop("leaf_basis_train passed must be a matrix with at least 1 column")
 
     # Set variance leaf model type (currently only one option)
     leaf_model_variance_forest <- 3
     
     # Unpack model type info
     if (leaf_model_mean_forest == 0) {
-        output_dimension = 1
+        leaf_dimension = 1
         is_leaf_constant = T
         leaf_regression = F
     } else if (leaf_model_mean_forest == 1) {
         stopifnot(has_basis)
-        stopifnot(ncol(W_train) == 1)
-        output_dimension = 1
+        stopifnot(ncol(leaf_basis_train) == 1)
+        leaf_dimension = 1
         is_leaf_constant = F
         leaf_regression = T
     } else if (leaf_model_mean_forest == 2) {
         stopifnot(has_basis)
-        stopifnot(ncol(W_train) > 1)
-        output_dimension = ncol(W_train)
+        stopifnot(ncol(leaf_basis_train) > 1)
+        leaf_dimension = ncol(leaf_basis_train)
         is_leaf_constant = F
         leaf_regression = T
         if (sample_sigma_leaf) {
@@ -524,8 +524,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Data
     if (leaf_regression) {
-        forest_dataset_train <- createForestDataset(X_train, W_train)
-        if (has_test) forest_dataset_test <- createForestDataset(X_test, W_test)
+        forest_dataset_train <- createForestDataset(X_train, leaf_basis_train)
+        if (has_test) forest_dataset_test <- createForestDataset(X_test, leaf_basis_test)
         requires_basis <- T
     } else {
         forest_dataset_train <- createForestDataset(X_train)
@@ -536,7 +536,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Random number generator (std::mt19937)
     if (is.null(random_seed)) random_seed = sample(1:10000,1,F)
-    rng <- createRNG(random_seed)
+    rng <- createCppRNG(random_seed)
     
     # Sampling data structures
     feature_types <- as.integer(feature_types)
@@ -549,11 +549,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Container of forest samples
     if (include_mean_forest) {
-        forest_samples_mean <- createForestContainer(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
-        active_forest_mean <- createForest(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
+        forest_samples_mean <- createForestSamples(num_trees_mean, leaf_dimension, is_leaf_constant, FALSE)
+        active_forest_mean <- createForest(num_trees_mean, leaf_dimension, is_leaf_constant, FALSE)
     }
     if (include_variance_forest) {
-        forest_samples_variance <- createForestContainer(num_trees_variance, 1, TRUE, TRUE)
+        forest_samples_variance <- createForestSamples(num_trees_variance, 1, TRUE, TRUE)
         active_forest_variance <- createForest(num_trees_variance, 1, TRUE, TRUE)
     }
     
@@ -574,8 +574,8 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         sigma_xi_scale <- 1
         
         # Random effects data structure and storage container
-        rfx_dataset_train <- createRandomEffectsDataset(group_ids_train, rfx_basis_train)
-        rfx_tracker_train <- createRandomEffectsTracker(group_ids_train)
+        rfx_dataset_train <- createRandomEffectsDataset(rfx_group_ids_train, rfx_basis_train)
+        rfx_tracker_train <- createRandomEffectsTracker(rfx_group_ids_train)
         rfx_model <- createRandomEffectsModel(num_rfx_components, num_rfx_groups)
         rfx_model$set_working_parameter(alpha_init)
         rfx_model$set_group_parameters(xi_init)
@@ -598,7 +598,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Initialize the leaves of each tree in the mean forest
     if (include_mean_forest) {
-        if (requires_basis) init_values_mean_forest <- rep(0., ncol(W_train))
+        if (requires_basis) init_values_mean_forest <- rep(0., ncol(leaf_basis_train))
         else init_values_mean_forest <- 0.
         active_forest_mean$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mean, leaf_model_mean_forest, init_values_mean_forest)
     }
@@ -637,11 +637,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 )
             }
             if (sample_sigma_global) {
-                current_sigma2 <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
+                current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
             }
             if (sample_sigma_leaf) {
-                leaf_scale_double <- sample_tau_one_iteration(active_forest_mean, rng, a_leaf, b_leaf)
+                leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                 current_leaf_scale <- as.matrix(leaf_scale_double)
                 if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
             }
@@ -676,15 +676,15 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 if (sample_sigma_global) current_sigma2 <- global_var_samples[forest_ind + 1]
             } else if (has_prev_model) {
                 if (include_mean_forest) {
-                    resetActiveForest(active_forest_mean, previous_forest_samples_mean, warmstart_sample_num - 1)
+                    resetActiveForest(active_forest_mean, previous_forest_samples_mean, previous_model_warmstart_sample_num - 1)
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
                     if (sample_sigma_leaf && (!is.null(previous_leaf_var_samples))) {
-                        leaf_scale_double <- previous_leaf_var_samples[warmstart_sample_num]
+                        leaf_scale_double <- previous_leaf_var_samples[previous_model_warmstart_sample_num]
                         current_leaf_scale <- as.matrix(leaf_scale_double)
                     }
                 }
                 if (include_variance_forest) {
-                    resetActiveForest(active_forest_variance, previous_forest_samples_variance, warmstart_sample_num - 1)
+                    resetActiveForest(active_forest_variance, previous_forest_samples_variance, previous_model_warmstart_sample_num - 1)
                     resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
                 # TODO: also initialize from previous RFX samples
@@ -695,12 +695,12 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                 # }
                 if (sample_sigma_global) {
                     if (!is.null(previous_global_var_samples)) {
-                        current_sigma2 <- previous_global_var_samples[warmstart_sample_num]
+                        current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]
                     }
                 }
             } else {
                 if (include_mean_forest) {
-                    rootResetActiveForest(active_forest_mean)
+                    resetActiveForest(active_forest_mean)
                     active_forest_mean$set_root_leaves(init_values_mean_forest / num_trees_mean)
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
                     if (sample_sigma_leaf) {
@@ -708,7 +708,7 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                     }
                 }
                 if (include_variance_forest) {
-                    rootResetActiveForest(active_forest_variance)
+                    resetActiveForest(active_forest_variance)
                     active_forest_variance$set_root_leaves(log(variance_forest_init) / num_trees_variance)
                     resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
@@ -759,11 +759,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
                     )
                 }
                 if (sample_sigma_global) {
-                    current_sigma2 <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
+                    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                     if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
                 }
                 if (sample_sigma_leaf) {
-                    leaf_scale_double <- sample_tau_one_iteration(active_forest_mean, rng, a_leaf, b_leaf)
+                    leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                     current_leaf_scale <- as.matrix(leaf_scale_double)
                     if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
                 }
@@ -810,11 +810,11 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
     
     # Random effects predictions
     if (has_rfx) {
-        rfx_preds_train <- rfx_samples$predict(group_ids_train, rfx_basis_train)*y_std_train
+        rfx_preds_train <- rfx_samples$predict(rfx_group_ids_train, rfx_basis_train)*y_std_train
         y_hat_train <- y_hat_train + rfx_preds_train
     }
     if ((has_rfx_test) && (has_test)) {
-        rfx_preds_test <- rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std_train
+        rfx_preds_test <- rfx_samples$predict(rfx_group_ids_test, rfx_basis_test)*y_std_train
         y_hat_test <- y_hat_test + rfx_preds_test
     }
 
@@ -848,19 +848,19 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
         "outcome_mean" = y_bar_train,
         "outcome_scale" = y_std_train, 
         "standardize" = standardize, 
-        "output_dimension" = output_dimension,
+        "leaf_dimension" = leaf_dimension,
         "is_leaf_constant" = is_leaf_constant,
         "leaf_regression" = leaf_regression,
         "requires_basis" = requires_basis, 
         "num_covariates" = ncol(X_train), 
-        "num_basis" = ifelse(is.null(W_train),0,ncol(W_train)), 
+        "num_basis" = ifelse(is.null(leaf_basis_train),0,ncol(leaf_basis_train)), 
         "num_samples" = num_retained_samples, 
         "num_gfr" = num_gfr, 
         "num_burnin" = num_burnin, 
         "num_mcmc" = num_mcmc, 
         "keep_every" = keep_every,
         "num_chains" = num_chains,
-        "has_basis" = !is.null(W_train), 
+        "has_basis" = !is.null(leaf_basis_train), 
         "has_rfx" = has_rfx, 
         "has_rfx_basis" = has_basis_rfx, 
         "num_rfx_basis" = num_basis_rfx, 
@@ -907,13 +907,14 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 
 #' Predict from a sampled BART model on new data
 #'
-#' @param bart Object of type `bart` containing draws of a regression forest and associated sampling outputs.
-#' @param X_test Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.
-#' @param W_test (Optional) Bases used for prediction (by e.g. dot product with leaf values). Default: `NULL`.
-#' @param group_ids_test (Optional) Test set group labels used for an additive random effects model. 
+#' @param object Object of type `bart` containing draws of a regression forest and associated sampling outputs.
+#' @param X Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.
+#' @param leaf_basis (Optional) Bases used for prediction (by e.g. dot product with leaf values). Default: `NULL`.
+#' @param rfx_group_ids (Optional) Test set group labels used for an additive random effects model. 
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
-#' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param rfx_basis (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest. 
 #' If the model does have random effects, the list has three elements -- forest predictions, random effects predictions, and their sum (`y_hat`).
@@ -941,114 +942,114 @@ bart <- function(X_train, y_train, W_train = NULL, group_ids_train = NULL,
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' y_hat_test <- predict(bart_model, X_test)
-#' # plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
-#' # abline(0,1,col="red",lty=3,lwd=3)
-predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL, rfx_basis_test = NULL){
+#' y_hat_test <- predict(bart_model, X_test)$y_hat
+#' plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
+#' abline(0,1,col="red",lty=3,lwd=3)
+predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL, rfx_basis = NULL, ...){
     # Preprocess covariates
-    if ((!is.data.frame(X_test)) && (!is.matrix(X_test))) {
-        stop("X_test must be a matrix or dataframe")
+    if ((!is.data.frame(X)) && (!is.matrix(X))) {
+        stop("X must be a matrix or dataframe")
     }
-    train_set_metadata <- bart$train_set_metadata
-    X_test <- preprocessPredictionData(X_test, train_set_metadata)
+    train_set_metadata <- object$train_set_metadata
+    X <- preprocessPredictionData(X, train_set_metadata)
     
     # Convert all input data to matrices if not already converted
-    if ((is.null(dim(W_test))) && (!is.null(W_test))) {
-        W_test <- as.matrix(W_test)
+    if ((is.null(dim(leaf_basis))) && (!is.null(leaf_basis))) {
+        leaf_basis <- as.matrix(leaf_basis)
     }
-    if ((is.null(dim(rfx_basis_test))) && (!is.null(rfx_basis_test))) {
-        rfx_basis_test <- as.matrix(rfx_basis_test)
+    if ((is.null(dim(rfx_basis))) && (!is.null(rfx_basis))) {
+        rfx_basis <- as.matrix(rfx_basis)
     }
     
     # Data checks
-    if ((bart$model_params$requires_basis) && (is.null(W_test))) {
-        stop("Basis (W_test) must be provided for this model")
+    if ((object$model_params$requires_basis) && (is.null(leaf_basis))) {
+        stop("Basis (leaf_basis) must be provided for this model")
     }
-    if ((!is.null(W_test)) && (nrow(X_test) != nrow(W_test))) {
-        stop("X_test and W_test must have the same number of rows")
+    if ((!is.null(leaf_basis)) && (nrow(X) != nrow(leaf_basis))) {
+        stop("X and leaf_basis must have the same number of rows")
     }
-    if (bart$model_params$num_covariates != ncol(X_test)) {
-        stop("X_test and W_test must have the same number of rows")
+    if (object$model_params$num_covariates != ncol(X)) {
+        stop("X and leaf_basis must have the same number of rows")
     }
-    if ((bart$model_params$has_rfx) && (is.null(group_ids_test))) {
-        stop("Random effect group labels (group_ids_test) must be provided for this model")
+    if ((object$model_params$has_rfx) && (is.null(rfx_group_ids))) {
+        stop("Random effect group labels (rfx_group_ids) must be provided for this model")
     }
-    if ((bart$model_params$has_rfx_basis) && (is.null(rfx_basis_test))) {
-        stop("Random effects basis (rfx_basis_test) must be provided for this model")
+    if ((object$model_params$has_rfx_basis) && (is.null(rfx_basis))) {
+        stop("Random effects basis (rfx_basis) must be provided for this model")
     }
-    if ((bart$model_params$num_rfx_basis > 0) && (ncol(rfx_basis_test) != bart$model_params$num_rfx_basis)) {
+    if ((object$model_params$num_rfx_basis > 0) && (ncol(rfx_basis) != object$model_params$num_rfx_basis)) {
         stop("Random effects basis has a different dimension than the basis used to train this model")
     }
     
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
     has_rfx <- F
-    if (!is.null(group_ids_test)) {
-        rfx_unique_group_ids <- bcf$rfx_unique_group_ids
-        group_ids_factor_test <- factor(group_ids_test, levels = rfx_unique_group_ids)
-        if (sum(is.na(group_ids_factor_test)) > 0) {
-            stop("All random effect group labels provided in group_ids_test must be present in group_ids_train")
+    if (!is.null(rfx_group_ids)) {
+        rfx_unique_group_ids <- object$rfx_unique_group_ids
+        group_ids_factor <- factor(rfx_group_ids, levels = rfx_unique_group_ids)
+        if (sum(is.na(group_ids_factor)) > 0) {
+            stop("All random effect group labels provided in rfx_group_ids must be present in rfx_group_ids_train")
         }
-        group_ids_test <- as.integer(group_ids_factor_test)
+        rfx_group_ids <- as.integer(group_ids_factor)
         has_rfx <- T
     }
     
     # Produce basis for the "intercept-only" random effects case
-    if ((bart$model_params$has_rfx) && (is.null(rfx_basis_test))) {
-        rfx_basis_test <- matrix(rep(1, nrow(X_test)), ncol = 1)
+    if ((object$model_params$has_rfx) && (is.null(rfx_basis))) {
+        rfx_basis <- matrix(rep(1, nrow(X)), ncol = 1)
     }
     
     # Create prediction dataset
-    if (!is.null(W_test)) prediction_dataset <- createForestDataset(X_test, W_test)
-    else prediction_dataset <- createForestDataset(X_test)
+    if (!is.null(leaf_basis)) prediction_dataset <- createForestDataset(X, leaf_basis)
+    else prediction_dataset <- createForestDataset(X)
     
     # Compute mean forest predictions
-    num_samples <- bart$model_params$num_samples
-    y_std <- bart$model_params$outcome_scale
-    y_bar <- bart$model_params$outcome_mean
-    sigma2_init <- bart$model_params$sigma2_init
-    if (bart$model_params$include_mean_forest) {
-        mean_forest_predictions <- bart$mean_forests$predict(prediction_dataset)*y_std + y_bar
+    num_samples <- object$model_params$num_samples
+    y_std <- object$model_params$outcome_scale
+    y_bar <- object$model_params$outcome_mean
+    sigma2_init <- object$model_params$sigma2_init
+    if (object$model_params$include_mean_forest) {
+        mean_forest_predictions <- object$mean_forests$predict(prediction_dataset)*y_std + y_bar
     }
     
     # Compute variance forest predictions
-    if (bart$model_params$include_variance_forest) {
-        s_x_raw <- bart$variance_forests$predict(prediction_dataset)
+    if (object$model_params$include_variance_forest) {
+        s_x_raw <- object$variance_forests$predict(prediction_dataset)
     }
     
     # Compute rfx predictions (if needed)
-    if (bart$model_params$has_rfx) {
-        rfx_predictions <- bart$rfx_samples$predict(group_ids_test, rfx_basis_test)*y_std
+    if (object$model_params$has_rfx) {
+        rfx_predictions <- object$rfx_samples$predict(rfx_group_ids, rfx_basis)*y_std
     }
     
     # Scale variance forest predictions
-    if (bart$model_params$include_variance_forest) {
-        if (bart$model_params$sample_sigma_global) {
-            sigma2_samples <- bart$sigma2_global_samples
+    if (object$model_params$include_variance_forest) {
+        if (object$model_params$sample_sigma_global) {
+            sigma2_samples <- object$sigma2_global_samples
             variance_forest_predictions <- sapply(1:num_samples, function(i) sqrt(s_x_raw[,i]*sigma2_samples[i]))
         } else {
             variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std
         }
     }
 
-    if ((bart$model_params$include_mean_forest) && (bart$model_params$has_rfx)) {
+    if ((object$model_params$include_mean_forest) && (object$model_params$has_rfx)) {
         y_hat <- mean_forest_predictions + rfx_predictions
-    } else if ((bart$model_params$include_mean_forest) && (!bart$model_params$has_rfx)) {
+    } else if ((object$model_params$include_mean_forest) && (!object$model_params$has_rfx)) {
         y_hat <- mean_forest_predictions
-    } else if ((!bart$model_params$include_mean_forest) && (bart$model_params$has_rfx)) {
+    } else if ((!object$model_params$include_mean_forest) && (object$model_params$has_rfx)) {
         y_hat <- rfx_predictions
     } 
     
     result <- list()
-    if ((bart$model_params$has_rfx) || (bart$model_params$include_mean_forest)) {
+    if ((object$model_params$has_rfx) || (object$model_params$include_mean_forest)) {
         result[["y_hat"]] = y_hat
     }
-    if (bart$model_params$include_mean_forest) {
+    if (object$model_params$include_mean_forest) {
         result[["mean_forest_predictions"]] = mean_forest_predictions
     }
-    if (bart$model_params$has_rfx) {
+    if (object$model_params$has_rfx) {
         result[["rfx_predictions"]] = rfx_predictions
     }
-    if (bart$model_params$include_variance_forest) {
+    if (object$model_params$include_variance_forest) {
         result[["variance_forest_predictions"]] = variance_forest_predictions
     }
     return(result)
@@ -1056,7 +1057,7 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
 
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
-#' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @param ... Other parameters to be used in random effects extraction
 #' @return List of arrays. The alpha array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`.
 #' The xi and beta arrays have dimension (`num_components`, `num_groups`, `num_samples`) and is simply a matrix if `num_components = 1`.
@@ -1089,14 +1090,14 @@ predict.bartmodel <- function(bart, X_test, W_test = NULL, group_ids_test = NULL
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' group_ids_test <- group_ids[test_inds]
-#' group_ids_train <- group_ids[train_inds]
+#' rfx_group_ids_test <- group_ids[test_inds]
+#' rfx_group_ids_train <- group_ids[train_inds]
 #' rfx_basis_test <- rfx_basis[test_inds,]
 #' rfx_basis_train <- rfx_basis[train_inds,]
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
-#'                    group_ids_train = group_ids_train, group_ids_test = group_ids_test, 
+#'                    rfx_group_ids_train = rfx_group_ids_train, rfx_group_ids_test = rfx_group_ids_test, 
 #'                    rfx_basis_train = rfx_basis_train, rfx_basis_test = rfx_basis_test, 
 #'                    num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' rfx_samples <- getRandomEffectSamples(bart_model)
@@ -1149,8 +1150,8 @@ getRandomEffectSamples.bartmodel <- function(object, ...){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' # bart_json <- convertBARTModelToJson(bart_model)
-convertBARTModelToJson <- function(object){
+#' bart_json <- saveBARTModelToJson(bart_model)
+saveBARTModelToJson <- function(object){
     jsonobj <- createCppJson()
     
     if (is.null(object$model_params)) {
@@ -1224,68 +1225,6 @@ convertBARTModelToJson <- function(object){
     return(jsonobj)
 }
 
-#' Convert in-memory BART model objects (forests, random effects, vectors) to in-memory JSON. 
-#' This function is primarily a convenience function for serialization / deserialization in a parallel BART sampler.
-#'
-#' @param param_list List containing high-level model state parameters
-#' @param mean_forest Container of conditional mean forest samples (optional). Default: `NULL`.
-#' @param variance_forest Container of conditional variance forest samples (optional). Default: `NULL`.
-#' @param rfx_samples Container of random effect samples (optional). Default: `NULL`.
-#' @param global_variance_samples Vector of global error variance samples (optional). Default: `NULL`.
-#' @param local_variance_samples Vector of leaf scale samples (optional). Default: `NULL`.
-#'
-#' @return Object of type `CppJson`
-convertBARTStateToJson <- function(param_list, mean_forest = NULL, variance_forest = NULL, 
-                                   rfx_samples = NULL, global_variance_samples = NULL, 
-                                   local_variance_samples = NULL) {
-    # Initialize JSON object
-    jsonobj <- createCppJson()
-    
-    # Add global parameters
-    jsonobj$add_scalar("outcome_scale", param_list$outcome_scale)
-    jsonobj$add_scalar("outcome_mean", param_list$outcome_mean)
-    jsonobj$add_boolean("standardize", param_list$standardize)
-    jsonobj$add_scalar("sigma2_init", param_list$sigma2_init)
-    jsonobj$add_boolean("sample_sigma_global", param_list$sample_sigma_global)
-    jsonobj$add_boolean("sample_sigma_leaf", param_list$sample_sigma_leaf)
-    jsonobj$add_boolean("include_mean_forest", param_list$include_mean_forest)
-    jsonobj$add_boolean("include_variance_forest", param_list$include_variance_forest)
-    jsonobj$add_boolean("has_rfx", param_list$has_rfx)
-    jsonobj$add_boolean("has_rfx_basis", param_list$has_rfx_basis)
-    jsonobj$add_scalar("num_rfx_basis", param_list$num_rfx_basis)
-    jsonobj$add_scalar("num_gfr", param_list$num_gfr)
-    jsonobj$add_scalar("num_burnin", param_list$num_burnin)
-    jsonobj$add_scalar("num_mcmc", param_list$num_mcmc)
-    jsonobj$add_scalar("num_covariates", param_list$num_covariates)
-    jsonobj$add_scalar("num_basis", param_list$num_basis)
-    jsonobj$add_scalar("keep_every", param_list$keep_every)
-    jsonobj$add_boolean("requires_basis", param_list$requires_basis)
-    
-    # Add the forests
-    if (param_list$include_mean_forest) {
-        jsonobj$add_forest(mean_forest)
-    }
-    if (param_list$include_variance_forest) {
-        jsonobj$add_forest(variance_forest)
-    }
-    
-    # Add sampled parameters
-    if (param_list$sample_sigma_global) {
-        jsonobj$add_vector("sigma2_global_samples", global_variance_samples, "parameters")
-    }
-    if (param_list$sample_sigma_leaf) {
-        jsonobj$add_vector("sigma2_leaf_samples", local_variance_samples, "parameters")
-    }
-    
-    # Add random effects
-    if (param_list$has_rfx) {
-        jsonobj$add_random_effects(rfx_samples)
-        jsonobj$add_string_vector("rfx_unique_group_ids", param_list$rfx_unique_group_ids)
-    }
-    
-    return(jsonobj)
-}
-
 #' Convert the persistent aspects of a BART model to (in-memory) JSON and save to a file
 #'
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
@@ -1316,10 +1255,12 @@ convertBARTStateToJson <- function(param_list, mean_forest = NULL, variance_fore
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' # saveBARTModelToJsonFile(bart_model, "test.json")
+#' tmpjson <- tempfile(fileext = ".json")
+#' saveBARTModelToJsonFile(bart_model, file.path(tmpjson))
+#' unlink(tmpjson)
 saveBARTModelToJsonFile <- function(object, filename){
     # Convert to Json
-    jsonobj <- convertBARTModelToJson(object)
+    jsonobj <- saveBARTModelToJson(object)
     
     # Save to file
     jsonobj$save_file(filename)
@@ -1353,10 +1294,10 @@ saveBARTModelToJsonFile <- function(object, filename){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' # saveBARTModelToJsonString(bart_model)
+#' bart_json_string <- saveBARTModelToJsonString(bart_model)
 saveBARTModelToJsonString <- function(object){
     # Convert to Json
-    jsonobj <- convertBARTModelToJson(object)
+    jsonobj <- saveBARTModelToJson(object)
     
     # Dump to string
     return(jsonobj$return_json_string())
@@ -1392,8 +1333,8 @@ saveBARTModelToJsonString <- function(object){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' # bart_json <- convertBARTModelToJson(bart_model)
-#' # bart_model_roundtrip <- createBARTModelFromJson(bart_json)
+#' bart_json <- saveBARTModelToJson(bart_model)
+#' bart_model_roundtrip <- createBARTModelFromJson(bart_json)
 createBARTModelFromJson <- function(json_object){
     # Initialize the BCF model
     output <- list()
@@ -1506,8 +1447,10 @@ createBARTModelFromJson <- function(json_object){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' # saveBARTModelToJsonFile(bart_model, "test.json")
-#' # bart_model_roundtrip <- createBARTModelFromJsonFile("test.json")
+#' tmpjson <- tempfile(fileext = ".json")
+#' saveBARTModelToJsonFile(bart_model, file.path(tmpjson))
+#' bart_model_roundtrip <- createBARTModelFromJsonFile(file.path(tmpjson))
+#' unlink(tmpjson)
 createBARTModelFromJsonFile <- function(json_filename){
     # Load a `CppJson` object from file
     bart_json <- createCppJsonFile(json_filename)
@@ -1548,11 +1491,11 @@ createBARTModelFromJsonFile <- function(json_filename){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' # bart_json <- saveBARTModelToJsonString(bart_model)
-#' # bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
-#' # y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X_train)$y_hat)
-#' # plot(rowMeans(bart_model$y_hat_train), y_hat_mean_roundtrip, 
-#' #      xlab = "original", ylab = "roundtrip")
+#' bart_json <- saveBARTModelToJsonString(bart_model)
+#' bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
+#' y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X_train)$y_hat)
+#' plot(rowMeans(bart_model$y_hat_train), y_hat_mean_roundtrip, 
+#'      xlab = "original", ylab = "roundtrip")
 createBARTModelFromJsonString <- function(json_string){
     # Load a `CppJson` object from string
     bart_json <- createCppJsonString(json_string)
@@ -1593,8 +1536,8 @@ createBARTModelFromJsonString <- function(json_string){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' # bart_json <- list(convertBARTModelToJson(bart_model))
-#' # bart_model_roundtrip <- createBARTModelFromCombinedJson(bart_json)
+#' bart_json <- list(saveBARTModelToJson(bart_model))
+#' bart_model_roundtrip <- createBARTModelFromCombinedJson(bart_json)
 createBARTModelFromCombinedJson <- function(json_object_list){
     # Initialize the BCF model
     output <- list()
@@ -1639,8 +1582,8 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
     model_params[["standardize"]] <- json_object_default$get_boolean("standardize")
     model_params[["sigma2_init"]] <- json_object_default$get_scalar("sigma2_init")
-    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
-    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["sample_sigma_global"]] <- json_object_default$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf"]] <- json_object_default$get_boolean("sample_sigma_leaf")
     model_params[["include_mean_forest"]] <- include_mean_forest
     model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
@@ -1738,8 +1681,8 @@ createBARTModelFromCombinedJson <- function(json_object_list){
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train)
-#' # bart_json_string_list <- list(saveBARTModelToJsonString(bart_model))
-#' # bart_model_roundtrip <- createBARTModelFromCombinedJsonString(bart_json_string_list)
+#' bart_json_string_list <- list(saveBARTModelToJsonString(bart_model))
+#' bart_model_roundtrip <- createBARTModelFromCombinedJsonString(bart_json_string_list)
 createBARTModelFromCombinedJsonString <- function(json_string_list){
     # Initialize the BCF model
     output <- list()

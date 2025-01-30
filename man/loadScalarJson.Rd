@@ -19,3 +19,9 @@ R vector
 \description{
 Load a scalar from json
 }
+\examples{
+example_scalar <- 5.4
+example_json <- createCppJson()
+example_json$add_scalar("myscalar", example_scalar)
+roundtrip_scalar <- loadScalarJson(example_json, "myscalar")
+}

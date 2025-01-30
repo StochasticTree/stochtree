@@ -17,3 +17,10 @@ loadForestContainerJson(json_object, json_forest_label)
 \description{
 Load a container of forest samples from json
 }
+\examples{
+X <- matrix(runif(10*100), ncol = 10)
+y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+bart_json <- saveBARTModelToJson(bart_model)
+mean_forest <- loadForestContainerJson(bart_json, "forest_0")
+}

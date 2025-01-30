@@ -17,3 +17,11 @@ createRandomEffectsModel(num_components, num_groups)
 \description{
 Create a \code{RandomEffectsModel} object
 }
+\examples{
+n <- 100
+rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+rfx_basis <- matrix(rep(1.0, n), ncol=1)
+num_groups <- length(unique(rfx_group_ids))
+num_components <- ncol(rfx_basis)
+rfx_model <- createRandomEffectsModel(num_components, num_groups)
+}

@@ -292,8 +292,8 @@ json_load_forest_container_cpp <- function(forest_samples, json_filename) {
   invisible(.Call(`_stochtree_json_load_forest_container_cpp`, forest_samples, json_filename))
 }
 
-output_dimension_forest_container_cpp <- function(forest_samples) {
-  .Call(`_stochtree_output_dimension_forest_container_cpp`, forest_samples)
+leaf_dimension_forest_container_cpp <- function(forest_samples) {
+  .Call(`_stochtree_leaf_dimension_forest_container_cpp`, forest_samples)
 }
 
 is_leaf_constant_forest_container_cpp <- function(forest_samples) {
@@ -464,8 +464,8 @@ predict_raw_active_forest_cpp <- function(active_forest, dataset) {
   .Call(`_stochtree_predict_raw_active_forest_cpp`, active_forest, dataset)
 }
 
-output_dimension_active_forest_cpp <- function(active_forest) {
-  .Call(`_stochtree_output_dimension_active_forest_cpp`, active_forest)
+leaf_dimension_active_forest_cpp <- function(active_forest) {
+  .Call(`_stochtree_leaf_dimension_active_forest_cpp`, active_forest)
 }
 
 average_max_depth_active_forest_cpp <- function(active_forest) {

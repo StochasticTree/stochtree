@@ -6,7 +6,7 @@
 \usage{
 createForest(
   num_trees,
-  output_dimension = 1,
+  leaf_dimension = 1,
   is_leaf_constant = F,
   is_exponentiated = F
 )
@@ -14,7 +14,7 @@ createForest(
 \arguments{
 \item{num_trees}{Number of trees in the forest}
 
-\item{output_dimension}{Dimensionality of the outcome model}
+\item{leaf_dimension}{Dimensionality of the outcome model}
 
 \item{is_leaf_constant}{Whether leaf is constant}
 
@@ -25,4 +25,11 @@ createForest(
 }
 \description{
 Create a forest
+}
+\examples{
+num_trees <- 100
+leaf_dimension <- 2
+is_leaf_constant <- FALSE
+is_exponentiated <- FALSE
+forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
 }

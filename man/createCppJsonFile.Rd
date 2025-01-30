@@ -15,3 +15,12 @@ createCppJsonFile(json_filename)
 \description{
 Create a C++ Json object from a Json file
 }
+\examples{
+example_vec <- runif(10)
+example_json <- createCppJson()
+example_json$add_vector("myvec", example_vec)
+tmpjson <- tempfile(fileext = ".json")
+example_json$save_file(file.path(tmpjson))
+example_json_roundtrip <- createCppJsonFile(file.path(tmpjson))
+unlink(tmpjson)
+}
