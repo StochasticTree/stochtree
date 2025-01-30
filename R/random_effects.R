@@ -337,6 +337,15 @@ RandomEffectsModel <- R6::R6Class(
 #' @param random_effects_tracker Object of type `RandomEffectsTracker`
 #' @return `RandomEffectSamples` object
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
+#' num_groups <- length(unique(rfx_group_ids))
+#' num_components <- ncol(rfx_basis)
+#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
+#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
 createRandomEffectSamples <- function(num_components, num_groups, random_effects_tracker) {
     invisible(output <- RandomEffectSamples$new())
     output$load_in_session(num_components, num_groups, random_effects_tracker)
@@ -348,6 +357,14 @@ createRandomEffectSamples <- function(num_components, num_groups, random_effects
 #' @param rfx_group_indices Integer indices indicating groups used to define random effects
 #' @return `RandomEffectsTracker` object
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
+#' num_groups <- length(unique(rfx_group_ids))
+#' num_components <- ncol(rfx_basis)
+#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
 createRandomEffectsTracker <- function(rfx_group_indices) {
     return(invisible((
         RandomEffectsTracker$new(rfx_group_indices)
@@ -360,6 +377,14 @@ createRandomEffectsTracker <- function(rfx_group_indices) {
 #' @param num_groups Number of random effects groups
 #' @return `RandomEffectsModel` object
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
+#' num_groups <- length(unique(rfx_group_ids))
+#' num_components <- ncol(rfx_basis)
+#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
 createRandomEffectsModel <- function(num_components, num_groups) {
     return(invisible((
         RandomEffectsModel$new(num_components, num_groups)
@@ -373,7 +398,35 @@ createRandomEffectsModel <- function(num_components, num_groups) {
 #' @param sample_num Index of sample stored in `rfx_samples` from which to reset the state of a random effects model. Zero-indexed, so resetting based on the first sample would require setting `sample_num = 0`.
 #' @param sigma_alpha_init Initial value of the "working parameter" scale parameter.
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' p <- 10
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
+#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
+#' y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' y_std <- (y-mean(y))/sd(y)
+#' outcome <- createOutcome(y_std)
+#' rng <- createCppRNG(1234)
+#' num_groups <- length(unique(rfx_group_ids))
+#' num_components <- ncol(rfx_basis)
+#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
+#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
+#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+#' for (i in 1:3) {
+#'     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome, 
+#'                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples, 
+#'                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
+#' }
+#' resetRandomEffectsModel(rfx_model, rfx_samples, 0, 1.0)
 resetRandomEffectsModel <- function(rfx_model, rfx_samples, sample_num, sigma_alpha_init) {
+    if (!is.matrix(sigma_alpha_init)) {
+        if (!is.double(sigma_alpha_init)) {
+            stop("`sigma_alpha_init` must be a numeric scalar or matrix")
+        }
+        sigma_alpha_init <- as.matrix(sigma_alpha_init)
+    }
     reset_rfx_model_cpp(rfx_model$rfx_model_ptr, rfx_samples$rfx_container_ptr, sample_num)
     rfx_model$set_working_parameter_cov(sigma_alpha_init)
 }
@@ -386,6 +439,29 @@ resetRandomEffectsModel <- function(rfx_model, rfx_samples, sample_num, sigma_al
 #' @param residual Object of type `Outcome`.
 #' @param rfx_samples Object of type `RandomEffectSamples`.
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' p <- 10
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
+#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
+#' y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' y_std <- (y-mean(y))/sd(y)
+#' outcome <- createOutcome(y_std)
+#' rng <- createCppRNG(1234)
+#' num_groups <- length(unique(rfx_group_ids))
+#' num_components <- ncol(rfx_basis)
+#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
+#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
+#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+#' for (i in 1:3) {
+#'     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome, 
+#'                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples, 
+#'                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
+#' }
+#' resetRandomEffectsModel(rfx_model, rfx_samples, 0, 1.0)
+#' resetRandomEffectsTracker(rfx_tracker, rfx_model, rfx_dataset, outcome, rfx_samples)
 resetRandomEffectsTracker <- function(rfx_tracker, rfx_model, rfx_dataset, residual, rfx_samples) {
     reset_rfx_tracker_cpp(rfx_tracker$rfx_tracker_ptr, rfx_dataset$data_ptr, residual$data_ptr, rfx_model$rfx_model_ptr)
 }
@@ -400,6 +476,35 @@ resetRandomEffectsTracker <- function(rfx_tracker, rfx_model, rfx_dataset, resid
 #' @param sigma_xi_shape Shape parameter for the inverse gamma variance model on the group parameters.
 #' @param sigma_xi_scale Scale parameter for the inverse gamma variance model on the group parameters.
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' p <- 10
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
+#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
+#' y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' y_std <- (y-mean(y))/sd(y)
+#' outcome <- createOutcome(y_std)
+#' rng <- createCppRNG(1234)
+#' num_groups <- length(unique(rfx_group_ids))
+#' num_components <- ncol(rfx_basis)
+#' alpha_init <- c(1)
+#' xi_init <- matrix(rep(alpha_init, num_groups),num_components,num_groups)
+#' sigma_alpha_init <- diag(1,num_components,num_components)
+#' sigma_xi_init <- diag(1,num_components,num_components)
+#' sigma_xi_shape <- 1
+#' sigma_xi_scale <- 1
+#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
+#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
+#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+#' for (i in 1:3) {
+#'     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome, 
+#'                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples, 
+#'                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
+#' }
+#' rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+#'                             sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
 rootResetRandomEffectsModel <- function(rfx_model, alpha_init, xi_init, sigma_alpha_init,
                                         sigma_xi_init, sigma_xi_shape, sigma_xi_scale) {
     rfx_model$set_working_parameter(alpha_init)
@@ -417,6 +522,36 @@ rootResetRandomEffectsModel <- function(rfx_model, alpha_init, xi_init, sigma_al
 #' @param rfx_dataset Object of type `RandomEffectsDataset`.
 #' @param residual Object of type `Outcome`.
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' p <- 10
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
+#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
+#' y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' y_std <- (y-mean(y))/sd(y)
+#' outcome <- createOutcome(y_std)
+#' rng <- createCppRNG(1234)
+#' num_groups <- length(unique(rfx_group_ids))
+#' num_components <- ncol(rfx_basis)
+#' alpha_init <- c(1)
+#' xi_init <- matrix(rep(alpha_init, num_groups),num_components,num_groups)
+#' sigma_alpha_init <- diag(1,num_components,num_components)
+#' sigma_xi_init <- diag(1,num_components,num_components)
+#' sigma_xi_shape <- 1
+#' sigma_xi_scale <- 1
+#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
+#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
+#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+#' for (i in 1:3) {
+#'     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome, 
+#'                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples, 
+#'                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
+#' }
+#' rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+#'                             sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+#' rootResetRandomEffectsTracker(rfx_tracker, rfx_model, rfx_dataset, outcome)
 rootResetRandomEffectsTracker <- function(rfx_tracker, rfx_model, rfx_dataset, residual) {
     root_reset_rfx_tracker_cpp(rfx_tracker$rfx_tracker_ptr, rfx_dataset$data_ptr, residual$data_ptr, rfx_model$rfx_model_ptr)
 }

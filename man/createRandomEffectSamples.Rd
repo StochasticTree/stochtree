@@ -19,3 +19,12 @@ createRandomEffectSamples(num_components, num_groups, random_effects_tracker)
 \description{
 Create a \code{RandomEffectSamples} object
 }
+\examples{
+n <- 100
+rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+rfx_basis <- matrix(rep(1.0, n), ncol=1)
+num_groups <- length(unique(rfx_group_ids))
+num_components <- ncol(rfx_basis)
+rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
+rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+}
