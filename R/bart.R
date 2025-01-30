@@ -700,7 +700,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 }
             } else {
                 if (include_mean_forest) {
-                    rootResetActiveForest(active_forest_mean)
+                    resetActiveForest(active_forest_mean)
                     active_forest_mean$set_root_leaves(init_values_mean_forest / num_trees_mean)
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
                     if (sample_sigma_leaf) {
@@ -708,7 +708,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     }
                 }
                 if (include_variance_forest) {
-                    rootResetActiveForest(active_forest_variance)
+                    resetActiveForest(active_forest_variance)
                     active_forest_variance$set_root_leaves(log(variance_forest_init) / num_trees_variance)
                     resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }

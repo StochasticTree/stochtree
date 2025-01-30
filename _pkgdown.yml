@@ -87,7 +87,6 @@ reference:
   - computeForestLeafVariances
   - resetActiveForest
   - resetForestModel
-  - rootResetActiveForest
 
 - subtitle: Random Effects
   desc: >

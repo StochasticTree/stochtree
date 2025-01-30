@@ -2,17 +2,19 @@
 % Please edit documentation in R/forest.R
 \name{resetActiveForest}
 \alias{resetActiveForest}
-\title{Re-initialize an active forest from a specific forest in a \code{ForestContainer}}
+\title{Reset an active forest, either from a specific forest in a \code{ForestContainer}
+or to an ensemble of single-node (i.e. root) trees}
 \usage{
-resetActiveForest(active_forest, forest_samples, forest_num)
+resetActiveForest(active_forest, forest_samples = NULL, forest_num = NULL)
 }
 \arguments{
 \item{active_forest}{Current active forest}
 
-\item{forest_samples}{Container of forest samples from which to re-initialize active forest}
+\item{forest_samples}{(Optional) Container of forest samples from which to re-initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.}
 
-\item{forest_num}{Index of forest samples from which to initialize active forest}
+\item{forest_num}{(Optional) Index of forest samples from which to initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.}
 }
 \description{
-Re-initialize an active forest from a specific forest in a \code{ForestContainer}
+Reset an active forest, either from a specific forest in a \code{ForestContainer}
+or to an ensemble of single-node (i.e. root) trees
 }

@@ -976,10 +976,10 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     }
                 }
             } else {
-                rootResetActiveForest(active_forest_mu)
+                resetActiveForest(active_forest_mu)
                 active_forest_mu$set_root_leaves(init_mu / num_trees_mu)
                 resetForestModel(forest_model_mu, active_forest_mu, forest_dataset_train, outcome_train, TRUE)
-                rootResetActiveForest(active_forest_tau)
+                resetActiveForest(active_forest_tau)
                 active_forest_tau$set_root_leaves(init_tau / num_trees_tau)
                 resetForestModel(forest_model_tau, active_forest_tau, forest_dataset_train, outcome_train, TRUE)
                 if (sample_sigma_leaf_mu) {
@@ -989,7 +989,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     current_leaf_scale_tau <- as.matrix(sigma_leaf_tau)
                 }
                 if (include_variance_forest) {
-                    rootResetActiveForest(active_forest_variance)
+                    resetActiveForest(active_forest_variance)
                     active_forest_variance$set_root_leaves(log(variance_forest_init) / num_trees_variance)
                     resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }

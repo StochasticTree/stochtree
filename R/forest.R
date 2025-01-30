@@ -779,14 +779,22 @@ createForest <- function(num_trees, output_dimension=1, is_leaf_constant=F, is_e
     )))
 }
 
-#' Re-initialize an active forest from a specific forest in a `ForestContainer`
+#' Reset an active forest, either from a specific forest in a `ForestContainer` 
+#' or to an ensemble of single-node (i.e. root) trees
 #' 
 #' @param active_forest Current active forest
-#' @param forest_samples Container of forest samples from which to re-initialize active forest
-#' @param forest_num Index of forest samples from which to initialize active forest
+#' @param forest_samples (Optional) Container of forest samples from which to re-initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
+#' @param forest_num (Optional) Index of forest samples from which to initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
 #' @export
-resetActiveForest <- function(active_forest, forest_samples, forest_num) {
-    reset_active_forest_cpp(active_forest$forest_ptr, forest_samples$forest_container_ptr, forest_num)
+resetActiveForest <- function(active_forest, forest_samples=NULL, forest_num=NULL) {
+    if (is.null(forest_samples)) {
+        root_reset_active_forest_cpp(active_forest$forest_ptr)
+    } else {
+        if (is.null(forest_num)) {
+            stop("`forest_num` must be specified if `forest_samples` is provided")
+        }
+        reset_active_forest_cpp(active_forest$forest_ptr, forest_samples$forest_container_ptr, forest_num)
+    }
 }
 
 #' Re-initialize a forest model (tracking data structures) from a specific forest in a `ForestContainer`
@@ -799,14 +807,4 @@ resetActiveForest <- function(active_forest, forest_samples, forest_num) {
 #' @export
 resetForestModel <- function(forest_model, forest, dataset, residual, is_mean_model) {
     reset_forest_model_cpp(forest_model$tracker_ptr, forest$forest_ptr, dataset$data_ptr, residual$data_ptr, is_mean_model)
-}
-
-#' Reset an active forest to an ensemble of single-node (i.e. root) trees
-#' 
-#' @param active_forest Current active forest
-#'
-#' @return `Forest` object
-#' @export
-rootResetActiveForest <- function(active_forest) {
-    root_reset_active_forest_cpp(active_forest$forest_ptr)
 }
