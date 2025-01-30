@@ -39,7 +39,7 @@ jobs:
 
       - name: Create a CRAN-ready version of the R package
         run: |
-          Rscript cran-bootstrap.R 0
+          Rscript cran-bootstrap.R 0 0
       
       - uses: r-lib/actions/check-r-package@v2
         with:
