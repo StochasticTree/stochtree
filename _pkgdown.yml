@@ -82,7 +82,7 @@ reference:
   - CppRNG
   - createCppRNG
   - calibrateInverseGammaErrorVariance
-  - computeMaxLeafIndex
+  - computeForestMaxLeafIndex
   - computeForestLeafIndices
   - computeForestLeafVariances
   - resetActiveForest

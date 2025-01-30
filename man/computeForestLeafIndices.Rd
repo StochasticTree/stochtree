@@ -7,12 +7,12 @@
 computeForestLeafIndices(
   model_object,
   covariates,
-  forest_type,
+  forest_type = NULL,
   forest_inds = NULL
 )
 }
 \arguments{
-\item{model_object}{Object of type \code{bartmodel} or \code{bcfmodel} corresponding to a BART / BCF model with at least one forest sample}
+\item{model_object}{Object of type \code{bartmodel}, \code{bcfmodel}, or \code{ForestSamples} corresponding to a BART / BCF model with at least one forest sample, or a low-level \code{ForestSamples} object.}
 
 \item{covariates}{Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.}
 
@@ -30,6 +30,11 @@ Valid inputs depend on the model type, and whether or not a given forest was sam
 \item \code{'prognostic'}: Extracts leaf indices for the prognostic forest
 \item \code{'treatment'}: Extracts leaf indices for the treatment effect forest
 \item \code{'variance'}: Extracts leaf indices for the variance forest
+}
+
+\strong{3. ForestSamples}
+\itemize{
+\item \code{NULL}: It is not necessary to disambiguate when this function is called directly on a \code{ForestSamples} object. This is the default value of this
 }}
 
 \item{forest_inds}{(Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided,
