@@ -49,7 +49,7 @@ In this case, $\nu$ is set by default to 3 and $\lambda$ is calibrated as follow
 1. An "overestimate," $\hat{\sigma}^2$, of $\sigma^2$ is obtained via simple linear regression of $y$ on $X$
 2. $\lambda$ is chosen to ensure that $p(\sigma^2 < \hat{\sigma}^2) = q$ for some value $q$, typically set to a default value of 0.9.
 
-This is done in `stochtree` via the `calibrate_inverse_gamma_error_variance` function.
+This is done in `stochtree` via the `calibrateInverseGammaErrorVariance` function.
 
 ```{r}
 # Load library
@@ -81,7 +81,7 @@ y_train <- y[train_inds]
 
 # Calibrate the scale parameter for the variance term as in Chipman et al (2010)
 nu <- 3
-lambda <- calibrate_inverse_gamma_error_variance(y_train, X_train, nu = nu)
+lambda <- calibrateInverseGammaErrorVariance(y_train, X_train, nu = nu)
 ```
 
 Now we run a BART model with this variance parameterization

@@ -12,7 +12,7 @@
 #' if tree 1 has 3 leaves, its column indices range from 0 to 2, and then tree 2's 
 #' leaf indices begin at 3, etc...).
 #'
-#' @param model_object Object of type `bartmodel` or `bcf` corresponding to a BART / BCF model with at least one forest sample
+#' @param model_object Object of type `bartmodel`, `bcfmodel`, or `ForestSamples` corresponding to a BART / BCF model with at least one forest sample, or a low-level `ForestSamples` object.
 #' @param covariates Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.
 #' @param forest_type Which forest to use from `model_object`. 
 #' Valid inputs depend on the model type, and whether or not a given forest was sampled in that model.
@@ -28,16 +28,29 @@
 #'   - `'treatment'`: Extracts leaf indices for the treatment effect forest
 #'   - `'variance'`: Extracts leaf indices for the variance forest
 #' 
+#'   **3. ForestSamples**
+#'
+#'   - `NULL`: It is not necessary to disambiguate when this function is called directly on a `ForestSamples` object. This is the default value of this
+#' 
 #' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided, 
 #' this function will return leaf indices for every sample of a forest. 
-#' This function uses 1-indexing, so the first forest sample corresponds to `forest_num = 1`, and so on.
+#' This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
 #' @return List of vectors. Each vector is of size `num_obs * num_trees`, where `num_obs = nrow(covariates)` 
 #' and `num_trees` is the number of trees in the relevant forest of `model_object`. 
 #' @export
-computeForestLeafIndices <- function(model_object, covariates, forest_type, forest_inds=NULL) {
+#' 
+#' @examples
+#' X <- matrix(runif(10*100), ncol = 10)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+#' computeForestLeafIndices(bart_model, X, "mean")
+#' computeForestLeafIndices(bart_model, X, "mean", 0)
+#' computeForestLeafIndices(bart_model, X, "mean", c(1,3,9))
+computeForestLeafIndices <- function(model_object, covariates, forest_type=NULL, forest_inds=NULL) {
     # Extract relevant forest container
-    stopifnot(class(model_object) %in% c("bartmodel", "bcf"))
-    model_type <- ifelse(class(model_object)=="bartmodel", "bart", "bcf")
+    object_name <- class(model_object)[1]
+    stopifnot(object_name %in% c("bartmodel", "bcfmodel", "ForestSamples"))
+    model_type <- ifelse(object_name=="bartmodel", "bart", ifelse(object_name=="bcfmodel", "bcf", "forest_samples"))
     if (model_type == "bart") {
         stopifnot(forest_type %in% c("mean", "variance"))
         if (forest_type=="mean") {
@@ -51,7 +64,7 @@ computeForestLeafIndices <- function(model_object, covariates, forest_type, fore
             }
             forest_container <- model_object$variance_forests
         }
-    } else {
+    } else if (model_type == "bcf") {
         stopifnot(forest_type %in% c("prognostic", "treatment", "variance"))
         if (forest_type=="prognostic") {
             forest_container <- model_object$forests_mu
@@ -63,6 +76,8 @@ computeForestLeafIndices <- function(model_object, covariates, forest_type, fore
             }
             forest_container <- model_object$variance_forests
         }
+    } else {
+        forest_container <- model_object
     }
     
     # Preprocess covariates
@@ -77,9 +92,9 @@ computeForestLeafIndices <- function(model_object, covariates, forest_type, fore
     if (is.null(forest_inds)) {
         forest_inds <- as.integer(1:num_forests - 1)
     } else {
-        stopifnot(all(forest_inds <= num_forests))
-        stopifnot(all(forest_inds >= 1))
-        forest_inds <- as.integer(forest_inds - 1)
+        stopifnot(all(forest_inds <= num_forests-1))
+        stopifnot(all(forest_inds >= 0))
+        forest_inds <- as.integer(forest_inds)
     }
     
     # Compute leaf indices
@@ -98,7 +113,7 @@ computeForestLeafIndices <- function(model_object, covariates, forest_type, fore
 #' If leaf scale is not sampled for the forest in question, throws an error that the 
 #' leaf model does not have a stochastic scale parameter.
 #' 
-#' @param model_object Object of type `bartmodel` or `bcf` corresponding to a BART / BCF model with at least one forest sample
+#' @param model_object Object of type `bartmodel` or `bcfmodel` corresponding to a BART / BCF model with at least one forest sample
 #' @param forest_type Which forest to use from `model_object`. 
 #' Valid inputs depend on the model type, and whether or not a given forest was sampled in that model.
 #' 
@@ -115,12 +130,20 @@ computeForestLeafIndices <- function(model_object, covariates, forest_type, fore
 #' 
 #' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided, 
 #' this function will return leaf indices for every sample of a forest. 
-#' This function uses 1-indexing, so the first forest sample corresponds to `forest_num = 1`, and so on.
+#' This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
 #' @return Vector of size `length(forest_inds)` with the leaf scale parameter for each requested forest.
 #' @export
+#' 
+#' @examples
+#' X <- matrix(runif(10*100), ncol = 10)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+#' computeForestLeafVariances(bart_model, "mean")
+#' computeForestLeafVariances(bart_model, "mean", 0)
+#' computeForestLeafVariances(bart_model, "mean", c(1,3,5))
 computeForestLeafVariances <- function(model_object, forest_type, forest_inds=NULL) {
     # Extract relevant forest container
-    stopifnot(class(model_object) %in% c("bartmodel", "bcf"))
+    stopifnot(class(model_object) %in% c("bartmodel", "bcfmodel"))
     model_type <- ifelse(class(model_object)=="bartmodel", "bart", "bcf")
     if (model_type == "bart") {
         stopifnot(forest_type %in% c("mean", "variance"))
@@ -163,9 +186,9 @@ computeForestLeafVariances <- function(model_object, forest_type, forest_inds=NU
     if (is.null(forest_inds)) {
         forest_inds <- as.integer(1:num_forests)
     } else {
-        stopifnot(all(forest_inds <= num_forests))
-        stopifnot(all(forest_inds >= 1))
-        forest_inds <- as.integer(forest_inds)
+        stopifnot(all(forest_inds <= num_forests-1))
+        stopifnot(all(forest_inds >= 0))
+        forest_inds <- as.integer(forest_inds + 1)
     }
     
     # Gather leaf scale parameters
@@ -176,7 +199,7 @@ computeForestLeafVariances <- function(model_object, forest_type, forest_inds=NU
 
 #' Compute and return the largest possible leaf index computable by `computeForestLeafIndices` for the forests in a designated forest sample container.
 #'
-#' @param model_object Object of type `bartmodel` or `bcf` corresponding to a BART / BCF model with at least one forest sample
+#' @param model_object Object of type `bartmodel`, `bcfmodel`, or `ForestSamples` corresponding to a BART / BCF model with at least one forest sample, or a low-level `ForestSamples` object.
 #' @param covariates Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.
 #' @param forest_type Which forest to use from `model_object`. 
 #' Valid inputs depend on the model type, and whether or not a 
@@ -192,15 +215,28 @@ computeForestLeafVariances <- function(model_object, forest_type, forest_inds=NU
 #'   - `'treatment'`: Extracts leaf indices for the treatment effect forest
 #'   - `'variance'`: Extracts leaf indices for the variance forest
 #' 
-#' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided, 
-#' this function will return leaf indices for every sample of a forest. 
-#' This function uses 1-indexing, so the first forest sample corresponds to `forest_num = 1`, and so on.
+#'   **3. ForestSamples**
+#'
+#'   - `NULL`: It is not necessary to disambiguate when this function is called directly on a `ForestSamples` object. This is the default value of this
+#' 
+#' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute max leaf indices. If not provided, 
+#' this function will return max leaf indices for every sample of a forest. 
+#' This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
 #' @return Vector containing the largest possible leaf index computable by `computeForestLeafIndices` for the forests in a designated forest sample container.
 #' @export
-computeMaxLeafIndex <- function(model_object, covariates, forest_type, forest_inds=NULL) {
+#' 
+#' @examples
+#' X <- matrix(runif(10*100), ncol = 10)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+#' computeForestMaxLeafIndex(bart_model, X, "mean")
+#' computeForestMaxLeafIndex(bart_model, X, "mean", 0)
+#' computeForestMaxLeafIndex(bart_model, X, "mean", c(1,3,9))
+computeForestMaxLeafIndex <- function(model_object, covariates, forest_type=NULL, forest_inds=NULL) {
     # Extract relevant forest container
-    stopifnot(class(model_object) %in% c("bartmodel", "bcf"))
-    model_type <- ifelse(class(model_object)=="bartmodel", "bart", "bcf")
+    object_name <- class(model_object)[1]
+    stopifnot(object_name %in% c("bartmodel", "bcfmodel", "ForestSamples"))
+    model_type <- ifelse(object_name=="bartmodel", "bart", ifelse(object_name=="bcfmodel", "bcf", "forest_samples"))
     if (model_type == "bart") {
         stopifnot(forest_type %in% c("mean", "variance"))
         if (forest_type=="mean") {
@@ -214,7 +250,7 @@ computeMaxLeafIndex <- function(model_object, covariates, forest_type, forest_in
             }
             forest_container <- model_object$variance_forests
         }
-    } else {
+    } else if (model_type == "bcf") {
         stopifnot(forest_type %in% c("prognostic", "treatment", "variance"))
         if (forest_type=="prognostic") {
             forest_container <- model_object$forests_mu
@@ -226,6 +262,8 @@ computeMaxLeafIndex <- function(model_object, covariates, forest_type, forest_in
             }
             forest_container <- model_object$variance_forests
         }
+    } else {
+        forest_container <- model_object
     }
     
     # Preprocess forest indices
@@ -233,9 +271,9 @@ computeMaxLeafIndex <- function(model_object, covariates, forest_type, forest_in
     if (is.null(forest_inds)) {
         forest_inds <- as.integer(1:num_forests - 1)
     } else {
-        stopifnot(all(forest_inds <= num_forests))
-        stopifnot(all(forest_inds >= 1))
-        forest_inds <- as.integer(forest_inds - 1)
+        stopifnot(all(forest_inds <= num_forests-1))
+        stopifnot(all(forest_inds >= 0))
+        forest_inds <- as.integer(forest_inds)
     }
     
     # Compute leaf indices

@@ -82,8 +82,8 @@ wrapped_bart_stochtree_analysis <- function(resid_train, resid_test, y_train, y_
     
     # Run BART
     bart_model <- stochtree::bart(
-        X_train = X_train, W_train = W_train, y_train = y_train, 
-        X_test = X_test, W_test = W_test, num_trees = 200, num_gfr = num_gfr, 
+        X_train = X_train, leaf_basis_train = W_train, y_train = y_train, 
+        X_test = X_test, leaf_basis_test = W_test, num_trees = 200, num_gfr = num_gfr, 
         num_burnin = num_burnin, num_mcmc = num_mcmc_retained, 
         sample_sigma = T, sample_tau = F, random_seed = 1234, nu = 3
     )

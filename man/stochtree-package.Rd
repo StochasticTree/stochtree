@@ -26,4 +26,9 @@ Authors:
   \item Jingyu He
 }
 
+Other contributors:
+\itemize{
+  \item stochtree contributors [copyright holder]
+}
+
 }

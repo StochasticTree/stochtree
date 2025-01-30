@@ -52,8 +52,6 @@ test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 train_inds <- (1:n)[!((1:n) %in% test_inds)]
 X_test <- as.data.frame(X[test_inds,])
 X_train <- as.data.frame(X[train_inds,])
-W_test <- NULL
-W_train <- NULL
 y_test <- y[test_inds]
 y_train <- y[train_inds]
 ```

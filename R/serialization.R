@@ -377,6 +377,13 @@ CppJson <- R6::R6Class(
 #'
 #' @return `ForestSamples` object
 #' @export
+#' 
+#' @examples
+#' X <- matrix(runif(10*100), ncol = 10)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+#' bart_json <- saveBARTModelToJson(bart_model)
+#' mean_forest <- loadForestContainerJson(bart_json, "forest_0")
 loadForestContainerJson <- function(json_object, json_forest_label) {
     invisible(output <- ForestSamples$new(0,1,T))
     output$load_from_json(json_object, json_forest_label)
@@ -390,6 +397,13 @@ loadForestContainerJson <- function(json_object, json_forest_label) {
 #'
 #' @return `ForestSamples` object
 #' @export
+#' 
+#' @examples
+#' X <- matrix(runif(10*100), ncol = 10)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+#' bart_json <- list(saveBARTModelToJson(bart_model))
+#' mean_forest <- loadForestContainerCombinedJson(bart_json, "forest_0")
 loadForestContainerCombinedJson <- function(json_object_list, json_forest_label) {
     invisible(output <- ForestSamples$new(0,1,T))
     for (i in 1:length(json_object_list)) {
@@ -410,6 +424,13 @@ loadForestContainerCombinedJson <- function(json_object_list, json_forest_label)
 #'
 #' @return `ForestSamples` object
 #' @export
+#' 
+#' @examples
+#' X <- matrix(runif(10*100), ncol = 10)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+#' bart_json_string <- list(saveBARTModelToJsonString(bart_model))
+#' mean_forest <- loadForestContainerCombinedJsonString(bart_json_string, "forest_0")
 loadForestContainerCombinedJsonString <- function(json_string_list, json_forest_label) {
     invisible(output <- ForestSamples$new(0,1,T))
     for (i in 1:length(json_string_list)) {
@@ -430,6 +451,18 @@ loadForestContainerCombinedJsonString <- function(json_string_list, json_forest_
 #'
 #' @return `RandomEffectSamples` object
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' p <- 10
+#' X <- matrix(runif(n*p), ncol = p)
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- rep(1.0, n)
+#' y <- (-5 + 10*(X[,1] > 0.5)) + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' bart_model <- bart(X_train=X, y_train=y, rfx_group_ids_train=rfx_group_ids,
+#'                    rfx_basis_train = rfx_basis, num_gfr=0, num_mcmc=10)
+#' bart_json <- saveBARTModelToJson(bart_model)
+#' rfx_samples <- loadRandomEffectSamplesJson(bart_json, 0)
 loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
     json_rfx_container_label <- paste0("random_effect_container_", json_rfx_num)
     json_rfx_mapper_label <- paste0("random_effect_label_mapper_", json_rfx_num)
@@ -446,6 +479,18 @@ loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
 #'
 #' @return `RandomEffectSamples` object
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' p <- 10
+#' X <- matrix(runif(n*p), ncol = p)
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- rep(1.0, n)
+#' y <- (-5 + 10*(X[,1] > 0.5)) + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' bart_model <- bart(X_train=X, y_train=y, rfx_group_ids_train=rfx_group_ids,
+#'                    rfx_basis_train = rfx_basis, num_gfr=0, num_mcmc=10)
+#' bart_json <- list(saveBARTModelToJson(bart_model))
+#' rfx_samples <- loadRandomEffectSamplesCombinedJson(bart_json, 0)
 loadRandomEffectSamplesCombinedJson <- function(json_object_list, json_rfx_num) {
     json_rfx_container_label <- paste0("random_effect_container_", json_rfx_num)
     json_rfx_mapper_label <- paste0("random_effect_label_mapper_", json_rfx_num)
@@ -469,6 +514,18 @@ loadRandomEffectSamplesCombinedJson <- function(json_object_list, json_rfx_num) 
 #'
 #' @return `RandomEffectSamples` object
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' p <- 10
+#' X <- matrix(runif(n*p), ncol = p)
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- rep(1.0, n)
+#' y <- (-5 + 10*(X[,1] > 0.5)) + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' bart_model <- bart(X_train=X, y_train=y, rfx_group_ids_train=rfx_group_ids,
+#'                    rfx_basis_train = rfx_basis, num_gfr=0, num_mcmc=10)
+#' bart_json_string <- list(saveBARTModelToJsonString(bart_model))
+#' rfx_samples <- loadRandomEffectSamplesCombinedJsonString(bart_json_string, 0)
 loadRandomEffectSamplesCombinedJsonString <- function(json_string_list, json_rfx_num) {
     json_rfx_container_label <- paste0("random_effect_container_", json_rfx_num)
     json_rfx_mapper_label <- paste0("random_effect_label_mapper_", json_rfx_num)
@@ -493,9 +550,15 @@ loadRandomEffectSamplesCombinedJsonString <- function(json_string_list, json_rfx
 #'
 #' @return R vector
 #' @export
+#' 
+#' @examples
+#' example_vec <- runif(10)
+#' example_json <- createCppJson()
+#' example_json$add_vector("myvec", example_vec)
+#' roundtrip_vec <- loadVectorJson(example_json, "myvec")
 loadVectorJson <- function(json_object, json_vector_label, subfolder_name = NULL) {
     if (is.null(subfolder_name)) {
-        output <- json_object$get_vector(json_vector_label, subfolder_name)
+        output <- json_object$get_vector(json_vector_label)
     } else {
         output <- json_object$get_vector(json_vector_label, subfolder_name)
     }
@@ -510,11 +573,17 @@ loadVectorJson <- function(json_object, json_vector_label, subfolder_name = NULL
 #'
 #' @return R vector
 #' @export
+#' 
+#' @examples
+#' example_scalar <- 5.4
+#' example_json <- createCppJson()
+#' example_json$add_scalar("myscalar", example_scalar)
+#' roundtrip_scalar <- loadScalarJson(example_json, "myscalar")
 loadScalarJson <- function(json_object, json_scalar_label, subfolder_name = NULL) {
     if (is.null(subfolder_name)) {
-        output <- json_object$get_vector(json_scalar_label, subfolder_name)
+        output <- json_object$get_scalar(json_scalar_label)
     } else {
-        output <- json_object$get_vector(json_scalar_label, subfolder_name)
+        output <- json_object$get_scalar(json_scalar_label, subfolder_name)
     }
     return(output)
 }
@@ -523,6 +592,11 @@ loadScalarJson <- function(json_object, json_scalar_label, subfolder_name = NULL
 #'
 #' @return `CppJson` object
 #' @export
+#' 
+#' @examples
+#' example_vec <- runif(10)
+#' example_json <- createCppJson()
+#' example_json$add_vector("myvec", example_vec)
 createCppJson <- function() {
     return(invisible((
         CppJson$new()
@@ -534,6 +608,15 @@ createCppJson <- function() {
 #' @param json_filename Name of file to read. Must end in `.json`.
 #' @return `CppJson` object
 #' @export
+#' 
+#' @examples
+#' example_vec <- runif(10)
+#' example_json <- createCppJson()
+#' example_json$add_vector("myvec", example_vec)
+#' tmpjson <- tempfile(fileext = ".json")
+#' example_json$save_file(file.path(tmpjson))
+#' example_json_roundtrip <- createCppJsonFile(file.path(tmpjson))
+#' unlink(tmpjson)
 createCppJsonFile <- function(json_filename) {
     invisible((
         output <- CppJson$new()
@@ -547,6 +630,13 @@ createCppJsonFile <- function(json_filename) {
 #' @param json_string JSON string dump
 #' @return `CppJson` object
 #' @export
+#' 
+#' @examples
+#' example_vec <- runif(10)
+#' example_json <- createCppJson()
+#' example_json$add_vector("myvec", example_vec)
+#' example_json_string <- example_json$return_json_string()
+#' example_json_roundtrip <- createCppJsonString(example_json_string)
 createCppJsonString <- function(json_string) {
     invisible((
         output <- CppJson$new()

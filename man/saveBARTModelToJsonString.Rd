@@ -10,7 +10,7 @@ saveBARTModelToJsonString(object)
 \item{object}{Object of type \code{bartmodel} containing draws of a BART model and associated sampling outputs.}
 }
 \value{
-JSON string
+in-memory JSON string
 }
 \description{
 Convert the persistent aspects of a BART model to (in-memory) JSON string
@@ -37,5 +37,5 @@ X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
 bart_model <- bart(X_train = X_train, y_train = y_train)
-# saveBARTModelToJsonString(bart_model)
+bart_json_string <- saveBARTModelToJsonString(bart_model)
 }

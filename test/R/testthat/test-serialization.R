@@ -80,7 +80,7 @@ test_that("BCF Serialization", {
     
     # Sample a BCF model
     bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-                     pi_train = pi_train, num_gfr = 100, num_burnin = 0, num_mcmc = 100)
+                     propensity_train = pi_train, num_gfr = 100, num_burnin = 0, num_mcmc = 100)
     bcf_preds_orig <- predict(bcf_model, X_test, Z_test, pi_test)
     mu_hat_orig <- rowMeans(bcf_preds_orig[["mu_hat"]])
     tau_hat_orig <- rowMeans(bcf_preds_orig[["tau_hat"]])

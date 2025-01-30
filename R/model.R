@@ -170,7 +170,11 @@ ForestModel <- R6::R6Class(
 #'
 #' @return `CppRng` object
 #' @export
-createRNG <- function(random_seed = -1){
+#' 
+#' @examples
+#' rng <- createCppRNG(1234)
+#' rng <- createCppRNG()
+createCppRNG <- function(random_seed = -1){
     return(invisible((
         CppRNG$new(random_seed)
     )))
@@ -189,6 +193,19 @@ createRNG <- function(random_seed = -1){
 #'
 #' @return `ForestModel` object
 #' @export
+#' 
+#' @examples
+#' num_trees <- 100
+#' n <- 100
+#' p <- 10
+#' alpha <- 0.95
+#' beta <- 2.0
+#' min_samples_leaf <- 2
+#' max_depth <- 10
+#' feature_types <- as.integer(rep(0, p))
+#' X <- matrix(runif(n*p), ncol = p)
+#' forest_dataset <- createForestDataset(X)
+#' forest_model <- createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
 createForestModel <- function(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth) {
     return(invisible((
         ForestModel$new(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)

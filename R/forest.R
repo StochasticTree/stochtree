@@ -14,12 +14,12 @@ ForestSamples <- R6::R6Class(
         #' @description
         #' Create a new ForestContainer object.
         #' @param num_trees Number of trees
-        #' @param output_dimension Dimensionality of the outcome model
+        #' @param leaf_dimension Dimensionality of the outcome model
         #' @param is_leaf_constant Whether leaf is constant
         #' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
         #' @return A new `ForestContainer` object.
-        initialize = function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
-            self$forest_container_ptr <- forest_container_cpp(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
+        initialize = function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+            self$forest_container_ptr <- forest_container_cpp(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
         }, 
         
         #' @description
@@ -81,7 +81,7 @@ ForestSamples <- R6::R6Class(
         predict_raw = function(forest_dataset) {
             stopifnot(!is.null(forest_dataset$data_ptr))
             # Unpack dimensions
-            output_dim <- output_dimension_forest_container_cpp(self$forest_container_ptr)
+            output_dim <- leaf_dimension_forest_container_cpp(self$forest_container_ptr)
             num_samples <- num_samples_forest_container_cpp(self$forest_container_ptr)
             n <- dataset_num_rows_cpp(forest_dataset$data_ptr)
             
@@ -105,7 +105,7 @@ ForestSamples <- R6::R6Class(
         predict_raw_single_forest = function(forest_dataset, forest_num) {
             stopifnot(!is.null(forest_dataset$data_ptr))
             # Unpack dimensions
-            output_dim <- output_dimension_forest_container_cpp(self$forest_container_ptr)
+            output_dim <- leaf_dimension_forest_container_cpp(self$forest_container_ptr)
             n <- dataset_num_rows_cpp(forest_dataset$data_ptr)
             
             # Predict leaf values from forest
@@ -139,10 +139,10 @@ ForestSamples <- R6::R6Class(
             
             # Set leaf values
             if (length(leaf_value) == 1) {
-                stopifnot(output_dimension_forest_container_cpp(self$forest_container_ptr) == 1)
+                stopifnot(leaf_dimension_forest_container_cpp(self$forest_container_ptr) == 1)
                 set_leaf_value_forest_container_cpp(self$forest_container_ptr, leaf_value)
             } else if (length(leaf_value) > 1) {
-                stopifnot(output_dimension_forest_container_cpp(self$forest_container_ptr) == length(leaf_value))
+                stopifnot(leaf_dimension_forest_container_cpp(self$forest_container_ptr) == length(leaf_value))
                 set_leaf_vector_forest_container_cpp(self$forest_container_ptr, leaf_value)
             } else {
                 stop("leaf_value must be a numeric value or vector of length >= 1")
@@ -225,8 +225,8 @@ ForestSamples <- R6::R6Class(
         #' @description
         #' Return output dimension of trees in a `ForestContainer` object
         #' @return Leaf node parameter size
-        output_dimension = function() {
-            return(output_dimension_forest_container_cpp(self$forest_container_ptr))
+        leaf_dimension = function() {
+            return(leaf_dimension_forest_container_cpp(self$forest_container_ptr))
         }, 
         
         #' @description
@@ -561,12 +561,12 @@ Forest <- R6::R6Class(
         #' @description
         #' Create a new Forest object.
         #' @param num_trees Number of trees in the forest
-        #' @param output_dimension Dimensionality of the outcome model
+        #' @param leaf_dimension Dimensionality of the outcome model
         #' @param is_leaf_constant Whether leaf is constant
         #' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
         #' @return A new `Forest` object.
-        initialize = function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
-            self$forest_ptr <- active_forest_cpp(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
+        initialize = function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+            self$forest_ptr <- active_forest_cpp(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
         }, 
         
         #' @description
@@ -592,7 +592,7 @@ Forest <- R6::R6Class(
         predict_raw = function(forest_dataset) {
             stopifnot(!is.null(forest_dataset$data_ptr))
             # Unpack dimensions
-            output_dim <- output_dimension_active_forest_cpp(self$forest_ptr)
+            output_dim <- leaf_dimension_active_forest_cpp(self$forest_ptr)
             n <- dataset_num_rows_cpp(forest_dataset$data_ptr)
             
             # Predict leaf values from forest
@@ -613,10 +613,10 @@ Forest <- R6::R6Class(
             
             # Set leaf values
             if (length(leaf_value) == 1) {
-                stopifnot(output_dimension_active_forest_cpp(self$forest_ptr) == 1)
+                stopifnot(leaf_dimension_active_forest_cpp(self$forest_ptr) == 1)
                 set_leaf_value_active_forest_cpp(self$forest_ptr, leaf_value)
             } else if (length(leaf_value) > 1) {
-                stopifnot(output_dimension_active_forest_cpp(self$forest_ptr) == length(leaf_value))
+                stopifnot(leaf_dimension_active_forest_cpp(self$forest_ptr) == length(leaf_value))
                 set_leaf_vector_active_forest_cpp(self$forest_ptr, leaf_value)
             } else {
                 stop("leaf_value must be a numeric value or vector of length >= 1")
@@ -676,8 +676,8 @@ Forest <- R6::R6Class(
         #' @description
         #' Return output dimension of trees in a `Forest` object
         #' @return Leaf node parameter size
-        output_dimension = function() {
-            return(output_dimension_active_forest_cpp(self$forest_ptr))
+        leaf_dimension = function() {
+            return(leaf_dimension_active_forest_cpp(self$forest_ptr))
         }, 
         
         #' @description
@@ -752,41 +752,77 @@ Forest <- R6::R6Class(
 #' Create a container of forest samples
 #'
 #' @param num_trees Number of trees
-#' @param output_dimension Dimensionality of the outcome model
+#' @param leaf_dimension Dimensionality of the outcome model
 #' @param is_leaf_constant Whether leaf is constant
 #' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
 #'
 #' @return `ForestSamples` object
 #' @export
-createForestContainer <- function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+#' 
+#' @examples
+#' num_trees <- 100
+#' leaf_dimension <- 2
+#' is_leaf_constant <- FALSE
+#' is_exponentiated <- FALSE
+#' forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+createForestSamples <- function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
     return(invisible((
-        ForestSamples$new(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
+        ForestSamples$new(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
     )))
 }
 
 #' Create a forest
 #'
 #' @param num_trees Number of trees in the forest
-#' @param output_dimension Dimensionality of the outcome model
+#' @param leaf_dimension Dimensionality of the outcome model
 #' @param is_leaf_constant Whether leaf is constant
 #' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
 #'
 #' @return `Forest` object
 #' @export
-createForest <- function(num_trees, output_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+#' 
+#' @examples
+#' num_trees <- 100
+#' leaf_dimension <- 2
+#' is_leaf_constant <- FALSE
+#' is_exponentiated <- FALSE
+#' forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+createForest <- function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
     return(invisible((
-        Forest$new(num_trees, output_dimension, is_leaf_constant, is_exponentiated)
+        Forest$new(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
     )))
 }
 
-#' Re-initialize an active forest from a specific forest in a `ForestContainer`
+#' Reset an active forest, either from a specific forest in a `ForestContainer` 
+#' or to an ensemble of single-node (i.e. root) trees
 #' 
 #' @param active_forest Current active forest
-#' @param forest_samples Container of forest samples from which to re-initialize active forest
-#' @param forest_num Index of forest samples from which to initialize active forest
+#' @param forest_samples (Optional) Container of forest samples from which to re-initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
+#' @param forest_num (Optional) Index of forest samples from which to initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
 #' @export
-resetActiveForest <- function(active_forest, forest_samples, forest_num) {
-    reset_active_forest_cpp(active_forest$forest_ptr, forest_samples$forest_container_ptr, forest_num)
+#' 
+#' @examples
+#' num_trees <- 100
+#' leaf_dimension <- 1
+#' is_leaf_constant <- TRUE
+#' is_exponentiated <- FALSE
+#' active_forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+#' forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+#' forest_samples$add_forest_with_constant_leaves(0.0)
+#' forest_samples$add_numeric_split_tree(0, 0, 0, 0, 0.5, -1.0, 1.0)
+#' forest_samples$add_numeric_split_tree(0, 1, 0, 1, 0.75, 3.4, 0.75)
+#' active_forest$set_root_leaves(0.1)
+#' resetActiveForest(active_forest, forest_samples, 0)
+#' resetActiveForest(active_forest)
+resetActiveForest <- function(active_forest, forest_samples=NULL, forest_num=NULL) {
+    if (is.null(forest_samples)) {
+        root_reset_active_forest_cpp(active_forest$forest_ptr)
+    } else {
+        if (is.null(forest_num)) {
+            stop("`forest_num` must be specified if `forest_samples` is provided")
+        }
+        reset_active_forest_cpp(active_forest$forest_ptr, forest_samples$forest_container_ptr, forest_num)
+    }
 }
 
 #' Re-initialize a forest model (tracking data structures) from a specific forest in a `ForestContainer`
@@ -797,16 +833,42 @@ resetActiveForest <- function(active_forest, forest_samples, forest_num) {
 #' @param residual Residual which will also be updated
 #' @param is_mean_model Whether the model being updated is a conditional mean model
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' p <- 10
+#' num_trees <- 100
+#' leaf_dimension <- 1
+#' is_leaf_constant <- TRUE
+#' is_exponentiated <- FALSE
+#' alpha <- 0.95
+#' beta <- 2.0
+#' min_samples_leaf <- 2
+#' max_depth <- 10
+#' feature_types <- as.integer(rep(0, p))
+#' leaf_model <- 0
+#' sigma2 <- 1.0
+#' leaf_scale <- as.matrix(1.0)
+#' variable_weights <- rep(1/p, p)
+#' a_forest <- 1
+#' b_forest <- 1
+#' cutpoint_grid_size <- 100
+#' X <- matrix(runif(n*p), ncol = p)
+#' forest_dataset <- createForestDataset(X)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(n)
+#' outcome <- createOutcome(y)
+#' rng <- createCppRNG(1234)
+#' forest_model <- createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
+#' active_forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+#' forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+#' forest_model$sample_one_iteration(
+#'     forest_dataset, outcome, forest_samples, active_forest, 
+#'     rng, feature_types, leaf_model, leaf_scale, variable_weights, 
+#'     a_forest, b_forest, sigma2, cutpoint_grid_size, keep_forest = TRUE, 
+#'     gfr = FALSE, pre_initialized = TRUE
+#' )
+#' resetActiveForest(active_forest, forest_samples, 0)
+#' resetForestModel(forest_model, active_forest, forest_dataset, outcome, TRUE)
 resetForestModel <- function(forest_model, forest, dataset, residual, is_mean_model) {
     reset_forest_model_cpp(forest_model$tracker_ptr, forest$forest_ptr, dataset$data_ptr, residual$data_ptr, is_mean_model)
-}
-
-#' Reset an active forest to an ensemble of single-node (i.e. root) trees
-#' 
-#' @param active_forest Current active forest
-#'
-#' @return `Forest` object
-#' @export
-rootResetActiveForest <- function(active_forest) {
-    root_reset_active_forest_cpp(active_forest$forest_ptr)
 }

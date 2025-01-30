@@ -1,13 +1,14 @@
 Package: stochtree
 Title: Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference
-Version: 0.0.1
+Version: 0.1.0
 Authors@R: 
   c(
     person("Drew", "Herren", email = "drewherrenopensource@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0003-4109-6611")), 
     person("Richard", "Hahn", role = "aut"),
     person("Jared", "Murray", role = "aut"),
     person("Carlos", "Carvalho", role = "aut"),
-    person("Jingyu", "He", role = "aut")
+    person("Jingyu", "He", role = "aut"),
+    person("stochtree contributors", role = c("cph"))
   )
 Description: Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference.
 License: MIT + file LICENSE

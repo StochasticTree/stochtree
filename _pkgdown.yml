@@ -15,7 +15,7 @@ reference:
     High-level functionality for estimating causal effects using Bayesian tree ensembles (BCF, XBCF)
   contents:
   - bcf
-  - predict.bcf
+  - predict.bcfmodel
 
 - title: Low-level functionality
 
@@ -30,26 +30,26 @@ reference:
   - loadForestContainerJson
   - loadForestContainerCombinedJson
   - loadForestContainerCombinedJsonString
-  - loadRandomEffectSamplesJson
   - loadVectorJson
   - loadScalarJson
-  - convertBARTModelToJson
-  - convertBARTStateToJson
-  - createBARTModelFromCombinedJson
-  - createBARTModelFromCombinedJsonString
+  - loadRandomEffectSamplesJson
+  - loadRandomEffectSamplesCombinedJson
+  - loadRandomEffectSamplesCombinedJsonString
+  - saveBARTModelToJson
+  - saveBARTModelToJsonFile
+  - saveBARTModelToJsonString
   - createBARTModelFromJson
   - createBARTModelFromJsonFile
   - createBARTModelFromJsonString
-  - loadRandomEffectSamplesCombinedJson
-  - loadRandomEffectSamplesCombinedJsonString
-  - saveBARTModelToJsonFile
-  - saveBARTModelToJsonString
+  - createBARTModelFromCombinedJson
+  - createBARTModelFromCombinedJsonString
+  - saveBCFModelToJson
   - saveBCFModelToJsonFile
   - saveBCFModelToJsonString
   - createBCFModelFromJsonFile
   - createBCFModelFromJsonString
-  - convertBCFModelToJson
   - createBCFModelFromJson
+  - createBCFModelFromCombinedJson
   - createBCFModelFromCombinedJsonString
 
 - subtitle: Data
@@ -64,16 +64,6 @@ reference:
   - createRandomEffectsDataset
   - preprocessTrainData
   - preprocessPredictionData
-  - preprocessTrainDataFrame
-  - preprocessPredictionDataFrame
-  - preprocessTrainMatrix
-  - preprocessPredictionMatrix
-  - createForestCovariates
-  - createForestCovariatesFromMetadata
-  - oneHotEncode
-  - oneHotInitializeAndEncode
-  - orderedCatPreprocess
-  - orderedCatInitializeAndPreprocess
   - convertPreprocessorToJson
   - savePreprocessorToJsonString
   - createPreprocessorFromJson
@@ -88,17 +78,15 @@ reference:
   - ForestModel
   - createForestModel
   - ForestSamples
-  - createForestContainer
+  - createForestSamples
   - CppRNG
-  - createRNG
-  - calibrate_inverse_gamma_error_variance
-  - preprocessParams
-  - computeMaxLeafIndex
+  - createCppRNG
+  - calibrateInverseGammaErrorVariance
+  - computeForestMaxLeafIndex
   - computeForestLeafIndices
   - computeForestLeafVariances
   - resetActiveForest
   - resetForestModel
-  - rootResetActiveForest
 
 - subtitle: Random Effects
   desc: >
@@ -112,9 +100,9 @@ reference:
   - createRandomEffectsTracker
   - getRandomEffectSamples
   - getRandomEffectSamples.bartmodel
-  - getRandomEffectSamples.bcf
-  - sample_sigma2_one_iteration
-  - sample_tau_one_iteration
+  - getRandomEffectSamples.bcfmodel
+  - sampleGlobalErrorVarianceOneIteration
+  - sampleLeafVarianceOneIteration
   - resetRandomEffectsModel
   - resetRandomEffectsTracker
   - rootResetRandomEffectsModel

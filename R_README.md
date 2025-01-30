@@ -1,10 +1,16 @@
 # stochtree R package
 
-**NOTE**: we are in the process of refactoring this project so that the R, Python, and C++ source code sits in the [same repo](https://github.com/StochasticTree/stochtree/).
+Software for building stochastic tree ensembles (i.e. BART, XBART) for supervised learning and causal inference.
 
 ## Getting started
 
-The package can be installed in R via
+`stochtree` can be installed from CRAN via
+
+```
+install.package("stochtree")
+```
+
+The development version of stochtree can be installed from github via
 
 ```
 remotes::install_github("StochasticTree/stochtree", ref="r-dev")

@@ -33,11 +33,11 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     b_forest = 0
     
     # RNG
-    cpp_rng = createRNG(-1)
+    cpp_rng = createCppRNG(-1)
     
     # Create forest sampler and forest container
     forest_model = createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
-    forest_samples = createForestContainer(num_trees, 1, F)
+    forest_samples = createForestSamples(num_trees, 1, F)
     active_forest = createForest(num_trees, 1, F)
     
     # Initialize the leaves of each tree in the prognostic forest

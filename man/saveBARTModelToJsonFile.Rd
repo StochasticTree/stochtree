@@ -36,5 +36,7 @@ X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
 bart_model <- bart(X_train = X_train, y_train = y_train)
-# saveBARTModelToJsonFile(bart_model, "test.json")
+tmpjson <- tempfile(fileext = ".json")
+saveBARTModelToJsonFile(bart_model, file.path(tmpjson))
+unlink(tmpjson)
 }

@@ -8,19 +8,19 @@ bcf(
   X_train,
   Z_train,
   y_train,
-  pi_train = NULL,
-  group_ids_train = NULL,
+  propensity_train = NULL,
+  rfx_group_ids_train = NULL,
   rfx_basis_train = NULL,
   X_test = NULL,
   Z_test = NULL,
-  pi_test = NULL,
-  group_ids_test = NULL,
+  propensity_test = NULL,
+  rfx_group_ids_test = NULL,
   rfx_basis_test = NULL,
   num_gfr = 5,
   num_burnin = 0,
   num_mcmc = 100,
   previous_model_json = NULL,
-  warmstart_sample_num = NULL,
+  previous_model_warmstart_sample_num = NULL,
   general_params = list(),
   mu_forest_params = list(),
   tau_forest_params = list(),
@@ -38,12 +38,12 @@ that the column is ordered categorical).}
 
 \item{y_train}{Outcome to be modeled by the ensemble.}
 
-\item{pi_train}{(Optional) Vector of propensity scores. If not provided, this will be estimated from the data.}
+\item{propensity_train}{(Optional) Vector of propensity scores. If not provided, this will be estimated from the data.}
 
-\item{group_ids_train}{(Optional) Group labels used for an additive random effects model.}
+\item{rfx_group_ids_train}{(Optional) Group labels used for an additive random effects model.}
 
 \item{rfx_basis_train}{(Optional) Basis for "random-slope" regression in an additive random effects model.
-If \code{group_ids_train} is provided with a regression basis, an intercept-only random effects model
+If \code{rfx_group_ids_train} is provided with a regression basis, an intercept-only random effects model
 will be estimated.}
 
 \item{X_test}{(Optional) Test set of covariates used to define "out of sample" evaluation data.
@@ -52,9 +52,9 @@ that of \code{X_train}.}
 
 \item{Z_test}{(Optional) Test set of (continuous or binary) treatment assignments.}
 
-\item{pi_test}{(Optional) Vector of propensity scores. If not provided, this will be estimated from the data.}
+\item{propensity_test}{(Optional) Vector of propensity scores. If not provided, this will be estimated from the data.}
 
-\item{group_ids_test}{(Optional) Test set group labels used for an additive random effects model.
+\item{rfx_group_ids_test}{(Optional) Test set group labels used for an additive random effects model.
 We do not currently support (but plan to in the near future), test set evaluation for group labels
 that were not in the training set.}
 
@@ -68,7 +68,7 @@ that were not in the training set.}
 
 \item{previous_model_json}{(Optional) JSON string containing a previous BCF model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: \code{NULL}.}
 
-\item{warmstart_sample_num}{(Optional) Sample number from \code{previous_model_json} that will be used to warmstart this BCF sampler. One-indexed (so that the first sample is used for warm-start by setting \code{warmstart_sample_num = 1}). Default: \code{NULL}.}
+\item{previous_model_warmstart_sample_num}{(Optional) Sample number from \code{previous_model_json} that will be used to warmstart this BCF sampler. One-indexed (so that the first sample is used for warm-start by setting \code{previous_model_warmstart_sample_num = 1}). Default: \code{NULL}.}
 
 \item{general_params}{(Optional) A list of general (non-forest-specific) model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
@@ -100,7 +100,7 @@ that were not in the training set.}
 \item \code{min_samples_leaf} Minimum allowable size of a leaf, in terms of training samples, in the prognostic forest. Default: \code{5}.
 \item \code{max_depth} Maximum depth of any tree in the ensemble in the prognostic forest. Default: \code{10}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
 \item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable in the prognostic forest. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.
-\item \code{sample_sigma2_leaf} Whether or not to update the leaf scale variance parameter based on \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: \code{FALSE}.
+\item \code{sample_sigma2_leaf} Whether or not to update the leaf scale variance parameter based on \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)}.
 \item \code{sigma2_leaf_init} Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees} if not set here.
 \item \code{sigma2_leaf_shape} Shape parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Default: \code{3}.
 \item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
@@ -116,7 +116,7 @@ that were not in the training set.}
 \item \code{min_samples_leaf} Minimum allowable size of a leaf, in terms of training samples, in the treatment effect forest. Default: \code{5}.
 \item \code{max_depth} Maximum depth of any tree in the ensemble in the treatment effect forest. Default: \code{5}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
 \item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable in the treatment effect forest. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.
-\item \code{sample_sigma2_leaf} Whether or not to update the leaf scale variance parameter based on \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)}. Cannot (currently) be set to true if \code{ncol(W_train)>1}. Default: \code{FALSE}.
+\item \code{sample_sigma2_leaf} Whether or not to update the leaf scale variance parameter based on \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)}. Cannot (currently) be set to true if \code{ncol(Z_train)>1}. Default: \code{FALSE}.
 \item \code{sigma2_leaf_init} Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees} if not set here.
 \item \code{sigma2_leaf_shape} Shape parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Default: \code{3}.
 \item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
@@ -186,12 +186,13 @@ mu_test <- mu_x[test_inds]
 mu_train <- mu_x[train_inds]
 tau_test <- tau_x[test_inds]
 tau_train <- tau_x[train_inds]
-bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, pi_train = pi_train, 
-                 X_test = X_test, Z_test = Z_test, pi_test = pi_test)
-# plot(rowMeans(bcf_model$mu_hat_test), mu_test, xlab = "predicted", 
-#      ylab = "actual", main = "Prognostic function")
-# abline(0,1,col="red",lty=3,lwd=3)
-# plot(rowMeans(bcf_model$tau_hat_test), tau_test, xlab = "predicted", 
-#      ylab = "actual", main = "Treatment effect")
-# abline(0,1,col="red",lty=3,lwd=3)
+bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
+                 propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
+                 propensity_test = pi_test)
+plot(rowMeans(bcf_model$mu_hat_test), mu_test, xlab = "predicted", 
+     ylab = "actual", main = "Prognostic function")
+abline(0,1,col="red",lty=3,lwd=3)
+plot(rowMeans(bcf_model$tau_hat_test), tau_test, xlab = "predicted", 
+     ylab = "actual", main = "Treatment effect")
+abline(0,1,col="red",lty=3,lwd=3)
 }

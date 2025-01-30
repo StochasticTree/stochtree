@@ -7,7 +7,7 @@
 computeForestLeafVariances(model_object, forest_type, forest_inds = NULL)
 }
 \arguments{
-\item{model_object}{Object of type \code{bartmodel} or \code{bcf} corresponding to a BART / BCF model with at least one forest sample}
+\item{model_object}{Object of type \code{bartmodel} or \code{bcfmodel} corresponding to a BART / BCF model with at least one forest sample}
 
 \item{forest_type}{Which forest to use from \code{model_object}.
 Valid inputs depend on the model type, and whether or not a given forest was sampled in that model.
@@ -27,7 +27,7 @@ Valid inputs depend on the model type, and whether or not a given forest was sam
 
 \item{forest_inds}{(Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided,
 this function will return leaf indices for every sample of a forest.
-This function uses 1-indexing, so the first forest sample corresponds to \code{forest_num = 1}, and so on.}
+This function uses 0-indexing, so the first forest sample corresponds to \code{forest_num = 0}, and so on.}
 }
 \value{
 Vector of size \code{length(forest_inds)} with the leaf scale parameter for each requested forest.
@@ -37,4 +37,12 @@ Return each forest's leaf node scale parameters.
 
 If leaf scale is not sampled for the forest in question, throws an error that the
 leaf model does not have a stochastic scale parameter.
+}
+\examples{
+X <- matrix(runif(10*100), ncol = 10)
+y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+computeForestLeafVariances(bart_model, "mean")
+computeForestLeafVariances(bart_model, "mean", 0)
+computeForestLeafVariances(bart_model, "mean", c(1,3,5))
 }
