@@ -18,3 +18,17 @@ resetActiveForest(active_forest, forest_samples = NULL, forest_num = NULL)
 Reset an active forest, either from a specific forest in a \code{ForestContainer}
 or to an ensemble of single-node (i.e. root) trees
 }
+\examples{
+num_trees <- 100
+leaf_dimension <- 1
+is_leaf_constant <- TRUE
+is_exponentiated <- FALSE
+active_forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+forest_samples$add_forest_with_constant_leaves(0.0)
+forest_samples$add_numeric_split_tree(0, 0, 0, 0, 0.5, -1.0, 1.0)
+forest_samples$add_numeric_split_tree(0, 1, 0, 1, 0.75, 3.4, 0.75)
+active_forest$set_root_leaves(0.1)
+resetActiveForest(active_forest, forest_samples, 0)
+resetActiveForest(active_forest)
+}

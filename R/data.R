@@ -228,6 +228,14 @@ RandomEffectsDataset <- R6::R6Class(
 #'
 #' @return `ForestDataset` object
 #' @export
+#' 
+#' @examples
+#' covariate_matrix <- matrix(runif(10*100), ncol = 10)
+#' basis_matrix <- matrix(rnorm(3*100), ncol = 3)
+#' weight_vector <- rnorm(100)
+#' forest_dataset <- createForestDataset(covariate_matrix)
+#' forest_dataset <- createForestDataset(covariate_matrix, basis_matrix)
+#' forest_dataset <- createForestDataset(covariate_matrix, basis_matrix, weight_vector)
 createForestDataset <- function(covariates, basis=NULL, variance_weights=NULL){
     return(invisible((
         ForestDataset$new(covariates, basis, variance_weights)
@@ -240,6 +248,11 @@ createForestDataset <- function(covariates, basis=NULL, variance_weights=NULL){
 #'
 #' @return `Outcome` object
 #' @export
+#' 
+#' @examples
+#' X <- matrix(runif(10*100), ncol = 10)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+#' outcome <- createOutcome(y)
 createOutcome <- function(outcome){
     return(invisible((
         Outcome$new(outcome)
@@ -254,6 +267,13 @@ createOutcome <- function(outcome){
 #'
 #' @return `RandomEffectsDataset` object
 #' @export
+#' 
+#' @examples
+#' rfx_group_ids <- sample(1:2, size = 100, replace = TRUE)
+#' rfx_basis <- matrix(rnorm(3*100), ncol = 3)
+#' weight_vector <- rnorm(100)
+#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
+#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis, weight_vector)
 createRandomEffectsDataset <- function(group_labels, basis, variance_weights=NULL){
     return(invisible((
         RandomEffectsDataset$new(group_labels, basis, variance_weights)

@@ -26,3 +26,10 @@ createForest(
 \description{
 Create a forest
 }
+\examples{
+num_trees <- 100
+leaf_dimension <- 2
+is_leaf_constant <- FALSE
+is_exponentiated <- FALSE
+forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+}

@@ -15,3 +15,7 @@ createCppRNG(random_seed = -1)
 \description{
 Create an R class that wraps a C++ random number generator
 }
+\examples{
+rng <- createCppRNG(1234)
+rng <- createCppRNG()
+}

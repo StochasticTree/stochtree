@@ -19,3 +19,10 @@ createRandomEffectsDataset(group_labels, basis, variance_weights = NULL)
 \description{
 Create a random effects dataset object
 }
+\examples{
+rfx_group_ids <- sample(1:2, size = 100, replace = TRUE)
+rfx_basis <- matrix(rnorm(3*100), ncol = 3)
+weight_vector <- rnorm(100)
+rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
+rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis, weight_vector)
+}

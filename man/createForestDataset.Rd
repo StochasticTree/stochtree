@@ -19,3 +19,11 @@ createForestDataset(covariates, basis = NULL, variance_weights = NULL)
 \description{
 Create a forest dataset object
 }
+\examples{
+covariate_matrix <- matrix(runif(10*100), ncol = 10)
+basis_matrix <- matrix(rnorm(3*100), ncol = 3)
+weight_vector <- rnorm(100)
+forest_dataset <- createForestDataset(covariate_matrix)
+forest_dataset <- createForestDataset(covariate_matrix, basis_matrix)
+forest_dataset <- createForestDataset(covariate_matrix, basis_matrix, weight_vector)
+}

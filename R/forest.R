@@ -758,6 +758,13 @@ Forest <- R6::R6Class(
 #'
 #' @return `ForestSamples` object
 #' @export
+#' 
+#' @examples
+#' num_trees <- 100
+#' leaf_dimension <- 2
+#' is_leaf_constant <- FALSE
+#' is_exponentiated <- FALSE
+#' forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
 createForestSamples <- function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
     return(invisible((
         ForestSamples$new(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
@@ -773,6 +780,13 @@ createForestSamples <- function(num_trees, leaf_dimension=1, is_leaf_constant=F,
 #'
 #' @return `Forest` object
 #' @export
+#' 
+#' @examples
+#' num_trees <- 100
+#' leaf_dimension <- 2
+#' is_leaf_constant <- FALSE
+#' is_exponentiated <- FALSE
+#' forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
 createForest <- function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
     return(invisible((
         Forest$new(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
@@ -786,6 +800,20 @@ createForest <- function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exp
 #' @param forest_samples (Optional) Container of forest samples from which to re-initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
 #' @param forest_num (Optional) Index of forest samples from which to initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
 #' @export
+#' 
+#' @examples
+#' num_trees <- 100
+#' leaf_dimension <- 1
+#' is_leaf_constant <- TRUE
+#' is_exponentiated <- FALSE
+#' active_forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+#' forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+#' forest_samples$add_forest_with_constant_leaves(0.0)
+#' forest_samples$add_numeric_split_tree(0, 0, 0, 0, 0.5, -1.0, 1.0)
+#' forest_samples$add_numeric_split_tree(0, 1, 0, 1, 0.75, 3.4, 0.75)
+#' active_forest$set_root_leaves(0.1)
+#' resetActiveForest(active_forest, forest_samples, 0)
+#' resetActiveForest(active_forest)
 resetActiveForest <- function(active_forest, forest_samples=NULL, forest_num=NULL) {
     if (is.null(forest_samples)) {
         root_reset_active_forest_cpp(active_forest$forest_ptr)
@@ -805,6 +833,42 @@ resetActiveForest <- function(active_forest, forest_samples=NULL, forest_num=NUL
 #' @param residual Residual which will also be updated
 #' @param is_mean_model Whether the model being updated is a conditional mean model
 #' @export
+#' 
+#' @examples
+#' n <- 100
+#' p <- 10
+#' num_trees <- 100
+#' leaf_dimension <- 1
+#' is_leaf_constant <- TRUE
+#' is_exponentiated <- FALSE
+#' alpha <- 0.95
+#' beta <- 2.0
+#' min_samples_leaf <- 2
+#' max_depth <- 10
+#' feature_types <- as.integer(rep(0, p))
+#' leaf_model <- 0
+#' sigma2 <- 1.0
+#' leaf_scale <- as.matrix(1.0)
+#' variable_weights <- rep(1/p, p)
+#' a_forest <- 1
+#' b_forest <- 1
+#' cutpoint_grid_size <- 100
+#' X <- matrix(runif(n*p), ncol = p)
+#' forest_dataset <- createForestDataset(X)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(n)
+#' outcome <- createOutcome(y)
+#' rng <- createCppRNG(1234)
+#' forest_model <- createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
+#' active_forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+#' forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+#' forest_model$sample_one_iteration(
+#'     forest_dataset, outcome, forest_samples, active_forest, 
+#'     rng, feature_types, leaf_model, leaf_scale, variable_weights, 
+#'     a_forest, b_forest, sigma2, cutpoint_grid_size, keep_forest = TRUE, 
+#'     gfr = FALSE, pre_initialized = TRUE
+#' )
+#' resetActiveForest(active_forest, forest_samples, 0)
+#' resetForestModel(forest_model, active_forest, forest_dataset, outcome, TRUE)
 resetForestModel <- function(forest_model, forest, dataset, residual, is_mean_model) {
     reset_forest_model_cpp(forest_model$tracker_ptr, forest$forest_ptr, dataset$data_ptr, residual$data_ptr, is_mean_model)
 }

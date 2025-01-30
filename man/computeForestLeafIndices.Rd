@@ -39,7 +39,7 @@ Valid inputs depend on the model type, and whether or not a given forest was sam
 
 \item{forest_inds}{(Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided,
 this function will return leaf indices for every sample of a forest.
-This function uses 1-indexing, so the first forest sample corresponds to \code{forest_num = 1}, and so on.}
+This function uses 0-indexing, so the first forest sample corresponds to \code{forest_num = 0}, and so on.}
 }
 \value{
 List of vectors. Each vector is of size \code{num_obs * num_trees}, where \code{num_obs = nrow(covariates)}
@@ -57,4 +57,12 @@ the second tree and so on. The "data" for each element corresponds to a uniquely
 mapped column index that corresponds to a single leaf of a single tree (i.e.
 if tree 1 has 3 leaves, its column indices range from 0 to 2, and then tree 2's
 leaf indices begin at 3, etc...).
+}
+\examples{
+X <- matrix(runif(10*100), ncol = 10)
+y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+computeForestLeafIndices(bart_model, X, "mean")
+computeForestLeafIndices(bart_model, X, "mean", 0)
+computeForestLeafIndices(bart_model, X, "mean", c(1,3,9))
 }

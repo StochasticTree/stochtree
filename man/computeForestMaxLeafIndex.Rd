@@ -39,11 +39,19 @@ Valid inputs depend on the model type, and whether or not a
 
 \item{forest_inds}{(Optional) Indices of the forest sample(s) for which to compute max leaf indices. If not provided,
 this function will return max leaf indices for every sample of a forest.
-This function uses 1-indexing, so the first forest sample corresponds to \code{forest_num = 1}, and so on.}
+This function uses 0-indexing, so the first forest sample corresponds to \code{forest_num = 0}, and so on.}
 }
 \value{
 Vector containing the largest possible leaf index computable by \code{computeForestLeafIndices} for the forests in a designated forest sample container.
 }
 \description{
 Compute and return the largest possible leaf index computable by \code{computeForestLeafIndices} for the forests in a designated forest sample container.
+}
+\examples{
+X <- matrix(runif(10*100), ncol = 10)
+y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+computeForestMaxLeafIndex(bart_model, X, "mean")
+computeForestMaxLeafIndex(bart_model, X, "mean", 0)
+computeForestMaxLeafIndex(bart_model, X, "mean", c(1,3,9))
 }
