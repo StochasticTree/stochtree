@@ -7,7 +7,7 @@
 saveBCFModelToJson(object)
 }
 \arguments{
-\item{object}{Object of type \code{bcf} containing draws of a Bayesian causal forest model and associated sampling outputs.}
+\item{object}{Object of type \code{bcfmodel} containing draws of a Bayesian causal forest model and associated sampling outputs.}
 }
 \value{
 Object of type \code{CppJson}

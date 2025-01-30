@@ -7,7 +7,7 @@
 \method{getRandomEffectSamples}{bartmodel}(object, ...)
 }
 \arguments{
-\item{object}{Object of type \code{bcf} containing draws of a Bayesian causal forest model and associated sampling outputs.}
+\item{object}{Object of type \code{bartmodel} containing draws of a BART model and associated sampling outputs.}
 
 \item{...}{Other parameters to be used in random effects extraction}
 }

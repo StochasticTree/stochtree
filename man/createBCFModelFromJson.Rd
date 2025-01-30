@@ -11,7 +11,7 @@ createBCFModelFromJson(json_object)
 \item{json_object}{Object of type \code{CppJson} containing Json representation of a BCF model}
 }
 \value{
-Object of type \code{bcf}
+Object of type \code{bcfmodel}
 }
 \description{
 Convert an (in-memory) JSON representation of a BCF model to a BCF model object

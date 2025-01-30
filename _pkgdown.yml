@@ -15,7 +15,7 @@ reference:
     High-level functionality for estimating causal effects using Bayesian tree ensembles (BCF, XBCF)
   contents:
   - bcf
-  - predict.bcf
+  - predict.bcfmodel
 
 - title: Low-level functionality
 
@@ -101,7 +101,7 @@ reference:
   - createRandomEffectsTracker
   - getRandomEffectSamples
   - getRandomEffectSamples.bartmodel
-  - getRandomEffectSamples.bcf
+  - getRandomEffectSamples.bcfmodel
   - sample_sigma2_one_iteration
   - sample_tau_one_iteration
   - resetRandomEffectsModel

@@ -1057,7 +1057,7 @@ predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL
 
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
-#' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @param ... Other parameters to be used in random effects extraction
 #' @return List of arrays. The alpha array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`.
 #' The xi and beta arrays have dimension (`num_components`, `num_groups`, `num_samples`) and is simply a matrix if `num_components = 1`.
@@ -1582,8 +1582,8 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
     model_params[["standardize"]] <- json_object_default$get_boolean("standardize")
     model_params[["sigma2_init"]] <- json_object_default$get_scalar("sigma2_init")
-    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
-    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["sample_sigma_global"]] <- json_object_default$get_boolean("sample_sigma_global")
+    model_params[["sample_sigma_leaf"]] <- json_object_default$get_boolean("sample_sigma_leaf")
     model_params[["include_mean_forest"]] <- include_mean_forest
     model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")

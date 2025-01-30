@@ -5,13 +5,13 @@
 \title{Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object
 which can be used for prediction, etc...}
 \usage{
-createBCFModelFromCombinedJson(json_string_list)
+createBCFModelFromCombinedJson(json_object_list)
 }
 \arguments{
 \item{json_object_list}{List of objects of type \code{CppJson} containing Json representation of a BCF model}
 }
 \value{
-Object of type \code{bcf}
+Object of type \code{bcfmodel}
 }
 \description{
 Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object

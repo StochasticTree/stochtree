@@ -11,7 +11,7 @@ createBCFModelFromJsonString(json_string)
 \item{json_string}{JSON string dump}
 }
 \value{
-Object of type \code{bcf}
+Object of type \code{bcfmodel}
 }
 \description{
 Convert a JSON string containing sample information on a trained BCF model

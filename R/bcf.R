@@ -1284,14 +1284,14 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     if (internal_propensity_model) {
         result[["bart_propensity_model"]] = bart_model_propensity
     }
-    class(result) <- "bcf"
+    class(result) <- "bcfmodel"
     
     return(result)
 }
 
 #' Predict from a sampled BCF model on new data
 #'
-#' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
+#' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #' @param X Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.
 #' @param Z Treatments used for prediction.
 #' @param propensity (Optional) Propensities used for prediction.
@@ -1353,7 +1353,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
 #' plot(rowMeans(preds$tau_hat), tau_test, xlab = "predicted", 
 #'      ylab = "actual", main = "Treatment effect")
 #' abline(0,1,col="red",lty=3,lwd=3)
-predict.bcf <- function(object, X, Z, propensity = NULL, rfx_group_ids = NULL, rfx_basis = NULL, ...){
+predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NULL, rfx_basis = NULL, ...){
     # Preprocess covariates
     if ((!is.data.frame(X)) && (!is.matrix(X))) {
         stop("X must be a matrix or dataframe")
@@ -1472,7 +1472,7 @@ predict.bcf <- function(object, X, Z, propensity = NULL, rfx_group_ids = NULL, r
 
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
-#' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
+#' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #' @param ... Other parameters to be used in random effects extraction
 #' @return List of arrays. The alpha array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`.
 #' The xi and beta arrays have dimension (`num_components`, `num_groups`, `num_samples`) and is simply a matrix if `num_components = 1`.
@@ -1541,7 +1541,7 @@ predict.bcf <- function(object, X, Z, propensity = NULL, rfx_group_ids = NULL, r
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
 #' rfx_samples <- getRandomEffectSamples(bcf_model)
-getRandomEffectSamples.bcf <- function(object, ...){
+getRandomEffectSamples.bcfmodel <- function(object, ...){
     result = list()
     
     if (!object$model_params$has_rfx) {
@@ -1563,7 +1563,7 @@ getRandomEffectSamples.bcf <- function(object, ...){
 
 #' Convert the persistent aspects of a BCF model to (in-memory) JSON
 #'
-#' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
+#' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #'
 #' @return Object of type `CppJson`
 #' @export
@@ -1632,6 +1632,10 @@ getRandomEffectSamples.bcf <- function(object, ...){
 #' # bcf_json <- saveBCFModelToJson(bcf_model)
 saveBCFModelToJson <- function(object){
     jsonobj <- createCppJson()
+    
+    if (class(object) != "bcfmodel") {
+        stop("`object` must be a BCF model")
+    }
     
     if (is.null(object$model_params)) {
         stop("This BCF model has not yet been sampled")
@@ -1721,7 +1725,7 @@ saveBCFModelToJson <- function(object){
 
 #' Convert the persistent aspects of a BCF model to (in-memory) JSON and save to a file
 #'
-#' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
+#' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #' @param filename String of filepath, must end in ".json"
 #'
 #' @return in-memory JSON string
@@ -1799,7 +1803,7 @@ saveBCFModelToJsonFile <- function(object, filename){
 
 #' Convert the persistent aspects of a BCF model to (in-memory) JSON string
 #'
-#' @param object Object of type `bcf` containing draws of a Bayesian causal forest model and associated sampling outputs.
+#' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #' @return JSON string
 #' @export
 #'
@@ -1878,7 +1882,7 @@ saveBCFModelToJsonString <- function(object){
 #'
 #' @param json_object Object of type `CppJson` containing Json representation of a BCF model
 #'
-#' @return Object of type `bcf`
+#' @return Object of type `bcfmodel`
 #' @export
 #'
 #' @examples
@@ -2032,7 +2036,7 @@ createBCFModelFromJson <- function(json_object){
         preprocessor_metadata_string
     )
 
-    class(output) <- "bcf"
+    class(output) <- "bcfmodel"
     return(output)
 }
 
@@ -2041,7 +2045,7 @@ createBCFModelFromJson <- function(json_object){
 #'
 #' @param json_filename String of filepath, must end in ".json"
 #'
-#' @return Object of type `bcf`
+#' @return Object of type `bcfmodel`
 #' @export
 #'
 #' @examples
@@ -2122,7 +2126,7 @@ createBCFModelFromJsonFile <- function(json_filename){
 #'
 #' @param json_string JSON string dump
 #'
-#' @return Object of type `bcf`
+#' @return Object of type `bcfmodel`
 #' @export
 #'
 #' @examples
@@ -2199,7 +2203,7 @@ createBCFModelFromJsonString <- function(json_string){
 #'
 #' @param json_object_list List of objects of type `CppJson` containing Json representation of a BCF model
 #'
-#' @return Object of type `bcf`
+#' @return Object of type `bcfmodel`
 #' @export
 #'
 #' @examples
@@ -2262,7 +2266,7 @@ createBCFModelFromJsonString <- function(json_string){
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' # bcf_json_list <- list(saveBCFModelToJson(bcf_model))
 #' # bcf_model_roundtrip <- createBCFModelFromCombinedJson(bcf_json_list)
-createBCFModelFromCombinedJson <- function(json_string_list){
+createBCFModelFromCombinedJson <- function(json_object_list){
     # Initialize the BCF model
     output <- list()
     
@@ -2400,7 +2404,7 @@ createBCFModelFromCombinedJson <- function(json_string_list){
         preprocessor_metadata_string
     )
     
-    class(output) <- "bcf"
+    class(output) <- "bcfmodel"
     return(output)
 }
 
@@ -2409,7 +2413,7 @@ createBCFModelFromCombinedJson <- function(json_string_list){
 #'
 #' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BCF model
 #'
-#' @return Object of type `bcf`
+#' @return Object of type `bcfmodel`
 #' @export
 #'
 #' @examples
@@ -2623,6 +2627,6 @@ createBCFModelFromCombinedJsonString <- function(json_string_list){
         preprocessor_metadata_string
     )
     
-    class(output) <- "bcf"
+    class(output) <- "bcfmodel"
     return(output)
 }

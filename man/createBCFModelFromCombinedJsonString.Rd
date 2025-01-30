@@ -11,7 +11,7 @@ createBCFModelFromCombinedJsonString(json_string_list)
 \item{json_string_list}{List of JSON strings which can be parsed to objects of type \code{CppJson} containing Json representation of a BCF model}
 }
 \value{
-Object of type \code{bcf}
+Object of type \code{bcfmodel}
 }
 \description{
 Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object

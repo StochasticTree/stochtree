@@ -11,7 +11,7 @@ createBCFModelFromJsonFile(json_filename)
 \item{json_filename}{String of filepath, must end in ".json"}
 }
 \value{
-Object of type \code{bcf}
+Object of type \code{bcfmodel}
 }
 \description{
 Convert a JSON file containing sample information on a trained BCF model

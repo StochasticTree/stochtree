@@ -7,7 +7,7 @@
 computeMaxLeafIndex(model_object, covariates, forest_type, forest_inds = NULL)
 }
 \arguments{
-\item{model_object}{Object of type \code{bartmodel} or \code{bcf} corresponding to a BART / BCF model with at least one forest sample}
+\item{model_object}{Object of type \code{bartmodel} or \code{bcfmodel} corresponding to a BART / BCF model with at least one forest sample}
 
 \item{covariates}{Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.}
 
