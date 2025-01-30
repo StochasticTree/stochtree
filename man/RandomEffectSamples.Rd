@@ -75,7 +75,7 @@ Construct RandomEffectSamples object from other "in-session" R objects
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -137,7 +137,7 @@ Append random effect draws to \code{RandomEffectSamples} object from a json obje
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL (updates object in-place)
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -199,7 +199,7 @@ Append random effect draws to \code{RandomEffectSamples} object from a json obje
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL (updates object in-place)
+None
 }
 }
 \if{html}{\out{<hr>}}

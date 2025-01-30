@@ -35,7 +35,7 @@ ForestSamples <- R6::R6Class(
         #' Append to a `ForestContainer` object from a json object
         #' @param json_object Object of class `CppJson`
         #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
-        #' @return NULL
+        #' @return None
         append_from_json = function(json_object, json_forest_label) {
             forest_container_append_from_json_cpp(self$forest_container_ptr, json_object$json_ptr, json_forest_label)
         }, 
@@ -53,7 +53,7 @@ ForestSamples <- R6::R6Class(
         #' Append to a `ForestContainer` object from a json object
         #' @param json_string JSON string which parses into object of class `CppJson`
         #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
-        #' @return NULL
+        #' @return None
         append_from_json_string = function(json_string, json_forest_label) {
             forest_container_append_from_json_string_cpp(self$forest_container_ptr, json_string, json_forest_label)
         }, 
@@ -799,6 +799,7 @@ createForest <- function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exp
 #' @param active_forest Current active forest
 #' @param forest_samples (Optional) Container of forest samples from which to re-initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
 #' @param forest_num (Optional) Index of forest samples from which to initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
+#' @return None
 #' @export
 #' 
 #' @examples
@@ -832,6 +833,7 @@ resetActiveForest <- function(active_forest, forest_samples=NULL, forest_num=NUL
 #' @param dataset Training dataset object
 #' @param residual Residual which will also be updated
 #' @param is_mean_model Whether the model being updated is a conditional mean model
+#' @return None
 #' @export
 #' 
 #' @examples

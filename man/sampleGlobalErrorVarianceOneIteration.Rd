@@ -17,6 +17,9 @@ sampleGlobalErrorVarianceOneIteration(residual, dataset, rng, a, b)
 
 \item{b}{Global variance scale parameter}
 }
+\value{
+None
+}
 \description{
 Sample one iteration of the (inverse gamma) global variance model
 }

@@ -32,7 +32,7 @@ RandomEffectSamples <- R6::R6Class(
         #' @param num_components Number of "components" or bases defining the random effects regression
         #' @param num_groups Number of random effects groups
         #' @param random_effects_tracker Object of type `RandomEffectsTracker`
-        #' @return NULL
+        #' @return None
         load_in_session = function(num_components, num_groups, random_effects_tracker) {
             # Initialize
             self$rfx_container_ptr <- rfx_container_cpp(num_components, num_groups)
@@ -59,7 +59,7 @@ RandomEffectSamples <- R6::R6Class(
         #' @param json_rfx_container_label Label referring to a particular rfx sample container (i.e. "random_effect_container_0") in the overall json hierarchy
         #' @param json_rfx_mapper_label Label referring to a particular rfx label mapper (i.e. "random_effect_label_mapper_0") in the overall json hierarchy
         #' @param json_rfx_groupids_label Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy
-        #' @return NULL (updates object in-place)
+        #' @return None
         append_from_json = function(json_object, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label) {
             rfx_container_append_from_json_cpp(self$rfx_container_ptr, json_object$json_ptr, json_rfx_container_label)
         }, 
@@ -83,7 +83,7 @@ RandomEffectSamples <- R6::R6Class(
         #' @param json_rfx_container_label Label referring to a particular rfx sample container (i.e. "random_effect_container_0") in the overall json hierarchy
         #' @param json_rfx_mapper_label Label referring to a particular rfx label mapper (i.e. "random_effect_label_mapper_0") in the overall json hierarchy
         #' @param json_rfx_groupids_label Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy
-        #' @return NULL (updates object in-place)
+        #' @return None
         append_from_json_string = function(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label) {
             # Append RFX objects
             rfx_container_append_from_json_string_cpp(self$rfx_container_ptr, json_string, json_rfx_container_label)
@@ -398,6 +398,7 @@ createRandomEffectsModel <- function(num_components, num_groups) {
 #' @param rfx_samples Object of type `RandomEffectSamples`.
 #' @param sample_num Index of sample stored in `rfx_samples` from which to reset the state of a random effects model. Zero-indexed, so resetting based on the first sample would require setting `sample_num = 0`.
 #' @param sigma_alpha_init Initial value of the "working parameter" scale parameter.
+#' @return None
 #' @export
 #' 
 #' @examples
@@ -439,6 +440,7 @@ resetRandomEffectsModel <- function(rfx_model, rfx_samples, sample_num, sigma_al
 #' @param rfx_dataset Object of type `RandomEffectsDataset`.
 #' @param residual Object of type `Outcome`.
 #' @param rfx_samples Object of type `RandomEffectSamples`.
+#' @return None
 #' @export
 #' 
 #' @examples
@@ -476,6 +478,7 @@ resetRandomEffectsTracker <- function(rfx_tracker, rfx_model, rfx_dataset, resid
 #' @param sigma_xi_init Initial value of the "group parameters" scale parameter.
 #' @param sigma_xi_shape Shape parameter for the inverse gamma variance model on the group parameters.
 #' @param sigma_xi_scale Scale parameter for the inverse gamma variance model on the group parameters.
+#' @return None
 #' @export
 #' 
 #' @examples
@@ -522,6 +525,7 @@ rootResetRandomEffectsModel <- function(rfx_model, alpha_init, xi_init, sigma_al
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param rfx_dataset Object of type `RandomEffectsDataset`.
 #' @param residual Object of type `Outcome`.
+#' @return None
 #' @export
 #' 
 #' @examples

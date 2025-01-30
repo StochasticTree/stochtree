@@ -111,7 +111,7 @@ Outcome <- R6::R6Class(
         #' @description
         #' Update the current state of the outcome (i.e. partial residual) data by adding the values of `update_vector`
         #' @param update_vector Vector to be added to outcome
-        #' @return NULL
+        #' @return None
         add_vector = function(update_vector) {
             if (!is.numeric(update_vector)) {
                 stop("update_vector must be a numeric vector or 2d matrix")
@@ -128,7 +128,7 @@ Outcome <- R6::R6Class(
         #' @description
         #' Update the current state of the outcome (i.e. partial residual) data by subtracting the values of `update_vector`
         #' @param update_vector Vector to be subtracted from outcome
-        #' @return NULL
+        #' @return None
         subtract_vector = function(update_vector) {
             if (!is.numeric(update_vector)) {
                 stop("update_vector must be a numeric vector or 2d matrix")
@@ -145,7 +145,7 @@ Outcome <- R6::R6Class(
         #' @description
         #' Update the current state of the outcome (i.e. partial residual) data by replacing each element with the elements of `new_vector`
         #' @param new_vector Vector from which to overwrite the current data
-        #' @return NULL
+        #' @return None
         update_data = function(new_vector) {
             if (!is.numeric(new_vector)) {
                 stop("update_vector must be a numeric vector or 2d matrix")

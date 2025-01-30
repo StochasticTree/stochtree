@@ -17,6 +17,9 @@ resetForestModel(forest_model, forest, dataset, residual, is_mean_model)
 
 \item{is_mean_model}{Whether the model being updated is a conditional mean model}
 }
+\value{
+None
+}
 \description{
 Re-initialize a forest model (tracking data structures) from a specific forest in a \code{ForestContainer}
 }

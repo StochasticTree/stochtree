@@ -14,6 +14,9 @@ resetActiveForest(active_forest, forest_samples = NULL, forest_num = NULL)
 
 \item{forest_num}{(Optional) Index of forest samples from which to initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.}
 }
+\value{
+None
+}
 \description{
 Reset an active forest, either from a specific forest in a \code{ForestContainer}
 or to an ensemble of single-node (i.e. root) trees

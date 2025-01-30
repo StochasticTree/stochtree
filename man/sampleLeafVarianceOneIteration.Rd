@@ -15,6 +15,9 @@ sampleLeafVarianceOneIteration(forest, rng, a, b)
 
 \item{b}{Leaf variance scale parameter}
 }
+\value{
+None
+}
 \description{
 Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)
 }
