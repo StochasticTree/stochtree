@@ -17,3 +17,10 @@ loadForestContainerCombinedJson(json_object_list, json_forest_label)
 \description{
 Combine multiple JSON model objects containing forests (with the same hierarchy / schema) into a single forest_container
 }
+\examples{
+X <- matrix(runif(10*100), ncol = 10)
+y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+bart_json <- list(saveBARTModelToJson(bart_model))
+mean_forest <- loadForestContainerCombinedJson(bart_json, "forest_0")
+}

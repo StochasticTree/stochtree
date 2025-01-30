@@ -19,3 +19,9 @@ R vector
 \description{
 Load a vector from json
 }
+\examples{
+example_vec <- runif(10)
+example_json <- createCppJson()
+example_json$add_vector("myvec", example_vec)
+roundtrip_vec <- loadVectorJson(example_json, "myvec")
+}

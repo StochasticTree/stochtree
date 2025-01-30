@@ -72,9 +72,9 @@ RandomEffectSamples <- R6::R6Class(
         #' @param json_rfx_groupids_label Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy
         #' @return A new `RandomEffectSamples` object.
         load_from_json_string = function(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label) {
-            self$rfx_container_ptr <- rfx_container_from_json_string_cpp(json_object$json_ptr, json_rfx_container_label)
-            self$label_mapper_ptr <- rfx_label_mapper_from_json_string_cpp(json_object$json_ptr, json_rfx_mapper_label)
-            self$training_group_ids <- rfx_group_ids_from_json_string_cpp(json_object$json_ptr, json_rfx_groupids_label)
+            self$rfx_container_ptr <- rfx_container_from_json_string_cpp(json_string, json_rfx_container_label)
+            self$label_mapper_ptr <- rfx_label_mapper_from_json_string_cpp(json_string, json_rfx_mapper_label)
+            self$training_group_ids <- rfx_group_ids_from_json_string_cpp(json_string, json_rfx_groupids_label)
         }, 
         
         #' @description
@@ -85,7 +85,8 @@ RandomEffectSamples <- R6::R6Class(
         #' @param json_rfx_groupids_label Label referring to a particular set of rfx group IDs (i.e. "random_effect_groupids_0") in the overall json hierarchy
         #' @return NULL (updates object in-place)
         append_from_json_string = function(json_string, json_rfx_container_label, json_rfx_mapper_label, json_rfx_groupids_label) {
-            rfx_container_append_from_json_string_cpp(self$rfx_container_ptr, json_object$json_ptr, json_rfx_container_label)
+            # Append RFX objects
+            rfx_container_append_from_json_string_cpp(self$rfx_container_ptr, json_string, json_rfx_container_label)
         }, 
         
         #' @description
