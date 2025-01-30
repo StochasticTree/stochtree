@@ -545,10 +545,10 @@ extern "C" SEXP _stochtree_json_load_forest_container_cpp(SEXP forest_samples, S
   END_CPP11
 }
 // forest.cpp
-int output_dimension_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples);
-extern "C" SEXP _stochtree_output_dimension_forest_container_cpp(SEXP forest_samples) {
+int leaf_dimension_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples);
+extern "C" SEXP _stochtree_leaf_dimension_forest_container_cpp(SEXP forest_samples) {
   BEGIN_CPP11
-    return cpp11::as_sexp(output_dimension_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples)));
+    return cpp11::as_sexp(leaf_dimension_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples)));
   END_CPP11
 }
 // forest.cpp
@@ -857,10 +857,10 @@ extern "C" SEXP _stochtree_predict_raw_active_forest_cpp(SEXP active_forest, SEX
   END_CPP11
 }
 // forest.cpp
-int output_dimension_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest);
-extern "C" SEXP _stochtree_output_dimension_active_forest_cpp(SEXP active_forest) {
+int leaf_dimension_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest);
+extern "C" SEXP _stochtree_leaf_dimension_active_forest_cpp(SEXP active_forest) {
   BEGIN_CPP11
-    return cpp11::as_sexp(output_dimension_active_forest_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(active_forest)));
+    return cpp11::as_sexp(leaf_dimension_active_forest_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(active_forest)));
   END_CPP11
 }
 // forest.cpp
@@ -1510,6 +1510,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_json_load_string_cpp",                                (DL_FUNC) &_stochtree_json_load_string_cpp,                                 2},
     {"_stochtree_json_save_file_cpp",                                  (DL_FUNC) &_stochtree_json_save_file_cpp,                                   2},
     {"_stochtree_json_save_forest_container_cpp",                      (DL_FUNC) &_stochtree_json_save_forest_container_cpp,                       2},
+    {"_stochtree_leaf_dimension_active_forest_cpp",                    (DL_FUNC) &_stochtree_leaf_dimension_active_forest_cpp,                     1},
+    {"_stochtree_leaf_dimension_forest_container_cpp",                 (DL_FUNC) &_stochtree_leaf_dimension_forest_container_cpp,                  1},
     {"_stochtree_leaf_values_forest_container_cpp",                    (DL_FUNC) &_stochtree_leaf_values_forest_container_cpp,                     4},
     {"_stochtree_leaves_forest_container_cpp",                         (DL_FUNC) &_stochtree_leaves_forest_container_cpp,                          3},
     {"_stochtree_left_child_node_forest_container_cpp",                (DL_FUNC) &_stochtree_left_child_node_forest_container_cpp,                 4},
@@ -1523,8 +1525,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_num_split_nodes_forest_container_cpp",                (DL_FUNC) &_stochtree_num_split_nodes_forest_container_cpp,                 3},
     {"_stochtree_num_trees_active_forest_cpp",                         (DL_FUNC) &_stochtree_num_trees_active_forest_cpp,                          1},
     {"_stochtree_num_trees_forest_container_cpp",                      (DL_FUNC) &_stochtree_num_trees_forest_container_cpp,                       1},
-    {"_stochtree_output_dimension_active_forest_cpp",                  (DL_FUNC) &_stochtree_output_dimension_active_forest_cpp,                   1},
-    {"_stochtree_output_dimension_forest_container_cpp",               (DL_FUNC) &_stochtree_output_dimension_forest_container_cpp,                1},
     {"_stochtree_overwrite_column_vector_cpp",                         (DL_FUNC) &_stochtree_overwrite_column_vector_cpp,                          2},
     {"_stochtree_parent_node_forest_container_cpp",                    (DL_FUNC) &_stochtree_parent_node_forest_container_cpp,                     4},
     {"_stochtree_predict_active_forest_cpp",                           (DL_FUNC) &_stochtree_predict_active_forest_cpp,                            2},

@@ -502,19 +502,19 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     
     # Unpack model type info
     if (leaf_model_mean_forest == 0) {
-        output_dimension = 1
+        leaf_dimension = 1
         is_leaf_constant = T
         leaf_regression = F
     } else if (leaf_model_mean_forest == 1) {
         stopifnot(has_basis)
         stopifnot(ncol(leaf_basis_train) == 1)
-        output_dimension = 1
+        leaf_dimension = 1
         is_leaf_constant = F
         leaf_regression = T
     } else if (leaf_model_mean_forest == 2) {
         stopifnot(has_basis)
         stopifnot(ncol(leaf_basis_train) > 1)
-        output_dimension = ncol(leaf_basis_train)
+        leaf_dimension = ncol(leaf_basis_train)
         is_leaf_constant = F
         leaf_regression = T
         if (sample_sigma_leaf) {
@@ -549,8 +549,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     
     # Container of forest samples
     if (include_mean_forest) {
-        forest_samples_mean <- createForestSamples(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
-        active_forest_mean <- createForest(num_trees_mean, output_dimension, is_leaf_constant, FALSE)
+        forest_samples_mean <- createForestSamples(num_trees_mean, leaf_dimension, is_leaf_constant, FALSE)
+        active_forest_mean <- createForest(num_trees_mean, leaf_dimension, is_leaf_constant, FALSE)
     }
     if (include_variance_forest) {
         forest_samples_variance <- createForestSamples(num_trees_variance, 1, TRUE, TRUE)
@@ -637,11 +637,11 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 )
             }
             if (sample_sigma_global) {
-                current_sigma2 <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
+                current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
             }
             if (sample_sigma_leaf) {
-                leaf_scale_double <- sample_tau_one_iteration(active_forest_mean, rng, a_leaf, b_leaf)
+                leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                 current_leaf_scale <- as.matrix(leaf_scale_double)
                 if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
             }
@@ -759,11 +759,11 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     )
                 }
                 if (sample_sigma_global) {
-                    current_sigma2 <- sample_sigma2_one_iteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
+                    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                     if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
                 }
                 if (sample_sigma_leaf) {
-                    leaf_scale_double <- sample_tau_one_iteration(active_forest_mean, rng, a_leaf, b_leaf)
+                    leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                     current_leaf_scale <- as.matrix(leaf_scale_double)
                     if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
                 }
@@ -848,7 +848,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         "outcome_mean" = y_bar_train,
         "outcome_scale" = y_std_train, 
         "standardize" = standardize, 
-        "output_dimension" = output_dimension,
+        "leaf_dimension" = leaf_dimension,
         "is_leaf_constant" = is_leaf_constant,
         "leaf_regression" = leaf_regression,
         "requires_basis" = requires_basis, 

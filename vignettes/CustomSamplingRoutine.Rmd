@@ -169,12 +169,12 @@ for (i in 1:num_warmstart) {
     )
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(
+    global_var_samples[i+1] <- sampleGlobalErrorVarianceOneIteration(
         outcome, forest_dataset, rng, nu, lambda
     )
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(
+    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
         active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
@@ -194,12 +194,12 @@ for (i in (num_warmstart+1):num_samples) {
     )
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(
+    global_var_samples[i+1] <- sampleGlobalErrorVarianceOneIteration(
         outcome, forest_dataset, rng, nu, lambda
     )
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(
+    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
         active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
@@ -382,12 +382,12 @@ for (i in 1:num_warmstart) {
     )
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(
+    global_var_samples[i+1] <- sampleGlobalErrorVarianceOneIteration(
         outcome, forest_dataset, rng, nu, lambda
     )
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(
+    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
         active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
@@ -411,12 +411,12 @@ for (i in (num_warmstart+1):num_samples) {
     )
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(
+    global_var_samples[i+1] <- sampleGlobalErrorVarianceOneIteration(
         outcome, forest_dataset, rng, nu, lambda
     )
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(
+    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
         active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
@@ -617,12 +617,12 @@ for (i in 1:num_warmstart) {
     )
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(
+    global_var_samples[i+1] <- sampleGlobalErrorVarianceOneIteration(
         outcome, forest_dataset, rng, nu, lambda
     )
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(
+    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
         active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
@@ -646,12 +646,12 @@ for (i in (num_warmstart+1):num_samples) {
     )
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(
+    global_var_samples[i+1] <- sampleGlobalErrorVarianceOneIteration(
         outcome, forest_dataset, rng, nu, lambda
     )
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sample_tau_one_iteration(
+    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
         active_forest, rng, a_leaf, b_leaf
     )
     leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
@@ -848,7 +848,7 @@ for (i in 1:num_warmstart) {
     )
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(
+    global_var_samples[i+1] <- sampleGlobalErrorVarianceOneIteration(
         outcome, forest_dataset, rng, nu, lambda
     )
 }
@@ -886,7 +886,7 @@ for (i in (num_warmstart+1):num_samples) {
     )
     
     # Sample global variance parameter
-    global_var_samples[i+1] <- sample_sigma2_one_iteration(
+    global_var_samples[i+1] <- sampleGlobalErrorVarianceOneIteration(
         outcome, forest_dataset, rng, nu, lambda
     )
 }
@@ -1173,7 +1173,7 @@ if (num_gfr > 0){
         )
         
         # Sample variance parameters (if requested)
-        global_var_samples[i] <- sample_sigma2_one_iteration(
+        global_var_samples[i] <- sampleGlobalErrorVarianceOneIteration(
             outcome, forest_dataset_mu, rng, nu, lambda
         )
         current_sigma2 <- global_var_samples[i]
@@ -1205,7 +1205,7 @@ if (num_gfr > 0){
         b_1_samples[i] <- current_b_1
         
         # Sample variance parameters (if requested)
-        global_var_samples[i] <- sample_sigma2_one_iteration(outcome, forest_dataset_tau, rng, nu, lambda)
+        global_var_samples[i] <- sampleGlobalErrorVarianceOneIteration(outcome, forest_dataset_tau, rng, nu, lambda)
         current_sigma2 <- global_var_samples[i]
     }
 }
@@ -1224,7 +1224,7 @@ if (num_burnin + num_mcmc > 0) {
         )
         
         # Sample global variance parameter
-        global_var_samples[i] <- sample_sigma2_one_iteration(outcome, forest_dataset_mu, rng, nu, lambda)
+        global_var_samples[i] <- sampleGlobalErrorVarianceOneIteration(outcome, forest_dataset_mu, rng, nu, lambda)
         current_sigma2 <- global_var_samples[i]
 
         # Sample the treatment forest
@@ -1253,7 +1253,7 @@ if (num_burnin + num_mcmc > 0) {
         b_1_samples[i] <- current_b_1
 
         # Sample global variance parameter
-        global_var_samples[i] <- sample_sigma2_one_iteration(outcome, forest_dataset_tau, rng, nu, lambda)
+        global_var_samples[i] <- sampleGlobalErrorVarianceOneIteration(outcome, forest_dataset_tau, rng, nu, lambda)
         current_sigma2 <- global_var_samples[i]
     }
 }

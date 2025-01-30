@@ -6,7 +6,7 @@
 \usage{
 createForestSamples(
   num_trees,
-  output_dimension = 1,
+  leaf_dimension = 1,
   is_leaf_constant = F,
   is_exponentiated = F
 )
@@ -14,7 +14,7 @@ createForestSamples(
 \arguments{
 \item{num_trees}{Number of trees}
 
-\item{output_dimension}{Dimensionality of the outcome model}
+\item{leaf_dimension}{Dimensionality of the outcome model}
 
 \item{is_leaf_constant}{Whether leaf is constant}
 

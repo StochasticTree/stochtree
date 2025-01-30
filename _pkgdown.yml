@@ -101,8 +101,8 @@ reference:
   - getRandomEffectSamples
   - getRandomEffectSamples.bartmodel
   - getRandomEffectSamples.bcfmodel
-  - sample_sigma2_one_iteration
-  - sample_tau_one_iteration
+  - sampleGlobalErrorVarianceOneIteration
+  - sampleLeafVarianceOneIteration
   - resetRandomEffectsModel
   - resetRandomEffectsTracker
   - rootResetRandomEffectsModel

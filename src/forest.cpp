@@ -133,7 +133,7 @@ void json_load_forest_container_cpp(cpp11::external_pointer<StochTree::ForestCon
 }
 
 [[cpp11::register]]
-int output_dimension_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
+int leaf_dimension_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
     return forest_samples->OutputDimension();
 }
 
@@ -632,7 +632,7 @@ cpp11::writable::doubles predict_raw_active_forest_cpp(cpp11::external_pointer<S
 }
 
 [[cpp11::register]]
-int output_dimension_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
+int leaf_dimension_active_forest_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest) {
     return active_forest->OutputDimension();
 }
 

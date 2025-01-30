@@ -23,7 +23,7 @@ Wrapper around a C++ tree ensemble
 \item \href{#method-Forest-prepare_for_sampler}{\code{Forest$prepare_for_sampler()}}
 \item \href{#method-Forest-adjust_residual}{\code{Forest$adjust_residual()}}
 \item \href{#method-Forest-num_trees}{\code{Forest$num_trees()}}
-\item \href{#method-Forest-output_dimension}{\code{Forest$output_dimension()}}
+\item \href{#method-Forest-leaf_dimension}{\code{Forest$leaf_dimension()}}
 \item \href{#method-Forest-is_constant_leaf}{\code{Forest$is_constant_leaf()}}
 \item \href{#method-Forest-is_exponentiated}{\code{Forest$is_exponentiated()}}
 \item \href{#method-Forest-add_numeric_split_tree}{\code{Forest$add_numeric_split_tree()}}
@@ -42,7 +42,7 @@ Create a new Forest object.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{Forest$new(
   num_trees,
-  output_dimension = 1,
+  leaf_dimension = 1,
   is_leaf_constant = F,
   is_exponentiated = F
 )}\if{html}{\out{</div>}}
@@ -53,7 +53,7 @@ Create a new Forest object.
 \describe{
 \item{\code{num_trees}}{Number of trees in the forest}
 
-\item{\code{output_dimension}}{Dimensionality of the outcome model}
+\item{\code{leaf_dimension}}{Dimensionality of the outcome model}
 
 \item{\code{is_leaf_constant}}{Whether leaf is constant}
 
@@ -203,12 +203,12 @@ Tree count
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Forest-output_dimension"></a>}}
-\if{latex}{\out{\hypertarget{method-Forest-output_dimension}{}}}
-\subsection{Method \code{output_dimension()}}{
+\if{html}{\out{<a id="method-Forest-leaf_dimension"></a>}}
+\if{latex}{\out{\hypertarget{method-Forest-leaf_dimension}{}}}
+\subsection{Method \code{leaf_dimension()}}{
 Return output dimension of trees in a \code{Forest} object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Forest$output_dimension()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Forest$leaf_dimension()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{
