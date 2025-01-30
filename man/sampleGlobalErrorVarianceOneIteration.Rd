@@ -20,3 +20,14 @@ sampleGlobalErrorVarianceOneIteration(residual, dataset, rng, a, b)
 \description{
 Sample one iteration of the (inverse gamma) global variance model
 }
+\examples{
+X <- matrix(runif(10*100), ncol = 10)
+y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+y_std <- (y-mean(y))/sd(y)
+forest_dataset <- createForestDataset(X)
+outcome <- createOutcome(y_std)
+rng <- createCppRNG(1234)
+a <- 1.0
+b <- 1.0
+sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome, forest_dataset, rng, a, b)
+}

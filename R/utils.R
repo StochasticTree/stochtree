@@ -429,6 +429,12 @@ savePreprocessorToJsonString <- function(object){
 #'
 #' @returns Preprocessor object that can be used with the `preprocessPredictionData` function
 #' @export
+#'
+#' @examples
+#' cov_mat <- matrix(1:12, ncol = 3)
+#' preprocess_list <- preprocessTrainData(cov_mat)
+#' preprocessor_json <- convertPreprocessorToJson(preprocess_list$metadata)
+#' preprocessor_roundtrip <- createPreprocessorFromJson(preprocessor_json)
 createPreprocessorFromJson <- function(json_object){
     # Initialize the metadata list
     metadata <- list()
@@ -472,6 +478,12 @@ createPreprocessorFromJson <- function(json_object){
 #'
 #' @return Preprocessor object that can be used with the `preprocessPredictionData` function
 #' @export
+#'
+#' @examples
+#' cov_mat <- matrix(1:12, ncol = 3)
+#' preprocess_list <- preprocessTrainData(cov_mat)
+#' preprocessor_json_string <- savePreprocessorToJsonString(preprocess_list$metadata)
+#' preprocessor_roundtrip <- createPreprocessorFromJsonString(preprocessor_json_string)
 createPreprocessorFromJsonString <- function(json_string){
     # Load a `CppJson` object from string
     preprocessor_json <- createCppJsonString(json_string)

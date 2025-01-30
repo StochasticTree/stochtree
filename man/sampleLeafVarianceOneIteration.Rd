@@ -18,3 +18,14 @@ sampleLeafVarianceOneIteration(forest, rng, a, b)
 \description{
 Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)
 }
+\examples{
+num_trees <- 100
+leaf_dimension <- 1
+is_leaf_constant <- TRUE
+is_exponentiated <- FALSE
+active_forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+rng <- createCppRNG(1234)
+a <- 1.0
+b <- 1.0
+tau <- sampleLeafVarianceOneIteration(active_forest, rng, a, b)
+}
