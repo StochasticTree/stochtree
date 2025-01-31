@@ -15,6 +15,9 @@ resetRandomEffectsModel(rfx_model, rfx_samples, sample_num, sigma_alpha_init)
 
 \item{sigma_alpha_init}{Initial value of the "working parameter" scale parameter.}
 }
+\value{
+None
+}
 \description{
 Reset a \code{RandomEffectsModel} object based on the parameters indexed by \code{sample_num} in a \code{RandomEffectsSamples} object
 }

@@ -23,6 +23,9 @@ resetRandomEffectsTracker(
 
 \item{rfx_samples}{Object of type \code{RandomEffectSamples}.}
 }
+\value{
+None
+}
 \description{
 Reset a \code{RandomEffectsTracker} object based on the parameters indexed by \code{sample_num} in a \code{RandomEffectsSamples} object
 }

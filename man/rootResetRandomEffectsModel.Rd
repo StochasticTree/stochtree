@@ -29,6 +29,9 @@ rootResetRandomEffectsModel(
 
 \item{sigma_xi_scale}{Scale parameter for the inverse gamma variance model on the group parameters.}
 }
+\value{
+None
+}
 \description{
 Reset a \code{RandomEffectsModel} object to its "default" state
 }

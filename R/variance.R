@@ -5,6 +5,7 @@
 #' @param rng C++ random number generator
 #' @param a Global variance shape parameter
 #' @param b Global variance scale parameter
+#' @return None
 #' @export
 #' 
 #' @examples
@@ -27,7 +28,7 @@ sampleGlobalErrorVarianceOneIteration <- function(residual, dataset, rng, a, b) 
 #' @param rng C++ random number generator
 #' @param a Leaf variance shape parameter
 #' @param b Leaf variance scale parameter
-#'
+#' @return None
 #' @export
 #' 
 #' @examples

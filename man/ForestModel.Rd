@@ -183,7 +183,7 @@ This function is run after the \code{Outcome} class's \code{update_data} method,
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -203,7 +203,7 @@ Update alpha in the tree prior
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -223,7 +223,7 @@ Update beta in the tree prior
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -243,7 +243,7 @@ Update min_samples_leaf in the tree prior
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -263,7 +263,7 @@ Update max_depth in the tree prior
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 }
