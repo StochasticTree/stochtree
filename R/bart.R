@@ -1230,7 +1230,7 @@ saveBARTModelToJson <- function(object){
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @param filename String of filepath, must end in ".json"
 #'
-#' @return NULL
+#' @return None
 #' @export
 #'
 #' @examples

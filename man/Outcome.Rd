@@ -78,7 +78,7 @@ Update the current state of the outcome (i.e. partial residual) data by adding t
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -98,7 +98,7 @@ Update the current state of the outcome (i.e. partial residual) data by subtract
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -118,7 +118,7 @@ Update the current state of the outcome (i.e. partial residual) data by replacin
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 }

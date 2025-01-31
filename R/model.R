@@ -125,7 +125,7 @@ ForestModel <- R6::R6Class(
         #' Update the current state of the outcome (i.e. partial residual) data by subtracting the current predictions of each tree. 
         #' This function is run after the `Outcome` class's `update_data` method, which overwrites the partial residual with an entirely new stream of outcome data.
         #' @param residual Outcome used to sample the forest
-        #' @return NULL
+        #' @return None
         propagate_residual_update = function(residual) {
             propagate_trees_column_vector_cpp(self$tracker_ptr, residual$data_ptr)
         }, 
@@ -133,7 +133,7 @@ ForestModel <- R6::R6Class(
         #' @description
         #' Update alpha in the tree prior
         #' @param alpha New value of alpha to be used
-        #' @return NULL
+        #' @return None
         update_alpha = function(alpha) {
             update_alpha_tree_prior_cpp(self$tree_prior_ptr, alpha)
         }, 
@@ -141,7 +141,7 @@ ForestModel <- R6::R6Class(
         #' @description
         #' Update beta in the tree prior
         #' @param beta New value of beta to be used
-        #' @return NULL
+        #' @return None
         update_beta = function(beta) {
             update_beta_tree_prior_cpp(self$tree_prior_ptr, beta)
         }, 
@@ -149,7 +149,7 @@ ForestModel <- R6::R6Class(
         #' @description
         #' Update min_samples_leaf in the tree prior
         #' @param min_samples_leaf New value of min_samples_leaf to be used
-        #' @return NULL
+        #' @return None
         update_min_samples_leaf = function(min_samples_leaf) {
             update_min_samples_leaf_tree_prior_cpp(self$tree_prior_ptr, min_samples_leaf)
         }, 
@@ -157,7 +157,7 @@ ForestModel <- R6::R6Class(
         #' @description
         #' Update max_depth in the tree prior
         #' @param max_depth New value of max_depth to be used
-        #' @return NULL
+        #' @return None
         update_max_depth = function(max_depth) {
             update_max_depth_tree_prior_cpp(self$tree_prior_ptr, max_depth)
         }

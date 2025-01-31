@@ -11,6 +11,9 @@ saveBARTModelToJsonFile(object, filename)
 
 \item{filename}{String of filepath, must end in ".json"}
 }
+\value{
+None
+}
 \description{
 Convert the persistent aspects of a BART model to (in-memory) JSON and save to a file
 }

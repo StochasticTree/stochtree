@@ -139,7 +139,7 @@ Append to a \code{ForestContainer} object from a json object
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -183,7 +183,7 @@ Append to a \code{ForestContainer} object from a json object
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}

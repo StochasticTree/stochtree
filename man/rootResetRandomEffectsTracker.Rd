@@ -15,6 +15,9 @@ rootResetRandomEffectsTracker(rfx_tracker, rfx_model, rfx_dataset, residual)
 
 \item{residual}{Object of type \code{Outcome}.}
 }
+\value{
+None
+}
 \description{
 Reset a \code{RandomEffectsTracker} object to its "default" state
 }

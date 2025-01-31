@@ -85,7 +85,7 @@ Convert a forest container to json and add to the current \code{CppJson} object
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -105,7 +105,7 @@ Convert a random effects container to json and add to the current \code{CppJson}
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -129,7 +129,7 @@ Add a scalar to the json object under the name "field_name" (with optional subfo
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -153,7 +153,7 @@ Add a scalar to the json object under the name "field_name" (with optional subfo
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -177,7 +177,7 @@ Add a boolean value to the json object under the name "field_name" (with optiona
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -201,7 +201,7 @@ Add a string value to the json object under the name "field_name" (with optional
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -225,7 +225,7 @@ Add a vector to the json object under the name "field_name" (with optional subfo
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -249,7 +249,7 @@ Add an integer vector to the json object under the name "field_name" (with optio
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -273,7 +273,7 @@ Add an array to the json object under the name "field_name" (with optional subfo
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -295,7 +295,7 @@ Add a list of vectors (as an object map of arrays) to the json object under the 
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -317,7 +317,7 @@ Add a list of vectors (as an object map of arrays) to the json object under the 
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -339,7 +339,7 @@ Retrieve a scalar value from the json object under the name "field_name" (with o
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -361,7 +361,7 @@ Retrieve a integer value from the json object under the name "field_name" (with 
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -383,7 +383,7 @@ Retrieve a boolean value from the json object under the name "field_name" (with 
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -405,7 +405,7 @@ Retrieve a string value from the json object under the name "field_name" (with o
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -427,7 +427,7 @@ Retrieve a vector from the json object under the name "field_name" (with optiona
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -449,7 +449,7 @@ Retrieve an integer vector from the json object under the name "field_name" (wit
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -471,7 +471,7 @@ Retrieve a character vector from the json object under the name "field_name" (wi
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -493,7 +493,7 @@ Reconstruct a list of numeric vectors from the json object stored under "field_n
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -515,7 +515,7 @@ Reconstruct a list of string vectors from the json object stored under "field_na
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -548,7 +548,7 @@ Save a json object to file
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -568,7 +568,7 @@ Load a json object from file
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 \if{html}{\out{<hr>}}
@@ -588,7 +588,7 @@ Load a json object from string
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-NULL
+None
 }
 }
 }

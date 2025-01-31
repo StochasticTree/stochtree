@@ -102,9 +102,9 @@ bart_model <- bart(X_train=X_train, y_train=y_train, X_test=X_test, mean_forest_
 
 # Extract kernels needed for kriging
 leaf_mat_train <- computeForestLeafIndices(bart_model, X_train, forest_type = "mean", 
-                                           forest_inds = bart_model$model_params$num_samples)
+                                           forest_inds = bart_model$model_params$num_samples - 1)
 leaf_mat_test <- computeForestLeafIndices(bart_model, X_test, forest_type = "mean", 
-                                           forest_inds = bart_model$model_params$num_samples)
+                                           forest_inds = bart_model$model_params$num_samples - 1)
 W_train <- sparseMatrix(i=rep(1:length(y_train),num_trees), j=leaf_mat_train + 1, x=1)
 W_test <- sparseMatrix(i=rep(1:length(y_test),num_trees), j=leaf_mat_test + 1, x=1)
 Sigma_11 <- tcrossprod(W_test) / num_trees
@@ -179,9 +179,9 @@ bart_model <- bart(X_train=X_train, y_train=y_train, X_test=X_test, mean_forest_
 
 # Extract kernels needed for kriging
 leaf_mat_train <- computeForestLeafIndices(bart_model, X_train, forest_type = "mean", 
-                                           forest_inds = bart_model$model_params$num_samples)
+                                           forest_inds = bart_model$model_params$num_samples - 1)
 leaf_mat_test <- computeForestLeafIndices(bart_model, X_test, forest_type = "mean", 
-                                           forest_inds = bart_model$model_params$num_samples)
+                                           forest_inds = bart_model$model_params$num_samples - 1)
 W_train <- sparseMatrix(i=rep(1:length(y_train),num_trees), j=leaf_mat_train + 1, x=1)
 W_test <- sparseMatrix(i=rep(1:length(y_test),num_trees), j=leaf_mat_test + 1, x=1)
 Sigma_11 <- tcrossprod(W_test) / num_trees
