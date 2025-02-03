@@ -83,21 +83,20 @@ ForestModel <- R6::R6Class(
             if (active_forest$is_empty()) {
                 stop("`active_forest` has not yet been initialized, which is necessary to run the sampler. Please set constant values for `active_forest`'s leaves using either the `set_root_leaves` or `prepare_for_sampler` methods.")
             }
-            pre_initialized = T
             
             if (gfr) {
                 sample_gfr_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
                     self$tree_prior_ptr, rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, pre_initialized
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest
                 )
             } else {
                 sample_mcmc_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
                     self$tree_prior_ptr, rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, pre_initialized
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest
                 ) 
             }
         }, 
