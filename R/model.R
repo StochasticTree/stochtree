@@ -79,7 +79,12 @@ ForestModel <- R6::R6Class(
         sample_one_iteration = function(forest_dataset, residual, forest_samples, active_forest, rng, feature_types, 
                                         leaf_model_int, leaf_model_scale, variable_weights, 
                                         a_forest, b_forest, global_scale, cutpoint_grid_size = 500, 
-                                        keep_forest = T, gfr = T, pre_initialized = F) {
+                                        keep_forest = T, gfr = T) {
+            if (active_forest$is_empty()) {
+                stop("`active_forest` has not yet been initialized, which is necessary to run the sampler. Please set constant values for `active_forest`'s leaves using either the `set_root_leaves` or `prepare_for_sampler` methods.")
+            }
+            pre_initialized = T
+            
             if (gfr) {
                 sample_gfr_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 

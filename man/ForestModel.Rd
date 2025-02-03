@@ -94,8 +94,7 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
   global_scale,
   cutpoint_grid_size = 500,
   keep_forest = T,
-  gfr = T,
-  pre_initialized = F
+  gfr = T
 )}\if{html}{\out{</div>}}
 }
 

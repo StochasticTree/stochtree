@@ -812,7 +812,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             forest_model_mu$sample_one_iteration(
                 forest_dataset_train, outcome_train, forest_samples_mu, active_forest_mu, 
                 rng, feature_types, 0, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
-                current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
             )
             
             # Sample variance parameters (if requested)
@@ -829,7 +829,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             forest_model_tau$sample_one_iteration(
                 forest_dataset_train, outcome_train, forest_samples_tau, active_forest_tau,
                 rng, feature_types, 1, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
-                current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
             )
             
             # Sample coding parameters (if requested)
@@ -874,7 +874,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 forest_model_variance$sample_one_iteration(
                     forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
                     rng, feature_types, leaf_model_variance_forest, current_leaf_scale_mu, variable_weights_variance, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
                 )
             }
             if (sample_sigma_global) {
@@ -1040,7 +1040,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 forest_model_mu$sample_one_iteration(
                     forest_dataset_train, outcome_train, forest_samples_mu, active_forest_mu, 
                     rng, feature_types, 0, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
-                    current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                    current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
                 )
                 
                 # Sample variance parameters (if requested)
@@ -1057,7 +1057,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 forest_model_tau$sample_one_iteration(
                     forest_dataset_train, outcome_train, forest_samples_tau, active_forest_tau, 
                     rng, feature_types, 1, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
-                    current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                    current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
                 )
                 
                 # Sample coding parameters (if requested)
@@ -1102,7 +1102,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     forest_model_variance$sample_one_iteration(
                         forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
                         rng, feature_types, leaf_model_variance_forest, current_leaf_scale_mu, variable_weights_variance, 
-                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
                     )
                 }
                 if (sample_sigma_global) {

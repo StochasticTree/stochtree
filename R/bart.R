@@ -601,11 +601,13 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (requires_basis) init_values_mean_forest <- rep(0., ncol(leaf_basis_train))
         else init_values_mean_forest <- 0.
         active_forest_mean$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mean, leaf_model_mean_forest, init_values_mean_forest)
+        active_forest_mean$adjust_residual(forest_dataset_train, outcome_train, forest_model_mean, requires_basis, F)
     }
 
     # Initialize the leaves of each tree in the variance forest
     if (include_variance_forest) {
         active_forest_variance$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_variance, leaf_model_variance_forest, variance_forest_init)
+
     }
     
     # Run GFR (warm start) if specified
@@ -626,14 +628,14 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 forest_model_mean$sample_one_iteration(
                     forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
                     rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
                 )
             }
             if (include_variance_forest) {
                 forest_model_variance$sample_one_iteration(
                     forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
                     rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
                 )
             }
             if (sample_sigma_global) {
@@ -748,14 +750,14 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     forest_model_mean$sample_one_iteration(
                         forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
                         rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
-                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
                     )
                 }
                 if (include_variance_forest) {
                     forest_model_variance$sample_one_iteration(
                         forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
                         rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
-                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
                     )
                 }
                 if (sample_sigma_global) {

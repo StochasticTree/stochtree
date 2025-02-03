@@ -145,6 +145,10 @@ if (leaf_regression) {
     forest_samples <- createForestSamples(num_trees, 1, T)
     active_forest <- createForest(num_trees, 1, T)
 }
+
+# Initialize the leaves of each tree in the forest
+active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
+active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
 ```
 
 Prepare to run the sampler
@@ -334,6 +338,10 @@ if (leaf_regression) {
     forest_samples <- createForestSamples(num_trees, 1, T)
     active_forest <- createForest(num_trees, 1, T)
 }
+
+# Initialize the leaves of each tree in the forest
+active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
+active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
 
 # Random effects dataset
 rfx_basis <- as.matrix(rfx_basis)
@@ -570,6 +578,10 @@ if (leaf_regression) {
     active_forest <- createForest(num_trees, 1, T)
 }
 
+# Initialize the leaves of each tree in the forest
+active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
+active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
+
 # Random effects dataset
 rfx_basis <- as.matrix(rfx_basis)
 group_ids <- as.integer(group_ids)
@@ -803,6 +815,10 @@ if (leaf_regression) {
     forest_samples <- createForestSamples(num_trees, 1, T)
     active_forest <- createForest(num_trees, 1, T)
 }
+
+# Initialize the leaves of each tree in the forest
+active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
+active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
 ```
 
 Prepare to run the sampler

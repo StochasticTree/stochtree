@@ -558,6 +558,9 @@ Forest <- R6::R6Class(
         #' @field forest_ptr External pointer to a C++ TreeEnsemble class
         forest_ptr = NULL,
         
+        #' @field internal_forest_is_empty Whether the forest has not yet been "initialized" such that its `predict` function can be called.
+        internal_forest_is_empty = TRUE,
+        
         #' @description
         #' Create a new Forest object.
         #' @param num_trees Number of trees in the forest
@@ -567,6 +570,7 @@ Forest <- R6::R6Class(
         #' @return A new `Forest` object.
         initialize = function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
             self$forest_ptr <- active_forest_cpp(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+            self$internal_forest_is_empty <- TRUE
         }, 
         
         #' @description
@@ -610,6 +614,7 @@ Forest <- R6::R6Class(
         #' @param leaf_value Constant leaf value(s) to be fixed for each tree in the ensemble indexed by `forest_num`. Can be either a single number or a vector, depending on the forest's leaf dimension.
         set_root_leaves = function(leaf_value) {
             stopifnot(!is.null(self$forest_ptr))
+            stopifnot(self$internal_forest_is_empty)
             
             # Set leaf values
             if (length(leaf_value) == 1) {
@@ -621,6 +626,8 @@ Forest <- R6::R6Class(
             } else {
                 stop("leaf_value must be a numeric value or vector of length >= 1")
             }
+            
+            self$internal_forest_is_empty = FALSE
         }, 
         
         #' @description
@@ -636,12 +643,15 @@ Forest <- R6::R6Class(
             stopifnot(!is.null(outcome$data_ptr))
             stopifnot(!is.null(forest_model$tracker_ptr))
             stopifnot(!is.null(self$forest_ptr))
+            stopifnot(self$internal_forest_is_empty)
             
             # Initialize the model
             initialize_forest_model_active_forest_cpp(
                 dataset$data_ptr, outcome$data_ptr, self$forest_ptr, 
                 forest_model$tracker_ptr, leaf_value, leaf_model_int
             )
+            
+            self$internal_forest_is_empty = FALSE
         }, 
         
         #' @description
@@ -745,6 +755,23 @@ Forest <- R6::R6Class(
         #' @return Average maximum depth
         average_max_depth = function() {
             return(ensemble_average_max_depth_active_forest_cpp(self$forest_ptr))
+        }, 
+        
+        #' @description
+        #' When a forest object is created, it is "empty" in the sense that none 
+        #' of its component trees have leaves with values. There are two ways to 
+        #' "initialize" a Forest object. First, the `set_root_leaves()` method 
+        #' simply initializes every tree in the forest to a single node carrying 
+        #' the same (user-specified) leaf value. Second, the `prepare_for_sampler()` 
+        #' method initializes every tree in the forest to a single node with the 
+        #' same value and also propagates this information through to a ForestModel
+        #' object, which must be synchronized with a Forest during a forest 
+        #' sampler loop.
+        #' @return `TRUE` if a Forest has not yet been initialized with a constant 
+        #' root value, `FALSE` otherwise if the forest has already been 
+        #' initialized / grown.
+        is_empty = function() {
+            return(self$internal_forest_is_empty)
         }
     )
 )
@@ -818,6 +845,7 @@ createForest <- function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exp
 resetActiveForest <- function(active_forest, forest_samples=NULL, forest_num=NULL) {
     if (is.null(forest_samples)) {
         root_reset_active_forest_cpp(active_forest$forest_ptr)
+        active_forest$internal_forest_is_empty = TRUE
     } else {
         if (is.null(forest_num)) {
             stop("`forest_num` must be specified if `forest_samples` is provided")
@@ -863,11 +891,12 @@ resetActiveForest <- function(active_forest, forest_samples=NULL, forest_num=NUL
 #' forest_model <- createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
 #' active_forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
 #' forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+#' active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, 0, 0.)
 #' forest_model$sample_one_iteration(
 #'     forest_dataset, outcome, forest_samples, active_forest, 
 #'     rng, feature_types, leaf_model, leaf_scale, variable_weights, 
 #'     a_forest, b_forest, sigma2, cutpoint_grid_size, keep_forest = TRUE, 
-#'     gfr = FALSE, pre_initialized = TRUE
+#'     gfr = FALSE
 #' )
 #' resetActiveForest(active_forest, forest_samples, 0)
 #' resetForestModel(forest_model, active_forest, forest_dataset, outcome, TRUE)
