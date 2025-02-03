@@ -541,10 +541,20 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     # Sampling data structures
     feature_types <- as.integer(feature_types)
     if (include_mean_forest) {
-        forest_model_mean <- createForestModel(forest_dataset_train, feature_types, num_trees_mean, nrow(X_train), alpha_mean, beta_mean, min_samples_leaf_mean, max_depth_mean)
+        forest_model_config_mean <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_mean, num_features=ncol(X_train), 
+                                                            num_observations=nrow(X_train), variable_weights=variable_weights_mean, leaf_dimension=leaf_dimension, 
+                                                            alpha=alpha_mean, beta=beta_mean, min_samples_leaf=min_samples_leaf_mean, max_depth=max_depth_mean, 
+                                                            leaf_model_type=leaf_model_mean_forest, leaf_model_scale=current_leaf_scale, 
+                                                            global_error_variance=current_sigma2, cutpoint_grid_size=cutpoint_grid_size)
+        forest_model_mean <- createForestModel(forest_dataset_train, forest_model_config_mean)
     }
     if (include_variance_forest) {
-        forest_model_variance <- createForestModel(forest_dataset_train, feature_types, num_trees_variance, nrow(X_train), alpha_variance, beta_variance, min_samples_leaf_variance, max_depth_variance)
+        forest_model_config_variance <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_variance, num_features=ncol(X_train), 
+                                                                num_observations=nrow(X_train), variable_weights=variable_weights_variance, leaf_dimension=1, 
+                                                                alpha=alpha_variance, beta=beta_variance, min_samples_leaf=min_samples_leaf_variance, 
+                                                                max_depth=max_depth_variance, leaf_model_type=leaf_model_variance_forest, 
+                                                                global_error_variance=current_sigma2, cutpoint_grid_size=cutpoint_grid_size)
+        forest_model_variance <- createForestModel(forest_dataset_train, forest_model_config_variance)
     }
     
     # Container of forest samples
@@ -626,26 +636,28 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
             
             if (include_mean_forest) {
                 forest_model_mean$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
-                    rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mean, 
+                    active_forest = active_forest_mean, rng = rng, model_config = forest_model_config_mean, keep_forest = keep_sample, gfr = T
                 )
             }
             if (include_variance_forest) {
                 forest_model_variance$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
-                    rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
+                    active_forest = active_forest_variance, rng = rng, model_config = forest_model_config_variance, 
+                    keep_forest = keep_sample, gfr = T
                 )
             }
             if (sample_sigma_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
+                if (include_mean_forest) forest_model_config_mean$update_global_error_variance(current_sigma2)
+                if (include_variance_forest) forest_model_config_variance$update_global_error_variance(current_sigma2)
             }
             if (sample_sigma_leaf) {
                 leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                 current_leaf_scale <- as.matrix(leaf_scale_double)
                 if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
+                forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
             }
             if (has_rfx) {
                 rfx_model$sample_random_effect(rfx_dataset_train, outcome_train, rfx_tracker_train, rfx_samples, keep_sample, current_sigma2, rng)
@@ -665,6 +677,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     if (sample_sigma_leaf) {
                         leaf_scale_double <- leaf_scale_samples[forest_ind + 1]
                         current_leaf_scale <- as.matrix(leaf_scale_double)
+                        forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
                     }
                 }
                 if (include_variance_forest) {
@@ -675,7 +688,15 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
                     resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
                 }
-                if (sample_sigma_global) current_sigma2 <- global_var_samples[forest_ind + 1]
+                if (sample_sigma_global) {
+                    current_sigma2 <- global_var_samples[forest_ind + 1]
+                    if (include_mean_forest) {
+                        forest_model_config_mean$update_global_error_variance(current_sigma2)
+                    }
+                    if (include_variance_forest) {
+                        forest_model_config_variance$update_global_error_variance(current_sigma2)
+                    }
+                }
             } else if (has_prev_model) {
                 if (include_mean_forest) {
                     resetActiveForest(active_forest_mean, previous_forest_samples_mean, previous_model_warmstart_sample_num - 1)
@@ -683,6 +704,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     if (sample_sigma_leaf && (!is.null(previous_leaf_var_samples))) {
                         leaf_scale_double <- previous_leaf_var_samples[previous_model_warmstart_sample_num]
                         current_leaf_scale <- as.matrix(leaf_scale_double)
+                        forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
                     }
                 }
                 if (include_variance_forest) {
@@ -698,6 +720,12 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 if (sample_sigma_global) {
                     if (!is.null(previous_global_var_samples)) {
                         current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]
+                        if (include_mean_forest) {
+                            forest_model_config_mean$update_global_error_variance(current_sigma2)
+                        }
+                        if (include_variance_forest) {
+                            forest_model_config_variance$update_global_error_variance(current_sigma2)
+                        }
                     }
                 }
             } else {
@@ -707,6 +735,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
                     if (sample_sigma_leaf) {
                         current_leaf_scale <- as.matrix(sigma_leaf_init)
+                        forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
                     }
                 }
                 if (include_variance_forest) {
@@ -719,7 +748,15 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                                                 sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
                     rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
                 }
-                if (sample_sigma_global) current_sigma2 <- sigma2_init
+                if (sample_sigma_global) {
+                    current_sigma2 <- sigma2_init
+                    if (include_mean_forest) {
+                        forest_model_config_mean$update_global_error_variance(current_sigma2)
+                    }
+                    if (include_variance_forest) {
+                        forest_model_config_variance$update_global_error_variance(current_sigma2)
+                    }
+                }
             }
             for (i in (num_gfr+1):num_samples) {
                 is_mcmc <- i > (num_gfr + num_burnin)
@@ -748,26 +785,32 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 
                 if (include_mean_forest) {
                     forest_model_mean$sample_one_iteration(
-                        forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
-                        rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
-                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
+                        forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mean, 
+                        active_forest = active_forest_mean, rng = rng, model_config = forest_model_config_mean, keep_forest = keep_sample, gfr = F
                     )
                 }
                 if (include_variance_forest) {
                     forest_model_variance$sample_one_iteration(
-                        forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
-                        rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
-                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
+                        forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
+                        active_forest = active_forest_variance, rng = rng, model_config = forest_model_config_variance, 
+                        keep_forest = keep_sample, gfr = F
                     )
                 }
                 if (sample_sigma_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                     if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
+                    if (include_mean_forest) {
+                        forest_model_config_mean$update_global_error_variance(current_sigma2)
+                    }
+                    if (include_variance_forest) {
+                        forest_model_config_variance$update_global_error_variance(current_sigma2)
+                    }
                 }
                 if (sample_sigma_leaf) {
                     leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                     current_leaf_scale <- as.matrix(leaf_scale_double)
                     if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
+                    forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
                 }
                 if (has_rfx) {
                     rfx_model$sample_random_effect(rfx_dataset_train, outcome_train, rfx_tracker_train, rfx_samples, keep_sample, current_sigma2, rng)

@@ -1,104 +1,357 @@
-#' #' Dataset used to get / set parameters and other model configuration options
-#' #' for the "low-level" stochtree interface
-#' #'
-#' #' @description
-#' #' The "low-level" stochtree interface enables a high degreee of sampler 
-#' #' customization, in which users employ R wrappers around C++ objects 
-#' #' like ForestDataset, Outcome, CppRng, and ForestModel to run the 
-#' #' Gibbs sampler of a BART model with custom modifications. 
-#' #' ModelConfig allows users to specify / query the parameters of a 
-#' #' tree model they wish to run.
-#' 
-#' ModelConfig <- R6::R6Class(
-#'     classname = "ModelConfig",
-#'     cloneable = FALSE,
-#'     public = list(
-#'         
-#'         #' @field data_ptr External pointer to a C++ ModelConfig class
-#'         data_ptr = NULL,
-#'         
-#'         #' @description
-#'         #' Create a new ForestDataset object.
-#'         #' @param covariates Matrix of covariates
-#'         #' @param basis (Optional) Matrix of bases used to define a leaf regression
-#'         #' @param variance_weights (Optional) Vector of observation-specific variance weights
-#'         #' @return A new `ForestDataset` object.
-#'         initialize = function(covariates, basis=NULL, variance_weights=NULL) {
-#'             self$data_ptr <- create_forest_dataset_cpp()
-#'             forest_dataset_add_covariates_cpp(self$data_ptr, covariates)
-#'             if (!is.null(basis)) {
-#'                 forest_dataset_add_basis_cpp(self$data_ptr, basis)
-#'             }
-#'             if (!is.null(variance_weights)) {
-#'                 forest_dataset_add_weights_cpp(self$data_ptr, variance_weights)
-#'             }
-#'         }, 
-#'         
-#'         #' @description
-#'         #' Update basis matrix in a dataset
-#'         #' @param basis Updated matrix of bases used to define a leaf regression
-#'         update_basis = function(basis) {
-#'             stopifnot(self$has_basis())
-#'             forest_dataset_update_basis_cpp(self$data_ptr, basis)
-#'         }, 
-#'         
-#'         #' @description
-#'         #' Return number of observations in a `ForestDataset` object
-#'         #' @return Observation count
-#'         num_observations = function() {
-#'             return(dataset_num_rows_cpp(self$data_ptr))
-#'         }, 
-#'         
-#'         #' @description
-#'         #' Return number of covariates in a `ForestDataset` object
-#'         #' @return Covariate count
-#'         num_covariates = function() {
-#'             return(dataset_num_covariates_cpp(self$data_ptr))
-#'         }, 
-#'         
-#'         #' @description
-#'         #' Return number of bases in a `ForestDataset` object
-#'         #' @return Basis count
-#'         num_basis = function() {
-#'             return(dataset_num_basis_cpp(self$data_ptr))
-#'         }, 
-#'         
-#'         #' @description
-#'         #' Whether or not a dataset has a basis matrix
-#'         #' @return True if basis matrix is loaded, false otherwise
-#'         has_basis = function() {
-#'             return(dataset_has_basis_cpp(self$data_ptr))
-#'         }, 
-#'         
-#'         #' @description
-#'         #' Whether or not a dataset has variance weights
-#'         #' @return True if variance weights are loaded, false otherwise
-#'         has_variance_weights = function() {
-#'             return(dataset_has_variance_weights_cpp(self$data_ptr))
-#'         }
-#'     ),
-#'     private = list(
-#'         feature_types = NULL, 
-#'         num_trees = NULL, 
-#'         num_observations = NULL, 
-#'         alpha = NULL, 
-#'         beta = NULL, 
-#'         min_samples_leaf = NULL, 
-#'         max_depth = NULL, 
-#'     )
-#' )
-#' 
-#' #' Create an model config object
-#' #'
-#' #' @return `ModelConfig` object
-#' #' @export
-#' #' 
-#' #' @examples
-#' #' X <- matrix(runif(10*100), ncol = 10)
-#' #' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
-#' #' config <- createModelConfig(y)
-#' createModelConfig <- function(){
-#'     return(invisible((
-#'         createModelConfig$new()
-#'     )))
-#' }
+#' Dataset used to get / set parameters and other model configuration options
+#' for the "low-level" stochtree interface
+#'
+#' @description
+#' The "low-level" stochtree interface enables a high degreee of sampler
+#' customization, in which users employ R wrappers around C++ objects
+#' like ForestDataset, Outcome, CppRng, and ForestModel to run the
+#' Gibbs sampler of a BART model with custom modifications.
+#' ForestModelConfig allows users to specify / query the parameters of a
+#' tree model they wish to run.
+
+ForestModelConfig <- R6::R6Class(
+    classname = "ForestModelConfig",
+    cloneable = FALSE,
+    public = list(
+
+        #' @field feature_types Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+        feature_types = NULL,
+        
+        #' @field num_trees Number of trees in the forest being sampled
+        num_trees = NULL,
+        
+        #' @field num_features Number of features in training dataset
+        num_features = NULL,
+        
+        #' @field num_observations Number of observations in training dataset
+        num_observations = NULL,
+        
+        #' @field leaf_dimension Dimension of the leaf model
+        leaf_dimension = NULL,
+        
+        #' @field alpha Root node split probability in tree prior
+        alpha = NULL,
+        
+        #' @field beta Depth prior penalty in tree prior
+        beta = NULL,
+        
+        #' @field min_samples_leaf Minimum number of samples in a tree leaf
+        min_samples_leaf = NULL,
+        
+        #' @field max_depth Maximum depth of any tree in the ensemble in the model. Setting to `-1` does not enforce any depth limits on trees.
+        max_depth = NULL,
+        
+        #' @field leaf_model_type Integer specifying the leaf model type (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression)
+        leaf_model_type = NULL,
+        
+        #' @field leaf_model_scale Scale parameter used in Gaussian leaf models
+        leaf_model_scale = NULL,
+        
+        #' @field variable_weights Vector specifying sampling probability for all p covariates in ForestDataset
+        variable_weights = NULL,
+        
+        #' @field variance_forest_shape Shape parameter for IG leaf models (applicable when `leaf_model_type = 3`)
+        variance_forest_shape = NULL,
+        
+        #' @field variance_forest_scale Scale parameter for IG leaf models (applicable when `leaf_model_type = 3`)
+        variance_forest_scale = NULL,
+        
+        #' @field global_error_variance Global error variance parameter
+        global_error_variance = NULL,
+        
+        #' @field cutpoint_grid_size Number of unique cutpoints to consider
+        cutpoint_grid_size = NULL,
+
+        #' Create a new ForestModelConfig object.
+        #'
+        #' @param feature_types Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+        #' @param num_trees Number of trees in the forest being sampled
+        #' @param num_features Number of features in training dataset
+        #' @param num_observations Number of observations in training dataset
+        #' @param variable_weights Vector specifying sampling probability for all p covariates in ForestDataset
+        #' @param leaf_dimension Dimension of the leaf model (default: `1`)
+        #' @param alpha Root node split probability in tree prior (default: `0.95`)
+        #' @param beta Depth prior penalty in tree prior (default: `2.0`)
+        #' @param min_samples_leaf Minimum number of samples in a tree leaf (default: `5`)
+        #' @param max_depth Maximum depth of any tree in the ensemble in the model. Setting to `-1` does not enforce any depth limits on trees. Default: `-1`.
+        #' @param leaf_model_type Integer specifying the leaf model type (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: `0`.
+        #' @param leaf_model_scale Scale parameter used in Gaussian leaf models (can either be a scalar or a q x q matrix, where q is the dimensionality of the basis and is only >1 when `leaf_model_int = 2`). Calibrated internally as `1/num_trees`, propagated along diagonal if needed for multivariate leaf models.
+        #' @param variance_forest_shape Shape parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
+        #' @param variance_forest_scale Scale parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
+        #' @param global_error_variance Global error variance parameter (default: `1.0`)
+        #' @param cutpoint_grid_size Number of unique cutpoints to consider (default: `100`)
+        #' 
+        #' @return A new ForestModelConfig object.
+        initialize = function(feature_types = NULL, num_trees = NULL, num_features = NULL, 
+                              num_observations = NULL, variable_weights = NULL, leaf_dimension = 1, 
+                              alpha = 0.95, beta = 2.0, min_samples_leaf = 5, max_depth = -1, 
+                              leaf_model_type = 1, leaf_model_scale = NULL, variance_forest_shape = 1.0, 
+                              variance_forest_scale = 1.0, global_error_variance = 1.0, cutpoint_grid_size = 100) {
+            if (is.null(feature_types)) {
+                if (is.null(num_features)) {
+                    stop("Neither of `num_features` nor `feature_types` (a vector from which `num_features` can be inferred) was provided. Please provide at least one of these inputs when creating a ForestModelConfig object.")
+                }
+                warning("`feature_types` not provided, will be assumed to be numeric")
+                feature_types <- rep(0, num_features)
+            } else {
+                if (is.null(num_features)) {
+                    num_features <- length(feature_types)
+                }
+            }
+            if (is.null(variable_weights)) {
+                warning("`variable_weights` not provided, will be assumed to be equal-weighted")
+                variable_weights <- rep(1/num_features, num_features)
+            }
+            if (num_features != length(feature_types)) {
+                stop("`feature_types` must have `num_features` total elements")
+            }
+            if (num_features != length(variable_weights)) {
+                stop("`variable_weights` must have `num_features` total elements")
+            }
+            self$feature_types <- feature_types
+            self$variable_weights <- variable_weights
+            self$num_trees <- num_trees
+            self$num_features <- num_features
+            self$num_observations <- num_observations
+            self$leaf_dimension <- leaf_dimension
+            self$alpha <- alpha
+            self$beta <- beta
+            self$min_samples_leaf <- min_samples_leaf
+            self$max_depth <- max_depth
+            self$variance_forest_shape <- variance_forest_shape
+            self$variance_forest_scale <- variance_forest_scale
+            self$global_error_variance <- global_error_variance
+            self$cutpoint_grid_size <- cutpoint_grid_size
+            
+            if (!(as.integer(leaf_model_type) == leaf_model_type)) {
+                stop("`leaf_model_type` must be an integer between 0 and 3")
+                if ((leaf_model_type < 0) | (leaf_model_type > 3)) {
+                    stop("`leaf_model_type` must be an integer between 0 and 3")
+                }
+            }
+            self$leaf_model_type <- leaf_model_type
+            
+            if (is.null(leaf_model_scale)) {
+                self$leaf_model_scale <- diag(1/num_trees, leaf_dimension)
+            } else if (is.matrix(leaf_model_scale)) {
+                if (ncol(leaf_model_scale) != nrow(leaf_model_scale)) {
+                    stop("`leaf_model_scale` must be a square matrix")
+                }
+                if (ncol(leaf_model_scale) != leaf_dimension) {
+                    stop("`leaf_model_scale` must have `leaf_dimension` rows and columns")
+                }
+                self$leaf_model_scale <- leaf_model_scale
+            } else {
+                if (leaf_model_scale <= 0) {
+                    stop("`leaf_model_scale` must be positive, if provided as scalar")
+                }
+                self$leaf_model_scale <- diag(leaf_model_scale, leaf_dimension)
+            }
+        },
+        
+        #' @description
+        #' Update feature types
+        #' @param feature_types Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+        update_feature_types = function(feature_types) {
+            stopifnot(length(feature_types) == self$num_features)
+            self$feature_types <- feature_types
+        }, 
+        
+        #' @description
+        #' Update variable weights
+        #' @param variable_weights Vector specifying sampling probability for all p covariates in ForestDataset
+        update_variable_weights = function(variable_weights) {
+            stopifnot(length(variable_weights) == self$num_features)
+            self$variable_weights <- variable_weights
+        }, 
+        
+        #' @description
+        #' Update root node split probability in tree prior
+        #' @param alpha Root node split probability in tree prior
+        update_alpha = function(alpha) {
+            self$alpha <- alpha
+        }, 
+        
+        #' @description
+        #' Update depth prior penalty in tree prior
+        #' @param beta Depth prior penalty in tree prior
+        update_beta = function(beta) {
+            self$beta <- beta
+        }, 
+        
+        #' @description
+        #' Update root node split probability in tree prior
+        #' @param min_samples_leaf Minimum number of samples in a tree leaf
+        update_min_samples_leaf = function(min_samples_leaf) {
+            self$min_samples_leaf <- min_samples_leaf
+        }, 
+        
+        #' @description
+        #' Update root node split probability in tree prior
+        #' @param max_depth Maximum depth of any tree in the ensemble in the model
+        update_max_depth = function(max_depth) {
+            self$max_depth <- max_depth
+        }, 
+        
+        #' @description
+        #' Update scale parameter used in Gaussian leaf models
+        #' @param leaf_model_scale Scale parameter used in Gaussian leaf models
+        update_leaf_model_scale = function(leaf_model_scale) {
+            if (is.matrix(leaf_model_scale)) {
+                if (ncol(leaf_model_scale) != nrow(leaf_model_scale)) {
+                    stop("`leaf_model_scale` must be a square matrix")
+                }
+                if (ncol(leaf_model_scale) != self$leaf_dimension) {
+                    stop("`leaf_model_scale` must have `leaf_dimension` rows and columns")
+                }
+                self$leaf_model_scale <- leaf_model_scale
+            } else {
+                if (leaf_model_scale <= 0) {
+                    stop("`leaf_model_scale` must be positive, if provided as scalar")
+                }
+                self$leaf_model_scale <- diag(leaf_model_scale, leaf_dimension)
+            }
+        }, 
+        
+        #' @description
+        #' Update shape parameter for IG leaf models
+        #' @param variance_forest_shape Shape parameter for IG leaf models
+        update_variance_forest_shape = function(variance_forest_shape) {
+            self$variance_forest_shape <- variance_forest_shape
+        }, 
+        
+        #' @description
+        #' Update scale parameter for IG leaf models
+        #' @param variance_forest_scale Scale parameter for IG leaf models
+        update_variance_forest_scale = function(variance_forest_scale) {
+            self$variance_forest_scale <- variance_forest_scale
+        }, 
+        
+        #' @description
+        #' Update global error variance parameter
+        #' @param global_error_variance Global error variance parameter
+        update_global_error_variance = function(global_error_variance) {
+            self$global_error_variance <- global_error_variance
+        }, 
+        
+        #' @description
+        #' Update number of unique cutpoints to consider
+        #' @param cutpoint_grid_size Number of unique cutpoints to consider
+        update_cutpoint_grid_size = function(cutpoint_grid_size) {
+            self$cutpoint_grid_size <- cutpoint_grid_size
+        },
+        
+        #' @description
+        #' Query feature types for this ForestModelConfig object
+        #' @returns Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+        get_feature_types = function() {
+            return(self$feature_types)
+        }, 
+        
+        #' @description
+        #' Query variable weights for this ForestModelConfig object
+        #' @returns Vector specifying sampling probability for all p covariates in ForestDataset
+        get_variable_weights = function() {
+            return(self$variable_weights)
+        }, 
+        
+        #' @description
+        #' Query root node split probability in tree prior for this ForestModelConfig object
+        #' @returns Root node split probability in tree prior
+        get_alpha = function() {
+            return(self$alpha)
+        }, 
+        
+        #' @description
+        #' Query depth prior penalty in tree prior for this ForestModelConfig object
+        #' @returns Depth prior penalty in tree prior
+        get_beta = function() {
+            return(self$beta)
+        }, 
+        
+        #' @description
+        #' Query root node split probability in tree prior for this ForestModelConfig object
+        #' @returns Minimum number of samples in a tree leaf
+        get_min_samples_leaf = function() {
+            return(self$min_samples_leaf)
+        }, 
+        
+        #' @description
+        #' Query root node split probability in tree prior for this ForestModelConfig object
+        #' @returns Maximum depth of any tree in the ensemble in the model
+        get_max_depth = function() {
+            return(self$max_depth)
+        }, 
+        
+        #' @description
+        #' Query scale parameter used in Gaussian leaf models for this ForestModelConfig object
+        #' @returns Scale parameter used in Gaussian leaf models
+        get_leaf_model_scale = function() {
+            return(self$leaf_model_scale)
+        }, 
+        
+        #' @description
+        #' Query shape parameter for IG leaf models for this ForestModelConfig object
+        #' @returns Shape parameter for IG leaf models
+        get_variance_forest_shape = function() {
+            return(self$variance_forest_shape)
+        }, 
+        
+        #' @description
+        #' Query scale parameter for IG leaf models for this ForestModelConfig object
+        #' @returns Scale parameter for IG leaf models
+        get_variance_forest_scale = function() {
+            return(self$variance_forest_scale)
+        }, 
+        
+        #' @description
+        #' Query global error variance parameter for this ForestModelConfig object
+        #' @returns Global error variance parameter
+        get_global_error_variance = function() {
+            return(self$global_error_variance)
+        }, 
+        
+        #' @description
+        #' Query number of unique cutpoints to consider for this ForestModelConfig object
+        #' @returns Number of unique cutpoints to consider
+        get_cutpoint_grid_size = function() {
+            return(self$cutpoint_grid_size)
+        }
+    )
+)
+
+#' Create an model config object
+#'
+#' @param feature_types Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+#' @param num_trees Number of trees in the forest being sampled
+#' @param num_features Number of features in training dataset
+#' @param num_observations Number of observations in training dataset
+#' @param variable_weights Vector specifying sampling probability for all p covariates in ForestDataset
+#' @param leaf_dimension Dimension of the leaf model (default: `1`)
+#' @param alpha Root node split probability in tree prior (default: `0.95`)
+#' @param beta Depth prior penalty in tree prior (default: `2.0`)
+#' @param min_samples_leaf Minimum number of samples in a tree leaf (default: `5`)
+#' @param max_depth Maximum depth of any tree in the ensemble in the model. Setting to `-1` does not enforce any depth limits on trees. Default: `-1`.
+#' @param leaf_model_type Integer specifying the leaf model type (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: `0`.
+#' @param leaf_model_scale Scale parameter used in Gaussian leaf models (can either be a scalar or a q x q matrix, where q is the dimensionality of the basis and is only >1 when `leaf_model_int = 2`). Calibrated internally as `1/num_trees`, propagated along diagonal if needed for multivariate leaf models.
+#' @param variance_forest_shape Shape parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
+#' @param variance_forest_scale Scale parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
+#' @param global_error_variance Global error variance parameter (default: `1.0`)
+#' @param cutpoint_grid_size Number of unique cutpoints to consider (default: `100`)
+#' @return ForestModelConfig object
+#' @export
+#'
+#' @examples
+#' config <- createForestModelConfig(num_trees = 10, num_features = 5, num_observations = 100)
+createForestModelConfig <- function(feature_types = NULL, num_trees = NULL, num_features = NULL, 
+                                    num_observations = NULL, variable_weights = NULL, leaf_dimension = 1, 
+                                    alpha = 0.95, beta = 2.0, min_samples_leaf = 5, max_depth = -1, 
+                                    leaf_model_type = 1, leaf_model_scale = NULL, variance_forest_shape = 1.0, 
+                                    variance_forest_scale = 1.0, global_error_variance = 1.0, cutpoint_grid_size = 100){
+    return(invisible((
+        ForestModelConfig$new(feature_types, num_trees, num_features, num_observations, 
+                              variable_weights, leaf_dimension, alpha, beta, min_samples_leaf, 
+                              max_depth, leaf_model_type, leaf_model_scale, variance_forest_shape, 
+                              variance_forest_scale, global_error_variance, cutpoint_grid_size)
+    )))
+}

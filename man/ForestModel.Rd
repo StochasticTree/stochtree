@@ -85,14 +85,7 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
   forest_samples,
   active_forest,
   rng,
-  feature_types,
-  leaf_model_int,
-  leaf_model_scale,
-  variable_weights,
-  a_forest,
-  b_forest,
-  global_scale,
-  cutpoint_grid_size = 500,
+  model_config,
   keep_forest = T,
   gfr = T
 )}\if{html}{\out{</div>}}
@@ -111,27 +104,11 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
 
 \item{\code{rng}}{Wrapper around C++ random number generator}
 
-\item{\code{feature_types}}{Vector specifying the type of all p covariates in \code{forest_dataset} (0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
+\item{\code{model_config}}{ModelConfig object containing forest model parameters and settings}
 
-\item{\code{leaf_model_int}}{Integer specifying the leaf model type (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression)}
+\item{\code{keep_forest}}{(Optional) Whether the updated forest sample should be saved to \code{forest_samples}. Default: \code{TRUE}.}
 
-\item{\code{leaf_model_scale}}{Scale parameter used in the leaf node model (should be a q x q matrix where q is the dimensionality of the basis and is only >1 when \code{leaf_model_int = 2})}
-
-\item{\code{variable_weights}}{Vector specifying sampling probability for all p covariates in \code{forest_dataset}}
-
-\item{\code{a_forest}}{Shape parameter on variance forest model (if applicable)}
-
-\item{\code{b_forest}}{Scale parameter on variance forest model (if applicable)}
-
-\item{\code{global_scale}}{Global variance parameter}
-
-\item{\code{cutpoint_grid_size}}{(Optional) Number of unique cutpoints to consider (default: \code{500}, currently only used when \code{GFR = TRUE})}
-
-\item{\code{keep_forest}}{(Optional) Whether the updated forest sample should be saved to \code{forest_samples}. Default: \code{T}.}
-
-\item{\code{gfr}}{(Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: \code{T}.}
-
-\item{\code{pre_initialized}}{(Optional) Whether or not the leaves are pre-initialized outside of the sampling loop (before any samples are drawn). In multi-forest implementations like BCF, this is true, though in the single-forest supervised learning implementation, we can let C++ do the initialization. Default: \code{F}.}
+\item{\code{gfr}}{(Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: \code{TRUE}.}
 }
 \if{html}{\out{</div>}}
 }

@@ -687,8 +687,20 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
     current_leaf_scale_tau <- as.matrix(sigma_leaf_tau)
     
+    # Set mu and tau leaf models / dimensions
+    leaf_model_mu_forest <- 0
+    leaf_dimension_mu_forest <- 1
+    if (ncol(Z_train) > 1) {
+        leaf_model_tau_forest <- 2
+        leaf_dimension_tau_forest <- ncol(Z_train)
+    } else {
+        leaf_model_tau_forest <- 1
+        leaf_dimension_tau_forest <- 1
+    }
+    
     # Set variance leaf model type (currently only one option)
     leaf_model_variance_forest <- 3
+    leaf_dimension_variance_forest <- 1
     
     # Random effects prior parameters
     if (has_rfx) {
@@ -763,10 +775,26 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     rng <- createCppRNG(random_seed)
     
     # Sampling data structures
-    forest_model_mu <- createForestModel(forest_dataset_train, feature_types, num_trees_mu, nrow(X_train), alpha_mu, beta_mu, min_samples_leaf_mu, max_depth_mu)
-    forest_model_tau <- createForestModel(forest_dataset_train, feature_types, num_trees_tau, nrow(X_train), alpha_tau, beta_tau, min_samples_leaf_tau, max_depth_tau)
+    forest_model_config_mu <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_mu, num_features=ncol(X_train), 
+                                                      num_observations=nrow(X_train), variable_weights=variable_weights_mu, leaf_dimension=leaf_dimension_mu_forest, 
+                                                      alpha=alpha_mu, beta=beta_mu, min_samples_leaf=min_samples_leaf_mu, max_depth=max_depth_mu, 
+                                                      leaf_model_type=leaf_model_mu_forest, leaf_model_scale=current_leaf_scale_mu, 
+                                                      global_error_variance=current_sigma2, cutpoint_grid_size=cutpoint_grid_size)
+    forest_model_config_tau <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_tau, num_features=ncol(X_train), 
+                                                       num_observations=nrow(X_train), variable_weights=variable_weights_tau, leaf_dimension=leaf_dimension_tau_forest, 
+                                                       alpha=alpha_tau, beta=beta_tau, min_samples_leaf=min_samples_leaf_tau, max_depth=max_depth_tau, 
+                                                       leaf_model_type=leaf_model_tau_forest, leaf_model_scale=current_leaf_scale_tau, 
+                                                       global_error_variance=current_sigma2, cutpoint_grid_size=cutpoint_grid_size)
+    forest_model_mu <- createForestModel(forest_dataset_train, forest_model_config_mu)
+    forest_model_tau <- createForestModel(forest_dataset_train, forest_model_config_tau)
     if (include_variance_forest) {
-        forest_model_variance <- createForestModel(forest_dataset_train, feature_types, num_trees_variance, nrow(X_train), alpha_variance, beta_variance, min_samples_leaf_variance, max_depth_variance)
+        forest_model_config_variance <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_variance, num_features=ncol(X_train), 
+                                                                num_observations=nrow(X_train), variable_weights=variable_weights_variance, 
+                                                                leaf_dimension=leaf_dimension_variance_forest, alpha=alpha_variance, beta=beta_variance, 
+                                                                min_samples_leaf=min_samples_leaf_variance, max_depth=max_depth_variance, 
+                                                                leaf_model_type=leaf_model_variance_forest, global_error_variance=current_sigma2, 
+                                                                cutpoint_grid_size=cutpoint_grid_size)
+        forest_model_variance <- createForestModel(forest_dataset_train, forest_model_config_variance)
     }
     
     # Container of forest samples
@@ -810,26 +838,28 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             
             # Sample the prognostic forest
             forest_model_mu$sample_one_iteration(
-                forest_dataset_train, outcome_train, forest_samples_mu, active_forest_mu, 
-                rng, feature_types, 0, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
-                current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
+                forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
+                active_forest = active_forest_mu, rng = rng, model_config = forest_model_config_mu, keep_forest = keep_sample, gfr = T
             )
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
+                forest_model_config_mu$update_global_error_variance(current_sigma2)
+                forest_model_config_tau$update_global_error_variance(current_sigma2)
+                if (include_variance_forest) forest_model_config_variance$update_global_error_variance(current_sigma2)
             }
             if (sample_sigma_leaf_mu) {
                 leaf_scale_mu_double <- sampleLeafVarianceOneIteration(active_forest_mu, rng, a_leaf_mu, b_leaf_mu)
                 current_leaf_scale_mu <- as.matrix(leaf_scale_mu_double)
                 if (keep_sample) leaf_scale_mu_samples[sample_counter] <- leaf_scale_mu_double
+                forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
             }
             
             # Sample the treatment forest
             forest_model_tau$sample_one_iteration(
-                forest_dataset_train, outcome_train, forest_samples_tau, active_forest_tau,
-                rng, feature_types, 1, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
-                current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
+                forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_tau, 
+                active_forest = active_forest_tau, rng = rng, model_config = forest_model_config_tau, keep_forest = keep_sample, gfr = T
             )
             
             # Sample coding parameters (if requested)
@@ -872,19 +902,23 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             # Sample variance parameters (if requested)
             if (include_variance_forest) {
                 forest_model_variance$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
-                    rng, feature_types, leaf_model_variance_forest, current_leaf_scale_mu, variable_weights_variance, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
+                    active_forest = active_forest_variance, rng = rng, model_config = forest_model_config_variance, 
+                    keep_forest = keep_sample, gfr = T
                 )
             }
             if (sample_sigma_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
+                forest_model_config_mu$update_global_error_variance(current_sigma2)
+                forest_model_config_tau$update_global_error_variance(current_sigma2)
+                if (include_variance_forest) forest_model_config_variance$update_global_error_variance(current_sigma2)
             }
             if (sample_sigma_leaf_tau) {
                 leaf_scale_tau_double <- sampleLeafVarianceOneIteration(active_forest_tau, rng, a_leaf_tau, b_leaf_tau)
                 current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
                 if (keep_sample) leaf_scale_tau_samples[sample_counter] <- leaf_scale_tau_double
+                forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
             }
             
             # Sample random effects parameters (if requested)
@@ -907,10 +941,12 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 if (sample_sigma_leaf_mu) {
                     leaf_scale_mu_double <- leaf_scale_mu_samples[forest_ind + 1]
                     current_leaf_scale_mu <- as.matrix(leaf_scale_mu_double)
+                    forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
                 }
                 if (sample_sigma_leaf_tau) {
                     leaf_scale_tau_double <- leaf_scale_tau_samples[forest_ind + 1]
                     current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
+                    forest_model_config_tau$update_leaf_model_scale(current_leaf_scale_tau)
                 }
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance, forest_samples_variance, forest_ind)
@@ -931,7 +967,14 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     }
                     forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, active_forest_tau)
                 }
-                if (sample_sigma_global) current_sigma2 <- global_var_samples[forest_ind + 1]
+                if (sample_sigma_global) {
+                    current_sigma2 <- global_var_samples[forest_ind + 1]
+                    forest_model_config_mu$update_global_error_variance(current_sigma2)
+                    forest_model_config_tau$update_global_error_variance(current_sigma2)
+                    if (include_variance_forest) {
+                        forest_model_config_variance$update_global_error_variance(current_sigma2)
+                    }
+                }
             } else if (has_prev_model) {
                 resetActiveForest(active_forest_mu, previous_forest_samples_mu, previous_model_warmstart_sample_num - 1)
                 resetForestModel(forest_model_mu, active_forest_mu, forest_dataset_train, outcome_train, TRUE)
@@ -944,10 +987,12 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 if (sample_sigma_leaf_mu && (!is.null(previous_leaf_var_mu_samples))) {
                     leaf_scale_mu_double <- previous_leaf_var_mu_samples[previous_model_warmstart_sample_num]
                     current_leaf_scale_mu <- as.matrix(leaf_scale_mu_double)
+                    forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
                 }
                 if (sample_sigma_leaf_tau && (!is.null(previous_leaf_var_tau_samples))) {
                     leaf_scale_tau_double <- previous_leaf_var_tau_samples[previous_model_warmstart_sample_num]
                     current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
+                    forest_model_config_tau$update_leaf_model_scale(current_leaf_scale_tau)
                 }
                 if (adaptive_coding) {
                     if (!is.null(previous_b_1_samples)) {
@@ -974,6 +1019,11 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     if (!is.null(previous_global_var_samples)) {
                         current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]
                     }
+                    forest_model_config_mu$update_global_error_variance(current_sigma2)
+                    forest_model_config_tau$update_global_error_variance(current_sigma2)
+                    if (include_variance_forest) {
+                        forest_model_config_variance$update_global_error_variance(current_sigma2)
+                    }
                 }
             } else {
                 resetActiveForest(active_forest_mu)
@@ -984,9 +1034,11 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 resetForestModel(forest_model_tau, active_forest_tau, forest_dataset_train, outcome_train, TRUE)
                 if (sample_sigma_leaf_mu) {
                     current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
+                    forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
                 }
                 if (sample_sigma_leaf_tau) {
                     current_leaf_scale_tau <- as.matrix(sigma_leaf_tau)
+                    forest_model_config_tau$update_leaf_model_scale(current_leaf_scale_tau)
                 }
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance)
@@ -1009,7 +1061,14 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     }
                     forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, active_forest_tau)
                 }
-                if (sample_sigma_global) current_sigma2 <- sigma2_init
+                if (sample_sigma_global) {
+                    current_sigma2 <- sigma2_init
+                    forest_model_config_mu$update_global_error_variance(current_sigma2)
+                    forest_model_config_tau$update_global_error_variance(current_sigma2)
+                    if (include_variance_forest) {
+                        forest_model_config_variance$update_global_error_variance(current_sigma2)
+                    }
+                }
             }
             for (i in (num_gfr+1):num_samples) {
                 is_mcmc <- i > (num_gfr + num_burnin)
@@ -1038,26 +1097,28 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 
                 # Sample the prognostic forest
                 forest_model_mu$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_mu, active_forest_mu, 
-                    rng, feature_types, 0, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
-                    current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
+                    active_forest = active_forest_mu, rng = rng, model_config = forest_model_config_mu, keep_forest = keep_sample, gfr = F
                 )
                 
                 # Sample variance parameters (if requested)
                 if (sample_sigma_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
+                    forest_model_config_mu$update_global_error_variance(current_sigma2)
+                    forest_model_config_tau$update_global_error_variance(current_sigma2)
+                    if (include_variance_forest) forest_model_config_variance$update_global_error_variance(current_sigma2)
                 }
                 if (sample_sigma_leaf_mu) {
                     leaf_scale_mu_double <- sampleLeafVarianceOneIteration(active_forest_mu, rng, a_leaf_mu, b_leaf_mu)
                     current_leaf_scale_mu <- as.matrix(leaf_scale_mu_double)
                     if (keep_sample) leaf_scale_mu_samples[sample_counter] <- leaf_scale_mu_double
+                    forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
                 }
                 
                 # Sample the treatment forest
                 forest_model_tau$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_tau, active_forest_tau, 
-                    rng, feature_types, 1, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
-                    current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_tau, 
+                    active_forest = active_forest_tau, rng = rng, model_config = forest_model_config_tau, keep_forest = keep_sample, gfr = F
                 )
                 
                 # Sample coding parameters (if requested)
@@ -1100,19 +1161,23 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 # Sample variance parameters (if requested)
                 if (include_variance_forest) {
                     forest_model_variance$sample_one_iteration(
-                        forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
-                        rng, feature_types, leaf_model_variance_forest, current_leaf_scale_mu, variable_weights_variance, 
-                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F
+                        forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
+                        active_forest = active_forest_variance, rng = rng, model_config = forest_model_config_variance, 
+                        keep_forest = keep_sample, gfr = F
                     )
                 }
                 if (sample_sigma_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                     if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
+                    forest_model_config_mu$update_global_error_variance(current_sigma2)
+                    forest_model_config_tau$update_global_error_variance(current_sigma2)
+                    if (include_variance_forest) forest_model_config_variance$update_global_error_variance(current_sigma2)
                 }
                 if (sample_sigma_leaf_tau) {
                     leaf_scale_tau_double <- sampleLeafVarianceOneIteration(active_forest_tau, rng, a_leaf_tau, b_leaf_tau)
                     current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
                     if (keep_sample) leaf_scale_tau_samples[sample_counter] <- leaf_scale_tau_double
+                    forest_model_config_tau$update_leaf_model_scale(current_leaf_scale_tau)
                 }
                 
                 # Sample random effects parameters (if requested)
