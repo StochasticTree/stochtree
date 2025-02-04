@@ -387,7 +387,7 @@ createForestModelConfig <- function(feature_types = NULL, num_trees = NULL, num_
 #' @export
 #'
 #' @examples
-#' config <- createGlobalModelConfig( = 100)
+#' config <- createGlobalModelConfig(global_error_variance = 100)
 createGlobalModelConfig <- function(global_error_variance = 1.0){
     return(invisible((
         GlobalModelConfig$new(global_error_variance)

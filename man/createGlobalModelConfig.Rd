@@ -16,5 +16,5 @@ GlobalModelConfig object
 Create a global model config object
 }
 \examples{
-config <- createGlobalModelConfig( = 100)
+config <- createGlobalModelConfig(global_error_variance = 100)
 }

@@ -1208,7 +1208,7 @@ forest_model_config_tau <- createForestModelConfig(
     num_observations = nrow(X_tau), variable_weights = variable_weights_tau, leaf_dimension = 1, 
     alpha = alpha_tau, beta = beta_tau, min_samples_leaf = min_samples_leaf_tau, max_depth = max_depth_tau, 
     leaf_model_type = 1, leaf_model_scale = current_leaf_scale_tau, 
-    global_error_variance = current_sigma2, cutpoint_grid_size = cutpoint_grid_size
+    cutpoint_grid_size = cutpoint_grid_size
 )
 forest_model_tau <- createForestModel(forest_dataset_tau, forest_model_config_tau, global_model_config)
 
