@@ -967,11 +967,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 }
                 if (sample_sigma_global) {
                     current_sigma2 <- global_var_samples[forest_ind + 1]
-                    forest_model_config_mu$update_global_error_variance(current_sigma2)
-                    forest_model_config_tau$update_global_error_variance(current_sigma2)
-                    if (include_variance_forest) {
-                        forest_model_config_variance$update_global_error_variance(current_sigma2)
-                    }
+                    global_model_config$update_global_error_variance(current_sigma2)
                 }
             } else if (has_prev_model) {
                 resetActiveForest(active_forest_mu, previous_forest_samples_mu, previous_model_warmstart_sample_num - 1)
@@ -1017,11 +1013,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     if (!is.null(previous_global_var_samples)) {
                         current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]
                     }
-                    forest_model_config_mu$update_global_error_variance(current_sigma2)
-                    forest_model_config_tau$update_global_error_variance(current_sigma2)
-                    if (include_variance_forest) {
-                        forest_model_config_variance$update_global_error_variance(current_sigma2)
-                    }
+                    global_model_config$update_global_error_variance(current_sigma2)
                 }
             } else {
                 resetActiveForest(active_forest_mu)
@@ -1061,11 +1053,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 }
                 if (sample_sigma_global) {
                     current_sigma2 <- sigma2_init
-                    forest_model_config_mu$update_global_error_variance(current_sigma2)
-                    forest_model_config_tau$update_global_error_variance(current_sigma2)
-                    if (include_variance_forest) {
-                        forest_model_config_variance$update_global_error_variance(current_sigma2)
-                    }
+                    global_model_config$update_global_error_variance(current_sigma2)
                 }
             }
             for (i in (num_gfr+1):num_samples) {
@@ -1096,7 +1084,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 # Sample the prognostic forest
                 forest_model_mu$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
-                    active_forest = active_forest_mu, rng = rng, model_config = forest_model_config_mu, 
+                    active_forest = active_forest_mu, rng = rng, forest_model_config = forest_model_config_mu, 
                     global_model_config = global_model_config, keep_forest = keep_sample, gfr = F
                 )
                 
