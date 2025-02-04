@@ -79,6 +79,8 @@ reference:
   - createForestModel
   - ForestSamples
   - createForestSamples
+  - ForestModelConfig
+  - createForestModelConfig
   - CppRNG
   - createCppRNG
   - calibrateInverseGammaErrorVariance
