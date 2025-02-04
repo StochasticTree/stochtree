@@ -58,7 +58,7 @@ forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constan
 active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, 0, 0.)
 forest_model$sample_one_iteration(
     forest_dataset, outcome, forest_samples, active_forest, 
-    rng, forest_model_config, keep_forest = TRUE, gfr = FALSE
+    rng, forest_model_config, global_model_config, keep_forest = TRUE, gfr = FALSE
 )
 resetActiveForest(active_forest, forest_samples, 0)
 resetForestModel(forest_model, active_forest, forest_dataset, outcome, TRUE)
