@@ -263,6 +263,13 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     b_forest <- variance_forest_params_updated$var_forest_prior_scale
     keep_vars_variance <- variance_forest_params_updated$keep_vars
     drop_vars_variance <- variance_forest_params_updated$drop_vars
+    
+    # Check if there are enough GFR samples to seed num_chains samplers
+    if (num_gfr > 0) {
+        if (num_chains > num_gfr) {
+            stop("num_chains > num_gfr, meaning we do not have enough GFR samples to seed num_chains distinct MCMC chains")
+        }
+    }
 
     # Override keep_gfr if there are no MCMC samples
     if (num_mcmc == 0) keep_gfr <- T
@@ -299,6 +306,10 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         } else {
             previous_b_1_samples <- NULL
             previous_b_0_samples <- NULL
+        }
+        previous_model_num_samples <- previous_bcf_model$model_params$num_samples
+        if (previous_model_warmstart_sample_num >= previous_model_num_samples) {
+            stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
         }
     } else {
         previous_y_bar <- NULL
@@ -1004,11 +1015,10 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, active_forest_tau)
                 }
                 # TODO: also initialize from previous RFX samples
-                # if (has_rfx) {
-                #     rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
-                #                                 sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
-                #     rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
-                # }
+                if (has_rfx) {
+                    resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
+                    resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
+                }
                 if (sample_sigma_global) {
                     if (!is.null(previous_global_var_samples)) {
                         current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]

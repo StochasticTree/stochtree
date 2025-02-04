@@ -222,6 +222,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (previous_bart_model$model_params$has_rfx) {
             previous_rfx_samples <- previous_bart_model$rfx_samples
         } else previous_rfx_samples <- NULL
+        previous_model_num_samples <- previous_bart_model$model_params$num_samples
+        if (previous_model_warmstart_sample_num >= previous_model_num_samples) {
+            stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
+        }
     } else {
         previous_y_bar <- NULL
         previous_y_scale <- NULL
@@ -230,6 +234,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         previous_rfx_samples <- NULL
         previous_forest_samples_mean <- NULL
         previous_forest_samples_variance <- NULL
+        previous_model_num_samples <- 0
     }
     
     # Determine whether conditional mean, variance, or both will be modeled
@@ -708,11 +713,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
                 # TODO: also initialize from previous RFX samples
-                # if (has_rfx) {
-                #     rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
-                #                                 sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
-                #     rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
-                # }
+                if (has_rfx) {
+                    resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
+                    resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
+                }
                 if (sample_sigma_global) {
                     if (!is.null(previous_global_var_samples)) {
                         current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]
