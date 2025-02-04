@@ -2,8 +2,8 @@
 % Please edit documentation in R/config.R
 \name{ForestModelConfig}
 \alias{ForestModelConfig}
-\title{Dataset used to get / set parameters and other model configuration options
-for the "low-level" stochtree interface}
+\title{Object used to get / set parameters and other model configuration options
+for a forest model in the "low-level" stochtree interface}
 \value{
 Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
 
@@ -23,8 +23,6 @@ Shape parameter for IG leaf models
 
 Scale parameter for IG leaf models
 
-Global error variance parameter
-
 Number of unique cutpoints to consider
 }
 \description{
@@ -33,7 +31,7 @@ customization, in which users employ R wrappers around C++ objects
 like ForestDataset, Outcome, CppRng, and ForestModel to run the
 Gibbs sampler of a BART model with custom modifications.
 ForestModelConfig allows users to specify / query the parameters of a
-tree model they wish to run.
+forest model they wish to run.
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
@@ -66,8 +64,6 @@ tree model they wish to run.
 
 \item{\code{variance_forest_scale}}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3})}
 
-\item{\code{global_error_variance}}{Global error variance parameter}
-
 \item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider
 Create a new ForestModelConfig object.}
 }
@@ -86,7 +82,6 @@ Create a new ForestModelConfig object.}
 \item \href{#method-ForestModelConfig-update_leaf_model_scale}{\code{ForestModelConfig$update_leaf_model_scale()}}
 \item \href{#method-ForestModelConfig-update_variance_forest_shape}{\code{ForestModelConfig$update_variance_forest_shape()}}
 \item \href{#method-ForestModelConfig-update_variance_forest_scale}{\code{ForestModelConfig$update_variance_forest_scale()}}
-\item \href{#method-ForestModelConfig-update_global_error_variance}{\code{ForestModelConfig$update_global_error_variance()}}
 \item \href{#method-ForestModelConfig-update_cutpoint_grid_size}{\code{ForestModelConfig$update_cutpoint_grid_size()}}
 \item \href{#method-ForestModelConfig-get_feature_types}{\code{ForestModelConfig$get_feature_types()}}
 \item \href{#method-ForestModelConfig-get_variable_weights}{\code{ForestModelConfig$get_variable_weights()}}
@@ -97,7 +92,6 @@ Create a new ForestModelConfig object.}
 \item \href{#method-ForestModelConfig-get_leaf_model_scale}{\code{ForestModelConfig$get_leaf_model_scale()}}
 \item \href{#method-ForestModelConfig-get_variance_forest_shape}{\code{ForestModelConfig$get_variance_forest_shape()}}
 \item \href{#method-ForestModelConfig-get_variance_forest_scale}{\code{ForestModelConfig$get_variance_forest_scale()}}
-\item \href{#method-ForestModelConfig-get_global_error_variance}{\code{ForestModelConfig$get_global_error_variance()}}
 \item \href{#method-ForestModelConfig-get_cutpoint_grid_size}{\code{ForestModelConfig$get_cutpoint_grid_size()}}
 }
 }
@@ -121,7 +115,6 @@ Create a new ForestModelConfig object.}
   leaf_model_scale = NULL,
   variance_forest_shape = 1,
   variance_forest_scale = 1,
-  global_error_variance = 1,
   cutpoint_grid_size = 100
 )}\if{html}{\out{</div>}}
 }
@@ -156,8 +149,6 @@ Create a new ForestModelConfig object.}
 \item{\code{variance_forest_shape}}{Shape parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
 
 \item{\code{variance_forest_scale}}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
-
-\item{\code{global_error_variance}}{Global error variance parameter (default: \code{1.0})}
 
 \item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider (default: \code{100})}
 }
@@ -321,23 +312,6 @@ Update scale parameter for IG leaf models
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestModelConfig-update_global_error_variance"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestModelConfig-update_global_error_variance}{}}}
-\subsection{Method \code{update_global_error_variance()}}{
-Update global error variance parameter
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$update_global_error_variance(global_error_variance)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{global_error_variance}}{Global error variance parameter}
-}
-\if{html}{\out{</div>}}
-}
-}
-\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ForestModelConfig-update_cutpoint_grid_size"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestModelConfig-update_cutpoint_grid_size}{}}}
 \subsection{Method \code{update_cutpoint_grid_size()}}{
@@ -441,16 +415,6 @@ Query shape parameter for IG leaf models for this ForestModelConfig object
 Query scale parameter for IG leaf models for this ForestModelConfig object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_variance_forest_scale()}\if{html}{\out{</div>}}
-}
-
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestModelConfig-get_global_error_variance"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_global_error_variance}{}}}
-\subsection{Method \code{get_global_error_variance()}}{
-Query global error variance parameter for this ForestModelConfig object
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_global_error_variance()}\if{html}{\out{</div>}}
 }
 
 }

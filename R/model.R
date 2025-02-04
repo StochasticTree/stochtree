@@ -65,24 +65,25 @@ ForestModel <- R6::R6Class(
         #' @param forest_samples Container of forest samples
         #' @param active_forest "Active" forest updated by the sampler in each iteration
         #' @param rng Wrapper around C++ random number generator
-        #' @param model_config ModelConfig object containing forest model parameters and settings
+        #' @param forest_model_config ForestModelConfig object containing forest model parameters and settings
+        #' @param global_model_config GlobalModelConfig object containing global model parameters and settings
         #' @param keep_forest (Optional) Whether the updated forest sample should be saved to `forest_samples`. Default: `TRUE`.
         #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: `TRUE`.
         sample_one_iteration = function(forest_dataset, residual, forest_samples, active_forest, 
-                                        rng, model_config, keep_forest = T, gfr = T) {
+                                        rng, forest_model_config, global_model_config, keep_forest = T, gfr = T) {
             if (active_forest$is_empty()) {
                 stop("`active_forest` has not yet been initialized, which is necessary to run the sampler. Please set constant values for `active_forest`'s leaves using either the `set_root_leaves` or `prepare_for_sampler` methods.")
             }
 
             # Unpack parameters from model config object
-            feature_types <- model_config$feature_types
-            leaf_model_int <- model_config$leaf_model_type
-            leaf_model_scale <- model_config$leaf_model_scale
-            variable_weights <- model_config$variable_weights
-            a_forest <- model_config$variance_forest_shape
-            b_forest <- model_config$variance_forest_scale
-            global_scale <- model_config$global_error_variance
-            cutpoint_grid_size <- model_config$cutpoint_grid_size
+            feature_types <- forest_model_config$feature_types
+            leaf_model_int <- forest_model_config$leaf_model_type
+            leaf_model_scale <- forest_model_config$leaf_model_scale
+            variable_weights <- forest_model_config$variable_weights
+            a_forest <- forest_model_config$variance_forest_shape
+            b_forest <- forest_model_config$variance_forest_scale
+            global_scale <- global_model_config$global_error_variance
+            cutpoint_grid_size <- forest_model_config$cutpoint_grid_size
             
             if (gfr) {
                 sample_gfr_one_iteration_cpp(
@@ -187,7 +188,8 @@ createCppRNG <- function(random_seed = -1){
 #' Create a forest model object
 #'
 #' @param forest_dataset ForestDataset object, used to initialize forest sampling data structures
-#' @param model_config ModelConfig object containing forest model parameters and settings
+#' @param forest_model_config ForestModelConfig object containing forest model parameters and settings
+#' @param global_model_config GlobalModelConfig object containing global model parameters and settings
 #'
 #' @return `ForestModel` object
 #' @export
@@ -203,15 +205,16 @@ createCppRNG <- function(random_seed = -1){
 #' feature_types <- as.integer(rep(0, p))
 #' X <- matrix(runif(n*p), ncol = p)
 #' forest_dataset <- createForestDataset(X)
-#' model_config <- createModelConfig(feature_types=feature_types, num_trees=num_trees, num_features=p, 
-#'                                   num_observations=n, alpha=alpha, beta=beta, min_samples_leaf=min_samples_leaf, 
-#'                                   max_depth=max_depth, leaf_model_type=1)
-#' forest_model <- createForestModel(forest_dataset, model_config)
-createForestModel <- function(forest_dataset, model_config) {
+#' forest_model_config <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees, num_features=p, 
+#'                                                num_observations=n, alpha=alpha, beta=beta, min_samples_leaf=min_samples_leaf, 
+#'                                                max_depth=max_depth, leaf_model_type=1)
+#' global_model_config <- createGlobalModelConfig(global_error_variance=1.0)
+#' forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
+createForestModel <- function(forest_dataset, forest_model_config, global_model_config) {
     return(invisible((
-        ForestModel$new(forest_dataset, model_config$feature_types, model_config$num_trees, 
-                        model_config$num_observations, model_config$alpha, model_config$beta, 
-                        model_config$min_samples_leaf, model_config$max_depth)
+        ForestModel$new(forest_dataset, forest_model_config$feature_types, forest_model_config$num_trees, 
+                        forest_model_config$num_observations, forest_model_config$alpha, forest_model_config$beta, 
+                        forest_model_config$min_samples_leaf, forest_model_config$max_depth)
     )))
 }
 

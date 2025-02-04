@@ -2,7 +2,7 @@
 % Please edit documentation in R/config.R
 \name{createForestModelConfig}
 \alias{createForestModelConfig}
-\title{Create an model config object}
+\title{Create a forest model config object}
 \usage{
 createForestModelConfig(
   feature_types = NULL,
@@ -19,7 +19,6 @@ createForestModelConfig(
   leaf_model_scale = NULL,
   variance_forest_shape = 1,
   variance_forest_scale = 1,
-  global_error_variance = 1,
   cutpoint_grid_size = 100
 )
 }
@@ -52,15 +51,13 @@ createForestModelConfig(
 
 \item{variance_forest_scale}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
 
-\item{global_error_variance}{Global error variance parameter (default: \code{1.0})}
-
 \item{cutpoint_grid_size}{Number of unique cutpoints to consider (default: \code{100})}
 }
 \value{
 ForestModelConfig object
 }
 \description{
-Create an model config object
+Create a forest model config object
 }
 \examples{
 config <- createForestModelConfig(num_trees = 10, num_features = 5, num_observations = 100)

@@ -81,6 +81,8 @@ reference:
   - createForestSamples
   - ForestModelConfig
   - createForestModelConfig
+  - GlobalModelConfig
+  - createGlobalModelConfig
   - CppRNG
   - createCppRNG
   - calibrateInverseGammaErrorVariance

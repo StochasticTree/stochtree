@@ -1,5 +1,5 @@
-#' Dataset used to get / set parameters and other model configuration options
-#' for the "low-level" stochtree interface
+#' Object used to get / set parameters and other model configuration options
+#' for a forest model in the "low-level" stochtree interface
 #'
 #' @description
 #' The "low-level" stochtree interface enables a high degreee of sampler
@@ -7,7 +7,7 @@
 #' like ForestDataset, Outcome, CppRng, and ForestModel to run the
 #' Gibbs sampler of a BART model with custom modifications.
 #' ForestModelConfig allows users to specify / query the parameters of a
-#' tree model they wish to run.
+#' forest model they wish to run.
 
 ForestModelConfig <- R6::R6Class(
     classname = "ForestModelConfig",
@@ -56,9 +56,6 @@ ForestModelConfig <- R6::R6Class(
         #' @field variance_forest_scale Scale parameter for IG leaf models (applicable when `leaf_model_type = 3`)
         variance_forest_scale = NULL,
         
-        #' @field global_error_variance Global error variance parameter
-        global_error_variance = NULL,
-        
         #' @field cutpoint_grid_size Number of unique cutpoints to consider
         cutpoint_grid_size = NULL,
 
@@ -78,7 +75,6 @@ ForestModelConfig <- R6::R6Class(
         #' @param leaf_model_scale Scale parameter used in Gaussian leaf models (can either be a scalar or a q x q matrix, where q is the dimensionality of the basis and is only >1 when `leaf_model_int = 2`). Calibrated internally as `1/num_trees`, propagated along diagonal if needed for multivariate leaf models.
         #' @param variance_forest_shape Shape parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
         #' @param variance_forest_scale Scale parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
-        #' @param global_error_variance Global error variance parameter (default: `1.0`)
         #' @param cutpoint_grid_size Number of unique cutpoints to consider (default: `100`)
         #' 
         #' @return A new ForestModelConfig object.
@@ -86,7 +82,7 @@ ForestModelConfig <- R6::R6Class(
                               num_observations = NULL, variable_weights = NULL, leaf_dimension = 1, 
                               alpha = 0.95, beta = 2.0, min_samples_leaf = 5, max_depth = -1, 
                               leaf_model_type = 1, leaf_model_scale = NULL, variance_forest_shape = 1.0, 
-                              variance_forest_scale = 1.0, global_error_variance = 1.0, cutpoint_grid_size = 100) {
+                              variance_forest_scale = 1.0, cutpoint_grid_size = 100) {
             if (is.null(feature_types)) {
                 if (is.null(num_features)) {
                     stop("Neither of `num_features` nor `feature_types` (a vector from which `num_features` can be inferred) was provided. Please provide at least one of these inputs when creating a ForestModelConfig object.")
@@ -120,7 +116,6 @@ ForestModelConfig <- R6::R6Class(
             self$max_depth <- max_depth
             self$variance_forest_shape <- variance_forest_shape
             self$variance_forest_scale <- variance_forest_scale
-            self$global_error_variance <- global_error_variance
             self$cutpoint_grid_size <- cutpoint_grid_size
             
             if (!(as.integer(leaf_model_type) == leaf_model_type)) {
@@ -228,13 +223,6 @@ ForestModelConfig <- R6::R6Class(
         }, 
         
         #' @description
-        #' Update global error variance parameter
-        #' @param global_error_variance Global error variance parameter
-        update_global_error_variance = function(global_error_variance) {
-            self$global_error_variance <- global_error_variance
-        }, 
-        
-        #' @description
         #' Update number of unique cutpoints to consider
         #' @param cutpoint_grid_size Number of unique cutpoints to consider
         update_cutpoint_grid_size = function(cutpoint_grid_size) {
@@ -305,13 +293,6 @@ ForestModelConfig <- R6::R6Class(
         }, 
         
         #' @description
-        #' Query global error variance parameter for this ForestModelConfig object
-        #' @returns Global error variance parameter
-        get_global_error_variance = function() {
-            return(self$global_error_variance)
-        }, 
-        
-        #' @description
         #' Query number of unique cutpoints to consider for this ForestModelConfig object
         #' @returns Number of unique cutpoints to consider
         get_cutpoint_grid_size = function() {
@@ -320,7 +301,51 @@ ForestModelConfig <- R6::R6Class(
     )
 )
 
-#' Create an model config object
+#' Object used to get / set global parameters and other global model 
+#' configuration options in the "low-level" stochtree interface
+#'
+#' @description
+#' The "low-level" stochtree interface enables a high degreee of sampler
+#' customization, in which users employ R wrappers around C++ objects
+#' like ForestDataset, Outcome, CppRng, and ForestModel to run the
+#' Gibbs sampler of a BART model with custom modifications.
+#' GlobalModelConfig allows users to specify / query the global parameters 
+#' of a model they wish to run.
+
+GlobalModelConfig <- R6::R6Class(
+    classname = "GlobalModelConfig",
+    cloneable = FALSE,
+    public = list(
+        
+        #' @field global_error_variance Global error variance parameter
+        global_error_variance = NULL,
+
+        #' Create a new GlobalModelConfig object.
+        #'
+        #' @param global_error_variance Global error variance parameter (default: `1.0`)
+        #' 
+        #' @return A new GlobalModelConfig object.
+        initialize = function(global_error_variance = 1.0) {
+            self$global_error_variance <- global_error_variance
+        },
+        
+        #' @description
+        #' Update global error variance parameter
+        #' @param global_error_variance Global error variance parameter
+        update_global_error_variance = function(global_error_variance) {
+            self$global_error_variance <- global_error_variance
+        }, 
+        
+        #' @description
+        #' Query global error variance parameter for this GlobalModelConfig object
+        #' @returns Global error variance parameter
+        get_global_error_variance = function() {
+            return(self$global_error_variance)
+        }
+    )
+)
+
+#' Create a forest model config object
 #'
 #' @param feature_types Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
 #' @param num_trees Number of trees in the forest being sampled
@@ -336,7 +361,6 @@ ForestModelConfig <- R6::R6Class(
 #' @param leaf_model_scale Scale parameter used in Gaussian leaf models (can either be a scalar or a q x q matrix, where q is the dimensionality of the basis and is only >1 when `leaf_model_int = 2`). Calibrated internally as `1/num_trees`, propagated along diagonal if needed for multivariate leaf models.
 #' @param variance_forest_shape Shape parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
 #' @param variance_forest_scale Scale parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
-#' @param global_error_variance Global error variance parameter (default: `1.0`)
 #' @param cutpoint_grid_size Number of unique cutpoints to consider (default: `100`)
 #' @return ForestModelConfig object
 #' @export
@@ -347,11 +371,25 @@ createForestModelConfig <- function(feature_types = NULL, num_trees = NULL, num_
                                     num_observations = NULL, variable_weights = NULL, leaf_dimension = 1, 
                                     alpha = 0.95, beta = 2.0, min_samples_leaf = 5, max_depth = -1, 
                                     leaf_model_type = 1, leaf_model_scale = NULL, variance_forest_shape = 1.0, 
-                                    variance_forest_scale = 1.0, global_error_variance = 1.0, cutpoint_grid_size = 100){
+                                    variance_forest_scale = 1.0, cutpoint_grid_size = 100){
     return(invisible((
         ForestModelConfig$new(feature_types, num_trees, num_features, num_observations, 
                               variable_weights, leaf_dimension, alpha, beta, min_samples_leaf, 
                               max_depth, leaf_model_type, leaf_model_scale, variance_forest_shape, 
-                              variance_forest_scale, global_error_variance, cutpoint_grid_size)
+                              variance_forest_scale, cutpoint_grid_size)
+    )))
+}
+
+#' Create a global model config object
+#'
+#' @param global_error_variance Global error variance parameter (default: `1.0`)
+#' @return GlobalModelConfig object
+#' @export
+#'
+#' @examples
+#' config <- createGlobalModelConfig( = 100)
+createGlobalModelConfig <- function(global_error_variance = 1.0){
+    return(invisible((
+        GlobalModelConfig$new(global_error_variance)
     )))
 }

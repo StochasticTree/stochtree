@@ -139,9 +139,10 @@ forest_model_config <- createForestModelConfig(
     num_observations = n, variable_weights = var_weights, leaf_dimension = leaf_dimension, 
     alpha = alpha, beta = beta, min_samples_leaf = min_samples_leaf, max_depth = max_depth, 
     leaf_model_type = outcome_model_type, leaf_model_scale = leaf_prior_scale, 
-    global_error_variance = global_variance_init, cutpoint_grid_size = cutpoint_grid_size
+    cutpoint_grid_size = cutpoint_grid_size
 )
-forest_model <- createForestModel(forest_dataset, forest_model_config)
+global_model_config <- createGlobalModelConfig(global_error_variance = global_variance_init)
+forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
 
 # "Active forest" (which gets updated by the sample) and 
 # container of forest samples (which is written to when 
@@ -176,7 +177,7 @@ for (i in 1:num_warmstart) {
     # Sample forest
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, keep_forest = T, gfr = T
+        forest_model_config, global_model_config, keep_forest = T, gfr = T
     )
     
     # Sample global variance parameter
@@ -184,7 +185,7 @@ for (i in 1:num_warmstart) {
         outcome, forest_dataset, rng, nu, lambda
     )
     global_var_samples[i+1] <- current_sigma2
-    forest_model_config$update_global_error_variance(current_sigma2)
+    global_model_config$update_global_error_variance(current_sigma2)
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
@@ -203,7 +204,7 @@ for (i in (num_warmstart+1):num_samples) {
     # Sample forest
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, keep_forest = T, gfr = F
+        forest_model_config, global_model_config, keep_forest = T, gfr = F
     )
     
     # Sample global variance parameter
@@ -211,7 +212,7 @@ for (i in (num_warmstart+1):num_samples) {
         outcome, forest_dataset, rng, nu, lambda
     )
     global_var_samples[i+1] <- current_sigma2
-    forest_model_config$update_global_error_variance(current_sigma2)
+    global_model_config$update_global_error_variance(current_sigma2)
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
@@ -342,9 +343,10 @@ forest_model_config <- createForestModelConfig(
     num_observations = n, variable_weights = var_weights, leaf_dimension = leaf_dimension, 
     alpha = alpha, beta = beta, min_samples_leaf = min_samples_leaf, max_depth = max_depth, 
     leaf_model_type = outcome_model_type, leaf_model_scale = leaf_prior_scale, 
-    global_error_variance = global_variance_init, cutpoint_grid_size = cutpoint_grid_size
+    cutpoint_grid_size = cutpoint_grid_size
 )
-forest_model <- createForestModel(forest_dataset, forest_model_config)
+global_model_config <- createGlobalModelConfig(global_error_variance = global_variance_init)
+forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
 
 # "Active forest" (which gets updated by the sample) and 
 # container of forest samples (which is written to when 
@@ -403,7 +405,7 @@ for (i in 1:num_warmstart) {
     # Sample forest
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, keep_forest = T, gfr = T
+        forest_model_config, global_model_config, keep_forest = T, gfr = T
     )
     
     # Sample global variance parameter
@@ -411,7 +413,7 @@ for (i in 1:num_warmstart) {
         outcome, forest_dataset, rng, nu, lambda
     )
     global_var_samples[i+1] <- current_sigma2
-    forest_model_config$update_global_error_variance(current_sigma2)
+    global_model_config$update_global_error_variance(current_sigma2)
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
@@ -434,7 +436,7 @@ for (i in (num_warmstart+1):num_samples) {
     # Sample forest
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, keep_forest = T, gfr = F
+        forest_model_config, global_model_config, keep_forest = T, gfr = F
     )
     
     # Sample global variance parameter
@@ -442,7 +444,7 @@ for (i in (num_warmstart+1):num_samples) {
         outcome, forest_dataset, rng, nu, lambda
     )
     global_var_samples[i+1] <- current_sigma2
-    forest_model_config$update_global_error_variance(current_sigma2)
+    global_model_config$update_global_error_variance(current_sigma2)
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
@@ -591,9 +593,10 @@ forest_model_config <- createForestModelConfig(
     num_observations = n, variable_weights = var_weights, leaf_dimension = leaf_dimension, 
     alpha = alpha, beta = beta, min_samples_leaf = min_samples_leaf, max_depth = max_depth, 
     leaf_model_type = outcome_model_type, leaf_model_scale = leaf_prior_scale, 
-    global_error_variance = global_variance_init, cutpoint_grid_size = cutpoint_grid_size
+    cutpoint_grid_size = cutpoint_grid_size
 )
-forest_model <- createForestModel(forest_dataset, forest_model_config)
+global_model_config <- createGlobalModelConfig(global_error_variance = global_variance_init)
+forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
 
 # "Active forest" (which gets updated by the sample) and 
 # container of forest samples (which is written to when 
@@ -652,7 +655,7 @@ for (i in 1:num_warmstart) {
     # Sample forest
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, keep_forest = T, gfr = T
+        forest_model_config, global_model_config, keep_forest = T, gfr = T
     )
     
     # Sample global variance parameter
@@ -660,7 +663,7 @@ for (i in 1:num_warmstart) {
         outcome, forest_dataset, rng, nu, lambda
     )
     global_var_samples[i+1] <- current_sigma2
-    forest_model_config$update_global_error_variance(current_sigma2)
+    global_model_config$update_global_error_variance(current_sigma2)
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
@@ -683,7 +686,7 @@ for (i in (num_warmstart+1):num_samples) {
     # Sample forest
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, keep_forest = T, gfr = F
+        forest_model_config, global_model_config, keep_forest = T, gfr = F
     )
     
     # Sample global variance parameter
@@ -691,7 +694,7 @@ for (i in (num_warmstart+1):num_samples) {
         outcome, forest_dataset, rng, nu, lambda
     )
     global_var_samples[i+1] <- current_sigma2
-    forest_model_config$update_global_error_variance(current_sigma2)
+    global_model_config$update_global_error_variance(current_sigma2)
     
     # Sample leaf node variance parameter and update `leaf_prior_scale`
     leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
@@ -839,9 +842,10 @@ forest_model_config <- createForestModelConfig(
     num_observations = n, variable_weights = var_weights, leaf_dimension = leaf_dimension, 
     alpha = alpha, beta = beta, min_samples_leaf = min_samples_leaf, max_depth = max_depth, 
     leaf_model_type = outcome_model_type, leaf_model_scale = leaf_prior_scale, 
-    global_error_variance = global_variance_init, cutpoint_grid_size = cutpoint_grid_size
+    cutpoint_grid_size = cutpoint_grid_size
 )
-forest_model <- createForestModel(forest_dataset, forest_model_config)
+global_model_config <- createGlobalModelConfig(global_error_variance = global_variance_init)
+forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
 
 # "Active forest" (which gets updated by the sample) and 
 # container of forest samples (which is written to when 
@@ -897,7 +901,7 @@ for (i in 1:num_warmstart) {
     # Sample forest
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, keep_forest = T, gfr = T
+        forest_model_config, global_model_config, keep_forest = T, gfr = T
     )
     
     # Sample global variance parameter
@@ -905,7 +909,7 @@ for (i in 1:num_warmstart) {
         outcome, forest_dataset, rng, nu, lambda
     )
     global_var_samples[i+1] <- current_sigma2
-    forest_model_config$update_global_error_variance(current_sigma2)
+    global_model_config$update_global_error_variance(current_sigma2)
 }
 ```
 
@@ -936,7 +940,7 @@ for (i in (num_warmstart+1):num_samples) {
     # Sample forest
     forest_model$sample_one_iteration(
         forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, keep_forest = T, gfr = F
+        forest_model_config, global_model_config, keep_forest = T, gfr = F
     )
     
     # Sample global variance parameter
@@ -944,7 +948,7 @@ for (i in (num_warmstart+1):num_samples) {
         outcome, forest_dataset, rng, nu, lambda
     )
     global_var_samples[i+1] <- current_sigma2
-    forest_model_config$update_global_error_variance(current_sigma2)
+    global_model_config$update_global_error_variance(current_sigma2)
 }
 ```
 
@@ -1191,14 +1195,14 @@ outcome <- createOutcome(resid)
 rng <- createCppRNG()
 
 # Sampling data structures
+global_model_config <- createGlobalModelConfig(global_error_variance = current_sigma2)
 forest_model_config_mu <- createForestModelConfig(
     feature_types = feature_types_mu, num_trees = num_trees_mu, num_features = ncol(X_mu), 
     num_observations = nrow(X_mu), variable_weights = variable_weights_mu, leaf_dimension = 1, 
     alpha = alpha_mu, beta = beta_mu, min_samples_leaf = min_samples_leaf_mu, max_depth = max_depth_mu, 
-    leaf_model_type = 0, leaf_model_scale = current_leaf_scale_mu, 
-    global_error_variance = current_sigma2, cutpoint_grid_size = cutpoint_grid_size
+    leaf_model_type = 0, leaf_model_scale = current_leaf_scale_mu, cutpoint_grid_size = cutpoint_grid_size
 )
-forest_model_mu <- createForestModel(forest_dataset_mu, forest_model_config_mu)
+forest_model_mu <- createForestModel(forest_dataset_mu, forest_model_config_mu, global_model_config)
 forest_model_config_tau <- createForestModelConfig(
     feature_types = feature_types_tau, num_trees = num_trees_tau, num_features = ncol(X_tau), 
     num_observations = nrow(X_tau), variable_weights = variable_weights_tau, leaf_dimension = 1, 
@@ -1206,7 +1210,7 @@ forest_model_config_tau <- createForestModelConfig(
     leaf_model_type = 1, leaf_model_scale = current_leaf_scale_tau, 
     global_error_variance = current_sigma2, cutpoint_grid_size = cutpoint_grid_size
 )
-forest_model_tau <- createForestModel(forest_dataset_tau, forest_model_config_tau)
+forest_model_tau <- createForestModel(forest_dataset_tau, forest_model_config_tau, global_model_config)
 
 # Container of forest samples
 forest_samples_mu <- createForestSamples(num_trees_mu, 1, T)
@@ -1231,7 +1235,7 @@ if (num_gfr > 0){
         # Sample the prognostic forest
         forest_model_mu$sample_one_iteration(
             forest_dataset_mu, outcome, forest_samples_mu, active_forest_mu, rng, 
-            forest_model_config_mu, keep_forest = T, gfr = T
+            forest_model_config_mu, global_model_config, keep_forest = T, gfr = T
         )
         
         # Sample variance parameters (if requested)
@@ -1239,13 +1243,12 @@ if (num_gfr > 0){
             outcome, forest_dataset_mu, rng, nu, lambda
         )
         global_var_samples[i] <- current_sigma2
-        forest_model_config_mu$update_global_error_variance(current_sigma2)
-        forest_model_config_tau$update_global_error_variance(current_sigma2)
+        global_model_config$update_global_error_variance(current_sigma2)
 
         # Sample the treatment forest
         forest_model_tau$sample_one_iteration(
             forest_dataset_tau, outcome, forest_samples_tau, active_forest_tau, rng, 
-            forest_model_config_tau, keep_forest = T, gfr = T
+            forest_model_config_tau, global_model_config, keep_forest = T, gfr = T
         )
         
         # Sample adaptive coding parameters
@@ -1271,8 +1274,7 @@ if (num_gfr > 0){
             outcome, forest_dataset_tau, rng, nu, lambda
         )
         global_var_samples[i] <- current_sigma2
-        forest_model_config_mu$update_global_error_variance(current_sigma2)
-        forest_model_config_tau$update_global_error_variance(current_sigma2)
+        global_model_config$update_global_error_variance(current_sigma2)
     }
 }
 ```
@@ -1285,7 +1287,7 @@ if (num_burnin + num_mcmc > 0) {
         # Sample the prognostic forest
         forest_model_mu$sample_one_iteration(
             forest_dataset_mu, outcome, forest_samples_mu, active_forest_mu, rng, 
-            forest_model_config_mu, keep_forest = T, gfr = F
+            forest_model_config_mu, global_model_config, keep_forest = T, gfr = F
         )
         
         # Sample variance parameters (if requested)
@@ -1293,13 +1295,12 @@ if (num_burnin + num_mcmc > 0) {
             outcome, forest_dataset_mu, rng, nu, lambda
         )
         global_var_samples[i] <- current_sigma2
-        forest_model_config_mu$update_global_error_variance(current_sigma2)
-        forest_model_config_tau$update_global_error_variance(current_sigma2)
+        global_model_config$update_global_error_variance(current_sigma2)
 
         # Sample the treatment forest
         forest_model_tau$sample_one_iteration(
             forest_dataset_tau, outcome, forest_samples_tau, active_forest_tau, rng, 
-            forest_model_config_tau, keep_forest = T, gfr = F
+            forest_model_config_tau, global_model_config, keep_forest = T, gfr = F
         )
         
         # Sample adaptive coding parameters
@@ -1325,8 +1326,7 @@ if (num_burnin + num_mcmc > 0) {
             outcome, forest_dataset_tau, rng, nu, lambda
         )
         global_var_samples[i] <- current_sigma2
-        forest_model_config_mu$update_global_error_variance(current_sigma2)
-        forest_model_config_tau$update_global_error_variance(current_sigma2)
+        global_model_config$update_global_error_variance(current_sigma2)
     }
 }
 ```

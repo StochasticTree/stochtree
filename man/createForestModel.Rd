@@ -4,12 +4,14 @@
 \alias{createForestModel}
 \title{Create a forest model object}
 \usage{
-createForestModel(forest_dataset, model_config)
+createForestModel(forest_dataset, forest_model_config, global_model_config)
 }
 \arguments{
 \item{forest_dataset}{ForestDataset object, used to initialize forest sampling data structures}
 
-\item{model_config}{ModelConfig object containing forest model parameters and settings}
+\item{forest_model_config}{ForestModelConfig object containing forest model parameters and settings}
+
+\item{global_model_config}{GlobalModelConfig object containing global model parameters and settings}
 }
 \value{
 \code{ForestModel} object
@@ -28,8 +30,9 @@ max_depth <- 10
 feature_types <- as.integer(rep(0, p))
 X <- matrix(runif(n*p), ncol = p)
 forest_dataset <- createForestDataset(X)
-model_config <- createModelConfig(feature_types=feature_types, num_trees=num_trees, num_features=p, 
-                                  num_observations=n, alpha=alpha, beta=beta, min_samples_leaf=min_samples_leaf, 
-                                  max_depth=max_depth, leaf_model_type=1)
-forest_model <- createForestModel(forest_dataset, model_config)
+forest_model_config <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees, num_features=p, 
+                                               num_observations=n, alpha=alpha, beta=beta, min_samples_leaf=min_samples_leaf, 
+                                               max_depth=max_depth, leaf_model_type=1)
+global_model_config <- createGlobalModelConfig(global_error_variance=1.0)
+forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
 }

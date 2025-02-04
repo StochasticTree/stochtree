@@ -85,7 +85,8 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
   forest_samples,
   active_forest,
   rng,
-  model_config,
+  forest_model_config,
+  global_model_config,
   keep_forest = T,
   gfr = T
 )}\if{html}{\out{</div>}}
@@ -104,7 +105,9 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
 
 \item{\code{rng}}{Wrapper around C++ random number generator}
 
-\item{\code{model_config}}{ModelConfig object containing forest model parameters and settings}
+\item{\code{forest_model_config}}{ForestModelConfig object containing forest model parameters and settings}
+
+\item{\code{global_model_config}}{GlobalModelConfig object containing global model parameters and settings}
 
 \item{\code{keep_forest}}{(Optional) Whether the updated forest sample should be saved to \code{forest_samples}. Default: \code{TRUE}.}
 
