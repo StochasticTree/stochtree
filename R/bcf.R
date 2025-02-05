@@ -546,6 +546,9 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             }
         }
     }
+    
+    # Stop if multivariate treatment is provided
+    if (ncol(Z_train) > 1) stop("Multivariate treatments are not currently supported")
 
     # Random effects covariance prior
     if (has_rfx) {
@@ -650,20 +653,20 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     # Update feature_types and covariates
     feature_types <- as.integer(feature_types)
     if (propensity_covariate != "none") {
-        feature_types <- as.integer(c(feature_types,0))
+        feature_types <- as.integer(c(feature_types,rep(0, ncol(propensity_train))))
         X_train <- cbind(X_train, propensity_train)
         if (propensity_covariate == "mu") {
             variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(propensity_train)))
-            variable_weights_tau <- c(variable_weights_tau, 0)
-            if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, 0)
+            variable_weights_tau <- c(variable_weights_tau, rep(0, ncol(propensity_train)))
+            if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, rep(0, ncol(propensity_train)))
         } else if (propensity_covariate == "tau") {
-            variable_weights_mu <- c(variable_weights_mu, 0)
+            variable_weights_mu <- c(variable_weights_mu, rep(0, ncol(propensity_train)))
             variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(propensity_train)))
-            if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, 0)
+            if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, rep(0, ncol(propensity_train)))
         } else if (propensity_covariate == "both") {
             variable_weights_mu <- c(variable_weights_mu, rep(1./num_cov_orig, ncol(propensity_train)))
             variable_weights_tau <- c(variable_weights_tau, rep(1./num_cov_orig, ncol(propensity_train)))
-            if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, 0)
+            if (include_variance_forest) variable_weights_variance <- c(variable_weights_variance, rep(0, ncol(propensity_train)))
         }
         if (has_test) X_test <- cbind(X_test, propensity_test)
     }
@@ -690,11 +693,37 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     if (is.null(variance_forest_init)) variance_forest_init <- 1.0*var(resid_train)
     if (is.null(b_leaf_mu)) b_leaf_mu <- var(resid_train)/(num_trees_mu)
     if (is.null(b_leaf_tau)) b_leaf_tau <- var(resid_train)/(2*num_trees_tau)
-    if (is.null(sigma_leaf_mu)) sigma_leaf_mu <- var(resid_train)/(num_trees_mu)
-    if (is.null(sigma_leaf_tau)) sigma_leaf_tau <- var(resid_train)/(2*num_trees_tau)
+    if (is.null(sigma_leaf_mu)) {
+        sigma_leaf_mu <- var(resid_train)/(num_trees_mu)
+        current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
+    } else {
+        if (!is.matrix(sigma_leaf_mu)) {
+            current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
+        } else {
+            current_leaf_scale_mu <- sigma_leaf_mu
+        }
+    }
+    if (is.null(sigma_leaf_tau)) {
+        sigma_leaf_tau <- var(resid_train)/(2*num_trees_tau)
+        current_leaf_scale_tau <- as.matrix(diag(sigma_leaf_tau, ncol(Z_train)))
+    } else {
+        if (!is.matrix(sigma_leaf_tau)) {
+            current_leaf_scale_tau <- as.matrix(diag(sigma_leaf_tau, ncol(Z_train)))
+        } else {
+            if (ncol(sigma_leaf_tau) != ncol(Z_train)) stop("sigma_leaf_init for the tau forest must have the same number of columns / rows as columns in the Z_train matrix")
+            if (nrow(sigma_leaf_tau) != ncol(Z_train)) stop("sigma_leaf_init for the tau forest must have the same number of columns / rows as columns in the Z_train matrix")
+            current_leaf_scale_tau <- sigma_leaf_tau
+        }
+    }
     current_sigma2 <- sigma2_init
-    current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
-    current_leaf_scale_tau <- as.matrix(sigma_leaf_tau)
+    
+    # Switch off leaf scale sampling for multivariate treatments
+    if (ncol(Z_train) > 1) {
+        if (sample_sigma_leaf_tau) {
+            warning("Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled for the treatment forest in this model.")
+            sample_sigma_leaf_tau <- F
+        }
+    }
     
     # Set mu and tau leaf models / dimensions
     leaf_model_mu_forest <- 0
