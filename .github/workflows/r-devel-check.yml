@@ -1,0 +1,41 @@
+# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
+# Need help debugging build failures? Start at https://github.com/r-lib/actions#where-to-find-help
+on:
+  workflow_dispatch:
+
+name: R Devel CRAN Checks and Unit Tests
+
+jobs:
+  testing:
+    name: test-r
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'devel'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::decor, any::rcmdcheck
+          needs: check
+
+      - name: Create a CRAN-ready version of the R package
+        run: |
+          Rscript cran-bootstrap.R 0 0 1
+      
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: 'stochtree_cran'
