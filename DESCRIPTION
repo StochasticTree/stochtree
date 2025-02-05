@@ -10,9 +10,11 @@ Authors@R:
     person("Jingyu", "He", role = "aut"),
     person("stochtree contributors", role = c("cph"))
   )
-Description: Flexible stochastic tree ensemble software. Robust implementations of 
-    Bayesian Additive Regression Trees (Chipman, George, McCulloch (2010) <doi:10.1214/09-AOAS285>) 
-    for supervised learning and (Bayesian Causal Forests (BCF) Hahn, Murray, Carvalho (2020) <doi:10.1214/19-BA1195>) 
+Description: Flexible stochastic tree ensemble software. 
+    Robust implementations of Bayesian Additive Regression Trees (BART) 
+    Chipman, George, McCulloch (2010) <doi:10.1214/09-AOAS285> 
+    for supervised learning and Bayesian Causal Forests (BCF) 
+    Hahn, Murray, Carvalho (2020) <doi:10.1214/19-BA1195> 
     for causal inference. Enables model serialization and parallel sampling 
     and provides a low-level interface for custom stochastic forest samplers.
 License: MIT + file LICENSE
