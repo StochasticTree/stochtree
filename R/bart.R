@@ -484,14 +484,26 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     if (has_basis) {
         if (ncol(leaf_basis_train) > 1) {
             if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(var(resid_train)/(num_trees_mean), ncol(leaf_basis_train))
-            current_leaf_scale <- sigma_leaf_init
+            if (!is.matrix(sigma_leaf_init)) {
+                current_leaf_scale <- as.matrix(diag(sigma_leaf_init, ncol(leaf_basis_train)))
+            } else {
+                current_leaf_scale <- sigma_leaf_init
+            }
         } else {
-            if (is.null(sigma_leaf_init)) sigma_leaf_init <- var(resid_train)/(num_trees_mean)
-            current_leaf_scale <- as.matrix(sigma_leaf_init)
+            if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(var(resid_train)/(num_trees_mean))
+            if (!is.matrix(sigma_leaf_init)) {
+                current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
+            } else {
+                current_leaf_scale <- sigma_leaf_init
+            }
         }
     } else {
-        if (is.null(sigma_leaf_init)) sigma_leaf_init <- var(resid_train)/(num_trees_mean)
-        current_leaf_scale <- as.matrix(sigma_leaf_init)
+        if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(var(resid_train)/(num_trees_mean))
+        if (!is.matrix(sigma_leaf_init)) {
+            current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
+        } else {
+            current_leaf_scale <- sigma_leaf_init
+        }
     }
     current_sigma2 <- sigma2_init
 
@@ -522,7 +534,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         is_leaf_constant = F
         leaf_regression = T
         if (sample_sigma_leaf) {
-            stop("Sampling leaf scale not yet supported for multivariate leaf models")
+            warning("Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled in this model.")
+            sample_sigma_leaf <- F
         }
     }
     
