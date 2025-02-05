@@ -263,12 +263,18 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     b_forest <- variance_forest_params_updated$var_forest_prior_scale
     keep_vars_variance <- variance_forest_params_updated$keep_vars
     drop_vars_variance <- variance_forest_params_updated$drop_vars
+    
+    # Check if there are enough GFR samples to seed num_chains samplers
+    if (num_gfr > 0) {
+        if (num_chains > num_gfr) {
+            stop("num_chains > num_gfr, meaning we do not have enough GFR samples to seed num_chains distinct MCMC chains")
+        }
+    }
 
     # Override keep_gfr if there are no MCMC samples
     if (num_mcmc == 0) keep_gfr <- T
     
     # Check if previous model JSON is provided and parse it if so
-    # TODO: check that `previous_model_warmstart_sample_num` is <= the number of samples in this previous model
     has_prev_model <- !is.null(previous_model_json)
     if (has_prev_model) {
         previous_bcf_model <- createBCFModelFromJsonString(previous_model_json)
@@ -280,8 +286,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             previous_forest_samples_variance <- previous_bcf_model$forests_variance
         } else previous_forest_samples_variance <- NULL
         if (previous_bcf_model$model_params$sample_sigma_global) {
-            previous_global_var_samples <- previous_bcf_model$sigma2_samples*(
-                previous_var_scale / (previous_y_scale*previous_y_scale)
+            previous_global_var_samples <- previous_bcf_model$sigma2_samples / (
+                previous_y_scale*previous_y_scale
             )
         } else previous_global_var_samples <- NULL
         if (previous_bcf_model$model_params$sample_sigma_leaf_mu) {
@@ -300,10 +306,13 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             previous_b_1_samples <- NULL
             previous_b_0_samples <- NULL
         }
+        previous_model_num_samples <- previous_bcf_model$model_params$num_samples
+        if (previous_model_warmstart_sample_num > previous_model_num_samples) {
+            stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
+        }
     } else {
         previous_y_bar <- NULL
         previous_y_scale <- NULL
-        previous_var_scale <- NULL
         previous_global_var_samples <- NULL
         previous_leaf_var_mu_samples <- NULL
         previous_leaf_var_tau_samples <- NULL
@@ -687,8 +696,20 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
     current_leaf_scale_tau <- as.matrix(sigma_leaf_tau)
     
+    # Set mu and tau leaf models / dimensions
+    leaf_model_mu_forest <- 0
+    leaf_dimension_mu_forest <- 1
+    if (ncol(Z_train) > 1) {
+        leaf_model_tau_forest <- 2
+        leaf_dimension_tau_forest <- ncol(Z_train)
+    } else {
+        leaf_model_tau_forest <- 1
+        leaf_dimension_tau_forest <- 1
+    }
+    
     # Set variance leaf model type (currently only one option)
     leaf_model_variance_forest <- 3
+    leaf_dimension_variance_forest <- 1
     
     # Random effects prior parameters
     if (has_rfx) {
@@ -763,10 +784,26 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     rng <- createCppRNG(random_seed)
     
     # Sampling data structures
-    forest_model_mu <- createForestModel(forest_dataset_train, feature_types, num_trees_mu, nrow(X_train), alpha_mu, beta_mu, min_samples_leaf_mu, max_depth_mu)
-    forest_model_tau <- createForestModel(forest_dataset_train, feature_types, num_trees_tau, nrow(X_train), alpha_tau, beta_tau, min_samples_leaf_tau, max_depth_tau)
+    global_model_config <- createGlobalModelConfig(global_error_variance=current_sigma2)
+    forest_model_config_mu <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_mu, num_features=ncol(X_train), 
+                                                      num_observations=nrow(X_train), variable_weights=variable_weights_mu, leaf_dimension=leaf_dimension_mu_forest, 
+                                                      alpha=alpha_mu, beta=beta_mu, min_samples_leaf=min_samples_leaf_mu, max_depth=max_depth_mu, 
+                                                      leaf_model_type=leaf_model_mu_forest, leaf_model_scale=current_leaf_scale_mu, 
+                                                      cutpoint_grid_size=cutpoint_grid_size)
+    forest_model_config_tau <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_tau, num_features=ncol(X_train), 
+                                                       num_observations=nrow(X_train), variable_weights=variable_weights_tau, leaf_dimension=leaf_dimension_tau_forest, 
+                                                       alpha=alpha_tau, beta=beta_tau, min_samples_leaf=min_samples_leaf_tau, max_depth=max_depth_tau, 
+                                                       leaf_model_type=leaf_model_tau_forest, leaf_model_scale=current_leaf_scale_tau, 
+                                                       cutpoint_grid_size=cutpoint_grid_size)
+    forest_model_mu <- createForestModel(forest_dataset_train, forest_model_config_mu, global_model_config)
+    forest_model_tau <- createForestModel(forest_dataset_train, forest_model_config_tau, global_model_config)
     if (include_variance_forest) {
-        forest_model_variance <- createForestModel(forest_dataset_train, feature_types, num_trees_variance, nrow(X_train), alpha_variance, beta_variance, min_samples_leaf_variance, max_depth_variance)
+        forest_model_config_variance <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_variance, num_features=ncol(X_train), 
+                                                                num_observations=nrow(X_train), variable_weights=variable_weights_variance, 
+                                                                leaf_dimension=leaf_dimension_variance_forest, alpha=alpha_variance, beta=beta_variance, 
+                                                                min_samples_leaf=min_samples_leaf_variance, max_depth=max_depth_variance, 
+                                                                leaf_model_type=leaf_model_variance_forest, cutpoint_grid_size=cutpoint_grid_size)
+        forest_model_variance <- createForestModel(forest_dataset_train, forest_model_config_variance, global_model_config)
     }
     
     # Container of forest samples
@@ -810,26 +847,28 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             
             # Sample the prognostic forest
             forest_model_mu$sample_one_iteration(
-                forest_dataset_train, outcome_train, forest_samples_mu, active_forest_mu, 
-                rng, feature_types, 0, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
-                current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
+                active_forest = active_forest_mu, rng = rng, forest_model_config = forest_model_config_mu, 
+                global_model_config = global_model_config, keep_forest = keep_sample, gfr = T
             )
             
             # Sample variance parameters (if requested)
             if (sample_sigma_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
+                global_model_config$update_global_error_variance(current_sigma2)
             }
             if (sample_sigma_leaf_mu) {
                 leaf_scale_mu_double <- sampleLeafVarianceOneIteration(active_forest_mu, rng, a_leaf_mu, b_leaf_mu)
                 current_leaf_scale_mu <- as.matrix(leaf_scale_mu_double)
                 if (keep_sample) leaf_scale_mu_samples[sample_counter] <- leaf_scale_mu_double
+                forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
             }
             
             # Sample the treatment forest
             forest_model_tau$sample_one_iteration(
-                forest_dataset_train, outcome_train, forest_samples_tau, active_forest_tau,
-                rng, feature_types, 1, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
-                current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_tau, 
+                active_forest = active_forest_tau, rng = rng, forest_model_config = forest_model_config_tau, 
+                global_model_config = global_model_config, keep_forest = keep_sample, gfr = T
             )
             
             # Sample coding parameters (if requested)
@@ -872,19 +911,21 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             # Sample variance parameters (if requested)
             if (include_variance_forest) {
                 forest_model_variance$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
-                    rng, feature_types, leaf_model_variance_forest, current_leaf_scale_mu, variable_weights_variance, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
+                    active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
+                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = T
                 )
             }
             if (sample_sigma_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
+                global_model_config$update_global_error_variance(current_sigma2)
             }
             if (sample_sigma_leaf_tau) {
                 leaf_scale_tau_double <- sampleLeafVarianceOneIteration(active_forest_tau, rng, a_leaf_tau, b_leaf_tau)
                 current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
                 if (keep_sample) leaf_scale_tau_samples[sample_counter] <- leaf_scale_tau_double
+                forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
             }
             
             # Sample random effects parameters (if requested)
@@ -907,10 +948,12 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 if (sample_sigma_leaf_mu) {
                     leaf_scale_mu_double <- leaf_scale_mu_samples[forest_ind + 1]
                     current_leaf_scale_mu <- as.matrix(leaf_scale_mu_double)
+                    forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
                 }
                 if (sample_sigma_leaf_tau) {
                     leaf_scale_tau_double <- leaf_scale_tau_samples[forest_ind + 1]
                     current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
+                    forest_model_config_tau$update_leaf_model_scale(current_leaf_scale_tau)
                 }
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance, forest_samples_variance, forest_ind)
@@ -931,7 +974,10 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     }
                     forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, active_forest_tau)
                 }
-                if (sample_sigma_global) current_sigma2 <- global_var_samples[forest_ind + 1]
+                if (sample_sigma_global) {
+                    current_sigma2 <- global_var_samples[forest_ind + 1]
+                    global_model_config$update_global_error_variance(current_sigma2)
+                }
             } else if (has_prev_model) {
                 resetActiveForest(active_forest_mu, previous_forest_samples_mu, previous_model_warmstart_sample_num - 1)
                 resetForestModel(forest_model_mu, active_forest_mu, forest_dataset_train, outcome_train, TRUE)
@@ -944,10 +990,12 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 if (sample_sigma_leaf_mu && (!is.null(previous_leaf_var_mu_samples))) {
                     leaf_scale_mu_double <- previous_leaf_var_mu_samples[previous_model_warmstart_sample_num]
                     current_leaf_scale_mu <- as.matrix(leaf_scale_mu_double)
+                    forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
                 }
                 if (sample_sigma_leaf_tau && (!is.null(previous_leaf_var_tau_samples))) {
                     leaf_scale_tau_double <- previous_leaf_var_tau_samples[previous_model_warmstart_sample_num]
                     current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
+                    forest_model_config_tau$update_leaf_model_scale(current_leaf_scale_tau)
                 }
                 if (adaptive_coding) {
                     if (!is.null(previous_b_1_samples)) {
@@ -964,16 +1012,22 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     }
                     forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, active_forest_tau)
                 }
-                # TODO: also initialize from previous RFX samples
-                # if (has_rfx) {
-                #     rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
-                #                                 sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
-                #     rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
-                # }
+                if (has_rfx) {
+                    if (is.null(previous_rfx_samples)) {
+                        warning("`previous_model_json` did not have any random effects samples, so the RFX sampler will be run from scratch while the forests and any other parameters are warm started")
+                        rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+                                                    sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+                        rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
+                    } else {
+                        resetRandomEffectsModel(rfx_model, previous_rfx_samples, previous_model_warmstart_sample_num - 1, sigma_alpha_init)
+                        resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
+                    }
+                }
                 if (sample_sigma_global) {
                     if (!is.null(previous_global_var_samples)) {
                         current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]
                     }
+                    global_model_config$update_global_error_variance(current_sigma2)
                 }
             } else {
                 resetActiveForest(active_forest_mu)
@@ -984,9 +1038,11 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 resetForestModel(forest_model_tau, active_forest_tau, forest_dataset_train, outcome_train, TRUE)
                 if (sample_sigma_leaf_mu) {
                     current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
+                    forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
                 }
                 if (sample_sigma_leaf_tau) {
                     current_leaf_scale_tau <- as.matrix(sigma_leaf_tau)
+                    forest_model_config_tau$update_leaf_model_scale(current_leaf_scale_tau)
                 }
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance)
@@ -1009,7 +1065,10 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     }
                     forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, active_forest_tau)
                 }
-                if (sample_sigma_global) current_sigma2 <- sigma2_init
+                if (sample_sigma_global) {
+                    current_sigma2 <- sigma2_init
+                    global_model_config$update_global_error_variance(current_sigma2)
+                }
             }
             for (i in (num_gfr+1):num_samples) {
                 is_mcmc <- i > (num_gfr + num_burnin)
@@ -1038,26 +1097,28 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 
                 # Sample the prognostic forest
                 forest_model_mu$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_mu, active_forest_mu, 
-                    rng, feature_types, 0, current_leaf_scale_mu, variable_weights_mu, a_forest, b_forest, 
-                    current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
+                    active_forest = active_forest_mu, rng = rng, forest_model_config = forest_model_config_mu, 
+                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = F
                 )
                 
                 # Sample variance parameters (if requested)
                 if (sample_sigma_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
+                    global_model_config$update_global_error_variance(current_sigma2)
                 }
                 if (sample_sigma_leaf_mu) {
                     leaf_scale_mu_double <- sampleLeafVarianceOneIteration(active_forest_mu, rng, a_leaf_mu, b_leaf_mu)
                     current_leaf_scale_mu <- as.matrix(leaf_scale_mu_double)
                     if (keep_sample) leaf_scale_mu_samples[sample_counter] <- leaf_scale_mu_double
+                    forest_model_config_mu$update_leaf_model_scale(current_leaf_scale_mu)
                 }
                 
                 # Sample the treatment forest
                 forest_model_tau$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_tau, active_forest_tau, 
-                    rng, feature_types, 1, current_leaf_scale_tau, variable_weights_tau, a_forest, b_forest, 
-                    current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_tau, 
+                    active_forest = active_forest_tau, rng = rng, forest_model_config = forest_model_config_tau, 
+                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = F
                 )
                 
                 # Sample coding parameters (if requested)
@@ -1100,19 +1161,21 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 # Sample variance parameters (if requested)
                 if (include_variance_forest) {
                     forest_model_variance$sample_one_iteration(
-                        forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
-                        rng, feature_types, leaf_model_variance_forest, current_leaf_scale_mu, variable_weights_variance, 
-                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                        forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
+                        active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
+                        global_model_config = global_model_config, keep_forest = keep_sample, gfr = F
                     )
                 }
                 if (sample_sigma_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                     if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
+                    global_model_config$update_global_error_variance(current_sigma2)
                 }
                 if (sample_sigma_leaf_tau) {
                     leaf_scale_tau_double <- sampleLeafVarianceOneIteration(active_forest_tau, rng, a_leaf_tau, b_leaf_tau)
                     current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
                     if (keep_sample) leaf_scale_tau_samples[sample_counter] <- leaf_scale_tau_double
+                    forest_model_config_tau$update_leaf_model_scale(current_leaf_scale_tau)
                 }
                 
                 # Sample random effects parameters (if requested)
@@ -1345,7 +1408,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train)
+#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
+#'                  propensity_train = pi_train)
 #' preds <- predict(bcf_model, X_test, Z_test, pi_test)
 #' plot(rowMeans(preds$mu_hat), mu_test, xlab = "predicted",
 #'      ylab = "actual", main = "Prognostic function")
@@ -1533,9 +1597,11 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1622,9 +1688,11 @@ getRandomEffectSamples.bcfmodel <- function(object, ...){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1633,7 +1701,7 @@ getRandomEffectSamples.bcfmodel <- function(object, ...){
 saveBCFModelToJson <- function(object){
     jsonobj <- createCppJson()
     
-    if (class(object) != "bcfmodel") {
+    if (!inherits(object, "bcfmodel")) {
         stop("`object` must be a BCF model")
     }
     
@@ -1785,9 +1853,11 @@ saveBCFModelToJson <- function(object){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1861,9 +1931,11 @@ saveBCFModelToJsonFile <- function(object, filename){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1939,9 +2011,11 @@ saveBCFModelToJsonString <- function(object){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -2102,9 +2176,11 @@ createBCFModelFromJson <- function(json_object){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -2181,9 +2257,11 @@ createBCFModelFromJsonFile <- function(json_filename){
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' # bcf_json <- saveBCFModelToJsonString(bcf_model)
@@ -2259,9 +2337,11 @@ createBCFModelFromJsonString <- function(json_string){
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' # bcf_json_list <- list(saveBCFModelToJson(bcf_model))
@@ -2469,9 +2549,11 @@ createBCFModelFromCombinedJson <- function(json_object_list){
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' # bcf_json_string_list <- list(saveBCFModelToJsonString(bcf_model))

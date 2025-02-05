@@ -1,14 +1,33 @@
 stochtree
 Copyright 2023-2025 stochtree contributors
 
+Several stochtree C++ header and source files include or are inspired by code 
+in several open-source decision tree libraries: xgboost, LightGBM, and treelite. 
+Copyright and license information for each of these three projects are detailed 
+further below and in comments in each of the files.
+File: src/include/stochtree/category_tracker.h [xgboost]
+File: src/include/stochtree/common.h [xgboost]
+File: src/include/stochtree/ensemble.h [xgboost]
+File: src/include/stochtree/io.h [LightGBM]
+File: src/include/stochtree/log.h [LightGBM]
+File: src/include/stochtree/meta.h [LightGBM]
+File: src/include/stochtree/partition_tracker.h [LightGBM, xgboost]
+File: src/include/stochtree/tree.h [xgboost, treelite]
+
 This project includes software from the xgboost project (Apache, 2.0).
 * Copyright 2015-2024, XGBoost Contributors
 
 This project includes software from the LightGBM project (MIT).
 * Copyright (c) 2016 Microsoft Corporation
 
+This project includes software from the treelite project (Apache, 2.0).
+* Copyright (c) 2017-2023 by [treelite] Contributors
+
 This project includes software from the fast_double_parser project (Apache, 2.0).
 * Copyright (c) Daniel Lemire
+
+This project includes software from the JSON for Modern C++ project (MIT).
+* Copyright © 2013-2025 Niels Lohmann
 
 This project includes software from the Eigen project (MPL, 2.0), whose headers carry the following copyrights:
 File: Eigen/Core

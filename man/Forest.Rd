@@ -10,6 +10,8 @@ Wrapper around a C++ tree ensemble
 \if{html}{\out{<div class="r6-fields">}}
 \describe{
 \item{\code{forest_ptr}}{External pointer to a C++ TreeEnsemble class}
+
+\item{\code{internal_forest_is_empty}}{Whether the forest has not yet been "initialized" such that its \code{predict} function can be called.}
 }
 \if{html}{\out{</div>}}
 }
@@ -32,6 +34,7 @@ Wrapper around a C++ tree ensemble
 \item \href{#method-Forest-get_forest_split_counts}{\code{Forest$get_forest_split_counts()}}
 \item \href{#method-Forest-tree_max_depth}{\code{Forest$tree_max_depth()}}
 \item \href{#method-Forest-average_max_depth}{\code{Forest$average_max_depth()}}
+\item \href{#method-Forest-is_empty}{\code{Forest$is_empty()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -359,6 +362,29 @@ Average the maximum depth of each tree in the forest
 
 \subsection{Returns}{
 Average maximum depth
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Forest-is_empty"></a>}}
+\if{latex}{\out{\hypertarget{method-Forest-is_empty}{}}}
+\subsection{Method \code{is_empty()}}{
+When a forest object is created, it is "empty" in the sense that none
+of its component trees have leaves with values. There are two ways to
+"initialize" a Forest object. First, the \code{set_root_leaves()} method
+simply initializes every tree in the forest to a single node carrying
+the same (user-specified) leaf value. Second, the \code{prepare_for_sampler()}
+method initializes every tree in the forest to a single node with the
+same value and also propagates this information through to a ForestModel
+object, which must be synchronized with a Forest during a forest
+sampler loop.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Forest$is_empty()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+\code{TRUE} if a Forest has not yet been initialized with a constant
+root value, \code{FALSE} otherwise if the forest has already been
+initialized / grown.
 }
 }
 }

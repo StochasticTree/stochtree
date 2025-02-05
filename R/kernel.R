@@ -48,9 +48,8 @@
 #' computeForestLeafIndices(bart_model, X, "mean", c(1,3,9))
 computeForestLeafIndices <- function(model_object, covariates, forest_type=NULL, forest_inds=NULL) {
     # Extract relevant forest container
-    object_name <- class(model_object)[1]
-    stopifnot(object_name %in% c("bartmodel", "bcfmodel", "ForestSamples"))
-    model_type <- ifelse(object_name=="bartmodel", "bart", ifelse(object_name=="bcfmodel", "bcf", "forest_samples"))
+    stopifnot(any(c(inherits(model_object, "bartmodel"), inherits(model_object, "bcfmodel"), inherits(model_object, "ForestSamples"))))
+    model_type <- ifelse(inherits(model_object, "bartmodel"), "bart", ifelse(inherits(model_object, "bcfmodel"), "bcf", "forest_samples"))
     if (model_type == "bart") {
         stopifnot(forest_type %in% c("mean", "variance"))
         if (forest_type=="mean") {
@@ -143,8 +142,8 @@ computeForestLeafIndices <- function(model_object, covariates, forest_type=NULL,
 #' computeForestLeafVariances(bart_model, "mean", c(1,3,5))
 computeForestLeafVariances <- function(model_object, forest_type, forest_inds=NULL) {
     # Extract relevant forest container
-    stopifnot(class(model_object) %in% c("bartmodel", "bcfmodel"))
-    model_type <- ifelse(class(model_object)=="bartmodel", "bart", "bcf")
+    stopifnot(any(c(inherits(model_object, "bartmodel"), inherits(model_object, "bcfmodel"))))
+    model_type <- ifelse(inherits(model_object, "bartmodel"), "bart", "bcf")
     if (model_type == "bart") {
         stopifnot(forest_type %in% c("mean", "variance"))
         if (forest_type=="mean") {
@@ -234,9 +233,8 @@ computeForestLeafVariances <- function(model_object, forest_type, forest_inds=NU
 #' computeForestMaxLeafIndex(bart_model, X, "mean", c(1,3,9))
 computeForestMaxLeafIndex <- function(model_object, covariates, forest_type=NULL, forest_inds=NULL) {
     # Extract relevant forest container
-    object_name <- class(model_object)[1]
-    stopifnot(object_name %in% c("bartmodel", "bcfmodel", "ForestSamples"))
-    model_type <- ifelse(object_name=="bartmodel", "bart", ifelse(object_name=="bcfmodel", "bcf", "forest_samples"))
+    stopifnot(any(c(inherits(model_object, "bartmodel"), inherits(model_object, "bcfmodel"), inherits(model_object, "ForestSamples"))))
+    model_type <- ifelse(inherits(model_object, "bartmodel"), "bart", ifelse(inherits(model_object, "bcfmodel"), "bcf", "forest_samples"))
     if (model_type == "bart") {
         stopifnot(forest_type %in% c("mean", "variance"))
         if (forest_type=="mean") {

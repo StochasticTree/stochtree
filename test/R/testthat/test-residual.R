@@ -36,7 +36,14 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     cpp_rng = createCppRNG(-1)
     
     # Create forest sampler and forest container
-    forest_model = createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
+    global_model_config = createGlobalModelConfig(global_error_variance=current_sigma2)
+    forest_model_config = createForestModelConfig(feature_types=feature_types, num_trees=num_trees, 
+                                                  num_observations=n, alpha=alpha, beta=beta, 
+                                                  min_samples_leaf=min_samples_leaf, max_depth=max_depth, 
+                                                  leaf_model_type=0, leaf_model_scale=current_leaf_scale, 
+                                                  variable_weights=variable_weights, variance_forest_shape=a_forest, 
+                                                  variance_forest_scale=b_forest, cutpoint_grid_size=cutpoint_grid_size)
+    forest_model = createForestModel(forest_dataset, forest_model_config, global_model_config)
     forest_samples = createForestSamples(num_trees, 1, F)
     active_forest = createForest(num_trees, 1, F)
     
@@ -47,8 +54,7 @@ test_that("Residual updates correctly propagated after forest sampling step", {
     # Run the forest sampling algorithm for a single iteration
     forest_model$sample_one_iteration(
         forest_dataset, residual, forest_samples, active_forest, 
-        cpp_rng, feature_types, 0, current_leaf_scale, variable_weights, a_forest, b_forest, 
-        current_sigma2, cutpoint_grid_size, keep_forest = T, gfr = T, pre_initialized = T
+        cpp_rng, forest_model_config, global_model_config, keep_forest = T, gfr = T
     )
 
     # Get the current residual after running the sampler

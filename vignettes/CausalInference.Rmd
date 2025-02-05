@@ -110,7 +110,7 @@ initialization samples (@krantsevich2023stochastic). This is the default in
 ```{r}
 num_gfr <- 10
 num_burnin <- 0
-num_mcmc <- 1000
+num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 mu_forest_params <- list(sample_sigma2_leaf = F)
@@ -159,8 +159,8 @@ Next, we simulate from this ensemble model without any warm-start initialization
 
 ```{r}
 num_gfr <- 0
-num_burnin <- 1000
-num_mcmc <- 1000
+num_burnin <- 2000
+num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 mu_forest_params <- list(sample_sigma2_leaf = F)
@@ -328,7 +328,7 @@ Next, we simulate from this ensemble model without any warm-start initialization
 
 ```{r}
 num_gfr <- 0
-num_burnin <- 100
+num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
@@ -497,7 +497,7 @@ Next, we simulate from this ensemble model without any warm-start initialization
 
 ```{r}
 num_gfr <- 0
-num_burnin <- 100
+num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
@@ -566,7 +566,7 @@ X_4 &\sim N\left(X_2,1\right)\\
 We draw from the DGP defined above
 
 ```{r data_4}
-n <- 1000
+n <- 500
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
@@ -664,7 +664,7 @@ Next, we simulate from this ensemble model without any warm-start initialization
 
 ```{r}
 num_gfr <- 0
-num_burnin <- 100
+num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
@@ -773,9 +773,9 @@ rfx_term_train <- rfx_term[train_inds]
 Here we simulate only from the "warm-start" model (running root-MCMC BART with random effects is simply a matter of modifying the below code snippet by setting `num_gfr <- 0` and `num_mcmc` > 0).
 
 ```{r}
-num_gfr <- 100
+num_gfr <- 10
 num_burnin <- 0
-num_mcmc <- 500
+num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 mu_forest_params <- list(sample_sigma2_leaf = F)
@@ -891,8 +891,8 @@ Here we simulate from the model with the original MCMC sampler, using all of the
 
 ```{r}
 num_gfr <- 0
-num_burnin <- 1000
-num_mcmc <- 1000
+num_burnin <- 2000
+num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 mu_forest_params <- list(sample_sigma2_leaf = F)
@@ -953,8 +953,8 @@ Here we simulate from the model with the original MCMC sampler, using only covar
 
 ```{r}
 num_gfr <- 0
-num_burnin <- 1000
-num_mcmc <- 1000
+num_burnin <- 2000
+num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 mu_forest_params <- list(sample_sigma2_leaf = F)
@@ -1016,7 +1016,7 @@ Here we simulate from the model with the warm-start sampler, using all of the co
 ```{r}
 num_gfr <- 10
 num_burnin <- 0
-num_mcmc <- 1000
+num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 mu_forest_params <- list(sample_sigma2_leaf = F)
@@ -1078,7 +1078,7 @@ Here we simulate from the model with the warm-start sampler, using only covariat
 ```{r}
 num_gfr <- 10
 num_burnin <- 0
-num_mcmc <- 1000
+num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 mu_forest_params <- list(sample_sigma2_leaf = F)
@@ -1206,7 +1206,7 @@ initialization samples (@krantsevich2023stochastic). This is the default in
 ```{r}
 num_gfr <- 10
 num_burnin <- 0
-num_mcmc <- 1000
+num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 mu_forest_params <- list(sample_sigma2_leaf = F)
@@ -1255,8 +1255,8 @@ Next, we simulate from this ensemble model without any warm-start initialization
 
 ```{r}
 num_gfr <- 0
-num_burnin <- 1000
-num_mcmc <- 1000
+num_burnin <- 2000
+num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 mu_forest_params <- list(sample_sigma2_leaf = F)

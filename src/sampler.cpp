@@ -24,9 +24,12 @@ void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDatas
                                   cpp11::doubles variable_weights, 
                                   double a_forest, double b_forest,
                                   double global_variance, int leaf_model_int, 
-                                  bool keep_forest,
-                                  bool pre_initialized = false
+                                  bool keep_forest
 ) {
+    // Refactoring completely out of the R interface.
+    // Intention to refactor out of the C++ interface in the future.
+    bool pre_initialized = true;
+    
     // Unpack feature types
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
     for (int i = 0; i < feature_types.size(); i++) {
@@ -93,9 +96,12 @@ void sample_mcmc_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestData
                                    cpp11::doubles variable_weights, 
                                    double a_forest, double b_forest,
                                    double global_variance, int leaf_model_int, 
-                                   bool keep_forest, 
-                                   bool pre_initialized = false
+                                   bool keep_forest
 ) {
+    // Refactoring completely out of the R interface.
+    // Intention to refactor out of the C++ interface in the future.
+    bool pre_initialized = true;
+    
     // Unpack feature types
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
     for (int i = 0; i < feature_types.size(); i++) {

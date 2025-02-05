@@ -199,7 +199,6 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     if (num_mcmc == 0) keep_gfr <- T
     
     # Check if previous model JSON is provided and parse it if so
-    # TODO: check that `previous_model_warmstart_sample_num` is <= the number of samples in this previous model
     has_prev_model <- !is.null(previous_model_json)
     if (has_prev_model) {
         previous_bart_model <- createBARTModelFromJsonString(previous_model_json)
@@ -222,6 +221,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (previous_bart_model$model_params$has_rfx) {
             previous_rfx_samples <- previous_bart_model$rfx_samples
         } else previous_rfx_samples <- NULL
+        previous_model_num_samples <- previous_bart_model$model_params$num_samples
+        if (previous_model_warmstart_sample_num > previous_model_num_samples) {
+            stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
+        }
     } else {
         previous_y_bar <- NULL
         previous_y_scale <- NULL
@@ -230,6 +233,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         previous_rfx_samples <- NULL
         previous_forest_samples_mean <- NULL
         previous_forest_samples_variance <- NULL
+        previous_model_num_samples <- 0
     }
     
     # Determine whether conditional mean, variance, or both will be modeled
@@ -540,11 +544,22 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     
     # Sampling data structures
     feature_types <- as.integer(feature_types)
+    global_model_config <- createGlobalModelConfig(global_error_variance=current_sigma2)
     if (include_mean_forest) {
-        forest_model_mean <- createForestModel(forest_dataset_train, feature_types, num_trees_mean, nrow(X_train), alpha_mean, beta_mean, min_samples_leaf_mean, max_depth_mean)
+        forest_model_config_mean <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_mean, num_features=ncol(X_train), 
+                                                            num_observations=nrow(X_train), variable_weights=variable_weights_mean, leaf_dimension=leaf_dimension, 
+                                                            alpha=alpha_mean, beta=beta_mean, min_samples_leaf=min_samples_leaf_mean, max_depth=max_depth_mean, 
+                                                            leaf_model_type=leaf_model_mean_forest, leaf_model_scale=current_leaf_scale, 
+                                                            cutpoint_grid_size=cutpoint_grid_size)
+        forest_model_mean <- createForestModel(forest_dataset_train, forest_model_config_mean, global_model_config)
     }
     if (include_variance_forest) {
-        forest_model_variance <- createForestModel(forest_dataset_train, feature_types, num_trees_variance, nrow(X_train), alpha_variance, beta_variance, min_samples_leaf_variance, max_depth_variance)
+        forest_model_config_variance <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_variance, num_features=ncol(X_train), 
+                                                                num_observations=nrow(X_train), variable_weights=variable_weights_variance, leaf_dimension=1, 
+                                                                alpha=alpha_variance, beta=beta_variance, min_samples_leaf=min_samples_leaf_variance, 
+                                                                max_depth=max_depth_variance, leaf_model_type=leaf_model_variance_forest, 
+                                                                cutpoint_grid_size=cutpoint_grid_size)
+        forest_model_variance <- createForestModel(forest_dataset_train, forest_model_config_variance, global_model_config)
     }
     
     # Container of forest samples
@@ -601,11 +616,13 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (requires_basis) init_values_mean_forest <- rep(0., ncol(leaf_basis_train))
         else init_values_mean_forest <- 0.
         active_forest_mean$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mean, leaf_model_mean_forest, init_values_mean_forest)
+        active_forest_mean$adjust_residual(forest_dataset_train, outcome_train, forest_model_mean, requires_basis, F)
     }
 
     # Initialize the leaves of each tree in the variance forest
     if (include_variance_forest) {
         active_forest_variance$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_variance, leaf_model_variance_forest, variance_forest_init)
+
     }
     
     # Run GFR (warm start) if specified
@@ -624,26 +641,28 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
             
             if (include_mean_forest) {
                 forest_model_mean$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
-                    rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mean, 
+                    active_forest = active_forest_mean, rng = rng, forest_model_config = forest_model_config_mean, 
+                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = T
                 )
             }
             if (include_variance_forest) {
                 forest_model_variance$sample_one_iteration(
-                    forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
-                    rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
-                    a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = T, pre_initialized = T
+                    forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
+                    active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
+                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = T
                 )
             }
             if (sample_sigma_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
+                global_model_config$update_global_error_variance(current_sigma2)
             }
             if (sample_sigma_leaf) {
                 leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                 current_leaf_scale <- as.matrix(leaf_scale_double)
                 if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
+                forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
             }
             if (has_rfx) {
                 rfx_model$sample_random_effect(rfx_dataset_train, outcome_train, rfx_tracker_train, rfx_samples, keep_sample, current_sigma2, rng)
@@ -663,6 +682,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     if (sample_sigma_leaf) {
                         leaf_scale_double <- leaf_scale_samples[forest_ind + 1]
                         current_leaf_scale <- as.matrix(leaf_scale_double)
+                        forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
                     }
                 }
                 if (include_variance_forest) {
@@ -673,7 +693,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
                     resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
                 }
-                if (sample_sigma_global) current_sigma2 <- global_var_samples[forest_ind + 1]
+                if (sample_sigma_global) {
+                    current_sigma2 <- global_var_samples[forest_ind + 1]
+                    global_model_config$update_global_error_variance(current_sigma2)
+                }
             } else if (has_prev_model) {
                 if (include_mean_forest) {
                     resetActiveForest(active_forest_mean, previous_forest_samples_mean, previous_model_warmstart_sample_num - 1)
@@ -681,21 +704,28 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     if (sample_sigma_leaf && (!is.null(previous_leaf_var_samples))) {
                         leaf_scale_double <- previous_leaf_var_samples[previous_model_warmstart_sample_num]
                         current_leaf_scale <- as.matrix(leaf_scale_double)
+                        forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
                     }
                 }
                 if (include_variance_forest) {
                     resetActiveForest(active_forest_variance, previous_forest_samples_variance, previous_model_warmstart_sample_num - 1)
                     resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
-                # TODO: also initialize from previous RFX samples
-                # if (has_rfx) {
-                #     rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
-                #                                 sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
-                #     rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
-                # }
+                if (has_rfx) {
+                    if (is.null(previous_rfx_samples)) {
+                        warning("`previous_model_json` did not have any random effects samples, so the RFX sampler will be run from scratch while the forests and any other parameters are warm started")
+                        rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+                                                    sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+                        rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
+                    } else {
+                        resetRandomEffectsModel(rfx_model, previous_rfx_samples, previous_model_warmstart_sample_num - 1, sigma_alpha_init)
+                        resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
+                    }
+                }
                 if (sample_sigma_global) {
                     if (!is.null(previous_global_var_samples)) {
                         current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]
+                        global_model_config$update_global_error_variance(current_sigma2)
                     }
                 }
             } else {
@@ -705,6 +735,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
                     if (sample_sigma_leaf) {
                         current_leaf_scale <- as.matrix(sigma_leaf_init)
+                        forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
                     }
                 }
                 if (include_variance_forest) {
@@ -717,7 +748,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                                                 sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
                     rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
                 }
-                if (sample_sigma_global) current_sigma2 <- sigma2_init
+                if (sample_sigma_global) {
+                    current_sigma2 <- sigma2_init
+                    global_model_config$update_global_error_variance(current_sigma2)
+                }
             }
             for (i in (num_gfr+1):num_samples) {
                 is_mcmc <- i > (num_gfr + num_burnin)
@@ -746,26 +780,28 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 
                 if (include_mean_forest) {
                     forest_model_mean$sample_one_iteration(
-                        forest_dataset_train, outcome_train, forest_samples_mean, active_forest_mean, 
-                        rng, feature_types, leaf_model_mean_forest, current_leaf_scale, variable_weights_mean, 
-                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                        forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mean, 
+                        active_forest = active_forest_mean, rng = rng, forest_model_config = forest_model_config_mean, 
+                        global_model_config = global_model_config, keep_forest = keep_sample, gfr = F
                     )
                 }
                 if (include_variance_forest) {
                     forest_model_variance$sample_one_iteration(
-                        forest_dataset_train, outcome_train, forest_samples_variance, active_forest_variance, 
-                        rng, feature_types, leaf_model_variance_forest, current_leaf_scale, variable_weights_variance, 
-                        a_forest, b_forest, current_sigma2, cutpoint_grid_size, keep_forest = keep_sample, gfr = F, pre_initialized = T
+                        forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
+                        active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
+                        global_model_config = global_model_config, keep_forest = keep_sample, gfr = F
                     )
                 }
                 if (sample_sigma_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                     if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
+                    global_model_config$update_global_error_variance(current_sigma2)
                 }
                 if (sample_sigma_leaf) {
                     leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                     current_leaf_scale <- as.matrix(leaf_scale_double)
                     if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
+                    forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
                 }
                 if (has_rfx) {
                     rfx_model$sample_random_effect(rfx_dataset_train, outcome_train, rfx_tracker_train, rfx_samples, keep_sample, current_sigma2, rng)
@@ -1097,8 +1133,10 @@ predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
-#'                    rfx_group_ids_train = rfx_group_ids_train, rfx_group_ids_test = rfx_group_ids_test, 
-#'                    rfx_basis_train = rfx_basis_train, rfx_basis_test = rfx_basis_test, 
+#'                    rfx_group_ids_train = rfx_group_ids_train, 
+#'                    rfx_group_ids_test = rfx_group_ids_test, 
+#'                    rfx_basis_train = rfx_basis_train, 
+#'                    rfx_basis_test = rfx_basis_test, 
 #'                    num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' rfx_samples <- getRandomEffectSamples(bart_model)
 getRandomEffectSamples.bartmodel <- function(object, ...){
@@ -1153,6 +1191,10 @@ getRandomEffectSamples.bartmodel <- function(object, ...){
 #' bart_json <- saveBARTModelToJson(bart_model)
 saveBARTModelToJson <- function(object){
     jsonobj <- createCppJson()
+    
+    if (!inherits(object, "bartmodel")) {
+        stop("`object` must be a BART model")
+    }
     
     if (is.null(object$model_params)) {
         stop("This BCF model has not yet been sampled")
