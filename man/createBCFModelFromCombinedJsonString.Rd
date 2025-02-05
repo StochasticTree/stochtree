@@ -70,9 +70,11 @@ rfx_basis_train <- rfx_basis[train_inds,]
 rfx_term_test <- rfx_term[test_inds]
 rfx_term_train <- rfx_term[train_inds]
 bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-                 propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+                 propensity_train = pi_train, 
+                 rfx_group_ids_train = rfx_group_ids_train, 
                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-                 Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+                 Z_test = Z_test, propensity_test = pi_test, 
+                 rfx_group_ids_test = rfx_group_ids_test,
                  rfx_basis_test = rfx_basis_test, 
                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 # bcf_json_string_list <- list(saveBCFModelToJsonString(bcf_model))

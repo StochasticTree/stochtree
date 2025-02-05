@@ -47,14 +47,25 @@ forest_dataset <- createForestDataset(X)
 y <- -5 + 10*(X[,1] > 0.5) + rnorm(n)
 outcome <- createOutcome(y)
 rng <- createCppRNG(1234)
-forest_model <- createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
+global_model_config <- createGlobalModelConfig(global_error_variance=sigma2)
+forest_model_config <- createForestModelConfig(feature_types=feature_types, 
+                                               num_trees=num_trees, num_observations=n, 
+                                               num_features=p, alpha=alpha, beta=beta, 
+                                               min_samples_leaf=min_samples_leaf, 
+                                               max_depth=max_depth, 
+                                               variable_weights=variable_weights, 
+                                               cutpoint_grid_size=cutpoint_grid_size, 
+                                               leaf_model_type=leaf_model, 
+                                               leaf_model_scale=leaf_scale)
+forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
 active_forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
-forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
+forest_samples <- createForestSamples(num_trees, leaf_dimension, 
+                                      is_leaf_constant, is_exponentiated)
+active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, 0, 0.)
 forest_model$sample_one_iteration(
     forest_dataset, outcome, forest_samples, active_forest, 
-    rng, feature_types, leaf_model, leaf_scale, variable_weights, 
-    a_forest, b_forest, sigma2, cutpoint_grid_size, keep_forest = TRUE, 
-    gfr = FALSE, pre_initialized = TRUE
+    rng, forest_model_config, global_model_config, 
+    keep_forest = TRUE, gfr = FALSE
 )
 resetActiveForest(active_forest, forest_samples, 0)
 resetForestModel(forest_model, active_forest, forest_dataset, outcome, TRUE)

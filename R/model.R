@@ -65,34 +65,39 @@ ForestModel <- R6::R6Class(
         #' @param forest_samples Container of forest samples
         #' @param active_forest "Active" forest updated by the sampler in each iteration
         #' @param rng Wrapper around C++ random number generator
-        #' @param feature_types Vector specifying the type of all p covariates in `forest_dataset` (0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
-        #' @param leaf_model_int Integer specifying the leaf model type (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression)
-        #' @param leaf_model_scale Scale parameter used in the leaf node model (should be a q x q matrix where q is the dimensionality of the basis and is only >1 when `leaf_model_int = 2`)
-        #' @param variable_weights Vector specifying sampling probability for all p covariates in `forest_dataset`
-        #' @param a_forest Shape parameter on variance forest model (if applicable)
-        #' @param b_forest Scale parameter on variance forest model (if applicable)
-        #' @param global_scale Global variance parameter
-        #' @param cutpoint_grid_size (Optional) Number of unique cutpoints to consider (default: `500`, currently only used when `GFR = TRUE`)
-        #' @param keep_forest (Optional) Whether the updated forest sample should be saved to `forest_samples`. Default: `T`.
-        #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: `T`.
-        #' @param pre_initialized (Optional) Whether or not the leaves are pre-initialized outside of the sampling loop (before any samples are drawn). In multi-forest implementations like BCF, this is true, though in the single-forest supervised learning implementation, we can let C++ do the initialization. Default: `F`.
-        sample_one_iteration = function(forest_dataset, residual, forest_samples, active_forest, rng, feature_types, 
-                                        leaf_model_int, leaf_model_scale, variable_weights, 
-                                        a_forest, b_forest, global_scale, cutpoint_grid_size = 500, 
-                                        keep_forest = T, gfr = T, pre_initialized = F) {
+        #' @param forest_model_config ForestModelConfig object containing forest model parameters and settings
+        #' @param global_model_config GlobalModelConfig object containing global model parameters and settings
+        #' @param keep_forest (Optional) Whether the updated forest sample should be saved to `forest_samples`. Default: `TRUE`.
+        #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: `TRUE`.
+        sample_one_iteration = function(forest_dataset, residual, forest_samples, active_forest, 
+                                        rng, forest_model_config, global_model_config, keep_forest = T, gfr = T) {
+            if (active_forest$is_empty()) {
+                stop("`active_forest` has not yet been initialized, which is necessary to run the sampler. Please set constant values for `active_forest`'s leaves using either the `set_root_leaves` or `prepare_for_sampler` methods.")
+            }
+
+            # Unpack parameters from model config object
+            feature_types <- forest_model_config$feature_types
+            leaf_model_int <- forest_model_config$leaf_model_type
+            leaf_model_scale <- forest_model_config$leaf_model_scale
+            variable_weights <- forest_model_config$variable_weights
+            a_forest <- forest_model_config$variance_forest_shape
+            b_forest <- forest_model_config$variance_forest_scale
+            global_scale <- global_model_config$global_error_variance
+            cutpoint_grid_size <- forest_model_config$cutpoint_grid_size
+            
             if (gfr) {
                 sample_gfr_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
                     self$tree_prior_ptr, rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, pre_initialized
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest
                 )
             } else {
                 sample_mcmc_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
                     self$tree_prior_ptr, rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, pre_initialized
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest
                 ) 
             }
         }, 
@@ -182,14 +187,9 @@ createCppRNG <- function(random_seed = -1){
 
 #' Create a forest model object
 #'
-#' @param forest_dataset `ForestDataset` object, used to initialize forest sampling data structures
-#' @param feature_types Feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
-#' @param num_trees Number of trees in the forest being sampled
-#' @param n Number of observations in `forest_dataset`
-#' @param alpha Root node split probability in tree prior
-#' @param beta Depth prior penalty in tree prior
-#' @param min_samples_leaf Minimum number of samples in a tree leaf
-#' @param max_depth Maximum depth of any tree in the ensemble in the mean model. Setting to ``-1`` does not enforce any depth limits on trees.
+#' @param forest_dataset ForestDataset object, used to initialize forest sampling data structures
+#' @param forest_model_config ForestModelConfig object containing forest model parameters and settings
+#' @param global_model_config GlobalModelConfig object containing global model parameters and settings
 #'
 #' @return `ForestModel` object
 #' @export
@@ -205,10 +205,18 @@ createCppRNG <- function(random_seed = -1){
 #' feature_types <- as.integer(rep(0, p))
 #' X <- matrix(runif(n*p), ncol = p)
 #' forest_dataset <- createForestDataset(X)
-#' forest_model <- createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
-createForestModel <- function(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth) {
+#' forest_model_config <- createForestModelConfig(feature_types=feature_types, 
+#'                                                num_trees=num_trees, num_features=p, 
+#'                                                num_observations=n, alpha=alpha, beta=beta, 
+#'                                                min_samples_leaf=min_samples_leaf, 
+#'                                                max_depth=max_depth, leaf_model_type=1)
+#' global_model_config <- createGlobalModelConfig(global_error_variance=1.0)
+#' forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
+createForestModel <- function(forest_dataset, forest_model_config, global_model_config) {
     return(invisible((
-        ForestModel$new(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
+        ForestModel$new(forest_dataset, forest_model_config$feature_types, forest_model_config$num_trees, 
+                        forest_model_config$num_observations, forest_model_config$alpha, forest_model_config$beta, 
+                        forest_model_config$min_samples_leaf, forest_model_config$max_depth)
     )))
 }
 

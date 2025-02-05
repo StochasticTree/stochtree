@@ -4,33 +4,14 @@
 \alias{createForestModel}
 \title{Create a forest model object}
 \usage{
-createForestModel(
-  forest_dataset,
-  feature_types,
-  num_trees,
-  n,
-  alpha,
-  beta,
-  min_samples_leaf,
-  max_depth
-)
+createForestModel(forest_dataset, forest_model_config, global_model_config)
 }
 \arguments{
-\item{forest_dataset}{\code{ForestDataset} object, used to initialize forest sampling data structures}
+\item{forest_dataset}{ForestDataset object, used to initialize forest sampling data structures}
 
-\item{feature_types}{Feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
+\item{forest_model_config}{ForestModelConfig object containing forest model parameters and settings}
 
-\item{num_trees}{Number of trees in the forest being sampled}
-
-\item{n}{Number of observations in \code{forest_dataset}}
-
-\item{alpha}{Root node split probability in tree prior}
-
-\item{beta}{Depth prior penalty in tree prior}
-
-\item{min_samples_leaf}{Minimum number of samples in a tree leaf}
-
-\item{max_depth}{Maximum depth of any tree in the ensemble in the mean model. Setting to \code{-1} does not enforce any depth limits on trees.}
+\item{global_model_config}{GlobalModelConfig object containing global model parameters and settings}
 }
 \value{
 \code{ForestModel} object
@@ -49,5 +30,11 @@ max_depth <- 10
 feature_types <- as.integer(rep(0, p))
 X <- matrix(runif(n*p), ncol = p)
 forest_dataset <- createForestDataset(X)
-forest_model <- createForestModel(forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf, max_depth)
+forest_model_config <- createForestModelConfig(feature_types=feature_types, 
+                                               num_trees=num_trees, num_features=p, 
+                                               num_observations=n, alpha=alpha, beta=beta, 
+                                               min_samples_leaf=min_samples_leaf, 
+                                               max_depth=max_depth, leaf_model_type=1)
+global_model_config <- createGlobalModelConfig(global_error_variance=1.0)
+forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
 }

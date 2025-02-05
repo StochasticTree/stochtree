@@ -4,9 +4,9 @@
 \name{stochtree-package}
 \alias{stochtree}
 \alias{stochtree-package}
-\title{stochtree: Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference}
+\title{stochtree: Stochastic tree Ensembles (XBART and BART) for Supervised Learning and Causal Inference}
 \description{
-Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference.
+Flexible stochastic tree ensemble software. Robust implementations of Bayesian Additive Regression Trees (Chipman, George, McCulloch (2010) \doi{10.1214/09-AOAS285}) for supervised learning and (Bayesian Causal Forests (BCF) Hahn, Murray, Carvalho (2020) \doi{10.1214/19-BA1195}) for causal inference. Enables model serialization and parallel sampling and provides a low-level interface for custom stochastic forest samplers.
 }
 \seealso{
 Useful links:
