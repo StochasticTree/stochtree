@@ -286,8 +286,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             previous_forest_samples_variance <- previous_bcf_model$forests_variance
         } else previous_forest_samples_variance <- NULL
         if (previous_bcf_model$model_params$sample_sigma_global) {
-            previous_global_var_samples <- previous_bcf_model$sigma2_samples*(
-                previous_var_scale / (previous_y_scale*previous_y_scale)
+            previous_global_var_samples <- previous_bcf_model$sigma2_samples / (
+                previous_y_scale*previous_y_scale
             )
         } else previous_global_var_samples <- NULL
         if (previous_bcf_model$model_params$sample_sigma_leaf_mu) {
@@ -313,7 +313,6 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     } else {
         previous_y_bar <- NULL
         previous_y_scale <- NULL
-        previous_var_scale <- NULL
         previous_global_var_samples <- NULL
         previous_leaf_var_mu_samples <- NULL
         previous_leaf_var_tau_samples <- NULL
