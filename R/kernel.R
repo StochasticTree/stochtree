@@ -49,7 +49,7 @@
 computeForestLeafIndices <- function(model_object, covariates, forest_type=NULL, forest_inds=NULL) {
     # Extract relevant forest container
     stopifnot(any(c(inherits(model_object, "bartmodel"), inherits(model_object, "bcfmodel"), inherits(model_object, "ForestSamples"))))
-    model_type <- ifelse(object_name=="bartmodel", "bart", ifelse(object_name=="bcfmodel", "bcf", "forest_samples"))
+    model_type <- ifelse(inherits(model_object, "bartmodel"), "bart", ifelse(inherits(model_object, "bcfmodel"), "bcf", "forest_samples"))
     if (model_type == "bart") {
         stopifnot(forest_type %in% c("mean", "variance"))
         if (forest_type=="mean") {
