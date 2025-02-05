@@ -78,7 +78,8 @@ mu_test <- mu_x[test_inds]
 mu_train <- mu_x[train_inds]
 tau_test <- tau_x[test_inds]
 tau_train <- tau_x[train_inds]
-bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train)
+bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
+                 propensity_train = pi_train)
 preds <- predict(bcf_model, X_test, Z_test, pi_test)
 plot(rowMeans(preds$mu_hat), mu_test, xlab = "predicted",
      ylab = "actual", main = "Prognostic function")

@@ -69,9 +69,11 @@ rfx_term_train <- rfx_term[train_inds]
 mu_params <- list(sample_sigma_leaf = TRUE)
 tau_params <- list(sample_sigma_leaf = FALSE)
 bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-                 propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+                 propensity_train = pi_train, 
+                 rfx_group_ids_train = rfx_group_ids_train, 
                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-                 Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+                 Z_test = Z_test, propensity_test = pi_test, 
+                 rfx_group_ids_test = rfx_group_ids_test,
                  rfx_basis_test = rfx_basis_test, 
                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
                  mu_forest_params = mu_params, 

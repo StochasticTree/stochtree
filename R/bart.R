@@ -1133,8 +1133,10 @@ predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
-#'                    rfx_group_ids_train = rfx_group_ids_train, rfx_group_ids_test = rfx_group_ids_test, 
-#'                    rfx_basis_train = rfx_basis_train, rfx_basis_test = rfx_basis_test, 
+#'                    rfx_group_ids_train = rfx_group_ids_train, 
+#'                    rfx_group_ids_test = rfx_group_ids_test, 
+#'                    rfx_basis_train = rfx_basis_train, 
+#'                    rfx_basis_test = rfx_basis_test, 
 #'                    num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' rfx_samples <- getRandomEffectSamples(bart_model)
 getRandomEffectSamples.bartmodel <- function(object, ...){
@@ -1189,6 +1191,10 @@ getRandomEffectSamples.bartmodel <- function(object, ...){
 #' bart_json <- saveBARTModelToJson(bart_model)
 saveBARTModelToJson <- function(object){
     jsonobj <- createCppJson()
+    
+    if (!inherits(object, "bartmodel")) {
+        stop("`object` must be a BART model")
+    }
     
     if (is.null(object$model_params)) {
         stop("This BCF model has not yet been sampled")

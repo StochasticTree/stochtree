@@ -1409,7 +1409,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
 #' mu_train <- mu_x[train_inds]
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train)
+#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
+#'                  propensity_train = pi_train)
 #' preds <- predict(bcf_model, X_test, Z_test, pi_test)
 #' plot(rowMeans(preds$mu_hat), mu_test, xlab = "predicted",
 #'      ylab = "actual", main = "Prognostic function")
@@ -1597,9 +1598,11 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1686,9 +1689,11 @@ getRandomEffectSamples.bcfmodel <- function(object, ...){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -1697,7 +1702,7 @@ getRandomEffectSamples.bcfmodel <- function(object, ...){
 saveBCFModelToJson <- function(object){
     jsonobj <- createCppJson()
     
-    if (class(object) != "bcfmodel") {
+    if (!inherits(object, "bcfmodel")) {
         stop("`object` must be a BCF model")
     }
     
@@ -1849,9 +1854,11 @@ saveBCFModelToJson <- function(object){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -2003,9 +2010,11 @@ saveBCFModelToJsonString <- function(object){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -2166,9 +2175,11 @@ createBCFModelFromJson <- function(json_object){
 #' mu_params <- list(sample_sigma_leaf = TRUE)
 #' tau_params <- list(sample_sigma_leaf = FALSE)
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
 #'                  mu_forest_params = mu_params, 
@@ -2245,9 +2256,11 @@ createBCFModelFromJsonFile <- function(json_filename){
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' # bcf_json <- saveBCFModelToJsonString(bcf_model)
@@ -2323,9 +2336,11 @@ createBCFModelFromJsonString <- function(json_string){
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' # bcf_json_list <- list(saveBCFModelToJson(bcf_model))
@@ -2533,9 +2548,11 @@ createBCFModelFromCombinedJson <- function(json_object_list){
 #' rfx_term_test <- rfx_term[test_inds]
 #' rfx_term_train <- rfx_term[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train, rfx_group_ids_train = rfx_group_ids_train, 
+#'                  propensity_train = pi_train, 
+#'                  rfx_group_ids_train = rfx_group_ids_train, 
 #'                  rfx_basis_train = rfx_basis_train, X_test = X_test, 
-#'                  Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
+#'                  Z_test = Z_test, propensity_test = pi_test, 
+#'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
 #' # bcf_json_string_list <- list(saveBCFModelToJsonString(bcf_model))
