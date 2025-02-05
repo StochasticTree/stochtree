@@ -4,7 +4,7 @@
 \name{stochtree-package}
 \alias{stochtree}
 \alias{stochtree-package}
-\title{stochtree: Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference}
+\title{stochtree: Stochastic tree Ensembles (XBART and BART) for Supervised Learning and Causal Inference}
 \description{
 Stochastic tree ensembles (XBART and BART) for supervised learning and causal inference.
 }
