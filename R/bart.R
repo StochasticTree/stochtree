@@ -199,7 +199,6 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     if (num_mcmc == 0) keep_gfr <- T
     
     # Check if previous model JSON is provided and parse it if so
-    # TODO: check that `previous_model_warmstart_sample_num` is <= the number of samples in this previous model
     has_prev_model <- !is.null(previous_model_json)
     if (has_prev_model) {
         previous_bart_model <- createBARTModelFromJsonString(previous_model_json)
@@ -712,10 +711,16 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     resetActiveForest(active_forest_variance, previous_forest_samples_variance, previous_model_warmstart_sample_num - 1)
                     resetForestModel(forest_model_variance, active_forest_variance, forest_dataset_train, outcome_train, FALSE)
                 }
-                # TODO: also initialize from previous RFX samples
                 if (has_rfx) {
-                    resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
-                    resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
+                    if (is.null(previous_rfx_samples)) {
+                        warning("`previous_model_json` did not have any random effects samples, so the RFX sampler will be run from scratch while the forests and any other parameters are warm started")
+                        rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+                                                    sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+                        rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
+                    } else {
+                        resetRandomEffectsModel(rfx_model, previous_rfx_samples, previous_model_warmstart_sample_num - 1, sigma_alpha_init)
+                        resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
+                    }
                 }
                 if (sample_sigma_global) {
                     if (!is.null(previous_global_var_samples)) {

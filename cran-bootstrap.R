@@ -14,25 +14,28 @@
 #   include_vignettes : 1 to include the vignettes folder in the R package subfolder
 #                       0 to exclude vignettes (overriden to 1 if pkgdown_build = 1 below)
 # 
-#   pkgdown_build : 1 to include pkgdown specific files (R_Readm)
-#                   0 to exclude vignettes
+#   pkgdown_build : 1 to include pkgdown specific files (R_README.md, _pkgdown.yml)
+#                   0 to exclude pkgdown specific files
+# 
+#   include_tests : 1 to include unit tests
+#                   0 to exclude unit tests
 # 
 # Run this script from the command line via
 # 
-# Explicitly include vignettes and build pkgdown site
-# ---------------------------------------------------
-#   Rscript cran-bootstrap.R 1 1
+# Explicitly include vignettes and unit tests and build pkgdown site
+# ------------------------------------------------------------------
+#   Rscript cran-bootstrap.R 1 1 1
 # 
-# Explicitly include vignettes but don't build pkgdown site
-# ---------------------------------------------------------
-#   Rscript cran-bootstrap.R 1 0
+# Explicitly include vignettes and unit tests but don't build pkgdown site
+# ------------------------------------------------------------------------
+#   Rscript cran-bootstrap.R 1 0 1
 # 
-# Explicitly exclude vignettes and don't build pkgdown site
-# ---------------------------------------------------------
-#   Rscript cran-bootstrap.R 0 0
+# Explicitly exclude vignettes and unit tests and don't build pkgdown site
+# ------------------------------------------------------------------------
+#   Rscript cran-bootstrap.R 0 0 0
 # 
-# Exclude vignettes and pkgdown by default
-# ----------------------------------------
+# Exclude vignettes, unit tests, and pkgdown by default
+# -----------------------------------------------------
 #   Rscript cran-bootstrap.R
 
 # Unpack command line arguments
@@ -40,9 +43,11 @@ args <- commandArgs(trailingOnly = T)
 if (length(args) > 0){
     include_vignettes <- as.logical(as.integer(args[1]))
     pkgdown_build <- as.logical(as.integer(args[2]))
+    include_tests <- as.logical(as.integer(args[3]))
 } else{
     include_vignettes <- F
     pkgdown_build <- F
+    include_tests <- F
 }
 
 # Create the stochtree_cran folder
@@ -95,10 +100,14 @@ if (pkgdown_build) {
 }
 
 # Handle tests separately (move from test/R/ folder to tests/ folder)
-test_files_src <- list.files("test/R", recursive = TRUE, full.names = TRUE)
-test_files_dst <- file.path(cran_dir, gsub("test/R", "tests", test_files_src))
-pkg_core_files <- c(pkg_core_files, test_files_src)
-pkg_core_files_dst <- c(pkg_core_files_dst, test_files_dst)
+if (include_tests) {
+    test_files_src <- list.files("test/R", recursive = TRUE, full.names = TRUE)
+    test_files_dst <- file.path(cran_dir, gsub("test/R", "tests", test_files_src))
+    pkg_core_files <- c(pkg_core_files, test_files_src)
+    pkg_core_files_dst <- c(pkg_core_files_dst, test_files_dst)
+}
+
+# Copy over all core package files
 if (all(file.exists(pkg_core_files))) {
     n_removed <- suppressWarnings(sum(file.remove(pkg_core_files_dst)))
     if (n_removed > 0) {
