@@ -307,7 +307,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             previous_b_0_samples <- NULL
         }
         previous_model_num_samples <- previous_bcf_model$model_params$num_samples
-        if (previous_model_warmstart_sample_num >= previous_model_num_samples) {
+        if (previous_model_warmstart_sample_num > previous_model_num_samples) {
             stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
         }
     } else {

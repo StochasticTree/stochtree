@@ -151,6 +151,23 @@ if (!include_vignettes) {
     writeLines(description_lines, cran_description)
 }
 
+# Remove testthat deps from DESCRIPTION if no tests
+if (!include_tests) {
+    cran_description <- file.path(cran_dir, "DESCRIPTION")
+    description_lines <- readLines(cran_description)
+    if (include_vignettes) {
+        suggestion_match <- grep("testthat (>= 3.0.0)", description_lines)
+        suggestion_lines <- suggestion_match
+    } else {
+        suggestion_begin <- grep("Suggests:", description_lines)
+        suggestion_end <- grep("SystemRequirements:", description_lines) - 1
+        suggestion_lines <- suggestion_begin:suggestion_end
+    }
+    testthat_config_line <- grep("Config/testthat/edition:", description_lines)
+    description_lines <- description_lines[-c(suggestion_lines, testthat_config_line)]
+    writeLines(description_lines, cran_description)
+}
+
 # Remove vignettes from _pkgdown.yml if no vignettes
 if ((!include_vignettes) & (pkgdown_build)) {
     pkgdown_yml <- file.path(cran_dir, "_pkgdown.yml")

@@ -222,7 +222,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
             previous_rfx_samples <- previous_bart_model$rfx_samples
         } else previous_rfx_samples <- NULL
         previous_model_num_samples <- previous_bart_model$model_params$num_samples
-        if (previous_model_warmstart_sample_num >= previous_model_num_samples) {
+        if (previous_model_warmstart_sample_num > previous_model_num_samples) {
             stop("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
         }
     } else {
