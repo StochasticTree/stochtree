@@ -4,7 +4,7 @@
 * Support for sampling stochastic tree ensembles using two algorithms: MCMC and Grow-From-Root (GFR)
 * High-level model types supported:
     * Supervised learning with constant leaves or user-specified leaf regression models
-    * Causal effect estimation with binary, continuous, or multivariate treatments
+    * Causal effect estimation with binary or continuous treatments
 * Additional high-level modeling features:
     * Forest-based variance function estimation (heteroskedasticity)
     * Additive (univariate or multivariate) group random effects
