@@ -99,8 +99,10 @@
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
 #'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
+#' \dontrun{
 #' plot(rowMeans(bart_model$y_hat_test), y_test, xlab = "predicted", ylab = "actual")
 #' abline(0,1,col="red",lty=3,lwd=3)
+#' }
 bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train = NULL, 
                  rfx_basis_train = NULL, X_test = NULL, leaf_basis_test = NULL, 
                  rfx_group_ids_test = NULL, rfx_basis_test = NULL, 
@@ -994,8 +996,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
 #' bart_model <- bart(X_train = X_train, y_train = y_train, 
 #'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' y_hat_test <- predict(bart_model, X_test)$y_hat
+#' \dontrun{
 #' plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
 #' abline(0,1,col="red",lty=3,lwd=3)
+#' }
 predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL, rfx_basis = NULL, ...){
     # Preprocess covariates
     if ((!is.data.frame(X)) && (!is.matrix(X))) {
@@ -1557,8 +1561,10 @@ createBARTModelFromJsonFile <- function(json_filename){
 #' bart_json <- saveBARTModelToJsonString(bart_model)
 #' bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
 #' y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X_train)$y_hat)
+#' \dontrun{
 #' plot(rowMeans(bart_model$y_hat_train), y_hat_mean_roundtrip, 
 #'      xlab = "original", ylab = "roundtrip")
+#' }
 createBARTModelFromJsonString <- function(json_string){
     # Load a `CppJson` object from string
     bart_json <- createCppJsonString(json_string)

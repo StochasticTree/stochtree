@@ -191,10 +191,12 @@ bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
                  propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
                  propensity_test = pi_test, num_gfr = 10, 
                  num_burnin = 0, num_mcmc = 10)
+\dontrun{
 plot(rowMeans(bcf_model$mu_hat_test), mu_test, xlab = "predicted", 
      ylab = "actual", main = "Prognostic function")
 abline(0,1,col="red",lty=3,lwd=3)
 plot(rowMeans(bcf_model$tau_hat_test), tau_test, xlab = "predicted", 
      ylab = "actual", main = "Treatment effect")
 abline(0,1,col="red",lty=3,lwd=3)
+}
 }

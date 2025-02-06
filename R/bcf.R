@@ -140,12 +140,14 @@
 #'                  propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
 #'                  propensity_test = pi_test, num_gfr = 10, 
 #'                  num_burnin = 0, num_mcmc = 10)
+#' \dontrun{
 #' plot(rowMeans(bcf_model$mu_hat_test), mu_test, xlab = "predicted", 
 #'      ylab = "actual", main = "Prognostic function")
 #' abline(0,1,col="red",lty=3,lwd=3)
 #' plot(rowMeans(bcf_model$tau_hat_test), tau_test, xlab = "predicted", 
 #'      ylab = "actual", main = "Treatment effect")
 #' abline(0,1,col="red",lty=3,lwd=3)
+#' }
 bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_ids_train = NULL, 
                 rfx_basis_train = NULL, X_test = NULL, Z_test = NULL, propensity_test = NULL, 
                 rfx_group_ids_test = NULL, rfx_basis_test = NULL, 
@@ -1444,12 +1446,14 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
 #'                  propensity_train = pi_train, num_gfr = 10, 
 #'                  num_burnin = 0, num_mcmc = 10)
 #' preds <- predict(bcf_model, X_test, Z_test, pi_test)
+#' \dontrun{
 #' plot(rowMeans(preds$mu_hat), mu_test, xlab = "predicted",
 #'      ylab = "actual", main = "Prognostic function")
 #' abline(0,1,col="red",lty=3,lwd=3)
 #' plot(rowMeans(preds$tau_hat), tau_test, xlab = "predicted", 
 #'      ylab = "actual", main = "Treatment effect")
 #' abline(0,1,col="red",lty=3,lwd=3)
+#' }
 predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NULL, rfx_basis = NULL, ...){
     # Preprocess covariates
     if ((!is.data.frame(X)) && (!is.matrix(X))) {
