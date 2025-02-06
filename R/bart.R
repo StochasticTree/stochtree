@@ -97,7 +97,8 @@
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' plot(rowMeans(bart_model$y_hat_test), y_test, xlab = "predicted", ylab = "actual")
 #' abline(0,1,col="red",lty=3,lwd=3)
 bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train = NULL, 
@@ -990,7 +991,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' y_hat_test <- predict(bart_model, X_test)$y_hat
 #' plot(rowMeans(y_hat_test), y_test, xlab = "predicted", ylab = "actual")
 #' abline(0,1,col="red",lty=3,lwd=3)
@@ -1150,7 +1152,7 @@ predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL
 #'                    rfx_group_ids_test = rfx_group_ids_test, 
 #'                    rfx_basis_train = rfx_basis_train, 
 #'                    rfx_basis_test = rfx_basis_test, 
-#'                    num_gfr = 100, num_burnin = 0, num_mcmc = 100)
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' rfx_samples <- getRandomEffectSamples(bart_model)
 getRandomEffectSamples.bartmodel <- function(object, ...){
     result = list()
@@ -1200,7 +1202,8 @@ getRandomEffectSamples.bartmodel <- function(object, ...){
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' bart_json <- saveBARTModelToJson(bart_model)
 saveBARTModelToJson <- function(object){
     jsonobj <- createCppJson()
@@ -1309,7 +1312,8 @@ saveBARTModelToJson <- function(object){
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' tmpjson <- tempfile(fileext = ".json")
 #' saveBARTModelToJsonFile(bart_model, file.path(tmpjson))
 #' unlink(tmpjson)
@@ -1348,7 +1352,8 @@ saveBARTModelToJsonFile <- function(object, filename){
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' bart_json_string <- saveBARTModelToJsonString(bart_model)
 saveBARTModelToJsonString <- function(object){
     # Convert to Json
@@ -1387,7 +1392,8 @@ saveBARTModelToJsonString <- function(object){
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' bart_json <- saveBARTModelToJson(bart_model)
 #' bart_model_roundtrip <- createBARTModelFromJson(bart_json)
 createBARTModelFromJson <- function(json_object){
@@ -1501,7 +1507,8 @@ createBARTModelFromJson <- function(json_object){
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' tmpjson <- tempfile(fileext = ".json")
 #' saveBARTModelToJsonFile(bart_model, file.path(tmpjson))
 #' bart_model_roundtrip <- createBARTModelFromJsonFile(file.path(tmpjson))
@@ -1545,7 +1552,8 @@ createBARTModelFromJsonFile <- function(json_filename){
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' bart_json <- saveBARTModelToJsonString(bart_model)
 #' bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
 #' y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X_train)$y_hat)
@@ -1590,7 +1598,8 @@ createBARTModelFromJsonString <- function(json_string){
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' bart_json <- list(saveBARTModelToJson(bart_model))
 #' bart_model_roundtrip <- createBARTModelFromCombinedJson(bart_json)
 createBARTModelFromCombinedJson <- function(json_object_list){
@@ -1735,7 +1744,8 @@ createBARTModelFromCombinedJson <- function(json_object_list){
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train)
+#' bart_model <- bart(X_train = X_train, y_train = y_train, 
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' bart_json_string_list <- list(saveBARTModelToJsonString(bart_model))
 #' bart_model_roundtrip <- createBARTModelFromCombinedJsonString(bart_json_string_list)
 createBARTModelFromCombinedJsonString <- function(json_string_list){
