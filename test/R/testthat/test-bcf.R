@@ -62,8 +62,8 @@ test_that("MCMC BCF", {
                          propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
                          propensity_test = pi_test, num_gfr = 0, num_burnin = 10, 
                          num_mcmc = 10, general_params = general_param_list, 
-                         mu_forest_params = mu_forest_param_list, 
-                         tau_forest_params = tau_forest_param_list)
+                         prognostic_forest_params = mu_forest_param_list, 
+                         treatment_effect_forest_params = tau_forest_param_list)
     )
     
     # 1 chain, no thinning, scalar leaf scale parameter provided
@@ -75,8 +75,8 @@ test_that("MCMC BCF", {
                          propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
                          propensity_test = pi_test, num_gfr = 0, num_burnin = 10, 
                          num_mcmc = 10, general_params = general_param_list, 
-                         mu_forest_params = mu_forest_param_list, 
-                         tau_forest_params = tau_forest_param_list)
+                         prognostic_forest_params = mu_forest_param_list, 
+                         treatment_effect_forest_params = tau_forest_param_list)
     )
     
     # 3 chains, no thinning
