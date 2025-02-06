@@ -80,5 +80,5 @@ bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
                  mu_forest_params = mu_params, 
                  tau_forest_params = tau_params)
-# bcf_json <- saveBCFModelToJson(bcf_model)
+bcf_json <- saveBCFModelToJson(bcf_model)
 }

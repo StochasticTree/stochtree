@@ -1734,7 +1734,7 @@ getRandomEffectSamples.bcfmodel <- function(object, ...){
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
-#' # bcf_json <- saveBCFModelToJson(bcf_model)
+#' bcf_json <- saveBCFModelToJson(bcf_model)
 saveBCFModelToJson <- function(object){
     jsonobj <- createCppJson()
     
@@ -1901,7 +1901,7 @@ saveBCFModelToJson <- function(object){
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
-#' # saveBCFModelToJsonFile(bcf_model, "test.json")
+#' saveBCFModelToJsonFile(bcf_model, "test.json")
 saveBCFModelToJsonFile <- function(object, filename){
     # Convert to Json
     jsonobj <- saveBCFModelToJson(object)
@@ -1981,7 +1981,7 @@ saveBCFModelToJsonFile <- function(object, filename){
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
-#' # saveBCFModelToJsonString(bcf_model)
+#' saveBCFModelToJsonString(bcf_model)
 saveBCFModelToJsonString <- function(object){
     # Convert to Json
     jsonobj <- saveBCFModelToJson(object)
@@ -2230,8 +2230,8 @@ createBCFModelFromJson <- function(json_object){
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
-#' # saveBCFModelToJsonFile(bcf_model, "test.json")
-#' # bcf_model_roundtrip <- createBCFModelFromJsonFile("test.json")
+#' saveBCFModelToJsonFile(bcf_model, "test.json")
+#' bcf_model_roundtrip <- createBCFModelFromJsonFile("test.json")
 createBCFModelFromJsonFile <- function(json_filename){
     # Load a `CppJson` object from file
     bcf_json <- createCppJsonFile(json_filename)
@@ -2311,8 +2311,8 @@ createBCFModelFromJsonFile <- function(json_filename){
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' # bcf_json <- saveBCFModelToJsonString(bcf_model)
-#' # bcf_model_roundtrip <- createBCFModelFromJsonString(bcf_json)
+#' bcf_json <- saveBCFModelToJsonString(bcf_model)
+#' bcf_model_roundtrip <- createBCFModelFromJsonString(bcf_json)
 createBCFModelFromJsonString <- function(json_string){
     # Load a `CppJson` object from string
     bcf_json <- createCppJsonString(json_string)
