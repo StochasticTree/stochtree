@@ -244,7 +244,7 @@ test_that("Warmstart BART", {
         ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
         ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
     )
-    rfx_group_ids <- sample(1:2, size = n, replace = T)
+    rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
     rfx_basis <- rep(1, n)
     rfx_coefs <- c(-5, 5)
     rfx_term <- rfx_coefs[rfx_group_ids] * rfx_basis

@@ -555,7 +555,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     outcome_train <- createOutcome(resid_train)
     
     # Random number generator (std::mt19937)
-    if (is.null(random_seed)) random_seed = sample(1:10000,1,F)
+    if (is.null(random_seed)) random_seed = sample(1:10000,1,FALSE)
     rng <- createCppRNG(random_seed)
     
     # Sampling data structures
@@ -632,7 +632,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (requires_basis) init_values_mean_forest <- rep(0., ncol(leaf_basis_train))
         else init_values_mean_forest <- 0.
         active_forest_mean$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mean, leaf_model_mean_forest, init_values_mean_forest)
-        active_forest_mean$adjust_residual(forest_dataset_train, outcome_train, forest_model_mean, requires_basis, F)
+        active_forest_mean$adjust_residual(forest_dataset_train, outcome_train, forest_model_mean, requires_basis, FALSE)
     }
 
     # Initialize the leaves of each tree in the variance forest
@@ -645,7 +645,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     if (num_gfr > 0){
         for (i in 1:num_gfr) {
             # Keep all GFR samples at this stage -- remove from ForestSamples after MCMC
-            # keep_sample <- ifelse(keep_gfr, T, F)
+            # keep_sample <- ifelse(keep_gfr, TRUE, FALSE)
             keep_sample <- TRUE
             if (keep_sample) sample_counter <- sample_counter + 1
             # Print progress

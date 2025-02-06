@@ -7,7 +7,7 @@ test_that("Residual updates correctly propagated after forest sampling step", {
                  4.4, 5.4, 10.4, 
                  5.3, 9.3, 3.6, 
                  6.1, 10.4, 4.4), 
-               byrow = T, nrow = 6)
+               byrow = TRUE, nrow = 6)
     W = matrix(c(1, 1, 1, 1, 1, 1), nrow = 6)
     n = nrow(X)
     p = ncol(X)
@@ -44,17 +44,17 @@ test_that("Residual updates correctly propagated after forest sampling step", {
                                                   variable_weights=variable_weights, variance_forest_shape=a_forest, 
                                                   variance_forest_scale=b_forest, cutpoint_grid_size=cutpoint_grid_size)
     forest_model = createForestModel(forest_dataset, forest_model_config, global_model_config)
-    forest_samples = createForestSamples(num_trees, 1, F)
-    active_forest = createForest(num_trees, 1, F)
+    forest_samples = createForestSamples(num_trees, 1, FALSE)
+    active_forest = createForest(num_trees, 1, FALSE)
     
     # Initialize the leaves of each tree in the prognostic forest
     active_forest$prepare_for_sampler(forest_dataset, residual, forest_model, 0, mean(resid))
-    active_forest$adjust_residual(forest_dataset, residual, forest_model, F, F)
+    active_forest$adjust_residual(forest_dataset, residual, forest_model, FALSE, FALSE)
     
     # Run the forest sampling algorithm for a single iteration
     forest_model$sample_one_iteration(
         forest_dataset, residual, forest_samples, active_forest, 
-        cpp_rng, forest_model_config, global_model_config, keep_forest = T, gfr = T
+        cpp_rng, forest_model_config, global_model_config, keep_forest = TRUE, gfr = TRUE
     )
 
     # Get the current residual after running the sampler

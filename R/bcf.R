@@ -813,7 +813,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     outcome_train <- createOutcome(resid_train)
     
     # Random number generator (std::mt19937)
-    if (is.null(random_seed)) random_seed = sample(1:10000,1,F)
+    if (is.null(random_seed)) random_seed = sample(1:10000,1,FALSE)
     rng <- createCppRNG(random_seed)
     
     # Sampling data structures
@@ -840,10 +840,10 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     }
     
     # Container of forest samples
-    forest_samples_mu <- createForestSamples(num_trees_mu, 1, T)
-    forest_samples_tau <- createForestSamples(num_trees_tau, 1, F)
-    active_forest_mu <- createForest(num_trees_mu, 1, T)
-    active_forest_tau <- createForest(num_trees_tau, 1, F)
+    forest_samples_mu <- createForestSamples(num_trees_mu, 1, TRUE)
+    forest_samples_tau <- createForestSamples(num_trees_tau, 1, FALSE)
+    active_forest_mu <- createForest(num_trees_mu, 1, TRUE)
+    active_forest_tau <- createForest(num_trees_tau, 1, FALSE)
     if (include_variance_forest) {
         forest_samples_variance <- createForestSamples(num_trees_variance, 1, TRUE, TRUE)
         active_forest_variance <- createForest(num_trees_variance, 1, TRUE, TRUE)
@@ -852,12 +852,12 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     # Initialize the leaves of each tree in the prognostic forest
     init_mu <- mean(resid_train)
     active_forest_mu$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mu, 0, init_mu)
-    active_forest_mu$adjust_residual(forest_dataset_train, outcome_train, forest_model_mu, F, F)
+    active_forest_mu$adjust_residual(forest_dataset_train, outcome_train, forest_model_mu, FALSE, FALSE)
 
     # Initialize the leaves of each tree in the treatment effect forest
     init_tau <- 0.
     active_forest_tau$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_tau, 1, init_tau)
-    active_forest_tau$adjust_residual(forest_dataset_train, outcome_train, forest_model_tau, T, F)
+    active_forest_tau$adjust_residual(forest_dataset_train, outcome_train, forest_model_tau, TRUE, FALSE)
 
     # Initialize the leaves of each tree in the variance forest
     if (include_variance_forest) {
@@ -868,7 +868,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     if (num_gfr > 0){
         for (i in 1:num_gfr) {
             # Keep all GFR samples at this stage -- remove from ForestSamples after MCMC
-            # keep_sample <- ifelse(keep_gfr, T, F)
+            # keep_sample <- ifelse(keep_gfr, TRUE, FALSE)
             keep_sample <- TRUE
             if (keep_sample) sample_counter <- sample_counter + 1
             # Print progress

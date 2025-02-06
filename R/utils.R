@@ -177,7 +177,7 @@ preprocessTrainDataFrame <- function(input_df) {
     # Detect ordered and unordered categorical variables
     
     # First, ordered categorical: users must have explicitly 
-    # converted this to a factor with ordered = T
+    # converted this to a factor with ordered = TRUE
     factor_mask <- sapply(input_df, is.factor)
     ordered_mask <- sapply(input_df, is.ordered)
     ordered_cat_matches <- factor_mask & ordered_mask
@@ -528,9 +528,9 @@ createForestCovariates <- function(input_data, ordered_cat_vars = NULL, unordere
         stop("input_data must be either a matrix or a data frame")
     }
     df_vars <- names(input_df)
-    if (is.null(ordered_cat_vars)) ordered_cat_matches <- rep(F, length(df_vars))
+    if (is.null(ordered_cat_vars)) ordered_cat_matches <- rep(FALSE, length(df_vars))
     else ordered_cat_matches <- df_vars %in% ordered_cat_vars
-    if (is.null(unordered_cat_vars)) unordered_cat_matches <- rep(F, length(df_vars))
+    if (is.null(unordered_cat_vars)) unordered_cat_matches <- rep(FALSE, length(df_vars))
     else unordered_cat_matches <- df_vars %in% unordered_cat_vars
     numeric_matches <- ((!ordered_cat_matches) & (!unordered_cat_matches))
     ordered_cat_vars <- df_vars[ordered_cat_matches]

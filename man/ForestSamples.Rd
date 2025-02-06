@@ -455,7 +455,7 @@ Return constant leaf status of trees in a \code{ForestContainer} object
 }
 
 \subsection{Returns}{
-\code{T} if leaves are constant, \code{F} otherwise
+\code{TRUE} if leaves are constant, \code{FALSE} otherwise
 }
 }
 \if{html}{\out{<hr>}}
@@ -468,7 +468,7 @@ Return exponentiation status of trees in a \code{ForestContainer} object
 }
 
 \subsection{Returns}{
-\code{T} if leaf predictions must be exponentiated, \code{F} otherwise
+\code{TRUE} if leaf predictions must be exponentiated, \code{FALSE} otherwise
 }
 }
 \if{html}{\out{<hr>}}

@@ -231,14 +231,14 @@ ForestSamples <- R6::R6Class(
         
         #' @description
         #' Return constant leaf status of trees in a `ForestContainer` object
-        #' @return `T` if leaves are constant, `F` otherwise
+        #' @return `TRUE` if leaves are constant, `FALSE` otherwise
         is_constant_leaf = function() {
             return(is_constant_leaf_forest_container_cpp(self$forest_container_ptr))
         }, 
         
         #' @description
         #' Return exponentiation status of trees in a `ForestContainer` object
-        #' @return `T` if leaf predictions must be exponentiated, `F` otherwise
+        #' @return `TRUE` if leaf predictions must be exponentiated, `FALSE` otherwise
         is_exponentiated = function() {
             return(is_exponentiated_forest_container_cpp(self$forest_container_ptr))
         }, 
@@ -692,14 +692,14 @@ Forest <- R6::R6Class(
         
         #' @description
         #' Return constant leaf status of trees in a `Forest` object
-        #' @return `T` if leaves are constant, `F` otherwise
+        #' @return `TRUE` if leaves are constant, `FALSE` otherwise
         is_constant_leaf = function() {
             return(is_constant_leaf_active_forest_cpp(self$forest_ptr))
         }, 
         
         #' @description
         #' Return exponentiation status of trees in a `Forest` object
-        #' @return `T` if leaf predictions must be exponentiated, `F` otherwise
+        #' @return `TRUE` if leaf predictions must be exponentiated, `FALSE` otherwise
         is_exponentiated = function() {
             return(is_exponentiated_active_forest_cpp(self$forest_ptr))
         }, 

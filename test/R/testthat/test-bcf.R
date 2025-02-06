@@ -298,7 +298,7 @@ test_that("Warmstart BCF", {
             ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
     )
     Z <- rbinom(n, 1, pi_X)
-    rfx_group_ids <- sample(1:2, size = n, replace = T)
+    rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
     rfx_basis <- rep(1, n)
     rfx_coefs <- c(-5, 5)
     rfx_term <- rfx_coefs[rfx_group_ids] * rfx_basis
