@@ -28,7 +28,15 @@ Authors:
 
 Other contributors:
 \itemize{
+  \item Pedro Lima [contributor]
   \item stochtree contributors [copyright holder]
+  \item Eigen contributors (C++ source uses the Eigen library for matrix operations, see inst/COPYRIGHTS) [copyright holder]
+  \item xgboost contributors (C++ tree code and related operations include or are inspired by code from the xgboost library, see inst/COPYRIGHTS) [copyright holder]
+  \item treelite contributors (C++ tree code and related operations include or are inspired by code from the treelite library, see inst/COPYRIGHTS) [copyright holder]
+  \item Microsoft Corporation (C++ I/O and various project structure code include or are inspired by code from the LightGBM library, which is a copyright of Microsoft, see inst/COPYRIGHTS) [copyright holder]
+  \item Niels Lohmann (C++ source uses the JSON for Modern C++ library for JSON operations, see inst/COPYRIGHTS) [copyright holder]
+  \item Daniel Lemire (C++ source uses the fast_double_parser library internally, see inst/COPYRIGHTS) [copyright holder]
+  \item Victor Zverovich (C++ source uses the fmt library internally, see inst/COPYRIGHTS) [copyright holder]
 }
 
 }
