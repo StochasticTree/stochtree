@@ -147,28 +147,29 @@ Run the Bayesian Causal Forest (BCF) algorithm for regularized causal effect est
 }
 \examples{
 n <- 500
-x1 <- rnorm(n)
-x2 <- rnorm(n)
-x3 <- rnorm(n)
-x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-X <- cbind(x1,x2,x3,x4,x5)
-p <- ncol(X)
-g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-tau1 <- function(x) {rep(3,nrow(x))}
-tau2 <- function(x) {1+2*x[,2]*x[,4]}
-mu_x <- mu1(X)
-tau_x <- tau2(X)
-pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-Z <- rbinom(n,1,pi_x)
-E_XZ <- mu_x + Z*tau_x
-snr <- 4
-y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-X <- as.data.frame(X)
-X$x4 <- factor(X$x4, ordered = TRUE)
-X$x5 <- factor(X$x5, ordered = TRUE)
+p <- 5
+X <- matrix(runif(n*p), ncol = p)
+mu_x <- (
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+)
+pi_x <- (
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+    ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+)
+tau_x <- (
+    ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+    ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+)
+Z <- rbinom(n, 1, pi_x)
+noise_sd <- 1
+y <- mu_x + tau_x*Z + rnorm(n, 0, noise_sd)
 test_set_pct <- 0.2
 n_test <- round(test_set_pct*n)
 n_train <- n - n_test
@@ -188,7 +189,8 @@ tau_test <- tau_x[test_inds]
 tau_train <- tau_x[train_inds]
 bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
                  propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
-                 propensity_test = pi_test)
+                 propensity_test = pi_test, num_gfr = 10, 
+                 num_burnin = 0, num_mcmc = 10)
 plot(rowMeans(bcf_model$mu_hat_test), mu_test, xlab = "predicted", 
      ylab = "actual", main = "Prognostic function")
 abline(0,1,col="red",lty=3,lwd=3)
