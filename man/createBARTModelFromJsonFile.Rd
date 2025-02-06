@@ -38,7 +38,8 @@ X_test <- X[test_inds,]
 X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
-bart_model <- bart(X_train = X_train, y_train = y_train)
+bart_model <- bart(X_train = X_train, y_train = y_train, 
+                   num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 tmpjson <- tempfile(fileext = ".json")
 saveBARTModelToJsonFile(bart_model, file.path(tmpjson))
 bart_model_roundtrip <- createBARTModelFromJsonFile(file.path(tmpjson))

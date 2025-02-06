@@ -96,28 +96,29 @@
 #'
 #' @examples
 #' n <- 500
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- as.numeric(rbinom(n,1,0.5))
-#' x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*x[,4]}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 4
-#' y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
+#' noise_sd <- 1
+#' y <- mu_x + tau_x*Z + rnorm(n, 0, noise_sd)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -1399,28 +1400,29 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
 #'
 #' @examples
 #' n <- 500
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- as.numeric(rbinom(n,1,0.5))
-#' x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*x[,4]}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 4
-#' y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
+#' noise_sd <- 1
+#' y <- mu_x + tau_x*Z + rnorm(n, 0, noise_sd)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -1576,22 +1578,27 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
 #'
 #' @examples
 #' n <- 500
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- as.numeric(rbinom(n,1,0.5))
-#' x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*x[,4]}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
 #' rfx_group_ids <- rep(c(1,2), n %/% 2)
@@ -1599,9 +1606,6 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 #' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -1667,22 +1671,27 @@ getRandomEffectSamples.bcfmodel <- function(object, ...){
 #'
 #' @examples
 #' n <- 500
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- as.numeric(rbinom(n,1,0.5))
-#' x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*x[,4]}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
 #' rfx_group_ids <- rep(c(1,2), n %/% 2)
@@ -1690,9 +1699,6 @@ getRandomEffectSamples.bcfmodel <- function(object, ...){
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 #' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -1832,22 +1838,27 @@ saveBCFModelToJson <- function(object){
 #'
 #' @examples
 #' n <- 500
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- as.numeric(rbinom(n,1,0.5))
-#' x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*x[,4]}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
 #' rfx_group_ids <- rep(c(1,2), n %/% 2)
@@ -1855,9 +1866,6 @@ saveBCFModelToJson <- function(object){
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 #' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -1910,22 +1918,27 @@ saveBCFModelToJsonFile <- function(object, filename){
 #'
 #' @examples
 #' n <- 500
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- as.numeric(rbinom(n,1,0.5))
-#' x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*x[,4]}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
 #' rfx_group_ids <- rep(c(1,2), n %/% 2)
@@ -1933,9 +1946,6 @@ saveBCFModelToJsonFile <- function(object, filename){
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 #' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -1990,22 +2000,27 @@ saveBCFModelToJsonString <- function(object){
 #'
 #' @examples
 #' n <- 500
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- as.numeric(rbinom(n,1,0.5))
-#' x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*x[,4]}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
 #' rfx_group_ids <- rep(c(1,2), n %/% 2)
@@ -2013,9 +2028,6 @@ saveBCFModelToJsonString <- function(object){
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 #' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -2155,22 +2167,27 @@ createBCFModelFromJson <- function(json_object){
 #'
 #' @examples
 #' n <- 500
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- as.numeric(rbinom(n,1,0.5))
-#' x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*x[,4]}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
 #' rfx_group_ids <- rep(c(1,2), n %/% 2)
@@ -2178,9 +2195,6 @@ createBCFModelFromJson <- function(json_object){
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 #' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -2238,22 +2252,27 @@ createBCFModelFromJsonFile <- function(json_filename){
 #'
 #' @examples
 #' n <- 500
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- as.numeric(rbinom(n,1,0.5))
-#' x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*x[,4]}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
 #' rfx_group_ids <- rep(c(1,2), n %/% 2)
@@ -2261,9 +2280,6 @@ createBCFModelFromJsonFile <- function(json_filename){
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 #' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -2316,24 +2332,28 @@ createBCFModelFromJsonString <- function(json_string){
 #' @export
 #'
 #' @examples
-#' n <- 100
+#' n <- 500
 #' p <- 5
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- rnorm(n)
-#' x5 <- rnorm(n)
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5] < -0.44,2,ifelse(x[,5] < 0.44,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*(x[,4] > 0)}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
 #' rfx_group_ids <- rep(c(1,2), n %/% 2)
@@ -2341,9 +2361,6 @@ createBCFModelFromJsonString <- function(json_string){
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 #' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -2375,8 +2392,8 @@ createBCFModelFromJsonString <- function(json_string){
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' # bcf_json_list <- list(saveBCFModelToJson(bcf_model))
-#' # bcf_model_roundtrip <- createBCFModelFromCombinedJson(bcf_json_list)
+#' bcf_json_list <- list(saveBCFModelToJson(bcf_model))
+#' bcf_model_roundtrip <- createBCFModelFromCombinedJson(bcf_json_list)
 createBCFModelFromCombinedJson <- function(json_object_list){
     # Initialize the BCF model
     output <- list()
@@ -2528,24 +2545,28 @@ createBCFModelFromCombinedJson <- function(json_object_list){
 #' @export
 #'
 #' @examples
-#' n <- 100
+#' n <- 500
 #' p <- 5
-#' x1 <- rnorm(n)
-#' x2 <- rnorm(n)
-#' x3 <- rnorm(n)
-#' x4 <- rnorm(n)
-#' x5 <- rnorm(n)
-#' X <- cbind(x1,x2,x3,x4,x5)
-#' p <- ncol(X)
-#' g <- function(x) {ifelse(x[,5] < -0.44,2,ifelse(x[,5] < 0.44,-1,4))}
-#' mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-#' mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-#' tau1 <- function(x) {rep(3,nrow(x))}
-#' tau2 <- function(x) {1+2*x[,2]*(x[,4] > 0)}
-#' mu_x <- mu1(X)
-#' tau_x <- tau2(X)
-#' pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-#' Z <- rbinom(n,1,pi_x)
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
 #' E_XZ <- mu_x + Z*tau_x
 #' snr <- 3
 #' rfx_group_ids <- rep(c(1,2), n %/% 2)
@@ -2553,9 +2574,6 @@ createBCFModelFromCombinedJson <- function(json_object_list){
 #' rfx_basis <- cbind(1, runif(n, -1, 1))
 #' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
 #' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' X <- as.data.frame(X)
-#' X$x4 <- factor(X$x4, ordered = TRUE)
-#' X$x5 <- factor(X$x5, ordered = TRUE)
 #' test_set_pct <- 0.2
 #' n_test <- round(test_set_pct*n)
 #' n_train <- n - n_test
@@ -2587,8 +2605,8 @@ createBCFModelFromCombinedJson <- function(json_object_list){
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' # bcf_json_string_list <- list(saveBCFModelToJsonString(bcf_model))
-#' # bcf_model_roundtrip <- createBCFModelFromCombinedJsonString(bcf_json_string_list)
+#' bcf_json_string_list <- list(saveBCFModelToJsonString(bcf_model))
+#' bcf_model_roundtrip <- createBCFModelFromCombinedJsonString(bcf_json_string_list)
 createBCFModelFromCombinedJsonString <- function(json_string_list){
     # Initialize the BCF model
     output <- list()
