@@ -121,7 +121,7 @@ test_that("Prediction from trees with multivariate leaf basis", {
                byrow = T, nrow = 6)
     n <- nrow(X)
     p <- ncol(X)
-    W = matrix(c(1,1,1,1,1,1,-1,-1,-1,1,1,1), byrow=F, nrow=6)
+    W = matrix(c(1,1,1,1,1,1,-1,-1,-1,1,1,1), byrow=FALSE, nrow=6)
     forest_dataset = createForestDataset(X,W)
     forest_samples <- createForestSamples(num_trees, output_dim, F)
     

@@ -184,7 +184,7 @@ preprocessTrainDataFrame <- function(input_df) {
     ordered_cat_vars <- df_vars[ordered_cat_matches]
     ordered_cat_var_inds <- unname(which(ordered_cat_matches))
     num_ordered_cat_vars <- length(ordered_cat_vars)
-    if (num_ordered_cat_vars > 0) ordered_cat_df <- input_df[,ordered_cat_vars,drop=F]
+    if (num_ordered_cat_vars > 0) ordered_cat_df <- input_df[,ordered_cat_vars,drop=FALSE]
     
     # Next, unordered categorical: we will convert character 
     # columns but not integer columns (users must explicitly 
@@ -194,14 +194,14 @@ preprocessTrainDataFrame <- function(input_df) {
     unordered_cat_vars <- df_vars[unordered_cat_matches]
     unordered_cat_var_inds <- unname(which(unordered_cat_matches))
     num_unordered_cat_vars <- length(unordered_cat_vars)
-    if (num_unordered_cat_vars > 0) unordered_cat_df <- input_df[,unordered_cat_vars,drop=F]
+    if (num_unordered_cat_vars > 0) unordered_cat_df <- input_df[,unordered_cat_vars,drop=FALSE]
     
     # Numeric variables
     numeric_matches <- (!ordered_cat_matches) & (!unordered_cat_matches)
     numeric_vars <- df_vars[numeric_matches]
     numeric_var_inds <- unname(which(numeric_matches))
     num_numeric_vars <- length(numeric_vars)
-    if (num_numeric_vars > 0) numeric_df <- input_df[,numeric_vars,drop=F]
+    if (num_numeric_vars > 0) numeric_df <- input_df[,numeric_vars,drop=FALSE]
     
     # Empty outputs
     X <- double(0)
@@ -304,15 +304,15 @@ preprocessPredictionDataFrame <- function(input_df, metadata) {
     
     if (num_ordered_cat_vars > 0) {
         ordered_cat_vars <- metadata$ordered_cat_vars
-        ordered_cat_df <- input_df[,ordered_cat_vars,drop=F]
+        ordered_cat_df <- input_df[,ordered_cat_vars,drop=FALSE]
     }
     if (num_unordered_cat_vars > 0) {
         unordered_cat_vars <- metadata$unordered_cat_vars
-        unordered_cat_df <- input_df[,unordered_cat_vars,drop=F]
+        unordered_cat_df <- input_df[,unordered_cat_vars,drop=FALSE]
     }
     if (num_numeric_vars > 0) {
         numeric_vars <- metadata$numeric_vars
-        numeric_df <- input_df[,numeric_vars,drop=F]
+        numeric_df <- input_df[,numeric_vars,drop=FALSE]
     }
     
     # Empty outputs
@@ -539,9 +539,9 @@ createForestCovariates <- function(input_data, ordered_cat_vars = NULL, unordere
     num_ordered_cat_vars <- length(ordered_cat_vars)
     num_unordered_cat_vars <- length(unordered_cat_vars)
     num_numeric_vars <- length(numeric_vars)
-    if (num_ordered_cat_vars > 0) ordered_cat_df <- input_df[,ordered_cat_vars,drop=F]
-    if (num_unordered_cat_vars > 0) unordered_cat_df <- input_df[,unordered_cat_vars,drop=F]
-    if (num_numeric_vars > 0) numeric_df <- input_df[,numeric_vars,drop=F]
+    if (num_ordered_cat_vars > 0) ordered_cat_df <- input_df[,ordered_cat_vars,drop=FALSE]
+    if (num_unordered_cat_vars > 0) unordered_cat_df <- input_df[,unordered_cat_vars,drop=FALSE]
+    if (num_numeric_vars > 0) numeric_df <- input_df[,numeric_vars,drop=FALSE]
     
     # Empty outputs
     X <- double(0)
@@ -644,15 +644,15 @@ createForestCovariatesFromMetadata <- function(input_data, metadata) {
     
     if (num_ordered_cat_vars > 0) {
         ordered_cat_vars <- metadata$ordered_cat_vars
-        ordered_cat_df <- input_df[,ordered_cat_vars,drop=F]
+        ordered_cat_df <- input_df[,ordered_cat_vars,drop=FALSE]
     }
     if (num_unordered_cat_vars > 0) {
         unordered_cat_vars <- metadata$unordered_cat_vars
-        unordered_cat_df <- input_df[,unordered_cat_vars,drop=F]
+        unordered_cat_df <- input_df[,unordered_cat_vars,drop=FALSE]
     }
     if (num_numeric_vars > 0) {
         numeric_vars <- metadata$numeric_vars
-        numeric_df <- input_df[,numeric_vars,drop=F]
+        numeric_df <- input_df[,numeric_vars,drop=FALSE]
     }
         
     # Empty outputs

@@ -83,7 +83,7 @@ test_that("MCMC BART", {
     
     # 3 chains, thinning, leaf regression
     general_param_list <- list(num_chains = 3, keep_every = 5)
-    mean_forest_param_list <- list(sample_sigma2_leaf = F)
+    mean_forest_param_list <- list(sample_sigma2_leaf = FALSE)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            leaf_basis_train = W_train, leaf_basis_test = W_test, 
@@ -94,7 +94,7 @@ test_that("MCMC BART", {
     
     # 3 chains, thinning, leaf regression with a scalar leaf scale
     general_param_list <- list(num_chains = 3, keep_every = 5)
-    mean_forest_param_list <- list(sample_sigma2_leaf = F, sigma2_leaf_init = 0.5)
+    mean_forest_param_list <- list(sample_sigma2_leaf = FALSE, sigma2_leaf_init = 0.5)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            leaf_basis_train = W_train, leaf_basis_test = W_test, 

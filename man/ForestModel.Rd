@@ -87,8 +87,8 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
   rng,
   forest_model_config,
   global_model_config,
-  keep_forest = T,
-  gfr = T
+  keep_forest = TRUE,
+  gfr = TRUE
 )}\if{html}{\out{</div>}}
 }
 

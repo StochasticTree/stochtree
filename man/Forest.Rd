@@ -46,8 +46,8 @@ Create a new Forest object.
 \if{html}{\out{<div class="r">}}\preformatted{Forest$new(
   num_trees,
   leaf_dimension = 1,
-  is_leaf_constant = F,
-  is_exponentiated = F
+  is_leaf_constant = FALSE,
+  is_exponentiated = FALSE
 )}\if{html}{\out{</div>}}
 }
 

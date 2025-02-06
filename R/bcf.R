@@ -155,14 +155,14 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 tau_forest_params = list(), variance_forest_params = list()) {
     # Update general BCF parameters
     general_params_default <- list(
-        cutpoint_grid_size = 100, standardize = T, 
-        sample_sigma2_global = T, sigma2_global_init = NULL, 
+        cutpoint_grid_size = 100, standardize = TRUE, 
+        sample_sigma2_global = TRUE, sigma2_global_init = NULL, 
         sigma2_global_shape = 0, sigma2_global_scale = 0, 
         variable_weights = NULL, propensity_covariate = "mu", 
-        adaptive_coding = T, control_coding_init = -0.5, 
+        adaptive_coding = TRUE, control_coding_init = -0.5, 
         treated_coding_init = 0.5, rfx_prior_var = NULL, 
-        random_seed = -1, keep_burnin = F, keep_gfr = F, 
-        keep_every = 1, num_chains = 1, verbose = F
+        random_seed = -1, keep_burnin = FALSE, keep_gfr = FALSE, 
+        keep_every = 1, num_chains = 1, verbose = FALSE
     )
     general_params_updated <- preprocessParams(
         general_params_default, general_params
@@ -172,7 +172,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     mu_forest_params_default <- list(
         num_trees = 250, alpha = 0.95, beta = 2.0, 
         min_samples_leaf = 5, max_depth = 10, 
-        sample_sigma2_leaf = T, sigma2_leaf_init = NULL, 
+        sample_sigma2_leaf = TRUE, sigma2_leaf_init = NULL, 
         sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL, 
         keep_vars = NULL, drop_vars = NULL
     )
@@ -184,7 +184,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     tau_forest_params_default <- list(
         num_trees = 50, alpha = 0.25, beta = 3.0, 
         min_samples_leaf = 5, max_depth = 5, 
-        sample_sigma2_leaf = F, sigma2_leaf_init = NULL, 
+        sample_sigma2_leaf = FALSE, sigma2_leaf_init = NULL, 
         sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL, 
         keep_vars = NULL, drop_vars = NULL
     )
@@ -274,7 +274,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     }
 
     # Override keep_gfr if there are no MCMC samples
-    if (num_mcmc == 0) keep_gfr <- T
+    if (num_mcmc == 0) keep_gfr <- TRUE
     
     # Check if previous model JSON is provided and parse it if so
     has_prev_model <- !is.null(previous_model_json)
@@ -327,8 +327,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     }
     
     # Determine whether conditional variance will be modeled
-    if (num_trees_variance > 0) include_variance_forest = T
-    else include_variance_forest = F
+    if (num_trees_variance > 0) include_variance_forest = TRUE
+    else include_variance_forest = FALSE
 
     # Set the variance forest priors if not set
     if (include_variance_forest) {
@@ -493,19 +493,19 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     }
     
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
-    has_rfx <- F
-    has_rfx_test <- F
+    has_rfx <- FALSE
+    has_rfx_test <- FALSE
     if (!is.null(rfx_group_ids_train)) {
         group_ids_factor <- factor(rfx_group_ids_train)
         rfx_group_ids_train <- as.integer(group_ids_factor)
-        has_rfx <- T
+        has_rfx <- TRUE
         if (!is.null(rfx_group_ids_test)) {
             group_ids_factor_test <- factor(rfx_group_ids_test, levels = levels(group_ids_factor))
             if (sum(is.na(group_ids_factor_test)) > 0) {
                 stop("All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train")
             }
             rfx_group_ids_test <- as.integer(group_ids_factor_test)
-            has_rfx_test <- T
+            has_rfx_test <- TRUE
         }
     }
     
@@ -575,13 +575,13 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     }
 
     # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided 
-    has_basis_rfx <- F
+    has_basis_rfx <- FALSE
     num_basis_rfx <- 0
     if (has_rfx) {
         if (is.null(rfx_basis_train)) {
             rfx_basis_train <- matrix(rep(1,nrow(X_train)), nrow = nrow(X_train), ncol = 1)
         } else {
-            has_basis_rfx <- T
+            has_basis_rfx <- TRUE
             num_basis_rfx <- ncol(rfx_basis_train)
         }
         num_rfx_groups <- length(unique(rfx_group_ids_train))
@@ -614,12 +614,12 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     binary_treatment <- length(unique(Z_train)) == 2
     if (binary_treatment) {
         unique_treatments <- sort(unique(Z_train))
-        if (!(all(unique_treatments == c(0,1)))) binary_treatment <- F
+        if (!(all(unique_treatments == c(0,1)))) binary_treatment <- FALSE
     }
     
     # Adaptive coding will be ignored for continuous / ordered categorical treatments
     if ((!binary_treatment) && (adaptive_coding)) {
-        adaptive_coding <- F
+        adaptive_coding <- FALSE
     }
     
     # Check if propensity_covariate is one of the required inputs
@@ -628,9 +628,9 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     }
     
     # Estimate if pre-estimated propensity score is not provided
-    internal_propensity_model <- F
+    internal_propensity_model <- FALSE
     if ((is.null(propensity_train)) && (propensity_covariate != "none")) {
-        internal_propensity_model <- T
+        internal_propensity_model <- TRUE
         # Estimate using the last of several iterations of GFR BART
         num_burnin <- 10
         num_total <- 50
@@ -723,7 +723,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     if (ncol(Z_train) > 1) {
         if (sample_sigma_leaf_tau) {
             warning("Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled for the treatment forest in this model.")
-            sample_sigma_leaf_tau <- F
+            sample_sigma_leaf_tau <- FALSE
         }
     }
     
@@ -867,7 +867,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         for (i in 1:num_gfr) {
             # Keep all GFR samples at this stage -- remove from ForestSamples after MCMC
             # keep_sample <- ifelse(keep_gfr, T, F)
-            keep_sample <- T
+            keep_sample <- TRUE
             if (keep_sample) sample_counter <- sample_counter + 1
             # Print progress
             if (verbose) {
@@ -880,7 +880,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             forest_model_mu$sample_one_iteration(
                 forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
                 active_forest = active_forest_mu, rng = rng, forest_model_config = forest_model_config_mu, 
-                global_model_config = global_model_config, keep_forest = keep_sample, gfr = T
+                global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
             )
             
             # Sample variance parameters (if requested)
@@ -899,7 +899,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             forest_model_tau$sample_one_iteration(
                 forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_tau, 
                 active_forest = active_forest_tau, rng = rng, forest_model_config = forest_model_config_tau, 
-                global_model_config = global_model_config, keep_forest = keep_sample, gfr = T
+                global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
             )
             
             # Sample coding parameters (if requested)
@@ -944,7 +944,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 forest_model_variance$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
                     active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
-                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = T
+                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
                 )
             }
             if (sample_sigma_global) {
@@ -1105,11 +1105,11 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 is_mcmc <- i > (num_gfr + num_burnin)
                 if (is_mcmc) {
                     mcmc_counter <- i - (num_gfr + num_burnin)
-                    if (mcmc_counter %% keep_every == 0) keep_sample <- T
-                    else keep_sample <- F
+                    if (mcmc_counter %% keep_every == 0) keep_sample <- TRUE
+                    else keep_sample <- FALSE
                 } else {
-                    if (keep_burnin) keep_sample <- T
-                    else keep_sample <- F
+                    if (keep_burnin) keep_sample <- TRUE
+                    else keep_sample <- FALSE
                 }
                 if (keep_sample) sample_counter <- sample_counter + 1
                 # Print progress
@@ -1130,7 +1130,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 forest_model_mu$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
                     active_forest = active_forest_mu, rng = rng, forest_model_config = forest_model_config_mu, 
-                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = F
+                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                 )
                 
                 # Sample variance parameters (if requested)
@@ -1149,7 +1149,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 forest_model_tau$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_tau, 
                     active_forest = active_forest_tau, rng = rng, forest_model_config = forest_model_config_tau, 
-                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = F
+                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                 )
                 
                 # Sample coding parameters (if requested)
@@ -1194,7 +1194,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     forest_model_variance$sample_one_iteration(
                         forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
                         active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
-                        global_model_config = global_model_config, keep_forest = keep_sample, gfr = F
+                        global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                     )
                 }
                 if (sample_sigma_global) {
@@ -1494,7 +1494,7 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
     }
     
     # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
-    has_rfx <- F
+    has_rfx <- FALSE
     if (!is.null(rfx_group_ids)) {
         rfx_unique_group_ids <- object$rfx_unique_group_ids
         group_ids_factor <- factor(rfx_group_ids, levels = rfx_unique_group_ids)
@@ -1502,7 +1502,7 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
             stop("All random effect group labels provided in rfx_group_ids must be present in rfx_group_ids_train")
         }
         rfx_group_ids <- as.integer(group_ids_factor)
-        has_rfx <- T
+        has_rfx <- TRUE
     }
 
     # Produce basis for the "intercept-only" random effects case
