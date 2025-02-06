@@ -1,5 +1,5 @@
 Package: stochtree
-Title: Stochastic tree Ensembles (XBART and BART) for Supervised Learning and Causal Inference
+Title: Stochastic Tree Ensembles (XBART and BART) for Supervised Learning and Causal Inference
 Version: 0.1.0
 Authors@R: 
   c(
