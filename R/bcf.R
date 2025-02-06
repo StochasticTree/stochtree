@@ -137,7 +137,8 @@
 #' tau_train <- tau_x[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
 #'                  propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
-#'                  propensity_test = pi_test)
+#'                  propensity_test = pi_test, num_gfr = 10, 
+#'                  num_burnin = 0, num_mcmc = 10)
 #' plot(rowMeans(bcf_model$mu_hat_test), mu_test, xlab = "predicted", 
 #'      ylab = "actual", main = "Prognostic function")
 #' abline(0,1,col="red",lty=3,lwd=3)
@@ -1438,7 +1439,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
 #' tau_test <- tau_x[test_inds]
 #' tau_train <- tau_x[train_inds]
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-#'                  propensity_train = pi_train)
+#'                  propensity_train = pi_train, num_gfr = 10, 
+#'                  num_burnin = 0, num_mcmc = 10)
 #' preds <- predict(bcf_model, X_test, Z_test, pi_test)
 #' plot(rowMeans(preds$mu_hat), mu_test, xlab = "predicted",
 #'      ylab = "actual", main = "Prognostic function")
@@ -1632,7 +1634,7 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
 #'                  Z_test = Z_test, propensity_test = pi_test, 
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
-#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
 #' rfx_samples <- getRandomEffectSamples(bcf_model)
@@ -1723,7 +1725,7 @@ getRandomEffectSamples.bcfmodel <- function(object, ...){
 #'                  Z_test = Z_test, propensity_test = pi_test, 
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
-#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
 #' # bcf_json <- saveBCFModelToJson(bcf_model)
@@ -1888,7 +1890,7 @@ saveBCFModelToJson <- function(object){
 #'                  Z_test = Z_test, propensity_test = pi_test, 
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
-#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
 #' # saveBCFModelToJsonFile(bcf_model, "test.json")
@@ -1966,7 +1968,7 @@ saveBCFModelToJsonFile <- function(object, filename){
 #'                  Z_test = Z_test, propensity_test = pi_test, 
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
-#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
 #' # saveBCFModelToJsonString(bcf_model)
@@ -2046,7 +2048,7 @@ saveBCFModelToJsonString <- function(object){
 #'                  Z_test = Z_test, propensity_test = pi_test, 
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
-#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
 #' bcf_json <- saveBCFModelToJson(bcf_model)
@@ -2211,7 +2213,7 @@ createBCFModelFromJson <- function(json_object){
 #'                  Z_test = Z_test, propensity_test = pi_test, 
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
-#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100, 
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  mu_forest_params = mu_params, 
 #'                  tau_forest_params = tau_params)
 #' # saveBCFModelToJsonFile(bcf_model, "test.json")
@@ -2292,7 +2294,7 @@ createBCFModelFromJsonFile <- function(json_filename){
 #'                  Z_test = Z_test, propensity_test = pi_test, 
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
-#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' # bcf_json <- saveBCFModelToJsonString(bcf_model)
 #' # bcf_model_roundtrip <- createBCFModelFromJsonString(bcf_json)
 createBCFModelFromJsonString <- function(json_string){
@@ -2372,7 +2374,7 @@ createBCFModelFromJsonString <- function(json_string){
 #'                  Z_test = Z_test, propensity_test = pi_test, 
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
-#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' # bcf_json_list <- list(saveBCFModelToJson(bcf_model))
 #' # bcf_model_roundtrip <- createBCFModelFromCombinedJson(bcf_json_list)
 createBCFModelFromCombinedJson <- function(json_object_list){
@@ -2584,7 +2586,7 @@ createBCFModelFromCombinedJson <- function(json_object_list){
 #'                  Z_test = Z_test, propensity_test = pi_test, 
 #'                  rfx_group_ids_test = rfx_group_ids_test,
 #'                  rfx_basis_test = rfx_basis_test, 
-#'                  num_gfr = 100, num_burnin = 0, num_mcmc = 100)
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' # bcf_json_string_list <- list(saveBCFModelToJsonString(bcf_model))
 #' # bcf_model_roundtrip <- createBCFModelFromCombinedJsonString(bcf_json_string_list)
 createBCFModelFromCombinedJsonString <- function(json_string_list){
