@@ -36,6 +36,7 @@ X_test <- X[test_inds,]
 X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
-bart_model <- bart(X_train = X_train, y_train = y_train)
+bart_model <- bart(X_train = X_train, y_train = y_train, 
+                   num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 bart_json_string <- saveBARTModelToJsonString(bart_model)
 }

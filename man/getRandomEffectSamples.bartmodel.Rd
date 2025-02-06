@@ -56,6 +56,6 @@ bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test,
                    rfx_group_ids_test = rfx_group_ids_test, 
                    rfx_basis_train = rfx_basis_train, 
                    rfx_basis_test = rfx_basis_test, 
-                   num_gfr = 100, num_burnin = 0, num_mcmc = 100)
+                   num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 rfx_samples <- getRandomEffectSamples(bart_model)
 }
