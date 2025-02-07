@@ -18,7 +18,7 @@ ForestSamples <- R6::R6Class(
         #' @param is_leaf_constant Whether leaf is constant
         #' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
         #' @return A new `ForestContainer` object.
-        initialize = function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+        initialize = function(num_trees, leaf_dimension=1, is_leaf_constant=FALSE, is_exponentiated=FALSE) {
             self$forest_container_ptr <- forest_container_cpp(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
         }, 
         
@@ -231,14 +231,14 @@ ForestSamples <- R6::R6Class(
         
         #' @description
         #' Return constant leaf status of trees in a `ForestContainer` object
-        #' @return `T` if leaves are constant, `F` otherwise
+        #' @return `TRUE` if leaves are constant, `FALSE` otherwise
         is_constant_leaf = function() {
             return(is_constant_leaf_forest_container_cpp(self$forest_container_ptr))
         }, 
         
         #' @description
         #' Return exponentiation status of trees in a `ForestContainer` object
-        #' @return `T` if leaf predictions must be exponentiated, `F` otherwise
+        #' @return `TRUE` if leaf predictions must be exponentiated, `FALSE` otherwise
         is_exponentiated = function() {
             return(is_exponentiated_forest_container_cpp(self$forest_container_ptr))
         }, 
@@ -568,7 +568,7 @@ Forest <- R6::R6Class(
         #' @param is_leaf_constant Whether leaf is constant
         #' @param is_exponentiated Whether forest predictions should be exponentiated before being returned
         #' @return A new `Forest` object.
-        initialize = function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+        initialize = function(num_trees, leaf_dimension=1, is_leaf_constant=FALSE, is_exponentiated=FALSE) {
             self$forest_ptr <- active_forest_cpp(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
             self$internal_forest_is_empty <- TRUE
         }, 
@@ -692,14 +692,14 @@ Forest <- R6::R6Class(
         
         #' @description
         #' Return constant leaf status of trees in a `Forest` object
-        #' @return `T` if leaves are constant, `F` otherwise
+        #' @return `TRUE` if leaves are constant, `FALSE` otherwise
         is_constant_leaf = function() {
             return(is_constant_leaf_active_forest_cpp(self$forest_ptr))
         }, 
         
         #' @description
         #' Return exponentiation status of trees in a `Forest` object
-        #' @return `T` if leaf predictions must be exponentiated, `F` otherwise
+        #' @return `TRUE` if leaf predictions must be exponentiated, `FALSE` otherwise
         is_exponentiated = function() {
             return(is_exponentiated_active_forest_cpp(self$forest_ptr))
         }, 
@@ -792,7 +792,7 @@ Forest <- R6::R6Class(
 #' is_leaf_constant <- FALSE
 #' is_exponentiated <- FALSE
 #' forest_samples <- createForestSamples(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
-createForestSamples <- function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+createForestSamples <- function(num_trees, leaf_dimension=1, is_leaf_constant=FALSE, is_exponentiated=FALSE) {
     return(invisible((
         ForestSamples$new(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
     )))
@@ -814,7 +814,7 @@ createForestSamples <- function(num_trees, leaf_dimension=1, is_leaf_constant=F,
 #' is_leaf_constant <- FALSE
 #' is_exponentiated <- FALSE
 #' forest <- createForest(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
-createForest <- function(num_trees, leaf_dimension=1, is_leaf_constant=F, is_exponentiated=F) {
+createForest <- function(num_trees, leaf_dimension=1, is_leaf_constant=FALSE, is_exponentiated=FALSE) {
     return(invisible((
         Forest$new(num_trees, leaf_dimension, is_leaf_constant, is_exponentiated)
     )))

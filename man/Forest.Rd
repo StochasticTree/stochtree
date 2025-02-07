@@ -46,8 +46,8 @@ Create a new Forest object.
 \if{html}{\out{<div class="r">}}\preformatted{Forest$new(
   num_trees,
   leaf_dimension = 1,
-  is_leaf_constant = F,
-  is_exponentiated = F
+  is_leaf_constant = FALSE,
+  is_exponentiated = FALSE
 )}\if{html}{\out{</div>}}
 }
 
@@ -228,7 +228,7 @@ Return constant leaf status of trees in a \code{Forest} object
 }
 
 \subsection{Returns}{
-\code{T} if leaves are constant, \code{F} otherwise
+\code{TRUE} if leaves are constant, \code{FALSE} otherwise
 }
 }
 \if{html}{\out{<hr>}}
@@ -241,7 +241,7 @@ Return exponentiation status of trees in a \code{Forest} object
 }
 
 \subsection{Returns}{
-\code{T} if leaf predictions must be exponentiated, \code{F} otherwise
+\code{TRUE} if leaf predictions must be exponentiated, \code{FALSE} otherwise
 }
 }
 \if{html}{\out{<hr>}}

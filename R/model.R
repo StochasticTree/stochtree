@@ -70,7 +70,7 @@ ForestModel <- R6::R6Class(
         #' @param keep_forest (Optional) Whether the updated forest sample should be saved to `forest_samples`. Default: `TRUE`.
         #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: `TRUE`.
         sample_one_iteration = function(forest_dataset, residual, forest_samples, active_forest, 
-                                        rng, forest_model_config, global_model_config, keep_forest = T, gfr = T) {
+                                        rng, forest_model_config, global_model_config, keep_forest = TRUE, gfr = TRUE) {
             if (active_forest$is_empty()) {
                 stop("`active_forest` has not yet been initialized, which is necessary to run the sampler. Please set constant values for `active_forest`'s leaves using either the `set_root_leaves` or `prepare_for_sampler` methods.")
             }

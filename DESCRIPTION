@@ -8,8 +8,17 @@ Authors@R:
     person("Jared", "Murray", role = "aut"),
     person("Carlos", "Carvalho", role = "aut"),
     person("Jingyu", "He", role = "aut"),
-    person("stochtree contributors", role = c("cph"))
+    person("Pedro", "Lima", role = "ctb"),
+    person("stochtree", "contributors", role = c("cph")),
+    person("Eigen", "contributors", role = c("cph"), comment = "C++ source uses the Eigen library for matrix operations, see inst/COPYRIGHTS"),
+    person("xgboost", "contributors", role = c("cph"), comment = "C++ tree code and related operations include or are inspired by code from the xgboost library, see inst/COPYRIGHTS"),
+    person("treelite", "contributors", role = c("cph"), comment = "C++ tree code and related operations include or are inspired by code from the treelite library, see inst/COPYRIGHTS"),
+    person("Microsoft", "Corporation", role = c("cph"), comment = "C++ I/O and various project structure code include or are inspired by code from the LightGBM library, which is a copyright of Microsoft, see inst/COPYRIGHTS"),
+    person("Niels", "Lohmann", role = c("cph"), comment = "C++ source uses the JSON for Modern C++ library for JSON operations, see inst/COPYRIGHTS"),
+    person("Daniel", "Lemire", role = c("cph"), comment = "C++ source uses the fast_double_parser library internally, see inst/COPYRIGHTS"),
+    person("Victor", "Zverovich", role = c("cph"), comment = "C++ source uses the fmt library internally, see inst/COPYRIGHTS")
   )
+Copyright: Copyright details for stochtree's C++ dependencies, which are vendored along with the core stochtree source code, are detailed in inst/COPYRIGHTS
 Description: Flexible stochastic tree ensemble software. 
     Robust implementations of Bayesian Additive Regression Trees (BART) 
     Chipman, George, McCulloch (2010) <doi:10.1214/09-AOAS285> 
