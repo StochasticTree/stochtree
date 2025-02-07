@@ -22,8 +22,8 @@ bcf(
   previous_model_json = NULL,
   previous_model_warmstart_sample_num = NULL,
   general_params = list(),
-  mu_forest_params = list(),
-  tau_forest_params = list(),
+  prognostic_forest_params = list(),
+  treatment_effect_forest_params = list(),
   variance_forest_params = list()
 )
 }
@@ -92,7 +92,7 @@ that were not in the training set.}
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
 }}
 
-\item{mu_forest_params}{(Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.
+\item{prognostic_forest_params}{(Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
 \item \code{num_trees} Number of trees in the ensemble for the prognostic forest. Default: \code{250}. Must be a positive integer.
 \item \code{alpha} Prior probability of splitting for a tree of depth 0 in the prognostic forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{0.95}.
@@ -108,7 +108,7 @@ that were not in the training set.}
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
 }}
 
-\item{tau_forest_params}{(Optional) A list of treatment effect forest model parameters, each of which has a default value processed internally, so this argument list is optional.
+\item{treatment_effect_forest_params}{(Optional) A list of treatment effect forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
 \item \code{num_trees} Number of trees in the ensemble for the treatment effect forest. Default: \code{50}. Must be a positive integer.
 \item \code{alpha} Prior probability of splitting for a tree of depth 0 in the treatment effect forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{0.25}.
@@ -191,10 +191,4 @@ bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
                  propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
                  propensity_test = pi_test, num_gfr = 10, 
                  num_burnin = 0, num_mcmc = 10)
-plot(rowMeans(bcf_model$mu_hat_test), mu_test, xlab = "predicted", 
-     ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model$tau_hat_test), tau_test, xlab = "predicted", 
-     ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
 }

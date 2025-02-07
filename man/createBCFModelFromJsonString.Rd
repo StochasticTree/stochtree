@@ -78,6 +78,6 @@ bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
                  rfx_group_ids_test = rfx_group_ids_test,
                  rfx_basis_test = rfx_basis_test, 
                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-# bcf_json <- saveBCFModelToJsonString(bcf_model)
-# bcf_model_roundtrip <- createBCFModelFromJsonString(bcf_json)
+bcf_json <- saveBCFModelToJsonString(bcf_model)
+bcf_model_roundtrip <- createBCFModelFromJsonString(bcf_json)
 }

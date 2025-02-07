@@ -83,7 +83,7 @@ test_that("MCMC BART", {
     
     # 3 chains, thinning, leaf regression
     general_param_list <- list(num_chains = 3, keep_every = 5)
-    mean_forest_param_list <- list(sample_sigma2_leaf = F)
+    mean_forest_param_list <- list(sample_sigma2_leaf = FALSE)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            leaf_basis_train = W_train, leaf_basis_test = W_test, 
@@ -94,7 +94,7 @@ test_that("MCMC BART", {
     
     # 3 chains, thinning, leaf regression with a scalar leaf scale
     general_param_list <- list(num_chains = 3, keep_every = 5)
-    mean_forest_param_list <- list(sample_sigma2_leaf = F, sigma2_leaf_init = 0.5)
+    mean_forest_param_list <- list(sample_sigma2_leaf = FALSE, sigma2_leaf_init = 0.5)
     expect_no_error(
         bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                            leaf_basis_train = W_train, leaf_basis_test = W_test, 
@@ -244,7 +244,7 @@ test_that("Warmstart BART", {
         ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
         ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
     )
-    rfx_group_ids <- sample(1:2, size = n, replace = T)
+    rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
     rfx_basis <- rep(1, n)
     rfx_coefs <- c(-5, 5)
     rfx_term <- rfx_coefs[rfx_group_ids] * rfx_basis

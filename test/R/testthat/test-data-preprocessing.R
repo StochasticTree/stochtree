@@ -4,7 +4,7 @@
 #         1,2,3,4,5,
 #         5,4,3,2,1,
 #         6,7,8,9,10
-#     ), ncol = 3, byrow = F)
+#     ), ncol = 3, byrow = FALSE)
 #     preprocess_list <- createForestCovariates(cov_df)
 #     expect_equal(preprocess_list$data, cov_mat)
 #     expect_equal(preprocess_list$metadata$feature_types, rep(0,3))
@@ -43,7 +43,7 @@
 #         1,2,3,4,5,
 #         5,4,3,2,1,
 #         1,2,3,4,5
-#     ), ncol = 3, byrow = F)
+#     ), ncol = 3, byrow = FALSE)
 #     preprocess_list <- createForestCovariates(cov_df, ordered_cat_vars = c("x1","x2","x3"))
 #     expect_equal(preprocess_list$data, cov_mat)
 #     expect_equal(preprocess_list$metadata$feature_types, rep(1,3))
@@ -80,7 +80,7 @@
 # })
 # 
 # test_that("Preprocessing of mixed-covariate matrix works", {
-#     cov_input <- matrix(c(1:5,5:1,6:10),ncol=3,byrow=F)
+#     cov_input <- matrix(c(1:5,5:1,6:10),ncol=3,byrow=FALSE)
 #     cov_mat <- matrix(c(
 #         1,5,1,0,0,0,0,0,
 #         2,4,0,1,0,0,0,0,
@@ -141,7 +141,7 @@
 #         1,2,3,4,5,
 #         5,4,3,2,1,
 #         6,7,8,9,10
-#     ), ncol = 3, byrow = F)
+#     ), ncol = 3, byrow = FALSE)
 #     preprocess_list <- preprocessTrainDataFrame(cov_df)
 #     expect_equal(preprocess_list$data, cov_mat)
 #     expect_equal(preprocess_list$metadata$feature_types, rep(0,3))
@@ -189,7 +189,7 @@
 #         1,2,3,4,5,
 #         5,4,3,2,1,
 #         1,2,3,4,5
-#     ), ncol = 3, byrow = F)
+#     ), ncol = 3, byrow = FALSE)
 #     preprocess_list <- preprocessTrainDataFrame(cov_df)
 #     expect_equal(preprocess_list$data, cov_mat)
 #     expect_equal(preprocess_list$metadata$feature_types, rep(1,3))

@@ -144,6 +144,4 @@ y_test <- y[test_inds]
 y_train <- y[train_inds]
 bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-plot(rowMeans(bart_model$y_hat_test), y_test, xlab = "predicted", ylab = "actual")
-abline(0,1,col="red",lty=3,lwd=3)
 }

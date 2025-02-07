@@ -7,11 +7,11 @@ test_that("Prediction from trees with constant leaf", {
                  4.4, 5.4, 10.4, 
                  5.3, 9.3, 3.6, 
                  6.1, 10.4, 4.4), 
-               byrow = T, nrow = 6)
+               byrow = TRUE, nrow = 6)
     n <- nrow(X)
     p <- ncol(X)
     forest_dataset = createForestDataset(X)
-    forest_samples <- createForestSamples(num_trees, 1, T)
+    forest_samples <- createForestSamples(num_trees, 1, TRUE)
     
     # Initialize a forest with constant root predictions
     forest_samples$add_forest_with_constant_leaves(0.)
@@ -60,12 +60,12 @@ test_that("Prediction from trees with univariate leaf basis", {
                  4.4, 5.4, 10.4, 
                  5.3, 9.3, 3.6, 
                  6.1, 10.4, 4.4), 
-               byrow = T, nrow = 6)
+               byrow = TRUE, nrow = 6)
     W = as.matrix(c(-1,-1,-1,1,1,1))
     n <- nrow(X)
     p <- ncol(X)
     forest_dataset = createForestDataset(X,W)
-    forest_samples <- createForestSamples(num_trees, 1, F)
+    forest_samples <- createForestSamples(num_trees, 1, FALSE)
     
     # Initialize a forest with constant root predictions
     forest_samples$add_forest_with_constant_leaves(0.)
@@ -118,12 +118,12 @@ test_that("Prediction from trees with multivariate leaf basis", {
                  4.4, 5.4, 10.4, 
                  5.3, 9.3, 3.6, 
                  6.1, 10.4, 4.4), 
-               byrow = T, nrow = 6)
+               byrow = TRUE, nrow = 6)
     n <- nrow(X)
     p <- ncol(X)
-    W = matrix(c(1,1,1,1,1,1,-1,-1,-1,1,1,1), byrow=F, nrow=6)
+    W = matrix(c(1,1,1,1,1,1,-1,-1,-1,1,1,1), byrow=FALSE, nrow=6)
     forest_dataset = createForestDataset(X,W)
-    forest_samples <- createForestSamples(num_trees, output_dim, F)
+    forest_samples <- createForestSamples(num_trees, output_dim, FALSE)
     
     # Initialize a forest with constant root predictions
     forest_samples$add_forest_with_constant_leaves(c(1.,1.))

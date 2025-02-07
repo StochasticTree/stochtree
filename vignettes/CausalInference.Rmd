@@ -113,14 +113,14 @@ num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -163,14 +163,14 @@ num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -282,14 +282,14 @@ num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -332,14 +332,14 @@ num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -451,14 +451,14 @@ num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -501,14 +501,14 @@ num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -618,14 +618,14 @@ num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -668,14 +668,14 @@ num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -778,15 +778,15 @@ num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     rfx_group_ids_train = rfx_group_ids_train, rfx_basis_train = rfx_basis_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
     rfx_basis_test = rfx_basis_test, num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -895,14 +895,14 @@ num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_mcmc <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -957,14 +957,14 @@ num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F, keep_vars = c("x1","x2"))
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F, keep_vars = c("x1","x2"))
 bcf_model_mcmc <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -1019,14 +1019,14 @@ num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -1081,14 +1081,14 @@ num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F, keep_vars = c("x1","x2"))
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F, keep_vars = c("x1","x2"))
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -1209,14 +1209,14 @@ num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -1259,14 +1259,14 @@ num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
-mu_forest_params <- list(sample_sigma2_leaf = F)
-tau_forest_params <- list(sample_sigma2_leaf = F)
+prognostic_forest_params <- list(sample_sigma2_leaf = F)
+treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
     X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, mu_forest_params = mu_forest_params, 
-    tau_forest_params = tau_forest_params
+    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
+    treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 

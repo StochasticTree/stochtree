@@ -12,7 +12,7 @@ test_that("In-sample one-hot encoding works for unordered categorical variables"
           0,1,0,0,0,
           0,0,0,1,0,
           0,1,0,0,0),
-    byrow = T, ncol = 5)
+    byrow = TRUE, ncol = 5)
     x1_levels_expected <- c("1","2","3","4")
     
     x2 <- c("a","c","b","c","d","a","c","a","b","d")
@@ -28,7 +28,7 @@ test_that("In-sample one-hot encoding works for unordered categorical variables"
           1,0,0,0,0,
           0,1,0,0,0,
           0,0,0,1,0),
-        byrow = T, ncol = 5)
+        byrow = TRUE, ncol = 5)
     x2_levels_expected <- c("a","b","c","d")
     
     x3 <- c(3.2,2.4,1.5,4.6,3.2,2.4,3.2,2.4,4.6,2.4)
@@ -44,7 +44,7 @@ test_that("In-sample one-hot encoding works for unordered categorical variables"
           0,1,0,0,0,
           0,0,0,1,0,
           0,1,0,0,0),
-        byrow = T, ncol = 5)
+        byrow = TRUE, ncol = 5)
     x3_levels_expected <- c("1.5","2.4","3.2","4.6")
     
     expect_equal(x1_onehot$Xtilde, x1_expected)
@@ -65,7 +65,7 @@ test_that("Out-of-sample one-hot encoding works for unordered categorical variab
           0,0,0,1,0,
           0,0,1,0,0,
           0,0,0,0,1),
-        byrow = T, ncol = 5)
+        byrow = TRUE, ncol = 5)
     
     x2 <- c("a","c","b","c","d","a","c","a","b","d")
     x2_test <- c("a","c","g","b","f")
@@ -76,7 +76,7 @@ test_that("Out-of-sample one-hot encoding works for unordered categorical variab
           0,0,0,0,1,
           0,1,0,0,0,
           0,0,0,0,1),
-        byrow = T, ncol = 5)
+        byrow = TRUE, ncol = 5)
     
     x3 <- c(3.2,2.4,1.5,4.6,3.2,2.4,3.2,2.4,4.6,2.4)
     x3_test <- c(10.3,-0.5,4.6,3.2,1.8)
@@ -87,7 +87,7 @@ test_that("Out-of-sample one-hot encoding works for unordered categorical variab
           0,0,0,1,0,
           0,0,1,0,0,
           0,0,0,0,1),
-        byrow = T, ncol = 5)
+        byrow = TRUE, ncol = 5)
     
     expect_equal(x1_test_onehot, x1_test_expected)
     expect_equal(x2_test_onehot, x2_test_expected)
@@ -102,13 +102,13 @@ test_that("In-sample preprocessing for ordered categorical variables", {
     x1_vector_expected <- c(1,3,2,4,3,5,4)
     x1_levels_expected <- string_var_response_levels
     
-    x2 <- factor(x1, levels = string_var_response_levels, ordered = T)
+    x2 <- factor(x1, levels = string_var_response_levels, ordered = TRUE)
     x2_preprocessing <- orderedCatInitializeAndPreprocess(x2)
     x2_vector_expected <- c(1,3,2,4,3,5,4)
     x2_levels_expected <- string_var_response_levels
     
     string_var_levels_reordered <- c("5. Strongly agree", "4. Agree", "3. Neither agree nor disagree", "2. Disagree", "1. Strongly disagree")
-    x3 <- factor(x1, levels = string_var_levels_reordered, ordered = T)
+    x3 <- factor(x1, levels = string_var_levels_reordered, ordered = TRUE)
     x3_preprocessing <- orderedCatInitializeAndPreprocess(x3)
     x3_vector_expected <- c(5,3,4,2,3,1,2)
     x3_levels_expected <- string_var_levels_reordered
@@ -135,7 +135,7 @@ test_that("Out-of-sample preprocessing for ordered categorical variables", {
     x1_preprocessing <- orderedCatPreprocess(x1, string_var_response_levels)
     x1_vector_expected <- c(1,3,2,4,3,5,4)
     
-    x2 <- factor(x1, levels = string_var_response_levels, ordered = T)
+    x2 <- factor(x1, levels = string_var_response_levels, ordered = TRUE)
     x2_preprocessing <- orderedCatPreprocess(x2, string_var_response_levels)
     x2_vector_expected <- c(1,3,2,4,3,5,4)
 
