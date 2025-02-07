@@ -1889,7 +1889,9 @@ saveBCFModelToJson <- function(object){
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  prognostic_forest_params = mu_params, 
 #'                  treatment_effect_forest_params = tau_params)
-#' saveBCFModelToJsonFile(bcf_model, "test.json")
+#' tmpjson <- tempfile(fileext = ".json")
+#' saveBCFModelToJsonFile(bcf_model, file.path(tmpjson))
+#' unlink(tmpjson)
 saveBCFModelToJsonFile <- function(object, filename){
     # Convert to Json
     jsonobj <- saveBCFModelToJson(object)
@@ -2218,8 +2220,10 @@ createBCFModelFromJson <- function(json_object){
 #'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10, 
 #'                  prognostic_forest_params = mu_params, 
 #'                  treatment_effect_forest_params = tau_params)
-#' saveBCFModelToJsonFile(bcf_model, "test.json")
-#' bcf_model_roundtrip <- createBCFModelFromJsonFile("test.json")
+#' tmpjson <- tempfile(fileext = ".json")
+#' saveBCFModelToJsonFile(bcf_model, file.path(tmpjson))
+#' bcf_model_roundtrip <- createBCFModelFromJsonFile(file.path(tmpjson))
+#' unlink(tmpjson)
 createBCFModelFromJsonFile <- function(json_filename){
     # Load a `CppJson` object from file
     bcf_json <- createCppJsonFile(json_filename)
