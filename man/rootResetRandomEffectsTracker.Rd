@@ -33,15 +33,21 @@ outcome <- createOutcome(y_std)
 rng <- createCppRNG(1234)
 num_groups <- length(unique(rfx_group_ids))
 num_components <- ncol(rfx_basis)
-alpha_init <- c(1)
+rfx_model <- createRandomEffectsModel(num_components, num_groups)
+rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
+rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+alpha_init <- rep(1,num_components)
 xi_init <- matrix(rep(alpha_init, num_groups),num_components,num_groups)
 sigma_alpha_init <- diag(1,num_components,num_components)
 sigma_xi_init <- diag(1,num_components,num_components)
 sigma_xi_shape <- 1
 sigma_xi_scale <- 1
-rfx_model <- createRandomEffectsModel(num_components, num_groups)
-rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
-rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+rfx_model$set_working_parameter(alpha_init)
+rfx_model$set_group_parameters(xi_init)
+rfx_model$set_working_parameter_cov(sigma_alpha_init)
+rfx_model$set_group_parameter_cov(sigma_xi_init)
+rfx_model$set_variance_prior_shape(sigma_xi_shape)
+rfx_model$set_variance_prior_scale(sigma_xi_scale)
 for (i in 1:3) {
     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome, 
                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples, 

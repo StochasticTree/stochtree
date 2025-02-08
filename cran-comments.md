@@ -27,3 +27,20 @@ We have converted `T` and `F` to `TRUE` and `FALSE` in the R code.
 > Some code lines in examples are commented out. Please never do that.
 
 We no longer do this, and apologize for the oversight.
+
+## CRAN comments (20250207)
+
+Below we address issues raised by CRAN on Feb 7, 2025
+
+### Valgrind
+
+A valgrind-instrumented version of R exposed memory issues in several examples 
+in the `stochtree` documentation. The specific issue is 
+
+> Conditional jump or move depends on uninitialised value(s)
+
+The examples that triggered this were in fact working with Eigen matrices 
+with uninitialized values. 
+
+This has been corrected and we have verified that running the `stochtree` 
+examples no longer produce this memcheck error.
