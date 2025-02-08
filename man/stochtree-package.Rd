@@ -11,7 +11,9 @@ Flexible stochastic tree ensemble software. Robust implementations of Bayesian A
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://stochtree.ai}
+  \item \url{https://stochtree.ai/}
+  \item \url{https://github.com/StochasticTree/stochtree}
+  \item Report bugs at \url{https://github.com/StochasticTree/stochtree/issues}
 }
 
 }

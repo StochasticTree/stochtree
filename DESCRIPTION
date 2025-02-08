@@ -36,4 +36,5 @@ SystemRequirements: C++17
 Imports: 
     R6,
     stats
-URL: https://stochtree.ai
+URL: https://stochtree.ai/, https://github.com/StochasticTree/stochtree
+BugReports: https://github.com/StochasticTree/stochtree/issues
