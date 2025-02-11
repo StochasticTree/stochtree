@@ -73,10 +73,10 @@ namespace StochTree {
  * We assign each leaf node parameter a prior
  * 
  *  \f[
- *    \mu \sim \mathcal{N}\left(0, \tau\right)
+ *    \mu \sim N\left(0, \tau\right)
  *  \f]
  * 
- * Assuming a homoskedastic Gaussian outcome likelihood (i.e. \f$y_i \sim \mathcal{N}\left(f(X_i),\sigma^2\right)\f$), 
+ * Assuming a homoskedastic Gaussian outcome likelihood (i.e. \f$y_i \sim N\left(f(X_i),\sigma^2\right)\f$), 
  * the log marginal likelihood in this model, for the outcome data in node \f$\ell\f$ of tree \f$j\f$ is given by 
  * 
  *  \f[
@@ -106,14 +106,14 @@ namespace StochTree {
  * node \f$\ell\f$'s leaf parameter is similarly defined as:
  * 
  *  \f[
- *    \mu_{\ell} \mid - \sim \mathcal{N}\left(\frac{\tau s_{y,\ell}}{n_{\ell} \tau + \sigma^2}, \frac{\tau \sigma^2}{n_{\ell} \tau + \sigma^2}\right)
+ *    \mu_{\ell} \mid - \sim N\left(\frac{\tau s_{y,\ell}}{n_{\ell} \tau + \sigma^2}, \frac{\tau \sigma^2}{n_{\ell} \tau + \sigma^2}\right)
  *  \f]
  * 
  * Now, consider the possibility that each observation carries a unique weight \f$w_i\f$. These could be "case weights" in a survey context or 
  * individual-level variances ("heteroskedasticity"). These case weights transform the outcome distribution (and associated likelihood) to
  * 
  *  \f[
- *    y_i \mid - \sim \mathcal{N}\left(\mu(X_i), \frac{\sigma^2}{w_i}\right) 
+ *    y_i \mid - \sim N\left(\mu(X_i), \frac{\sigma^2}{w_i}\right) 
  *  \f]
  * 
  * This gives a modified log marginal likelihood of 
@@ -185,13 +185,13 @@ namespace StochTree {
  * and we assign \f$\beta_{\ell}\f$ a prior of
  * 
  *  \f[
- *    \vec{\beta_{\ell}} \sim \mathcal{N}\left(\vec{\beta_0}, \Sigma_0\right)
+ *    \vec{\beta_{\ell}} \sim N\left(\vec{\beta_0}, \Sigma_0\right)
  *  \f]
  * 
  * where \f$\vec{\beta_0}\f$ is typically a vector of zeros. The outcome likelihood is still
  * 
  *  \f[
- *    y_i \sim \mathcal{N}\left(f(X_i), \sigma^2\right)
+ *    y_i \sim N\left(f(X_i), \sigma^2\right)
  *  \f]
  * 
  * This gives a reduced log integrated likelihood of
@@ -203,7 +203,7 @@ namespace StochTree {
  * where \f$\Omega\f$ is a matrix of bases for every observation in leaf \f$\ell\f$ and \f$p\f$ is the dimension of \f$\Omega\f$. The posterior for \f$\vec{\beta_{\ell}}\f$ is 
  * 
  *  \f[
- *    \vec{\beta_{\ell}} \sim \mathcal{N}\left(\left(\Sigma_0^{-1} + \frac{\Omega'\Omega}{\sigma^2}\right)^{-1}\left(\frac{\Omega'y}{\sigma^2}\right),\left(\Sigma_0^{-1} + \frac{\Omega'\Omega}{\sigma^2}\right)^{-1}\right)
+ *    \vec{\beta_{\ell}} \sim N\left(\left(\Sigma_0^{-1} + \frac{\Omega'\Omega}{\sigma^2}\right)^{-1}\left(\frac{\Omega'y}{\sigma^2}\right),\left(\Sigma_0^{-1} + \frac{\Omega'\Omega}{\sigma^2}\right)^{-1}\right)
  *  \f]
  * 
  * This is an extension of the single-tree model of <a href="https://link.springer.com/article/10.1023/A:1013916107446">Chipman et al (2002)</a>, with:
@@ -226,7 +226,7 @@ namespace StochTree {
  * and a posterior for \f$\vec{\beta_{\ell}}\f$ of 
  * 
  *  \f[
- *    \vec{\beta_{\ell}} \sim \mathcal{N}\left(\left(\Sigma_{0}^{-1} + \Omega'\Sigma_{y}^{-1}\Omega\right)^{-1}\left(\Omega'\Sigma_{y}^{-1}y\right),\left(\Sigma_{0}^{-1} + \Omega'\Sigma_{y}^{-1}\Omega\right)^{-1}\right)
+ *    \vec{\beta_{\ell}} \sim N\left(\left(\Sigma_{0}^{-1} + \Omega'\Sigma_{y}^{-1}\Omega\right)^{-1}\left(\Omega'\Sigma_{y}^{-1}y\right),\left(\Sigma_{0}^{-1} + \Omega'\Sigma_{y}^{-1}\Omega\right)^{-1}\right)
  *  \f]
  *  
  * \section gaussian_univariate_regression_leaf_model Gaussian Univariate Regression Leaf Model
@@ -236,7 +236,7 @@ namespace StochTree {
  * parameter becomes univariate normal as in \ref gaussian_constant_leaf_model: 
  * 
  *  \f[
- *    \beta \sim \mathcal{N}\left(0, \tau\right)
+ *    \beta \sim N\left(0, \tau\right)
  *  \f]
  * 
  * Allowing for case / variance weights $w_i$ as above, we derive a reduced log marginal likelihood of 
@@ -258,7 +258,7 @@ namespace StochTree {
  * and a posterior of 
  * 
  *  \f[
- *    \beta_{\ell} \mid - \sim \mathcal{N}\left(\frac{\tau s_{wyx,\ell}}{s_{wxx,\ell} \tau + \sigma^2}, \frac{\tau \sigma^2}{s_{wxx,\ell} \tau + \sigma^2}\right)
+ *    \beta_{\ell} \mid - \sim N\left(\frac{\tau s_{wyx,\ell}}{s_{wxx,\ell} \tau + \sigma^2}, \frac{\tau \sigma^2}{s_{wxx,\ell} \tau + \sigma^2}\right)
  *  \f]
  * 
  * \section inverse_gamma_leaf_model Inverse Gamma Leaf Model
@@ -291,7 +291,7 @@ namespace StochTree {
  * Under an outcome model
  * 
  *  \f[
- *    y \sim \mathcal{N}\left(f(X), \sigma_0^2 \sigma^2(X)\right)
+ *    y \sim N\left(f(X), \sigma_0^2 \sigma^2(X)\right)
  *  \f]
  * 
  * updates to \f$\mu_{\ell}\f$ for a given tree \f$j\f$ are based on a reduced log marginal likelihood of
