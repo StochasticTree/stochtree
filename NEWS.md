@@ -1,3 +1,7 @@
+# stochtree 0.1.1
+
+* Fixed initialization bug in several R package code examples for random effects models
+
 # stochtree 0.1.0
 
 * Initial release on CRAN.

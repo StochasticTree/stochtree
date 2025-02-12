@@ -90,7 +90,13 @@ pip install matplotlib seaborn jupyterlab
 
 # R Package
 
-The package can be installed in R via
+The R package can be installed from CRAN via
+
+```
+install.packages("stochtree")
+```
+
+The development version of `stochtree` can be installed from Github via
 
 ```
 remotes::install_github("StochasticTree/stochtree", ref="r-dev")

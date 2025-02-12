@@ -36,6 +36,7 @@ class CMakeBuild(build_ext):
 
         debug = int(os.environ.get("DEBUG", 0)) if self.debug is None else self.debug
         cfg = "Debug" if debug else "Release"
+        use_dbg = "ON" if debug else "OFF"
 
         # CMake lets you override the generator - we need to check this.
         # Can be set with Conda-Build, for example.
@@ -48,8 +49,8 @@ class CMakeBuild(build_ext):
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}{os.sep}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
-            "-DUSE_DEBUG=OFF", 
-            "-DUSE_SANITIZER=OFF", 
+            f"-DUSE_DEBUG={use_dbg}",
+            "-DUSE_SANITIZER=OFF",
             "-DBUILD_TEST=OFF", 
             "-DBUILD_DEBUG_TARGETS=OFF", 
             "-DBUILD_PYTHON=ON", 
@@ -151,7 +152,7 @@ class CustomBuildPy(build_ext):
 
 # The information here can also be placed in setup.cfg - better separation of
 # logic and declaration, and simpler if you include description/version in a file.
-__version__ = "0.0.1"
+__version__ = "0.1.1"
 
 setup(
     name="stochtree",
