@@ -33,7 +33,7 @@
  * - <b>Leaf Model</b>: `stochtree`'s data structures are generalized to support a wide range of models, which are defined via specialized classes in the \ref leaf_model_group "leaf model layer".
  * - <b>Sampler</b>: helper functions that sample forests from training data comprise the \ref sampling_group "sampling layer" of `stochtree`.
  * 
- * \section extending-stochtree Extending `stochtree`
+ * \section extending-stochtree Extending stochtree
  * 
  * \subsection custom-leaf-models Custom Leaf Models
  * 

@@ -239,7 +239,7 @@ namespace StochTree {
  *    \beta \sim N\left(0, \tau\right)
  *  \f]
  * 
- * Allowing for case / variance weights $w_i$ as above, we derive a reduced log marginal likelihood of 
+ * Allowing for case / variance weights \f$w_i\f$ as above, we derive a reduced log marginal likelihood of 
  * 
  *  \f[
  *    L(y) \propto \frac{1}{2} \log\left(\frac{\sigma^2}{s_{wxx,\ell} \tau + \sigma^2}\right) + \frac{\tau s_{wyx,\ell}^2}{2\sigma^2(s_{wxx,\ell} \tau + \sigma^2)}
