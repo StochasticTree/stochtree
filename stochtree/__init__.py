@@ -2,7 +2,7 @@ from .bart import BARTModel
 from .bcf import BCFModel
 from .calibration import calibrate_global_error_variance
 from .data import Dataset, Residual
-from .forest import ForestContainer, Forest
+from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer

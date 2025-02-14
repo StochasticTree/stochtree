@@ -2,10 +2,12 @@
 Python classes wrapping C++ forest container object
 """
 
-import numpy as np
-from .data import Dataset
-from stochtree_cpp import ForestContainerCpp, ForestCpp
 from typing import Union
+
+import numpy as np
+from stochtree_cpp import ForestContainerCpp, ForestCpp
+
+from .data import Dataset
 
 
 class ForestContainer:

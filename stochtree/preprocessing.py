@@ -4,11 +4,13 @@ Data preprocessing module, drawn largely from the sklearn preprocessing module, 
 Copyright (c) 2007-2024 The scikit-learn developers.
 """
 
-from typing import Union, Optional, Any, Dict
+import warnings
+from typing import Any, Dict, Optional, Union
+
 import numpy as np
 import pandas as pd
 from scipy import sparse
-import warnings
+
 from .serialization import JSONSerializer
 
 

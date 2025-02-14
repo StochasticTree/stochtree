@@ -3,15 +3,17 @@ Bayesian Additive Regression Trees (BART) module
 """
 
 import warnings
-from numbers import Integral
 from math import log
+from numbers import Integral
+from typing import Any, Dict, Optional, Union
+
 import numpy as np
 import pandas as pd
-from typing import Optional, Dict, Any, Union
+
 from .data import Dataset, Residual
-from .forest import ForestContainer, Forest
+from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
-from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
+from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import NotSampledError
 

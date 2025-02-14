@@ -2,15 +2,17 @@
 Bayesian Causal Forests (BCF) module
 """
 
+from typing import Any, Dict, Optional, Union
+
 import numpy as np
 import pandas as pd
 from sklearn.utils import check_scalar
-from typing import Optional, Union, Dict, Any
+
 from .bart import BARTModel
 from .data import Dataset, Residual
-from .forest import ForestContainer, Forest
+from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
-from .sampler import ForestSampler, RNG, GlobalVarianceModel, LeafVarianceModel
+from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import NotSampledError
 

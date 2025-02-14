@@ -2,16 +2,18 @@
 Python classes wrapping C++ sampler objects
 """
 
+from typing import Union
+
 import numpy as np
-from .data import Dataset, Residual
-from .forest import ForestContainer, Forest
 from stochtree_cpp import (
-    RngCpp,
     ForestSamplerCpp,
     GlobalVarianceModelCpp,
     LeafVarianceModelCpp,
+    RngCpp,
 )
-from typing import Union
+
+from .data import Dataset, Residual
+from .forest import Forest, ForestContainer
 
 
 class RNG:

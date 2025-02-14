@@ -1,11 +1,13 @@
 import warnings
+from typing import Union
+
 import numpy as np
 import pandas as pd
-from typing import Union
 from scipy.linalg import lstsq
 from scipy.stats import gamma
-from .forest import ForestContainer
 from stochtree_cpp import JsonCpp
+
+from .forest import ForestContainer
 
 
 class JSONSerializer:

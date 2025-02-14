@@ -1,9 +1,10 @@
 import warnings
+
 import numpy as np
 import pandas as pd
+from scipy.stats import gamma
 from sklearn import linear_model
 from sklearn.metrics import mean_squared_error
-from scipy.stats import gamma
 
 
 def calibrate_global_error_variance(
