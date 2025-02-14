@@ -3,7 +3,7 @@ Bayesian Additive Regression Trees (BART) module
 """
 
 import warnings
-from numbers import Number, Integral
+from numbers import Integral
 from math import log
 import numpy as np
 import pandas as pd
@@ -1241,21 +1241,11 @@ class BARTModel:
             covariates, np.ndarray
         ):
             raise ValueError("covariates must be a pandas dataframe or numpy array")
-        if basis is not None:
-            if not isinstance(basis, np.ndarray):
-                raise ValueError("basis must be a numpy array")
-            if basis.shape[0] != covariates.shape[0]:
-                raise ValueError(
-                    "covariates and basis must have the same number of rows"
-                )
 
         # Convert everything to standard shape (2-dimensional)
         if isinstance(covariates, np.ndarray):
             if covariates.ndim == 1:
                 covariates = np.expand_dims(covariates, 1)
-        if basis is not None:
-            if basis.ndim == 1:
-                basis = np.expand_dims(basis, 1)
 
         # Covariate preprocessing
         if not self._covariate_preprocessor._check_is_fitted():

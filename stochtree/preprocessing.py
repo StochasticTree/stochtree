@@ -5,7 +5,6 @@ Copyright (c) 2007-2024 The scikit-learn developers.
 """
 
 from typing import Union, Optional, Any, Dict
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 import numpy as np
 import pandas as pd
 from scipy import sparse
