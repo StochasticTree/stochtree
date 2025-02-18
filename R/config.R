@@ -61,7 +61,7 @@ ForestModelConfig <- R6::R6Class(
 
         #' Create a new ForestModelConfig object.
         #'
-        #' @param feature_types Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+        #' @param feature_types Vector of integer-coded feature types (where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
         #' @param num_trees Number of trees in the forest being sampled
         #' @param num_features Number of features in training dataset
         #' @param num_observations Number of observations in training dataset
@@ -97,6 +97,12 @@ ForestModelConfig <- R6::R6Class(
             if (is.null(variable_weights)) {
                 warning("`variable_weights` not provided, will be assumed to be equal-weighted")
                 variable_weights <- rep(1/num_features, num_features)
+            }
+            if (is.null(num_trees)) {
+                stop("num_trees must be provided")
+            }
+            if (is.null(num_observations)) {
+                stop("num_observations must be provided")
             }
             if (num_features != length(feature_types)) {
                 stop("`feature_types` must have `num_features` total elements")
@@ -175,14 +181,14 @@ ForestModelConfig <- R6::R6Class(
         }, 
         
         #' @description
-        #' Update root node split probability in tree prior
+        #' Update minimum number of samples per leaf node in the tree prior
         #' @param min_samples_leaf Minimum number of samples in a tree leaf
         update_min_samples_leaf = function(min_samples_leaf) {
             self$min_samples_leaf <- min_samples_leaf
         }, 
         
         #' @description
-        #' Update root node split probability in tree prior
+        #' Update max depth in the tree prior
         #' @param max_depth Maximum depth of any tree in the ensemble in the model
         update_max_depth = function(max_depth) {
             self$max_depth <- max_depth
