@@ -1,5 +1,7 @@
 from typing import Union
+
 import numpy as np
+
 
 class NotSampledError(ValueError, AttributeError):
     """Exception class to raise if attempting to predict from a model before it has been sampled.
@@ -10,6 +12,7 @@ class NotSampledError(ValueError, AttributeError):
     Renamed from scikit-learn's "NotFittedError"
     https://github.com/scikit-learn/scikit-learn/blob/8721245511de2f225ff5f9aa5f5fadce663cd4a3/sklearn/exceptions.py#L45C7-L45C21
     """
+
 
 def _standardize_array_to_list(input: Union[list, np.ndarray]) -> list:
     """
@@ -30,12 +33,15 @@ def _standardize_array_to_list(input: Union[list, np.ndarray]) -> list:
     elif isinstance(input, np.ndarray):
         if input.ndim > 1:
             if np.squeeze(input).ndim > 1:
-                raise ValueError("`input` is not a one-dimensional numpy array, cannot be flattened into a python list")
+                raise ValueError(
+                    "`input` is not a one-dimensional numpy array, cannot be flattened into a python list"
+                )
             return np.squeeze(input).tolist()
         else:
             return input.tolist()
     else:
         return ValueError("`input` must be either a list or numpy array")
+
 
 def _standardize_array_to_np(input: Union[list, np.ndarray]) -> np.ndarray:
     """
@@ -56,12 +62,15 @@ def _standardize_array_to_np(input: Union[list, np.ndarray]) -> np.ndarray:
     elif isinstance(input, np.ndarray):
         if input.ndim > 1:
             if np.squeeze(input).ndim > 1:
-                raise ValueError("`input` is not a one-dimensional numpy array, cannot be flattened into a 1d numpy array")
+                raise ValueError(
+                    "`input` is not a one-dimensional numpy array, cannot be flattened into a 1d numpy array"
+                )
             return np.squeeze(input)
         else:
             return input
     else:
         return ValueError("`input` must be either a list or numpy array")
+
 
 def _check_is_int(input: Union[int, float]) -> bool:
     """
@@ -84,6 +93,7 @@ def _check_is_int(input: Union[int, float]) -> bool:
     else:
         return True
 
+
 def _check_is_numeric(input: Union[int, float]) -> bool:
     """
     Checks whether a scalar input is numeric
@@ -102,6 +112,7 @@ def _check_is_numeric(input: Union[int, float]) -> bool:
         return False
     else:
         return True
+
 
 def _check_array_numeric(input: Union[list, np.ndarray]) -> bool:
     """
@@ -124,6 +135,7 @@ def _check_array_numeric(input: Union[list, np.ndarray]) -> bool:
     else:
         raise ValueError("input must be a list or numpy array")
 
+
 def _check_array_integer(input: Union[list, np.ndarray]) -> bool:
     """
     Checks whether an array is populated with integer values
@@ -144,6 +156,7 @@ def _check_array_integer(input: Union[list, np.ndarray]) -> bool:
         return np.issubdtype(input.dtype, np.integer)
     else:
         raise ValueError("input must be a list or numpy array")
+
 
 def _check_matrix_square(input: np.ndarray) -> bool:
     """
