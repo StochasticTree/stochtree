@@ -3,7 +3,12 @@ from typing import Union
 
 import numpy as np
 
-from .utils import _check_is_int, _check_matrix_square, _standardize_array_to_np
+from .utils import (
+    _check_is_int,
+    _check_is_numeric,
+    _check_matrix_square,
+    _standardize_array_to_np,
+)
 
 
 class ForestModelConfig:
@@ -435,3 +440,61 @@ class ForestModelConfig:
             Maximum number of unique cutpoints considered in a grow-from-root split
         """
         return self.cutpoint_grid_size
+
+
+class GlobalModelConfig:
+    """
+    Object used to get / set global parameters and other global model configuration options in the "low-level" stochtree interface
+
+    The "low-level" stochtree interface enables a high degreee of sampler customization, in which users employ R wrappers around C++ objects
+    like ForestDataset, Outcome, CppRng, and ForestModel to run the Gibbs sampler of a BART model with custom modifications.
+    GlobalModelConfig allows users to specify / query the global parameters of a model they wish to run.
+
+    Parameters
+    ----------
+    global_error_variance : float, optional
+        Global error variance parameter (default: `1.0`)
+    """
+
+    def __init__(
+        self,
+        global_error_variance=1.0,
+    ) -> None:
+        # Preprocess inputs and run some error checks
+        if not _check_is_numeric(global_error_variance):
+            raise ValueError("`global_error_variance` must be a positive scalar")
+        elif global_error_variance <= 0:
+            raise ValueError("`global_error_variance` must be a positive scalar")
+
+        # Set internal config values
+        self.global_error_variance = global_error_variance
+
+    def update_global_error_variance(self, global_error_variance) -> None:
+        """
+        Update global error variance parameter
+
+        Parameters
+        ----------
+        global_error_variance : float
+            Global error variance parameter
+
+        Returns
+        -------
+        self
+        """
+        if not _check_is_numeric(global_error_variance):
+            raise ValueError("`global_error_variance` must be a positive scalar")
+        elif global_error_variance <= 0:
+            raise ValueError("`global_error_variance` must be a positive scalar")
+        self.global_error_variance = global_error_variance
+
+    def get_global_error_variance(self) -> float:
+        """
+        Query the global error variance parameter
+
+        Returns
+        -------
+        global_error_variance : float
+            Global error variance parameter
+        """
+        return self.global_error_variance
