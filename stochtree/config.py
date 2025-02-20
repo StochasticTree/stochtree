@@ -331,7 +331,7 @@ class ForestModelConfig:
         """
         self.cutpoint_grid_size = cutpoint_grid_size
 
-    def get_feature_types(self):
+    def get_feature_types(self) -> np.ndarray:
         """
         Query feature types (integer-coded so that 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
 
@@ -352,6 +352,39 @@ class ForestModelConfig:
             Array of variable split probability weights
         """
         return self.variable_weights
+
+    def get_num_trees(self) -> int:
+        """
+        Query number of trees
+
+        Returns
+        -------
+        num_trees : int
+            Number of trees in a forest
+        """
+        return self.num_trees
+
+    def get_num_features(self) -> int:
+        """
+        Query number of features
+
+        Returns
+        -------
+        num_features : int
+            Number of features in a forest
+        """
+        return self.num_features
+
+    def get_num_observations(self) -> int:
+        """
+        Query number of observations
+
+        Returns
+        -------
+        num_observations : int
+            Number of observations in a forest
+        """
+        return self.num_observations
 
     def get_alpha(self) -> float:
         """
@@ -396,6 +429,17 @@ class ForestModelConfig:
             Max depth in the tree prior
         """
         return self.max_depth
+
+    def get_leaf_model_type(self) -> int:
+        """
+        Query type of leaf model
+
+        Returns
+        -------
+        leaf_model_type : int
+            Integer coded leaf model
+        """
+        self.leaf_model_type
 
     def get_leaf_model_scale(self) -> np.ndarray:
         """

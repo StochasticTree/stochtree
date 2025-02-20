@@ -12,6 +12,7 @@ from stochtree_cpp import (
     RngCpp,
 )
 
+from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
 
@@ -62,23 +63,18 @@ class ForestSampler:
     def __init__(
         self,
         dataset: Dataset,
-        feature_types: np.array,
-        num_trees: int,
-        num_obs: int,
-        alpha: float,
-        beta: float,
-        min_samples_leaf: int,
-        max_depth: int = -1,
+        global_config: GlobalModelConfig,
+        forest_config: ForestModelConfig,
     ) -> None:
         self.forest_sampler_cpp = ForestSamplerCpp(
             dataset.dataset_cpp,
-            feature_types,
-            num_trees,
-            num_obs,
-            alpha,
-            beta,
-            min_samples_leaf,
-            max_depth,
+            forest_config.get_feature_types(),
+            forest_config.get_num_trees(),
+            forest_config.get_num_observations(),
+            forest_config.get_alpha(),
+            forest_config.get_beta(),
+            forest_config.get_min_samples_leaf(),
+            forest_config.get_max_depth(),
         )
 
     def reconstitute_from_forest(
@@ -109,14 +105,8 @@ class ForestSampler:
         dataset: Dataset,
         residual: Residual,
         rng: RNG,
-        feature_types: np.array,
-        cutpoint_grid_size: int,
-        leaf_model_scale_input: np.array,
-        variable_weights: np.array,
-        a_forest: float,
-        b_forest: float,
-        global_variance: float,
-        leaf_model_int: int,
+        forest_config: ForestModelConfig,
+        global_config: GlobalModelConfig,
         keep_forest: bool,
         gfr: bool,
         pre_initialized: bool,
@@ -136,22 +126,10 @@ class ForestSampler:
             `stochtree` object storing continuously updated partial / full residual
         rng : RNG
             `stochtree` object storing C++ random number generator to be used sampling algorithm
-        feature_types : np.array
-            Array of integer-coded feature types (0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
-        cutpoint_grid_size : int
-            Maximum size of a grid of available cutpoints (which thins the number of possible splits, particularly useful in the grow-from-root algorithm)
-        leaf_model_scale_input : np.array
-            Numpy array containing leaf model scale parameter (if the leaf model is univariate, this is essentially a scalar which is used as such in the C++ source, but stored as a numpy array)
-        variable_weights : np.array
-            Numpy array containing sampling probabilities for each feature
-        a_forest : float
-            Shape parameter for the inverse gamma outcome model for a heteroskedasticity forest
-        b_forest : float
-            Scale parameter for the inverse gamma outcome model for a heteroskedasticity forest
-        global_variance : float
-            Current value of the global error variance parameter
-        leaf_model_int : int
-            Integer encoding the leaf model type (0 = constant Gaussian leaf mean model, 1 = univariate Gaussian leaf regression mean model, 2 = multivariate Gaussian leaf regression mean model, 3 = univariate Inverse Gamma constant leaf variance model)
+        forest_config : ForestModelConfig
+            `ForestModelConfig` object containing forest model parameters and settings
+        global_config : GlobalModelConfig
+            `GlobalModelConfig` object containing global model parameters and settings
         keep_forest : bool
             Whether or not the resulting forest should be retained in `forest_container` or discarded (due to burnin or thinning for example)
         gfr : bool
@@ -165,14 +143,14 @@ class ForestSampler:
             dataset.dataset_cpp,
             residual.residual_cpp,
             rng.rng_cpp,
-            feature_types,
-            cutpoint_grid_size,
-            leaf_model_scale_input,
-            variable_weights,
-            a_forest,
-            b_forest,
-            global_variance,
-            leaf_model_int,
+            forest_config.get_feature_types(),
+            forest_config.get_cutpoint_grid_size(),
+            forest_config.get_leaf_model_scale(),
+            forest_config.get_variable_weights(),
+            forest_config.get_variance_forest_shape(),
+            forest_config.get_variance_forest_scale(),
+            global_config.get_global_error_variance(),
+            forest_config.get_leaf_model_type(),
             keep_forest,
             gfr,
             pre_initialized,
