@@ -40,7 +40,7 @@ def _standardize_array_to_list(input: Union[list, np.ndarray]) -> list:
         else:
             return input.tolist()
     else:
-        return ValueError("`input` must be either a list or numpy array")
+        raise ValueError("`input` must be either a list or numpy array")
 
 
 def _standardize_array_to_np(input: Union[list, np.ndarray]) -> np.ndarray:
@@ -69,7 +69,7 @@ def _standardize_array_to_np(input: Union[list, np.ndarray]) -> np.ndarray:
         else:
             return input
     else:
-        return ValueError("`input` must be either a list or numpy array")
+        raise ValueError("`input` must be either a list or numpy array")
 
 
 def _check_is_int(input: Union[int, float]) -> bool:
@@ -133,7 +133,7 @@ def _check_array_numeric(input: Union[list, np.ndarray]) -> bool:
     elif isinstance(input, np.ndarray):
         return np.issubdtype(input.dtype, np.number)
     else:
-        raise ValueError("input must be a list or numpy array")
+        return False
 
 
 def _check_array_integer(input: Union[list, np.ndarray]) -> bool:
@@ -155,7 +155,7 @@ def _check_array_integer(input: Union[list, np.ndarray]) -> bool:
     elif isinstance(input, np.ndarray):
         return np.issubdtype(input.dtype, np.integer)
     else:
-        raise ValueError("input must be a list or numpy array")
+        return False
 
 
 def _check_matrix_square(input: np.ndarray) -> bool:
