@@ -2,8 +2,6 @@
 Python classes wrapping C++ sampler objects
 """
 
-from typing import Union
-
 import numpy as np
 from stochtree_cpp import (
     ForestSamplerCpp,
@@ -137,6 +135,17 @@ class ForestSampler:
         pre_initialized : bool
             Whether or not the forest being sampled has already been initialized
         """
+        # Detect changes to the tree prior
+        if self.forest_sampler_cpp.GetAlpha() != forest_config.get_alpha():
+            self.forest_sampler_cpp.SetAlpha(forest_config.get_alpha())
+        if self.forest_sampler_cpp.GetBeta() != forest_config.get_beta():
+            self.forest_sampler_cpp.SetBeta(forest_config.get_beta())
+        if self.forest_sampler_cpp.GetMinSamplesLeaf() != forest_config.get_min_samples_leaf():
+            self.forest_sampler_cpp.SetMinSamplesLeaf(forest_config.get_min_samples_leaf())
+        if self.forest_sampler_cpp.GetMaxDepth() != forest_config.get_max_depth():
+            self.forest_sampler_cpp.SetMaxDepth(forest_config.get_max_depth())
+        
+        # Run the sampler
         self.forest_sampler_cpp.SampleOneIteration(
             forest_container.forest_container_cpp,
             forest.forest_cpp,

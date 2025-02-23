@@ -1125,6 +1125,22 @@ class ForestSamplerCpp {
     split_prior_->SetMaxDepth(max_depth);
   }
 
+  double GetAlpha() {
+    return split_prior_->GetAlpha();
+  }
+
+  double GetBeta() {
+    return split_prior_->GetBeta();
+  }
+
+  int GetMinSamplesLeaf() {
+    return split_prior_->GetMinSamplesLeaf();
+  }
+
+  int GetMaxDepth() {
+    return split_prior_->GetMaxDepth();
+  }
+
  private:
   std::unique_ptr<StochTree::ForestTracker> tracker_;
   std::unique_ptr<StochTree::TreePrior> split_prior_;
@@ -1704,7 +1720,11 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("UpdateAlpha", &ForestSamplerCpp::UpdateAlpha)
     .def("UpdateBeta", &ForestSamplerCpp::UpdateBeta)
     .def("UpdateMinSamplesLeaf", &ForestSamplerCpp::UpdateMinSamplesLeaf)
-    .def("UpdateMaxDepth", &ForestSamplerCpp::UpdateMaxDepth);
+    .def("UpdateMaxDepth", &ForestSamplerCpp::UpdateMaxDepth)
+    .def("GetAlpha", &ForestSamplerCpp::GetAlpha)
+    .def("GetBeta", &ForestSamplerCpp::GetBeta)
+    .def("GetMinSamplesLeaf", &ForestSamplerCpp::GetMinSamplesLeaf)
+    .def("GetMaxDepth", &ForestSamplerCpp::GetMaxDepth);
 
   py::class_<GlobalVarianceModelCpp>(m, "GlobalVarianceModelCpp")
     .def(py::init<>())

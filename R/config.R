@@ -250,6 +250,27 @@ ForestModelConfig <- R6::R6Class(
         }, 
         
         #' @description
+        #' Query number of trees
+        #' @returns Number of trees in a forest
+        get_num_trees = function() {
+            return(self$num_trees)
+        }, 
+        
+        #' @description
+        #' Query number of features
+        #' @returns Number of features in a forest model training set
+        get_num_features = function() {
+            return(self$num_features)
+        }, 
+        
+        #' @description
+        #' Query number of observations
+        #' @returns Number of observations in a forest model training set
+        get_num_observations = function() {
+            return(self$num_observations)
+        }, 
+        
+        #' @description
         #' Query root node split probability in tree prior for this ForestModelConfig object
         #' @returns Root node split probability in tree prior
         get_alpha = function() {
@@ -275,6 +296,13 @@ ForestModelConfig <- R6::R6Class(
         #' @returns Maximum depth of any tree in the ensemble in the model
         get_max_depth = function() {
             return(self$max_depth)
+        }, 
+        
+        #' @description
+        #' Query (integer-coded) type of leaf model
+        #' @returns Integer coded leaf model type
+        get_leaf_model_type = function() {
+            return(self$leaf_model_type)
         }, 
         
         #' @description

@@ -371,7 +371,7 @@ class ForestModelConfig:
         Returns
         -------
         num_features : int
-            Number of features in a forest
+            Number of features in a forest model training set
         """
         return self.num_features
 
@@ -432,12 +432,12 @@ class ForestModelConfig:
 
     def get_leaf_model_type(self) -> int:
         """
-        Query type of leaf model
+        Query (integer-coded) type of leaf model
 
         Returns
         -------
         leaf_model_type : int
-            Integer coded leaf model
+            Integer coded leaf model type
         """
         self.leaf_model_type
 

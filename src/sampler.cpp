@@ -228,6 +228,27 @@ void update_max_depth_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrio
 }
 
 [[cpp11::register]]
+double get_alpha_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr) {
+    return tree_prior_ptr->GetAlpha();
+}
+
+[[cpp11::register]]
+double get_beta_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr) {
+    // Update beta
+    return tree_prior_ptr->GetBeta();
+}
+
+[[cpp11::register]]
+int get_min_samples_leaf_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr) {
+    return tree_prior_ptr->GetMinSamplesLeaf();
+}
+
+[[cpp11::register]]
+int get_max_depth_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr) {
+    return tree_prior_ptr->GetMaxDepth();
+}
+
+[[cpp11::register]]
 cpp11::external_pointer<StochTree::ForestTracker> forest_tracker_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, cpp11::integers feature_types, int num_trees, StochTree::data_size_t n) {
     // Convert vector of integers to std::vector of enum FeatureType
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
