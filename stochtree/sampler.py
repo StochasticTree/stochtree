@@ -107,7 +107,6 @@ class ForestSampler:
         global_config: GlobalModelConfig,
         keep_forest: bool,
         gfr: bool,
-        pre_initialized: bool,
     ) -> None:
         """
         Sample one iteration of a forest using the specified model and tree sampling algorithm
@@ -132,19 +131,28 @@ class ForestSampler:
             Whether or not the resulting forest should be retained in `forest_container` or discarded (due to burnin or thinning for example)
         gfr : bool
             Whether or not the "grow-from-root" (GFR) sampler is run (if this is `True` and `leaf_model_int=0` this is equivalent to XBART, if this is `FALSE` and `leaf_model_int=0` this is equivalent to the original BART)
-        pre_initialized : bool
-            Whether or not the forest being sampled has already been initialized
         """
+        # Ensure forest has been initialized
+        if forest.is_empty():
+            raise ValueError(
+                "`forest` has not yet been initialized, which is necessary to run the sampler. Please set constant values for `forest`'s leaves using the `set_root_leaves` method."
+            )
+
         # Detect changes to the tree prior
         if self.forest_sampler_cpp.GetAlpha() != forest_config.get_alpha():
             self.forest_sampler_cpp.SetAlpha(forest_config.get_alpha())
         if self.forest_sampler_cpp.GetBeta() != forest_config.get_beta():
             self.forest_sampler_cpp.SetBeta(forest_config.get_beta())
-        if self.forest_sampler_cpp.GetMinSamplesLeaf() != forest_config.get_min_samples_leaf():
-            self.forest_sampler_cpp.SetMinSamplesLeaf(forest_config.get_min_samples_leaf())
+        if (
+            self.forest_sampler_cpp.GetMinSamplesLeaf()
+            != forest_config.get_min_samples_leaf()
+        ):
+            self.forest_sampler_cpp.SetMinSamplesLeaf(
+                forest_config.get_min_samples_leaf()
+            )
         if self.forest_sampler_cpp.GetMaxDepth() != forest_config.get_max_depth():
             self.forest_sampler_cpp.SetMaxDepth(forest_config.get_max_depth())
-        
+
         # Run the sampler
         self.forest_sampler_cpp.SampleOneIteration(
             forest_container.forest_container_cpp,
@@ -162,7 +170,6 @@ class ForestSampler:
             forest_config.get_leaf_model_type(),
             keep_forest,
             gfr,
-            pre_initialized,
         )
 
     def prepare_for_sampler(
@@ -196,6 +203,7 @@ class ForestSampler:
             leaf_model,
             initial_values,
         )
+        forest.internal_forest_is_empty = False
 
     def adjust_residual(
         self,

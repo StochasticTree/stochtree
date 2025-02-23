@@ -816,6 +816,7 @@ class Forest:
         self.output_dimension = output_dimension
         self.leaf_constant = leaf_constant
         self.is_exponentiated = is_exponentiated
+        self.internal_forest_is_empty = True
 
     def reset_root(self) -> None:
         """
@@ -895,6 +896,7 @@ class Forest:
             self.forest_cpp.SetRootVector(leaf_value, leaf_value.shape[0])
         else:
             self.forest_cpp.SetRootValue(leaf_value)
+        self.internal_forest_is_empty = False
 
     def add_numeric_split(
         self,
@@ -1347,3 +1349,23 @@ class Forest:
             Array of indices of leaf nodes in tree `tree_num`.
         """
         return self.forest_cpp.Leaves(tree_num)
+
+    def is_empty(self) -> bool:
+        """
+        When a Forest object is created, it is "empty" in the sense that none
+        of its component trees have leaves with values. There are two ways to 
+        "initialize" a Forest object. First, the `set_root_leaves()` method of the
+        Forest class simply initializes every tree in the forest to a single node 
+        carrying the same (user-specified) leaf value. Second, the `prepare_for_sampler()` 
+        method of the ForestSampler class initializes every tree in the forest to a 
+        single node with the same value and also propagates this information through 
+        to the temporary tracking data structrues in a ForestSampler object, which 
+        must be synchronized with a Forest during a forest sampler loop.
+
+        Returns
+        -------
+        bool
+            `True` if a Forest has not yet been initialized with a constant root value,
+            `False` otherwise if the forest has already been initialized / grown.
+        """
+        return self.internal_forest_is_empty

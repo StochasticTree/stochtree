@@ -972,7 +972,11 @@ class ForestSamplerCpp {
   void SampleOneIteration(ForestContainerCpp& forest_samples, ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng, 
                           py::array_t<int> feature_types, int cutpoint_grid_size, py::array_t<double> leaf_model_scale_input, 
                           py::array_t<double> variable_weights, double a_forest, double b_forest, double global_variance, 
-                          int leaf_model_int, bool keep_forest = true, bool gfr = true, bool pre_initialized = false) {
+                          int leaf_model_int, bool keep_forest = true, bool gfr = true) {
+    // Refactoring completely out of the Python interface.
+    // Intention to refactor out of the C++ interface in the future.
+    bool pre_initialized = true;
+    
     // Unpack feature types
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
     for (int i = 0; i < feature_types.size(); i++) {
