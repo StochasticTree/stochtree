@@ -47,8 +47,6 @@ class TestResidual:
         current_sigma2 = 1.0
         current_leaf_scale = np.array([[1.0 / num_trees]])
         cutpoint_grid_size = 100
-        a_forest = 1
-        b_forest = 1
 
         # RNG
         cpp_rng = RNG(-1)
