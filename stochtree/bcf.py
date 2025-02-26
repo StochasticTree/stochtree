@@ -9,6 +9,7 @@ import pandas as pd
 from sklearn.utils import check_scalar
 
 from .bart import BARTModel
+from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
@@ -410,13 +411,20 @@ class BCFModel:
             if X_test.shape[0] != pi_test.shape[0]:
                 raise ValueError("X_test and pi_test must have the same number of rows")
 
+        # Prognostic model details
+        leaf_dimension_mu = 1
+        leaf_model_mu = 0
+
         # Treatment details
         self.treatment_dim = Z_train.shape[1]
         self.multivariate_treatment = True if self.treatment_dim > 1 else False
-        treatment_leaf_model = 2 if self.multivariate_treatment else 1
+        leaf_dimension_tau = self.treatment_dim
+        leaf_model_tau = 2 if self.multivariate_treatment else 1
+        # treatment_leaf_model = 2 if self.multivariate_treatment else 1
 
         # Set variance leaf model type (currently only one option)
-        leaf_model_variance_forest = 3
+        leaf_dimension_variance = 1
+        leaf_model_variance = 3
         self.variance_scale = 1
 
         # Check parameters
@@ -1139,7 +1147,9 @@ class BCFModel:
                 "propensity_covariate must equal one of 'none', 'mu', 'tau', or 'both'"
             )
         if propensity_covariate != "none":
-            feature_types = np.append(feature_types, 0).astype("int")
+            feature_types = np.append(
+                feature_types, np.repeat(0, pi_train.shape[1])
+            ).astype("int")
             X_train_processed = np.c_[X_train_processed, pi_train]
             if self.has_test:
                 X_test_processed = np.c_[X_test_processed, pi_test]
@@ -1240,42 +1250,74 @@ class BCFModel:
             cpp_rng = RNG(random_seed)
 
         # Sampling data structures
+        global_model_config = GlobalModelConfig(global_error_variance=current_sigma2)
+        forest_model_config_mu = ForestModelConfig(
+            num_trees=num_trees_mu,
+            num_features=forest_dataset_train.num_covariates(),
+            num_observations=self.n_train,
+            feature_types=feature_types,
+            variable_weights=variable_weights_mu,
+            leaf_dimension=leaf_dimension_mu,
+            alpha=alpha_mu,
+            beta=beta_mu,
+            min_samples_leaf=min_samples_leaf_mu,
+            max_depth=max_depth_mu,
+            leaf_model_type=leaf_model_mu,
+            leaf_model_scale=current_leaf_scale_mu,
+            cutpoint_grid_size=cutpoint_grid_size,
+        )
         forest_sampler_mu = ForestSampler(
             forest_dataset_train,
-            feature_types,
-            num_trees_mu,
-            self.n_train,
-            alpha_mu,
-            beta_mu,
-            min_samples_leaf_mu,
-            max_depth_mu,
+            global_model_config,
+            forest_model_config_mu,
+        )
+        forest_model_config_tau = ForestModelConfig(
+            num_trees=num_trees_tau,
+            num_features=forest_dataset_train.num_covariates(),
+            num_observations=self.n_train,
+            feature_types=feature_types,
+            variable_weights=variable_weights_tau,
+            leaf_dimension=leaf_dimension_tau,
+            alpha=alpha_tau,
+            beta=beta_tau,
+            min_samples_leaf=min_samples_leaf_tau,
+            max_depth=max_depth_tau,
+            leaf_model_type=leaf_model_tau,
+            leaf_model_scale=current_leaf_scale_tau,
+            cutpoint_grid_size=cutpoint_grid_size,
         )
         forest_sampler_tau = ForestSampler(
             forest_dataset_train,
-            feature_types,
-            num_trees_tau,
-            self.n_train,
-            alpha_tau,
-            beta_tau,
-            min_samples_leaf_tau,
-            max_depth_tau,
+            global_model_config,
+            forest_model_config_tau,
         )
         if self.include_variance_forest:
+            forest_model_config_variance = ForestModelConfig(
+                num_trees=num_trees_variance,
+                num_features=forest_dataset_train.num_covariates(),
+                num_observations=self.n_train,
+                feature_types=feature_types,
+                variable_weights=variable_weights_variance,
+                leaf_dimension=leaf_dimension_variance,
+                alpha=alpha_variance,
+                beta=beta_variance,
+                min_samples_leaf=min_samples_leaf_variance,
+                max_depth=max_depth_variance,
+                leaf_model_type=leaf_model_variance,
+                cutpoint_grid_size=cutpoint_grid_size,
+                variance_forest_shape=a_forest,
+                variance_forest_scale=b_forest,
+            )
             forest_sampler_variance = ForestSampler(
-                forest_dataset_train,
-                feature_types,
-                num_trees_variance,
-                self.n_train,
-                alpha_variance,
-                beta_variance,
-                min_samples_leaf_variance,
-                max_depth_variance,
+                forest_dataset_train, global_model_config, forest_model_config_variance
             )
 
         # Container of forest samples
-        self.forest_container_mu = ForestContainer(num_trees_mu, 1, True, False)
+        self.forest_container_mu = ForestContainer(
+            num_trees_mu, leaf_dimension_mu, True, False
+        )
         self.forest_container_tau = ForestContainer(
-            num_trees_tau, Z_train.shape[1], False, False
+            num_trees_tau, leaf_dimension_tau, False, False
         )
         active_forest_mu = Forest(num_trees_mu, 1, True, False)
         active_forest_tau = Forest(num_trees_tau, Z_train.shape[1], False, False)
@@ -1296,7 +1338,11 @@ class BCFModel:
         # Initialize the leaves of each tree in the prognostic forest
         init_mu = np.array([np.squeeze(np.mean(resid_train))])
         forest_sampler_mu.prepare_for_sampler(
-            forest_dataset_train, residual_train, active_forest_mu, 0, init_mu
+            forest_dataset_train,
+            residual_train,
+            active_forest_mu,
+            leaf_model_mu,
+            init_mu,
         )
 
         # Initialize the leaves of each tree in the treatment forest
@@ -1308,7 +1354,7 @@ class BCFModel:
             forest_dataset_train,
             residual_train,
             active_forest_tau,
-            treatment_leaf_model,
+            leaf_model_tau,
             init_tau,
         )
 
@@ -1319,7 +1365,7 @@ class BCFModel:
                 forest_dataset_train,
                 residual_train,
                 active_forest_variance,
-                leaf_model_variance_forest,
+                leaf_model_variance,
                 init_val_variance,
             )
 
@@ -1338,16 +1384,9 @@ class BCFModel:
                     forest_dataset_train,
                     residual_train,
                     cpp_rng,
-                    feature_types,
-                    cutpoint_grid_size,
-                    current_leaf_scale_mu,
-                    variable_weights_mu,
-                    a_forest,
-                    b_forest,
-                    current_sigma2,
-                    0,
+                    global_model_config,
+                    forest_model_config_mu,
                     keep_sample,
-                    True,
                     True,
                 )
 
@@ -1356,11 +1395,15 @@ class BCFModel:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
+                    global_model_config.update_global_error_variance(current_sigma2)
                 if self.sample_sigma_leaf_mu:
                     current_leaf_scale_mu[0, 0] = (
                         leaf_var_model_mu.sample_one_iteration(
                             active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu
                         )
+                    )
+                    forest_model_config_mu.update_leaf_model_scale(
+                        current_leaf_scale_mu
                     )
                     if keep_sample:
                         self.leaf_scale_mu_samples[sample_counter] = (
@@ -1374,16 +1417,9 @@ class BCFModel:
                     forest_dataset_train,
                     residual_train,
                     cpp_rng,
-                    feature_types,
-                    cutpoint_grid_size,
-                    current_leaf_scale_tau,
-                    variable_weights_tau,
-                    a_forest,
-                    b_forest,
-                    current_sigma2,
-                    treatment_leaf_model,
+                    global_model_config,
+                    forest_model_config_tau,
                     keep_sample,
-                    True,
                     True,
                 )
 
@@ -1438,16 +1474,9 @@ class BCFModel:
                         forest_dataset_train,
                         residual_train,
                         cpp_rng,
-                        feature_types,
-                        cutpoint_grid_size,
-                        current_leaf_scale_mu,
-                        variable_weights_variance,
-                        a_forest,
-                        b_forest,
-                        current_sigma2,
-                        leaf_model_variance_forest,
+                        global_model_config,
+                        forest_model_config_variance,
                         keep_sample,
-                        True,
                         True,
                     )
 
@@ -1456,6 +1485,7 @@ class BCFModel:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
+                    global_model_config.update_global_error_variance(current_sigma2)
                     if keep_sample:
                         self.global_var_samples[sample_counter] = current_sigma2
                 if self.sample_sigma_leaf_tau:
@@ -1463,6 +1493,9 @@ class BCFModel:
                         leaf_var_model_tau.sample_one_iteration(
                             active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau
                         )
+                    )
+                    forest_model_config_tau.update_leaf_model_scale(
+                        current_leaf_scale_tau
                     )
                     if keep_sample:
                         self.leaf_scale_tau_samples[sample_counter] = (
@@ -1493,17 +1526,10 @@ class BCFModel:
                     forest_dataset_train,
                     residual_train,
                     cpp_rng,
-                    feature_types,
-                    cutpoint_grid_size,
-                    current_leaf_scale_mu,
-                    variable_weights_mu,
-                    a_forest,
-                    b_forest,
-                    current_sigma2,
-                    0,
+                    global_model_config,
+                    forest_model_config_mu,
                     keep_sample,
                     False,
-                    True,
                 )
 
                 # Sample variance parameters (if requested)
@@ -1511,11 +1537,15 @@ class BCFModel:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
+                    global_model_config.update_global_error_variance(current_sigma2)
                 if self.sample_sigma_leaf_mu:
                     current_leaf_scale_mu[0, 0] = (
                         leaf_var_model_mu.sample_one_iteration(
                             active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu
                         )
+                    )
+                    forest_model_config_mu.update_leaf_model_scale(
+                        current_leaf_scale_mu
                     )
                     if keep_sample:
                         self.leaf_scale_mu_samples[sample_counter] = (
@@ -1529,17 +1559,10 @@ class BCFModel:
                     forest_dataset_train,
                     residual_train,
                     cpp_rng,
-                    feature_types,
-                    cutpoint_grid_size,
-                    current_leaf_scale_tau,
-                    variable_weights_tau,
-                    a_forest,
-                    b_forest,
-                    current_sigma2,
-                    treatment_leaf_model,
+                    global_model_config,
+                    forest_model_config_tau,
                     keep_sample,
                     False,
-                    True,
                 )
 
                 # Sample coding parameters (if requested)
@@ -1593,16 +1616,9 @@ class BCFModel:
                         forest_dataset_train,
                         residual_train,
                         cpp_rng,
-                        feature_types,
-                        cutpoint_grid_size,
-                        current_leaf_scale_mu,
-                        variable_weights_variance,
-                        a_forest,
-                        b_forest,
-                        current_sigma2,
-                        leaf_model_variance_forest,
+                        global_model_config,
+                        forest_model_config_variance,
                         keep_sample,
-                        False,
                         True,
                     )
 
@@ -1611,6 +1627,7 @@ class BCFModel:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
+                    global_model_config.update_global_error_variance(current_sigma2)
                     if keep_sample:
                         self.global_var_samples[sample_counter] = current_sigma2
                 if self.sample_sigma_leaf_tau:
@@ -1618,6 +1635,9 @@ class BCFModel:
                         leaf_var_model_tau.sample_one_iteration(
                             active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau
                         )
+                    )
+                    forest_model_config_tau.update_leaf_model_scale(
+                        current_leaf_scale_tau
                     )
                     if keep_sample:
                         self.leaf_scale_tau_samples[sample_counter] = (

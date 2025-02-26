@@ -75,6 +75,61 @@ class Dataset:
         n = variance_weights.size
         self.dataset_cpp.AddVarianceWeights(variance_weights, n)
 
+    def num_observations(self) -> int:
+        """
+        Query the number of observations in a dataset
+
+        Returns
+        -------
+        int
+            Number of observations in the dataset
+        """
+        return self.dataset_cpp.NumRows()
+
+    def num_covariates(self) -> int:
+        """
+        Query the number of covariates (features) in a dataset
+
+        Returns
+        -------
+        int
+            Number of covariates in the dataset
+        """
+        return self.dataset_cpp.NumCovariates()
+
+    def num_basis(self) -> int:
+        """
+        Query the dimension of the basis vector in a dataset
+
+        Returns
+        -------
+        int
+            Dimension of the basis vector in the dataset, returning 0 if the dataset does not have a basis
+        """
+        return self.dataset_cpp.NumBasis()
+
+    def has_basis(self) -> bool:
+        """
+        Whether or not a dataset has a basis vector (for leaf regression)
+
+        Returns
+        -------
+        bool
+            `True` if the dataset has a basis, `False` otherwise
+        """
+        return self.dataset_cpp.HasBasis()
+
+    def has_variance_weights(self) -> bool:
+        """
+        Whether or not a dataset has variance weights
+
+        Returns
+        -------
+        bool
+            `True` if the dataset has variance weights, `False` otherwise
+        """
+        return self.dataset_cpp.HasVarianceWeights()
+
 
 class Residual:
     """

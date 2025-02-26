@@ -71,6 +71,22 @@ class ForestDatasetCpp {
     return dataset_->NumObservations();
   }
 
+  int NumCovariates() {
+    return dataset_->NumCovariates();
+  }
+
+  int NumBasis() {
+    return dataset_->NumBasis();
+  }
+
+  bool HasBasis() {
+    return dataset_->HasBasis();
+  }
+
+  bool HasVarianceWeights() {
+    return dataset_->HasVarWeights();
+  }
+
   StochTree::ForestDataset* GetDataset() {
     return dataset_.get();
   }
@@ -1620,7 +1636,11 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("AddBasis", &ForestDatasetCpp::AddBasis)
     .def("UpdateBasis", &ForestDatasetCpp::UpdateBasis)
     .def("AddVarianceWeights", &ForestDatasetCpp::AddVarianceWeights)
-    .def("NumRows", &ForestDatasetCpp::NumRows);
+    .def("NumRows", &ForestDatasetCpp::NumRows)
+    .def("NumCovariates", &ForestDatasetCpp::NumCovariates)
+    .def("NumBasis", &ForestDatasetCpp::NumBasis)
+    .def("HasBasis", &ForestDatasetCpp::HasBasis)
+    .def("HasVarianceWeights", &ForestDatasetCpp::HasVarianceWeights);
 
   py::class_<ResidualCpp>(m, "ResidualCpp")
     .def(py::init<py::array_t<double>,data_size_t>())

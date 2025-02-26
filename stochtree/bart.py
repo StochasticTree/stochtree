@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 import pandas as pd
 
+from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
@@ -345,6 +346,7 @@ class BARTModel:
         original_var_indices = (
             self._covariate_preprocessor.fetch_original_feature_indices()
         )
+        num_features = len(feature_types)
 
         # Determine whether a test set is provided
         self.has_test = X_test is not None
@@ -672,40 +674,66 @@ class BARTModel:
         else:
             cpp_rng = RNG(random_seed)
 
-        # Sampling data structures
-        if self.include_mean_forest:
-            forest_sampler_mean = ForestSampler(
-                forest_dataset_train,
-                feature_types,
-                num_trees_mean,
-                self.n_train,
-                alpha_mean,
-                beta_mean,
-                min_samples_leaf_mean,
-                max_depth_mean,
-            )
-        if self.include_variance_forest:
-            forest_sampler_variance = ForestSampler(
-                forest_dataset_train,
-                feature_types,
-                num_trees_variance,
-                self.n_train,
-                alpha_variance,
-                beta_variance,
-                min_samples_leaf_variance,
-                max_depth_variance,
-            )
-
         # Set variance leaf model type (currently only one option)
         leaf_model_variance_forest = 3
+        leaf_dimension_variance = 1
 
         # Determine the mean forest leaf model type
         if not self.has_basis:
             leaf_model_mean_forest = 0
+            leaf_dimension_mean = 1
         elif self.num_basis == 1:
             leaf_model_mean_forest = 1
+            leaf_dimension_mean = 1
         else:
             leaf_model_mean_forest = 2
+            leaf_dimension_mean = self.num_basis
+
+        # Sampling data structures
+        global_model_config = GlobalModelConfig(global_error_variance=current_sigma2)
+        if self.include_mean_forest:
+            forest_model_config_mean = ForestModelConfig(
+                num_trees=num_trees_mean,
+                num_features=num_features,
+                num_observations=self.n_train,
+                feature_types=feature_types,
+                variable_weights=variable_weights_mean,
+                leaf_dimension=leaf_dimension_mean,
+                alpha=alpha_mean,
+                beta=beta_mean,
+                min_samples_leaf=min_samples_leaf_mean,
+                max_depth=max_depth_mean,
+                leaf_model_type=leaf_model_mean_forest,
+                leaf_model_scale=current_leaf_scale,
+                cutpoint_grid_size=cutpoint_grid_size,
+            )
+            forest_sampler_mean = ForestSampler(
+                forest_dataset_train,
+                global_model_config,
+                forest_model_config_mean,
+            )
+        if self.include_variance_forest:
+            forest_model_config_variance = ForestModelConfig(
+                num_trees=num_trees_variance,
+                num_features=num_features,
+                num_observations=self.n_train,
+                feature_types=feature_types,
+                variable_weights=variable_weights_variance,
+                leaf_dimension=leaf_dimension_variance,
+                alpha=alpha_variance,
+                beta=beta_variance,
+                min_samples_leaf=min_samples_leaf_variance,
+                max_depth=max_depth_variance,
+                leaf_model_type=leaf_model_variance_forest,
+                cutpoint_grid_size=cutpoint_grid_size,
+                variance_forest_shape=a_forest,
+                variance_forest_scale=b_forest,
+            )
+            forest_sampler_variance = ForestSampler(
+                forest_dataset_train,
+                global_model_config,
+                forest_model_config_variance,
+            )
 
         # Container of forest samples
         if self.include_mean_forest:
@@ -772,16 +800,9 @@ class BARTModel:
                         forest_dataset_train,
                         residual_train,
                         cpp_rng,
-                        feature_types,
-                        cutpoint_grid_size,
-                        current_leaf_scale,
-                        variable_weights_mean,
-                        a_forest,
-                        b_forest,
-                        current_sigma2,
-                        leaf_model_mean_forest,
+                        global_model_config,
+                        forest_model_config_mean,
                         keep_sample,
-                        True,
                         True,
                     )
 
@@ -793,16 +814,9 @@ class BARTModel:
                         forest_dataset_train,
                         residual_train,
                         cpp_rng,
-                        feature_types,
-                        cutpoint_grid_size,
-                        current_leaf_scale,
-                        variable_weights_variance,
-                        a_forest,
-                        b_forest,
-                        current_sigma2,
-                        leaf_model_variance_forest,
+                        global_model_config,
+                        forest_model_config_variance,
                         keep_sample,
-                        True,
                         True,
                     )
 
@@ -811,12 +825,14 @@ class BARTModel:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
+                    global_model_config.update_global_error_variance(current_sigma2)
                     if keep_sample:
                         self.global_var_samples[sample_counter] = current_sigma2
                 if self.sample_sigma_leaf:
                     current_leaf_scale[0, 0] = leaf_var_model.sample_one_iteration(
                         active_forest_mean, cpp_rng, a_leaf, b_leaf
                     )
+                    forest_model_config_mean.update_leaf_model_scale(current_leaf_scale)
                     if keep_sample:
                         self.leaf_scale_samples[sample_counter] = current_leaf_scale[
                             0, 0
@@ -899,17 +915,10 @@ class BARTModel:
                             forest_dataset_train,
                             residual_train,
                             cpp_rng,
-                            feature_types,
-                            cutpoint_grid_size,
-                            current_leaf_scale,
-                            variable_weights_mean,
-                            a_forest,
-                            b_forest,
-                            current_sigma2,
-                            leaf_model_mean_forest,
+                            global_model_config,
+                            forest_model_config_mean,
                             keep_sample,
                             False,
-                            True,
                         )
 
                     # Sample the variance forest
@@ -920,17 +929,10 @@ class BARTModel:
                             forest_dataset_train,
                             residual_train,
                             cpp_rng,
-                            feature_types,
-                            cutpoint_grid_size,
-                            current_leaf_scale,
-                            variable_weights_variance,
-                            a_forest,
-                            b_forest,
-                            current_sigma2,
-                            leaf_model_variance_forest,
+                            global_model_config,
+                            forest_model_config_variance,
                             keep_sample,
                             False,
-                            True,
                         )
 
                     # Sample variance parameters (if requested)

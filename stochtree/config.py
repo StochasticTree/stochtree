@@ -65,15 +65,15 @@ class ForestModelConfig:
         beta=2.0,
         min_samples_leaf=5,
         max_depth=-1,
-        leaf_model_type=1,
+        leaf_model_type=0,
         leaf_model_scale=None,
         variance_forest_shape=1.0,
         variance_forest_scale=1.0,
         cutpoint_grid_size=100,
     ) -> None:
         # Preprocess inputs and run some error checks
-        if not feature_types:
-            if not num_features:
+        if feature_types is None:
+            if num_features is None:
                 raise ValueError(
                     "Neither of `num_features` nor `feature_types` (a vector from which `num_features` can be inferred) was provided.",
                     "Please provide at least one of these inputs when creating a `ForestModelConfig` object.",
@@ -82,18 +82,18 @@ class ForestModelConfig:
             self.feature_types = np.repeat(0, num_features)
         else:
             self.feature_types = _standardize_array_to_np(feature_types)
-            if not num_features:
+            if num_features is None:
                 num_features = len(self.feature_types)
-        if not variable_weights:
+        if variable_weights is None:
             warnings.warn(
                 "`variable_weights` not provided, will be assumed to be equal-weighted"
             )
             self.variable_weights = np.repeat(1.0 / num_features, num_features)
         else:
             self.variable_weights = _standardize_array_to_np(variable_weights)
-        if not num_trees:
+        if num_trees is None:
             raise ValueError("`num_trees` must be provided")
-        if not num_observations:
+        if num_observations is None:
             raise ValueError("`num_observations` must be provided")
         if num_features != len(self.feature_types):
             raise ValueError("`feature_types` must have `num_features` total elements")
@@ -101,6 +101,8 @@ class ForestModelConfig:
             raise ValueError(
                 "`variable_weights` must have `num_features` total elements"
             )
+        if leaf_model_type is None:
+            leaf_model_type = 0
         if not _check_is_int(leaf_model_type):
             raise ValueError("`leaf_model_type` must be an integer between 0 and 3")
         elif leaf_model_type < 0 or leaf_model_type > 3:
@@ -109,7 +111,7 @@ class ForestModelConfig:
             raise ValueError("`leaf_dimension` must be an integer greater than 0")
         elif leaf_dimension <= 0:
             raise ValueError("`leaf_dimension` must be an integer greater than 0")
-        if not leaf_model_scale:
+        if leaf_model_scale is None:
             diag_value = 1.0 / num_trees
             leaf_model_scale_array = np.zeros((leaf_dimension, leaf_dimension), float)
             np.fill_diagonal(leaf_model_scale_array, diag_value)
@@ -439,7 +441,7 @@ class ForestModelConfig:
         leaf_model_type : int
             Integer coded leaf model type
         """
-        self.leaf_model_type
+        return self.leaf_model_type
 
     def get_leaf_model_scale(self) -> np.ndarray:
         """
@@ -450,7 +452,7 @@ class ForestModelConfig:
         leaf_model_scale : np.ndarray
             Scale parameter (in array form) used in Gaussian leaf models. If the Gaussian leaf model is univariate, the array returned is a 1x1 matrix.
         """
-        self.leaf_model_scale
+        return self.leaf_model_scale
 
     def get_variance_forest_shape(self) -> float:
         """

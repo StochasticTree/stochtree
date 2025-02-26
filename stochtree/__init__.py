@@ -1,6 +1,7 @@
 from .bart import BARTModel
 from .bcf import BCFModel
 from .calibration import calibrate_global_error_variance
+from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor
@@ -29,6 +30,8 @@ __all__ = [
     "ForestSampler",
     "GlobalVarianceModel",
     "LeafVarianceModel",
+    "ForestModelConfig",
+    "GlobalModelConfig",
     "JSONSerializer",
     "NotSampledError",
     "_check_array_integer",

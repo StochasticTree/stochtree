@@ -1,6 +1,15 @@
 import numpy as np
 
-from stochtree import RNG, Dataset, Forest, ForestContainer, ForestSampler, Residual
+from stochtree import (
+    RNG,
+    Dataset,
+    Forest,
+    ForestContainer,
+    ForestSampler,
+    Residual,
+    ForestModelConfig,
+    GlobalModelConfig,
+)
 
 
 class TestResidual:
@@ -45,9 +54,22 @@ class TestResidual:
         cpp_rng = RNG(-1)
 
         # Create forest sampler and forest container
-        forest_sampler = ForestSampler(
-            forest_dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf
+        forest_config = ForestModelConfig(
+            num_trees=num_trees,
+            num_features=p,
+            num_observations=n,
+            feature_types=feature_types,
+            variable_weights=variable_weights,
+            leaf_dimension=1,
+            alpha=alpha,
+            beta=beta,
+            min_samples_leaf=min_samples_leaf,
+            leaf_model_type=1,
+            cutpoint_grid_size=cutpoint_grid_size,
+            leaf_model_scale=current_leaf_scale,
         )
+        global_config = GlobalModelConfig(global_error_variance=current_sigma2)
+        forest_sampler = ForestSampler(forest_dataset, global_config, forest_config)
         forest_container = ForestContainer(num_trees, 1, False, False)
         active_forest = Forest(num_trees, 1, False, False)
 
@@ -65,15 +87,8 @@ class TestResidual:
             forest_dataset,
             residual,
             cpp_rng,
-            feature_types,
-            cutpoint_grid_size,
-            current_leaf_scale,
-            variable_weights,
-            a_forest,
-            b_forest,
-            current_sigma2,
-            1,
-            True,
+            global_config,
+            forest_config,
             True,
             True,
         )

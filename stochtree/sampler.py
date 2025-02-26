@@ -103,8 +103,8 @@ class ForestSampler:
         dataset: Dataset,
         residual: Residual,
         rng: RNG,
-        forest_config: ForestModelConfig,
         global_config: GlobalModelConfig,
+        forest_config: ForestModelConfig,
         keep_forest: bool,
         gfr: bool,
     ) -> None:
@@ -123,10 +123,10 @@ class ForestSampler:
             `stochtree` object storing continuously updated partial / full residual
         rng : RNG
             `stochtree` object storing C++ random number generator to be used sampling algorithm
-        forest_config : ForestModelConfig
-            `ForestModelConfig` object containing forest model parameters and settings
         global_config : GlobalModelConfig
             `GlobalModelConfig` object containing global model parameters and settings
+        forest_config : ForestModelConfig
+            `ForestModelConfig` object containing forest model parameters and settings
         keep_forest : bool
             Whether or not the resulting forest should be retained in `forest_container` or discarded (due to burnin or thinning for example)
         gfr : bool

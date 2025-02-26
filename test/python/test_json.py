@@ -13,6 +13,8 @@ from stochtree import (
     GlobalVarianceModel,
     JSONSerializer,
     Residual,
+    ForestModelConfig,
+    GlobalModelConfig
 )
 
 
@@ -210,10 +212,26 @@ class TestJson:
         residual = Residual(resid)
 
         # Forest samplers and temporary tracking data structures
+        leaf_model_type = 0 if p_W == 0 else 1 + 1*(p_W > 1)
+        forest_config = ForestModelConfig(
+            num_trees=num_trees,
+            num_features=p_X,
+            num_observations=n,
+            feature_types=feature_types,
+            variable_weights=var_weights,
+            leaf_dimension=p_W,
+            alpha=alpha,
+            beta=beta,
+            min_samples_leaf=min_samples_leaf,
+            leaf_model_type=leaf_model_type,
+            cutpoint_grid_size=cutpoint_grid_size,
+            leaf_model_scale=leaf_prior_scale,
+        )
+        global_config = GlobalModelConfig(global_error_variance=global_variance_init)
         forest_container = ForestContainer(num_trees, W.shape[1], False, False)
         active_forest = Forest(num_trees, W.shape[1], False, False)
         forest_sampler = ForestSampler(
-            dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf
+            dataset, global_config, forest_config
         )
         cpp_rng = RNG(random_seed)
         global_var_model = GlobalVarianceModel()
@@ -225,6 +243,17 @@ class TestJson:
         global_var_samples = np.concatenate(
             (np.array([global_variance_init]), np.repeat(0, num_samples))
         )
+        if p_W > 0:
+            init_val = np.repeat(0.0, W.shape[1])
+        else:
+            init_val = np.array([0.0])
+        forest_sampler.prepare_for_sampler(
+            dataset,
+            residual,
+            active_forest,
+            leaf_model_type,
+            init_val,
+        )
 
         # Run "grow-from-root" sampler
         for i in range(num_warmstart):
@@ -234,17 +263,10 @@ class TestJson:
                 dataset,
                 residual,
                 cpp_rng,
-                feature_types,
-                cutpoint_grid_size,
-                leaf_prior_scale,
-                var_weights,
-                1.0,
-                1.0,
-                global_var_samples[i],
-                1,
+                global_config, 
+                forest_config, 
                 True,
                 True,
-                False,
             )
             global_var_samples[i + 1] = global_var_model.sample_one_iteration(
                 residual, cpp_rng, a_global, b_global
@@ -258,17 +280,10 @@ class TestJson:
                 dataset,
                 residual,
                 cpp_rng,
-                feature_types,
-                cutpoint_grid_size,
-                leaf_prior_scale,
-                var_weights,
-                1.0,
-                1.0,
-                global_var_samples[i],
-                1,
+                global_config, 
+                forest_config, 
                 True,
-                False,
-                False,
+                True,
             )
             global_var_samples[i + 1] = global_var_model.sample_one_iteration(
                 residual, cpp_rng, a_global, b_global
