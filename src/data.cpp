@@ -70,9 +70,6 @@ ColumnVector::ColumnVector(std::string filename, int32_t column_index, bool head
     Log::Fatal("Could not recognize data format of %s", filename.c_str());
   }
   
-  // Determine number of columns in the data file
-  int num_columns = parser->NumFeatures();
-
   // Read data to memory
   auto text_data = LoadTextDataToMemory(filename.c_str(), &num_global_data, header);
   int num_observations = static_cast<data_size_t>(text_data.size());
