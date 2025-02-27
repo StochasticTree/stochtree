@@ -71,6 +71,22 @@ class ForestDatasetCpp {
     return dataset_->NumObservations();
   }
 
+  int NumCovariates() {
+    return dataset_->NumCovariates();
+  }
+
+  int NumBasis() {
+    return dataset_->NumBasis();
+  }
+
+  bool HasBasis() {
+    return dataset_->HasBasis();
+  }
+
+  bool HasVarianceWeights() {
+    return dataset_->HasVarWeights();
+  }
+
   StochTree::ForestDataset* GetDataset() {
     return dataset_.get();
   }
@@ -972,7 +988,11 @@ class ForestSamplerCpp {
   void SampleOneIteration(ForestContainerCpp& forest_samples, ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng, 
                           py::array_t<int> feature_types, int cutpoint_grid_size, py::array_t<double> leaf_model_scale_input, 
                           py::array_t<double> variable_weights, double a_forest, double b_forest, double global_variance, 
-                          int leaf_model_int, bool keep_forest = true, bool gfr = true, bool pre_initialized = false) {
+                          int leaf_model_int, bool keep_forest = true, bool gfr = true) {
+    // Refactoring completely out of the Python interface.
+    // Intention to refactor out of the C++ interface in the future.
+    bool pre_initialized = true;
+    
     // Unpack feature types
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
     for (int i = 0; i < feature_types.size(); i++) {
@@ -1123,6 +1143,22 @@ class ForestSamplerCpp {
 
   void UpdateMaxDepth(int max_depth) {
     split_prior_->SetMaxDepth(max_depth);
+  }
+
+  double GetAlpha() {
+    return split_prior_->GetAlpha();
+  }
+
+  double GetBeta() {
+    return split_prior_->GetBeta();
+  }
+
+  int GetMinSamplesLeaf() {
+    return split_prior_->GetMinSamplesLeaf();
+  }
+
+  int GetMaxDepth() {
+    return split_prior_->GetMaxDepth();
   }
 
  private:
@@ -1600,7 +1636,11 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("AddBasis", &ForestDatasetCpp::AddBasis)
     .def("UpdateBasis", &ForestDatasetCpp::UpdateBasis)
     .def("AddVarianceWeights", &ForestDatasetCpp::AddVarianceWeights)
-    .def("NumRows", &ForestDatasetCpp::NumRows);
+    .def("NumRows", &ForestDatasetCpp::NumRows)
+    .def("NumCovariates", &ForestDatasetCpp::NumCovariates)
+    .def("NumBasis", &ForestDatasetCpp::NumBasis)
+    .def("HasBasis", &ForestDatasetCpp::HasBasis)
+    .def("HasVarianceWeights", &ForestDatasetCpp::HasVarianceWeights);
 
   py::class_<ResidualCpp>(m, "ResidualCpp")
     .def(py::init<py::array_t<double>,data_size_t>())
@@ -1704,7 +1744,11 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("UpdateAlpha", &ForestSamplerCpp::UpdateAlpha)
     .def("UpdateBeta", &ForestSamplerCpp::UpdateBeta)
     .def("UpdateMinSamplesLeaf", &ForestSamplerCpp::UpdateMinSamplesLeaf)
-    .def("UpdateMaxDepth", &ForestSamplerCpp::UpdateMaxDepth);
+    .def("UpdateMaxDepth", &ForestSamplerCpp::UpdateMaxDepth)
+    .def("GetAlpha", &ForestSamplerCpp::GetAlpha)
+    .def("GetBeta", &ForestSamplerCpp::GetBeta)
+    .def("GetMinSamplesLeaf", &ForestSamplerCpp::GetMinSamplesLeaf)
+    .def("GetMaxDepth", &ForestSamplerCpp::GetMaxDepth);
 
   py::class_<GlobalVarianceModelCpp>(m, "GlobalVarianceModelCpp")
     .def(py::init<>())
