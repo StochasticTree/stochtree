@@ -1098,11 +1098,26 @@ class BCFModel:
                 )
         current_sigma2 = sigma2_init
         self.sigma2_init = sigma2_init
-        current_leaf_scale_mu = np.array([[sigma_leaf_mu]])
-        if not isinstance(sigma_leaf_tau, np.ndarray):
-            current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
+        if isinstance(sigma_leaf_mu, float):
+            current_leaf_scale_mu = np.array([[sigma_leaf_mu]])
         else:
+            raise ValueError("sigma_leaf_mu must be a scalar")
+        if isinstance(sigma_leaf_tau, float):
+            if Z_train.shape[1] > 1:
+                current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]))
+                np.fill_diagonal(current_leaf_scale_tau, sigma_leaf_tau)
+            else:
+                current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
+        elif isinstance(sigma_leaf_tau, np.ndarray):
+            if sigma_leaf_tau.ndim != 2:
+                raise ValueError("sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form")
+            if sigma_leaf_tau.shape[0] != sigma_leaf_tau.shape[1]:
+                raise ValueError("sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form")
+            if sigma_leaf_tau.shape[0] != Z_train.shape[1]:
+                raise ValueError("sigma_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector")
             current_leaf_scale_tau = sigma_leaf_tau
+        else:
+            raise ValueError("sigma_leaf_tau must be a scalar or a 2d numpy array")
         if self.include_variance_forest:
             if not a_forest:
                 a_forest = num_trees_variance / a_0**2 + 0.5

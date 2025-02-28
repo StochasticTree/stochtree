@@ -614,12 +614,38 @@ class BARTModel:
                 if b_leaf is None
                 else b_leaf
             )
-            sigma_leaf = (
-                np.squeeze(np.var(resid_train)) / num_trees_mean
-                if sigma_leaf is None
-                else sigma_leaf
-            )
-            current_leaf_scale = np.array([[sigma_leaf]])
+            if self.has_basis:
+                if sigma_leaf is None:
+                    current_leaf_scale = np.zeros((self.num_basis, self.num_basis))
+                    np.fill_diagonal(current_leaf_scale, np.squeeze(np.var(resid_train)) / num_trees_mean)
+                elif isinstance(sigma_leaf, float):
+                    current_leaf_scale = np.zeros((self.num_basis, self.num_basis))
+                    np.fill_diagonal(current_leaf_scale, sigma_leaf)
+                elif isinstance(sigma_leaf, np.ndarray):
+                    if sigma_leaf.ndim != 2:
+                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array if provided in matrix form")
+                    if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
+                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array if provided in matrix form")
+                    if sigma_leaf.shape[0] != self.num_basis:
+                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension")
+                    current_leaf_scale = sigma_leaf
+                else:
+                    raise ValueError("sigma_leaf must be either a scalar or a 2d symmetric numpy array")
+            else:
+                if sigma_leaf is None:
+                    current_leaf_scale = np.array([[np.squeeze(np.var(resid_train)) / num_trees_mean]])
+                elif isinstance(sigma_leaf, float):
+                    current_leaf_scale = np.array([[sigma_leaf]])
+                elif isinstance(sigma_leaf, np.ndarray):
+                    if sigma_leaf.ndim != 2:
+                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array if provided in matrix form")
+                    if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
+                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array if provided in matrix form")
+                    if sigma_leaf.shape[0] != 1:
+                        raise ValueError("sigma_leaf must be a 1x1 numpy array for this leaf model")
+                    current_leaf_scale = sigma_leaf
+                else:
+                    raise ValueError("sigma_leaf must be either a scalar or a 2d numpy array")
         else:
             current_leaf_scale = np.array([[1.0]])
         if self.include_variance_forest:

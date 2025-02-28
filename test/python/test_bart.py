@@ -11,7 +11,7 @@ class TestBART:
         rng = np.random.default_rng(random_seed)
 
         # Generate covariates and basis
-        n = 1000
+        n = 100
         p_X = 10
         X = rng.uniform(0, 1, (n, p_X))
 
@@ -67,7 +67,7 @@ class TestBART:
         rng = np.random.default_rng(random_seed)
 
         # Generate covariates and basis
-        n = 1000
+        n = 100
         p_X = 10
         p_W = 1
         X = rng.uniform(0, 1, (n, p_X))
@@ -133,7 +133,7 @@ class TestBART:
         rng = np.random.default_rng(random_seed)
 
         # Generate covariates and basis
-        n = 1000
+        n = 100
         p_X = 10
         p_W = 5
         X = rng.uniform(0, 1, (n, p_X))
@@ -199,7 +199,7 @@ class TestBART:
         rng = np.random.default_rng(random_seed)
 
         # Generate covariates and basis
-        n = 1000
+        n = 100
         p_X = 10
         X = rng.uniform(0, 1, (n, p_X))
 
@@ -270,7 +270,7 @@ class TestBART:
         rng = np.random.default_rng(random_seed)
 
         # Generate covariates and basis
-        n = 1000
+        n = 100
         p_X = 10
         p_W = 1
         X = rng.uniform(0, 1, (n, p_X))
@@ -351,7 +351,7 @@ class TestBART:
         rng = np.random.default_rng(random_seed)
 
         # Generate covariates and basis
-        n = 1000
+        n = 100
         p_X = 10
         p_W = 5
         X = rng.uniform(0, 1, (n, p_X))
