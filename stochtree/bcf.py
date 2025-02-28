@@ -80,8 +80,8 @@ class BCFModel:
         num_burnin: int = 0,
         num_mcmc: int = 100,
         general_params: Optional[Dict[str, Any]] = None,
-        mu_forest_params: Optional[Dict[str, Any]] = None,
-        tau_forest_params: Optional[Dict[str, Any]] = None,
+        prognostic_forest_params: Optional[Dict[str, Any]] = None,
+        treatment_effect_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Runs a BCF sampler on provided training set. Outcome predictions and estimates of the prognostic and treatment effect functions
@@ -132,7 +132,7 @@ class BCFModel:
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
             * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
 
-        mu_forest_params : dict, optional
+        prognostic_forest_params : dict, optional
             Dictionary of prognostic forest model parameters, each of which has a default value processed internally, so this argument is optional.
 
             * `num_trees` (`int`): Number of trees in the prognostic forest. Defaults to `250`. Must be a positive integer.
@@ -148,7 +148,7 @@ class BCFModel:
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the prognostic (`mu(X)`) forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the prognostic (`mu(X)`) forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 
-        tau_forest_params : dict, optional
+        treatment_effect_forest_params : dict, optional
             Dictionary of treatment effect forest model parameters, each of which has a default value processed internally, so this argument is optional.
 
             * `num_trees` (`int`): Number of trees in the treatment effect forest. Defaults to `50`. Must be a positive integer.
@@ -207,7 +207,7 @@ class BCFModel:
         )
 
         # Update mu forest BART parameters
-        mu_forest_params_default = {
+        prognostic_forest_params_default = {
             "num_trees": 250,
             "alpha": 0.95,
             "beta": 2.0,
@@ -220,12 +220,12 @@ class BCFModel:
             "keep_vars": None,
             "drop_vars": None,
         }
-        mu_forest_params_updated = _preprocess_params(
-            mu_forest_params_default, mu_forest_params
+        prognostic_forest_params_updated = _preprocess_params(
+            prognostic_forest_params_default, prognostic_forest_params
         )
 
         # Update tau forest BART parameters
-        tau_forest_params_default = {
+        treatment_effect_forest_params_default = {
             "num_trees": 50,
             "alpha": 0.25,
             "beta": 3.0,
@@ -238,8 +238,8 @@ class BCFModel:
             "keep_vars": None,
             "drop_vars": None,
         }
-        tau_forest_params_updated = _preprocess_params(
-            tau_forest_params_default, tau_forest_params
+        treatment_effect_forest_params_updated = _preprocess_params(
+            treatment_effect_forest_params_default, treatment_effect_forest_params
         )
 
         # Update variance forest BART parameters
@@ -279,30 +279,30 @@ class BCFModel:
         keep_every = general_params_updated["keep_every"]
 
         # 2. Mu forest parameters
-        num_trees_mu = mu_forest_params_updated["num_trees"]
-        alpha_mu = mu_forest_params_updated["alpha"]
-        beta_mu = mu_forest_params_updated["beta"]
-        min_samples_leaf_mu = mu_forest_params_updated["min_samples_leaf"]
-        max_depth_mu = mu_forest_params_updated["max_depth"]
-        sample_sigma_leaf_mu = mu_forest_params_updated["sample_sigma2_leaf"]
-        sigma_leaf_mu = mu_forest_params_updated["sigma2_leaf_init"]
-        a_leaf_mu = mu_forest_params_updated["sigma2_leaf_shape"]
-        b_leaf_mu = mu_forest_params_updated["sigma2_leaf_scale"]
-        keep_vars_mu = mu_forest_params_updated["keep_vars"]
-        drop_vars_mu = mu_forest_params_updated["drop_vars"]
+        num_trees_mu = prognostic_forest_params_updated["num_trees"]
+        alpha_mu = prognostic_forest_params_updated["alpha"]
+        beta_mu = prognostic_forest_params_updated["beta"]
+        min_samples_leaf_mu = prognostic_forest_params_updated["min_samples_leaf"]
+        max_depth_mu = prognostic_forest_params_updated["max_depth"]
+        sample_sigma_leaf_mu = prognostic_forest_params_updated["sample_sigma2_leaf"]
+        sigma_leaf_mu = prognostic_forest_params_updated["sigma2_leaf_init"]
+        a_leaf_mu = prognostic_forest_params_updated["sigma2_leaf_shape"]
+        b_leaf_mu = prognostic_forest_params_updated["sigma2_leaf_scale"]
+        keep_vars_mu = prognostic_forest_params_updated["keep_vars"]
+        drop_vars_mu = prognostic_forest_params_updated["drop_vars"]
 
         # 3. Tau forest parameters
-        num_trees_tau = tau_forest_params_updated["num_trees"]
-        alpha_tau = tau_forest_params_updated["alpha"]
-        beta_tau = tau_forest_params_updated["beta"]
-        min_samples_leaf_tau = tau_forest_params_updated["min_samples_leaf"]
-        max_depth_tau = tau_forest_params_updated["max_depth"]
-        sample_sigma_leaf_tau = tau_forest_params_updated["sample_sigma2_leaf"]
-        sigma_leaf_tau = tau_forest_params_updated["sigma2_leaf_init"]
-        a_leaf_tau = tau_forest_params_updated["sigma2_leaf_shape"]
-        b_leaf_tau = tau_forest_params_updated["sigma2_leaf_scale"]
-        keep_vars_tau = tau_forest_params_updated["keep_vars"]
-        drop_vars_tau = tau_forest_params_updated["drop_vars"]
+        num_trees_tau = treatment_effect_forest_params_updated["num_trees"]
+        alpha_tau = treatment_effect_forest_params_updated["alpha"]
+        beta_tau = treatment_effect_forest_params_updated["beta"]
+        min_samples_leaf_tau = treatment_effect_forest_params_updated["min_samples_leaf"]
+        max_depth_tau = treatment_effect_forest_params_updated["max_depth"]
+        sample_sigma_leaf_tau = treatment_effect_forest_params_updated["sample_sigma2_leaf"]
+        sigma_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_init"]
+        a_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_shape"]
+        b_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_scale"]
+        keep_vars_tau = treatment_effect_forest_params_updated["keep_vars"]
+        drop_vars_tau = treatment_effect_forest_params_updated["drop_vars"]
 
         # 4. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
