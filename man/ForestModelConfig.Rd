@@ -9,6 +9,12 @@ Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered c
 
 Vector specifying sampling probability for all p covariates in ForestDataset
 
+Number of trees in a forest
+
+Number of features in a forest model training set
+
+Number of observations in a forest model training set
+
 Root node split probability in tree prior
 
 Depth prior penalty in tree prior
@@ -16,6 +22,8 @@ Depth prior penalty in tree prior
 Minimum number of samples in a tree leaf
 
 Maximum depth of any tree in the ensemble in the model
+
+Integer coded leaf model type
 
 Scale parameter used in Gaussian leaf models
 
@@ -85,10 +93,14 @@ Create a new ForestModelConfig object.}
 \item \href{#method-ForestModelConfig-update_cutpoint_grid_size}{\code{ForestModelConfig$update_cutpoint_grid_size()}}
 \item \href{#method-ForestModelConfig-get_feature_types}{\code{ForestModelConfig$get_feature_types()}}
 \item \href{#method-ForestModelConfig-get_variable_weights}{\code{ForestModelConfig$get_variable_weights()}}
+\item \href{#method-ForestModelConfig-get_num_trees}{\code{ForestModelConfig$get_num_trees()}}
+\item \href{#method-ForestModelConfig-get_num_features}{\code{ForestModelConfig$get_num_features()}}
+\item \href{#method-ForestModelConfig-get_num_observations}{\code{ForestModelConfig$get_num_observations()}}
 \item \href{#method-ForestModelConfig-get_alpha}{\code{ForestModelConfig$get_alpha()}}
 \item \href{#method-ForestModelConfig-get_beta}{\code{ForestModelConfig$get_beta()}}
 \item \href{#method-ForestModelConfig-get_min_samples_leaf}{\code{ForestModelConfig$get_min_samples_leaf()}}
 \item \href{#method-ForestModelConfig-get_max_depth}{\code{ForestModelConfig$get_max_depth()}}
+\item \href{#method-ForestModelConfig-get_leaf_model_type}{\code{ForestModelConfig$get_leaf_model_type()}}
 \item \href{#method-ForestModelConfig-get_leaf_model_scale}{\code{ForestModelConfig$get_leaf_model_scale()}}
 \item \href{#method-ForestModelConfig-get_variance_forest_shape}{\code{ForestModelConfig$get_variance_forest_shape()}}
 \item \href{#method-ForestModelConfig-get_variance_forest_scale}{\code{ForestModelConfig$get_variance_forest_scale()}}
@@ -122,7 +134,7 @@ Create a new ForestModelConfig object.}
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{feature_types}}{Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
+\item{\code{feature_types}}{Vector of integer-coded feature types (where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
 
 \item{\code{num_trees}}{Number of trees in the forest being sampled}
 
@@ -230,7 +242,7 @@ Update depth prior penalty in tree prior
 \if{html}{\out{<a id="method-ForestModelConfig-update_min_samples_leaf"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestModelConfig-update_min_samples_leaf}{}}}
 \subsection{Method \code{update_min_samples_leaf()}}{
-Update root node split probability in tree prior
+Update minimum number of samples per leaf node in the tree prior
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$update_min_samples_leaf(min_samples_leaf)}\if{html}{\out{</div>}}
 }
@@ -247,7 +259,7 @@ Update root node split probability in tree prior
 \if{html}{\out{<a id="method-ForestModelConfig-update_max_depth"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestModelConfig-update_max_depth}{}}}
 \subsection{Method \code{update_max_depth()}}{
-Update root node split probability in tree prior
+Update max depth in the tree prior
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$update_max_depth(max_depth)}\if{html}{\out{</div>}}
 }
@@ -349,6 +361,36 @@ Query variable weights for this ForestModelConfig object
 
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-get_num_trees"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_num_trees}{}}}
+\subsection{Method \code{get_num_trees()}}{
+Query number of trees
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_num_trees()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-get_num_features"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_num_features}{}}}
+\subsection{Method \code{get_num_features()}}{
+Query number of features
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_num_features()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-get_num_observations"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_num_observations}{}}}
+\subsection{Method \code{get_num_observations()}}{
+Query number of observations
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_num_observations()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ForestModelConfig-get_alpha"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestModelConfig-get_alpha}{}}}
 \subsection{Method \code{get_alpha()}}{
@@ -385,6 +427,16 @@ Query root node split probability in tree prior for this ForestModelConfig objec
 Query root node split probability in tree prior for this ForestModelConfig object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_max_depth()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-get_leaf_model_type"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_leaf_model_type}{}}}
+\subsection{Method \code{get_leaf_model_type()}}{
+Query (integer-coded) type of leaf model
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_leaf_model_type()}\if{html}{\out{</div>}}
 }
 
 }
