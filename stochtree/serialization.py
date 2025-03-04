@@ -8,6 +8,7 @@ from scipy.stats import gamma
 from stochtree_cpp import JsonCpp
 
 from .forest import ForestContainer
+from .random_effects import RandomEffectsContainer
 
 
 class JSONSerializer:
@@ -346,14 +347,32 @@ class JSONSerializer:
         Parameters
         ----------
         forest_str : str
-            String containing the JSON representation of a `ForestContainer`
+            String containing the label for a given forest in a JSON object
 
         Returns
         -------
         ForestContainer
-            In-memory `ForestContainer` python object, created from JSON string
+            In-memory `ForestContainer` python object, created from JSON
         """
         # TODO: read this from JSON
         result = ForestContainer(0, 1, True, False)
         result.forest_container_cpp.LoadFromJson(self.json_cpp, forest_str)
+        return result
+
+    def get_random_effects_container(self, random_effects_str: str) -> RandomEffectsContainer:
+        """Converts a JSON string for a random effects container to a `RandomEffectsContainer` object.
+
+        Parameters
+        ----------
+        random_effects_str : str
+            String containing the label for a given random effects term in a JSON object
+
+        Returns
+        -------
+        RandomEffectsContainer
+            In-memory `RandomEffectsContainer` python object, created from JSON
+        """
+        # TODO: read this from JSON
+        result = RandomEffectsContainer(0, 0)
+        result.random_effects_container_cpp.LoadFromJson(self.json_cpp, random_effects_str)
         return result

@@ -1,7 +1,3 @@
-"""
-Python classes wrapping C++ sampler objects
-"""
-
 import numpy as np
 from stochtree_cpp import (
     ForestSamplerCpp,

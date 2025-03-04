@@ -5,7 +5,18 @@ from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor
-from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
+from .random_effects import (
+  RandomEffectsContainer, 
+  RandomEffectsDataset, 
+  RandomEffectsModel, 
+  RandomEffectsTracker, 
+)
+from .sampler import (
+  RNG, 
+  ForestSampler, 
+  GlobalVarianceModel, 
+  LeafVarianceModel
+)
 from .serialization import JSONSerializer
 from .utils import (
     NotSampledError,
@@ -28,6 +39,10 @@ __all__ = [
     "CovariatePreprocessor",
     "RNG",
     "ForestSampler",
+    "RandomEffectsContainer", 
+    "RandomEffectsDataset", 
+    "RandomEffectsModel", 
+    "RandomEffectsTracker", 
     "GlobalVarianceModel",
     "LeafVarianceModel",
     "ForestModelConfig",
