@@ -1,5 +1,7 @@
 import numpy as np
-from stochtree import ForestContainer, Dataset, Residual, ForestSampler, RNG
+
+from stochtree import Dataset, ForestContainer
+
 
 class TestPredict:
     def test_constant_leaf_prediction(self):
@@ -12,8 +14,7 @@ class TestPredict:
              [5.3, 9.3, 3.6],
              [6.1, 10.4, 4.4]]
         )
-        n = X.shape[0]
-        p = X.shape[1]
+        n, p = X.shape
         num_trees = 10
         output_dim = 1
         forest_dataset = Dataset()
@@ -75,8 +76,7 @@ class TestPredict:
              [1],
              [1]]
         )
-        n = X.shape[0]
-        p = X.shape[1]
+        n, p = X.shape
         num_trees = 10
         output_dim = 1
         forest_dataset = Dataset()
@@ -141,8 +141,7 @@ class TestPredict:
              [1, 1],
              [1, 1]]
         )
-        n = X.shape[0]
-        p = X.shape[1]
+        n, p = X.shape
         num_trees = 10
         output_dim = 2
         num_samples = 0

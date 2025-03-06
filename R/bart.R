@@ -445,7 +445,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     }
     if (has_rfx_test) {
         if (is.null(rfx_basis_test)) {
-            if (!is.null(rfx_basis_train)) {
+            if (has_basis_rfx) {
                 stop("Random effects basis provided for training set, must also be provided for the test set")
             }
             rfx_basis_test <- matrix(rep(1,nrow(X_test)), nrow = nrow(X_test), ncol = 1)
