@@ -14,6 +14,7 @@ from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
+from .random_effects import RandomEffectsContainer, RandomEffectsDataset, RandomEffectsModel, RandomEffectsTracker
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import NotSampledError
@@ -64,8 +65,12 @@ class BARTModel:
         X_train: Union[np.array, pd.DataFrame],
         y_train: np.array,
         leaf_basis_train: np.array = None,
+        rfx_group_ids_train: np.array = None,
+        rfx_basis_train: np.array = None,
         X_test: Union[np.array, pd.DataFrame] = None,
         leaf_basis_test: np.array = None,
+        rfx_group_ids_test: np.array = None,
+        rfx_basis_test: np.array = None,
         num_gfr: int = 5,
         num_burnin: int = 0,
         num_mcmc: int = 100,
@@ -84,11 +89,20 @@ class BARTModel:
             Training set outcome.
         leaf_basis_train : np.array, optional
             Optional training set basis vector used to define a regression to be run in the leaves of each tree.
+        rfx_group_ids_train : np.array, optional
+            Optional group labels used for an additive random effects model.
+        rfx_basis_train : np.array, optional
+            Optional basis for "random-slope" regression in an additive random effects model.
         X_test : np.array, optional
             Optional test set covariates.
         leaf_basis_test : np.array, optional
             Optional test set basis vector used to define a regression to be run in the leaves of each tree.
             Must be included / omitted consistently (i.e. if leaf_basis_train is provided, then leaf_basis_test must be provided alongside X_test).
+        rfx_group_ids_test : np.array, optional
+            Optional test set group labels used for an additive random effects model. We do not currently support (but plan to in the near future), 
+            test set evaluation for group labels that were not in the training set.
+        rfx_basis_test : np.array, optional
+            Optional test set basis for "random-slope" regression in additive random effects model.
         num_gfr : int, optional
             Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Defaults to `5`.
         num_burnin : int, optional
@@ -277,7 +291,23 @@ class BARTModel:
         if leaf_basis_test is not None:
             if not isinstance(leaf_basis_test, np.ndarray):
                 raise ValueError("X_test must be a numpy array")
-
+        if rfx_group_ids_train is not None:
+            if not isinstance(rfx_group_ids_train, np.ndarray):
+                raise ValueError("rfx_group_ids_train must be a numpy array")
+            if not np.issubdtype(rfx_group_ids_train, np.integer):
+                raise ValueError("rfx_group_ids_train must be a numpy array of integer-valued group IDs")
+        if rfx_basis_train is not None:
+            if not isinstance(rfx_basis_train, np.ndarray):
+                raise ValueError("rfx_basis_train must be a numpy array")
+        if rfx_group_ids_test is not None:
+            if not isinstance(rfx_group_ids_test, np.ndarray):
+                raise ValueError("rfx_group_ids_test must be a numpy array")
+            if not np.issubdtype(rfx_group_ids_test, np.integer):
+                raise ValueError("rfx_group_ids_test must be a numpy array of integer-valued group IDs")
+        if rfx_basis_test is not None:
+            if not isinstance(rfx_basis_test, np.ndarray):
+                raise ValueError("rfx_basis_test must be a numpy array")
+        
         # Convert everything to standard shape (2-dimensional)
         if isinstance(X_train, np.ndarray):
             if X_train.ndim == 1:
@@ -658,6 +688,60 @@ class BARTModel:
                 a_forest = 1.0
             if not b_forest:
                 b_forest = 1.0
+        
+        # Runtime checks on RFX group ids
+        self.has_rfx = False
+        has_rfx_test = False
+        if rfx_group_ids_train is not None:
+            self.has_rfx = True
+            if rfx_group_ids_test is not None:
+                has_rfx_test = True
+                if not np.all(np.isin(rfx_group_ids_test, rfx_group_ids_train)):
+                    raise ValueError("All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train")
+        
+        # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided 
+        has_basis_rfx = False
+        num_basis_rfx = 0
+        if self.has_rfx:
+            if rfx_basis_train is None:
+                rfx_basis_train = np.ones((rfx_group_ids_train.shape[0],1))
+            else:
+                has_basis_rfx = True
+                num_basis_rfx = rfx_basis_train.shape[1]
+            num_rfx_groups = len(np.unique(rfx_group_ids_train))
+            num_rfx_components = rfx_basis_train.shape[0]
+            # TODO warn if num_rfx_groups is 1
+        if has_rfx_test:
+            if rfx_basis_test is None:
+                if has_basis_rfx:
+                    raise ValueError("Random effects basis provided for training set, must also be provided for the test set")
+                rfx_basis_test = np.ones((rfx_group_ids_test.shape[0],1))
+        
+        # Set up random effects structures
+        if self.has_rfx:
+            if num_rfx_components == 1:
+                alpha_init = np.array([1])
+            elif num_rfx_components > 1:
+                alpha_init = np.c_[np.ones(1), np.zeros(num_rfx_components-1)]
+            else:
+                raise ValueError("There must be at least 1 random effect component")
+            xi_init = np.tile(alpha_init, (1, num_rfx_groups))
+            sigma_alpha_init = np.identity(num_rfx_components)
+            sigma_xi_init = np.identity(num_rfx_components)
+            sigma_xi_shape = 1.
+            sigma_xi_scale = 1.
+            rfx_dataset_train = RandomEffectsDataset()
+            rfx_dataset_train.add_group_labels(rfx_group_ids_train)
+            rfx_dataset_train.add_basis(rfx_basis_train)
+            rfx_tracker = RandomEffectsTracker(rfx_group_ids_train)
+            rfx_model = RandomEffectsModel(num_rfx_components, num_rfx_groups)
+            rfx_model.set_working_parameter(alpha_init)
+            rfx_model.set_group_parameters(xi_init)
+            rfx_model.set_working_parameter_covariance(sigma_alpha_init)
+            rfx_model.set_group_parameter_covariance(sigma_xi_init)
+            rfx_model.set_variance_prior_shape(sigma_xi_shape)
+            rfx_model.set_variance_prior_scale(sigma_xi_scale)
+            self.rfx_container = RandomEffectsContainer(num_rfx_components, num_rfx_groups, rfx_tracker)
 
         # Container of variance parameter samples
         self.num_gfr = num_gfr
@@ -863,6 +947,12 @@ class BARTModel:
                         self.leaf_scale_samples[sample_counter] = current_leaf_scale[
                             0, 0
                         ]
+                
+                # Sample random effects
+                if self.has_rfx:
+                    rfx_model.sample(
+                        rfx_dataset_train, residual_train, rfx_tracker, self.rfx_container, keep_sample, current_sigma2, cpp_rng
+                    )
 
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
@@ -976,6 +1066,12 @@ class BARTModel:
                             self.leaf_scale_samples[sample_counter] = (
                                 current_leaf_scale[0, 0]
                             )
+                
+                    # Sample random effects
+                    if self.has_rfx:
+                        rfx_model.sample(
+                            rfx_dataset_train, residual_train, rfx_tracker, self.rfx_container, keep_sample, current_sigma2, cpp_rng
+                        )
 
         # Mark the model as sampled
         self.sampled = True
@@ -1010,6 +1106,19 @@ class BARTModel:
                     forest_dataset_test.dataset_cpp
                 )
                 self.y_hat_test = yhat_test_raw * self.y_std + self.y_bar
+        
+        if self.has_rfx:
+            rfx_preds_train = self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train) * self.y_std
+            if has_rfx_test:
+                rfx_preds_test = self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test) * self.y_std
+            if self.include_mean_forest:
+                self.y_hat_train = self.y_hat_train + rfx_preds_train
+                if self.has_test:
+                    self.y_hat_test = self.y_hat_test + rfx_preds_test
+            else:
+                self.y_hat_train = rfx_preds_train
+                if self.has_test:
+                    self.y_hat_test = rfx_preds_test
 
         if self.include_variance_forest:
             sigma_x_train_raw = (
@@ -1045,7 +1154,9 @@ class BARTModel:
                     )
 
     def predict(
-        self, covariates: Union[np.array, pd.DataFrame], basis: np.array = None
+        self, covariates: Union[np.array, pd.DataFrame], basis: np.array = None, 
+        rfx_group_ids: np.array = None, rfx_basis: np.array = None,
+
     ) -> Union[np.array, tuple]:
         """Return predictions from every forest sampled (either / both of mean and variance).
         Return type is either a single array of predictions, if a BART model only includes a
@@ -1057,11 +1168,15 @@ class BARTModel:
             Test set covariates.
         basis : np.array, optional
             Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
+        rfx_group_ids : np.array, optional
+            Optional group labels used for an additive random effects model.
+        rfx_basis : np.array, optional
+            Optional basis for "random-slope" regression in an additive random effects model.
 
         Returns
         -------
         mu_x : np.array, optional
-            Mean forest predictions.
+            Mean forest and / or random effects predictions.
         sigma2_x : np.array, optional
             Variance forest predictions.
         """
@@ -1128,6 +1243,14 @@ class BARTModel:
                 pred_dataset.dataset_cpp
             )
             mean_pred = mean_pred_raw * self.y_std + self.y_bar
+        
+        if self.has_rfx:
+            rfx_preds = self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+            if self.include_mean_forest:
+                mean_pred = mean_pred + rfx_preds
+            else:
+                mean_pred = rfx_preds
+
         if self.include_variance_forest:
             variance_pred_raw = (
                 self.forest_container_variance.forest_container_cpp.Predict(
@@ -1145,11 +1268,12 @@ class BARTModel:
                     np.sqrt(variance_pred_raw * self.sigma2_init) * self.y_std
                 )
 
-        if self.include_mean_forest and self.include_variance_forest:
+        has_mean_predictions = self.include_mean_forest or self.has_rfx
+        if has_mean_predictions and self.include_variance_forest:
             return (mean_pred, variance_pred)
-        elif self.include_mean_forest and not self.include_variance_forest:
+        elif has_mean_predictions and not self.include_variance_forest:
             return mean_pred
-        elif not self.include_mean_forest and self.include_variance_forest:
+        elif not has_mean_predictions and self.include_variance_forest:
             return variance_pred
 
     def predict_mean(self, covariates: np.array, basis: np.array = None) -> np.array:
