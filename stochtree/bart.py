@@ -50,7 +50,7 @@ class BARTModel:
 
     The `BARTModel` class supports the following extensions of this model:
     
-    - Leaf Regression: Rather than letting `f(X)` define a standard decision tree ensemble, in which each tree uses `X` to partition the data and then serve up constant predictions, we allow for models `f(X,Z)` in which `X` and `Z` together define a partitioned linear model (`X` partitions the data and `Z` serves as the basis for regression models). This model can be run by specifying `basis_train` in the `sample` method.
+    - Leaf Regression: Rather than letting `f(X)` define a standard decision tree ensemble, in which each tree uses `X` to partition the data and then serve up constant predictions, we allow for models `f(X,Z)` in which `X` and `Z` together define a partitioned linear model (`X` partitions the data and `Z` serves as the basis for regression models). This model can be run by specifying `leaf_basis_train` in the `sample` method.
     - Heteroskedasticity: Rather than define $\epsilon$ parameterically, we can let a forest $\sigma^2(X)$ model a conditional error variance function. This can be done by setting `num_trees_variance > 0` in the `params` dictionary passed to the `sample` method.
     """
 
@@ -63,9 +63,9 @@ class BARTModel:
         self,
         X_train: Union[np.array, pd.DataFrame],
         y_train: np.array,
-        basis_train: np.array = None,
+        leaf_basis_train: np.array = None,
         X_test: Union[np.array, pd.DataFrame] = None,
-        basis_test: np.array = None,
+        leaf_basis_test: np.array = None,
         num_gfr: int = 5,
         num_burnin: int = 0,
         num_mcmc: int = 100,
@@ -82,13 +82,13 @@ class BARTModel:
             Training set covariates on which trees may be partitioned.
         y_train : np.array
             Training set outcome.
-        basis_train : np.array, optional
+        leaf_basis_train : np.array, optional
             Optional training set basis vector used to define a regression to be run in the leaves of each tree.
         X_test : np.array, optional
             Optional test set covariates.
-        basis_test : np.array, optional
+        leaf_basis_test : np.array, optional
             Optional test set basis vector used to define a regression to be run in the leaves of each tree.
-            Must be included / omitted consistently (i.e. if basis_train is provided, then basis_test must be provided alongside X_test).
+            Must be included / omitted consistently (i.e. if leaf_basis_train is provided, then leaf_basis_test must be provided alongside X_test).
         num_gfr : int, optional
             Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Defaults to `5`.
         num_burnin : int, optional
@@ -119,7 +119,7 @@ class BARTModel:
             * `beta` (`float`): Exponent that decreases split probabilities for nodes of depth > 0 in the conditional mean model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `2`.
             * `min_samples_leaf` (`int`): Minimum allowable size of a leaf, in terms of training samples, in the conditional mean model. Defaults to `5`.
             * `max_depth` (`int`): Maximum depth of any tree in the ensemble in the conditional mean model. Defaults to `10`. Can be overriden with `-1` which does not enforce any depth limits on trees.
-            * `sample_sigma2_leaf` (`bool`): Whether or not to update the `tau` leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `basis_train` has more than one column. Defaults to `False`.
+            * `sample_sigma2_leaf` (`bool`): Whether or not to update the `tau` leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `leaf_basis_train` has more than one column. Defaults to `False`.
             * `sigma2_leaf_init` (`float`): Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
             * `sigma2_leaf_shape` (`float`): Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Defaults to `3`.
             * `sigma2_leaf_scale` (`float`): Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
@@ -271,29 +271,29 @@ class BARTModel:
                 raise ValueError("X_test must be a pandas dataframe or numpy array")
         if not isinstance(y_train, np.ndarray):
             raise ValueError("y_train must be a numpy array")
-        if basis_train is not None:
-            if not isinstance(basis_train, np.ndarray):
-                raise ValueError("basis_train must be a numpy array")
-        if basis_test is not None:
-            if not isinstance(basis_test, np.ndarray):
+        if leaf_basis_train is not None:
+            if not isinstance(leaf_basis_train, np.ndarray):
+                raise ValueError("leaf_basis_train must be a numpy array")
+        if leaf_basis_test is not None:
+            if not isinstance(leaf_basis_test, np.ndarray):
                 raise ValueError("X_test must be a numpy array")
 
         # Convert everything to standard shape (2-dimensional)
         if isinstance(X_train, np.ndarray):
             if X_train.ndim == 1:
                 X_train = np.expand_dims(X_train, 1)
-        if basis_train is not None:
-            if basis_train.ndim == 1:
-                basis_train = np.expand_dims(basis_train, 1)
+        if leaf_basis_train is not None:
+            if leaf_basis_train.ndim == 1:
+                leaf_basis_train = np.expand_dims(leaf_basis_train, 1)
         if y_train.ndim == 1:
             y_train = np.expand_dims(y_train, 1)
         if X_test is not None:
             if isinstance(X_test, np.ndarray):
                 if X_test.ndim == 1:
                     X_test = np.expand_dims(X_test, 1)
-        if basis_test is not None:
-            if basis_test.ndim == 1:
-                basis_test = np.expand_dims(basis_test, 1)
+        if leaf_basis_test is not None:
+            if leaf_basis_test.ndim == 1:
+                leaf_basis_test = np.expand_dims(leaf_basis_test, 1)
 
         # Data checks
         if X_test is not None:
@@ -301,25 +301,25 @@ class BARTModel:
                 raise ValueError(
                     "X_train and X_test must have the same number of columns"
                 )
-        if basis_test is not None:
-            if basis_train is not None:
-                if basis_test.shape[1] != basis_train.shape[1]:
+        if leaf_basis_test is not None:
+            if leaf_basis_train is not None:
+                if leaf_basis_test.shape[1] != leaf_basis_train.shape[1]:
                     raise ValueError(
-                        "basis_train and basis_test must have the same number of columns"
+                        "leaf_basis_train and leaf_basis_test must have the same number of columns"
                     )
             else:
-                raise ValueError("basis_test provided but basis_train was not")
-        if basis_train is not None:
-            if basis_train.shape[0] != X_train.shape[0]:
+                raise ValueError("leaf_basis_test provided but leaf_basis_train was not")
+        if leaf_basis_train is not None:
+            if leaf_basis_train.shape[0] != X_train.shape[0]:
                 raise ValueError(
-                    "basis_train and Z_train must have the same number of rows"
+                    "leaf_basis_train and Z_train must have the same number of rows"
                 )
         if y_train.shape[0] != X_train.shape[0]:
             raise ValueError("X_train and y_train must have the same number of rows")
-        if X_test is not None and basis_test is not None:
-            if X_test.shape[0] != basis_test.shape[0]:
+        if X_test is not None and leaf_basis_test is not None:
+            if X_test.shape[0] != leaf_basis_test.shape[0]:
                 raise ValueError(
-                    "X_test and basis_test must have the same number of rows"
+                    "X_test and leaf_basis_test must have the same number of rows"
                 )
 
         # Variable weight preprocessing (and initialization if necessary)
@@ -352,13 +352,13 @@ class BARTModel:
         self.has_test = X_test is not None
 
         # Determine whether a basis is provided
-        self.has_basis = basis_train is not None
+        self.has_basis = leaf_basis_train is not None
 
         # Unpack data dimensions
         self.n_train = y_train.shape[0]
         self.n_test = X_test_processed.shape[0] if self.has_test else 0
         self.num_covariates = X_train_processed.shape[1]
-        self.num_basis = basis_train.shape[1] if self.has_basis else 0
+        self.num_basis = leaf_basis_train.shape[1] if self.has_basis else 0
 
         # Standardize the keep variable lists to numeric indices
         if keep_vars_mean is not None:
@@ -684,12 +684,12 @@ class BARTModel:
         forest_dataset_train = Dataset()
         forest_dataset_train.add_covariates(X_train_processed)
         if self.has_basis:
-            forest_dataset_train.add_basis(basis_train)
+            forest_dataset_train.add_basis(leaf_basis_train)
         if self.has_test:
             forest_dataset_test = Dataset()
             forest_dataset_test.add_covariates(X_test_processed)
             if self.has_basis:
-                forest_dataset_test.add_basis(basis_test)
+                forest_dataset_test.add_basis(leaf_basis_test)
 
         # Residual
         residual_train = Residual(resid_train)
@@ -788,7 +788,7 @@ class BARTModel:
         # Initialize the leaves of each tree in the mean forest
         if self.include_mean_forest:
             if self.has_basis:
-                init_val_mean = np.repeat(0.0, basis_train.shape[1])
+                init_val_mean = np.repeat(0.0, leaf_basis_train.shape[1])
             else:
                 init_val_mean = np.array([0.0])
             forest_sampler_mean.prepare_for_sampler(

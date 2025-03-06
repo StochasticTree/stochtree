@@ -333,7 +333,7 @@ class TestJson:
 
         # Run BART
         bart_orig = BARTModel()
-        bart_orig.sample(X_train=X, y_train=y, basis_train=W, num_gfr=10, num_mcmc=10)
+        bart_orig.sample(X_train=X, y_train=y, leaf_basis_train=W, num_gfr=10, num_mcmc=10)
 
         # Extract predictions from the sampler
         y_hat_orig = bart_orig.predict(X, W)
