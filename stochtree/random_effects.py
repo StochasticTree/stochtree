@@ -173,24 +173,51 @@ class RandomEffectsContainer:
     0-indexed label numbers used to place group samples in memory (i.e. the
     first label is stored in column 0 of the sample matrix, the second label
     is store in column 1 of the sample matrix, etc...).
-
-    Parameters
-    ----------
-    num_components : int
-        Number of components (bases) in a random effects model. For the simplest random effects model,
-        in which each group has a different random intercept, this is 1, and the basis is a trivial
-        "dummy" intercept vector.
-    num_groups : int
-        Number of groups in a random effects model.
     """
 
-    def __init__(
-        self, num_components: int, num_groups: int, rfx_tracker: RandomEffectsTracker
-    ) -> None:
-        self.rfx_container_cpp = RandomEffectsContainerCpp(num_components, num_groups)
-        self.rfx_label_mapper_cpp = RandomEffectsLabelMapperCpp(
-            rfx_tracker.rfx_tracker_cpp
-        )
+    def __init__(self) -> None:
+        pass
+    
+    def load_new_container(self, num_components: int, num_groups: int, rfx_tracker: RandomEffectsTracker) -> None:
+        """
+        Initializes internal data structures for an "empty" random effects container to be sampled and populated.
+
+        Parameters
+        ----------
+        num_components : int
+            Number of components (bases) in a random effects model. For the simplest random effects model,
+            in which each group has a different random intercept, this is 1, and the basis is a trivial
+            "dummy" intercept vector.
+        num_groups : int
+            Number of groups in a random effects model.
+        rfx_tracker : RandomEffectsTracker
+            Tracking data structures for random effects models.
+        """
+        self.rfx_container_cpp = RandomEffectsContainerCpp()
+        self.rfx_container_cpp.SetComponentsAndGroups(num_components, num_groups)
+        self.rfx_label_mapper_cpp = RandomEffectsLabelMapperCpp()
+        self.rfx_label_mapper_cpp.LoadFromTracker(rfx_tracker.rfx_tracker_cpp)
+        self.rfx_group_ids = rfx_tracker.rfx_tracker_cpp.GetUniqueGroupIds()
+    
+    def load_from_json(self, json, rfx_num: int) -> None:
+        """
+        Initializes internal data structures for an "empty" random effects container to be sampled and populated.
+
+        Parameters
+        ----------
+        json : JSONSerializer
+            Python object wrapping a C++ `json` object.
+        rfx_num : int
+            Integer index of the RFX term in a JSON model. In practice, this is typically 0 (most models don't contain two RFX terms).
+        """
+        rfx_container_key = f'random_effect_container_{rfx_num:d}'
+        rfx_label_mapper_key = f'random_effect_label_mapper_{rfx_num:d}'
+        rfx_group_ids_key = f'random_effect_groupids_{rfx_num:d}'
+        self.rfx_container_cpp = RandomEffectsContainerCpp()
+        self.rfx_container_cpp.LoadFromJson(json.json_cpp, rfx_container_key)
+        self.rfx_label_mapper_cpp = RandomEffectsLabelMapperCpp()
+        self.rfx_label_mapper_cpp.LoadFromJson(json.json_cpp, rfx_label_mapper_key)
+        self.rfx_group_ids = json.get_integer_vector(rfx_group_ids_key, "random_effects")
 
     def num_samples(self) -> int:
         return self.rfx_container_cpp.NumSamples()
@@ -214,6 +241,7 @@ class RandomEffectsContainer:
             In-memory string containing state of a random effects container.
         """
         self.rfx_container_cpp.LoadFromJsonString(json_string)
+        # TODO: re-initialize label mapper
 
     def predict(self, group_labels: np.array, basis: np.array) -> np.ndarray:
         """

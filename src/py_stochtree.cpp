@@ -1246,10 +1246,14 @@ class RandomEffectsLabelMapperCpp;
 
 class RandomEffectsContainerCpp {
  public:
-  RandomEffectsContainerCpp(int num_components, int num_groups) {
-    rfx_container_ = std::make_unique<StochTree::RandomEffectsContainer>(num_components, num_groups);
+  RandomEffectsContainerCpp() {
+    rfx_container_ = std::make_unique<StochTree::RandomEffectsContainer>();
   }
   ~RandomEffectsContainerCpp() {}
+  void SetComponentsAndGroups(int num_components, int num_groups) {
+    rfx_container_->SetNumComponents(num_components);
+    rfx_container_->SetNumGroups(num_groups);
+  }
   void AddSample(RandomEffectsModelCpp& rfx_model);
   int NumSamples() {
     return rfx_container_->NumSamples();
@@ -1276,7 +1280,10 @@ class RandomEffectsContainerCpp {
   void LoadFromJsonString(std::string& json_string) {
     rfx_container_->LoadFromJsonString(json_string);
   }
-  void LoadFromJson(JsonCpp& json, std::string rfx_label);
+  void LoadFromJson(JsonCpp& json, std::string rfx_container_label);
+  StochTree::RandomEffectsContainer* GetRandomEffectsContainer() {
+    return rfx_container_.get();
+  }
  
  private:
   std::unique_ptr<StochTree::RandomEffectsContainer> rfx_container_;
@@ -1293,6 +1300,16 @@ class RandomEffectsTrackerCpp {
     rfx_tracker_ = std::make_unique<StochTree::RandomEffectsTracker>(group_labels_vec);
   }
   ~RandomEffectsTrackerCpp() {}
+  py::array_t<int> GetUniqueGroupIds() {
+    std::vector<int> output = rfx_tracker_->GetUniqueGroupIds();
+    py::ssize_t output_length = output.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({output_length}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < output_length; i++) {
+      accessor(i) = output.at(i);
+    }
+    return result;
+  }
   StochTree::RandomEffectsTracker* GetTracker() {
     return rfx_tracker_.get();
   }
@@ -1303,11 +1320,14 @@ class RandomEffectsTrackerCpp {
 
 class RandomEffectsLabelMapperCpp {
  public:
-  RandomEffectsLabelMapperCpp(RandomEffectsTrackerCpp& rfx_tracker) {
-    StochTree::RandomEffectsTracker* internal_tracker = rfx_tracker.GetTracker();
-    rfx_label_mapper_ = std::make_unique<StochTree::LabelMapper>(internal_tracker->GetLabelMap());
+  RandomEffectsLabelMapperCpp() {
+    rfx_label_mapper_ = std::make_unique<StochTree::LabelMapper>();
   }
   ~RandomEffectsLabelMapperCpp() {}
+  void LoadFromTracker(RandomEffectsTrackerCpp& rfx_tracker) {
+    StochTree::RandomEffectsTracker* internal_tracker = rfx_tracker.GetTracker();
+    rfx_label_mapper_->LoadFromLabelMap(internal_tracker->GetLabelMap());
+  }
   void SaveToJsonFile(std::string json_filename) {
     rfx_label_mapper_->SaveToJsonFile(json_filename);
   }
@@ -1320,7 +1340,7 @@ class RandomEffectsLabelMapperCpp {
   void LoadFromJsonString(std::string& json_string) {
     rfx_label_mapper_->LoadFromJsonString(json_string);
   }
-  void LoadFromJson(JsonCpp& json, std::string rfx_label);
+  void LoadFromJson(JsonCpp& json, std::string rfx_label_mapper_label);
   StochTree::LabelMapper* GetLabelMapper() {
     return rfx_label_mapper_.get();
   }
@@ -1410,6 +1430,9 @@ class JsonCpp {
     nlohmann::json forests = nlohmann::json::object();
     json_->emplace("forests", forests);
     json_->emplace("num_forests", 0);
+    nlohmann::json rfx = nlohmann::json::object();
+    json_->emplace("random_effects", rfx);
+    json_->emplace("num_random_effects", 0);
   }
   ~JsonCpp() {}
 
@@ -1438,6 +1461,38 @@ class JsonCpp {
     json_->at("forests").emplace(forest_label, forest_json);
     json_->at("num_forests") = forest_num + 1;
     return forest_label;
+  }
+
+  std::string AddRandomEffectsContainer(RandomEffectsContainerCpp& rfx_samples) {
+    int rfx_num = json_->at("num_random_effects");
+    std::string rfx_label = "random_effect_container_" + std::to_string(rfx_num);
+    nlohmann::json rfx_json = rfx_samples.GetRandomEffectsContainer()->to_json();
+    json_->at("random_effects").emplace(rfx_label, rfx_json);
+    return rfx_label;
+  }
+
+  std::string AddRandomEffectsLabelMapper(RandomEffectsLabelMapperCpp& rfx_label_mapper) {
+    int rfx_num = json_->at("num_random_effects");
+    std::string rfx_label = "random_effect_label_mapper_" + std::to_string(rfx_num);
+    nlohmann::json rfx_json = rfx_label_mapper.GetLabelMapper()->to_json();
+    json_->at("random_effects").emplace(rfx_label, rfx_json);
+    return rfx_label;
+  }
+
+  std::string AddRandomEffectsGroupIDs(py::array_t<int> rfx_group_ids) {
+    int rfx_num = json_->at("num_random_effects");
+    std::string rfx_label = "random_effect_groupids_" + std::to_string(rfx_num);
+    nlohmann::json groupids_json = nlohmann::json::array();
+    for (int i = 0; i < rfx_group_ids.size(); i++) {
+      groupids_json.emplace_back(rfx_group_ids.at(i));
+  }
+    json_->at("random_effects").emplace(rfx_label, groupids_json);
+    return rfx_label;
+  }
+
+  void IncrementRandomEffectsCount() {
+    int rfx_num = json_->at("num_random_effects");
+    json_->at("num_random_effects") = rfx_num + 1;
   }
 
   void AddDouble(std::string field_name, double field_value) {
@@ -1762,8 +1817,8 @@ class JsonCpp {
     return json_->at("forests").at(forest_label);
   }
 
-  nlohmann::json SubsetJsonRFX(std::string rfx_label) {
-    return json_->at("random_effects").at(rfx_label);
+  nlohmann::json SubsetJsonRFX() {
+    return json_->at("random_effects");
   }
 
  private:
@@ -1796,8 +1851,8 @@ void ForestCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual,
   StochTree::UpdateResidualEntireForest(*(sampler.GetTracker()), *(dataset.GetDataset()), *(residual.GetData()), forest_.get(), requires_basis, op);
 }
 
-void RandomEffectsContainerCpp::LoadFromJson(JsonCpp& json, std::string rfx_label) {
-  nlohmann::json rfx_json = json.SubsetJsonRFX(rfx_label);
+void RandomEffectsContainerCpp::LoadFromJson(JsonCpp& json, std::string rfx_container_label) {
+  nlohmann::json rfx_json = json.SubsetJsonRFX().at(rfx_container_label);
   rfx_container_->Reset();
   rfx_container_->from_json(rfx_json);
 }
@@ -1821,8 +1876,8 @@ py::array_t<double> RandomEffectsContainerCpp::Predict(RandomEffectsDatasetCpp& 
   return result;
 }
 
-void RandomEffectsLabelMapperCpp::LoadFromJson(JsonCpp& json, std::string rfx_label) {
-  nlohmann::json rfx_json = json.SubsetJsonRFX(rfx_label);
+void RandomEffectsLabelMapperCpp::LoadFromJson(JsonCpp& json, std::string rfx_label_mapper_label) {
+  nlohmann::json rfx_json = json.SubsetJsonRFX().at(rfx_label_mapper_label);
   rfx_label_mapper_->Reset();
   rfx_label_mapper_->from_json(rfx_json);
 }
@@ -1857,6 +1912,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("AddStringVector", &JsonCpp::AddStringVector)
     .def("AddStringVectorSubfolder", &JsonCpp::AddStringVectorSubfolder)
     .def("AddForest", &JsonCpp::AddForest)
+    .def("AddRandomEffectsContainer", &JsonCpp::AddRandomEffectsContainer)
+    .def("AddRandomEffectsLabelMapper", &JsonCpp::AddRandomEffectsLabelMapper)
+    .def("AddRandomEffectsGroupIDs", &JsonCpp::AddRandomEffectsGroupIDs)
     .def("ContainsField", &JsonCpp::ContainsField)
     .def("ContainsFieldSubfolder", &JsonCpp::ContainsFieldSubfolder)
     .def("ExtractDouble", &JsonCpp::ExtractDouble)
@@ -1873,9 +1931,10 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("ExtractIntegerVectorSubfolder", &JsonCpp::ExtractIntegerVectorSubfolder)
     .def("ExtractStringVector", &JsonCpp::ExtractStringVector)
     .def("ExtractStringVectorSubfolder", &JsonCpp::ExtractStringVectorSubfolder)
+    .def("IncrementRandomEffectsCount", &JsonCpp::IncrementRandomEffectsCount)
     .def("SubsetJsonForest", &JsonCpp::SubsetJsonForest)
     .def("SubsetJsonRFX", &JsonCpp::SubsetJsonRFX);
-  
+
   py::class_<ForestDatasetCpp>(m, "ForestDatasetCpp")
     .def(py::init<>())
     .def("AddCovariates", &ForestDatasetCpp::AddCovariates)
@@ -2009,7 +2068,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("HasVarianceWeights", &RandomEffectsDatasetCpp::HasVarianceWeights);
 
   py::class_<RandomEffectsContainerCpp>(m, "RandomEffectsContainerCpp")
-    .def(py::init<int,int>())
+    .def(py::init<>())
+    .def("SetComponentsAndGroups", &RandomEffectsContainerCpp::SetComponentsAndGroups)
     .def("AddSample", &RandomEffectsContainerCpp::AddSample)
     .def("NumSamples", &RandomEffectsContainerCpp::NumSamples)
     .def("NumComponents", &RandomEffectsContainerCpp::NumComponents)
@@ -2020,14 +2080,17 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("LoadFromJsonFile", &RandomEffectsContainerCpp::LoadFromJsonFile)
     .def("DumpJsonString", &RandomEffectsContainerCpp::DumpJsonString)
     .def("LoadFromJsonString", &RandomEffectsContainerCpp::LoadFromJsonString)
-    .def("LoadFromJson", &RandomEffectsContainerCpp::LoadFromJson);
+    .def("LoadFromJson", &RandomEffectsContainerCpp::LoadFromJson)
+    .def("GetRandomEffectsContainer", &RandomEffectsContainerCpp::GetRandomEffectsContainer);
 
   py::class_<RandomEffectsTrackerCpp>(m, "RandomEffectsTrackerCpp")
     .def(py::init<py::array_t<int>>())
+    .def("GetUniqueGroupIds", &RandomEffectsTrackerCpp::GetUniqueGroupIds)
     .def("GetTracker", &RandomEffectsTrackerCpp::GetTracker);
 
   py::class_<RandomEffectsLabelMapperCpp>(m, "RandomEffectsLabelMapperCpp")
-    .def(py::init<RandomEffectsTrackerCpp&>())
+    .def(py::init<>())
+    .def("LoadFromTracker", &RandomEffectsLabelMapperCpp::LoadFromTracker)
     .def("SaveToJsonFile", &RandomEffectsLabelMapperCpp::SaveToJsonFile)
     .def("LoadFromJsonFile", &RandomEffectsLabelMapperCpp::LoadFromJsonFile)
     .def("DumpJsonString", &RandomEffectsLabelMapperCpp::DumpJsonString)

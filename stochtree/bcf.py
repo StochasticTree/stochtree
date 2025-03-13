@@ -13,6 +13,7 @@ from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
+from .random_effects import RandomEffectsContainer, RandomEffectsDataset, RandomEffectsModel, RandomEffectsTracker
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import NotSampledError
@@ -73,9 +74,13 @@ class BCFModel:
         Z_train: np.array,
         y_train: np.array,
         pi_train: np.array = None,
+        rfx_group_ids_train: np.array = None,
+        rfx_basis_train: np.array = None,
         X_test: Union[pd.DataFrame, np.array] = None,
         Z_test: np.array = None,
         pi_test: np.array = None,
+        rfx_group_ids_test: np.array = None,
+        rfx_basis_test: np.array = None,
         num_gfr: int = 5,
         num_burnin: int = 0,
         num_mcmc: int = 100,
@@ -97,6 +102,10 @@ class BCFModel:
             Outcome to be modeled by the ensemble.
         pi_train : np.array
             Optional vector of propensity scores. If not provided, this will be estimated from the data.
+        rfx_group_ids_train : np.array, optional
+            Optional group labels used for an additive random effects model.
+        rfx_basis_train : np.array, optional
+            Optional basis for "random-slope" regression in an additive random effects model.
         X_test : np.array, optional
             Optional test set of covariates used to define "out of sample" evaluation data.
         Z_test : np.array, optional
@@ -104,6 +113,11 @@ class BCFModel:
             Must be provided if `X_test` is provided.
         pi_test : np.array, optional
             Optional test set vector of propensity scores. If not provided (but `X_test` and `Z_test` are), this will be estimated from the data.
+        rfx_group_ids_test : np.array, optional
+            Optional test set group labels used for an additive random effects model. We do not currently support (but plan to in the near future), 
+            test set evaluation for group labels that were not in the training set.
+        rfx_basis_test : np.array, optional
+            Optional test set basis for "random-slope" regression in additive random effects model.
         num_gfr : int, optional
             Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Defaults to `5`.
         num_burnin : int, optional
@@ -357,6 +371,22 @@ class BCFModel:
         if pi_test is not None:
             if not isinstance(pi_test, np.ndarray):
                 raise ValueError("pi_test must be a numpy array")
+        if rfx_group_ids_train is not None:
+            if not isinstance(rfx_group_ids_train, np.ndarray):
+                raise ValueError("rfx_group_ids_train must be a numpy array")
+            if not np.issubdtype(rfx_group_ids_train.dtype, np.integer):
+                raise ValueError("rfx_group_ids_train must be a numpy array of integer-valued group IDs")
+        if rfx_basis_train is not None:
+            if not isinstance(rfx_basis_train, np.ndarray):
+                raise ValueError("rfx_basis_train must be a numpy array")
+        if rfx_group_ids_test is not None:
+            if not isinstance(rfx_group_ids_test, np.ndarray):
+                raise ValueError("rfx_group_ids_test must be a numpy array")
+            if not np.issubdtype(rfx_group_ids_test.dtype, np.integer):
+                raise ValueError("rfx_group_ids_test must be a numpy array of integer-valued group IDs")
+        if rfx_basis_test is not None:
+            if not isinstance(rfx_basis_test, np.ndarray):
+                raise ValueError("rfx_basis_test must be a numpy array")
 
         # Convert everything to standard shape (2-dimensional)
         if isinstance(X_train, np.ndarray):
@@ -380,6 +410,18 @@ class BCFModel:
         if pi_test is not None:
             if pi_test.ndim == 1:
                 pi_test = np.expand_dims(pi_test, 1)
+        if rfx_group_ids_train is not None:
+            if rfx_group_ids_train.ndim != 1:
+                rfx_group_ids_train = np.squeeze(rfx_group_ids_train)
+        if rfx_group_ids_test is not None:
+            if rfx_group_ids_test.ndim != 1:
+                rfx_group_ids_test = np.squeeze(rfx_group_ids_test)
+        if rfx_basis_train is not None:
+            if rfx_basis_train.ndim == 1:
+                rfx_basis_train = np.expand_dims(rfx_basis_train, 1)
+        if rfx_basis_test is not None:
+            if rfx_basis_test.ndim == 1:
+                rfx_basis_test = np.expand_dims(rfx_basis_test, 1)
 
         # Original number of covariates
         num_cov_orig = X_train.shape[1]
@@ -1128,6 +1170,59 @@ class BCFModel:
                 a_forest = 1.0
             if not b_forest:
                 b_forest = 1.0
+        
+        # Runtime checks on RFX group ids
+        self.has_rfx = False
+        has_rfx_test = False
+        if rfx_group_ids_train is not None:
+            self.has_rfx = True
+            if rfx_group_ids_test is not None:
+                has_rfx_test = True
+                if not np.all(np.isin(rfx_group_ids_test, rfx_group_ids_train)):
+                    raise ValueError("All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train")
+        
+        # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided 
+        has_basis_rfx = False
+        if self.has_rfx:
+            if rfx_basis_train is None:
+                rfx_basis_train = np.ones((rfx_group_ids_train.shape[0],1))
+            else:
+                has_basis_rfx = True
+            num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
+            num_rfx_components = rfx_basis_train.shape[1]
+            # TODO warn if num_rfx_groups is 1
+        if has_rfx_test:
+            if rfx_basis_test is None:
+                if has_basis_rfx:
+                    raise ValueError("Random effects basis provided for training set, must also be provided for the test set")
+                rfx_basis_test = np.ones((rfx_group_ids_test.shape[0],1))
+        
+        # Set up random effects structures
+        if self.has_rfx:
+            if num_rfx_components == 1:
+                alpha_init = np.array([1])
+            elif num_rfx_components > 1:
+                alpha_init = np.concatenate((np.ones(1), np.zeros(num_rfx_components-1)))
+            else:
+                raise ValueError("There must be at least 1 random effect component")
+            xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
+            sigma_alpha_init = np.identity(num_rfx_components)
+            sigma_xi_init = np.identity(num_rfx_components)
+            sigma_xi_shape = 1.
+            sigma_xi_scale = 1.
+            rfx_dataset_train = RandomEffectsDataset()
+            rfx_dataset_train.add_group_labels(rfx_group_ids_train)
+            rfx_dataset_train.add_basis(rfx_basis_train)
+            rfx_tracker = RandomEffectsTracker(rfx_group_ids_train)
+            rfx_model = RandomEffectsModel(num_rfx_components, num_rfx_groups)
+            rfx_model.set_working_parameter(alpha_init)
+            rfx_model.set_group_parameters(xi_init)
+            rfx_model.set_working_parameter_covariance(sigma_alpha_init)
+            rfx_model.set_group_parameter_covariance(sigma_xi_init)
+            rfx_model.set_variance_prior_shape(sigma_xi_shape)
+            rfx_model.set_variance_prior_scale(sigma_xi_scale)
+            self.rfx_container = RandomEffectsContainer()
+            self.rfx_container.load_new_container(num_rfx_components, num_rfx_groups, rfx_tracker)
 
         # Update variable weights
         variable_counts = [original_var_indices.count(i) for i in original_var_indices]
@@ -1516,6 +1611,12 @@ class BCFModel:
                         self.leaf_scale_tau_samples[sample_counter] = (
                             current_leaf_scale_tau[0, 0]
                         )
+                
+                # Sample random effects
+                if self.has_rfx:
+                    rfx_model.sample(
+                        rfx_dataset_train, residual_train, rfx_tracker, self.rfx_container, keep_sample, current_sigma2, cpp_rng
+                    )
 
         # Run MCMC
         if num_burnin + num_mcmc > 0:
@@ -1658,6 +1759,12 @@ class BCFModel:
                         self.leaf_scale_tau_samples[sample_counter] = (
                             current_leaf_scale_tau[0, 0]
                         )
+                
+                # Sample random effects
+                if self.has_rfx:
+                    rfx_model.sample(
+                        rfx_dataset_train, residual_train, rfx_tracker, self.rfx_container, keep_sample, current_sigma2, cpp_rng
+                    )
 
         # Mark the model as sampled
         self.sampled = True
@@ -1669,6 +1776,8 @@ class BCFModel:
                 self.forest_container_tau.delete_sample(i)
                 if self.include_variance_forest:
                     self.forest_container_variance.delete_sample(i)
+                if self.has_rfx:
+                    self.rfx_container.delete_sample(i)
             if self.adaptive_coding:
                 self.b1_samples = self.b1_samples[num_gfr:]
                 self.b0_samples = self.b0_samples[num_gfr:]
@@ -1725,6 +1834,15 @@ class BCFModel:
                 treatment_term_test = Z_test * np.squeeze(self.tau_hat_test)
             self.y_hat_test = self.mu_hat_test + treatment_term_test
 
+        # TODO: make rfx_preds_train and rfx_preds_test persistent properties
+        if self.has_rfx:
+            rfx_preds_train = self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train) * self.y_std
+            if has_rfx_test:
+                rfx_preds_test = self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test) * self.y_std
+            self.y_hat_train = self.y_hat_train + rfx_preds_train
+            if self.has_test:
+                self.y_hat_test = self.y_hat_test + rfx_preds_test
+        
         if self.include_variance_forest:
             sigma2_x_train_raw = (
                 self.forest_container_variance.forest_container_cpp.Predict(
@@ -1938,7 +2056,7 @@ class BCFModel:
 
         return variance_pred
 
-    def predict(self, X: np.array, Z: np.array, propensity: np.array = None) -> tuple:
+    def predict(self, X: np.array, Z: np.array, propensity: np.array = None, rfx_group_ids: np.array = None, rfx_basis: np.array = None) -> tuple:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.
 
@@ -1950,6 +2068,10 @@ class BCFModel:
             Test set treatment indicators.
         propensity : `np.array`, optional
             Optional test set propensities. Must be provided if propensities were provided when the model was sampled.
+        rfx_group_ids : np.array, optional
+            Optional group labels used for an additive random effects model.
+        rfx_basis : np.array, optional
+            Optional basis for "random-slope" regression in an additive random effects model.
 
         Returns
         -------
@@ -1957,6 +2079,8 @@ class BCFModel:
             Conditional average treatment effect (CATE) samples for every observation provided.
         mu_x : np.array
             Prognostic effect samples for every observation provided.
+        rfx : np.array, optional
+            Random effect samples for every observation provided, if the model includes a random effects term.
         yhat_x : np.array
             Outcome prediction samples for every observation provided.
         sigma2_x : np.array, optional
@@ -2031,6 +2155,10 @@ class BCFModel:
         else:
             treatment_term = Z * np.squeeze(tau_x)
         yhat_x = mu_x + treatment_term
+        
+        if self.has_rfx:
+            rfx_preds = self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+            yhat_x = yhat_x + rfx_preds
 
         # Compute predictions from the variance forest (if included)
         if self.include_variance_forest:
@@ -2051,8 +2179,12 @@ class BCFModel:
                 )
 
         # Return result matrices as a tuple
-        if self.include_variance_forest:
+        if self.has_rfx and self.include_variance_forest:
+            return (tau_x, mu_x, rfx_preds, yhat_x, sigma2_x)
+        elif not self.has_rfx and self.include_variance_forest:
             return (tau_x, mu_x, yhat_x, sigma2_x)
+        elif self.has_rfx and not self.include_variance_forest:
+            return (tau_x, mu_x, rfx_preds, yhat_x)
         else:
             return (tau_x, mu_x, yhat_x)
 
@@ -2082,6 +2214,10 @@ class BCFModel:
         if self.include_variance_forest:
             bcf_json.add_forest(self.forest_container_variance)
 
+        # Add the rfx
+        if self.has_rfx:
+            bcf_json.add_random_effects(self.rfx_container)
+
         # Add global parameters
         bcf_json.add_scalar("variance_scale", self.variance_scale)
         bcf_json.add_scalar("outcome_scale", self.y_std)
@@ -2092,6 +2228,7 @@ class BCFModel:
         bcf_json.add_boolean("sample_sigma_leaf_mu", self.sample_sigma_leaf_mu)
         bcf_json.add_boolean("sample_sigma_leaf_tau", self.sample_sigma_leaf_tau)
         bcf_json.add_boolean("include_variance_forest", self.include_variance_forest)
+        bcf_json.add_boolean("has_rfx", self.has_rfx)
         bcf_json.add_scalar("num_gfr", self.num_gfr)
         bcf_json.add_scalar("num_burnin", self.num_burnin)
         bcf_json.add_scalar("num_mcmc", self.num_mcmc)
@@ -2145,6 +2282,7 @@ class BCFModel:
 
         # Unpack forests
         self.include_variance_forest = bcf_json.get_boolean("include_variance_forest")
+        self.has_rfx = bcf_json.get_boolean("has_rfx")
         # TODO: don't just make this a placeholder that we overwrite
         self.forest_container_mu = ForestContainer(0, 0, False, False)
         self.forest_container_mu.forest_container_cpp.LoadFromJson(
@@ -2161,6 +2299,11 @@ class BCFModel:
             self.forest_container_variance.forest_container_cpp.LoadFromJson(
                 bcf_json.json_cpp, "forest_2"
             )
+        
+        # Unpack random effects
+        if self.has_rfx:
+            self.rfx_container = RandomEffectsContainer()
+            self.rfx_container.load_from_json(bcf_json, 0)
 
         # Unpack global parameters
         self.variance_scale = bcf_json.get_scalar("variance_scale")

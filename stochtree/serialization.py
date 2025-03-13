@@ -15,7 +15,9 @@ class JSONSerializer:
     def __init__(self) -> None:
         self.json_cpp = JsonCpp()
         self.num_forests = 0
+        self.num_rfx = 0
         self.forest_labels = []
+        self.rfx_labels = []
 
     def return_json_string(self) -> str:
         """
@@ -50,6 +52,20 @@ class JSONSerializer:
         forest_label = self.json_cpp.AddForest(forest_samples.forest_container_cpp)
         self.num_forests += 1
         self.forest_labels.append(forest_label)
+
+    def add_random_effects(self, rfx_container: RandomEffectsContainer) -> None:
+        """Adds a container of random effect samples to a json object
+
+        Parameters
+        ----------
+        rfx_container : RandomEffectsContainer
+            Samples of a random effects model
+        """
+        _ = self.json_cpp.AddRandomEffectsContainer(rfx_container.rfx_container_cpp)
+        _ = self.json_cpp.AddRandomEffectsLabelMapper(rfx_container.rfx_label_mapper_cpp)
+        _ = self.json_cpp.AddRandomEffectsGroupIDs(rfx_container.rfx_group_ids)
+        self.json_cpp.IncrementRandomEffectsCount()
+        self.num_rfx += 1
 
     def add_scalar(
         self, field_name: str, field_value: float, subfolder_name: str = None
@@ -371,7 +387,7 @@ class JSONSerializer:
             In-memory `RandomEffectsContainer` python object, created from JSON
         """
         # TODO: read this from JSON
-        result = RandomEffectsContainer(0, 0)
+        result = RandomEffectsContainer()
         result.random_effects_container_cpp.LoadFromJson(
             self.json_cpp, random_effects_str
         )

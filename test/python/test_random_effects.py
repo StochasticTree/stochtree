@@ -56,7 +56,8 @@ class TestRandomEffects:
         rfx_model.set_group_parameter_covariance(np.identity(num_basis))
         rfx_model.set_variance_prior_shape(1.0)
         rfx_model.set_variance_prior_scale(1.0)
-        rfx_container = RandomEffectsContainer(num_basis, num_groups, rfx_tracker)
+        rfx_container = RandomEffectsContainer()
+        rfx_container.load_new_container(num_basis, num_groups, rfx_tracker)
         cpp_rng = RNG()
 
         # Sample the model
@@ -121,7 +122,8 @@ class TestRandomEffects:
         rfx_model.set_group_parameter_covariance(np.identity(num_basis))
         rfx_model.set_variance_prior_shape(1.0)
         rfx_model.set_variance_prior_scale(1.0)
-        rfx_container = RandomEffectsContainer(num_basis, num_groups, rfx_tracker)
+        rfx_container = RandomEffectsContainer()
+        rfx_container.load_new_container(num_basis, num_groups, rfx_tracker)
         cpp_rng = RNG()
 
         # Sample the model
