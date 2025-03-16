@@ -35,7 +35,7 @@
 #' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided, 
 #' this function will return leaf indices for every sample of a forest. 
 #' This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
-#' @return List of vectors. Each vector is of size `num_obs * num_trees`, where `num_obs = nrow(covariates)` 
+#' @return Vector of size `num_obs * num_trees`, where `num_obs = nrow(covariates)` 
 #' and `num_trees` is the number of trees in the relevant forest of `model_object`. 
 #' @export
 #' 
