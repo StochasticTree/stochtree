@@ -299,6 +299,10 @@ class BCFModel:
         keep_vars_variance = variance_forest_params_updated['keep_vars']
         drop_vars_variance = variance_forest_params_updated['drop_vars']
                 
+        # Override keep_gfr if there are no MCMC samples
+        if num_mcmc == 0:
+            keep_gfr = True
+        
         # Variable weight preprocessing (and initialization if necessary)
         if variable_weights is None:
             if X_train.ndim > 1:

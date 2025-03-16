@@ -226,6 +226,10 @@ class BARTModel:
         keep_vars_variance = variance_forest_params_updated['keep_vars']
         drop_vars_variance = variance_forest_params_updated['drop_vars']
     
+        # Override keep_gfr if there are no MCMC samples
+        if num_mcmc == 0:
+            keep_gfr = True
+        
         # Check that num_chains >= 1
         if not isinstance(num_chains, Integral) or num_chains < 1:
             raise ValueError("num_chains must be an integer greater than 0")
