@@ -1055,10 +1055,10 @@ class BCFModel:
         # Remove GFR samples if they are not to be retained
         if not keep_gfr and num_gfr > 0:
             for i in range(num_gfr):
-                self.forest_container_mu.delete_sample(i)
-                self.forest_container_tau.delete_sample(i)
+                self.forest_container_mu.delete_sample(0)
+                self.forest_container_tau.delete_sample(0)
                 if self.include_variance_forest:
-                    self.forest_container_variance.delete_sample(i)
+                    self.forest_container_variance.delete_sample(0)
             if self.adaptive_coding:
                 self.b1_samples = self.b1_samples[num_gfr:]
                 self.b0_samples = self.b0_samples[num_gfr:]

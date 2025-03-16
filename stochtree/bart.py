@@ -684,9 +684,9 @@ class BARTModel:
         if not keep_gfr and num_gfr > 0:
             for i in range(num_gfr):
                 if self.include_mean_forest:
-                    self.forest_container_mean.delete_sample(i)
+                    self.forest_container_mean.delete_sample(0)
                 if self.include_variance_forest:
-                    self.forest_container_variance.delete_sample(i)
+                    self.forest_container_variance.delete_sample(0)
             if self.sample_sigma_global:
                 self.global_var_samples = self.global_var_samples[num_gfr:]
             if self.sample_sigma_leaf:

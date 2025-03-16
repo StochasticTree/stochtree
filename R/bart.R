@@ -826,13 +826,13 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     if ((!keep_gfr) && (num_gfr > 0)) {
         for (i in 1:num_gfr) {
             if (include_mean_forest) {
-                forest_samples_mean$delete_sample(i-1)
+                forest_samples_mean$delete_sample(0)
             }
             if (include_variance_forest) {
-                forest_samples_variance$delete_sample(i-1)
+                forest_samples_variance$delete_sample(0)
             }
             if (has_rfx) {
-                rfx_samples$delete_sample(i-1)
+                rfx_samples$delete_sample(0)
             }
         }
         if (sample_sigma_global) {
