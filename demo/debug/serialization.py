@@ -1,7 +1,8 @@
 import numpy as np
 from stochtree import (
     BARTModel, JSONSerializer, ForestContainer, Dataset, Residual, 
-    RNG, ForestSampler, ForestContainer, GlobalVarianceModel
+    RNG, ForestSampler, ForestContainer, GlobalVarianceModel, 
+    GlobalModelConfig, ForestModelConfig, Forest
 )
 
 # RNG
@@ -53,6 +54,7 @@ b_leaf = 0.5
 leaf_regression = True
 feature_types = np.repeat(0, p_X).astype(int) # 0 = numeric
 var_weights = np.repeat(1/p_X, p_X)
+leaf_model_type = 1 if p_W == 1 else 2
 
 # Dataset (covariates and basis)
 dataset = Dataset()
@@ -64,7 +66,14 @@ residual = Residual(resid)
 
 # Forest samplers and temporary tracking data structures
 forest_container = ForestContainer(num_trees, W.shape[1], False, False)
-forest_sampler = ForestSampler(dataset, feature_types, num_trees, n, alpha, beta, min_samples_leaf)
+active_forest = Forest(num_trees, W.shape[1], False, False)
+global_config = GlobalModelConfig(global_error_variance=global_variance_init)
+forest_config = ForestModelConfig(num_trees=num_trees, num_features=p_X, num_observations=n, 
+                                  feature_types=feature_types, variable_weights=var_weights, 
+                                  leaf_dimension=W.shape[1], alpha=alpha, beta=beta, 
+                                  min_samples_leaf=min_samples_leaf, leaf_model_type=leaf_model_type, 
+                                  leaf_model_scale=leaf_prior_scale, cutpoint_grid_size=cutpoint_grid_size)
+forest_sampler = ForestSampler(dataset, global_config=global_config, forest_config=forest_config)
 cpp_rng = RNG(random_seed)
 global_var_model = GlobalVarianceModel()
 
@@ -74,14 +83,18 @@ num_mcmc = 100
 num_samples = num_warmstart + num_mcmc
 global_var_samples = np.concatenate((np.array([global_variance_init]), np.repeat(0, num_samples)))
 
+# Initialize the forest
+constant_leaf_value = np.repeat(0.0, p_W)
+active_forest.set_root_leaves(constant_leaf_value)
+
 # Run "grow-from-root" sampler
 for i in range(num_warmstart):
-    forest_sampler.sample_one_iteration(forest_container, dataset, residual, cpp_rng, feature_types, cutpoint_grid_size, leaf_prior_scale, var_weights, 1., 1., global_var_samples[i], 1, True, False)
+    forest_sampler.sample_one_iteration(forest_container, active_forest, dataset, residual, cpp_rng, global_config, forest_config, True, False)
     global_var_samples[i+1] = global_var_model.sample_one_iteration(residual, cpp_rng, a_global, b_global)
 
 # Run MCMC sampler
 for i in range(num_warmstart, num_samples):
-    forest_sampler.sample_one_iteration(forest_container, dataset, residual, cpp_rng, feature_types, cutpoint_grid_size, leaf_prior_scale, var_weights, 1., 1., global_var_samples[i], 1, False, False)
+    forest_sampler.sample_one_iteration(forest_container, active_forest, dataset, residual, cpp_rng, global_config, forest_config, False, False)
     global_var_samples[i+1] = global_var_model.sample_one_iteration(residual, cpp_rng, a_global, b_global)
 
 # Extract predictions from the sampler

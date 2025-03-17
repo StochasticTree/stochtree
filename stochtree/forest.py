@@ -890,10 +890,14 @@ class Forest:
         if not isinstance(leaf_value, np.ndarray) and not isinstance(leaf_value, float):
             raise ValueError("leaf_value must be either a float or np.array")
         if isinstance(leaf_value, np.ndarray):
-            leaf_value = np.squeeze(leaf_value)
-            if len(leaf_value.shape) != 1:
-                raise ValueError("leaf_value must be either a one-dimensional array")
-            self.forest_cpp.SetRootVector(leaf_value, leaf_value.shape[0])
+            if len(leaf_value.shape) > 1:
+                leaf_value = np.squeeze(leaf_value)
+            if len(leaf_value.shape) != 1 or leaf_value.shape[0] != self.output_dimension:
+                raise ValueError("leaf_value must be a one-dimensional array with dimension equal to the output_dimension field of the forest")
+            if leaf_value.shape[0] > 1:
+                self.forest_cpp.SetRootVector(leaf_value, leaf_value.shape[0])
+            else:
+                self.forest_cpp.SetRootValue(np.squeeze(leaf_value))
         else:
             self.forest_cpp.SetRootValue(leaf_value)
         self.internal_forest_is_empty = False
