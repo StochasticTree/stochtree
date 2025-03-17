@@ -319,20 +319,22 @@ class BCFModel:
         drop_vars_tau = treatment_effect_forest_params_updated["drop_vars"]
 
         # 4. Variance forest parameters
-        num_trees_variance = variance_forest_params_updated["num_trees"]
-        alpha_variance = variance_forest_params_updated["alpha"]
-        beta_variance = variance_forest_params_updated["beta"]
-        min_samples_leaf_variance = variance_forest_params_updated["min_samples_leaf"]
-        max_depth_variance = variance_forest_params_updated["max_depth"]
-        a_0 = variance_forest_params_updated["leaf_prior_calibration_param"]
-        variance_forest_leaf_init = variance_forest_params_updated[
-            "var_forest_leaf_init"
-        ]
-        a_forest = variance_forest_params_updated["var_forest_prior_shape"]
-        b_forest = variance_forest_params_updated["var_forest_prior_scale"]
-        keep_vars_variance = variance_forest_params_updated["keep_vars"]
-        drop_vars_variance = variance_forest_params_updated["drop_vars"]
-
+        num_trees_variance = variance_forest_params_updated['num_trees']
+        alpha_variance = variance_forest_params_updated['alpha']
+        beta_variance = variance_forest_params_updated['beta']
+        min_samples_leaf_variance = variance_forest_params_updated['min_samples_leaf']
+        max_depth_variance = variance_forest_params_updated['max_depth']
+        a_0 = variance_forest_params_updated['leaf_prior_calibration_param']
+        variance_forest_leaf_init = variance_forest_params_updated['var_forest_leaf_init']
+        a_forest = variance_forest_params_updated['var_forest_prior_shape']
+        b_forest = variance_forest_params_updated['var_forest_prior_scale']
+        keep_vars_variance = variance_forest_params_updated['keep_vars']
+        drop_vars_variance = variance_forest_params_updated['drop_vars']
+                
+        # Override keep_gfr if there are no MCMC samples
+        if num_mcmc == 0:
+            keep_gfr = True
+        
         # Variable weight preprocessing (and initialization if necessary)
         if variable_weights is None:
             if X_train.ndim > 1:
@@ -1772,12 +1774,12 @@ class BCFModel:
         # Remove GFR samples if they are not to be retained
         if not keep_gfr and num_gfr > 0:
             for i in range(num_gfr):
-                self.forest_container_mu.delete_sample(i)
-                self.forest_container_tau.delete_sample(i)
+                self.forest_container_mu.delete_sample(0)
+                self.forest_container_tau.delete_sample(0)
                 if self.include_variance_forest:
-                    self.forest_container_variance.delete_sample(i)
+                    self.forest_container_variance.delete_sample(0)
                 if self.has_rfx:
-                    self.rfx_container.delete_sample(i)
+                    self.rfx_container.delete_sample(0)
             if self.adaptive_coding:
                 self.b1_samples = self.b1_samples[num_gfr:]
                 self.b0_samples = self.b0_samples[num_gfr:]

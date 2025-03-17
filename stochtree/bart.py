@@ -244,20 +244,22 @@ class BARTModel:
         drop_vars_mean = mean_forest_params_updated["drop_vars"]
 
         # 3. Variance forest parameters
-        num_trees_variance = variance_forest_params_updated["num_trees"]
-        alpha_variance = variance_forest_params_updated["alpha"]
-        beta_variance = variance_forest_params_updated["beta"]
-        min_samples_leaf_variance = variance_forest_params_updated["min_samples_leaf"]
-        max_depth_variance = variance_forest_params_updated["max_depth"]
-        a_0 = variance_forest_params_updated["leaf_prior_calibration_param"]
-        variance_forest_leaf_init = variance_forest_params_updated[
-            "var_forest_leaf_init"
-        ]
-        a_forest = variance_forest_params_updated["var_forest_prior_shape"]
-        b_forest = variance_forest_params_updated["var_forest_prior_scale"]
-        keep_vars_variance = variance_forest_params_updated["keep_vars"]
-        drop_vars_variance = variance_forest_params_updated["drop_vars"]
-
+        num_trees_variance = variance_forest_params_updated['num_trees']
+        alpha_variance = variance_forest_params_updated['alpha']
+        beta_variance = variance_forest_params_updated['beta']
+        min_samples_leaf_variance = variance_forest_params_updated['min_samples_leaf']
+        max_depth_variance = variance_forest_params_updated['max_depth']
+        a_0 = variance_forest_params_updated['leaf_prior_calibration_param']
+        variance_forest_leaf_init = variance_forest_params_updated['var_forest_leaf_init']
+        a_forest = variance_forest_params_updated['var_forest_prior_shape']
+        b_forest = variance_forest_params_updated['var_forest_prior_scale']
+        keep_vars_variance = variance_forest_params_updated['keep_vars']
+        drop_vars_variance = variance_forest_params_updated['drop_vars']
+    
+        # Override keep_gfr if there are no MCMC samples
+        if num_mcmc == 0:
+            keep_gfr = True
+        
         # Check that num_chains >= 1
         if not isinstance(num_chains, Integral) or num_chains < 1:
             raise ValueError("num_chains must be an integer greater than 0")
@@ -1091,11 +1093,11 @@ class BARTModel:
         if not keep_gfr and num_gfr > 0:
             for i in range(num_gfr):
                 if self.include_mean_forest:
-                    self.forest_container_mean.delete_sample(i)
+                    self.forest_container_mean.delete_sample(0)
                 if self.include_variance_forest:
-                    self.forest_container_variance.delete_sample(i)
+                    self.forest_container_variance.delete_sample(0)
                 if self.has_rfx:
-                    self.rfx_container.delete_sample(i)
+                    self.rfx_container.delete_sample(0)
             if self.sample_sigma_global:
                 self.global_var_samples = self.global_var_samples[num_gfr:]
             if self.sample_sigma_leaf:
