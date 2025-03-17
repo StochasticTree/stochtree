@@ -1214,13 +1214,13 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     # Remove GFR samples if they are not to be retained
     if ((!keep_gfr) && (num_gfr > 0)) {
         for (i in 1:num_gfr) {
-            forest_samples_mu$delete_sample(i-1)
-            forest_samples_tau$delete_sample(i-1)
+            forest_samples_mu$delete_sample(0)
+            forest_samples_tau$delete_sample(0)
             if (include_variance_forest) {
-                forest_samples_variance$delete_sample(i-1)
+                forest_samples_variance$delete_sample(0)
             }
             if (has_rfx) {
-                rfx_samples$delete_sample(i-1)
+                rfx_samples$delete_sample(0)
             }
         }
         if (sample_sigma_global) {
