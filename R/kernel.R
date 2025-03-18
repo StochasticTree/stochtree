@@ -83,8 +83,15 @@ computeForestLeafIndices <- function(model_object, covariates, forest_type=NULL,
     if ((!is.data.frame(covariates)) && (!is.matrix(covariates))) {
         stop("covariates must be a matrix or dataframe")
     }
-    train_set_metadata <- model_object$train_set_metadata
-    covariates_processed <- preprocessPredictionData(covariates, train_set_metadata)
+    if (model_type %in% c("bart", "bcf")) {
+        train_set_metadata <- model_object$train_set_metadata
+        covariates_processed <- preprocessPredictionData(covariates, train_set_metadata)
+    } else {
+        if (!is.matrix(covariates)) {
+            stop("covariates must be a matrix since no covariate preprocessor is stored in a `ForestSamples` object provided as `model_object`")
+        }
+        covariates_processed <- covariates
+    }
     
     # Preprocess forest indices
     num_forests <- forest_container$num_samples()
