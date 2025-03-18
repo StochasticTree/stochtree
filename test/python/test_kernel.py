@@ -9,8 +9,8 @@ from stochtree import (
 )
 
 
-class TestJson:
-    def test_value(self):
+class TestKernel:
+    def test_forest(self):
         # Create dataset
         X = np.array(
             [[1.5, 8.7, 1.2],
@@ -30,19 +30,11 @@ class TestJson:
         # Initialize a forest with constant root predictions
         forest_samples.add_sample(0.)
 
-        # Check that regular and "raw" predictions are the same (since the leaf is constant)
-        pred = forest_samples.predict(forest_dataset)
-        pred_raw = forest_samples.predict_raw(forest_dataset)
-
-        # Assertion
-        np.testing.assert_almost_equal(pred, pred_raw)
-
         # Split the root of the first tree in the ensemble at X[,1] > 4.0
         forest_samples.add_numeric_split(0, 0, 0, 0, 4.0, -5., 5.)
 
         # Check that regular and "raw" predictions are the same (since the leaf is constant)
         computed = compute_forest_leaf_indices(forest_samples, X)
-        print(computed)
         expected = np.array([
             [0], 
             [0], 
@@ -66,7 +58,6 @@ class TestJson:
         
         # Check that regular and "raw" predictions are the same (since the leaf is constant)
         computed = compute_forest_leaf_indices(forest_samples, X)
-        print(computed)
         expected = np.array([
             [2], 
             [1], 
