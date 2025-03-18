@@ -662,6 +662,17 @@ class ForestContainer:
         """
         return self.forest_container_cpp.NodeLeafValues(forest_num, tree_num, node_id)
 
+    def num_samples(self) -> int:
+        """
+        Number of forest samples in the ``ForestContainer``.
+
+        Returns
+        -------
+        int
+            Total number of forest samples.
+        """
+        return self.forest_container_cpp.NumSamples()
+
     def num_nodes(self, forest_num: int, tree_num: int) -> int:
         """
         Number of nodes in a given tree in a given forest in the ``ForestContainer``.

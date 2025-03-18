@@ -177,6 +177,10 @@ class ForestContainerCpp {
     return forest_samples_->OutputDimension();
   }
 
+  int NumTrees() {
+    return num_trees_;
+  }
+
   int NumSamples() {
     return forest_samples_->NumSamples();
   }
@@ -658,6 +662,10 @@ class ForestCpp {
 
   int OutputDimension() {
     return forest_->OutputDimension();
+  }
+
+  int NumTrees() {
+    return num_trees_;
   }
 
   int NumLeavesForest() {
@@ -1825,6 +1833,37 @@ class JsonCpp {
   std::unique_ptr<nlohmann::json> json_;
 };
 
+py::array_t<int> cppComputeForestContainerLeafIndices(ForestContainerCpp& forest_container, py::array_t<double>& covariates, py::array_t<int>& forest_nums) {
+  // Wrap an Eigen Map around the raw data of the covariate matrix
+  StochTree::data_size_t num_obs = covariates.shape(0);
+  int num_covariates = covariates.shape(1);
+  double* covariate_data_ptr = static_cast<double*>(covariates.mutable_data());
+  Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>> covariates_eigen(covariate_data_ptr, num_obs, num_covariates);
+
+  // Extract other output dimensions
+  int num_trees = forest_container.NumTrees();
+  int num_samples = forest_nums.size();
+
+  // Convert forest_nums to std::vector
+  std::vector<int> forest_indices(num_samples);
+  for (int i = 0; i < num_samples; i++) {
+    forest_indices[i] = forest_nums.at(i);
+  }
+
+  // Compute leaf indices
+  auto result = py::array_t<int, py::array::f_style>(py::detail::any_container<py::ssize_t>({num_obs*num_trees, num_samples}));
+  int* output_data_ptr = static_cast<int*>(result.mutable_data());
+  Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>> output_eigen(output_data_ptr, num_obs*num_trees, num_samples);
+  forest_container.GetContainer()->PredictLeafIndicesInplace(covariates_eigen, output_eigen, forest_indices, num_trees, num_obs);
+
+  // Return matrix
+  return result;
+}
+
+int cppComputeForestMaxLeafIndex(ForestContainerCpp& forest_container, int forest_num) {
+  return forest_container.GetForest(forest_num)->GetMaxLeafIndex();
+}
+
 void ForestContainerCpp::LoadFromJson(JsonCpp& json, std::string forest_label) {
   nlohmann::json forest_json = json.SubsetJsonForest(forest_label);
   forest_samples_->Reset();
@@ -1891,6 +1930,9 @@ void RandomEffectsModelCpp::SampleRandomEffects(RandomEffectsDatasetCpp& rfx_dat
 }
 
 PYBIND11_MODULE(stochtree_cpp, m) {
+  m.def("cppComputeForestContainerLeafIndices", &cppComputeForestContainerLeafIndices, "Compute leaf indices of the forests in a forest container");
+  m.def("cppComputeForestMaxLeafIndex", &cppComputeForestMaxLeafIndex, "Compute max leaf index of a forest in a forest container");
+
   py::class_<JsonCpp>(m, "JsonCpp")
     .def(py::init<>())
     .def("LoadFile", &JsonCpp::LoadFile)
@@ -1958,6 +2000,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<ForestContainerCpp>(m, "ForestContainerCpp")
     .def(py::init<int,int,bool,bool>())
     .def("OutputDimension", &ForestContainerCpp::OutputDimension)
+    .def("NumTrees", &ForestContainerCpp::NumTrees)
     .def("NumSamples", &ForestContainerCpp::NumSamples)
     .def("DeleteSample", &ForestContainerCpp::DeleteSample)
     .def("Predict", &ForestContainerCpp::Predict)
@@ -2003,6 +2046,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<ForestCpp>(m, "ForestCpp")
     .def(py::init<int,int,bool,bool>())
     .def("OutputDimension", &ForestCpp::OutputDimension)
+    .def("NumTrees", &ForestCpp::NumTrees)
     .def("NumLeavesForest", &ForestCpp::NumLeavesForest)
     .def("SumLeafSquared", &ForestCpp::SumLeafSquared)
     .def("ResetRoot", &ForestCpp::ResetRoot)

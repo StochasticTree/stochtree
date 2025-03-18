@@ -1242,8 +1242,6 @@ class BARTModel:
                     )
                 covariates_processed = covariates
         else:
-            self._covariate_preprocessor = CovariatePreprocessor()
-            self._covariate_preprocessor.fit(covariates)
             covariates_processed = self._covariate_preprocessor.transform(covariates)
 
         # Dataset construction
@@ -1364,8 +1362,6 @@ class BARTModel:
                     )
                 covariates_processed = covariates
         else:
-            self._covariate_preprocessor = CovariatePreprocessor()
-            self._covariate_preprocessor.fit(covariates)
             covariates_processed = self._covariate_preprocessor.transform(covariates)
 
         # Dataset construction
@@ -1448,8 +1444,6 @@ class BARTModel:
                     )
                 covariates_processed = covariates
         else:
-            self._covariate_preprocessor = CovariatePreprocessor()
-            self._covariate_preprocessor.fit(covariates)
             covariates_processed = self._covariate_preprocessor.transform(covariates)
 
         # Dataset construction

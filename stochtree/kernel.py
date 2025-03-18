@@ -2,10 +2,11 @@ from typing import Union
 
 import pandas as pd
 import numpy as np
-from stochtree import BARTModel, BCFModel, ForestContainer
+from stochtree_cpp import cppComputeForestContainerLeafIndices, cppComputeForestMaxLeafIndex
 
-from .data import Residual
-from .sampler import RNG
+from .bart import BARTModel
+from .bcf import BCFModel
+from .forest import ForestContainer
 
 
 def compute_forest_leaf_indices(model_object: Union[BARTModel, BCFModel, ForestContainer], covariates: Union[np.array, pd.DataFrame], forest_type: str = None, forest_inds: Union[int, np.ndarray] = None):
@@ -44,4 +45,56 @@ def compute_forest_leaf_indices(model_object: Union[BARTModel, BCFModel, ForestC
     -------
     Numpy array with dimensions `num_obs` by `num_trees`, where `num_obs` is the number of rows in `covaritates` and `num_trees` is the number of trees in the relevant forest of `model_object`. 
     """
-    pass
+    # Extract relevant forest container
+    if not isinstance(model_object, BARTModel) and not isinstance(model_object, BCFModel) and not isinstance(model_object, ForestContainer):
+        raise ValueError("model_object must be one of BARTModel, BCFModel, or ForestContainer")
+    if isinstance(model_object, BARTModel):
+        model_type = "bart"
+        if forest_type is None:
+            raise ValueError("forest_type must be specified for a BARTModel model_type (either set to 'mean' or 'variance')")
+    elif isinstance(model_object, BCFModel):
+        model_type = "bcf"
+        if forest_type is None:
+            raise ValueError("forest_type must be specified for a BCFModel model_type (either set to 'prognostic', 'treatment' or 'variance')")
+    else:
+        model_type = "forest"
+    if model_type == "bart":
+        if forest_type == "mean":
+            if not model_object.include_mean_forest:
+                raise ValueError("Mean forest was not sampled for model_object, but requested by forest_type")
+            forest_container = model_object.forest_container_mean
+        else:
+            if not model_object.include_variance_forest:
+                raise ValueError("Variance forest was not sampled for model_object, but requested by forest_type")
+            forest_container = model_object.forest_container_variance
+    elif model_type == "bcf":
+        if forest_type == "prognostic":
+            forest_container = model_object.forest_container_mu
+        elif forest_type == "treatment":
+            forest_container = model_object.forest_container_tau
+        else:
+            if not model_object.include_variance_forest:
+                raise ValueError("Variance forest was not sampled for model_object, but requested by forest_type")
+            forest_container = model_object.forest_container_variance
+    else:
+        forest_container = model_object
+    
+    if not isinstance(covariates, pd.DataFrame) and not isinstance(covariates, np.ndarray):
+        raise ValueError("covariates must be a matrix or dataframe")
+    
+    # Preprocess covariates
+    if model_type == "bart" or model_type == "bcf":
+        covariates_processed = model_object._covariate_preprocessor.transform(covariates)
+    else:
+        covariates_processed = covariates
+    covariates_processed = np.asfortranarray(covariates_processed)
+    
+    # Preprocess forest indices
+    num_forests = forest_container.num_samples()
+    if forest_inds is None:
+        forest_inds = np.arange(num_forests)
+    else:
+        if not np.all(forest_inds >= 0) or not np.all(forest_inds < num_forests):
+            raise ValueError("The indices in forest_inds must be >= 0 and < the total number of samples in a forest container")
+    
+    return cppComputeForestContainerLeafIndices(forest_container.forest_container_cpp, covariates_processed, forest_inds)

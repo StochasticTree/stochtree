@@ -2,6 +2,7 @@
 Bayesian Causal Forests (BCF) module
 """
 
+import warnings
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
@@ -1958,11 +1959,32 @@ class BCFModel:
                 propensity = np.ones(X.shape[0])
                 propensity = np.expand_dims(propensity, 1)
 
+        # Covariate preprocessing
+        if not self._covariate_preprocessor._check_is_fitted():
+            if not isinstance(X, np.ndarray):
+                raise ValueError(
+                    "Prediction cannot proceed on a pandas dataframe, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe."
+                )
+            else:
+                warnings.warn(
+                    "This BCF model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
+                    RuntimeWarning,
+                )
+                if not np.issubdtype(
+                    X.dtype, np.floating
+                ) and not np.issubdtype(X.dtype, np.integer):
+                    raise ValueError(
+                        "Prediction cannot proceed on a non-numeric numpy array, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
+                    )
+                covariates_processed = X
+        else:
+            covariates_processed = self._covariate_preprocessor.transform(X)
+        
         # Update covariates to include propensities if requested
         if self.propensity_covariate == "none":
-            X_combined = X
+            X_combined = covariates_processed
         else:
-            X_combined = np.c_[X, propensity]
+            X_combined = np.c_[covariates_processed, propensity]
 
         # Forest dataset
         forest_dataset_test = Dataset()
@@ -2022,17 +2044,38 @@ class BCFModel:
             if propensity.ndim == 1:
                 propensity = np.expand_dims(propensity, 1)
 
+        # Covariate preprocessing
+        if not self._covariate_preprocessor._check_is_fitted():
+            if not isinstance(covariates, np.ndarray):
+                raise ValueError(
+                    "Prediction cannot proceed on a pandas dataframe, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe."
+                )
+            else:
+                warnings.warn(
+                    "This BCF model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
+                    RuntimeWarning,
+                )
+                if not np.issubdtype(
+                    covariates.dtype, np.floating
+                ) and not np.issubdtype(covariates.dtype, np.integer):
+                    raise ValueError(
+                        "Prediction cannot proceed on a non-numeric numpy array, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
+                    )
+                covariates_processed = covariates
+        else:
+            covariates_processed = self._covariate_preprocessor.transform(covariates)
+        
         # Update covariates to include propensities if requested
         if self.propensity_covariate == "none":
-            X_combined = covariates
+            X_combined = covariates_processed
         else:
             if propensity is not None:
-                X_combined = np.c_[covariates, propensity]
+                X_combined = np.c_[covariates_processed, propensity]
             else:
                 # Dummy propensities if not provided but also not needed
-                propensity = np.ones(covariates.shape[0])
+                propensity = np.ones(covariates_processed.shape[0])
                 propensity = np.expand_dims(propensity, 1)
-                X_combined = np.c_[covariates, propensity]
+                X_combined = np.c_[covariates_processed, propensity]
 
         # Forest dataset
         pred_dataset = Dataset()
@@ -2124,12 +2167,33 @@ class BCFModel:
                     propensity = np.mean(
                         self.bart_propensity_model.predict(X), axis=1, keepdims=True
                     )
+        
+        # Covariate preprocessing
+        if not self._covariate_preprocessor._check_is_fitted():
+            if not isinstance(X, np.ndarray):
+                raise ValueError(
+                    "Prediction cannot proceed on a pandas dataframe, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe."
+                )
+            else:
+                warnings.warn(
+                    "This BCF model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
+                    RuntimeWarning,
+                )
+                if not np.issubdtype(
+                    X.dtype, np.floating
+                ) and not np.issubdtype(X.dtype, np.integer):
+                    raise ValueError(
+                        "Prediction cannot proceed on a non-numeric numpy array, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
+                    )
+                covariates_processed = X
+        else:
+            covariates_processed = self._covariate_preprocessor.transform(X)
 
         # Update covariates to include propensities if requested
         if self.propensity_covariate == "none":
-            X_combined = X
+            X_combined = covariates_processed
         else:
-            X_combined = np.c_[X, propensity]
+            X_combined = np.c_[covariates_processed, propensity]
 
         # Forest dataset
         forest_dataset_test = Dataset()

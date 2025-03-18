@@ -4,6 +4,7 @@ from .calibration import calibrate_global_error_variance
 from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
+from .kernel import compute_forest_leaf_indices
 from .preprocessing import CovariatePreprocessor
 from .random_effects import (
   RandomEffectsContainer, 
@@ -56,5 +57,6 @@ __all__ = [
     "_check_matrix_square",
     "_standardize_array_to_list",
     "_standardize_array_to_np",
+    "compute_forest_leaf_indices",
     "calibrate_global_error_variance",
 ]
