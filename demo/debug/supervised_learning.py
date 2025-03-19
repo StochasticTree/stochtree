@@ -56,7 +56,7 @@ y_test = y[test_inds]
 
 # Run BART
 bart_model = BARTModel()
-bart_model.sample(X_train=X_train, y_train=y_train, basis_train=basis_train, X_test=X_test, basis_test=basis_test, num_gfr=10, num_mcmc=100)
+bart_model.sample(X_train=X_train, y_train=y_train, leaf_basis_train=basis_train, X_test=X_test, leaf_basis_test=basis_test, num_gfr=10, num_mcmc=100)
 
 # Inspect the MCMC (BART) samples
 forest_preds_y_mcmc = bart_model.y_hat_test

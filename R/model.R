@@ -85,6 +85,21 @@ ForestModel <- R6::R6Class(
             global_scale <- global_model_config$global_error_variance
             cutpoint_grid_size <- forest_model_config$cutpoint_grid_size
             
+            # Detect changes to tree prior
+            if (forest_model_config$alpha != get_alpha_tree_prior_cpp(self$tree_prior_ptr)) {
+                update_alpha_tree_prior_cpp(self$tree_prior_ptr, forest_model_config$alpha)
+            }
+            if (forest_model_config$beta != get_beta_tree_prior_cpp(self$tree_prior_ptr)) {
+                update_beta_tree_prior_cpp(self$tree_prior_ptr, forest_model_config$beta)
+            }
+            if (forest_model_config$min_samples_leaf != get_min_samples_leaf_tree_prior_cpp(self$tree_prior_ptr)) {
+                update_min_samples_leaf_tree_prior_cpp(self$tree_prior_ptr, forest_model_config$min_samples_leaf)
+            }
+            if (forest_model_config$max_depth != get_max_depth_tree_prior_cpp(self$tree_prior_ptr)) {
+                update_max_depth_tree_prior_cpp(self$tree_prior_ptr, forest_model_config$max_depth)
+            }
+            
+            # Run the sampler
             if (gfr) {
                 sample_gfr_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
@@ -165,6 +180,34 @@ ForestModel <- R6::R6Class(
         #' @return None
         update_max_depth = function(max_depth) {
             update_max_depth_tree_prior_cpp(self$tree_prior_ptr, max_depth)
+        }, 
+        
+        #' @description
+        #' Update alpha in the tree prior
+        #' @return Value of alpha in the tree prior
+        get_alpha = function() {
+            get_alpha_tree_prior_cpp(self$tree_prior_ptr)
+        }, 
+        
+        #' @description
+        #' Update beta in the tree prior
+        #' @return Value of beta in the tree prior
+        get_beta = function() {
+            get_beta_tree_prior_cpp(self$tree_prior_ptr)
+        }, 
+        
+        #' @description
+        #' Query min_samples_leaf in the tree prior
+        #' @return Value of min_samples_leaf in the tree prior
+        get_min_samples_leaf = function() {
+            get_min_samples_leaf_tree_prior_cpp(self$tree_prior_ptr)
+        }, 
+        
+        #' @description
+        #' Query max_depth in the tree prior
+        #' @return Value of max_depth in the tree prior
+        get_max_depth = function() {
+            get_max_depth_tree_prior_cpp(self$tree_prior_ptr)
         }
     )
 )

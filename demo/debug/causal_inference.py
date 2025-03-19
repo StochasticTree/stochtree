@@ -63,38 +63,38 @@ tau_test = np.squeeze(test_df.loc[:,["tau"]].to_numpy())
 
 # Run BCF
 bcf_model = BCFModel()
-bcf_model.sample(X_train, Z_train, y_train, pi_train, X_test, Z_test, pi_test, num_gfr=10, num_mcmc=100)
+bcf_model.sample(X_train, Z_train, y_train, pi_train, X_test, Z_test, pi_test, num_gfr=10, num_mcmc=1000)
 
 # Inspect the MCMC (BART) samples
-forest_preds_y_mcmc = bcf_model.y_hat_test[:,bcf_model.num_gfr:]
+forest_preds_y_mcmc = bcf_model.y_hat_test
 y_avg_mcmc = np.squeeze(forest_preds_y_mcmc).mean(axis = 1, keepdims = True)
 y_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(y_test,1), y_avg_mcmc), axis = 1), columns=["True outcome", "Average estimated outcome"])
 sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-forest_preds_tau_mcmc = bcf_model.tau_hat_test[:,bcf_model.num_gfr:]
+forest_preds_tau_mcmc = bcf_model.tau_hat_test
 tau_avg_mcmc = np.squeeze(forest_preds_tau_mcmc).mean(axis = 1, keepdims = True)
 tau_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(tau_test,1), tau_avg_mcmc), axis = 1), columns=["True tau", "Average estimated tau"])
 sns.scatterplot(data=tau_df_mcmc, x="Average estimated tau", y="True tau")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-forest_preds_mu_mcmc = bcf_model.mu_hat_test[:,bcf_model.num_gfr:]
+forest_preds_mu_mcmc = bcf_model.mu_hat_test
 mu_avg_mcmc = np.squeeze(forest_preds_mu_mcmc).mean(axis = 1, keepdims = True)
 mu_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(mu_test,1), mu_avg_mcmc), axis = 1), columns=["True mu", "Average estimated mu"])
 sns.scatterplot(data=mu_df_mcmc, x="Average estimated mu", y="True mu")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-# sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bcf_model.num_samples - bcf_model.num_gfr),axis=1), np.expand_dims(bcf_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
-# sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
-# plt.show()
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bcf_model.num_samples),axis=1), np.expand_dims(bcf_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
+sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
+plt.show()
 
-# b_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bcf_model.num_samples - bcf_model.num_gfr),axis=1), np.expand_dims(bcf_model.b0_samples,axis=1), np.expand_dims(bcf_model.b1_samples,axis=1)), axis = 1), columns=["Sample", "Beta_0", "Beta_1"])
-# sns.scatterplot(data=b_df_mcmc, x="Sample", y="Beta_0")
-# sns.scatterplot(data=b_df_mcmc, x="Sample", y="Beta_1")
-# plt.show()
+b_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bcf_model.num_samples),axis=1), np.expand_dims(bcf_model.b0_samples,axis=1), np.expand_dims(bcf_model.b1_samples,axis=1)), axis = 1), columns=["Sample", "Beta_0", "Beta_1"])
+sns.scatterplot(data=b_df_mcmc, x="Sample", y="Beta_0")
+sns.scatterplot(data=b_df_mcmc, x="Sample", y="Beta_1")
+plt.show()
 
 # Compute RMSEs
 y_rmse = np.sqrt(np.mean(np.power(np.expand_dims(y_test,1) - y_avg_mcmc, 2)))

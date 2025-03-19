@@ -44,5 +44,3 @@ tau_test = tau_X[test_inds,:]
 # Run BCF
 bcf_model = BCFModel()
 bcf_model.sample(X_train, Z_train, y_train, pi_train, X_test, Z_test, pi_test, num_gfr=10, num_mcmc=100)
-
-

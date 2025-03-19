@@ -522,6 +522,8 @@ class RandomEffectsDataset {
   }
   /*! \brief Number of observations (rows) in the dataset */
   inline data_size_t NumObservations() {return basis_.NumRows();}
+  /*! \brief Number of columns of the basis vector in the dataset */
+  inline int NumBases() {return basis_.NumCols();}
   /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded basis data */
   inline bool HasBasis() {return has_basis_;}
   /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded variance weights */

@@ -11,7 +11,7 @@ typedef Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::Col
 
 [[cpp11::register]]
 int forest_container_get_max_leaf_index_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_container, int forest_num) {
-    return forest_container->GetEnsemble(forest_num)->GetMaxLeafIndex();
+    return forest_container->GetEnsemble(forest_num)->GetMaxLeafIndex() - 1;
 }
 
 [[cpp11::register]]
