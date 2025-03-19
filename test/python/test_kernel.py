@@ -5,7 +5,8 @@ from stochtree import (
     Dataset,
     Forest,
     ForestContainer,
-    compute_forest_leaf_indices
+    compute_forest_leaf_indices, 
+    compute_forest_max_leaf_index
 )
 
 
@@ -35,6 +36,7 @@ class TestKernel:
 
         # Check that regular and "raw" predictions are the same (since the leaf is constant)
         computed = compute_forest_leaf_indices(forest_samples, X)
+        max_leaf_index = compute_forest_max_leaf_index(forest_samples)
         expected = np.array([
             [0], 
             [0], 
@@ -52,12 +54,14 @@ class TestKernel:
         
         # Assertion
         np.testing.assert_almost_equal(computed, expected)
+        assert max_leaf_index == [2]
 
         # Split the left leaf of the first tree in the ensemble at X[,2] > 4.0
         forest_samples.add_numeric_split(0, 0, 1, 1, 4.0, -7.5, -2.5)
         
         # Check that regular and "raw" predictions are the same (since the leaf is constant)
         computed = compute_forest_leaf_indices(forest_samples, X)
+        max_leaf_index = compute_forest_max_leaf_index(forest_samples)
         expected = np.array([
             [2], 
             [1], 
@@ -75,3 +79,4 @@ class TestKernel:
         
         # Assertion
         np.testing.assert_almost_equal(computed, expected)
+        assert max_leaf_index == [3]

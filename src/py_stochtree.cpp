@@ -1861,7 +1861,7 @@ py::array_t<int> cppComputeForestContainerLeafIndices(ForestContainerCpp& forest
 }
 
 int cppComputeForestMaxLeafIndex(ForestContainerCpp& forest_container, int forest_num) {
-  return forest_container.GetForest(forest_num)->GetMaxLeafIndex();
+  return forest_container.GetForest(forest_num)->GetMaxLeafIndex() - 1;
 }
 
 void ForestContainerCpp::LoadFromJson(JsonCpp& json, std::string forest_label) {

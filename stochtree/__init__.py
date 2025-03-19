@@ -4,19 +4,22 @@ from .calibration import calibrate_global_error_variance
 from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
-from .kernel import compute_forest_leaf_indices
+from .kernel import (
+    compute_forest_leaf_indices, 
+    compute_forest_max_leaf_index
+)
 from .preprocessing import CovariatePreprocessor
 from .random_effects import (
-  RandomEffectsContainer, 
-  RandomEffectsDataset, 
-  RandomEffectsModel, 
-  RandomEffectsTracker, 
+    RandomEffectsContainer, 
+    RandomEffectsDataset, 
+    RandomEffectsModel, 
+    RandomEffectsTracker, 
 )
 from .sampler import (
-  RNG, 
-  ForestSampler, 
-  GlobalVarianceModel, 
-  LeafVarianceModel
+    RNG, 
+    ForestSampler, 
+    GlobalVarianceModel, 
+    LeafVarianceModel
 )
 from .serialization import JSONSerializer
 from .utils import (
@@ -58,5 +61,6 @@ __all__ = [
     "_standardize_array_to_list",
     "_standardize_array_to_np",
     "compute_forest_leaf_indices",
+    "compute_forest_max_leaf_index", 
     "calibrate_global_error_variance",
 ]
