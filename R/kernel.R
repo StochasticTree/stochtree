@@ -234,9 +234,9 @@ computeForestLeafVariances <- function(model_object, forest_type, forest_inds=NU
 #' X <- matrix(runif(10*100), ncol = 10)
 #' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
 #' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
-#' computeForestMaxLeafIndex(bart_model, X, "mean")
-#' computeForestMaxLeafIndex(bart_model, X, "mean", 0)
-#' computeForestMaxLeafIndex(bart_model, X, "mean", c(1,3,9))
+#' computeForestMaxLeafIndex(bart_model, "mean")
+#' computeForestMaxLeafIndex(bart_model, "mean", 0)
+#' computeForestMaxLeafIndex(bart_model, "mean", c(1,3,9))
 computeForestMaxLeafIndex <- function(model_object, forest_type=NULL, forest_inds=NULL) {
     # Extract relevant forest container
     stopifnot(any(c(inherits(model_object, "bartmodel"), inherits(model_object, "bcfmodel"), inherits(model_object, "ForestSamples"))))
