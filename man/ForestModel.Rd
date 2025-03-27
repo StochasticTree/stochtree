@@ -28,6 +28,10 @@ trees, and exposes functionality to run a forest sampler
 \item \href{#method-ForestModel-update_beta}{\code{ForestModel$update_beta()}}
 \item \href{#method-ForestModel-update_min_samples_leaf}{\code{ForestModel$update_min_samples_leaf()}}
 \item \href{#method-ForestModel-update_max_depth}{\code{ForestModel$update_max_depth()}}
+\item \href{#method-ForestModel-get_alpha}{\code{ForestModel$get_alpha()}}
+\item \href{#method-ForestModel-get_beta}{\code{ForestModel$get_beta()}}
+\item \href{#method-ForestModel-get_min_samples_leaf}{\code{ForestModel$get_min_samples_leaf()}}
+\item \href{#method-ForestModel-get_max_depth}{\code{ForestModel$get_max_depth()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -243,6 +247,58 @@ Update max_depth in the tree prior
 }
 \subsection{Returns}{
 None
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-get_alpha"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-get_alpha}{}}}
+\subsection{Method \code{get_alpha()}}{
+Update alpha in the tree prior
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$get_alpha()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Value of alpha in the tree prior
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-get_beta"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-get_beta}{}}}
+\subsection{Method \code{get_beta()}}{
+Update beta in the tree prior
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$get_beta()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Value of beta in the tree prior
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-get_min_samples_leaf"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-get_min_samples_leaf}{}}}
+\subsection{Method \code{get_min_samples_leaf()}}{
+Query min_samples_leaf in the tree prior
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$get_min_samples_leaf()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Value of min_samples_leaf in the tree prior
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-get_max_depth"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-get_max_depth}{}}}
+\subsection{Method \code{get_max_depth()}}{
+Query max_depth in the tree prior
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$get_max_depth()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Value of max_depth in the tree prior
 }
 }
 }

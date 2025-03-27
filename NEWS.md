@@ -1,3 +1,8 @@
+# stochtree 0.1.2
+
+* Fixed indexing bug in cleanup of grow-from-root (GFR) samples in BART and BCF models
+* Avoid using covariate preprocessor in `computeForestLeafIndices` function when a `ForestSamples` object is provided
+
 # stochtree 0.1.1
 
 * Fixed initialization bug in several R package code examples for random effects models

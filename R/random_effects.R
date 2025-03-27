@@ -93,7 +93,7 @@ RandomEffectSamples <- R6::R6Class(
         #' Predict random effects for each observation implied by `rfx_group_ids` and `rfx_basis`. 
         #' If a random effects model is "intercept-only" the `rfx_basis` will be a vector of ones of size `length(rfx_group_ids)`.
         #' @param rfx_group_ids Indices of random effects groups in a prediction set
-        #' @param rfx_basis (Optional ) Basis used for random effects prediction
+        #' @param rfx_basis (Optional) Basis used for random effects prediction
         #' @return Matrix with as many rows as observations provided and as many columns as samples drawn of the model.
         predict = function(rfx_group_ids, rfx_basis = NULL) {
             num_obs = length(rfx_group_ids)

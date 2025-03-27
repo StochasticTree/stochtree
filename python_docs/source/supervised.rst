@@ -68,4 +68,4 @@ Initialize and run a BART sampler for 100 iterations (after 10 "warm-start" draw
 .. code-block:: python
 
     bart_model = BARTModel()
-    bart_model.sample(X_train=X_train, y_train=y_train, basis_train=basis_train, X_test=X_test, basis_test=basis_test, num_gfr=10, num_mcmc=100)
+    bart_model.sample(X_train=X_train, y_train=y_train, leaf_basis_train=basis_train, X_test=X_test, leaf_basis_test=basis_test, num_gfr=10, num_mcmc=100)
