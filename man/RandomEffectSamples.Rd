@@ -217,7 +217,7 @@ If a random effects model is "intercept-only" the \code{rfx_basis} will be a vec
 \describe{
 \item{\code{rfx_group_ids}}{Indices of random effects groups in a prediction set}
 
-\item{\code{rfx_basis}}{(Optional ) Basis used for random effects prediction}
+\item{\code{rfx_basis}}{(Optional) Basis used for random effects prediction}
 }
 \if{html}{\out{</div>}}
 }

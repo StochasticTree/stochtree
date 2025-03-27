@@ -42,7 +42,7 @@ this function will return leaf indices for every sample of a forest.
 This function uses 0-indexing, so the first forest sample corresponds to \code{forest_num = 0}, and so on.}
 }
 \value{
-List of vectors. Each vector is of size \code{num_obs * num_trees}, where \code{num_obs = nrow(covariates)}
+Vector of size \code{num_obs * num_trees}, where \code{num_obs = nrow(covariates)}
 and \code{num_trees} is the number of trees in the relevant forest of \code{model_object}.
 }
 \description{
