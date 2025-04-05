@@ -206,7 +206,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (previous_bart_model$model_params$include_mean_forest) {
             previous_forest_samples_mean <- previous_bart_model$mean_forests
         } else previous_forest_samples_mean <- NULL
-        if (previous_bart_model$model_params$include_mean_forest) {
+        if (previous_bart_model$model_params$include_variance_forest) {
             previous_forest_samples_variance <- previous_bart_model$variance_forests
         } else previous_forest_samples_variance <- NULL
         if (previous_bart_model$model_params$sample_sigma_global) {

@@ -1555,12 +1555,12 @@ class BCFModel:
                         loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
                         scale=np.sqrt(current_sigma2 / (s_tt0 + 2 * current_sigma2)),
                         size=1,
-                    )
+                    )[0]
                     current_b_1 = self.rng.normal(
                         loc=(s_ty1 / (s_tt1 + 2 * current_sigma2)),
                         scale=np.sqrt(current_sigma2 / (s_tt1 + 2 * current_sigma2)),
                         size=1,
-                    )
+                    )[0]
                     tau_basis_train = (
                         1 - np.squeeze(Z_train)
                     ) * current_b_0 + np.squeeze(Z_train) * current_b_1
@@ -1703,12 +1703,12 @@ class BCFModel:
                         loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
                         scale=np.sqrt(current_sigma2 / (s_tt0 + 2 * current_sigma2)),
                         size=1,
-                    )
+                    )[0]
                     current_b_1 = self.rng.normal(
                         loc=(s_ty1 / (s_tt1 + 2 * current_sigma2)),
                         scale=np.sqrt(current_sigma2 / (s_tt1 + 2 * current_sigma2)),
                         size=1,
-                    )
+                    )[0]
                     tau_basis_train = (
                         1 - np.squeeze(Z_train)
                     ) * current_b_0 + np.squeeze(Z_train) * current_b_1
