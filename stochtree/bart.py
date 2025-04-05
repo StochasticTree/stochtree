@@ -77,6 +77,8 @@ class BARTModel:
         general_params: Optional[Dict[str, Any]] = None,
         mean_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
+        previous_model_json: Optional[str] = None,
+        previous_model_warmstart_sample_num: Optional[int] = None,
     ) -> None:
         """Runs a BART sampler on provided training set. Predictions will be cached for the training set and (if provided) the test set.
         Does not require a leaf regression basis.
@@ -154,6 +156,11 @@ class BARTModel:
             * `var_forest_prior_scale` (`float`): Scale parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2` if not set here.
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the variance forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the variance forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+        
+        previous_model_json : str, optional
+            JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Defaults to `None`.
+        previous_model_warmstart_sample_num : int, optional    
+            Sample number from `previous_model_json` that will be used to warmstart this BART sampler. Zero-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 0`). Defaults to `None`.
 
         Returns
         -------
@@ -612,6 +619,51 @@ class BARTModel:
         else:
             variable_subset_variance = [i for i in range(X_train.shape[1])]
 
+        # Check if previous model JSON is provided and parse it if so
+        has_prev_model = previous_model_json is not None
+        if has_prev_model:
+            if num_gfr > 0:
+                if num_mcmc == 0:
+                    raise ValueError("A previous model is being used to initialize this sampler, so `num_mcmc` must be greater than zero")
+                else:
+                    warnings.warn("A previous model is being used to initialize this sampler, so num_gfr will be ignored and the MCMC sampler will be run from the previous samples")
+            previous_bart_model = BARTModel()
+            previous_bart_model.from_json(previous_model_json)
+            previous_y_bar = previous_bart_model.y_bar
+            previous_y_scale = previous_bart_model.y_std
+            previous_model_num_samples = previous_bart_model.num_samples
+            if previous_bart_model.include_mean_forest:
+                previous_forest_samples_mean = previous_bart_model.forest_container_mean
+            else:
+                previous_forest_samples_mean = None
+            if previous_bart_model.include_variance_forest:
+                previous_forest_samples_variance = previous_bart_model.forest_container_variance
+            else:
+                previous_forest_samples_variance = None
+            if previous_bart_model.sample_sigma_global:
+                previous_global_var_samples = previous_bart_model.global_var_samples / (previous_y_scale * previous_y_scale)
+            else:
+                previous_global_var_samples = None
+            if previous_bart_model.sample_sigma_leaf:
+                previous_leaf_var_samples = previous_bart_model.leaf_scale_samples
+            else:
+                previous_leaf_var_samples = None
+            if previous_bart_model.has_rfx:
+                previous_rfx_samples = previous_bart_model.rfx_container
+            else:
+                previous_rfx_samples = None
+            if previous_model_warmstart_sample_num + 1 > previous_model_num_samples:
+                raise ValueError("`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`")
+        else:
+            previous_y_bar = None
+            previous_y_scale = None
+            previous_global_var_samples = None
+            previous_leaf_var_samples = None
+            previous_rfx_samples = None
+            previous_forest_samples_mean = None
+            previous_forest_samples_variance = None
+            previous_model_num_samples = 0
+        
         # Update variable weights if the covariates have been resized (by e.g. one-hot encoding)
         if X_train_processed.shape[1] != X_train.shape[1]:
             variable_counts = [
@@ -992,6 +1044,22 @@ class BARTModel:
                         )
                     if sample_sigma_global:
                         current_sigma2 = self.global_var_samples[forest_ind]
+                elif has_prev_model:
+                    if self.include_mean_forest:
+                        active_forest_mean.reset(previous_bart_model.forest_container_mean, previous_model_warmstart_sample_num)
+                        forest_sampler_mean.reconstitute_from_forest(active_forest_mean, forest_dataset_train, residual_train, True)
+                        if sample_sigma_leaf and previous_leaf_var_samples is not None:
+                            leaf_scale_double = previous_leaf_var_samples[previous_model_warmstart_sample_num]
+                            current_leaf_scale[0, 0] = leaf_scale_double
+                            forest_model_config_mean.update_leaf_model_scale(leaf_scale_double)
+                    if self.include_variance_forest:
+                        active_forest_variance.reset(previous_bart_model.forest_container_variance, previous_model_warmstart_sample_num)
+                        forest_sampler_variance.reconstitute_from_forest(active_forest_variance, forest_dataset_train, residual_train, True)
+                    # if self.has_rfx:
+                    #     pass
+                    if self.sample_sigma_global:
+                        current_sigma2 = previous_global_var_samples[previous_model_warmstart_sample_num]
+                        global_model_config.update_global_error_variance(current_sigma2)
                 else:
                     if self.include_mean_forest:
                         active_forest_mean.reset_root()
@@ -1069,12 +1137,14 @@ class BARTModel:
                         current_sigma2 = global_var_model.sample_one_iteration(
                             residual_train, cpp_rng, a_global, b_global
                         )
+                        global_model_config.update_global_error_variance(current_sigma2)
                         if keep_sample:
                             self.global_var_samples[sample_counter] = current_sigma2
                     if self.sample_sigma_leaf:
                         current_leaf_scale[0, 0] = leaf_var_model.sample_one_iteration(
                             active_forest_mean, cpp_rng, a_leaf, b_leaf
                         )
+                        forest_model_config_mean.update_leaf_model_scale(current_leaf_scale)
                         if keep_sample:
                             self.leaf_scale_samples[sample_counter] = (
                                 current_leaf_scale[0, 0]
