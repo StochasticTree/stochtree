@@ -10,9 +10,3 @@ requires = [
     "scikit-learn"
 ]
 build-backend = "setuptools.build_meta"
-
-[project.urls]
-Homepage = "https://stochtree.ai/"
-Documentation = "https://stochtree.ai/python_docs/index.html"
-Repository = "https://github.com/StochasticTree/stochtree/"
-Issues = "https://github.com/StochasticTree/stochtree/issues"
