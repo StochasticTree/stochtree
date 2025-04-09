@@ -21,6 +21,7 @@ p_W = 1
 X = rng.uniform(0, 1, (n, p_X))
 W = rng.uniform(0, 1, (n, p_W))
 
+
 # Define the outcome mean function
 def outcome_mean(X, W):
     return np.where(
@@ -33,6 +34,7 @@ def outcome_mean(X, W):
         ),
     )
 
+
 # Generate outcome
 f_XW = outcome_mean(X, W)
 epsilon = rng.normal(0, 1, n)
@@ -40,7 +42,9 @@ y = f_XW + epsilon
 
 # Test-train split
 sample_inds = np.arange(n)
-train_inds, test_inds = train_test_split(sample_inds, test_size=0.5, random_state=random_seed)
+train_inds, test_inds = train_test_split(
+    sample_inds, test_size=0.5, random_state=random_seed
+)
 X_train = X[train_inds, :]
 X_test = X[test_inds, :]
 basis_train = W[train_inds, :]
@@ -61,9 +65,9 @@ bart_model.sample(
     X_test=X_test,
     leaf_basis_test=basis_test,
     num_gfr=num_warmstart,
-    num_mcmc=0, 
-    general_params=general_model_params, 
-    mean_forest_params=mean_forest_model_params
+    num_mcmc=0,
+    general_params=general_model_params,
+    mean_forest_params=mean_forest_model_params,
 )
 bart_model_json = bart_model.to_json()
 
@@ -78,9 +82,9 @@ bart_model_2.sample(
     num_gfr=0,
     num_mcmc=num_mcmc,
     previous_model_json=bart_model_json,
-    previous_model_warmstart_sample_num=num_warmstart-1,
-    general_params=general_model_params, 
-    mean_forest_params=mean_forest_model_params
+    previous_model_warmstart_sample_num=num_warmstart - 1,
+    general_params=general_model_params,
+    mean_forest_params=mean_forest_model_params,
 )
 
 # Run several BART MCMC samples from the second-to-last GFR forest
@@ -94,9 +98,9 @@ bart_model_3.sample(
     num_gfr=0,
     num_mcmc=num_mcmc,
     previous_model_json=bart_model_json,
-    previous_model_warmstart_sample_num=num_warmstart-2,
-    general_params=general_model_params, 
-    mean_forest_params=mean_forest_model_params
+    previous_model_warmstart_sample_num=num_warmstart - 2,
+    general_params=general_model_params,
+    mean_forest_params=mean_forest_model_params,
 )
 
 # Run several BART MCMC samples from root
@@ -109,8 +113,8 @@ bart_model_4.sample(
     leaf_basis_test=basis_test,
     num_gfr=0,
     num_mcmc=num_mcmc,
-    general_params=general_model_params, 
-    mean_forest_params=mean_forest_model_params
+    general_params=general_model_params,
+    mean_forest_params=mean_forest_model_params,
 )
 
 # Inspect the model outputs
@@ -121,7 +125,10 @@ y_avg_mcmc_3 = np.squeeze(y_hat_mcmc_3).mean(axis=1, keepdims=True)
 y_hat_mcmc_4 = bart_model_4.predict(X_test, basis_test)
 y_avg_mcmc_4 = np.squeeze(y_hat_mcmc_4).mean(axis=1, keepdims=True)
 y_df = pd.DataFrame(
-    np.concatenate((y_avg_mcmc_2, y_avg_mcmc_3, y_avg_mcmc_4, np.expand_dims(y_test, axis=1)), axis=1),
+    np.concatenate(
+        (y_avg_mcmc_2, y_avg_mcmc_3, y_avg_mcmc_4, np.expand_dims(y_test, axis=1)),
+        axis=1,
+    ),
     columns=["First Chain", "Second Chain", "Third Chain", "Outcome"],
 )
 
@@ -141,7 +148,17 @@ plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3, 3)))
 plt.show()
 
 # Compute RMSEs
-rmse_1 = np.sqrt(np.mean((np.squeeze(y_avg_mcmc_2)-y_test)*(np.squeeze(y_avg_mcmc_2)-y_test)))
-rmse_2 = np.sqrt(np.mean((np.squeeze(y_avg_mcmc_3)-y_test)*(np.squeeze(y_avg_mcmc_3)-y_test)))
-rmse_3 = np.sqrt(np.mean((np.squeeze(y_avg_mcmc_4)-y_test)*(np.squeeze(y_avg_mcmc_4)-y_test)))
-print("Chain 1 rmse: {:0.3f}; Chain 2 rmse: {:0.3f}; Chain 3 rmse: {:0.3f}".format(rmse_1, rmse_2, rmse_3))
+rmse_1 = np.sqrt(
+    np.mean((np.squeeze(y_avg_mcmc_2) - y_test) * (np.squeeze(y_avg_mcmc_2) - y_test))
+)
+rmse_2 = np.sqrt(
+    np.mean((np.squeeze(y_avg_mcmc_3) - y_test) * (np.squeeze(y_avg_mcmc_3) - y_test))
+)
+rmse_3 = np.sqrt(
+    np.mean((np.squeeze(y_avg_mcmc_4) - y_test) * (np.squeeze(y_avg_mcmc_4) - y_test))
+)
+print(
+    "Chain 1 rmse: {:0.3f}; Chain 2 rmse: {:0.3f}; Chain 3 rmse: {:0.3f}".format(
+        rmse_1, rmse_2, rmse_3
+    )
+)

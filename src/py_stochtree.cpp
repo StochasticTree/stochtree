@@ -325,6 +325,8 @@ class ForestContainerCpp {
 
   void LoadFromJson(JsonCpp& json, std::string forest_label);
 
+  void AppendFromJson(JsonCpp& json, std::string forest_label);
+
   std::string DumpJsonString() {
     return forest_samples_->DumpJsonString();
   }
@@ -1289,6 +1291,7 @@ class RandomEffectsContainerCpp {
     rfx_container_->LoadFromJsonString(json_string);
   }
   void LoadFromJson(JsonCpp& json, std::string rfx_container_label);
+  void AppendFromJson(JsonCpp& json, std::string rfx_container_label);
   StochTree::RandomEffectsContainer* GetRandomEffectsContainer() {
     return rfx_container_.get();
   }
@@ -1870,6 +1873,11 @@ void ForestContainerCpp::LoadFromJson(JsonCpp& json, std::string forest_label) {
   forest_samples_->from_json(forest_json);
 }
 
+void ForestContainerCpp::AppendFromJson(JsonCpp& json, std::string forest_label) {
+  nlohmann::json forest_json = json.SubsetJsonForest(forest_label);
+  forest_samples_->append_from_json(forest_json);
+}
+
 void ForestContainerCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, int forest_num, bool add) {
   // Determine whether or not we are adding forest_num to the residuals
   std::function<double(double, double)> op;
@@ -1894,6 +1902,11 @@ void RandomEffectsContainerCpp::LoadFromJson(JsonCpp& json, std::string rfx_cont
   nlohmann::json rfx_json = json.SubsetJsonRFX().at(rfx_container_label);
   rfx_container_->Reset();
   rfx_container_->from_json(rfx_json);
+}
+
+void RandomEffectsContainerCpp::AppendFromJson(JsonCpp& json, std::string rfx_container_label) {
+  nlohmann::json rfx_json = json.SubsetJsonRFX().at(rfx_container_label);
+  rfx_container_->append_from_json(rfx_json);
 }
 
 void RandomEffectsContainerCpp::AddSample(RandomEffectsModelCpp& rfx_model) {
@@ -2012,6 +2025,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("SaveToJsonFile", &ForestContainerCpp::SaveToJsonFile)
     .def("LoadFromJsonFile", &ForestContainerCpp::LoadFromJsonFile)
     .def("LoadFromJson", &ForestContainerCpp::LoadFromJson)
+    .def("AppendFromJson", &ForestContainerCpp::AppendFromJson)
     .def("DumpJsonString", &ForestContainerCpp::DumpJsonString)
     .def("LoadFromJsonString", &ForestContainerCpp::LoadFromJsonString)
     .def("AddSampleValue", &ForestContainerCpp::AddSampleValue)
@@ -2125,6 +2139,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("DumpJsonString", &RandomEffectsContainerCpp::DumpJsonString)
     .def("LoadFromJsonString", &RandomEffectsContainerCpp::LoadFromJsonString)
     .def("LoadFromJson", &RandomEffectsContainerCpp::LoadFromJson)
+    .def("AppendFromJson", &RandomEffectsContainerCpp::AppendFromJson)
     .def("GetRandomEffectsContainer", &RandomEffectsContainerCpp::GetRandomEffectsContainer);
 
   py::class_<RandomEffectsTrackerCpp>(m, "RandomEffectsTrackerCpp")

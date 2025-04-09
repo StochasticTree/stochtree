@@ -14,7 +14,12 @@ from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
-from .random_effects import RandomEffectsContainer, RandomEffectsDataset, RandomEffectsModel, RandomEffectsTracker
+from .random_effects import (
+    RandomEffectsContainer,
+    RandomEffectsDataset,
+    RandomEffectsModel,
+    RandomEffectsTracker,
+)
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import NotSampledError
@@ -115,7 +120,7 @@ class BCFModel:
         pi_test : np.array, optional
             Optional test set vector of propensity scores. If not provided (but `X_test` and `Z_test` are), this will be estimated from the data.
         rfx_group_ids_test : np.array, optional
-            Optional test set group labels used for an additive random effects model. We do not currently support (but plan to in the near future), 
+            Optional test set group labels used for an additive random effects model. We do not currently support (but plan to in the near future),
             test set evaluation for group labels that were not in the training set.
         rfx_basis_test : np.array, optional
             Optional test set basis for "random-slope" regression in additive random effects model.
@@ -310,9 +315,13 @@ class BCFModel:
         num_trees_tau = treatment_effect_forest_params_updated["num_trees"]
         alpha_tau = treatment_effect_forest_params_updated["alpha"]
         beta_tau = treatment_effect_forest_params_updated["beta"]
-        min_samples_leaf_tau = treatment_effect_forest_params_updated["min_samples_leaf"]
+        min_samples_leaf_tau = treatment_effect_forest_params_updated[
+            "min_samples_leaf"
+        ]
         max_depth_tau = treatment_effect_forest_params_updated["max_depth"]
-        sample_sigma_leaf_tau = treatment_effect_forest_params_updated["sample_sigma2_leaf"]
+        sample_sigma_leaf_tau = treatment_effect_forest_params_updated[
+            "sample_sigma2_leaf"
+        ]
         sigma_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_init"]
         a_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_shape"]
         b_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_scale"]
@@ -320,22 +329,24 @@ class BCFModel:
         drop_vars_tau = treatment_effect_forest_params_updated["drop_vars"]
 
         # 4. Variance forest parameters
-        num_trees_variance = variance_forest_params_updated['num_trees']
-        alpha_variance = variance_forest_params_updated['alpha']
-        beta_variance = variance_forest_params_updated['beta']
-        min_samples_leaf_variance = variance_forest_params_updated['min_samples_leaf']
-        max_depth_variance = variance_forest_params_updated['max_depth']
-        a_0 = variance_forest_params_updated['leaf_prior_calibration_param']
-        variance_forest_leaf_init = variance_forest_params_updated['var_forest_leaf_init']
-        a_forest = variance_forest_params_updated['var_forest_prior_shape']
-        b_forest = variance_forest_params_updated['var_forest_prior_scale']
-        keep_vars_variance = variance_forest_params_updated['keep_vars']
-        drop_vars_variance = variance_forest_params_updated['drop_vars']
-                
+        num_trees_variance = variance_forest_params_updated["num_trees"]
+        alpha_variance = variance_forest_params_updated["alpha"]
+        beta_variance = variance_forest_params_updated["beta"]
+        min_samples_leaf_variance = variance_forest_params_updated["min_samples_leaf"]
+        max_depth_variance = variance_forest_params_updated["max_depth"]
+        a_0 = variance_forest_params_updated["leaf_prior_calibration_param"]
+        variance_forest_leaf_init = variance_forest_params_updated[
+            "var_forest_leaf_init"
+        ]
+        a_forest = variance_forest_params_updated["var_forest_prior_shape"]
+        b_forest = variance_forest_params_updated["var_forest_prior_scale"]
+        keep_vars_variance = variance_forest_params_updated["keep_vars"]
+        drop_vars_variance = variance_forest_params_updated["drop_vars"]
+
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
             keep_gfr = True
-        
+
         # Variable weight preprocessing (and initialization if necessary)
         if variable_weights is None:
             if X_train.ndim > 1:
@@ -378,7 +389,9 @@ class BCFModel:
             if not isinstance(rfx_group_ids_train, np.ndarray):
                 raise ValueError("rfx_group_ids_train must be a numpy array")
             if not np.issubdtype(rfx_group_ids_train.dtype, np.integer):
-                raise ValueError("rfx_group_ids_train must be a numpy array of integer-valued group IDs")
+                raise ValueError(
+                    "rfx_group_ids_train must be a numpy array of integer-valued group IDs"
+                )
         if rfx_basis_train is not None:
             if not isinstance(rfx_basis_train, np.ndarray):
                 raise ValueError("rfx_basis_train must be a numpy array")
@@ -386,7 +399,9 @@ class BCFModel:
             if not isinstance(rfx_group_ids_test, np.ndarray):
                 raise ValueError("rfx_group_ids_test must be a numpy array")
             if not np.issubdtype(rfx_group_ids_test.dtype, np.integer):
-                raise ValueError("rfx_group_ids_test must be a numpy array of integer-valued group IDs")
+                raise ValueError(
+                    "rfx_group_ids_test must be a numpy array of integer-valued group IDs"
+                )
         if rfx_basis_test is not None:
             if not isinstance(rfx_basis_test, np.ndarray):
                 raise ValueError("rfx_basis_test must be a numpy array")
@@ -470,7 +485,6 @@ class BCFModel:
         # Set variance leaf model type (currently only one option)
         leaf_dimension_variance = 1
         leaf_model_variance = 3
-        self.variance_scale = 1
 
         # Check parameters
         if sigma_leaf_tau is not None:
@@ -1155,11 +1169,17 @@ class BCFModel:
                 current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
         elif isinstance(sigma_leaf_tau, np.ndarray):
             if sigma_leaf_tau.ndim != 2:
-                raise ValueError("sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form")
+                raise ValueError(
+                    "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                )
             if sigma_leaf_tau.shape[0] != sigma_leaf_tau.shape[1]:
-                raise ValueError("sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form")
+                raise ValueError(
+                    "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                )
             if sigma_leaf_tau.shape[0] != Z_train.shape[1]:
-                raise ValueError("sigma_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector")
+                raise ValueError(
+                    "sigma_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
+                )
             current_leaf_scale_tau = sigma_leaf_tau
         else:
             raise ValueError("sigma_leaf_tau must be a scalar or a 2d numpy array")
@@ -1173,7 +1193,7 @@ class BCFModel:
                 a_forest = 1.0
             if not b_forest:
                 b_forest = 1.0
-        
+
         # Runtime checks on RFX group ids
         self.has_rfx = False
         has_rfx_test = False
@@ -1182,13 +1202,15 @@ class BCFModel:
             if rfx_group_ids_test is not None:
                 has_rfx_test = True
                 if not np.all(np.isin(rfx_group_ids_test, rfx_group_ids_train)):
-                    raise ValueError("All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train")
-        
-        # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided 
+                    raise ValueError(
+                        "All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train"
+                    )
+
+        # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided
         has_basis_rfx = False
         if self.has_rfx:
             if rfx_basis_train is None:
-                rfx_basis_train = np.ones((rfx_group_ids_train.shape[0],1))
+                rfx_basis_train = np.ones((rfx_group_ids_train.shape[0], 1))
             else:
                 has_basis_rfx = True
             num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
@@ -1197,22 +1219,26 @@ class BCFModel:
         if has_rfx_test:
             if rfx_basis_test is None:
                 if has_basis_rfx:
-                    raise ValueError("Random effects basis provided for training set, must also be provided for the test set")
-                rfx_basis_test = np.ones((rfx_group_ids_test.shape[0],1))
-        
+                    raise ValueError(
+                        "Random effects basis provided for training set, must also be provided for the test set"
+                    )
+                rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
+
         # Set up random effects structures
         if self.has_rfx:
             if num_rfx_components == 1:
                 alpha_init = np.array([1])
             elif num_rfx_components > 1:
-                alpha_init = np.concatenate((np.ones(1), np.zeros(num_rfx_components-1)))
+                alpha_init = np.concatenate(
+                    (np.ones(1), np.zeros(num_rfx_components - 1))
+                )
             else:
                 raise ValueError("There must be at least 1 random effect component")
             xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
             sigma_alpha_init = np.identity(num_rfx_components)
             sigma_xi_init = np.identity(num_rfx_components)
-            sigma_xi_shape = 1.
-            sigma_xi_scale = 1.
+            sigma_xi_shape = 1.0
+            sigma_xi_scale = 1.0
             rfx_dataset_train = RandomEffectsDataset()
             rfx_dataset_train.add_group_labels(rfx_group_ids_train)
             rfx_dataset_train.add_basis(rfx_basis_train)
@@ -1225,7 +1251,9 @@ class BCFModel:
             rfx_model.set_variance_prior_shape(sigma_xi_shape)
             rfx_model.set_variance_prior_scale(sigma_xi_scale)
             self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.load_new_container(num_rfx_components, num_rfx_groups, rfx_tracker)
+            self.rfx_container.load_new_container(
+                num_rfx_components, num_rfx_groups, rfx_tracker
+            )
 
         # Update variable weights
         variable_counts = [original_var_indices.count(i) for i in original_var_indices]
@@ -1614,11 +1642,17 @@ class BCFModel:
                         self.leaf_scale_tau_samples[sample_counter] = (
                             current_leaf_scale_tau[0, 0]
                         )
-                
+
                 # Sample random effects
                 if self.has_rfx:
                     rfx_model.sample(
-                        rfx_dataset_train, residual_train, rfx_tracker, self.rfx_container, keep_sample, current_sigma2, cpp_rng
+                        rfx_dataset_train,
+                        residual_train,
+                        rfx_tracker,
+                        self.rfx_container,
+                        keep_sample,
+                        current_sigma2,
+                        cpp_rng,
                     )
 
         # Run MCMC
@@ -1762,11 +1796,17 @@ class BCFModel:
                         self.leaf_scale_tau_samples[sample_counter] = (
                             current_leaf_scale_tau[0, 0]
                         )
-                
+
                 # Sample random effects
                 if self.has_rfx:
                     rfx_model.sample(
-                        rfx_dataset_train, residual_train, rfx_tracker, self.rfx_container, keep_sample, current_sigma2, cpp_rng
+                        rfx_dataset_train,
+                        residual_train,
+                        rfx_tracker,
+                        self.rfx_container,
+                        keep_sample,
+                        current_sigma2,
+                        cpp_rng,
                     )
 
         # Mark the model as sampled
@@ -1839,13 +1879,19 @@ class BCFModel:
 
         # TODO: make rfx_preds_train and rfx_preds_test persistent properties
         if self.has_rfx:
-            rfx_preds_train = self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train) * self.y_std
+            rfx_preds_train = (
+                self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train)
+                * self.y_std
+            )
             if has_rfx_test:
-                rfx_preds_test = self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test) * self.y_std
+                rfx_preds_test = (
+                    self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test)
+                    * self.y_std
+                )
             self.y_hat_train = self.y_hat_train + rfx_preds_train
             if self.has_test:
                 self.y_hat_test = self.y_hat_test + rfx_preds_test
-        
+
         if self.include_variance_forest:
             sigma2_x_train_raw = (
                 self.forest_container_variance.forest_container_cpp.Predict(
@@ -1860,11 +1906,7 @@ class BCFModel:
                     )
             else:
                 self.sigma2_x_train = (
-                    sigma2_x_train_raw
-                    * self.sigma2_init
-                    * self.y_std
-                    * self.y_std
-                    / self.variance_scale
+                    sigma2_x_train_raw * self.sigma2_init * self.y_std * self.y_std
                 )
             if self.has_test:
                 sigma2_x_test_raw = (
@@ -1880,11 +1922,7 @@ class BCFModel:
                         )
                 else:
                     self.sigma2_x_test = (
-                        sigma2_x_test_raw
-                        * self.sigma2_init
-                        * self.y_std
-                        * self.y_std
-                        / self.variance_scale
+                        sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
                     )
 
         if self.sample_sigma_global:
@@ -1970,16 +2008,16 @@ class BCFModel:
                     "This BCF model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
                     RuntimeWarning,
                 )
-                if not np.issubdtype(
-                    X.dtype, np.floating
-                ) and not np.issubdtype(X.dtype, np.integer):
+                if not np.issubdtype(X.dtype, np.floating) and not np.issubdtype(
+                    X.dtype, np.integer
+                ):
                     raise ValueError(
                         "Prediction cannot proceed on a non-numeric numpy array, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
                     )
                 covariates_processed = X
         else:
             covariates_processed = self._covariate_preprocessor.transform(X)
-        
+
         # Update covariates to include propensities if requested
         if self.propensity_covariate == "none":
             X_combined = covariates_processed
@@ -2064,7 +2102,7 @@ class BCFModel:
                 covariates_processed = covariates
         else:
             covariates_processed = self._covariate_preprocessor.transform(covariates)
-        
+
         # Update covariates to include propensities if requested
         if self.propensity_covariate == "none":
             X_combined = covariates_processed
@@ -2092,16 +2130,19 @@ class BCFModel:
                 )
         else:
             variance_pred = (
-                variance_pred_raw
-                * self.sigma2_init
-                * self.y_std
-                * self.y_std
-                / self.variance_scale
+                variance_pred_raw * self.sigma2_init * self.y_std * self.y_std
             )
 
         return variance_pred
 
-    def predict(self, X: np.array, Z: np.array, propensity: np.array = None, rfx_group_ids: np.array = None, rfx_basis: np.array = None) -> tuple:
+    def predict(
+        self,
+        X: np.array,
+        Z: np.array,
+        propensity: np.array = None,
+        rfx_group_ids: np.array = None,
+        rfx_basis: np.array = None,
+    ) -> tuple:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.
 
@@ -2167,7 +2208,7 @@ class BCFModel:
                     propensity = np.mean(
                         self.bart_propensity_model.predict(X), axis=1, keepdims=True
                     )
-        
+
         # Covariate preprocessing
         if not self._covariate_preprocessor._check_is_fitted():
             if not isinstance(X, np.ndarray):
@@ -2179,9 +2220,9 @@ class BCFModel:
                     "This BCF model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
                     RuntimeWarning,
                 )
-                if not np.issubdtype(
-                    X.dtype, np.floating
-                ) and not np.issubdtype(X.dtype, np.integer):
+                if not np.issubdtype(X.dtype, np.floating) and not np.issubdtype(
+                    X.dtype, np.integer
+                ):
                     raise ValueError(
                         "Prediction cannot proceed on a non-numeric numpy array, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
                     )
@@ -2204,7 +2245,7 @@ class BCFModel:
         mu_raw = self.forest_container_mu.forest_container_cpp.Predict(
             forest_dataset_test.dataset_cpp
         )
-        mu_x = mu_raw * self.y_std / np.sqrt(self.variance_scale) + self.y_bar
+        mu_x = mu_raw * self.y_std + self.y_bar
         tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(
             forest_dataset_test.dataset_cpp
         )
@@ -2213,7 +2254,7 @@ class BCFModel:
                 self.b1_samples - self.b0_samples, axis=(0, 2)
             )
             tau_raw = tau_raw * adaptive_coding_weights
-        tau_x = np.squeeze(tau_raw * self.y_std / np.sqrt(self.variance_scale))
+        tau_x = np.squeeze(tau_raw * self.y_std)
         if Z.shape[1] > 1:
             treatment_term = np.multiply(np.atleast_3d(Z).swapaxes(1, 2), tau_x).sum(
                 axis=2
@@ -2221,9 +2262,11 @@ class BCFModel:
         else:
             treatment_term = Z * np.squeeze(tau_x)
         yhat_x = mu_x + treatment_term
-        
+
         if self.has_rfx:
-            rfx_preds = self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+            rfx_preds = (
+                self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+            )
             yhat_x = yhat_x + rfx_preds
 
         # Compute predictions from the variance forest (if included)
@@ -2236,13 +2279,7 @@ class BCFModel:
                 for i in range(self.num_samples):
                     sigma2_x[:, i] = sigma2_x_raw[:, i] * self.global_var_samples[i]
             else:
-                sigma2_x = (
-                    sigma2_x_raw
-                    * self.sigma2_init
-                    * self.y_std
-                    * self.y_std
-                    / self.variance_scale
-                )
+                sigma2_x = sigma2_x_raw * self.sigma2_init * self.y_std * self.y_std
 
         # Return result matrices as a tuple
         if self.has_rfx and self.include_variance_forest:
@@ -2285,7 +2322,6 @@ class BCFModel:
             bcf_json.add_random_effects(self.rfx_container)
 
         # Add global parameters
-        bcf_json.add_scalar("variance_scale", self.variance_scale)
         bcf_json.add_scalar("outcome_scale", self.y_std)
         bcf_json.add_scalar("outcome_mean", self.y_bar)
         bcf_json.add_boolean("standardize", self.standardize)
@@ -2365,14 +2401,13 @@ class BCFModel:
             self.forest_container_variance.forest_container_cpp.LoadFromJson(
                 bcf_json.json_cpp, "forest_2"
             )
-        
+
         # Unpack random effects
         if self.has_rfx:
             self.rfx_container = RandomEffectsContainer()
             self.rfx_container.load_from_json(bcf_json, 0)
 
         # Unpack global parameters
-        self.variance_scale = bcf_json.get_scalar("variance_scale")
         self.y_std = bcf_json.get_scalar("outcome_scale")
         self.y_bar = bcf_json.get_scalar("outcome_mean")
         self.standardize = bcf_json.get_boolean("standardize")
@@ -2415,6 +2450,162 @@ class BCFModel:
 
         # Unpack covariate preprocessor
         covariate_preprocessor_string = bcf_json.get_string("covariate_preprocessor")
+        self._covariate_preprocessor = CovariatePreprocessor()
+        self._covariate_preprocessor.from_json(covariate_preprocessor_string)
+
+        # Mark the deserialized model as "sampled"
+        self.sampled = True
+
+    def from_json_string_list(self, json_string_list: list[str]) -> None:
+        """
+        Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object
+        which can be used for prediction, etc...
+
+        Parameters
+        -------
+        json_string_list : list of str
+            List of JSON strings which can be parsed to objects of type `JSONSerializer` containing Json representation of a BCF model
+        """
+        # Convert strings to JSONSerializer
+        json_object_list = []
+        for i in range(len(json_string_list)):
+            json_string = json_string_list[i]
+            json_object_list.append(JSONSerializer())
+            json_object_list[i].load_from_json_string(json_string)
+
+        # For scalar / preprocessing details which aren't sample-dependent, defer to the first json
+        json_object_default = json_object_list[0]
+
+        # Unpack forests
+        # Mu forest
+        self.forest_container_mu = ForestContainer(0, 0, False, False)
+        for i in range(len(json_object_list)):
+            if i == 0:
+                self.forest_container_mu.forest_container_cpp.LoadFromJson(
+                    json_object_list[i].json_cpp, "forest_0"
+                )
+            else:
+                self.forest_container_mu.forest_container_cpp.AppendFromJson(
+                    json_object_list[i].json_cpp, "forest_0"
+                )
+        # Tau forest
+        self.forest_container_tau = ForestContainer(0, 0, False, False)
+        for i in range(len(json_object_list)):
+            if i == 0:
+                self.forest_container_tau.forest_container_cpp.LoadFromJson(
+                    json_object_list[i].json_cpp, "forest_1"
+                )
+            else:
+                self.forest_container_tau.forest_container_cpp.AppendFromJson(
+                    json_object_list[i].json_cpp, "forest_1"
+                )
+        self.include_variance_forest = json_object_default.get_boolean(
+            "include_variance_forest"
+        )
+        if self.include_variance_forest:
+            # TODO: don't just make this a placeholder that we overwrite
+            self.forest_container_variance = ForestContainer(0, 0, False, False)
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.forest_container_variance.forest_container_cpp.LoadFromJson(
+                        json_object_list[i].json_cpp, "forest_2"
+                    )
+                else:
+                    self.forest_container_variance.forest_container_cpp.AppendFromJson(
+                        json_object_list[i].json_cpp, "forest_2"
+                    )
+
+        # Unpack random effects
+        self.has_rfx = json_object_default.get_boolean("has_rfx")
+        if self.has_rfx:
+            self.rfx_container = RandomEffectsContainer()
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.rfx_container.load_from_json(json_object_list[i], 0)
+                else:
+                    self.rfx_container.append_from_json(json_object_list[i], 0)
+
+        # Unpack global parameters
+        self.y_std = json_object_default.get_scalar("outcome_scale")
+        self.y_bar = json_object_default.get_scalar("outcome_mean")
+        self.standardize = json_object_default.get_boolean("standardize")
+        self.sigma2_init = json_object_default.get_scalar("sigma2_init")
+        self.sample_sigma_global = json_object_default.get_boolean(
+            "sample_sigma_global"
+        )
+        self.sample_sigma_leaf_mu = json_object_default.get_boolean(
+            "sample_sigma_leaf_mu"
+        )
+        self.sample_sigma_leaf_tau = json_object_default.get_boolean(
+            "sample_sigma_leaf_tau"
+        )
+        self.num_gfr = json_object_default.get_scalar("num_gfr")
+        self.num_burnin = json_object_default.get_scalar("num_burnin")
+        self.num_mcmc = json_object_default.get_scalar("num_mcmc")
+        self.num_samples = json_object_default.get_scalar("num_samples")
+        self.adaptive_coding = json_object_default.get_boolean("adaptive_coding")
+        self.propensity_covariate = json_object_default.get_string(
+            "propensity_covariate"
+        )
+        self.internal_propensity_model = json_object_default.get_boolean(
+            "internal_propensity_model"
+        )
+
+        # Unpack parameter samples
+        if self.sample_sigma_global:
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.global_var_samples = json_object_list[i].get_numeric_vector(
+                        "sigma2_global_samples", "parameters"
+                    )
+                else:
+                    global_var_samples = json_object_list[i].get_numeric_vector(
+                        "sigma2_global_samples", "parameters"
+                    )
+                    self.global_var_samples = np.concatenate(
+                        (self.global_var_samples, global_var_samples)
+                    )
+
+        if self.sample_sigma_leaf_mu:
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.leaf_scale_mu_samples = json_object_list[i].get_numeric_vector(
+                        "sigma2_leaf_mu_samples", "parameters"
+                    )
+                else:
+                    leaf_scale_mu_samples = json_object_list[i].get_numeric_vector(
+                        "sigma2_leaf_mu_samples", "parameters"
+                    )
+                    self.leaf_scale_mu_samples = np.concatenate(
+                        (self.leaf_scale_mu_samples, leaf_scale_mu_samples)
+                    )
+
+        if self.sample_sigma_leaf_tau:
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.sample_sigma_leaf_tau = json_object_list[i].get_numeric_vector(
+                        "sigma2_leaf_tau_samples", "parameters"
+                    )
+                else:
+                    sample_sigma_leaf_tau = json_object_list[i].get_numeric_vector(
+                        "sigma2_leaf_tau_samples", "parameters"
+                    )
+                    self.sample_sigma_leaf_tau = np.concatenate(
+                        (self.sample_sigma_leaf_tau, sample_sigma_leaf_tau)
+                    )
+
+        # Unpack internal propensity model
+        if self.internal_propensity_model:
+            bart_propensity_string = json_object_default.get_string(
+                "bart_propensity_model"
+            )
+            self.bart_propensity_model = BARTModel()
+            self.bart_propensity_model.from_json(bart_propensity_string)
+
+        # Unpack covariate preprocessor
+        covariate_preprocessor_string = json_object_default.get_string(
+            "covariate_preprocessor"
+        )
         self._covariate_preprocessor = CovariatePreprocessor()
         self._covariate_preprocessor.from_json(covariate_preprocessor_string)
 

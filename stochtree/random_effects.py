@@ -177,8 +177,10 @@ class RandomEffectsContainer:
 
     def __init__(self) -> None:
         pass
-    
-    def load_new_container(self, num_components: int, num_groups: int, rfx_tracker: RandomEffectsTracker) -> None:
+
+    def load_new_container(
+        self, num_components: int, num_groups: int, rfx_tracker: RandomEffectsTracker
+    ) -> None:
         """
         Initializes internal data structures for an "empty" random effects container to be sampled and populated.
 
@@ -198,7 +200,7 @@ class RandomEffectsContainer:
         self.rfx_label_mapper_cpp = RandomEffectsLabelMapperCpp()
         self.rfx_label_mapper_cpp.LoadFromTracker(rfx_tracker.rfx_tracker_cpp)
         self.rfx_group_ids = rfx_tracker.rfx_tracker_cpp.GetUniqueGroupIds()
-    
+
     def load_from_json(self, json, rfx_num: int) -> None:
         """
         Initializes internal data structures for an "empty" random effects container to be sampled and populated.
@@ -210,14 +212,30 @@ class RandomEffectsContainer:
         rfx_num : int
             Integer index of the RFX term in a JSON model. In practice, this is typically 0 (most models don't contain two RFX terms).
         """
-        rfx_container_key = f'random_effect_container_{rfx_num:d}'
-        rfx_label_mapper_key = f'random_effect_label_mapper_{rfx_num:d}'
-        rfx_group_ids_key = f'random_effect_groupids_{rfx_num:d}'
+        rfx_container_key = f"random_effect_container_{rfx_num:d}"
+        rfx_label_mapper_key = f"random_effect_label_mapper_{rfx_num:d}"
+        rfx_group_ids_key = f"random_effect_groupids_{rfx_num:d}"
         self.rfx_container_cpp = RandomEffectsContainerCpp()
         self.rfx_container_cpp.LoadFromJson(json.json_cpp, rfx_container_key)
         self.rfx_label_mapper_cpp = RandomEffectsLabelMapperCpp()
         self.rfx_label_mapper_cpp.LoadFromJson(json.json_cpp, rfx_label_mapper_key)
-        self.rfx_group_ids = json.get_integer_vector(rfx_group_ids_key, "random_effects")
+        self.rfx_group_ids = json.get_integer_vector(
+            rfx_group_ids_key, "random_effects"
+        )
+
+    def append_from_json(self, json, rfx_num: int) -> None:
+        """
+        Initializes internal data structures for an "empty" random effects container to be sampled and populated.
+
+        Parameters
+        ----------
+        json : JSONSerializer
+            Python object wrapping a C++ `json` object.
+        rfx_num : int
+            Integer index of the RFX term in a JSON model. In practice, this is typically 0 (most models don't contain two RFX terms).
+        """
+        rfx_container_key = f"random_effect_container_{rfx_num:d}"
+        self.rfx_container_cpp.AppendFromJson(json.json_cpp, rfx_container_key)
 
     def num_samples(self) -> int:
         return self.rfx_container_cpp.NumSamples()

@@ -1853,7 +1853,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     }
     
     # Unpack covariate preprocessor
-    preprocessor_metadata_string <- json_object$get_string("preprocessor_metadata")
+    preprocessor_metadata_string <- json_object_default$get_string("preprocessor_metadata")
     output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
         preprocessor_metadata_string
     )
