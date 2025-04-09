@@ -14,7 +14,12 @@ from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
-from .random_effects import RandomEffectsContainer, RandomEffectsDataset, RandomEffectsModel, RandomEffectsTracker
+from .random_effects import (
+    RandomEffectsContainer,
+    RandomEffectsDataset,
+    RandomEffectsModel,
+    RandomEffectsTracker,
+)
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import NotSampledError
@@ -58,7 +63,6 @@ class BARTModel:
     def __init__(self) -> None:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
-        self.rng = np.random.default_rng()
 
     def sample(
         self,
@@ -77,6 +81,8 @@ class BARTModel:
         general_params: Optional[Dict[str, Any]] = None,
         mean_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
+        previous_model_json: Optional[str] = None,
+        previous_model_warmstart_sample_num: Optional[int] = None,
     ) -> None:
         """Runs a BART sampler on provided training set. Predictions will be cached for the training set and (if provided) the test set.
         Does not require a leaf regression basis.
@@ -99,7 +105,7 @@ class BARTModel:
             Optional test set basis vector used to define a regression to be run in the leaves of each tree.
             Must be included / omitted consistently (i.e. if leaf_basis_train is provided, then leaf_basis_test must be provided alongside X_test).
         rfx_group_ids_test : np.array, optional
-            Optional test set group labels used for an additive random effects model. We do not currently support (but plan to in the near future), 
+            Optional test set group labels used for an additive random effects model. We do not currently support (but plan to in the near future),
             test set evaluation for group labels that were not in the training set.
         rfx_basis_test : np.array, optional
             Optional test set basis for "random-slope" regression in additive random effects model.
@@ -154,6 +160,11 @@ class BARTModel:
             * `var_forest_prior_scale` (`float`): Scale parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2` if not set here.
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the variance forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the variance forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+
+        previous_model_json : str, optional
+            JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Defaults to `None`.
+        previous_model_warmstart_sample_num : int, optional
+            Sample number from `previous_model_json` that will be used to warmstart this BART sampler. Zero-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 0`). Defaults to `None`.
 
         Returns
         -------
@@ -244,22 +255,24 @@ class BARTModel:
         drop_vars_mean = mean_forest_params_updated["drop_vars"]
 
         # 3. Variance forest parameters
-        num_trees_variance = variance_forest_params_updated['num_trees']
-        alpha_variance = variance_forest_params_updated['alpha']
-        beta_variance = variance_forest_params_updated['beta']
-        min_samples_leaf_variance = variance_forest_params_updated['min_samples_leaf']
-        max_depth_variance = variance_forest_params_updated['max_depth']
-        a_0 = variance_forest_params_updated['leaf_prior_calibration_param']
-        variance_forest_leaf_init = variance_forest_params_updated['var_forest_leaf_init']
-        a_forest = variance_forest_params_updated['var_forest_prior_shape']
-        b_forest = variance_forest_params_updated['var_forest_prior_scale']
-        keep_vars_variance = variance_forest_params_updated['keep_vars']
-        drop_vars_variance = variance_forest_params_updated['drop_vars']
-    
+        num_trees_variance = variance_forest_params_updated["num_trees"]
+        alpha_variance = variance_forest_params_updated["alpha"]
+        beta_variance = variance_forest_params_updated["beta"]
+        min_samples_leaf_variance = variance_forest_params_updated["min_samples_leaf"]
+        max_depth_variance = variance_forest_params_updated["max_depth"]
+        a_0 = variance_forest_params_updated["leaf_prior_calibration_param"]
+        variance_forest_leaf_init = variance_forest_params_updated[
+            "var_forest_leaf_init"
+        ]
+        a_forest = variance_forest_params_updated["var_forest_prior_shape"]
+        b_forest = variance_forest_params_updated["var_forest_prior_scale"]
+        keep_vars_variance = variance_forest_params_updated["keep_vars"]
+        drop_vars_variance = variance_forest_params_updated["drop_vars"]
+
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
             keep_gfr = True
-        
+
         # Check that num_chains >= 1
         if not isinstance(num_chains, Integral) or num_chains < 1:
             raise ValueError("num_chains must be an integer greater than 0")
@@ -297,7 +310,9 @@ class BARTModel:
             if not isinstance(rfx_group_ids_train, np.ndarray):
                 raise ValueError("rfx_group_ids_train must be a numpy array")
             if not np.issubdtype(rfx_group_ids_train.dtype, np.integer):
-                raise ValueError("rfx_group_ids_train must be a numpy array of integer-valued group IDs")
+                raise ValueError(
+                    "rfx_group_ids_train must be a numpy array of integer-valued group IDs"
+                )
         if rfx_basis_train is not None:
             if not isinstance(rfx_basis_train, np.ndarray):
                 raise ValueError("rfx_basis_train must be a numpy array")
@@ -305,11 +320,13 @@ class BARTModel:
             if not isinstance(rfx_group_ids_test, np.ndarray):
                 raise ValueError("rfx_group_ids_test must be a numpy array")
             if not np.issubdtype(rfx_group_ids_test.dtype, np.integer):
-                raise ValueError("rfx_group_ids_test must be a numpy array of integer-valued group IDs")
+                raise ValueError(
+                    "rfx_group_ids_test must be a numpy array of integer-valued group IDs"
+                )
         if rfx_basis_test is not None:
             if not isinstance(rfx_basis_test, np.ndarray):
                 raise ValueError("rfx_basis_test must be a numpy array")
-        
+
         # Convert everything to standard shape (2-dimensional)
         if isinstance(X_train, np.ndarray):
             if X_train.ndim == 1:
@@ -352,7 +369,9 @@ class BARTModel:
                         "leaf_basis_train and leaf_basis_test must have the same number of columns"
                     )
             else:
-                raise ValueError("leaf_basis_test provided but leaf_basis_train was not")
+                raise ValueError(
+                    "leaf_basis_test provided but leaf_basis_train was not"
+                )
         if leaf_basis_train is not None:
             if leaf_basis_train.shape[0] != X_train.shape[0]:
                 raise ValueError(
@@ -612,6 +631,61 @@ class BARTModel:
         else:
             variable_subset_variance = [i for i in range(X_train.shape[1])]
 
+        # Check if previous model JSON is provided and parse it if so
+        has_prev_model = previous_model_json is not None
+        if has_prev_model:
+            if num_gfr > 0:
+                if num_mcmc == 0:
+                    raise ValueError(
+                        "A previous model is being used to initialize this sampler, so `num_mcmc` must be greater than zero"
+                    )
+                else:
+                    warnings.warn(
+                        "A previous model is being used to initialize this sampler, so num_gfr will be ignored and the MCMC sampler will be run from the previous samples"
+                    )
+            previous_bart_model = BARTModel()
+            previous_bart_model.from_json(previous_model_json)
+            previous_y_bar = previous_bart_model.y_bar
+            previous_y_scale = previous_bart_model.y_std
+            previous_model_num_samples = previous_bart_model.num_samples
+            if previous_bart_model.include_mean_forest:
+                previous_forest_samples_mean = previous_bart_model.forest_container_mean
+            else:
+                previous_forest_samples_mean = None
+            if previous_bart_model.include_variance_forest:
+                previous_forest_samples_variance = (
+                    previous_bart_model.forest_container_variance
+                )
+            else:
+                previous_forest_samples_variance = None
+            if previous_bart_model.sample_sigma_global:
+                previous_global_var_samples = previous_bart_model.global_var_samples / (
+                    previous_y_scale * previous_y_scale
+                )
+            else:
+                previous_global_var_samples = None
+            if previous_bart_model.sample_sigma_leaf:
+                previous_leaf_var_samples = previous_bart_model.leaf_scale_samples
+            else:
+                previous_leaf_var_samples = None
+            if previous_bart_model.has_rfx:
+                previous_rfx_samples = previous_bart_model.rfx_container
+            else:
+                previous_rfx_samples = None
+            if previous_model_warmstart_sample_num + 1 > previous_model_num_samples:
+                raise ValueError(
+                    "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
+                )
+        else:
+            previous_y_bar = None
+            previous_y_scale = None
+            previous_global_var_samples = None
+            previous_leaf_var_samples = None
+            previous_rfx_samples = None
+            previous_forest_samples_mean = None
+            previous_forest_samples_variance = None
+            previous_model_num_samples = 0
+
         # Update variable weights if the covariates have been resized (by e.g. one-hot encoding)
         if X_train_processed.shape[1] != X_train.shape[1]:
             variable_counts = [
@@ -661,35 +735,56 @@ class BARTModel:
             if self.has_basis:
                 if sigma_leaf is None:
                     current_leaf_scale = np.zeros((self.num_basis, self.num_basis))
-                    np.fill_diagonal(current_leaf_scale, np.squeeze(np.var(resid_train)) / num_trees_mean)
+                    np.fill_diagonal(
+                        current_leaf_scale,
+                        np.squeeze(np.var(resid_train)) / num_trees_mean,
+                    )
                 elif isinstance(sigma_leaf, float):
                     current_leaf_scale = np.zeros((self.num_basis, self.num_basis))
                     np.fill_diagonal(current_leaf_scale, sigma_leaf)
                 elif isinstance(sigma_leaf, np.ndarray):
                     if sigma_leaf.ndim != 2:
-                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array if provided in matrix form")
+                        raise ValueError(
+                            "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                        )
                     if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
-                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array if provided in matrix form")
+                        raise ValueError(
+                            "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                        )
                     if sigma_leaf.shape[0] != self.num_basis:
-                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension")
+                        raise ValueError(
+                            "sigma_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
+                        )
                     current_leaf_scale = sigma_leaf
                 else:
-                    raise ValueError("sigma_leaf must be either a scalar or a 2d symmetric numpy array")
+                    raise ValueError(
+                        "sigma_leaf must be either a scalar or a 2d symmetric numpy array"
+                    )
             else:
                 if sigma_leaf is None:
-                    current_leaf_scale = np.array([[np.squeeze(np.var(resid_train)) / num_trees_mean]])
+                    current_leaf_scale = np.array(
+                        [[np.squeeze(np.var(resid_train)) / num_trees_mean]]
+                    )
                 elif isinstance(sigma_leaf, float):
                     current_leaf_scale = np.array([[sigma_leaf]])
                 elif isinstance(sigma_leaf, np.ndarray):
                     if sigma_leaf.ndim != 2:
-                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array if provided in matrix form")
+                        raise ValueError(
+                            "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                        )
                     if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
-                        raise ValueError("sigma_leaf must be a 2d symmetric numpy array if provided in matrix form")
+                        raise ValueError(
+                            "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                        )
                     if sigma_leaf.shape[0] != 1:
-                        raise ValueError("sigma_leaf must be a 1x1 numpy array for this leaf model")
+                        raise ValueError(
+                            "sigma_leaf must be a 1x1 numpy array for this leaf model"
+                        )
                     current_leaf_scale = sigma_leaf
                 else:
-                    raise ValueError("sigma_leaf must be either a scalar or a 2d numpy array")
+                    raise ValueError(
+                        "sigma_leaf must be either a scalar or a 2d numpy array"
+                    )
         else:
             current_leaf_scale = np.array([[1.0]])
         if self.include_variance_forest:
@@ -702,7 +797,7 @@ class BARTModel:
                 a_forest = 1.0
             if not b_forest:
                 b_forest = 1.0
-        
+
         # Runtime checks on RFX group ids
         self.has_rfx = False
         has_rfx_test = False
@@ -711,13 +806,15 @@ class BARTModel:
             if rfx_group_ids_test is not None:
                 has_rfx_test = True
                 if not np.all(np.isin(rfx_group_ids_test, rfx_group_ids_train)):
-                    raise ValueError("All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train")
-        
-        # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided 
+                    raise ValueError(
+                        "All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train"
+                    )
+
+        # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided
         has_basis_rfx = False
         if self.has_rfx:
             if rfx_basis_train is None:
-                rfx_basis_train = np.ones((rfx_group_ids_train.shape[0],1))
+                rfx_basis_train = np.ones((rfx_group_ids_train.shape[0], 1))
             else:
                 has_basis_rfx = True
             num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
@@ -726,22 +823,26 @@ class BARTModel:
         if has_rfx_test:
             if rfx_basis_test is None:
                 if has_basis_rfx:
-                    raise ValueError("Random effects basis provided for training set, must also be provided for the test set")
-                rfx_basis_test = np.ones((rfx_group_ids_test.shape[0],1))
-        
+                    raise ValueError(
+                        "Random effects basis provided for training set, must also be provided for the test set"
+                    )
+                rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
+
         # Set up random effects structures
         if self.has_rfx:
             if num_rfx_components == 1:
                 alpha_init = np.array([1])
             elif num_rfx_components > 1:
-                alpha_init = np.concatenate((np.ones(1), np.zeros(num_rfx_components-1)))
+                alpha_init = np.concatenate(
+                    (np.ones(1), np.zeros(num_rfx_components - 1))
+                )
             else:
                 raise ValueError("There must be at least 1 random effect component")
             xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
             sigma_alpha_init = np.identity(num_rfx_components)
             sigma_xi_init = np.identity(num_rfx_components)
-            sigma_xi_shape = 1.
-            sigma_xi_scale = 1.
+            sigma_xi_shape = 1.0
+            sigma_xi_scale = 1.0
             rfx_dataset_train = RandomEffectsDataset()
             rfx_dataset_train.add_group_labels(rfx_group_ids_train)
             rfx_dataset_train.add_basis(rfx_basis_train)
@@ -754,7 +855,9 @@ class BARTModel:
             rfx_model.set_variance_prior_shape(sigma_xi_shape)
             rfx_model.set_variance_prior_scale(sigma_xi_scale)
             self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.load_new_container(num_rfx_components, num_rfx_groups, rfx_tracker)
+            self.rfx_container.load_new_container(
+                num_rfx_components, num_rfx_groups, rfx_tracker
+            )
 
         # Container of variance parameter samples
         self.num_gfr = num_gfr
@@ -960,11 +1063,17 @@ class BARTModel:
                         self.leaf_scale_samples[sample_counter] = current_leaf_scale[
                             0, 0
                         ]
-                
+
                 # Sample random effects
                 if self.has_rfx:
                     rfx_model.sample(
-                        rfx_dataset_train, residual_train, rfx_tracker, self.rfx_container, keep_sample, current_sigma2, cpp_rng
+                        rfx_dataset_train,
+                        residual_train,
+                        rfx_tracker,
+                        self.rfx_container,
+                        keep_sample,
+                        current_sigma2,
+                        cpp_rng,
                     )
 
         # Run MCMC
@@ -992,6 +1101,44 @@ class BARTModel:
                         )
                     if sample_sigma_global:
                         current_sigma2 = self.global_var_samples[forest_ind]
+                elif has_prev_model:
+                    if self.include_mean_forest:
+                        active_forest_mean.reset(
+                            previous_bart_model.forest_container_mean,
+                            previous_model_warmstart_sample_num,
+                        )
+                        forest_sampler_mean.reconstitute_from_forest(
+                            active_forest_mean,
+                            forest_dataset_train,
+                            residual_train,
+                            True,
+                        )
+                        if sample_sigma_leaf and previous_leaf_var_samples is not None:
+                            leaf_scale_double = previous_leaf_var_samples[
+                                previous_model_warmstart_sample_num
+                            ]
+                            current_leaf_scale[0, 0] = leaf_scale_double
+                            forest_model_config_mean.update_leaf_model_scale(
+                                leaf_scale_double
+                            )
+                    if self.include_variance_forest:
+                        active_forest_variance.reset(
+                            previous_bart_model.forest_container_variance,
+                            previous_model_warmstart_sample_num,
+                        )
+                        forest_sampler_variance.reconstitute_from_forest(
+                            active_forest_variance,
+                            forest_dataset_train,
+                            residual_train,
+                            True,
+                        )
+                    # if self.has_rfx:
+                    #     pass
+                    if self.sample_sigma_global:
+                        current_sigma2 = previous_global_var_samples[
+                            previous_model_warmstart_sample_num
+                        ]
+                        global_model_config.update_global_error_variance(current_sigma2)
                 else:
                     if self.include_mean_forest:
                         active_forest_mean.reset_root()
@@ -1069,21 +1216,31 @@ class BARTModel:
                         current_sigma2 = global_var_model.sample_one_iteration(
                             residual_train, cpp_rng, a_global, b_global
                         )
+                        global_model_config.update_global_error_variance(current_sigma2)
                         if keep_sample:
                             self.global_var_samples[sample_counter] = current_sigma2
                     if self.sample_sigma_leaf:
                         current_leaf_scale[0, 0] = leaf_var_model.sample_one_iteration(
                             active_forest_mean, cpp_rng, a_leaf, b_leaf
                         )
+                        forest_model_config_mean.update_leaf_model_scale(
+                            current_leaf_scale
+                        )
                         if keep_sample:
                             self.leaf_scale_samples[sample_counter] = (
                                 current_leaf_scale[0, 0]
                             )
-                
+
                     # Sample random effects
                     if self.has_rfx:
                         rfx_model.sample(
-                            rfx_dataset_train, residual_train, rfx_tracker, self.rfx_container, keep_sample, current_sigma2, cpp_rng
+                            rfx_dataset_train,
+                            residual_train,
+                            rfx_tracker,
+                            self.rfx_container,
+                            keep_sample,
+                            current_sigma2,
+                            cpp_rng,
                         )
 
         # Mark the model as sampled
@@ -1121,12 +1278,18 @@ class BARTModel:
                     forest_dataset_test.dataset_cpp
                 )
                 self.y_hat_test = yhat_test_raw * self.y_std + self.y_bar
-        
+
         # TODO: make rfx_preds_train and rfx_preds_test persistent properties
         if self.has_rfx:
-            rfx_preds_train = self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train) * self.y_std
+            rfx_preds_train = (
+                self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train)
+                * self.y_std
+            )
             if has_rfx_test:
-                rfx_preds_test = self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test) * self.y_std
+                rfx_preds_test = (
+                    self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test)
+                    * self.y_std
+                )
             if self.include_mean_forest:
                 self.y_hat_train = self.y_hat_train + rfx_preds_train
                 if self.has_test:
@@ -1170,8 +1333,11 @@ class BARTModel:
                     )
 
     def predict(
-        self, covariates: Union[np.array, pd.DataFrame], basis: np.array = None, 
-        rfx_group_ids: np.array = None, rfx_basis: np.array = None
+        self,
+        covariates: Union[np.array, pd.DataFrame],
+        basis: np.array = None,
+        rfx_group_ids: np.array = None,
+        rfx_basis: np.array = None,
     ) -> Union[np.array, tuple]:
         """Return predictions from every forest sampled (either / both of mean and variance).
         Return type is either a single array of predictions, if a BART model only includes a
@@ -1256,9 +1422,11 @@ class BARTModel:
                 pred_dataset.dataset_cpp
             )
             mean_pred = mean_pred_raw * self.y_std + self.y_bar
-        
+
         if self.has_rfx:
-            rfx_preds = self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+            rfx_preds = (
+                self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+            )
             if self.include_mean_forest:
                 mean_pred = mean_pred + rfx_preds
             else:
@@ -1290,8 +1458,11 @@ class BARTModel:
             return variance_pred
 
     def predict_mean(
-        self, covariates: np.array, basis: np.array = None, 
-        rfx_group_ids: np.array = None, rfx_basis: np.array = None
+        self,
+        covariates: np.array,
+        basis: np.array = None,
+        rfx_group_ids: np.array = None,
+        rfx_basis: np.array = None,
     ) -> np.array:
         """Predict expected conditional outcome from a BART model.
 
@@ -1379,7 +1550,9 @@ class BARTModel:
 
         # RFX predictions
         if self.has_rfx:
-            rfx_preds = self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+            rfx_preds = (
+                self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+            )
             if self.include_mean_forest:
                 mean_pred = mean_pred + rfx_preds
             else:
@@ -1507,11 +1680,11 @@ class BARTModel:
         bart_json.add_boolean("include_mean_forest", self.include_mean_forest)
         bart_json.add_boolean("include_variance_forest", self.include_variance_forest)
         bart_json.add_boolean("has_rfx", self.has_rfx)
-        bart_json.add_scalar("num_gfr", self.num_gfr)
-        bart_json.add_scalar("num_burnin", self.num_burnin)
-        bart_json.add_scalar("num_mcmc", self.num_mcmc)
-        bart_json.add_scalar("num_samples", self.num_samples)
-        bart_json.add_scalar("num_basis", self.num_basis)
+        bart_json.add_integer("num_gfr", self.num_gfr)
+        bart_json.add_integer("num_burnin", self.num_burnin)
+        bart_json.add_integer("num_mcmc", self.num_mcmc)
+        bart_json.add_integer("num_samples", self.num_samples)
+        bart_json.add_integer("num_basis", self.num_basis)
         bart_json.add_boolean("requires_basis", self.has_basis)
 
         # Add parameter samples
@@ -1565,7 +1738,7 @@ class BARTModel:
             self.forest_container_variance.forest_container_cpp.LoadFromJson(
                 bart_json.json_cpp, "forest_0"
             )
-        
+
         # Unpack random effects
         if self.has_rfx:
             self.rfx_container = RandomEffectsContainer()
@@ -1578,11 +1751,11 @@ class BARTModel:
         self.sigma2_init = bart_json.get_scalar("sigma2_init")
         self.sample_sigma_global = bart_json.get_boolean("sample_sigma_global")
         self.sample_sigma_leaf = bart_json.get_boolean("sample_sigma_leaf")
-        self.num_gfr = bart_json.get_scalar("num_gfr")
-        self.num_burnin = bart_json.get_scalar("num_burnin")
-        self.num_mcmc = bart_json.get_scalar("num_mcmc")
-        self.num_samples = bart_json.get_scalar("num_samples")
-        self.num_basis = bart_json.get_scalar("num_basis")
+        self.num_gfr = bart_json.get_integer("num_gfr")
+        self.num_burnin = bart_json.get_integer("num_burnin")
+        self.num_mcmc = bart_json.get_integer("num_mcmc")
+        self.num_samples = bart_json.get_integer("num_samples")
+        self.num_basis = bart_json.get_integer("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
 
         # Unpack parameter samples
@@ -1597,6 +1770,135 @@ class BARTModel:
 
         # Unpack covariate preprocessor
         covariate_preprocessor_string = bart_json.get_string("covariate_preprocessor")
+        self._covariate_preprocessor = CovariatePreprocessor()
+        self._covariate_preprocessor.from_json(covariate_preprocessor_string)
+
+        # Mark the deserialized model as "sampled"
+        self.sampled = True
+
+    def from_json_string_list(self, json_string_list: list[str]) -> None:
+        """
+        Convert a list of (in-memory) JSON strings that represent BART models to a single combined BART model object
+        which can be used for prediction, etc...
+
+        Parameters
+        -------
+        json_string_list : list of str
+            List of JSON strings which can be parsed to objects of type `JSONSerializer` containing Json representation of a BART model
+        """
+        # Convert strings to JSONSerializer
+        json_object_list = []
+        for i in range(len(json_string_list)):
+            json_string = json_string_list[i]
+            json_object_list.append(JSONSerializer())
+            json_object_list[i].load_from_json_string(json_string)
+
+        # For scalar / preprocessing details which aren't sample-dependent, defer to the first json
+        json_object_default = json_object_list[0]
+
+        # Unpack forests
+        self.include_mean_forest = json_object_default.get_boolean(
+            "include_mean_forest"
+        )
+        self.include_variance_forest = json_object_default.get_boolean(
+            "include_variance_forest"
+        )
+        if self.include_mean_forest:
+            # TODO: don't just make this a placeholder that we overwrite
+            self.forest_container_mean = ForestContainer(0, 0, False, False)
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.forest_container_mean.forest_container_cpp.LoadFromJson(
+                        json_object_list[i].json_cpp, "forest_0"
+                    )
+                else:
+                    self.forest_container_mean.forest_container_cpp.AppendFromJson(
+                        json_object_list[i].json_cpp, "forest_0"
+                    )
+            if self.include_variance_forest:
+                # TODO: don't just make this a placeholder that we overwrite
+                self.forest_container_variance = ForestContainer(0, 0, False, False)
+                for i in range(len(json_object_list)):
+                    if i == 0:
+                        self.forest_container_variance.forest_container_cpp.LoadFromJson(
+                            json_object_list[i].json_cpp, "forest_1"
+                        )
+                    else:
+                        self.forest_container_variance.forest_container_cpp.AppendFromJson(
+                            json_object_list[i].json_cpp, "forest_1"
+                        )
+        else:
+            # TODO: don't just make this a placeholder that we overwrite
+            self.forest_container_variance = ForestContainer(0, 0, False, False)
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.forest_container_variance.forest_container_cpp.LoadFromJson(
+                        json_object_list[i].json_cpp, "forest_1"
+                    )
+                else:
+                    self.forest_container_variance.forest_container_cpp.AppendFromJson(
+                        json_object_list[i].json_cpp, "forest_1"
+                    )
+
+        # Unpack random effects
+        self.has_rfx = json_object_default.get_boolean("has_rfx")
+        if self.has_rfx:
+            self.rfx_container = RandomEffectsContainer()
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.rfx_container.load_from_json(json_object_list[i], 0)
+                else:
+                    self.rfx_container.append_from_json(json_object_list[i], 0)
+
+        # Unpack global parameters
+        self.y_std = json_object_default.get_scalar("outcome_scale")
+        self.y_bar = json_object_default.get_scalar("outcome_mean")
+        self.standardize = json_object_default.get_boolean("standardize")
+        self.sigma2_init = json_object_default.get_scalar("sigma2_init")
+        self.sample_sigma_global = json_object_default.get_boolean(
+            "sample_sigma_global"
+        )
+        self.sample_sigma_leaf = json_object_default.get_boolean("sample_sigma_leaf")
+        self.num_gfr = json_object_default.get_integer("num_gfr")
+        self.num_burnin = json_object_default.get_integer("num_burnin")
+        self.num_mcmc = json_object_default.get_integer("num_mcmc")
+        self.num_samples = json_object_default.get_integer("num_samples")
+        self.num_basis = json_object_default.get_integer("num_basis")
+        self.has_basis = json_object_default.get_boolean("requires_basis")
+
+        # Unpack parameter samples
+        if self.sample_sigma_global:
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.global_var_samples = json_object_list[i].get_numeric_vector(
+                        "sigma2_global_samples", "parameters"
+                    )
+                else:
+                    global_var_samples = json_object_list[i].get_numeric_vector(
+                        "sigma2_global_samples", "parameters"
+                    )
+                    self.global_var_samples = np.concatenate(
+                        (self.global_var_samples, global_var_samples)
+                    )
+
+        if self.sample_sigma_leaf:
+            for i in range(len(json_object_list)):
+                if i == 0:
+                    self.leaf_scale_samples = json_object_list[i].get_numeric_vector(
+                        "sigma2_leaf_samples", "parameters"
+                    )
+                else:
+                    leaf_scale_samples = json_object_list[i].get_numeric_vector(
+                        "sigma2_leaf_samples", "parameters"
+                    )
+                    self.leaf_scale_samples = np.concatenate(
+                        (self.leaf_scale_samples, leaf_scale_samples)
+                    )
+
+        # Unpack covariate preprocessor
+        covariate_preprocessor_string = json_object_default.get_string(
+            "covariate_preprocessor"
+        )
         self._covariate_preprocessor = CovariatePreprocessor()
         self._covariate_preprocessor.from_json(covariate_preprocessor_string)
 

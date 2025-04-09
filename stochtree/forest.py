@@ -206,6 +206,17 @@ class ForestContainer:
         """
         self.forest_container_cpp.LoadFromJsonString(json_string)
 
+    def load_from_json_object(self, json_object) -> None:
+        """
+        Reload a forest container from an in-memory JSONSerializer object.
+
+        Parameters
+        ----------
+        json_object : JSONSerializer
+            In-memory JSONSerializer object.
+        """
+        self.forest_container_cpp.LoadFromJsonObject(json_object)
+
     def add_sample(self, leaf_value: Union[float, np.array]) -> None:
         """
         Add a new all-root ensemble to the container, with all of the leaves set to the value / vector provided
@@ -903,8 +914,13 @@ class Forest:
         if isinstance(leaf_value, np.ndarray):
             if len(leaf_value.shape) > 1:
                 leaf_value = np.squeeze(leaf_value)
-            if len(leaf_value.shape) != 1 or leaf_value.shape[0] != self.output_dimension:
-                raise ValueError("leaf_value must be a one-dimensional array with dimension equal to the output_dimension field of the forest")
+            if (
+                len(leaf_value.shape) != 1
+                or leaf_value.shape[0] != self.output_dimension
+            ):
+                raise ValueError(
+                    "leaf_value must be a one-dimensional array with dimension equal to the output_dimension field of the forest"
+                )
             if leaf_value.shape[0] > 1:
                 self.forest_cpp.SetRootVector(leaf_value, leaf_value.shape[0])
             else:
@@ -1368,13 +1384,13 @@ class Forest:
     def is_empty(self) -> bool:
         """
         When a Forest object is created, it is "empty" in the sense that none
-        of its component trees have leaves with values. There are two ways to 
+        of its component trees have leaves with values. There are two ways to
         "initialize" a Forest object. First, the `set_root_leaves()` method of the
-        Forest class simply initializes every tree in the forest to a single node 
-        carrying the same (user-specified) leaf value. Second, the `prepare_for_sampler()` 
-        method of the ForestSampler class initializes every tree in the forest to a 
-        single node with the same value and also propagates this information through 
-        to the temporary tracking data structrues in a ForestSampler object, which 
+        Forest class simply initializes every tree in the forest to a single node
+        carrying the same (user-specified) leaf value. Second, the `prepare_for_sampler()`
+        method of the ForestSampler class initializes every tree in the forest to a
+        single node with the same value and also propagates this information through
+        to the temporary tracking data structrues in a ForestSampler object, which
         must be synchronized with a Forest during a forest sampler loop.
 
         Returns
