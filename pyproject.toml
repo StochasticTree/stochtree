@@ -10,3 +10,34 @@ requires = [
     "scikit-learn"
 ]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "stochtree"
+version = "0.1.0"
+dynamic = ["readme", "optional-dependencies", "license"]
+description = "Stochastic Tree Ensembles for Machine Learning and Causal Inference"
+requires-python = ">=3.8.0"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS", 
+    "Operating System :: Microsoft :: Windows", 
+    "Operating System :: POSIX :: Linux", 
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence"
+]
+authors = [
+	{name = "Drew Herren", email = "drewherrenopensource@gmail.com"}
+]
+
+[project.urls]
+Homepage = "https://stochtree.ai/"
+Documentation = "https://stochtree.ai/python_docs/index.html"
+Repository = "https://github.com/StochasticTree/stochtree"
+Issues = "https://github.com/StochasticTree/stochtree/issues"
