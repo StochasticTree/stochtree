@@ -22,7 +22,9 @@ jobs:
           submodules: 'recursive'
 
       - name: Build wheels
-        run: pipx run cibuildwheel==2.23.0
+        uses: pypa/cibuildwheel@v2.23.2
+        env:
+          CIBW_SKIP: pp*
 
       - uses: actions/upload-artifact@v4
         with:
