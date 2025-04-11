@@ -734,13 +734,13 @@ class BARTModel:
             )
             if self.has_basis:
                 if sigma_leaf is None:
-                    current_leaf_scale = np.zeros((self.num_basis, self.num_basis))
+                    current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
                     np.fill_diagonal(
                         current_leaf_scale,
                         np.squeeze(np.var(resid_train)) / num_trees_mean,
                     )
                 elif isinstance(sigma_leaf, float):
-                    current_leaf_scale = np.zeros((self.num_basis, self.num_basis))
+                    current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
                     np.fill_diagonal(current_leaf_scale, sigma_leaf)
                 elif isinstance(sigma_leaf, np.ndarray):
                     if sigma_leaf.ndim != 2:
@@ -834,7 +834,7 @@ class BARTModel:
                 alpha_init = np.array([1])
             elif num_rfx_components > 1:
                 alpha_init = np.concatenate(
-                    (np.ones(1), np.zeros(num_rfx_components - 1))
+                    (np.ones(1, dtype=float), np.zeros(num_rfx_components - 1, dtype=float))
                 )
             else:
                 raise ValueError("There must be at least 1 random effect component")

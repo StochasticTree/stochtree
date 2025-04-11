@@ -113,7 +113,7 @@ class ForestModelConfig:
             raise ValueError("`leaf_dimension` must be an integer greater than 0")
         if leaf_model_scale is None:
             diag_value = 1.0 / num_trees
-            leaf_model_scale_array = np.zeros((leaf_dimension, leaf_dimension), float)
+            leaf_model_scale_array = np.zeros((leaf_dimension, leaf_dimension), dtype=float)
             np.fill_diagonal(leaf_model_scale_array, diag_value)
         else:
             if isinstance(leaf_model_scale, np.ndarray):
@@ -128,7 +128,7 @@ class ForestModelConfig:
                         "`leaf_model_scale` must be positive, if provided as scalar"
                     )
                 leaf_model_scale_array = np.zeros(
-                    (leaf_dimension, leaf_dimension), float
+                    (leaf_dimension, leaf_dimension), dtype=float
                 )
                 np.fill_diagonal(leaf_model_scale_array, leaf_model_scale)
             else:
@@ -278,7 +278,7 @@ class ForestModelConfig:
                     "`leaf_model_scale` must be positive, if provided as scalar"
                 )
             leaf_model_scale_array = np.zeros(
-                (self.leaf_dimension, self.leaf_dimension), float
+                (self.leaf_dimension, self.leaf_dimension), dtype=float
             )
             np.fill_diagonal(leaf_model_scale_array, leaf_model_scale)
         else:
