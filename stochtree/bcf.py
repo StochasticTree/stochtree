@@ -1163,7 +1163,7 @@ class BCFModel:
             raise ValueError("sigma_leaf_mu must be a scalar")
         if isinstance(sigma_leaf_tau, float):
             if Z_train.shape[1] > 1:
-                current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]))
+                current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]), dtype=float)
                 np.fill_diagonal(current_leaf_scale_tau, sigma_leaf_tau)
             else:
                 current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
@@ -1230,7 +1230,7 @@ class BCFModel:
                 alpha_init = np.array([1])
             elif num_rfx_components > 1:
                 alpha_init = np.concatenate(
-                    (np.ones(1), np.zeros(num_rfx_components - 1))
+                    (np.ones(1, dtype=float), np.zeros(num_rfx_components - 1, dtype=float))
                 )
             else:
                 raise ValueError("There must be at least 1 random effect component")
@@ -1488,7 +1488,7 @@ class BCFModel:
 
         # Initialize the leaves of each tree in the treatment forest
         if self.multivariate_treatment:
-            init_tau = np.zeros(Z_train.shape[1])
+            init_tau = np.zeros(Z_train.shape[1], dtype=float)
         else:
             init_tau = np.array([0.0])
         forest_sampler_tau.prepare_for_sampler(
