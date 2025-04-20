@@ -58,6 +58,7 @@
 #'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
 #'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+#'   - `probit_outcome_model` Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
 #'
 #' @param variance_forest_params (Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -125,7 +126,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         min_samples_leaf = 5, max_depth = 10, 
         sample_sigma2_leaf = TRUE, sigma2_leaf_init = NULL, 
         sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL, 
-        keep_vars = NULL, drop_vars = NULL
+        keep_vars = NULL, drop_vars = NULL, 
+        probit_outcome_model = FALSE
     )
     mean_forest_params_updated <- preprocessParams(
         mean_forest_params_default, mean_forest_params
@@ -173,6 +175,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     b_leaf <- mean_forest_params_updated$sigma2_leaf_scale
     keep_vars_mean <- mean_forest_params_updated$keep_vars
     drop_vars_mean <- mean_forest_params_updated$drop_vars
+    probit_outcome_model <- mean_forest_params_updated$probit_outcome_model
     
     # 3. Variance forest parameters
     num_trees_variance <- variance_forest_params_updated$num_trees
@@ -462,31 +465,104 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     
     # Determine whether a test set is provided
     has_test = !is.null(X_test)
-
-    # Standardize outcome separately for test and train
-    if (standardize) {
-        y_bar_train <- mean(y_train)
-        y_std_train <- sd(y_train)
-    } else {
-        y_bar_train <- 0
-        y_std_train <- 1
-    }
-    resid_train <- (y_train-y_bar_train)/y_std_train
     
-    # Compute initial value of root nodes in mean forest
-    init_val_mean <- mean(resid_train)
+    # Check whether outcome is 0-1 binary
+    if (probit_outcome_model) {
+        if (!(length(unique(y_train)) == 2)) {
+            stop("You specified a probit outcome model, but supplied an outcome with more than 2 unique values")
+        }
+        unique_outcomes <- sort(unique(y_train))
+        if (!(all(unique_outcomes == c(0,1)))) {
+            stop("You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1")
+        }
+        if (include_variance_forest) {
+            stop("We do not support heteroskedasticity with a probit link")
+        }
+        if (sample_sigma_global) {
+            warning("Global error variance will not be sampled with a probit link as it is fixed at 1")
+            sample_sigma_global <- F
+        }
+    }
 
-    # Calibrate priors for sigma^2 and tau
-    if (is.null(sigma2_init)) sigma2_init <- 1.0*var(resid_train)
-    if (is.null(variance_forest_init)) variance_forest_init <- 1.0*var(resid_train)
-    if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees_mean)
-    if (has_basis) {
-        if (ncol(leaf_basis_train) > 1) {
-            if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(var(resid_train)/(num_trees_mean), ncol(leaf_basis_train))
+    # Handle standardization, prior calibration, and initialization of forest
+    # differently for binary and continuous outcomes
+    if (probit_outcome_model) {
+        # Compute a probit-scale offset and fix scale to 1
+        y_bar_train <- pnorm(mean(y_train))
+        y_std_train <- 1
+
+        # Set a pseudo outcome by subtracting mean(y_train) from y_train
+        current_z_train <- y_train - mean(y_train)
+        resid_train <- y_train - mean(y_train)
+        
+        # Set initial values of root nodes to 0.0 (in probit scale)
+        init_val_mean <- 0.0
+        
+        # Calibrate priors for sigma^2 and tau
+        # Set sigma2_init to 1, ignoring default provided
+        sigma2_init <- 1.0
+        # Skip variance_forest_init, since variance forests are not supported with probit link
+        b_leaf <- 1/(num_trees_mean)
+        if (has_basis) {
+            if (ncol(leaf_basis_train) > 1) {
+                if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(2/(num_trees_mean), ncol(leaf_basis_train))
+                if (!is.matrix(sigma_leaf_init)) {
+                    current_leaf_scale <- as.matrix(diag(sigma_leaf_init, ncol(leaf_basis_train)))
+                } else {
+                    current_leaf_scale <- sigma_leaf_init
+                }
+            } else {
+                if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(2/(num_trees_mean))
+                if (!is.matrix(sigma_leaf_init)) {
+                    current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
+                } else {
+                    current_leaf_scale <- sigma_leaf_init
+                }
+            }
+        } else {
+            if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(2/(num_trees_mean))
             if (!is.matrix(sigma_leaf_init)) {
-                current_leaf_scale <- as.matrix(diag(sigma_leaf_init, ncol(leaf_basis_train)))
+                current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
             } else {
                 current_leaf_scale <- sigma_leaf_init
+            }
+        }
+        current_sigma2 <- sigma2_init
+    } else {
+        # Only standardize if user requested
+        if (standardize) {
+            y_bar_train <- mean(y_train)
+            y_std_train <- sd(y_train)
+        } else {
+            y_bar_train <- 0
+            y_std_train <- 1
+        }
+        
+        # Compute residual value
+        resid_train <- (y_train-y_bar_train)/y_std_train
+        
+        # Compute initial value of root nodes in mean forest
+        init_val_mean <- mean(resid_train)
+        
+        # Calibrate priors for sigma^2 and tau
+        if (is.null(sigma2_init)) sigma2_init <- 1.0*var(resid_train)
+        if (is.null(variance_forest_init)) variance_forest_init <- 1.0*var(resid_train)
+        if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees_mean)
+        if (has_basis) {
+            if (ncol(leaf_basis_train) > 1) {
+                if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(var(resid_train)/(num_trees_mean), ncol(leaf_basis_train))
+                if (!is.matrix(sigma_leaf_init)) {
+                    current_leaf_scale <- as.matrix(diag(sigma_leaf_init, ncol(leaf_basis_train)))
+                } else {
+                    current_leaf_scale <- sigma_leaf_init
+                }
+            } else {
+                if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(var(resid_train)/(num_trees_mean))
+                if (!is.matrix(sigma_leaf_init)) {
+                    current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
+                } else {
+                    current_leaf_scale <- sigma_leaf_init
+                }
             }
         } else {
             if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(var(resid_train)/(num_trees_mean))
@@ -496,16 +572,9 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 current_leaf_scale <- sigma_leaf_init
             }
         }
-    } else {
-        if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(var(resid_train)/(num_trees_mean))
-        if (!is.matrix(sigma_leaf_init)) {
-            current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
-        } else {
-            current_leaf_scale <- sigma_leaf_init
-        }
+        current_sigma2 <- sigma2_init
     }
-    current_sigma2 <- sigma2_init
-
+    
     # Determine leaf model type
     if (!has_basis) leaf_model_mean_forest <- 0
     else if (ncol(leaf_basis_train) == 1) leaf_model_mean_forest <- 1
@@ -652,6 +721,21 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
             }
             
             if (include_mean_forest) {
+                if (probit_outcome_model) {
+                    # Sample latent probit variable, z | -
+                    forest_pred <- active_forest_mean$predict(forest_dataset_train) + y_bar_train
+                    mu0 <- forest_pred[y_train == 0]
+                    mu1 <- forest_pred[y_train == 1]
+                    u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
+                    u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
+                    resid_train[y_train==0] <- mu0 + qnorm(u0)
+                    resid_train[y_train==1] <- mu1 + qnorm(u1)
+
+                    # Update outcome
+                    outcome_train$update_data(resid_train - forest_pred)
+                }
+                
+                # Sample mean forest
                 forest_model_mean$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mean, 
                     active_forest = active_forest_mean, rng = rng, forest_model_config = forest_model_config_mean, 
@@ -791,6 +875,20 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 }
                 
                 if (include_mean_forest) {
+                    if (probit_outcome_model) {
+                        # Sample latent probit variable, z | -
+                        forest_pred <- active_forest_mean$predict(forest_dataset_train) + y_bar_train
+                        mu0 <- forest_pred[y_train == 0]
+                        mu1 <- forest_pred[y_train == 1]
+                        u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
+                        u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
+                        resid_train[y_train==0] <- mu0 + qnorm(u0)
+                        resid_train[y_train==1] <- mu1 + qnorm(u1)
+
+                        # Update outcome
+                        outcome_train$update_data(resid_train - forest_pred)
+                    }
+                    
                     forest_model_mean$sample_one_iteration(
                         forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mean, 
                         active_forest = active_forest_mean, rng = rng, forest_model_config = forest_model_config_mean, 
