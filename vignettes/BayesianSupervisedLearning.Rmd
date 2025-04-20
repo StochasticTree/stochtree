@@ -393,6 +393,13 @@ plot(rowMeans(bart_model_warmstart$y_hat_test), z_test,
 abline(0,1,col="red",lty=2,lwd=2.5)
 ```
 
+Check the prediction accuracy
+
+```{r}
+preds_test <- rowMeans(bart_model_warmstart$y_hat_test) > 0
+mean(preds_test == y_test)
+```
+
 ### BART MCMC without Warmstart
 
 Next, we sample from this ensemble model without any warm-start initialization. 
@@ -418,6 +425,13 @@ Inspect the BART samples after burnin.
 plot(rowMeans(bart_model_root$y_hat_test), z_test, 
      pch=16, cex=0.75, xlab = "pred", ylab = "actual")
 abline(0,1,col="red",lty=2,lwd=2.5)
+```
+
+Check the prediction accuracy
+
+```{r}
+preds_test <- rowMeans(bart_model_root$y_hat_test) > 0
+mean(preds_test == y_test)
 ```
 
 # References
