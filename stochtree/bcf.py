@@ -72,7 +72,6 @@ class BCFModel:
     def __init__(self) -> None:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
-        self.rng = np.random.default_rng()
 
     def sample(
         self,
@@ -1384,11 +1383,13 @@ class BCFModel:
         # Residual
         residual_train = Residual(resid_train)
 
-        # C++ random number generator
+        # C++ and numpy random number generator
         if random_seed is None:
             cpp_rng = RNG(-1)
+            self.rng = np.random.default_rng()
         else:
             cpp_rng = RNG(random_seed)
+            self.rng = np.random.default_rng(random_seed)
 
         # Sampling data structures
         global_model_config = GlobalModelConfig(global_error_variance=current_sigma2)

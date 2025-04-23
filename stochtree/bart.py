@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
@@ -145,6 +146,7 @@ class BARTModel:
             * `sigma2_leaf_scale` (`float`): Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the mean forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the mean forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+            * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
 
         variance_forest_params : dict, optional
             Dictionary of variance forest model  parameters, each of which has a default value processed internally, so this argument is optional.
@@ -203,6 +205,7 @@ class BARTModel:
             "sigma2_leaf_scale": None,
             "keep_vars": None,
             "drop_vars": None,
+            "probit_outcome_model": False,
         }
         mean_forest_params_updated = _preprocess_params(
             mean_forest_params_default, mean_forest_params
@@ -253,6 +256,7 @@ class BARTModel:
         b_leaf = mean_forest_params_updated["sigma2_leaf_scale"]
         keep_vars_mean = mean_forest_params_updated["keep_vars"]
         drop_vars_mean = mean_forest_params_updated["drop_vars"]
+        self.probit_outcome_model = mean_forest_params_updated["probit_outcome_model"]
 
         # 3. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
@@ -710,25 +714,40 @@ class BARTModel:
             [variable_subset_variance.count(i) == 0 for i in original_var_indices]
         ] = 0
 
-        # Scale outcome
-        if self.standardize:
-            self.y_bar = np.squeeze(np.mean(y_train))
-            self.y_std = np.squeeze(np.std(y_train))
-        else:
-            self.y_bar = 0
-            self.y_std = 1
-        resid_train = (y_train - self.y_bar) / self.y_std
+        # Preliminary runtime checks for probit link
+        if not self.include_mean_forest:
+            self.probit_outcome_model = False
+        if self.probit_outcome_model:
+            if np.unique(y_train).size != 2:
+                raise ValueError("You specified a probit outcome model, but supplied an outcome with more than 2 unique values")
+            unique_outcomes = np.squeeze(np.unique(y_train))
+            if not np.array_equal(unique_outcomes, [0,1]):
+                raise ValueError("You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1")
+            if self.include_variance_forest:
+                raise ValueError("We do not support heteroskedasticity with a probit link")
+            if self.sample_sigma_global:
+                warnings.warn("Global error variance will not be sampled with a probit link as it is fixed at 1")
+                self.sample_sigma_global = False
 
-        # Calibrate priors for global sigma^2 and sigma_leaf (don't use regression initializer for warm-start or XBART)
-        if not sigma2_init:
-            sigma2_init = 1.0 * np.var(resid_train)
-        if not variance_forest_leaf_init:
-            variance_forest_leaf_init = 0.6 * np.var(resid_train)
-        current_sigma2 = sigma2_init
-        self.sigma2_init = sigma2_init
-        if self.include_mean_forest:
+        # Handle standardization, prior calibration, and initialization of forest
+        # differently for binary and continuous outcomes
+        if self.probit_outcome_model:
+            # Compute a probit-scale offset and fix scale to 1
+            self.y_bar = norm.ppf(np.squeeze(np.mean(y_train)))
+            self.y_std = 1.0
+
+            # Set a pseudo outcome by subtracting mean(y_train) from y_train
+            resid_train = y_train - np.squeeze(np.mean(y_train))
+
+            # Set initial values of root nodes to 0.0 (in probit scale)
+            init_val_mean = 0.0
+
+            # Calibrate priors for sigma^2 and tau
+            # Set sigma2_init to 1, ignoring default provided
+            sigma2_init = 1.0
+            # Skip variance_forest_init, since variance forests are not supported with probit link
             b_leaf = (
-                np.squeeze(np.var(resid_train)) / num_trees_mean
+                1.0 / num_trees_mean
                 if b_leaf is None
                 else b_leaf
             )
@@ -737,7 +756,7 @@ class BARTModel:
                     current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
                     np.fill_diagonal(
                         current_leaf_scale,
-                        np.squeeze(np.var(resid_train)) / num_trees_mean,
+                        2.0 / num_trees_mean,
                     )
                 elif isinstance(sigma_leaf, float):
                     current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
@@ -763,7 +782,7 @@ class BARTModel:
             else:
                 if sigma_leaf is None:
                     current_leaf_scale = np.array(
-                        [[np.squeeze(np.var(resid_train)) / num_trees_mean]]
+                        [[2.0 / num_trees_mean]]
                     )
                 elif isinstance(sigma_leaf, float):
                     current_leaf_scale = np.array([[sigma_leaf]])
@@ -786,17 +805,98 @@ class BARTModel:
                         "sigma_leaf must be either a scalar or a 2d numpy array"
                     )
         else:
-            current_leaf_scale = np.array([[1.0]])
-        if self.include_variance_forest:
-            if not a_forest:
-                a_forest = num_trees_variance / a_0**2 + 0.5
-            if not b_forest:
-                b_forest = num_trees_variance / a_0**2
-        else:
-            if not a_forest:
-                a_forest = 1.0
-            if not b_forest:
-                b_forest = 1.0
+            # Standardize if requested
+            if self.standardize:
+                self.y_bar = np.squeeze(np.mean(y_train))
+                self.y_std = np.squeeze(np.std(y_train))
+            else:
+                self.y_bar = 0
+                self.y_std = 1
+        
+            # Compute residual value
+            resid_train = (y_train - self.y_bar) / self.y_std
+            
+            # Compute initial value of root nodes in mean forest
+            init_val_mean = np.squeeze(np.mean(resid_train))
+
+            # Calibrate priors for global sigma^2 and sigma_leaf
+            if not sigma2_init:
+                sigma2_init = 1.0 * np.var(resid_train)
+            if not variance_forest_leaf_init:
+                variance_forest_leaf_init = 0.6 * np.var(resid_train)
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
+            if self.include_mean_forest:
+                b_leaf = (
+                    np.squeeze(np.var(resid_train)) / num_trees_mean
+                    if b_leaf is None
+                    else b_leaf
+                )
+                if self.has_basis:
+                    if sigma_leaf is None:
+                        current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
+                        np.fill_diagonal(
+                            current_leaf_scale,
+                            np.squeeze(np.var(resid_train)) / num_trees_mean,
+                        )
+                    elif isinstance(sigma_leaf, float):
+                        current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
+                        np.fill_diagonal(current_leaf_scale, sigma_leaf)
+                    elif isinstance(sigma_leaf, np.ndarray):
+                        if sigma_leaf.ndim != 2:
+                            raise ValueError(
+                                "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            )
+                        if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
+                            raise ValueError(
+                                "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            )
+                        if sigma_leaf.shape[0] != self.num_basis:
+                            raise ValueError(
+                                "sigma_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
+                            )
+                        current_leaf_scale = sigma_leaf
+                    else:
+                        raise ValueError(
+                            "sigma_leaf must be either a scalar or a 2d symmetric numpy array"
+                        )
+                else:
+                    if sigma_leaf is None:
+                        current_leaf_scale = np.array(
+                            [[np.squeeze(np.var(resid_train)) / num_trees_mean]]
+                        )
+                    elif isinstance(sigma_leaf, float):
+                        current_leaf_scale = np.array([[sigma_leaf]])
+                    elif isinstance(sigma_leaf, np.ndarray):
+                        if sigma_leaf.ndim != 2:
+                            raise ValueError(
+                                "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            )
+                        if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
+                            raise ValueError(
+                                "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            )
+                        if sigma_leaf.shape[0] != 1:
+                            raise ValueError(
+                                "sigma_leaf must be a 1x1 numpy array for this leaf model"
+                            )
+                        current_leaf_scale = sigma_leaf
+                    else:
+                        raise ValueError(
+                            "sigma_leaf must be either a scalar or a 2d numpy array"
+                        )
+            else:
+                current_leaf_scale = np.array([[1.0]])
+            if self.include_variance_forest:
+                if not a_forest:
+                    a_forest = num_trees_variance / a_0**2 + 0.5
+                if not b_forest:
+                    b_forest = num_trees_variance / a_0**2
+            else:
+                if not a_forest:
+                    a_forest = 1.0
+                if not b_forest:
+                    b_forest = 1.0
 
         # Runtime checks on RFX group ids
         self.has_rfx = False
@@ -894,11 +994,13 @@ class BARTModel:
         # Residual
         residual_train = Residual(resid_train)
 
-        # C++ random number generator
+        # C++ and Numpy random number generator
         if random_seed is None:
             cpp_rng = RNG(-1)
+            self.rng = np.random.default_rng()
         else:
             cpp_rng = RNG(random_seed)
+            self.rng = np.random.default_rng(random_seed)
 
         # Set variance leaf model type (currently only one option)
         leaf_model_variance_forest = 3
@@ -1018,8 +1120,31 @@ class BARTModel:
                 keep_sample = True
                 if keep_sample:
                     sample_counter += 1
-                # Sample the mean forest
                 if self.include_mean_forest:
+                    if self.probit_outcome_model:
+                        # Sample latent probit variable z | -
+                        forest_pred = active_forest_mean.predict(forest_dataset_train)
+                        mu0 = forest_pred[y_train == 0]
+                        mu1 = forest_pred[y_train == 1]
+                        n0 = np.sum(y_train == 0)
+                        n1 = np.sum(y_train == 1)
+                        u0 = self.rng.uniform(
+                            low=0.0,
+                            high=norm.cdf(0 - mu0),
+                            size=n0,
+                        )
+                        u1 = self.rng.uniform(
+                            low=norm.cdf(0 - mu1),
+                            high=1.0,
+                            size=n1,
+                        )
+                        resid_train[y_train == 0] = mu0 + norm.ppf(u0)
+                        resid_train[y_train == 1] = mu1 + norm.ppf(u1)
+
+                        # Update outcome
+                        residual_train.update_data(resid_train - forest_pred)
+                    
+                    # Sample mean forest
                     forest_sampler_mean.sample_one_iteration(
                         self.forest_container_mean,
                         active_forest_mean,

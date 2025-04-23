@@ -466,7 +466,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     # Determine whether a test set is provided
     has_test = !is.null(X_test)
     
-    # Check whether outcome is 0-1 binary
+    # Preliminary runtime checks for probit link
+    if (!include_mean_forest) {
+        probit_outcome_model <- FALSE
+    }
     if (probit_outcome_model) {
         if (!(length(unique(y_train)) == 2)) {
             stop("You specified a probit outcome model, but supplied an outcome with more than 2 unique values")
@@ -488,11 +491,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     # differently for binary and continuous outcomes
     if (probit_outcome_model) {
         # Compute a probit-scale offset and fix scale to 1
-        y_bar_train <- pnorm(mean(y_train))
+        y_bar_train <- qnorm(mean(y_train))
         y_std_train <- 1
 
         # Set a pseudo outcome by subtracting mean(y_train) from y_train
-        current_z_train <- y_train - mean(y_train)
         resid_train <- y_train - mean(y_train)
         
         # Set initial values of root nodes to 0.0 (in probit scale)
