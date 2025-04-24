@@ -215,7 +215,7 @@ class BCFModel:
             "adaptive_coding": True,
             "control_coding_init": -0.5,
             "treated_coding_init": 0.5,
-            "random_seed": -1,
+            "random_seed": None,
             "keep_burnin": False,
             "keep_gfr": False,
             "keep_every": 1,
