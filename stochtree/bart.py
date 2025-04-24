@@ -182,7 +182,7 @@ class BARTModel:
             "sigma2_global_shape": 0,
             "sigma2_global_scale": 0,
             "variable_weights": None,
-            "random_seed": -1,
+            "random_seed": None,
             "keep_burnin": False,
             "keep_gfr": False,
             "keep_every": 1,
@@ -725,9 +725,9 @@ class BARTModel:
                 raise ValueError("You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1")
             if self.include_variance_forest:
                 raise ValueError("We do not support heteroskedasticity with a probit link")
-            if self.sample_sigma_global:
+            if sample_sigma_global:
                 warnings.warn("Global error variance will not be sampled with a probit link as it is fixed at 1")
-                self.sample_sigma_global = False
+                sample_sigma_global = False
 
         # Handle standardization, prior calibration, and initialization of forest
         # differently for binary and continuous outcomes
@@ -745,6 +745,8 @@ class BARTModel:
             # Calibrate priors for sigma^2 and tau
             # Set sigma2_init to 1, ignoring default provided
             sigma2_init = 1.0
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
             # Skip variance_forest_init, since variance forests are not supported with probit link
             b_leaf = (
                 1.0 / num_trees_mean
@@ -1124,10 +1126,10 @@ class BARTModel:
                     if self.probit_outcome_model:
                         # Sample latent probit variable z | -
                         forest_pred = active_forest_mean.predict(forest_dataset_train)
-                        mu0 = forest_pred[y_train == 0]
-                        mu1 = forest_pred[y_train == 1]
-                        n0 = np.sum(y_train == 0)
-                        n1 = np.sum(y_train == 1)
+                        mu0 = forest_pred[y_train[:,0] == 0]
+                        mu1 = forest_pred[y_train[:,0] == 1]
+                        n0 = np.sum(y_train[:,0] == 0)
+                        n1 = np.sum(y_train[:,0] == 1)
                         u0 = self.rng.uniform(
                             low=0.0,
                             high=norm.cdf(0 - mu0),
@@ -1138,13 +1140,14 @@ class BARTModel:
                             high=1.0,
                             size=n1,
                         )
-                        resid_train[y_train == 0] = mu0 + norm.ppf(u0)
-                        resid_train[y_train == 1] = mu1 + norm.ppf(u1)
+                        resid_train[y_train[:,0] == 0,0] = mu0 + norm.ppf(u0)
+                        resid_train[y_train[:,0] == 1,0] = mu1 + norm.ppf(u1)
 
                         # Update outcome
-                        residual_train.update_data(resid_train - forest_pred)
+                        new_outcome = np.squeeze(resid_train) - forest_pred
+                        residual_train.update_data(new_outcome)
                     
-                    # Sample mean forest
+                    # Sample the mean forest
                     forest_sampler_mean.sample_one_iteration(
                         self.forest_container_mean,
                         active_forest_mean,
@@ -1308,8 +1311,33 @@ class BARTModel:
                             keep_sample = False
                     if keep_sample:
                         sample_counter += 1
-                    # Sample the mean forest
+                    
                     if self.include_mean_forest:
+                        if self.probit_outcome_model:
+                            # Sample latent probit variable z | -
+                            forest_pred = active_forest_mean.predict(forest_dataset_train)
+                            mu0 = forest_pred[y_train[:,0] == 0]
+                            mu1 = forest_pred[y_train[:,0] == 1]
+                            n0 = np.sum(y_train[:,0] == 0)
+                            n1 = np.sum(y_train[:,0] == 1)
+                            u0 = self.rng.uniform(
+                                low=0.0,
+                                high=norm.cdf(0 - mu0),
+                                size=n0,
+                            )
+                            u1 = self.rng.uniform(
+                                low=norm.cdf(0 - mu1),
+                                high=1.0,
+                                size=n1,
+                            )
+                            resid_train[y_train[:,0] == 0,0] = mu0 + norm.ppf(u0)
+                            resid_train[y_train[:,0] == 1,0] = mu1 + norm.ppf(u1)
+
+                            # Update outcome
+                            new_outcome = np.squeeze(resid_train) - forest_pred
+                            residual_train.update_data(new_outcome)
+                        
+                        # Sample the mean forest
                         forest_sampler_mean.sample_one_iteration(
                             self.forest_container_mean,
                             active_forest_mean,
@@ -1811,6 +1839,7 @@ class BARTModel:
         bart_json.add_integer("num_samples", self.num_samples)
         bart_json.add_integer("num_basis", self.num_basis)
         bart_json.add_boolean("requires_basis", self.has_basis)
+        bart_json.add_boolean("probit_outcome_model", self.probit_outcome_model)
 
         # Add parameter samples
         if self.sample_sigma_global:
@@ -1882,6 +1911,7 @@ class BARTModel:
         self.num_samples = bart_json.get_integer("num_samples")
         self.num_basis = bart_json.get_integer("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
+        self.probit_outcome_model = bart_json.get_boolean("probit_outcome_model")
 
         # Unpack parameter samples
         if self.sample_sigma_global:
@@ -1990,6 +2020,7 @@ class BARTModel:
         self.num_samples = json_object_default.get_integer("num_samples")
         self.num_basis = json_object_default.get_integer("num_basis")
         self.has_basis = json_object_default.get_boolean("requires_basis")
+        self.probit_outcome_model = json_object_default.get_boolean("probit_outcome_model")
 
         # Unpack parameter samples
         if self.sample_sigma_global:

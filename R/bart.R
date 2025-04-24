@@ -705,7 +705,6 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     # Initialize the leaves of each tree in the variance forest
     if (include_variance_forest) {
         active_forest_variance$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_variance, leaf_model_variance_forest, variance_forest_init)
-
     }
     
     # Run GFR (warm start) if specified
@@ -1015,7 +1014,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         "sample_sigma_global" = sample_sigma_global,
         "sample_sigma_leaf" = sample_sigma_leaf,
         "include_mean_forest" = include_mean_forest,
-        "include_variance_forest" = include_variance_forest
+        "include_variance_forest" = include_variance_forest,
+        "probit_outcome_model" = probit_outcome_model
     )
     result <- list(
         "model_params" = model_params, 
@@ -1357,6 +1357,7 @@ saveBARTModelToJson <- function(object){
     jsonobj$add_scalar("num_chains", object$model_params$num_chains)
     jsonobj$add_scalar("keep_every", object$model_params$keep_every)
     jsonobj$add_boolean("requires_basis", object$model_params$requires_basis)
+    jsonobj$add_boolean("probit_outcome_model", object$model_params$probit_outcome_model)
     if (object$model_params$sample_sigma_global) {
         jsonobj$add_vector("sigma2_global_samples", object$sigma2_global_samples, "parameters")
     }
@@ -1548,6 +1549,8 @@ createBARTModelFromJson <- function(json_object){
     model_params[["num_chains"]] <- json_object$get_scalar("num_chains")
     model_params[["keep_every"]] <- json_object$get_scalar("keep_every")
     model_params[["requires_basis"]] <- json_object$get_boolean("requires_basis")
+    model_params[["probit_outcome_model"]] <- json_object$get_boolean("probit_outcome_model")
+    
     output[["model_params"]] <- model_params
     
     # Unpack sampled parameters
@@ -1750,6 +1753,7 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
     model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
     model_params[["requires_basis"]] <- json_object_default$get_boolean("requires_basis")
+    model_params[["probit_outcome_model"]] <- json_object_default$get_boolean("probit_outcome_model")
     model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
     model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
 
@@ -1905,6 +1909,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
     model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
     model_params[["requires_basis"]] <- json_object_default$get_boolean("requires_basis")
+    model_params[["probit_outcome_model"]] <- json_object_default$get_boolean("probit_outcome_model")
     
     # Combine values that are sample-specific
     for (i in 1:length(json_object_list)) {
