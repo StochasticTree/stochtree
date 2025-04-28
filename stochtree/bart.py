@@ -719,14 +719,22 @@ class BARTModel:
             self.probit_outcome_model = False
         if self.probit_outcome_model:
             if np.unique(y_train).size != 2:
-                raise ValueError("You specified a probit outcome model, but supplied an outcome with more than 2 unique values")
+                raise ValueError(
+                    "You specified a probit outcome model, but supplied an outcome with more than 2 unique values"
+                )
             unique_outcomes = np.squeeze(np.unique(y_train))
-            if not np.array_equal(unique_outcomes, [0,1]):
-                raise ValueError("You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1")
+            if not np.array_equal(unique_outcomes, [0, 1]):
+                raise ValueError(
+                    "You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1"
+                )
             if self.include_variance_forest:
-                raise ValueError("We do not support heteroskedasticity with a probit link")
+                raise ValueError(
+                    "We do not support heteroskedasticity with a probit link"
+                )
             if sample_sigma_global:
-                warnings.warn("Global error variance will not be sampled with a probit link as it is fixed at 1")
+                warnings.warn(
+                    "Global error variance will not be sampled with a probit link as it is fixed at 1"
+                )
                 sample_sigma_global = False
 
         # Handle standardization, prior calibration, and initialization of forest
@@ -748,20 +756,20 @@ class BARTModel:
             current_sigma2 = sigma2_init
             self.sigma2_init = sigma2_init
             # Skip variance_forest_init, since variance forests are not supported with probit link
-            b_leaf = (
-                1.0 / num_trees_mean
-                if b_leaf is None
-                else b_leaf
-            )
+            b_leaf = 1.0 / num_trees_mean if b_leaf is None else b_leaf
             if self.has_basis:
                 if sigma_leaf is None:
-                    current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
+                    current_leaf_scale = np.zeros(
+                        (self.num_basis, self.num_basis), dtype=float
+                    )
                     np.fill_diagonal(
                         current_leaf_scale,
                         2.0 / num_trees_mean,
                     )
                 elif isinstance(sigma_leaf, float):
-                    current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
+                    current_leaf_scale = np.zeros(
+                        (self.num_basis, self.num_basis), dtype=float
+                    )
                     np.fill_diagonal(current_leaf_scale, sigma_leaf)
                 elif isinstance(sigma_leaf, np.ndarray):
                     if sigma_leaf.ndim != 2:
@@ -783,9 +791,7 @@ class BARTModel:
                     )
             else:
                 if sigma_leaf is None:
-                    current_leaf_scale = np.array(
-                        [[2.0 / num_trees_mean]]
-                    )
+                    current_leaf_scale = np.array([[2.0 / num_trees_mean]])
                 elif isinstance(sigma_leaf, float):
                     current_leaf_scale = np.array([[sigma_leaf]])
                 elif isinstance(sigma_leaf, np.ndarray):
@@ -814,10 +820,10 @@ class BARTModel:
             else:
                 self.y_bar = 0
                 self.y_std = 1
-        
+
             # Compute residual value
             resid_train = (y_train - self.y_bar) / self.y_std
-            
+
             # Compute initial value of root nodes in mean forest
             init_val_mean = np.squeeze(np.mean(resid_train))
 
@@ -836,13 +842,17 @@ class BARTModel:
                 )
                 if self.has_basis:
                     if sigma_leaf is None:
-                        current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
+                        current_leaf_scale = np.zeros(
+                            (self.num_basis, self.num_basis), dtype=float
+                        )
                         np.fill_diagonal(
                             current_leaf_scale,
                             np.squeeze(np.var(resid_train)) / num_trees_mean,
                         )
                     elif isinstance(sigma_leaf, float):
-                        current_leaf_scale = np.zeros((self.num_basis, self.num_basis), dtype=float)
+                        current_leaf_scale = np.zeros(
+                            (self.num_basis, self.num_basis), dtype=float
+                        )
                         np.fill_diagonal(current_leaf_scale, sigma_leaf)
                     elif isinstance(sigma_leaf, np.ndarray):
                         if sigma_leaf.ndim != 2:
@@ -936,7 +946,10 @@ class BARTModel:
                 alpha_init = np.array([1])
             elif num_rfx_components > 1:
                 alpha_init = np.concatenate(
-                    (np.ones(1, dtype=float), np.zeros(num_rfx_components - 1, dtype=float))
+                    (
+                        np.ones(1, dtype=float),
+                        np.zeros(num_rfx_components - 1, dtype=float),
+                    )
                 )
             else:
                 raise ValueError("There must be at least 1 random effect component")
@@ -1126,10 +1139,10 @@ class BARTModel:
                     if self.probit_outcome_model:
                         # Sample latent probit variable z | -
                         forest_pred = active_forest_mean.predict(forest_dataset_train)
-                        mu0 = forest_pred[y_train[:,0] == 0]
-                        mu1 = forest_pred[y_train[:,0] == 1]
-                        n0 = np.sum(y_train[:,0] == 0)
-                        n1 = np.sum(y_train[:,0] == 1)
+                        mu0 = forest_pred[y_train[:, 0] == 0]
+                        mu1 = forest_pred[y_train[:, 0] == 1]
+                        n0 = np.sum(y_train[:, 0] == 0)
+                        n1 = np.sum(y_train[:, 0] == 1)
                         u0 = self.rng.uniform(
                             low=0.0,
                             high=norm.cdf(0 - mu0),
@@ -1140,13 +1153,13 @@ class BARTModel:
                             high=1.0,
                             size=n1,
                         )
-                        resid_train[y_train[:,0] == 0,0] = mu0 + norm.ppf(u0)
-                        resid_train[y_train[:,0] == 1,0] = mu1 + norm.ppf(u1)
+                        resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
+                        resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
                         # Update outcome
                         new_outcome = np.squeeze(resid_train) - forest_pred
                         residual_train.update_data(new_outcome)
-                    
+
                     # Sample the mean forest
                     forest_sampler_mean.sample_one_iteration(
                         self.forest_container_mean,
@@ -1311,15 +1324,17 @@ class BARTModel:
                             keep_sample = False
                     if keep_sample:
                         sample_counter += 1
-                    
+
                     if self.include_mean_forest:
                         if self.probit_outcome_model:
                             # Sample latent probit variable z | -
-                            forest_pred = active_forest_mean.predict(forest_dataset_train)
-                            mu0 = forest_pred[y_train[:,0] == 0]
-                            mu1 = forest_pred[y_train[:,0] == 1]
-                            n0 = np.sum(y_train[:,0] == 0)
-                            n1 = np.sum(y_train[:,0] == 1)
+                            forest_pred = active_forest_mean.predict(
+                                forest_dataset_train
+                            )
+                            mu0 = forest_pred[y_train[:, 0] == 0]
+                            mu1 = forest_pred[y_train[:, 0] == 1]
+                            n0 = np.sum(y_train[:, 0] == 0)
+                            n1 = np.sum(y_train[:, 0] == 1)
                             u0 = self.rng.uniform(
                                 low=0.0,
                                 high=norm.cdf(0 - mu0),
@@ -1330,13 +1345,13 @@ class BARTModel:
                                 high=1.0,
                                 size=n1,
                             )
-                            resid_train[y_train[:,0] == 0,0] = mu0 + norm.ppf(u0)
-                            resid_train[y_train[:,0] == 1,0] = mu1 + norm.ppf(u1)
+                            resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
+                            resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
                             # Update outcome
                             new_outcome = np.squeeze(resid_train) - forest_pred
                             residual_train.update_data(new_outcome)
-                        
+
                         # Sample the mean forest
                         forest_sampler_mean.sample_one_iteration(
                             self.forest_container_mean,
@@ -2020,7 +2035,9 @@ class BARTModel:
         self.num_samples = json_object_default.get_integer("num_samples")
         self.num_basis = json_object_default.get_integer("num_basis")
         self.has_basis = json_object_default.get_boolean("requires_basis")
-        self.probit_outcome_model = json_object_default.get_boolean("probit_outcome_model")
+        self.probit_outcome_model = json_object_default.get_boolean(
+            "probit_outcome_model"
+        )
 
         # Unpack parameter samples
         if self.sample_sigma_global:
