@@ -540,7 +540,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
             y_std_train <- 1
         }
         
-        # Compute residual value
+        # Compute standardized outcome
         resid_train <- (y_train-y_bar_train)/y_std_train
         
         # Compute initial value of root nodes in mean forest
@@ -552,14 +552,14 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees_mean)
         if (has_basis) {
             if (ncol(leaf_basis_train) > 1) {
-                if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(var(resid_train)/(num_trees_mean), ncol(leaf_basis_train))
+                if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(2*var(resid_train)/(num_trees_mean), ncol(leaf_basis_train))
                 if (!is.matrix(sigma_leaf_init)) {
                     current_leaf_scale <- as.matrix(diag(sigma_leaf_init, ncol(leaf_basis_train)))
                 } else {
                     current_leaf_scale <- sigma_leaf_init
                 }
             } else {
-                if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(var(resid_train)/(num_trees_mean))
+                if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(2*var(resid_train)/(num_trees_mean))
                 if (!is.matrix(sigma_leaf_init)) {
                     current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
                 } else {
@@ -567,7 +567,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 }
             }
         } else {
-            if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(var(resid_train)/(num_trees_mean))
+            if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(2*var(resid_train)/(num_trees_mean))
             if (!is.matrix(sigma_leaf_init)) {
                 current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
             } else {
@@ -724,7 +724,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
             if (include_mean_forest) {
                 if (probit_outcome_model) {
                     # Sample latent probit variable, z | -
-                    forest_pred <- active_forest_mean$predict(forest_dataset_train) + y_bar_train
+                    forest_pred <- active_forest_mean$predict(forest_dataset_train)
                     mu0 <- forest_pred[y_train == 0]
                     mu1 <- forest_pred[y_train == 1]
                     u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
@@ -878,7 +878,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 if (include_mean_forest) {
                     if (probit_outcome_model) {
                         # Sample latent probit variable, z | -
-                        forest_pred <- active_forest_mean$predict(forest_dataset_train) + y_bar_train
+                        forest_pred <- active_forest_mean$predict(forest_dataset_train)
                         mu0 <- forest_pred[y_train == 0]
                         mu1 <- forest_pred[y_train == 1]
                         u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))

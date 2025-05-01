@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-This vignette demonstrates how to use the `bcf()` function for supervised learning.
+This vignette demonstrates how to use the `bcf()` function for causal inference.
 To begin, we load the stochtree package.
 
 ```{r setup}

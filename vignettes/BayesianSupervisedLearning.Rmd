@@ -436,7 +436,7 @@ for (i in 1:num_mcmc) {
 lines(fpr_mean, tpr_mean, col = "black", lwd = 3, lty = 3)
 ```
 
-Note that the nonlinearity of the ROC function means that the ROC curve of the posterior mean lies above most of the individual posterior sample ROC curves (which would not be the case if we had simply taken the mean of the ROC curves).
+Note that the nonlinearity of the ROC function means that the ROC curve of the posterior mean could sit above most of the individual posterior sample ROC curves (which would not be the case if we had simply taken the mean of the ROC curves).
 
 ### BART MCMC without Warmstart
 
@@ -508,7 +508,5 @@ for (i in 1:num_mcmc) {
 }
 lines(fpr_mean, tpr_mean, col = "black", lwd = 3, lty = 3)
 ```
-
-Note that the nonlinearity of the ROC function means that the ROC curve of the posterior mean lies above most of the individual posterior sample ROC curves (which would not be the case if we had simply taken the mean of the ROC curves).
 
 # References

@@ -46,6 +46,7 @@
 #'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 #'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
+#'   - `probit_outcome_model` Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
 #'
 #' @param prognostic_forest_params (Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -74,6 +75,7 @@
 #'   - `sigma2_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
 #'   - `sigma2_leaf_shape` Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Default: `3`.
 #'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
+#'   - `delta_max` Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in `general_params`. Must be > 0 and < 1. Default: `0.9`. Ignored if `sigma2_leaf_init` is set directly, as this parameter is used to calibrate `sigma2_leaf_init`.
 #'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 #'
@@ -156,7 +158,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         adaptive_coding = TRUE, control_coding_init = -0.5, 
         treated_coding_init = 0.5, rfx_prior_var = NULL, 
         random_seed = -1, keep_burnin = FALSE, keep_gfr = FALSE, 
-        keep_every = 1, num_chains = 1, verbose = FALSE
+        keep_every = 1, num_chains = 1, verbose = FALSE, 
+        probit_outcome_model = FALSE
     )
     general_params_updated <- preprocessParams(
         general_params_default, general_params
@@ -180,7 +183,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         min_samples_leaf = 5, max_depth = 5, 
         sample_sigma2_leaf = FALSE, sigma2_leaf_init = NULL, 
         sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL, 
-        keep_vars = NULL, drop_vars = NULL
+        keep_vars = NULL, drop_vars = NULL, 
+        delta_max = 0.9
     )
     treatment_effect_forest_params_updated <- preprocessParams(
         treatment_effect_forest_params_default, treatment_effect_forest_params
@@ -220,6 +224,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     keep_every <- general_params_updated$keep_every
     num_chains <- general_params_updated$num_chains
     verbose <- general_params_updated$verbose
+    probit_outcome_model <- general_params_updated$probit_outcome_model
     
     # 2. Mu forest parameters
     num_trees_mu <- prognostic_forest_params_updated$num_trees
@@ -246,6 +251,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     b_leaf_tau <- treatment_effect_forest_params_updated$sigma2_leaf_scale
     keep_vars_tau <- treatment_effect_forest_params_updated$keep_vars
     drop_vars_tau <- treatment_effect_forest_params_updated$drop_vars
+    delta_max <- treatment_effect_forest_params_updated$delta_max
     
     # 4. Variance forest parameters
     num_trees_variance <- variance_forest_params_updated$num_trees
@@ -351,6 +357,11 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         }
     }
     num_cov_orig <- ncol(X_train)
+    
+    # Check delta_max is valid
+    if ((delta_max <= 0) || (delta_max >= 1)) {
+        stop("delta_max must be > 0 and < 1")
+    }
     
     # Standardize the keep variable lists to numeric indices
     if (!is.null(keep_vars_mu)) {
@@ -674,44 +685,118 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         variable_weights_variance <- variable_weights_variance / sum(variable_weights_variance)
     }
     
-    # Standardize outcome separately for test and train
-    if (standardize) {
-        y_bar_train <- mean(y_train)
-        y_std_train <- sd(y_train)
-    } else {
-        y_bar_train <- 0
-        y_std_train <- 1
+    # Preliminary runtime checks for probit link
+    if (probit_outcome_model) {
+        if (!(length(unique(y_train)) == 2)) {
+            stop("You specified a probit outcome model, but supplied an outcome with more than 2 unique values")
+        }
+        unique_outcomes <- sort(unique(y_train))
+        if (!(all(unique_outcomes == c(0,1)))) {
+            stop("You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1")
+        }
+        if (include_variance_forest) {
+            stop("We do not support heteroskedasticity with a probit link")
+        }
+        if (sample_sigma_global) {
+            warning("Global error variance will not be sampled with a probit link as it is fixed at 1")
+            sample_sigma_global <- F
+        }
     }
-    resid_train <- (y_train-y_bar_train)/y_std_train
     
-    # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau
-    if (is.null(sigma2_init)) sigma2_init <- 1.0*var(resid_train)
-    if (is.null(variance_forest_init)) variance_forest_init <- 1.0*var(resid_train)
-    if (is.null(b_leaf_mu)) b_leaf_mu <- var(resid_train)/(num_trees_mu)
-    if (is.null(b_leaf_tau)) b_leaf_tau <- var(resid_train)/(2*num_trees_tau)
-    if (is.null(sigma_leaf_mu)) {
-        sigma_leaf_mu <- var(resid_train)/(num_trees_mu)
-        current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
-    } else {
-        if (!is.matrix(sigma_leaf_mu)) {
+    # Handle standardization, prior calibration, and initialization of forest
+    # differently for binary and continuous outcomes
+    if (probit_outcome_model) {
+        # Compute a probit-scale offset and fix scale to 1
+        y_bar_train <- qnorm(mean(y_train))
+        y_std_train <- 1
+        
+        # Set a pseudo outcome by subtracting mean(y_train) from y_train
+        resid_train <- y_train - mean(y_train)
+        
+        # Set initial value for the mu forest
+        init_mu <- 0.0
+        
+        # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau
+        # Set sigma2_init to 1, ignoring any defaults provided
+        sigma2_init <- 1.0
+        # Skip variance_forest_init, since variance forests are not supported with probit link
+        if (is.null(b_leaf_mu)) b_leaf_mu <- 1/num_trees_mu
+        if (is.null(b_leaf_tau)) b_leaf_tau <- 1/(2*num_trees_tau)
+        if (is.null(sigma_leaf_mu)) {
+            sigma_leaf_mu <- 2/(num_trees_mu)
             current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
         } else {
-            current_leaf_scale_mu <- sigma_leaf_mu
+            if (!is.matrix(sigma_leaf_mu)) {
+                current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
+            } else {
+                current_leaf_scale_mu <- sigma_leaf_mu
+            }
         }
-    }
-    if (is.null(sigma_leaf_tau)) {
-        sigma_leaf_tau <- var(resid_train)/(2*num_trees_tau)
-        current_leaf_scale_tau <- as.matrix(diag(sigma_leaf_tau, ncol(Z_train)))
-    } else {
-        if (!is.matrix(sigma_leaf_tau)) {
+        if (is.null(sigma_leaf_tau)) {
+            # Calibrate prior so that P(abs(tau(X)) < delta_max / dnorm(0)) = p
+            # Use p = 0.9 as an internal default rather than adding another 
+            # user-facing "parameter" of the binary outcome BCF prior. 
+            # Can be overriden by specifying `sigma2_leaf_init` in 
+            # treatment_effect_forest_params.
+            p <- 0.6827
+            q_quantile <- qnorm((p+1)/2)
+            sigma2_leaf_tau <- ((delta_max/(q_quantile*dnorm(0)))^2)/num_trees_tau
             current_leaf_scale_tau <- as.matrix(diag(sigma_leaf_tau, ncol(Z_train)))
         } else {
-            if (ncol(sigma_leaf_tau) != ncol(Z_train)) stop("sigma_leaf_init for the tau forest must have the same number of columns / rows as columns in the Z_train matrix")
-            if (nrow(sigma_leaf_tau) != ncol(Z_train)) stop("sigma_leaf_init for the tau forest must have the same number of columns / rows as columns in the Z_train matrix")
-            current_leaf_scale_tau <- sigma_leaf_tau
+            if (!is.matrix(sigma_leaf_tau)) {
+                current_leaf_scale_tau <- as.matrix(diag(sigma_leaf_tau, ncol(Z_train)))
+            } else {
+                if (ncol(sigma_leaf_tau) != ncol(Z_train)) stop("sigma_leaf_init for the tau forest must have the same number of columns / rows as columns in the Z_train matrix")
+                if (nrow(sigma_leaf_tau) != ncol(Z_train)) stop("sigma_leaf_init for the tau forest must have the same number of columns / rows as columns in the Z_train matrix")
+                current_leaf_scale_tau <- sigma_leaf_tau
+            }
         }
+        current_sigma2 <- sigma2_init
+    } else {
+        # Only standardize if user requested
+        if (standardize) {
+            y_bar_train <- mean(y_train)
+            y_std_train <- sd(y_train)
+        } else {
+            y_bar_train <- 0
+            y_std_train <- 1
+        }
+        
+        # Compute standardized outcome
+        resid_train <- (y_train-y_bar_train)/y_std_train
+        
+        # Set initial value for the mu forest
+        init_mu <- mean(resid_train)
+        
+        # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau
+        if (is.null(sigma2_init)) sigma2_init <- 1.0*var(resid_train)
+        if (is.null(variance_forest_init)) variance_forest_init <- 1.0*var(resid_train)
+        if (is.null(b_leaf_mu)) b_leaf_mu <- var(resid_train)/(num_trees_mu)
+        if (is.null(b_leaf_tau)) b_leaf_tau <- var(resid_train)/(2*num_trees_tau)
+        if (is.null(sigma_leaf_mu)) {
+            sigma_leaf_mu <- 2.0*var(resid_train)/(num_trees_mu)
+            current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
+        } else {
+            if (!is.matrix(sigma_leaf_mu)) {
+                current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
+            } else {
+                current_leaf_scale_mu <- sigma_leaf_mu
+            }
+        }
+        if (is.null(sigma_leaf_tau)) {
+            sigma_leaf_tau <- var(resid_train)/(num_trees_tau)
+            current_leaf_scale_tau <- as.matrix(diag(sigma_leaf_tau, ncol(Z_train)))
+        } else {
+            if (!is.matrix(sigma_leaf_tau)) {
+                current_leaf_scale_tau <- as.matrix(diag(sigma_leaf_tau, ncol(Z_train)))
+            } else {
+                if (ncol(sigma_leaf_tau) != ncol(Z_train)) stop("sigma_leaf_init for the tau forest must have the same number of columns / rows as columns in the Z_train matrix")
+                if (nrow(sigma_leaf_tau) != ncol(Z_train)) stop("sigma_leaf_init for the tau forest must have the same number of columns / rows as columns in the Z_train matrix")
+                current_leaf_scale_tau <- sigma_leaf_tau
+            }
+        }
+        current_sigma2 <- sigma2_init
     }
-    current_sigma2 <- sigma2_init
     
     # Switch off leaf scale sampling for multivariate treatments
     if (ncol(Z_train) > 1) {
@@ -842,7 +927,6 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     }
     
     # Initialize the leaves of each tree in the prognostic forest
-    init_mu <- mean(resid_train)
     active_forest_mu$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mu, 0, init_mu)
     active_forest_mu$adjust_residual(forest_dataset_train, outcome_train, forest_model_mu, FALSE, FALSE)
 
@@ -868,6 +952,22 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 if ((i %% 10 == 0) || (i == num_gfr)) {
                     cat("Sampling", i, "out of", num_gfr, "XBCF (grow-from-root) draws\n")
                 }
+            }
+            
+            if (probit_outcome_model) {
+                # Sample latent probit variable, z | -
+                mu_forest_pred <- active_forest_mu$predict(forest_dataset_train)
+                tau_forest_pred <- active_forest_tau$predict(forest_dataset_train)
+                forest_pred <- mu_forest_pred + tau_forest_pred
+                mu0 <- forest_pred[y_train == 0]
+                mu1 <- forest_pred[y_train == 1]
+                u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
+                u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
+                resid_train[y_train==0] <- mu0 + qnorm(u0)
+                resid_train[y_train==1] <- mu1 + qnorm(u1)
+                
+                # Update outcome
+                outcome_train$update_data(resid_train - forest_pred)
             }
             
             # Sample the prognostic forest
@@ -1120,6 +1220,22 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     }
                 }
                 
+                if (probit_outcome_model) {
+                    # Sample latent probit variable, z | -
+                    mu_forest_pred <- active_forest_mu$predict(forest_dataset_train)
+                    tau_forest_pred <- active_forest_tau$predict(forest_dataset_train)
+                    forest_pred <- mu_forest_pred + tau_forest_pred
+                    mu0 <- forest_pred[y_train == 0]
+                    mu1 <- forest_pred[y_train == 1]
+                    u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
+                    u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
+                    resid_train[y_train==0] <- mu0 + qnorm(u0)
+                    resid_train[y_train==1] <- mu1 + qnorm(u1)
+                    
+                    # Update outcome
+                    outcome_train$update_data(resid_train - forest_pred)
+                }
+                
                 # Sample the prognostic forest
                 forest_model_mu$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
@@ -1337,7 +1453,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         "include_variance_forest" = include_variance_forest, 
         "sample_sigma_global" = sample_sigma_global,
         "sample_sigma_leaf_mu" = sample_sigma_leaf_mu,
-        "sample_sigma_leaf_tau" = sample_sigma_leaf_tau
+        "sample_sigma_leaf_tau" = sample_sigma_leaf_tau, 
+        "probit_outcome_model" = probit_outcome_model
     )
     result <- list(
         "forests_mu" = forest_samples_mu, 
@@ -1779,6 +1896,7 @@ saveBCFModelToJson <- function(object){
     jsonobj$add_scalar("keep_every", object$model_params$keep_every)
     jsonobj$add_scalar("num_chains", object$model_params$num_chains)
     jsonobj$add_scalar("num_covariates", object$model_params$num_covariates)
+    jsonobj$add_boolean("probit_outcome_model", object$model_params$probit_outcome_model)
     if (object$model_params$sample_sigma_global) {
         jsonobj$add_vector("sigma2_samples", object$sigma2_samples, "parameters")
     }
@@ -2106,6 +2224,7 @@ createBCFModelFromJson <- function(json_object){
     model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
     model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
     model_params[["num_covariates"]] <- json_object$get_scalar("num_covariates")
+    model_params[["probit_outcome_model"]] <- json_object$get_boolean("probit_outcome_model")
     output[["model_params"]] <- model_params
     
     # Unpack sampled parameters
@@ -2439,6 +2558,7 @@ createBCFModelFromCombinedJson <- function(json_object_list){
     model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
     model_params[["adaptive_coding"]] <- json_object_default$get_boolean("adaptive_coding")
     model_params[["internal_propensity_model"]] <- json_object_default$get_boolean("internal_propensity_model")
+    model_params[["probit_outcome_model"]] <- json_object_default$get_boolean("probit_outcome_model")
     
     # Combine values that are sample-specific
     for (i in 1:length(json_object_list)) {
@@ -2665,6 +2785,7 @@ createBCFModelFromCombinedJsonString <- function(json_string_list){
     model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
     model_params[["adaptive_coding"]] <- json_object_default$get_boolean("adaptive_coding")
     model_params[["internal_propensity_model"]] <- json_object_default$get_boolean("internal_propensity_model")
+    model_params[["probit_outcome_model"]] <- json_object_default$get_boolean("probit_outcome_model")
     
     # Combine values that are sample-specific
     for (i in 1:length(json_object_list)) {
