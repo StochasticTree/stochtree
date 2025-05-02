@@ -301,6 +301,7 @@ class BCFModel:
         keep_burnin = general_params_updated["keep_burnin"]
         keep_gfr = general_params_updated["keep_gfr"]
         keep_every = general_params_updated["keep_every"]
+        num_chains = general_params_updated["num_chains"]
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
 
         # 2. Mu forest parameters
@@ -1635,7 +1636,7 @@ class BCFModel:
                 if self.probit_outcome_model:
                     # Sample latent probit variable z | -
                     forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
-                    forest_pred_tau = active_forest_mu.predict(forest_dataset_train)
+                    forest_pred_tau = active_forest_tau.predict(forest_dataset_train)
                     forest_pred = forest_pred_mu + forest_pred_tau
                     mu0 = forest_pred[y_train[:, 0] == 0]
                     mu1 = forest_pred[y_train[:, 0] == 1]
@@ -1816,7 +1817,7 @@ class BCFModel:
                 if self.probit_outcome_model:
                     # Sample latent probit variable z | -
                     forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
-                    forest_pred_tau = active_forest_mu.predict(forest_dataset_train)
+                    forest_pred_tau = active_forest_tau.predict(forest_dataset_train)
                     forest_pred = forest_pred_mu + forest_pred_tau
                     mu0 = forest_pred[y_train[:, 0] == 0]
                     mu1 = forest_pred[y_train[:, 0] == 1]

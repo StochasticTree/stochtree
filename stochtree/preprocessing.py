@@ -389,7 +389,6 @@ class CovariatePreprocessor:
         )
         output_iter = 0
         original_feature_indices = []
-        print(self._original_feature_types)
         for i in range(covariates.shape[1]):
             covariate = covariates.iloc[:, i]
             if (

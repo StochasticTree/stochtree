@@ -13,7 +13,7 @@ random_seed = 101
 rng = np.random.default_rng(random_seed)
 
 # Generate covariates and basis
-n = 2000
+n = 4000
 x1 = rng.normal(loc=0., scale=1., size=(n,))
 x2 = rng.normal(loc=0., scale=1., size=(n,))
 x3 = rng.normal(loc=0., scale=1., size=(n,))
@@ -26,20 +26,20 @@ X = pd.DataFrame(data={
     "x1": pd.Series(x1),
     "x2": pd.Series(x2),
     "x3": pd.Series(x3),
-    "x4": pd.Series(x4),
-    "x5": pd.Series(x5)
+    "x4": pd.Series(x4_cat),
+    "x5": pd.Series(x5_cat)
 })
-def g(x):
+def g(x5):
     return np.where(
-        x.loc[:,"x5"] == 0, 2.0, 
+        x5 == 0, 2.0, 
         np.where(
-            x.loc[:,"x5"] == 1, -1.0, -4.0
+            x5 == 1, -1.0, -4.0
         )
     )
-mu_x = (1.0 + g(X) + X.loc[:,"x1"]*X.loc[:,"x3"])*0.25
-tau_x = (1.0 + 2*X.loc[:,"x2"]*X.loc[:,"x4"])*0.5
+mu_x = (1.0 + g(x5) + x1*x3)*0.25
+tau_x = (1.0 + 2*x2*x4)*0.5
 pi_x = (
-    0.8*norm.cdf(3.0*mu_x / np.squeeze(np.std(mu_x)) - 0.5*X.loc[:,"x1"]) + 
+    0.8*norm.cdf(3.0*mu_x / np.squeeze(np.std(mu_x)) - 0.5*x1) + 
     0.05 + rng.uniform(low=0., high=0.1, size=(n,))
 )
 Z = rng.binomial(n=1, p=pi_x, size=(n,))
@@ -50,7 +50,7 @@ delta_x = norm.cdf(mu_x + tau_x) - norm.cdf(mu_x)
 
 # Test-train split
 sample_inds = np.arange(n)
-train_inds, test_inds = train_test_split(sample_inds, test_size=0.5)
+train_inds, test_inds = train_test_split(sample_inds, test_size=0.2)
 X_train = X.iloc[train_inds,:]
 X_test = X.iloc[test_inds,:]
 Z_train = Z[train_inds]
@@ -86,11 +86,10 @@ sigma2_leaf_mu = 2/num_trees_mu
 
 # Construct parameter lists
 general_params = {
-    'keep_every': 1, 
+    'keep_every': 5, 
     'probit_outcome_model': True, 
     'sample_sigma2_global': False, 
-    'adaptive_coding': False, 
-    'num_chains': 1}
+    'adaptive_coding': False}
 prognostic_forest_params = {
     'sample_sigma2_leaf': False, 
     'sigma2_leaf_init': sigma2_leaf_mu, 
@@ -109,22 +108,46 @@ bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, pi_train=pi_
                  treatment_effect_forest_params=treatment_effect_forest_params)
 
 # Inspect the MCMC (BART) samples
-plt.scatter(np.squeeze(bcf_model.y_hat_test).mean(axis = 1), y_test, color="black")
+mu_hat_test = np.squeeze(bcf_model.mu_hat_test).mean(axis = 1)
+plt.scatter(mu_hat_test, mu_test, color="black")
 plt.axline((0, 0), slope=1, color="red", linestyle=(0, (3,3)))
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Prognostic function")
 plt.show()
 
-plt.scatter(np.squeeze(bcf_model.tau_hat_test).mean(axis = 1), tau_test, color="black")
+tau_hat_test = np.squeeze(bcf_model.tau_hat_test).mean(axis = 1)
+plt.scatter(tau_hat_test, tau_test, color="black")
 plt.axline((0, 0), slope=1, color="red", linestyle=(0, (3,3)))
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Probit-scale treatment effect function")
 plt.show()
 
-plt.scatter(np.squeeze(bcf_model.mu_hat_test).mean(axis = 1), mu_test, color="black")
+delta_hat_test = norm.cdf(mu_hat_test + tau_hat_test) - norm.cdf(mu_hat_test)
+plt.scatter(delta_hat_test, delta_test, color="black")
 plt.axline((0, 0), slope=1, color="red", linestyle=(0, (3,3)))
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Distributional treatment effect function")
 plt.show()
 
-# # Compute RMSEs
-# y_rmse = np.sqrt(np.mean(np.power(np.expand_dims(y_test,1) - y_avg_mcmc, 2)))
-# tau_rmse = np.sqrt(np.mean(np.power(np.expand_dims(tau_test,1) - tau_avg_mcmc, 2)))
-# mu_rmse = np.sqrt(np.mean(np.power(np.expand_dims(mu_test,1) - mu_avg_mcmc, 2)))
-# print("y hat RMSE: {:.2f}".format(y_rmse))
-# print("tau hat RMSE: {:.2f}".format(tau_rmse))
-# print("mu hat RMSE: {:.2f}".format(mu_rmse))
+w_hat_test = np.squeeze(bcf_model.y_hat_test).mean(axis = 1)
+plt.scatter(w_hat_test, w_test, color="black")
+plt.axline((0, 0), slope=1, color="red", linestyle=(0, (3,3)))
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Probit scale latent outcome")
+plt.show()
+
+# Compute prediction accuracy
+preds_test = w_hat_test > 0
+print(f"Test set accuracy: {np.mean(y_test == preds_test):.3f}")
+
+# Compute RMSEs
+w_rmse = np.sqrt(np.mean(np.power(w_test - w_hat_test, 2)))
+tau_rmse = np.sqrt(np.mean(np.power(tau_test - tau_hat_test, 2)))
+mu_rmse = np.sqrt(np.mean(np.power(mu_test - mu_hat_test, 2)))
+print("w hat RMSE: {:.2f}".format(w_rmse))
+print("tau hat RMSE: {:.2f}".format(tau_rmse))
+print("mu hat RMSE: {:.2f}".format(mu_rmse))
