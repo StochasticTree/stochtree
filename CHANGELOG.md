@@ -1,3 +1,5 @@
+# Changelog
+
 # stochtree 0.1.2
 
 ## New Features
@@ -7,15 +9,20 @@
 ## Bug Fixes
 
 * Fixed indexing bug in cleanup of grow-from-root (GFR) samples in BART and BCF models
-* Avoid using covariate preprocessor in `computeForestLeafIndices` function when a `ForestSamples` object is provided (rather than a `bartmodel` or `bcfmodel` object)
+* Avoid using covariate preprocessor in `computeForestLeafIndices` R function when a `ForestSamples` object is provided (instead of a `bartmodel` or `bcfmodel` object)
 
 # stochtree 0.1.1
+
+## Bug Fixes
 
 * Fixed initialization bug in several R package code examples for random effects models
 
 # stochtree 0.1.0
 
-* Initial release on CRAN.
+Initial "alpha" release
+
+## New Features
+
 * Support for sampling stochastic tree ensembles using two algorithms: MCMC and Grow-From-Root (GFR)
 * High-level model types supported:
     * Supervised learning with constant leaves or user-specified leaf regression models
