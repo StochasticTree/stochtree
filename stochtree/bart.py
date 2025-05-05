@@ -187,6 +187,7 @@ class BARTModel:
             "keep_gfr": False,
             "keep_every": 1,
             "num_chains": 1,
+            "probit_outcome_model": False,
         }
         general_params_updated = _preprocess_params(
             general_params_default, general_params
@@ -205,7 +206,6 @@ class BARTModel:
             "sigma2_leaf_scale": None,
             "keep_vars": None,
             "drop_vars": None,
-            "probit_outcome_model": False,
         }
         mean_forest_params_updated = _preprocess_params(
             mean_forest_params_default, mean_forest_params
@@ -243,6 +243,7 @@ class BARTModel:
         keep_gfr = general_params_updated["keep_gfr"]
         keep_every = general_params_updated["keep_every"]
         num_chains = general_params_updated["num_chains"]
+        self.probit_outcome_model = general_params_updated["probit_outcome_model"]
 
         # 2. Mean forest parameters
         num_trees_mean = mean_forest_params_updated["num_trees"]
@@ -256,7 +257,6 @@ class BARTModel:
         b_leaf = mean_forest_params_updated["sigma2_leaf_scale"]
         keep_vars_mean = mean_forest_params_updated["keep_vars"]
         drop_vars_mean = mean_forest_params_updated["drop_vars"]
-        self.probit_outcome_model = mean_forest_params_updated["probit_outcome_model"]
 
         # 3. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
