@@ -1636,7 +1636,7 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
         tau_hat <- object$forests_tau$predict_raw(forest_dataset_pred)*y_std
     }
     if (object$model_params$include_variance_forest) {
-        s_x_raw <- object$variance_forests$predict(forest_dataset_pred)
+        s_x_raw <- object$forests_variance$predict(forest_dataset_pred)
     }
     
     # Compute rfx predictions (if needed)
