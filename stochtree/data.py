@@ -175,4 +175,4 @@ class Residual:
             Univariate numpy array of new residual values.
         """
         n = new_vector.size
-        self.residual_cpp.UpdateData(new_vector, n)
+        self.residual_cpp.ReplaceData(new_vector, n)

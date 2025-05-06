@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 import pandas as pd
 from sklearn.utils import check_scalar
+from scipy.stats import norm
 
 from .bart import BARTModel
 from .config import ForestModelConfig, GlobalModelConfig
@@ -72,7 +73,6 @@ class BCFModel:
     def __init__(self) -> None:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
-        self.rng = np.random.default_rng()
 
     def sample(
         self,
@@ -151,6 +151,7 @@ class BCFModel:
             * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
             * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
+            * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
 
         prognostic_forest_params : dict, optional
             Dictionary of prognostic forest model parameters, each of which has a default value processed internally, so this argument is optional.
@@ -180,6 +181,7 @@ class BCFModel:
             * `sigma2_leaf_init` (`float`): Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
             * `sigma2_leaf_shape` (`float`): Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Defaults to `3`.
             * `sigma2_leaf_scale` (`float`): Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
+            * `delta_max` (`float`): Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in `general_params`. Must be > 0 and < 1. Defaults to `0.9`. Ignored if `sigma2_leaf_init` is set directly, as this parameter is used to calibrate `sigma2_leaf_init`.
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the treatment effect (`tau(X)`) forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (`tau(X)`) forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 
@@ -216,11 +218,12 @@ class BCFModel:
             "adaptive_coding": True,
             "control_coding_init": -0.5,
             "treated_coding_init": 0.5,
-            "random_seed": -1,
+            "random_seed": None,
             "keep_burnin": False,
             "keep_gfr": False,
             "keep_every": 1,
             "num_chains": 1,
+            "probit_outcome_model": False,
         }
         general_params_updated = _preprocess_params(
             general_params_default, general_params
@@ -255,6 +258,7 @@ class BCFModel:
             "sigma2_leaf_init": None,
             "sigma2_leaf_shape": 3,
             "sigma2_leaf_scale": None,
+            "delta_max": 0.9,
             "keep_vars": None,
             "drop_vars": None,
         }
@@ -297,6 +301,8 @@ class BCFModel:
         keep_burnin = general_params_updated["keep_burnin"]
         keep_gfr = general_params_updated["keep_gfr"]
         keep_every = general_params_updated["keep_every"]
+        num_chains = general_params_updated["num_chains"]
+        self.probit_outcome_model = general_params_updated["probit_outcome_model"]
 
         # 2. Mu forest parameters
         num_trees_mu = prognostic_forest_params_updated["num_trees"]
@@ -325,6 +331,7 @@ class BCFModel:
         sigma_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_init"]
         a_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_shape"]
         b_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_scale"]
+        delta_max = treatment_effect_forest_params_updated["delta_max"]
         keep_vars_tau = treatment_effect_forest_params_updated["keep_vars"]
         drop_vars_tau = treatment_effect_forest_params_updated["drop_vars"]
 
@@ -1116,83 +1123,187 @@ class BCFModel:
         else:
             self.internal_propensity_model = False
 
-        # Scale outcome
-        if self.standardize:
-            self.y_bar = np.squeeze(np.mean(y_train))
-            self.y_std = np.squeeze(np.std(y_train))
-        else:
-            self.y_bar = 0
-            self.y_std = 1
-        resid_train = (y_train - self.y_bar) / self.y_std
+        # Preliminary runtime checks for probit link
+        if self.probit_outcome_model:
+            if np.unique(y_train).size != 2:
+                raise ValueError(
+                    "You specified a probit outcome model, but supplied an outcome with more than 2 unique values"
+                )
+            unique_outcomes = np.squeeze(np.unique(y_train))
+            if not np.array_equal(unique_outcomes, [0, 1]):
+                raise ValueError(
+                    "You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1"
+                )
+            if self.include_variance_forest:
+                raise ValueError(
+                    "We do not support heteroskedasticity with a probit link"
+                )
+            if sample_sigma_global:
+                warnings.warn(
+                    "Global error variance will not be sampled with a probit link as it is fixed at 1"
+                )
+                sample_sigma_global = False
 
-        # Calibrate priors for global sigma^2 and sigma_leaf_mu / sigma_leaf_tau (don't use regression initializer for warm-start or XBART)
-        if not sigma2_init:
-            sigma2_init = 1.0 * np.var(resid_train)
-        if not variance_forest_leaf_init:
-            variance_forest_leaf_init = 0.6 * np.var(resid_train)
-        b_leaf_mu = (
-            np.squeeze(np.var(resid_train)) / num_trees_mu
-            if b_leaf_mu is None
-            else b_leaf_mu
-        )
-        b_leaf_tau = (
-            np.squeeze(np.var(resid_train)) / (2 * num_trees_tau)
-            if b_leaf_tau is None
-            else b_leaf_tau
-        )
-        sigma_leaf_mu = (
-            np.squeeze(np.var(resid_train)) / num_trees_mu
-            if sigma_leaf_mu is None
-            else sigma_leaf_mu
-        )
-        sigma_leaf_tau = (
-            np.squeeze(np.var(resid_train)) / (2 * num_trees_tau)
-            if sigma_leaf_tau is None
-            else sigma_leaf_tau
-        )
-        if self.multivariate_treatment:
-            if not isinstance(sigma_leaf_tau, np.ndarray):
-                sigma_leaf_tau = np.diagflat(
-                    np.repeat(sigma_leaf_tau, self.treatment_dim)
-                )
-        current_sigma2 = sigma2_init
-        self.sigma2_init = sigma2_init
-        if isinstance(sigma_leaf_mu, float):
-            current_leaf_scale_mu = np.array([[sigma_leaf_mu]])
-        else:
-            raise ValueError("sigma_leaf_mu must be a scalar")
-        if isinstance(sigma_leaf_tau, float):
-            if Z_train.shape[1] > 1:
-                current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]), dtype=float)
-                np.fill_diagonal(current_leaf_scale_tau, sigma_leaf_tau)
+        # Handle standardization, prior calibration, and initialization of forest
+        # differently for binary and continuous outcomes
+        if self.probit_outcome_model:
+            # Compute a probit-scale offset and fix scale to 1
+            self.y_bar = norm.ppf(np.squeeze(np.mean(y_train)))
+            self.y_std = 1.0
+
+            # Set a pseudo outcome by subtracting mean(y_train) from y_train
+            resid_train = y_train - np.squeeze(np.mean(y_train))
+
+            # Set initial value for the mu forest
+            init_mu = 0.0
+
+            # Calibrate priors for sigma^2 and tau
+            # Set sigma2_init to 1, ignoring default provided
+            sigma2_init = 1.0
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
+            # Skip variance_forest_init, since variance forests are not supported with probit link
+            b_leaf_mu = (
+                1.0 / num_trees_mu
+                if b_leaf_mu is None
+                else b_leaf_mu
+            )
+            b_leaf_tau = (
+                1.0 / (2 * num_trees_tau)
+                if b_leaf_tau is None
+                else b_leaf_tau
+            )
+            sigma_leaf_mu = (
+                1 / num_trees_mu
+                if sigma_leaf_mu is None
+                else sigma_leaf_mu
+            )
+            if isinstance(sigma_leaf_mu, float):
+                current_leaf_scale_mu = np.array([[sigma_leaf_mu]])
             else:
-                current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
-        elif isinstance(sigma_leaf_tau, np.ndarray):
-            if sigma_leaf_tau.ndim != 2:
-                raise ValueError(
-                    "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
-                )
-            if sigma_leaf_tau.shape[0] != sigma_leaf_tau.shape[1]:
-                raise ValueError(
-                    "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
-                )
-            if sigma_leaf_tau.shape[0] != Z_train.shape[1]:
-                raise ValueError(
-                    "sigma_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
-                )
-            current_leaf_scale_tau = sigma_leaf_tau
+                raise ValueError("sigma_leaf_mu must be a scalar")
+            # Calibrate prior so that P(abs(tau(X)) < delta_max / dnorm(0)) = p
+            # Use p = 0.9 as an internal default rather than adding another 
+            # user-facing "parameter" of the binary outcome BCF prior. 
+            # Can be overriden by specifying `sigma2_leaf_init` in 
+            # treatment_effect_forest_params.
+            p = 0.6827
+            q_quantile = norm.ppf((p + 1) / 2.0)
+            sigma_leaf_tau = (
+                ((delta_max / (q_quantile*norm.pdf(0)))**2) / num_trees_tau
+                if sigma_leaf_tau is None
+                else sigma_leaf_tau
+            )
+            if self.multivariate_treatment:
+                if not isinstance(sigma_leaf_tau, np.ndarray):
+                    sigma_leaf_tau = np.diagflat(
+                        np.repeat(sigma_leaf_tau, self.treatment_dim)
+                    )
+            if isinstance(sigma_leaf_tau, float):
+                if Z_train.shape[1] > 1:
+                    current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]), dtype=float)
+                    np.fill_diagonal(current_leaf_scale_tau, sigma_leaf_tau)
+                else:
+                    current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
+            elif isinstance(sigma_leaf_tau, np.ndarray):
+                if sigma_leaf_tau.ndim != 2:
+                    raise ValueError(
+                        "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                    )
+                if sigma_leaf_tau.shape[0] != sigma_leaf_tau.shape[1]:
+                    raise ValueError(
+                        "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                    )
+                if sigma_leaf_tau.shape[0] != Z_train.shape[1]:
+                    raise ValueError(
+                        "sigma_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
+                    )
+                current_leaf_scale_tau = sigma_leaf_tau
+            else:
+                raise ValueError("sigma_leaf_tau must be a scalar or a 2d numpy array")
         else:
-            raise ValueError("sigma_leaf_tau must be a scalar or a 2d numpy array")
-        if self.include_variance_forest:
-            if not a_forest:
-                a_forest = num_trees_variance / a_0**2 + 0.5
-            if not b_forest:
-                b_forest = num_trees_variance / a_0**2
-        else:
-            if not a_forest:
-                a_forest = 1.0
-            if not b_forest:
-                b_forest = 1.0
+            # Standardize if requested
+            if self.standardize:
+                self.y_bar = np.squeeze(np.mean(y_train))
+                self.y_std = np.squeeze(np.std(y_train))
+            else:
+                self.y_bar = 0
+                self.y_std = 1
+
+            # Compute residual value
+            resid_train = (y_train - self.y_bar) / self.y_std
+
+            # Compute initial value of root nodes in mean forest
+            init_mu = np.squeeze(np.mean(resid_train))
+
+            # Calibrate priors for global sigma^2 and sigma_leaf
+            if not sigma2_init:
+                sigma2_init = 1.0 * np.var(resid_train)
+            if not variance_forest_leaf_init:
+                variance_forest_leaf_init = 0.6 * np.var(resid_train)
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
+            b_leaf_mu = (
+                np.squeeze(np.var(resid_train)) / num_trees_mu
+                if b_leaf_mu is None
+                else b_leaf_mu
+            )
+            b_leaf_tau = (
+                np.squeeze(np.var(resid_train)) / (2 * num_trees_tau)
+                if b_leaf_tau is None
+                else b_leaf_tau
+            )
+            sigma_leaf_mu = (
+                np.squeeze(2 * np.var(resid_train)) / num_trees_mu
+                if sigma_leaf_mu is None
+                else sigma_leaf_mu
+            )
+            if isinstance(sigma_leaf_mu, float):
+                current_leaf_scale_mu = np.array([[sigma_leaf_mu]])
+            else:
+                raise ValueError("sigma_leaf_mu must be a scalar")
+            sigma_leaf_tau = (
+                np.squeeze(np.var(resid_train)) / (num_trees_tau)
+                if sigma_leaf_tau is None
+                else sigma_leaf_tau
+            )
+            if self.multivariate_treatment:
+                if not isinstance(sigma_leaf_tau, np.ndarray):
+                    sigma_leaf_tau = np.diagflat(
+                        np.repeat(sigma_leaf_tau, self.treatment_dim)
+                    )
+            if isinstance(sigma_leaf_tau, float):
+                if Z_train.shape[1] > 1:
+                    current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]), dtype=float)
+                    np.fill_diagonal(current_leaf_scale_tau, sigma_leaf_tau)
+                else:
+                    current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
+            elif isinstance(sigma_leaf_tau, np.ndarray):
+                if sigma_leaf_tau.ndim != 2:
+                    raise ValueError(
+                        "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                    )
+                if sigma_leaf_tau.shape[0] != sigma_leaf_tau.shape[1]:
+                    raise ValueError(
+                        "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                    )
+                if sigma_leaf_tau.shape[0] != Z_train.shape[1]:
+                    raise ValueError(
+                        "sigma_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
+                    )
+                current_leaf_scale_tau = sigma_leaf_tau
+            else:
+                raise ValueError("sigma_leaf_tau must be a scalar or a 2d numpy array")
+            if self.include_variance_forest:
+                if not a_forest:
+                    a_forest = num_trees_variance / a_0**2 + 0.5
+                if not b_forest:
+                    b_forest = num_trees_variance / a_0**2
+            else:
+                if not a_forest:
+                    a_forest = 1.0
+                if not b_forest:
+                    b_forest = 1.0        
 
         # Runtime checks on RFX group ids
         self.has_rfx = False
@@ -1384,11 +1495,13 @@ class BCFModel:
         # Residual
         residual_train = Residual(resid_train)
 
-        # C++ random number generator
+        # C++ and numpy random number generator
         if random_seed is None:
             cpp_rng = RNG(-1)
+            self.rng = np.random.default_rng()
         else:
             cpp_rng = RNG(random_seed)
+            self.rng = np.random.default_rng(random_seed)
 
         # Sampling data structures
         global_model_config = GlobalModelConfig(global_error_variance=current_sigma2)
@@ -1477,7 +1590,8 @@ class BCFModel:
             leaf_var_model_tau = LeafVarianceModel()
 
         # Initialize the leaves of each tree in the prognostic forest
-        init_mu = np.array([np.squeeze(np.mean(resid_train))])
+        if not isinstance(init_mu, np.ndarray):
+            init_mu = np.array([init_mu])
         forest_sampler_mu.prepare_for_sampler(
             forest_dataset_train,
             residual_train,
@@ -1518,6 +1632,33 @@ class BCFModel:
                 keep_sample = True
                 if keep_sample:
                     sample_counter += 1
+                
+                if self.probit_outcome_model:
+                    # Sample latent probit variable z | -
+                    forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
+                    forest_pred_tau = active_forest_tau.predict(forest_dataset_train)
+                    forest_pred = forest_pred_mu + forest_pred_tau
+                    mu0 = forest_pred[y_train[:, 0] == 0]
+                    mu1 = forest_pred[y_train[:, 0] == 1]
+                    n0 = np.sum(y_train[:, 0] == 0)
+                    n1 = np.sum(y_train[:, 0] == 1)
+                    u0 = self.rng.uniform(
+                        low=0.0,
+                        high=norm.cdf(0 - mu0),
+                        size=n0,
+                    )
+                    u1 = self.rng.uniform(
+                        low=norm.cdf(0 - mu1),
+                        high=1.0,
+                        size=n1,
+                    )
+                    resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
+                    resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
+
+                    # Update outcome
+                    new_outcome = np.squeeze(resid_train) - forest_pred
+                    residual_train.update_data(new_outcome)
+                
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
                     self.forest_container_mu,
@@ -1672,6 +1813,33 @@ class BCFModel:
                         keep_sample = False
                 if keep_sample:
                     sample_counter += 1
+                
+                if self.probit_outcome_model:
+                    # Sample latent probit variable z | -
+                    forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
+                    forest_pred_tau = active_forest_tau.predict(forest_dataset_train)
+                    forest_pred = forest_pred_mu + forest_pred_tau
+                    mu0 = forest_pred[y_train[:, 0] == 0]
+                    mu1 = forest_pred[y_train[:, 0] == 1]
+                    n0 = np.sum(y_train[:, 0] == 0)
+                    n1 = np.sum(y_train[:, 0] == 1)
+                    u0 = self.rng.uniform(
+                        low=0.0,
+                        high=norm.cdf(0 - mu0),
+                        size=n0,
+                    )
+                    u1 = self.rng.uniform(
+                        low=norm.cdf(0 - mu1),
+                        high=1.0,
+                        size=n1,
+                    )
+                    resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
+                    resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
+
+                    # Update outcome
+                    new_outcome = np.squeeze(resid_train) - forest_pred
+                    residual_train.update_data(new_outcome)
+                
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
                     self.forest_container_mu,
@@ -2340,6 +2508,9 @@ class BCFModel:
         bcf_json.add_boolean(
             "internal_propensity_model", self.internal_propensity_model
         )
+        bcf_json.add_boolean(
+            "probit_outcome_model", self.probit_outcome_model
+        )
 
         # Add parameter samples
         if self.sample_sigma_global:
@@ -2423,6 +2594,9 @@ class BCFModel:
         self.propensity_covariate = bcf_json.get_string("propensity_covariate")
         self.internal_propensity_model = bcf_json.get_boolean(
             "internal_propensity_model"
+        )
+        self.probit_outcome_model = bcf_json.get_boolean(
+            "probit_outcome_model"
         )
 
         # Unpack parameter samples

@@ -44,7 +44,7 @@ resid = (y-y_bar)/y_std
 
 # Test-train split
 sample_inds = np.arange(n)
-train_inds, test_inds = train_test_split(sample_inds, test_size=0.5)
+train_inds, test_inds = train_test_split(sample_inds, test_size=0.2)
 X_train = X[train_inds,:]
 X_test = X[test_inds,:]
 basis_train = W[train_inds,:]

@@ -1889,7 +1889,7 @@ void ForestContainerCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& 
 }
 
 void ForestCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, bool add) {
-  // Determine whether or not we are adding forest_num to the residuals
+  // Determine whether or not we are adding forest predictions to the residuals
   std::function<double(double, double)> op;
   if (add) op = std::plus<double>();
   else op = std::minus<double>();
