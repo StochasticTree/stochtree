@@ -1,7 +1,13 @@
 # stochtree 0.1.2
 
+## New Features
+
+* Support for binary outcomes in BART and BCF with a probit link ([#164](https://github.com/StochasticTree/stochtree/pull/164))
+
+## Bug Fixes
+
 * Fixed indexing bug in cleanup of grow-from-root (GFR) samples in BART and BCF models
-* Avoid using covariate preprocessor in `computeForestLeafIndices` function when a `ForestSamples` object is provided
+* Avoid using covariate preprocessor in `computeForestLeafIndices` function when a `ForestSamples` object is provided (rather than a `bartmodel` or `bcfmodel` object)
 
 # stochtree 0.1.1
 
