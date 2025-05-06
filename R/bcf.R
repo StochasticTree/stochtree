@@ -740,7 +740,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             # treatment_effect_forest_params.
             p <- 0.6827
             q_quantile <- qnorm((p+1)/2)
-            sigma2_leaf_tau <- ((delta_max/(q_quantile*dnorm(0)))^2)/num_trees_tau
+            sigma_leaf_tau <- ((delta_max/(q_quantile*dnorm(0)))^2)/num_trees_tau
             current_leaf_scale_tau <- as.matrix(diag(sigma_leaf_tau, ncol(Z_train)))
         } else {
             if (!is.matrix(sigma_leaf_tau)) {
