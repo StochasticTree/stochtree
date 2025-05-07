@@ -233,7 +233,7 @@ class BARTModel:
         # 1. General parameters
         cutpoint_grid_size = general_params_updated["cutpoint_grid_size"]
         self.standardize = general_params_updated["standardize"]
-        sample_sigma_global = general_params_updated["sample_sigma2_global"]
+        sample_sigma2_global = general_params_updated["sample_sigma2_global"]
         sigma2_init = general_params_updated["sigma2_init"]
         a_global = general_params_updated["sigma2_global_shape"]
         b_global = general_params_updated["sigma2_global_scale"]
@@ -251,8 +251,8 @@ class BARTModel:
         beta_mean = mean_forest_params_updated["beta"]
         min_samples_leaf_mean = mean_forest_params_updated["min_samples_leaf"]
         max_depth_mean = mean_forest_params_updated["max_depth"]
-        sample_sigma_leaf = mean_forest_params_updated["sample_sigma2_leaf"]
-        sigma_leaf = mean_forest_params_updated["sigma2_leaf_init"]
+        sample_sigma2_leaf = mean_forest_params_updated["sample_sigma2_leaf"]
+        sigma2_leaf = mean_forest_params_updated["sigma2_leaf_init"]
         a_leaf = mean_forest_params_updated["sigma2_leaf_shape"]
         b_leaf = mean_forest_params_updated["sigma2_leaf_scale"]
         keep_vars_mean = mean_forest_params_updated["keep_vars"]
@@ -662,13 +662,13 @@ class BARTModel:
                 )
             else:
                 previous_forest_samples_variance = None
-            if previous_bart_model.sample_sigma_global:
+            if previous_bart_model.sample_sigma2_global:
                 previous_global_var_samples = previous_bart_model.global_var_samples / (
                     previous_y_scale * previous_y_scale
                 )
             else:
                 previous_global_var_samples = None
-            if previous_bart_model.sample_sigma_leaf:
+            if previous_bart_model.sample_sigma2_leaf:
                 previous_leaf_var_samples = previous_bart_model.leaf_scale_samples
             else:
                 previous_leaf_var_samples = None
@@ -731,11 +731,11 @@ class BARTModel:
                 raise ValueError(
                     "We do not support heteroskedasticity with a probit link"
                 )
-            if sample_sigma_global:
+            if sample_sigma2_global:
                 warnings.warn(
                     "Global error variance will not be sampled with a probit link as it is fixed at 1"
                 )
-                sample_sigma_global = False
+                sample_sigma2_global = False
 
         # Handle standardization, prior calibration, and initialization of forest
         # differently for binary and continuous outcomes
@@ -758,7 +758,7 @@ class BARTModel:
             # Skip variance_forest_init, since variance forests are not supported with probit link
             b_leaf = 1.0 / num_trees_mean if b_leaf is None else b_leaf
             if self.has_basis:
-                if sigma_leaf is None:
+                if sigma2_leaf is None:
                     current_leaf_scale = np.zeros(
                         (self.num_basis, self.num_basis), dtype=float
                     )
@@ -766,51 +766,51 @@ class BARTModel:
                         current_leaf_scale,
                         2.0 / num_trees_mean,
                     )
-                elif isinstance(sigma_leaf, float):
+                elif isinstance(sigma2_leaf, float):
                     current_leaf_scale = np.zeros(
                         (self.num_basis, self.num_basis), dtype=float
                     )
-                    np.fill_diagonal(current_leaf_scale, sigma_leaf)
-                elif isinstance(sigma_leaf, np.ndarray):
-                    if sigma_leaf.ndim != 2:
+                    np.fill_diagonal(current_leaf_scale, sigma2_leaf)
+                elif isinstance(sigma2_leaf, np.ndarray):
+                    if sigma2_leaf.ndim != 2:
                         raise ValueError(
-                            "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                         )
-                    if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
+                    if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
                         raise ValueError(
-                            "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                         )
-                    if sigma_leaf.shape[0] != self.num_basis:
+                    if sigma2_leaf.shape[0] != self.num_basis:
                         raise ValueError(
-                            "sigma_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
+                            "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
                         )
-                    current_leaf_scale = sigma_leaf
+                    current_leaf_scale = sigma2_leaf
                 else:
                     raise ValueError(
-                        "sigma_leaf must be either a scalar or a 2d symmetric numpy array"
+                        "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
                     )
             else:
-                if sigma_leaf is None:
+                if sigma2_leaf is None:
                     current_leaf_scale = np.array([[2.0 / num_trees_mean]])
-                elif isinstance(sigma_leaf, float):
-                    current_leaf_scale = np.array([[sigma_leaf]])
-                elif isinstance(sigma_leaf, np.ndarray):
-                    if sigma_leaf.ndim != 2:
+                elif isinstance(sigma2_leaf, float):
+                    current_leaf_scale = np.array([[sigma2_leaf]])
+                elif isinstance(sigma2_leaf, np.ndarray):
+                    if sigma2_leaf.ndim != 2:
                         raise ValueError(
-                            "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                         )
-                    if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
+                    if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
                         raise ValueError(
-                            "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                         )
-                    if sigma_leaf.shape[0] != 1:
+                    if sigma2_leaf.shape[0] != 1:
                         raise ValueError(
-                            "sigma_leaf must be a 1x1 numpy array for this leaf model"
+                            "sigma2_leaf must be a 1x1 numpy array for this leaf model"
                         )
-                    current_leaf_scale = sigma_leaf
+                    current_leaf_scale = sigma2_leaf
                 else:
                     raise ValueError(
-                        "sigma_leaf must be either a scalar or a 2d numpy array"
+                        "sigma2_leaf must be either a scalar or a 2d numpy array"
                     )
         else:
             # Standardize if requested
@@ -827,7 +827,7 @@ class BARTModel:
             # Compute initial value of root nodes in mean forest
             init_val_mean = np.squeeze(np.mean(resid_train))
 
-            # Calibrate priors for global sigma^2 and sigma_leaf
+            # Calibrate priors for global sigma^2 and sigma2_leaf
             if not sigma2_init:
                 sigma2_init = 1.0 * np.var(resid_train)
             if not variance_forest_leaf_init:
@@ -841,7 +841,7 @@ class BARTModel:
                     else b_leaf
                 )
                 if self.has_basis:
-                    if sigma_leaf is None:
+                    if sigma2_leaf is None:
                         current_leaf_scale = np.zeros(
                             (self.num_basis, self.num_basis), dtype=float
                         )
@@ -849,53 +849,53 @@ class BARTModel:
                             current_leaf_scale,
                             np.squeeze(np.var(resid_train)) / num_trees_mean,
                         )
-                    elif isinstance(sigma_leaf, float):
+                    elif isinstance(sigma2_leaf, float):
                         current_leaf_scale = np.zeros(
                             (self.num_basis, self.num_basis), dtype=float
                         )
-                        np.fill_diagonal(current_leaf_scale, sigma_leaf)
-                    elif isinstance(sigma_leaf, np.ndarray):
-                        if sigma_leaf.ndim != 2:
+                        np.fill_diagonal(current_leaf_scale, sigma2_leaf)
+                    elif isinstance(sigma2_leaf, np.ndarray):
+                        if sigma2_leaf.ndim != 2:
                             raise ValueError(
-                                "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                             )
-                        if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
+                        if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
                             raise ValueError(
-                                "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                             )
-                        if sigma_leaf.shape[0] != self.num_basis:
+                        if sigma2_leaf.shape[0] != self.num_basis:
                             raise ValueError(
-                                "sigma_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
+                                "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
                             )
-                        current_leaf_scale = sigma_leaf
+                        current_leaf_scale = sigma2_leaf
                     else:
                         raise ValueError(
-                            "sigma_leaf must be either a scalar or a 2d symmetric numpy array"
+                            "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
                         )
                 else:
-                    if sigma_leaf is None:
+                    if sigma2_leaf is None:
                         current_leaf_scale = np.array(
                             [[np.squeeze(np.var(resid_train)) / num_trees_mean]]
                         )
-                    elif isinstance(sigma_leaf, float):
-                        current_leaf_scale = np.array([[sigma_leaf]])
-                    elif isinstance(sigma_leaf, np.ndarray):
-                        if sigma_leaf.ndim != 2:
+                    elif isinstance(sigma2_leaf, float):
+                        current_leaf_scale = np.array([[sigma2_leaf]])
+                    elif isinstance(sigma2_leaf, np.ndarray):
+                        if sigma2_leaf.ndim != 2:
                             raise ValueError(
-                                "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                             )
-                        if sigma_leaf.shape[0] != sigma_leaf.shape[1]:
+                        if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
                             raise ValueError(
-                                "sigma_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                             )
-                        if sigma_leaf.shape[0] != 1:
+                        if sigma2_leaf.shape[0] != 1:
                             raise ValueError(
-                                "sigma_leaf must be a 1x1 numpy array for this leaf model"
+                                "sigma2_leaf must be a 1x1 numpy array for this leaf model"
                             )
-                        current_leaf_scale = sigma_leaf
+                        current_leaf_scale = sigma2_leaf
                     else:
                         raise ValueError(
-                            "sigma_leaf must be either a scalar or a 2d numpy array"
+                            "sigma2_leaf must be either a scalar or a 2d numpy array"
                         )
             else:
                 current_leaf_scale = np.array([[1.0]])
@@ -987,11 +987,11 @@ class BARTModel:
         if keep_burnin:
             num_retained_samples += num_burnin * num_chains
         self.num_samples = num_retained_samples
-        self.sample_sigma_global = sample_sigma_global
-        self.sample_sigma_leaf = sample_sigma_leaf
-        if sample_sigma_global:
+        self.sample_sigma2_global = sample_sigma2_global
+        self.sample_sigma2_leaf = sample_sigma2_leaf
+        if sample_sigma2_global:
             self.global_var_samples = np.empty(self.num_samples, dtype=np.float64)
-        if sample_sigma_leaf:
+        if sample_sigma2_leaf:
             self.leaf_scale_samples = np.empty(self.num_samples, dtype=np.float64)
         sample_counter = -1
 
@@ -1097,9 +1097,9 @@ class BARTModel:
             active_forest_variance = Forest(num_trees_variance, 1, True, True)
 
         # Variance samplers
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             global_var_model = GlobalVarianceModel()
-        if self.sample_sigma_leaf:
+        if self.sample_sigma2_leaf:
             leaf_var_model = LeafVarianceModel()
 
         # Initialize the leaves of each tree in the mean forest
@@ -1188,14 +1188,14 @@ class BARTModel:
                     )
 
                 # Sample variance parameters (if requested)
-                if self.sample_sigma_global:
+                if self.sample_sigma2_global:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
                     global_model_config.update_global_error_variance(current_sigma2)
                     if keep_sample:
                         self.global_var_samples[sample_counter] = current_sigma2
-                if self.sample_sigma_leaf:
+                if self.sample_sigma2_leaf:
                     current_leaf_scale[0, 0] = leaf_var_model.sample_one_iteration(
                         active_forest_mean, cpp_rng, a_leaf, b_leaf
                     )
@@ -1240,7 +1240,7 @@ class BARTModel:
                             residual_train,
                             False,
                         )
-                    if sample_sigma_global:
+                    if sample_sigma2_global:
                         current_sigma2 = self.global_var_samples[forest_ind]
                 elif has_prev_model:
                     if self.include_mean_forest:
@@ -1254,7 +1254,7 @@ class BARTModel:
                             residual_train,
                             True,
                         )
-                        if sample_sigma_leaf and previous_leaf_var_samples is not None:
+                        if sample_sigma2_leaf and previous_leaf_var_samples is not None:
                             leaf_scale_double = previous_leaf_var_samples[
                                 previous_model_warmstart_sample_num
                             ]
@@ -1275,7 +1275,7 @@ class BARTModel:
                         )
                     # if self.has_rfx:
                     #     pass
-                    if self.sample_sigma_global:
+                    if self.sample_sigma2_global:
                         current_sigma2 = previous_global_var_samples[
                             previous_model_warmstart_sample_num
                         ]
@@ -1380,14 +1380,14 @@ class BARTModel:
                         )
 
                     # Sample variance parameters (if requested)
-                    if self.sample_sigma_global:
+                    if self.sample_sigma2_global:
                         current_sigma2 = global_var_model.sample_one_iteration(
                             residual_train, cpp_rng, a_global, b_global
                         )
                         global_model_config.update_global_error_variance(current_sigma2)
                         if keep_sample:
                             self.global_var_samples[sample_counter] = current_sigma2
-                    if self.sample_sigma_leaf:
+                    if self.sample_sigma2_leaf:
                         current_leaf_scale[0, 0] = leaf_var_model.sample_one_iteration(
                             active_forest_mean, cpp_rng, a_leaf, b_leaf
                         )
@@ -1423,17 +1423,17 @@ class BARTModel:
                     self.forest_container_variance.delete_sample(0)
                 if self.has_rfx:
                     self.rfx_container.delete_sample(0)
-            if self.sample_sigma_global:
+            if self.sample_sigma2_global:
                 self.global_var_samples = self.global_var_samples[num_gfr:]
-            if self.sample_sigma_leaf:
+            if self.sample_sigma2_leaf:
                 self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
             self.num_samples -= num_gfr
 
         # Store predictions
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             self.global_var_samples = self.global_var_samples * self.y_std * self.y_std
 
-        if self.sample_sigma_leaf:
+        if self.sample_sigma2_leaf:
             self.leaf_scale_samples = self.leaf_scale_samples
 
         if self.include_mean_forest:
@@ -1468,36 +1468,36 @@ class BARTModel:
                     self.y_hat_test = rfx_preds_test
 
         if self.include_variance_forest:
-            sigma_x_train_raw = (
+            sigma2_x_train_raw = (
                 self.forest_container_variance.forest_container_cpp.Predict(
                     forest_dataset_train.dataset_cpp
                 )
             )
-            if self.sample_sigma_global:
-                self.sigma2_x_train = sigma_x_train_raw
+            if self.sample_sigma2_global:
+                self.sigma2_x_train = sigma2_x_train_raw
                 for i in range(self.num_samples):
                     self.sigma2_x_train[:, i] = (
-                        sigma_x_train_raw[:, i] * self.global_var_samples[i]
+                        sigma2_x_train_raw[:, i] * self.global_var_samples[i]
                     )
             else:
                 self.sigma2_x_train = (
-                    sigma_x_train_raw * self.sigma2_init * self.y_std * self.y_std
+                    sigma2_x_train_raw * self.sigma2_init * self.y_std * self.y_std
                 )
             if self.has_test:
-                sigma_x_test_raw = (
+                sigma2_x_test_raw = (
                     self.forest_container_variance.forest_container_cpp.Predict(
                         forest_dataset_test.dataset_cpp
                     )
                 )
-                if self.sample_sigma_global:
-                    self.sigma2_x_test = sigma_x_test_raw
+                if self.sample_sigma2_global:
+                    self.sigma2_x_test = sigma2_x_test_raw
                     for i in range(self.num_samples):
                         self.sigma2_x_test[:, i] = (
-                            sigma_x_test_raw[:, i] * self.global_var_samples[i]
+                            sigma2_x_test_raw[:, i] * self.global_var_samples[i]
                         )
                 else:
                     self.sigma2_x_test = (
-                        sigma_x_test_raw * self.sigma2_init * self.y_std * self.y_std
+                        sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
                     )
 
     def predict(
@@ -1606,7 +1606,7 @@ class BARTModel:
                     pred_dataset.dataset_cpp
                 )
             )
-            if self.sample_sigma_global:
+            if self.sample_sigma2_global:
                 variance_pred = variance_pred_raw
                 for i in range(self.num_samples):
                     variance_pred[:, i] = np.sqrt(
@@ -1795,7 +1795,7 @@ class BARTModel:
         variance_pred_raw = self.forest_container_variance.forest_container_cpp.Predict(
             pred_dataset.dataset_cpp
         )
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             variance_pred = variance_pred_raw
             for i in range(self.num_samples):
                 variance_pred[:, i] = (
@@ -1843,8 +1843,8 @@ class BARTModel:
         bart_json.add_scalar("outcome_mean", self.y_bar)
         bart_json.add_boolean("standardize", self.standardize)
         bart_json.add_scalar("sigma2_init", self.sigma2_init)
-        bart_json.add_boolean("sample_sigma_global", self.sample_sigma_global)
-        bart_json.add_boolean("sample_sigma_leaf", self.sample_sigma_leaf)
+        bart_json.add_boolean("sample_sigma2_global", self.sample_sigma2_global)
+        bart_json.add_boolean("sample_sigma2_leaf", self.sample_sigma2_leaf)
         bart_json.add_boolean("include_mean_forest", self.include_mean_forest)
         bart_json.add_boolean("include_variance_forest", self.include_variance_forest)
         bart_json.add_boolean("has_rfx", self.has_rfx)
@@ -1857,11 +1857,11 @@ class BARTModel:
         bart_json.add_boolean("probit_outcome_model", self.probit_outcome_model)
 
         # Add parameter samples
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             bart_json.add_numeric_vector(
                 "sigma2_global_samples", self.global_var_samples, "parameters"
             )
-        if self.sample_sigma_leaf:
+        if self.sample_sigma2_leaf:
             bart_json.add_numeric_vector(
                 "sigma2_leaf_samples", self.leaf_scale_samples, "parameters"
             )
@@ -1918,8 +1918,8 @@ class BARTModel:
         self.y_bar = bart_json.get_scalar("outcome_mean")
         self.standardize = bart_json.get_boolean("standardize")
         self.sigma2_init = bart_json.get_scalar("sigma2_init")
-        self.sample_sigma_global = bart_json.get_boolean("sample_sigma_global")
-        self.sample_sigma_leaf = bart_json.get_boolean("sample_sigma_leaf")
+        self.sample_sigma2_global = bart_json.get_boolean("sample_sigma2_global")
+        self.sample_sigma2_leaf = bart_json.get_boolean("sample_sigma2_leaf")
         self.num_gfr = bart_json.get_integer("num_gfr")
         self.num_burnin = bart_json.get_integer("num_burnin")
         self.num_mcmc = bart_json.get_integer("num_mcmc")
@@ -1929,11 +1929,11 @@ class BARTModel:
         self.probit_outcome_model = bart_json.get_boolean("probit_outcome_model")
 
         # Unpack parameter samples
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             self.global_var_samples = bart_json.get_numeric_vector(
                 "sigma2_global_samples", "parameters"
             )
-        if self.sample_sigma_leaf:
+        if self.sample_sigma2_leaf:
             self.leaf_scale_samples = bart_json.get_numeric_vector(
                 "sigma2_leaf_samples", "parameters"
             )
@@ -2025,10 +2025,10 @@ class BARTModel:
         self.y_bar = json_object_default.get_scalar("outcome_mean")
         self.standardize = json_object_default.get_boolean("standardize")
         self.sigma2_init = json_object_default.get_scalar("sigma2_init")
-        self.sample_sigma_global = json_object_default.get_boolean(
-            "sample_sigma_global"
+        self.sample_sigma2_global = json_object_default.get_boolean(
+            "sample_sigma2_global"
         )
-        self.sample_sigma_leaf = json_object_default.get_boolean("sample_sigma_leaf")
+        self.sample_sigma2_leaf = json_object_default.get_boolean("sample_sigma2_leaf")
         self.num_gfr = json_object_default.get_integer("num_gfr")
         self.num_burnin = json_object_default.get_integer("num_burnin")
         self.num_mcmc = json_object_default.get_integer("num_mcmc")
@@ -2040,7 +2040,7 @@ class BARTModel:
         )
 
         # Unpack parameter samples
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             for i in range(len(json_object_list)):
                 if i == 0:
                     self.global_var_samples = json_object_list[i].get_numeric_vector(
@@ -2054,7 +2054,7 @@ class BARTModel:
                         (self.global_var_samples, global_var_samples)
                     )
 
-        if self.sample_sigma_leaf:
+        if self.sample_sigma2_leaf:
             for i in range(len(json_object_list)):
                 if i == 0:
                     self.leaf_scale_samples = json_object_list[i].get_numeric_vector(
