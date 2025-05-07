@@ -66,8 +66,8 @@ sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
-sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma^2"])
+sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma^2")
 plt.show()
 
 # Compute the test set RMSE
@@ -89,8 +89,8 @@ sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
-sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma^2"])
+sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma^2")
 plt.show()
 
 # Compute the test set RMSE
@@ -110,8 +110,8 @@ sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
-sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma^2"])
+sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma^2")
 plt.show()
 
 # Compute the test set RMSE

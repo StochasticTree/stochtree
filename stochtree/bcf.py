@@ -288,7 +288,7 @@ class BCFModel:
         # 1. General parameters
         cutpoint_grid_size = general_params_updated["cutpoint_grid_size"]
         self.standardize = general_params_updated["standardize"]
-        sample_sigma_global = general_params_updated["sample_sigma2_global"]
+        sample_sigma2_global = general_params_updated["sample_sigma2_global"]
         sigma2_init = general_params_updated["sigma2_global_init"]
         a_global = general_params_updated["sigma2_global_shape"]
         b_global = general_params_updated["sigma2_global_scale"]
@@ -310,8 +310,8 @@ class BCFModel:
         beta_mu = prognostic_forest_params_updated["beta"]
         min_samples_leaf_mu = prognostic_forest_params_updated["min_samples_leaf"]
         max_depth_mu = prognostic_forest_params_updated["max_depth"]
-        sample_sigma_leaf_mu = prognostic_forest_params_updated["sample_sigma2_leaf"]
-        sigma_leaf_mu = prognostic_forest_params_updated["sigma2_leaf_init"]
+        sample_sigma2_leaf_mu = prognostic_forest_params_updated["sample_sigma2_leaf"]
+        sigma2_leaf_mu = prognostic_forest_params_updated["sigma2_leaf_init"]
         a_leaf_mu = prognostic_forest_params_updated["sigma2_leaf_shape"]
         b_leaf_mu = prognostic_forest_params_updated["sigma2_leaf_scale"]
         keep_vars_mu = prognostic_forest_params_updated["keep_vars"]
@@ -325,10 +325,10 @@ class BCFModel:
             "min_samples_leaf"
         ]
         max_depth_tau = treatment_effect_forest_params_updated["max_depth"]
-        sample_sigma_leaf_tau = treatment_effect_forest_params_updated[
+        sample_sigma2_leaf_tau = treatment_effect_forest_params_updated[
             "sample_sigma2_leaf"
         ]
-        sigma_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_init"]
+        sigma2_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_init"]
         a_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_shape"]
         b_leaf_tau = treatment_effect_forest_params_updated["sigma2_leaf_scale"]
         delta_max = treatment_effect_forest_params_updated["delta_max"]
@@ -494,29 +494,29 @@ class BCFModel:
         leaf_model_variance = 3
 
         # Check parameters
-        if sigma_leaf_tau is not None:
-            if not isinstance(sigma_leaf_tau, float) and not isinstance(
-                sigma_leaf_tau, np.ndarray
+        if sigma2_leaf_tau is not None:
+            if not isinstance(sigma2_leaf_tau, float) and not isinstance(
+                sigma2_leaf_tau, np.ndarray
             ):
-                raise ValueError("sigma_leaf_tau must be a float or numpy array")
+                raise ValueError("sigma2_leaf_tau must be a float or numpy array")
             if self.multivariate_treatment:
-                if sigma_leaf_tau is not None:
-                    if isinstance(sigma_leaf_tau, np.ndarray):
-                        if sigma_leaf_tau.ndim != 2:
+                if sigma2_leaf_tau is not None:
+                    if isinstance(sigma2_leaf_tau, np.ndarray):
+                        if sigma2_leaf_tau.ndim != 2:
                             raise ValueError(
-                                "sigma_leaf_tau must be 2-dimensional if passed as a np.array"
+                                "sigma2_leaf_tau must be 2-dimensional if passed as a np.array"
                             )
                         if (
-                            self.treatment_dim != sigma_leaf_tau.shape[0]
-                            or self.treatment_dim != sigma_leaf_tau.shape[1]
+                            self.treatment_dim != sigma2_leaf_tau.shape[0]
+                            or self.treatment_dim != sigma2_leaf_tau.shape[1]
                         ):
                             raise ValueError(
-                                "sigma_leaf_tau must have the same number of rows and columns, which must match Z_train.shape[1]"
+                                "sigma2_leaf_tau must have the same number of rows and columns, which must match Z_train.shape[1]"
                             )
-        if sigma_leaf_mu is not None:
-            sigma_leaf_mu = check_scalar(
-                x=sigma_leaf_mu,
-                name="sigma_leaf_mu",
+        if sigma2_leaf_mu is not None:
+            sigma2_leaf_mu = check_scalar(
+                x=sigma2_leaf_mu,
+                name="sigma2_leaf_mu",
                 target_type=float,
                 min_val=0.0,
                 max_val=None,
@@ -708,12 +708,12 @@ class BCFModel:
                 max_val=None,
                 include_boundaries="neither",
             )
-        if sample_sigma_leaf_mu is not None:
-            if not isinstance(sample_sigma_leaf_mu, bool):
-                raise ValueError("sample_sigma_leaf_mu must be a bool")
-        if sample_sigma_leaf_tau is not None:
-            if not isinstance(sample_sigma_leaf_tau, bool):
-                raise ValueError("sample_sigma_leaf_tau must be a bool")
+        if sample_sigma2_leaf_mu is not None:
+            if not isinstance(sample_sigma2_leaf_mu, bool):
+                raise ValueError("sample_sigma2_leaf_mu must be a bool")
+        if sample_sigma2_leaf_tau is not None:
+            if not isinstance(sample_sigma2_leaf_tau, bool):
+                raise ValueError("sample_sigma2_leaf_tau must be a bool")
         if propensity_covariate is not None:
             if propensity_covariate not in ["mu", "tau", "both", "none"]:
                 raise ValueError(
@@ -1083,9 +1083,9 @@ class BCFModel:
         if adaptive_coding and self.multivariate_treatment:
             self.adaptive_coding = False
 
-        # Sampling sigma_leaf_tau will be ignored for multivariate treatments
-        if sample_sigma_leaf_tau and self.multivariate_treatment:
-            sample_sigma_leaf_tau = False
+        # Sampling sigma2_leaf_tau will be ignored for multivariate treatments
+        if sample_sigma2_leaf_tau and self.multivariate_treatment:
+            sample_sigma2_leaf_tau = False
 
         # Check if user has provided propensities that are needed in the model
         if pi_train is None and propensity_covariate != "none":
@@ -1138,11 +1138,11 @@ class BCFModel:
                 raise ValueError(
                     "We do not support heteroskedasticity with a probit link"
                 )
-            if sample_sigma_global:
+            if sample_sigma2_global:
                 warnings.warn(
                     "Global error variance will not be sampled with a probit link as it is fixed at 1"
                 )
-                sample_sigma_global = False
+                sample_sigma2_global = False
 
         # Handle standardization, prior calibration, and initialization of forest
         # differently for binary and continuous outcomes
@@ -1173,15 +1173,15 @@ class BCFModel:
                 if b_leaf_tau is None
                 else b_leaf_tau
             )
-            sigma_leaf_mu = (
+            sigma2_leaf_mu = (
                 1 / num_trees_mu
-                if sigma_leaf_mu is None
-                else sigma_leaf_mu
+                if sigma2_leaf_mu is None
+                else sigma2_leaf_mu
             )
-            if isinstance(sigma_leaf_mu, float):
-                current_leaf_scale_mu = np.array([[sigma_leaf_mu]])
+            if isinstance(sigma2_leaf_mu, float):
+                current_leaf_scale_mu = np.array([[sigma2_leaf_mu]])
             else:
-                raise ValueError("sigma_leaf_mu must be a scalar")
+                raise ValueError("sigma2_leaf_mu must be a scalar")
             # Calibrate prior so that P(abs(tau(X)) < delta_max / dnorm(0)) = p
             # Use p = 0.9 as an internal default rather than adding another 
             # user-facing "parameter" of the binary outcome BCF prior. 
@@ -1189,38 +1189,38 @@ class BCFModel:
             # treatment_effect_forest_params.
             p = 0.6827
             q_quantile = norm.ppf((p + 1) / 2.0)
-            sigma_leaf_tau = (
+            sigma2_leaf_tau = (
                 ((delta_max / (q_quantile*norm.pdf(0)))**2) / num_trees_tau
-                if sigma_leaf_tau is None
-                else sigma_leaf_tau
+                if sigma2_leaf_tau is None
+                else sigma2_leaf_tau
             )
             if self.multivariate_treatment:
-                if not isinstance(sigma_leaf_tau, np.ndarray):
-                    sigma_leaf_tau = np.diagflat(
-                        np.repeat(sigma_leaf_tau, self.treatment_dim)
+                if not isinstance(sigma2_leaf_tau, np.ndarray):
+                    sigma2_leaf_tau = np.diagflat(
+                        np.repeat(sigma2_leaf_tau, self.treatment_dim)
                     )
-            if isinstance(sigma_leaf_tau, float):
+            if isinstance(sigma2_leaf_tau, float):
                 if Z_train.shape[1] > 1:
                     current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]), dtype=float)
-                    np.fill_diagonal(current_leaf_scale_tau, sigma_leaf_tau)
+                    np.fill_diagonal(current_leaf_scale_tau, sigma2_leaf_tau)
                 else:
-                    current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
-            elif isinstance(sigma_leaf_tau, np.ndarray):
-                if sigma_leaf_tau.ndim != 2:
+                    current_leaf_scale_tau = np.array([[sigma2_leaf_tau]])
+            elif isinstance(sigma2_leaf_tau, np.ndarray):
+                if sigma2_leaf_tau.ndim != 2:
                     raise ValueError(
-                        "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                        "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
                     )
-                if sigma_leaf_tau.shape[0] != sigma_leaf_tau.shape[1]:
+                if sigma2_leaf_tau.shape[0] != sigma2_leaf_tau.shape[1]:
                     raise ValueError(
-                        "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                        "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
                     )
-                if sigma_leaf_tau.shape[0] != Z_train.shape[1]:
+                if sigma2_leaf_tau.shape[0] != Z_train.shape[1]:
                     raise ValueError(
-                        "sigma_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
+                        "sigma2_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
                     )
-                current_leaf_scale_tau = sigma_leaf_tau
+                current_leaf_scale_tau = sigma2_leaf_tau
             else:
-                raise ValueError("sigma_leaf_tau must be a scalar or a 2d numpy array")
+                raise ValueError("sigma2_leaf_tau must be a scalar or a 2d numpy array")
         else:
             # Standardize if requested
             if self.standardize:
@@ -1236,7 +1236,7 @@ class BCFModel:
             # Compute initial value of root nodes in mean forest
             init_mu = np.squeeze(np.mean(resid_train))
 
-            # Calibrate priors for global sigma^2 and sigma_leaf
+            # Calibrate priors for global sigma^2 and sigma2_leaf
             if not sigma2_init:
                 sigma2_init = 1.0 * np.var(resid_train)
             if not variance_forest_leaf_init:
@@ -1253,47 +1253,47 @@ class BCFModel:
                 if b_leaf_tau is None
                 else b_leaf_tau
             )
-            sigma_leaf_mu = (
+            sigma2_leaf_mu = (
                 np.squeeze(2 * np.var(resid_train)) / num_trees_mu
-                if sigma_leaf_mu is None
-                else sigma_leaf_mu
+                if sigma2_leaf_mu is None
+                else sigma2_leaf_mu
             )
-            if isinstance(sigma_leaf_mu, float):
-                current_leaf_scale_mu = np.array([[sigma_leaf_mu]])
+            if isinstance(sigma2_leaf_mu, float):
+                current_leaf_scale_mu = np.array([[sigma2_leaf_mu]])
             else:
-                raise ValueError("sigma_leaf_mu must be a scalar")
-            sigma_leaf_tau = (
+                raise ValueError("sigma2_leaf_mu must be a scalar")
+            sigma2_leaf_tau = (
                 np.squeeze(np.var(resid_train)) / (num_trees_tau)
-                if sigma_leaf_tau is None
-                else sigma_leaf_tau
+                if sigma2_leaf_tau is None
+                else sigma2_leaf_tau
             )
             if self.multivariate_treatment:
-                if not isinstance(sigma_leaf_tau, np.ndarray):
-                    sigma_leaf_tau = np.diagflat(
-                        np.repeat(sigma_leaf_tau, self.treatment_dim)
+                if not isinstance(sigma2_leaf_tau, np.ndarray):
+                    sigma2_leaf_tau = np.diagflat(
+                        np.repeat(sigma2_leaf_tau, self.treatment_dim)
                     )
-            if isinstance(sigma_leaf_tau, float):
+            if isinstance(sigma2_leaf_tau, float):
                 if Z_train.shape[1] > 1:
                     current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]), dtype=float)
-                    np.fill_diagonal(current_leaf_scale_tau, sigma_leaf_tau)
+                    np.fill_diagonal(current_leaf_scale_tau, sigma2_leaf_tau)
                 else:
-                    current_leaf_scale_tau = np.array([[sigma_leaf_tau]])
-            elif isinstance(sigma_leaf_tau, np.ndarray):
-                if sigma_leaf_tau.ndim != 2:
+                    current_leaf_scale_tau = np.array([[sigma2_leaf_tau]])
+            elif isinstance(sigma2_leaf_tau, np.ndarray):
+                if sigma2_leaf_tau.ndim != 2:
                     raise ValueError(
-                        "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                        "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
                     )
-                if sigma_leaf_tau.shape[0] != sigma_leaf_tau.shape[1]:
+                if sigma2_leaf_tau.shape[0] != sigma2_leaf_tau.shape[1]:
                     raise ValueError(
-                        "sigma_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                        "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
                     )
-                if sigma_leaf_tau.shape[0] != Z_train.shape[1]:
+                if sigma2_leaf_tau.shape[0] != Z_train.shape[1]:
                     raise ValueError(
-                        "sigma_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
+                        "sigma2_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
                     )
-                current_leaf_scale_tau = sigma_leaf_tau
+                current_leaf_scale_tau = sigma2_leaf_tau
             else:
-                raise ValueError("sigma_leaf_tau must be a scalar or a 2d numpy array")
+                raise ValueError("sigma2_leaf_tau must be a scalar or a 2d numpy array")
             if self.include_variance_forest:
                 if not a_forest:
                     a_forest = num_trees_variance / a_0**2 + 0.5
@@ -1454,14 +1454,14 @@ class BCFModel:
         if keep_burnin:
             num_retained_samples += num_burnin
         self.num_samples = num_retained_samples
-        self.sample_sigma_global = sample_sigma_global
-        self.sample_sigma_leaf_mu = sample_sigma_leaf_mu
-        self.sample_sigma_leaf_tau = sample_sigma_leaf_tau
-        if sample_sigma_global:
+        self.sample_sigma2_global = sample_sigma2_global
+        self.sample_sigma2_leaf_mu = sample_sigma2_leaf_mu
+        self.sample_sigma2_leaf_tau = sample_sigma2_leaf_tau
+        if sample_sigma2_global:
             self.global_var_samples = np.empty(self.num_samples, dtype=np.float64)
-        if sample_sigma_leaf_mu:
+        if sample_sigma2_leaf_mu:
             self.leaf_scale_mu_samples = np.empty(self.num_samples, dtype=np.float64)
-        if sample_sigma_leaf_tau:
+        if sample_sigma2_leaf_tau:
             self.leaf_scale_tau_samples = np.empty(self.num_samples, dtype=np.float64)
         sample_counter = -1
 
@@ -1582,11 +1582,11 @@ class BCFModel:
             active_forest_variance = Forest(num_trees_variance, 1, True, True)
 
         # Variance samplers
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             global_var_model = GlobalVarianceModel()
-        if self.sample_sigma_leaf_mu:
+        if self.sample_sigma2_leaf_mu:
             leaf_var_model_mu = LeafVarianceModel()
-        if self.sample_sigma_leaf_tau:
+        if self.sample_sigma2_leaf_tau:
             leaf_var_model_tau = LeafVarianceModel()
 
         # Initialize the leaves of each tree in the prognostic forest
@@ -1673,12 +1673,12 @@ class BCFModel:
                 )
 
                 # Sample variance parameters (if requested)
-                if self.sample_sigma_global:
+                if self.sample_sigma2_global:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
                     global_model_config.update_global_error_variance(current_sigma2)
-                if self.sample_sigma_leaf_mu:
+                if self.sample_sigma2_leaf_mu:
                     current_leaf_scale_mu[0, 0] = (
                         leaf_var_model_mu.sample_one_iteration(
                             active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu
@@ -1763,14 +1763,14 @@ class BCFModel:
                     )
 
                 # Sample variance parameters (if requested)
-                if self.sample_sigma_global:
+                if self.sample_sigma2_global:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
                     global_model_config.update_global_error_variance(current_sigma2)
                     if keep_sample:
                         self.global_var_samples[sample_counter] = current_sigma2
-                if self.sample_sigma_leaf_tau:
+                if self.sample_sigma2_leaf_tau:
                     current_leaf_scale_tau[0, 0] = (
                         leaf_var_model_tau.sample_one_iteration(
                             active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau
@@ -1854,12 +1854,12 @@ class BCFModel:
                 )
 
                 # Sample variance parameters (if requested)
-                if self.sample_sigma_global:
+                if self.sample_sigma2_global:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
                     global_model_config.update_global_error_variance(current_sigma2)
-                if self.sample_sigma_leaf_mu:
+                if self.sample_sigma2_leaf_mu:
                     current_leaf_scale_mu[0, 0] = (
                         leaf_var_model_mu.sample_one_iteration(
                             active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu
@@ -1944,14 +1944,14 @@ class BCFModel:
                     )
 
                 # Sample variance parameters (if requested)
-                if self.sample_sigma_global:
+                if self.sample_sigma2_global:
                     current_sigma2 = global_var_model.sample_one_iteration(
                         residual_train, cpp_rng, a_global, b_global
                     )
                     global_model_config.update_global_error_variance(current_sigma2)
                     if keep_sample:
                         self.global_var_samples[sample_counter] = current_sigma2
-                if self.sample_sigma_leaf_tau:
+                if self.sample_sigma2_leaf_tau:
                     current_leaf_scale_tau[0, 0] = (
                         leaf_var_model_tau.sample_one_iteration(
                             active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau
@@ -1992,11 +1992,11 @@ class BCFModel:
             if self.adaptive_coding:
                 self.b1_samples = self.b1_samples[num_gfr:]
                 self.b0_samples = self.b0_samples[num_gfr:]
-            if self.sample_sigma_global:
+            if self.sample_sigma2_global:
                 self.global_var_samples = self.global_var_samples[num_gfr:]
-            if self.sample_sigma_leaf_mu:
+            if self.sample_sigma2_leaf_mu:
                 self.leaf_scale_mu_samples = self.leaf_scale_mu_samples[num_gfr:]
-            if self.sample_sigma_leaf_tau:
+            if self.sample_sigma2_leaf_tau:
                 self.leaf_scale_tau_samples = self.leaf_scale_tau_samples[num_gfr:]
             self.num_samples -= num_gfr
 
@@ -2066,7 +2066,7 @@ class BCFModel:
                     forest_dataset_train.dataset_cpp
                 )
             )
-            if self.sample_sigma_global:
+            if self.sample_sigma2_global:
                 self.sigma2_x_train = sigma2_x_train_raw
                 for i in range(self.num_samples):
                     self.sigma2_x_train[:, i] = (
@@ -2082,7 +2082,7 @@ class BCFModel:
                         forest_dataset_test.dataset_cpp
                     )
                 )
-                if self.sample_sigma_global:
+                if self.sample_sigma2_global:
                     self.sigma2_x_test = sigma2_x_test_raw
                     for i in range(self.num_samples):
                         self.sigma2_x_test[:, i] = (
@@ -2093,13 +2093,13 @@ class BCFModel:
                         sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
                     )
 
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             self.global_var_samples = self.global_var_samples * self.y_std * self.y_std
 
-        if self.sample_sigma_leaf_mu:
+        if self.sample_sigma2_leaf_mu:
             self.leaf_scale_mu_samples = self.leaf_scale_mu_samples
 
-        if self.sample_sigma_leaf_tau:
+        if self.sample_sigma2_leaf_tau:
             self.leaf_scale_tau_samples = self.leaf_scale_tau_samples
 
         if self.adaptive_coding:
@@ -2290,7 +2290,7 @@ class BCFModel:
         variance_pred_raw = self.forest_container_variance.forest_container_cpp.Predict(
             pred_dataset.dataset_cpp
         )
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             variance_pred = variance_pred_raw
             for i in range(self.num_samples):
                 variance_pred[:, i] = (
@@ -2442,7 +2442,7 @@ class BCFModel:
             sigma2_x_raw = self.forest_container_variance.forest_container_cpp.Predict(
                 forest_dataset_test.dataset_cpp
             )
-            if self.sample_sigma_global:
+            if self.sample_sigma2_global:
                 sigma2_x = sigma2_x_raw
                 for i in range(self.num_samples):
                     sigma2_x[:, i] = sigma2_x_raw[:, i] * self.global_var_samples[i]
@@ -2494,9 +2494,9 @@ class BCFModel:
         bcf_json.add_scalar("outcome_mean", self.y_bar)
         bcf_json.add_boolean("standardize", self.standardize)
         bcf_json.add_scalar("sigma2_init", self.sigma2_init)
-        bcf_json.add_boolean("sample_sigma_global", self.sample_sigma_global)
-        bcf_json.add_boolean("sample_sigma_leaf_mu", self.sample_sigma_leaf_mu)
-        bcf_json.add_boolean("sample_sigma_leaf_tau", self.sample_sigma_leaf_tau)
+        bcf_json.add_boolean("sample_sigma2_global", self.sample_sigma2_global)
+        bcf_json.add_boolean("sample_sigma2_leaf_mu", self.sample_sigma2_leaf_mu)
+        bcf_json.add_boolean("sample_sigma2_leaf_tau", self.sample_sigma2_leaf_tau)
         bcf_json.add_boolean("include_variance_forest", self.include_variance_forest)
         bcf_json.add_boolean("has_rfx", self.has_rfx)
         bcf_json.add_scalar("num_gfr", self.num_gfr)
@@ -2513,15 +2513,15 @@ class BCFModel:
         )
 
         # Add parameter samples
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             bcf_json.add_numeric_vector(
                 "sigma2_global_samples", self.global_var_samples, "parameters"
             )
-        if self.sample_sigma_leaf_mu:
+        if self.sample_sigma2_leaf_mu:
             bcf_json.add_numeric_vector(
                 "sigma2_leaf_mu_samples", self.leaf_scale_mu_samples, "parameters"
             )
-        if self.sample_sigma_leaf_tau:
+        if self.sample_sigma2_leaf_tau:
             bcf_json.add_numeric_vector(
                 "sigma2_leaf_tau_samples", self.leaf_scale_tau_samples, "parameters"
             )
@@ -2583,9 +2583,9 @@ class BCFModel:
         self.y_bar = bcf_json.get_scalar("outcome_mean")
         self.standardize = bcf_json.get_boolean("standardize")
         self.sigma2_init = bcf_json.get_scalar("sigma2_init")
-        self.sample_sigma_global = bcf_json.get_boolean("sample_sigma_global")
-        self.sample_sigma_leaf_mu = bcf_json.get_boolean("sample_sigma_leaf_mu")
-        self.sample_sigma_leaf_tau = bcf_json.get_boolean("sample_sigma_leaf_tau")
+        self.sample_sigma2_global = bcf_json.get_boolean("sample_sigma2_global")
+        self.sample_sigma2_leaf_mu = bcf_json.get_boolean("sample_sigma2_leaf_mu")
+        self.sample_sigma2_leaf_tau = bcf_json.get_boolean("sample_sigma2_leaf_tau")
         self.num_gfr = int(bcf_json.get_scalar("num_gfr"))
         self.num_burnin = int(bcf_json.get_scalar("num_burnin"))
         self.num_mcmc = int(bcf_json.get_scalar("num_mcmc"))
@@ -2600,15 +2600,15 @@ class BCFModel:
         )
 
         # Unpack parameter samples
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             self.global_var_samples = bcf_json.get_numeric_vector(
                 "sigma2_global_samples", "parameters"
             )
-        if self.sample_sigma_leaf_mu:
+        if self.sample_sigma2_leaf_mu:
             self.leaf_scale_mu_samples = bcf_json.get_numeric_vector(
                 "sigma2_leaf_mu_samples", "parameters"
             )
-        if self.sample_sigma_leaf_tau:
+        if self.sample_sigma2_leaf_tau:
             self.leaf_scale_tau_samples = bcf_json.get_numeric_vector(
                 "sigma2_leaf_tau_samples", "parameters"
             )
@@ -2704,14 +2704,14 @@ class BCFModel:
         self.y_bar = json_object_default.get_scalar("outcome_mean")
         self.standardize = json_object_default.get_boolean("standardize")
         self.sigma2_init = json_object_default.get_scalar("sigma2_init")
-        self.sample_sigma_global = json_object_default.get_boolean(
-            "sample_sigma_global"
+        self.sample_sigma2_global = json_object_default.get_boolean(
+            "sample_sigma2_global"
         )
-        self.sample_sigma_leaf_mu = json_object_default.get_boolean(
-            "sample_sigma_leaf_mu"
+        self.sample_sigma2_leaf_mu = json_object_default.get_boolean(
+            "sample_sigma2_leaf_mu"
         )
-        self.sample_sigma_leaf_tau = json_object_default.get_boolean(
-            "sample_sigma_leaf_tau"
+        self.sample_sigma2_leaf_tau = json_object_default.get_boolean(
+            "sample_sigma2_leaf_tau"
         )
         self.num_gfr = json_object_default.get_scalar("num_gfr")
         self.num_burnin = json_object_default.get_scalar("num_burnin")
@@ -2726,7 +2726,7 @@ class BCFModel:
         )
 
         # Unpack parameter samples
-        if self.sample_sigma_global:
+        if self.sample_sigma2_global:
             for i in range(len(json_object_list)):
                 if i == 0:
                     self.global_var_samples = json_object_list[i].get_numeric_vector(
@@ -2740,7 +2740,7 @@ class BCFModel:
                         (self.global_var_samples, global_var_samples)
                     )
 
-        if self.sample_sigma_leaf_mu:
+        if self.sample_sigma2_leaf_mu:
             for i in range(len(json_object_list)):
                 if i == 0:
                     self.leaf_scale_mu_samples = json_object_list[i].get_numeric_vector(
@@ -2754,18 +2754,18 @@ class BCFModel:
                         (self.leaf_scale_mu_samples, leaf_scale_mu_samples)
                     )
 
-        if self.sample_sigma_leaf_tau:
+        if self.sample_sigma2_leaf_tau:
             for i in range(len(json_object_list)):
                 if i == 0:
-                    self.sample_sigma_leaf_tau = json_object_list[i].get_numeric_vector(
+                    self.sample_sigma2_leaf_tau = json_object_list[i].get_numeric_vector(
                         "sigma2_leaf_tau_samples", "parameters"
                     )
                 else:
-                    sample_sigma_leaf_tau = json_object_list[i].get_numeric_vector(
+                    sample_sigma2_leaf_tau = json_object_list[i].get_numeric_vector(
                         "sigma2_leaf_tau_samples", "parameters"
                     )
-                    self.sample_sigma_leaf_tau = np.concatenate(
-                        (self.sample_sigma_leaf_tau, sample_sigma_leaf_tau)
+                    self.sample_sigma2_leaf_tau = np.concatenate(
+                        (self.sample_sigma2_leaf_tau, sample_sigma2_leaf_tau)
                     )
 
         # Unpack internal propensity model
