@@ -1172,9 +1172,9 @@ predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL
     if (object$model_params$include_variance_forest) {
         if (object$model_params$sample_sigma2_global) {
             sigma2_global_samples <- object$sigma2_global_samples
-            variance_forest_predictions <- sapply(1:num_samples, function(i) sqrt(s_x_raw[,i]*sigma2_global_samples[i]))
+            variance_forest_predictions <- sapply(1:num_samples, function(i) s_x_raw[,i]*sigma2_global_samples[i])
         } else {
-            variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std
+            variance_forest_predictions <- s_x_raw*sigma2_init*y_std*y_std
         }
     }
 
