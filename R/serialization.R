@@ -545,7 +545,7 @@ loadRandomEffectSamplesCombinedJsonString <- function(json_string_list, json_rfx
 #' Load a vector from json
 #'
 #' @param json_object Object of class `CppJson`
-#' @param json_vector_label Label referring to a particular vector (i.e. "sigma2_samples") in the overall json hierarchy
+#' @param json_vector_label Label referring to a particular vector (i.e. "sigma2_global_samples") in the overall json hierarchy
 #' @param subfolder_name (Optional) Name of the subfolder / hierarchy under which vector sits
 #'
 #' @return R vector

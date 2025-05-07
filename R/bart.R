@@ -151,7 +151,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     # 1. General parameters
     cutpoint_grid_size <- general_params_updated$cutpoint_grid_size
     standardize <- general_params_updated$standardize
-    sample_sigma_global <- general_params_updated$sample_sigma2_global
+    sample_sigma2_global <- general_params_updated$sample_sigma2_global
     sigma2_init <- general_params_updated$sigma2_global_init
     a_global <- general_params_updated$sigma2_global_shape
     b_global <- general_params_updated$sigma2_global_scale
@@ -169,8 +169,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     beta_mean <- mean_forest_params_updated$beta
     min_samples_leaf_mean <- mean_forest_params_updated$min_samples_leaf
     max_depth_mean <- mean_forest_params_updated$max_depth
-    sample_sigma_leaf <- mean_forest_params_updated$sample_sigma2_leaf
-    sigma_leaf_init <- mean_forest_params_updated$sigma2_leaf_init
+    sample_sigma2_leaf <- mean_forest_params_updated$sample_sigma2_leaf
+    sigma2_leaf_init <- mean_forest_params_updated$sigma2_leaf_init
     a_leaf <- mean_forest_params_updated$sigma2_leaf_shape
     b_leaf <- mean_forest_params_updated$sigma2_leaf_scale
     keep_vars_mean <- mean_forest_params_updated$keep_vars
@@ -212,12 +212,12 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (previous_bart_model$model_params$include_variance_forest) {
             previous_forest_samples_variance <- previous_bart_model$variance_forests
         } else previous_forest_samples_variance <- NULL
-        if (previous_bart_model$model_params$sample_sigma_global) {
+        if (previous_bart_model$model_params$sample_sigma2_global) {
             previous_global_var_samples <- previous_bart_model$sigma2_global_samples / (
                 previous_y_scale*previous_y_scale
             )
         } else previous_global_var_samples <- NULL
-        if (previous_bart_model$model_params$sample_sigma_leaf) {
+        if (previous_bart_model$model_params$sample_sigma2_leaf) {
             previous_leaf_var_samples <- previous_bart_model$sigma2_leaf_samples
         } else previous_leaf_var_samples <- NULL
         if (previous_bart_model$model_params$has_rfx) {
@@ -254,7 +254,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     }
     
     # Override tau sampling if there is no mean forest
-    if (!include_mean_forest) sample_sigma_leaf <- FALSE
+    if (!include_mean_forest) sample_sigma2_leaf <- FALSE
     
     # Variable weight preprocessing (and initialization if necessary)
     if (is.null(variable_weights)) {
@@ -481,9 +481,9 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (include_variance_forest) {
             stop("We do not support heteroskedasticity with a probit link")
         }
-        if (sample_sigma_global) {
+        if (sample_sigma2_global) {
             warning("Global error variance will not be sampled with a probit link as it is fixed at 1")
-            sample_sigma_global <- F
+            sample_sigma2_global <- F
         }
     }
 
@@ -507,26 +507,26 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         b_leaf <- 1/(num_trees_mean)
         if (has_basis) {
             if (ncol(leaf_basis_train) > 1) {
-                if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(2/(num_trees_mean), ncol(leaf_basis_train))
-                if (!is.matrix(sigma_leaf_init)) {
-                    current_leaf_scale <- as.matrix(diag(sigma_leaf_init, ncol(leaf_basis_train)))
+                if (is.null(sigma2_leaf_init)) sigma2_leaf_init <- diag(2/(num_trees_mean), ncol(leaf_basis_train))
+                if (!is.matrix(sigma2_leaf_init)) {
+                    current_leaf_scale <- as.matrix(diag(sigma2_leaf_init, ncol(leaf_basis_train)))
                 } else {
-                    current_leaf_scale <- sigma_leaf_init
+                    current_leaf_scale <- sigma2_leaf_init
                 }
             } else {
-                if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(2/(num_trees_mean))
-                if (!is.matrix(sigma_leaf_init)) {
-                    current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
+                if (is.null(sigma2_leaf_init)) sigma2_leaf_init <- as.matrix(2/(num_trees_mean))
+                if (!is.matrix(sigma2_leaf_init)) {
+                    current_leaf_scale <- as.matrix(diag(sigma2_leaf_init, 1))
                 } else {
-                    current_leaf_scale <- sigma_leaf_init
+                    current_leaf_scale <- sigma2_leaf_init
                 }
             }
         } else {
-            if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(2/(num_trees_mean))
-            if (!is.matrix(sigma_leaf_init)) {
-                current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
+            if (is.null(sigma2_leaf_init)) sigma2_leaf_init <- as.matrix(2/(num_trees_mean))
+            if (!is.matrix(sigma2_leaf_init)) {
+                current_leaf_scale <- as.matrix(diag(sigma2_leaf_init, 1))
             } else {
-                current_leaf_scale <- sigma_leaf_init
+                current_leaf_scale <- sigma2_leaf_init
             }
         }
         current_sigma2 <- sigma2_init
@@ -552,26 +552,26 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (is.null(b_leaf)) b_leaf <- var(resid_train)/(2*num_trees_mean)
         if (has_basis) {
             if (ncol(leaf_basis_train) > 1) {
-                if (is.null(sigma_leaf_init)) sigma_leaf_init <- diag(2*var(resid_train)/(num_trees_mean), ncol(leaf_basis_train))
-                if (!is.matrix(sigma_leaf_init)) {
-                    current_leaf_scale <- as.matrix(diag(sigma_leaf_init, ncol(leaf_basis_train)))
+                if (is.null(sigma2_leaf_init)) sigma2_leaf_init <- diag(2*var(resid_train)/(num_trees_mean), ncol(leaf_basis_train))
+                if (!is.matrix(sigma2_leaf_init)) {
+                    current_leaf_scale <- as.matrix(diag(sigma2_leaf_init, ncol(leaf_basis_train)))
                 } else {
-                    current_leaf_scale <- sigma_leaf_init
+                    current_leaf_scale <- sigma2_leaf_init
                 }
             } else {
-                if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(2*var(resid_train)/(num_trees_mean))
-                if (!is.matrix(sigma_leaf_init)) {
-                    current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
+                if (is.null(sigma2_leaf_init)) sigma2_leaf_init <- as.matrix(2*var(resid_train)/(num_trees_mean))
+                if (!is.matrix(sigma2_leaf_init)) {
+                    current_leaf_scale <- as.matrix(diag(sigma2_leaf_init, 1))
                 } else {
-                    current_leaf_scale <- sigma_leaf_init
+                    current_leaf_scale <- sigma2_leaf_init
                 }
             }
         } else {
-            if (is.null(sigma_leaf_init)) sigma_leaf_init <- as.matrix(2*var(resid_train)/(num_trees_mean))
-            if (!is.matrix(sigma_leaf_init)) {
-                current_leaf_scale <- as.matrix(diag(sigma_leaf_init, 1))
+            if (is.null(sigma2_leaf_init)) sigma2_leaf_init <- as.matrix(2*var(resid_train)/(num_trees_mean))
+            if (!is.matrix(sigma2_leaf_init)) {
+                current_leaf_scale <- as.matrix(diag(sigma2_leaf_init, 1))
             } else {
-                current_leaf_scale <- sigma_leaf_init
+                current_leaf_scale <- sigma2_leaf_init
             }
         }
         current_sigma2 <- sigma2_init
@@ -603,9 +603,9 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         leaf_dimension = ncol(leaf_basis_train)
         is_leaf_constant = FALSE
         leaf_regression = TRUE
-        if (sample_sigma_leaf) {
+        if (sample_sigma2_leaf) {
             warning("Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled in this model.")
-            sample_sigma_leaf <- FALSE
+            sample_sigma2_leaf <- FALSE
         }
     }
     
@@ -690,8 +690,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     # Delete GFR samples from these containers after the fact if desired
     # num_retained_samples <- ifelse(keep_gfr, num_gfr, 0) + ifelse(keep_burnin, num_burnin, 0) + num_mcmc
     num_retained_samples <- num_gfr + ifelse(keep_burnin, num_burnin, 0) + num_mcmc * num_chains
-    if (sample_sigma_global) global_var_samples <- rep(NA, num_retained_samples)
-    if (sample_sigma_leaf) leaf_scale_samples <- rep(NA, num_retained_samples)
+    if (sample_sigma2_global) global_var_samples <- rep(NA, num_retained_samples)
+    if (sample_sigma2_leaf) leaf_scale_samples <- rep(NA, num_retained_samples)
     sample_counter <- 0
     
     # Initialize the leaves of each tree in the mean forest
@@ -750,12 +750,12 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
                 )
             }
-            if (sample_sigma_global) {
+            if (sample_sigma2_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                 if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
                 global_model_config$update_global_error_variance(current_sigma2)
             }
-            if (sample_sigma_leaf) {
+            if (sample_sigma2_leaf) {
                 leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                 current_leaf_scale <- as.matrix(leaf_scale_double)
                 if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
@@ -776,7 +776,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 if (include_mean_forest) {
                     resetActiveForest(active_forest_mean, forest_samples_mean, forest_ind)
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
-                    if (sample_sigma_leaf) {
+                    if (sample_sigma2_leaf) {
                         leaf_scale_double <- leaf_scale_samples[forest_ind + 1]
                         current_leaf_scale <- as.matrix(leaf_scale_double)
                         forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
@@ -790,7 +790,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     resetRandomEffectsModel(rfx_model, rfx_samples, forest_ind, sigma_alpha_init)
                     resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
                 }
-                if (sample_sigma_global) {
+                if (sample_sigma2_global) {
                     current_sigma2 <- global_var_samples[forest_ind + 1]
                     global_model_config$update_global_error_variance(current_sigma2)
                 }
@@ -798,7 +798,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 if (include_mean_forest) {
                     resetActiveForest(active_forest_mean, previous_forest_samples_mean, previous_model_warmstart_sample_num - 1)
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
-                    if (sample_sigma_leaf && (!is.null(previous_leaf_var_samples))) {
+                    if (sample_sigma2_leaf && (!is.null(previous_leaf_var_samples))) {
                         leaf_scale_double <- previous_leaf_var_samples[previous_model_warmstart_sample_num]
                         current_leaf_scale <- as.matrix(leaf_scale_double)
                         forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
@@ -819,7 +819,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                         resetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train, rfx_samples)
                     }
                 }
-                if (sample_sigma_global) {
+                if (sample_sigma2_global) {
                     if (!is.null(previous_global_var_samples)) {
                         current_sigma2 <- previous_global_var_samples[previous_model_warmstart_sample_num]
                         global_model_config$update_global_error_variance(current_sigma2)
@@ -830,8 +830,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     resetActiveForest(active_forest_mean)
                     active_forest_mean$set_root_leaves(init_values_mean_forest / num_trees_mean)
                     resetForestModel(forest_model_mean, active_forest_mean, forest_dataset_train, outcome_train, TRUE)
-                    if (sample_sigma_leaf) {
-                        current_leaf_scale <- as.matrix(sigma_leaf_init)
+                    if (sample_sigma2_leaf) {
+                        current_leaf_scale <- as.matrix(sigma2_leaf_init)
                         forest_model_config_mean$update_leaf_model_scale(current_leaf_scale)
                     }
                 }
@@ -845,7 +845,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                                                 sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
                     rootResetRandomEffectsTracker(rfx_tracker_train, rfx_model, rfx_dataset_train, outcome_train)
                 }
-                if (sample_sigma_global) {
+                if (sample_sigma2_global) {
                     current_sigma2 <- sigma2_init
                     global_model_config$update_global_error_variance(current_sigma2)
                 }
@@ -903,12 +903,12 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                         global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                     )
                 }
-                if (sample_sigma_global) {
+                if (sample_sigma2_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
                     if (keep_sample) global_var_samples[sample_counter] <- current_sigma2
                     global_model_config$update_global_error_variance(current_sigma2)
                 }
-                if (sample_sigma_leaf) {
+                if (sample_sigma2_leaf) {
                     leaf_scale_double <- sampleLeafVarianceOneIteration(active_forest_mean, rng, a_leaf, b_leaf)
                     current_leaf_scale <- as.matrix(leaf_scale_double)
                     if (keep_sample) leaf_scale_samples[sample_counter] <- leaf_scale_double
@@ -934,10 +934,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 rfx_samples$delete_sample(0)
             }
         }
-        if (sample_sigma_global) {
+        if (sample_sigma2_global) {
             global_var_samples <- global_var_samples[(num_gfr+1):length(global_var_samples)]
         }
-        if (sample_sigma_leaf) {
+        if (sample_sigma2_leaf) {
             leaf_scale_samples <- leaf_scale_samples[(num_gfr+1):length(leaf_scale_samples)]
         }
         num_retained_samples <- num_retained_samples - num_gfr
@@ -951,8 +951,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     
     # Variance forest predictions
     if (include_variance_forest) {
-        sigma_x_hat_train <- forest_samples_variance$predict(forest_dataset_train)
-        if (has_test) sigma_x_hat_test <- forest_samples_variance$predict(forest_dataset_test)
+        sigma2_x_hat_train <- forest_samples_variance$predict(forest_dataset_train)
+        if (has_test) sigma2_x_hat_test <- forest_samples_variance$predict(forest_dataset_test)
     }
     
     # Random effects predictions
@@ -966,26 +966,26 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     }
 
     # Global error variance
-    if (sample_sigma_global) sigma2_samples <- global_var_samples*(y_std_train^2)
+    if (sample_sigma2_global) sigma2_global_samples <- global_var_samples*(y_std_train^2)
     
     # Leaf parameter variance
-    if (sample_sigma_leaf) tau_samples <- leaf_scale_samples
+    if (sample_sigma2_leaf) tau_samples <- leaf_scale_samples
     
     # Rescale variance forest prediction by global sigma2 (sampled or constant)
     if (include_variance_forest) {
-        if (sample_sigma_global) {
-            sigma_x_hat_train <- sapply(1:num_retained_samples, function(i) sqrt(sigma_x_hat_train[,i]*sigma2_samples[i]))
-            if (has_test) sigma_x_hat_test <- sapply(1:num_retained_samples, function(i) sqrt(sigma_x_hat_test[,i]*sigma2_samples[i]))
+        if (sample_sigma2_global) {
+            sigma2_x_hat_train <- sapply(1:num_retained_samples, function(i) sigma2_x_hat_train[,i]*sigma2_global_samples[i])
+            if (has_test) sigma2_x_hat_test <- sapply(1:num_retained_samples, function(i) sigma2_x_hat_test[,i]*sigma2_global_samples[i])
         } else {
-            sigma_x_hat_train <- sqrt(sigma_x_hat_train*sigma2_init)*y_std_train
-            if (has_test) sigma_x_hat_test <- sqrt(sigma_x_hat_test*sigma2_init)*y_std_train
+            sigma2_x_hat_train <- sigma2_x_hat_train*sigma2_init*y_std_train*y_std_train
+            if (has_test) sigma2_x_hat_test <- sigma2_x_hat_test*sigma2_init*y_std_train*y_std_train
         }
     }
     
     # Return results as a list
     model_params <- list(
         "sigma2_init" = sigma2_init, 
-        "sigma_leaf_init" = sigma_leaf_init,
+        "sigma2_leaf_init" = sigma2_leaf_init,
         "a_global" = a_global,
         "b_global" = b_global, 
         "a_leaf" = a_leaf, 
@@ -1011,8 +1011,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         "has_rfx" = has_rfx, 
         "has_rfx_basis" = has_basis_rfx, 
         "num_rfx_basis" = num_basis_rfx, 
-        "sample_sigma_global" = sample_sigma_global,
-        "sample_sigma_leaf" = sample_sigma_leaf,
+        "sample_sigma2_global" = sample_sigma2_global,
+        "sample_sigma2_leaf" = sample_sigma2_leaf,
         "include_mean_forest" = include_mean_forest,
         "include_variance_forest" = include_variance_forest,
         "probit_outcome_model" = probit_outcome_model
@@ -1028,11 +1028,11 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     }
     if (include_variance_forest) {
         result[["variance_forests"]] = forest_samples_variance
-        result[["sigma_x_hat_train"]] = sigma_x_hat_train
-        if (has_test) result[["sigma_x_hat_test"]] = sigma_x_hat_test
+        result[["sigma2_x_hat_train"]] = sigma2_x_hat_train
+        if (has_test) result[["sigma2_x_hat_test"]] = sigma2_x_hat_test
     }
-    if (sample_sigma_global) result[["sigma2_global_samples"]] = sigma2_samples
-    if (sample_sigma_leaf) result[["sigma2_leaf_samples"]] = tau_samples
+    if (sample_sigma2_global) result[["sigma2_global_samples"]] = sigma2_global_samples
+    if (sample_sigma2_leaf) result[["sigma2_leaf_samples"]] = tau_samples
     if (has_rfx) {
         result[["rfx_samples"]] = rfx_samples
         result[["rfx_preds_train"]] = rfx_preds_train
@@ -1170,11 +1170,11 @@ predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL
     
     # Scale variance forest predictions
     if (object$model_params$include_variance_forest) {
-        if (object$model_params$sample_sigma_global) {
-            sigma2_samples <- object$sigma2_global_samples
-            variance_forest_predictions <- sapply(1:num_samples, function(i) sqrt(s_x_raw[,i]*sigma2_samples[i]))
+        if (object$model_params$sample_sigma2_global) {
+            sigma2_global_samples <- object$sigma2_global_samples
+            variance_forest_predictions <- sapply(1:num_samples, function(i) s_x_raw[,i]*sigma2_global_samples[i])
         } else {
-            variance_forest_predictions <- sqrt(s_x_raw*sigma2_init)*y_std
+            variance_forest_predictions <- s_x_raw*sigma2_init*y_std*y_std
         }
     }
 
@@ -1341,8 +1341,8 @@ saveBARTModelToJson <- function(object){
     jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
     jsonobj$add_boolean("standardize", object$model_params$standardize)
     jsonobj$add_scalar("sigma2_init", object$model_params$sigma2_init)
-    jsonobj$add_boolean("sample_sigma_global", object$model_params$sample_sigma_global)
-    jsonobj$add_boolean("sample_sigma_leaf", object$model_params$sample_sigma_leaf)
+    jsonobj$add_boolean("sample_sigma2_global", object$model_params$sample_sigma2_global)
+    jsonobj$add_boolean("sample_sigma2_leaf", object$model_params$sample_sigma2_leaf)
     jsonobj$add_boolean("include_mean_forest", object$model_params$include_mean_forest)
     jsonobj$add_boolean("include_variance_forest", object$model_params$include_variance_forest)
     jsonobj$add_boolean("has_rfx", object$model_params$has_rfx)
@@ -1358,10 +1358,10 @@ saveBARTModelToJson <- function(object){
     jsonobj$add_scalar("keep_every", object$model_params$keep_every)
     jsonobj$add_boolean("requires_basis", object$model_params$requires_basis)
     jsonobj$add_boolean("probit_outcome_model", object$model_params$probit_outcome_model)
-    if (object$model_params$sample_sigma_global) {
+    if (object$model_params$sample_sigma2_global) {
         jsonobj$add_vector("sigma2_global_samples", object$sigma2_global_samples, "parameters")
     }
-    if (object$model_params$sample_sigma_leaf) {
+    if (object$model_params$sample_sigma2_leaf) {
         jsonobj$add_vector("sigma2_leaf_samples", object$sigma2_leaf_samples, "parameters")
     }
 
@@ -1533,8 +1533,8 @@ createBARTModelFromJson <- function(json_object){
     model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
     model_params[["standardize"]] <- json_object$get_boolean("standardize")
     model_params[["sigma2_init"]] <- json_object$get_scalar("sigma2_init")
-    model_params[["sample_sigma_global"]] <- json_object$get_boolean("sample_sigma_global")
-    model_params[["sample_sigma_leaf"]] <- json_object$get_boolean("sample_sigma_leaf")
+    model_params[["sample_sigma2_global"]] <- json_object$get_boolean("sample_sigma2_global")
+    model_params[["sample_sigma2_leaf"]] <- json_object$get_boolean("sample_sigma2_leaf")
     model_params[["include_mean_forest"]] <- include_mean_forest
     model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["has_rfx"]] <- json_object$get_boolean("has_rfx")
@@ -1554,10 +1554,10 @@ createBARTModelFromJson <- function(json_object){
     output[["model_params"]] <- model_params
     
     # Unpack sampled parameters
-    if (model_params[["sample_sigma_global"]]) {
+    if (model_params[["sample_sigma2_global"]]) {
         output[["sigma2_global_samples"]] <- json_object$get_vector("sigma2_global_samples", "parameters")
     }
-    if (model_params[["sample_sigma_leaf"]]) {
+    if (model_params[["sample_sigma2_leaf"]]) {
         output[["sigma2_leaf_samples"]] <- json_object$get_vector("sigma2_leaf_samples", "parameters")
     }
 
@@ -1743,8 +1743,8 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
     model_params[["standardize"]] <- json_object_default$get_boolean("standardize")
     model_params[["sigma2_init"]] <- json_object_default$get_scalar("sigma2_init")
-    model_params[["sample_sigma_global"]] <- json_object_default$get_boolean("sample_sigma_global")
-    model_params[["sample_sigma_leaf"]] <- json_object_default$get_boolean("sample_sigma_leaf")
+    model_params[["sample_sigma2_global"]] <- json_object_default$get_boolean("sample_sigma2_global")
+    model_params[["sample_sigma2_leaf"]] <- json_object_default$get_boolean("sample_sigma2_leaf")
     model_params[["include_mean_forest"]] <- include_mean_forest
     model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
@@ -1776,7 +1776,7 @@ createBARTModelFromCombinedJson <- function(json_object_list){
     output[["model_params"]] <- model_params
     
     # Unpack sampled parameters
-    if (model_params[["sample_sigma_global"]]) {
+    if (model_params[["sample_sigma2_global"]]) {
         for (i in 1:length(json_object_list)) {
             json_object <- json_object_list[[i]]
             if (i == 1) {
@@ -1786,7 +1786,7 @@ createBARTModelFromCombinedJson <- function(json_object_list){
             }
         }
     }
-    if (model_params[["sample_sigma_leaf"]]) {
+    if (model_params[["sample_sigma2_leaf"]]) {
         for (i in 1:length(json_object_list)) {
             json_object <- json_object_list[[i]]
             if (i == 1) {
@@ -1897,8 +1897,8 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     model_params[["outcome_mean"]] <- json_object_default$get_scalar("outcome_mean")
     model_params[["standardize"]] <- json_object_default$get_boolean("standardize")
     model_params[["sigma2_init"]] <- json_object_default$get_scalar("sigma2_init")
-    model_params[["sample_sigma_global"]] <- json_object_default$get_boolean("sample_sigma_global")
-    model_params[["sample_sigma_leaf"]] <- json_object_default$get_boolean("sample_sigma_leaf")
+    model_params[["sample_sigma2_global"]] <- json_object_default$get_boolean("sample_sigma2_global")
+    model_params[["sample_sigma2_leaf"]] <- json_object_default$get_boolean("sample_sigma2_leaf")
     model_params[["include_mean_forest"]] <- include_mean_forest
     model_params[["include_variance_forest"]] <- include_variance_forest
     model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
@@ -1930,7 +1930,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
     output[["model_params"]] <- model_params
     
     # Unpack sampled parameters
-    if (model_params[["sample_sigma_global"]]) {
+    if (model_params[["sample_sigma2_global"]]) {
         for (i in 1:length(json_object_list)) {
             json_object <- json_object_list[[i]]
             if (i == 1) {
@@ -1940,7 +1940,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list){
             }
         }
     }
-    if (model_params[["sample_sigma_leaf"]]) {
+    if (model_params[["sample_sigma2_leaf"]]) {
         for (i in 1:length(json_object_list)) {
             json_object <- json_object_list[[i]]
             if (i == 1) {
