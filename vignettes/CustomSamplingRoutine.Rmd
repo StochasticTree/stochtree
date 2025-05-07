@@ -1341,7 +1341,7 @@ tau_hat <- t(t(tau_hat_raw) * (b_1_samples - b_0_samples))*y_std
 y_hat <- mu_hat + tau_hat * as.numeric(Z)
 
 # Global error variance
-sigma2_samples <- global_var_samples*(y_std^2)
+sigma2_global_samples <- global_var_samples*(y_std^2)
 ```
 
 ## Results
@@ -1349,7 +1349,7 @@ sigma2_samples <- global_var_samples*(y_std^2)
 Inspect the XBART results
 
 ```{r bcf_xbcf_plot}
-plot(sigma2_samples[1:num_gfr], ylab="sigma^2")
+plot(sigma2_global_samples[1:num_gfr], ylab="sigma^2")
 plot(rowMeans(mu_hat[,1:num_gfr]), mu_x, pch=16, cex=0.75, 
      xlab = "pred", ylab = "actual", main = "prognostic term")
 abline(0,1,col="red",lty=2,lwd=2.5)
@@ -1362,7 +1362,7 @@ mean((rowMeans(tau_hat[,1:num_gfr]) - tau_x)^2)
 Inspect the warm start BART results
 
 ```{r bcf_warm_start_plot}
-plot(sigma2_samples[(num_gfr+1):num_samples], ylab="sigma^2")
+plot(sigma2_global_samples[(num_gfr+1):num_samples], ylab="sigma^2")
 plot(rowMeans(mu_hat[,(num_gfr+1):num_samples]), mu_x, pch=16, cex=0.75, 
      xlab = "pred", ylab = "actual", main = "prognostic term")
 abline(0,1,col="red",lty=2,lwd=2.5)
