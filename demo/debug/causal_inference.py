@@ -87,8 +87,8 @@ sns.scatterplot(data=mu_df_mcmc, x="Average estimated mu", y="True mu")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bcf_model.num_samples),axis=1), np.expand_dims(bcf_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
-sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bcf_model.num_samples),axis=1), np.expand_dims(bcf_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma^2"])
+sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma^2")
 plt.show()
 
 b_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bcf_model.num_samples),axis=1), np.expand_dims(bcf_model.b0_samples,axis=1), np.expand_dims(bcf_model.b1_samples,axis=1)), axis = 1), columns=["Sample", "Beta_0", "Beta_1"])
