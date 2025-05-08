@@ -104,15 +104,16 @@ TEST(LeafConstantModel, CutpointThinning) {
   std::vector<double> cutpoint_values;
   std::vector<StochTree::FeatureType> cutpoint_feature_types;
   StochTree::data_size_t valid_cutpoint_count = 0;
+  std::vector<StochTree::data_size_t> feature_cutpoint_counts;
   StochTree::CutpointGridContainer cutpoint_grid_container(dataset.GetCovariates(), residual.GetData(), cutpoint_grid_size);
 
   // Initialize a leaf model
   StochTree::GaussianConstantLeafModel leaf_model = StochTree::GaussianConstantLeafModel(tau);
 
   // Evaluate all possible cutpoints
-  StochTree::<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(
+  StochTree::EvaluateAllPossibleSplits<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(
     dataset, tracker, residual, tree_prior, leaf_model, global_variance, 0, 0, log_cutpoint_evaluations, cutpoint_features, cutpoint_values, 
-    cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 0, n, variable_weights, feature_types
+    cutpoint_feature_types, valid_cutpoint_count, feature_cutpoint_counts, cutpoint_grid_container, 0, n, variable_weights, feature_types
   );
 
   // Check that there are (n - 2*min_samples_leaf + 1)*p + 1 cutpoints considered
