@@ -471,8 +471,8 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline void EvaluateAllPossibleSplits(
   ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, LeafModel& leaf_model, double global_variance, int tree_num, int split_node_id, 
   std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, 
-  data_size_t& valid_cutpoint_count, CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, 
-  std::vector<FeatureType>& feature_types, LeafSuffStatConstructorArgs&... leaf_suff_stat_args
+  data_size_t& valid_cutpoint_count, std::vector<data_size_t>& feature_cutpoint_counts, CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, 
+  std::vector<double>& variable_weights, std::vector<FeatureType>& feature_types, LeafSuffStatConstructorArgs&... leaf_suff_stat_args
 ) {
     // Initialize sufficient statistics
   LeafSuffStat node_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
@@ -496,6 +496,7 @@ static inline void EvaluateAllPossibleSplits(
   int32_t min_samples_in_leaf = tree_prior.GetMinSamplesLeaf();
 
   // Compute sufficient statistics for each possible split
+  data_size_t feature_cutpoints;
   data_size_t num_cutpoints = 0;
   bool valid_split = false;
   data_size_t node_row_iter;
@@ -509,6 +510,8 @@ static inline void EvaluateAllPossibleSplits(
   double log_split_eval = 0.0;
   double split_log_ml;
   for (int j = 0; j < covariates.cols(); j++) {
+    // Reset feature cutpoint counter
+    feature_cutpoints = 0;
 
     if (std::abs(variable_weights.at(j)) > kEpsilon) {
       // Enumerate cutpoint strides
@@ -542,6 +545,7 @@ static inline void EvaluateAllPossibleSplits(
         valid_split = (left_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf) && 
                       right_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf));
         if (valid_split) {
+          feature_cutpoints++;
           num_cutpoints++;
           // Add to split rule vector
           cutpoint_feature_types.push_back(feature_type);
@@ -553,7 +557,8 @@ static inline void EvaluateAllPossibleSplits(
         }
       }
     }
-
+    // Add feature_cutpoints to feature_cutpoint_counts
+    feature_cutpoint_counts.push_back(feature_cutpoints);
   }
 
   // Add the log marginal likelihood of the "no-split" option (adjusted for tree prior and cutpoint size per the XBART paper)
@@ -570,16 +575,38 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline void EvaluateCutpoints(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, TreePrior& tree_prior, 
                                      std::mt19937& gen, int tree_num, double global_variance, int cutpoint_grid_size, int node_id, data_size_t node_begin, data_size_t node_end, 
                                      std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, 
-                                     std::vector<FeatureType>& cutpoint_feature_types, data_size_t& valid_cutpoint_count, std::vector<double>& variable_weights, 
-                                     std::vector<FeatureType>& feature_types, CutpointGridContainer& cutpoint_grid_container, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                     std::vector<FeatureType>& cutpoint_feature_types, data_size_t& valid_cutpoint_count, std::vector<StochTree::data_size_t>& feature_cutpoint_counts, 
+                                     std::vector<double>& variable_weights, std::vector<FeatureType>& feature_types, CutpointGridContainer& cutpoint_grid_container, 
+                                     LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Evaluate all possible cutpoints according to the leaf node model, 
   // recording their log-likelihood and other split information in a series of vectors.
   // The last element of these vectors concerns the "no-split" option.
   EvaluateAllPossibleSplits<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
     dataset, tracker, residual, tree_prior, leaf_model, global_variance, tree_num, node_id, log_cutpoint_evaluations, 
-    cutpoint_features, cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 
+    cutpoint_features, cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, feature_cutpoint_counts, cutpoint_grid_container, 
     node_begin, node_end, variable_weights, feature_types, leaf_suff_stat_args...
   );
+
+  // Compute weighting adjustments for low-cardinality categorical features
+  // Check if the dataset has continuous features, ignore this adjustment if not
+  bool has_continuous_features = false;
+  int max_feature_cutpoint_count = 0;
+  for (int j = 0; j < feature_types.size(); j++) {
+    if (feature_types.at(j) == FeatureType::kNumeric) {
+      has_continuous_features = true;
+      if (feature_cutpoint_counts[j] > max_feature_cutpoint_count) max_feature_cutpoint_count = feature_cutpoint_counts[j];
+    }
+  }
+  if (has_continuous_features) {
+    double feature_weight;
+    for (data_size_t i = 0; i < valid_cutpoint_count; i++) {
+      // Determine whether the feature is categorical (and thus needs to be re-weighted)
+      if ((cutpoint_feature_types[i] == FeatureType::kOrderedCategorical) || (cutpoint_feature_types[i] == FeatureType::kUnorderedCategorical)) {
+        feature_weight = ((double) max_feature_cutpoint_count) / ((double) feature_cutpoint_counts[cutpoint_features[i]]);
+        log_cutpoint_evaluations[i] += std::log(feature_weight);
+      }
+    }
+  }
   
   // Compute an adjustment to reflect the no split prior probability and the number of cutpoints
   double bart_prior_no_split_adj;
@@ -614,12 +641,13 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
     std::vector<double> cutpoint_values;
     std::vector<FeatureType> cutpoint_feature_types;
     StochTree::data_size_t valid_cutpoint_count;
+    std::vector<StochTree::data_size_t> feature_cutpoint_counts;
     CutpointGridContainer cutpoint_grid_container(dataset.GetCovariates(), residual.GetData(), cutpoint_grid_size);
     EvaluateCutpoints<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
       tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance,
       cutpoint_grid_size, node_id, node_begin, node_end, log_cutpoint_evaluations, cutpoint_features, 
-      cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, variable_weights, feature_types, 
-      cutpoint_grid_container, leaf_suff_stat_args...
+      cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, feature_cutpoint_counts, variable_weights, 
+      feature_types, cutpoint_grid_container, leaf_suff_stat_args...
     );
     // TODO: maybe add some checks here?
     
