@@ -601,7 +601,9 @@ static inline void EvaluateCutpoints(Tree* tree, ForestTracker& tracker, LeafMod
     double feature_weight;
     for (data_size_t i = 0; i < valid_cutpoint_count; i++) {
       // Determine whether the feature is categorical (and thus needs to be re-weighted)
-      if ((cutpoint_feature_types[i] == FeatureType::kOrderedCategorical) || (cutpoint_feature_types[i] == FeatureType::kUnorderedCategorical)) {
+      if ((cutpoint_feature_types[i] == FeatureType::kOrderedCategorical) || 
+          (cutpoint_feature_types[i] == FeatureType::kUnorderedCategorical)) {
+        // Weight according to max continuous feature cutpoint count / categorical feature cutpoint count
         feature_weight = ((double) max_feature_cutpoint_count) / ((double) feature_cutpoint_counts[cutpoint_features[i]]);
         log_cutpoint_evaluations[i] += std::log(feature_weight);
       }
