@@ -1104,6 +1104,24 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     global_model_config$update_global_error_variance(current_sigma2)
                 }
             } else if (has_prev_model) {
+                if (adaptive_coding) {
+                    if (!is.null(previous_b_1_samples)) {
+                        current_b_1 <- previous_b_1_samples[previous_model_warmstart_sample_num]
+                    }
+                    if (!is.null(previous_b_0_samples)) {
+                        current_b_0 <- previous_b_0_samples[previous_model_warmstart_sample_num]
+                    }
+                    tau_basis_train <- (1-Z_train)*current_b_0 + Z_train*current_b_1
+                    forest_dataset_train$update_basis(tau_basis_train)
+                    if (has_test) {
+                        tau_basis_test <- (1-Z_test)*current_b_0 + Z_test*current_b_1
+                        forest_dataset_test$update_basis(tau_basis_test)
+                    }
+                    forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, active_forest_tau)
+                }
+                y_before <- outcome_train$get_data()
+                var_y_before <- var(y_before)
+                cat("Var before = ", var_y_before, "\n")
                 resetActiveForest(active_forest_mu, previous_forest_samples_mu, previous_model_warmstart_sample_num - 1)
                 resetForestModel(forest_model_mu, active_forest_mu, forest_dataset_train, outcome_train, TRUE)
                 resetActiveForest(active_forest_tau, previous_forest_samples_tau, previous_model_warmstart_sample_num - 1)
@@ -1121,21 +1139,6 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     leaf_scale_tau_double <- previous_leaf_var_tau_samples[previous_model_warmstart_sample_num]
                     current_leaf_scale_tau <- as.matrix(leaf_scale_tau_double)
                     forest_model_config_tau$update_leaf_model_scale(current_leaf_scale_tau)
-                }
-                if (adaptive_coding) {
-                    if (!is.null(previous_b_1_samples)) {
-                        current_b_1 <- previous_b_1_samples[previous_model_warmstart_sample_num]
-                    }
-                    if (!is.null(previous_b_0_samples)) {
-                        current_b_0 <- previous_b_0_samples[previous_model_warmstart_sample_num]
-                    }
-                    tau_basis_train <- (1-Z_train)*current_b_0 + Z_train*current_b_1
-                    forest_dataset_train$update_basis(tau_basis_train)
-                    if (has_test) {
-                        tau_basis_test <- (1-Z_test)*current_b_0 + Z_test*current_b_1
-                        forest_dataset_test$update_basis(tau_basis_test)
-                    }
-                    forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, active_forest_tau)
                 }
                 if (has_rfx) {
                     if (is.null(previous_rfx_samples)) {
@@ -1618,6 +1621,8 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
     # Add propensities to covariate set if necessary
     if (object$model_params$propensity_covariate != "none") {
         X_combined <- cbind(X, propensity)
+    } else {
+        X_combined <- X
     }
     
     # Create prediction datasets
