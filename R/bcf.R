@@ -1119,9 +1119,6 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     }
                     forest_model_tau$propagate_basis_update(forest_dataset_train, outcome_train, active_forest_tau)
                 }
-                y_before <- outcome_train$get_data()
-                var_y_before <- var(y_before)
-                cat("Var before = ", var_y_before, "\n")
                 resetActiveForest(active_forest_mu, previous_forest_samples_mu, previous_model_warmstart_sample_num - 1)
                 resetForestModel(forest_model_mu, active_forest_mu, forest_dataset_train, outcome_train, TRUE)
                 resetActiveForest(active_forest_tau, previous_forest_samples_tau, previous_model_warmstart_sample_num - 1)
