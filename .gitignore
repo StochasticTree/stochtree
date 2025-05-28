@@ -12,6 +12,7 @@ cpp_docs/doxyoutput/html
 cpp_docs/doxyoutput/xml
 cpp_docs/doxyoutput/latex
 stochtree_cran
+*.trace
 
 ## R gitignore
 
