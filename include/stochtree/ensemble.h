@@ -84,6 +84,54 @@ class TreeEnsemble {
   ~TreeEnsemble() {}
 
   /*!
+   * \brief Combine two forests into a single forest by merging their trees
+   * 
+   * \param ensemble Reference to another `TreeEnsemble` that will be merged into the current ensemble
+   */
+  void MergeForest(TreeEnsemble& ensemble) {
+    // Unpack ensemble configurations
+    int old_num_trees = num_trees_;
+    num_trees_ += ensemble.num_trees_;
+    CHECK_EQ(output_dimension_, ensemble.output_dimension_);
+    CHECK_EQ(is_leaf_constant_, ensemble.is_leaf_constant_);
+    CHECK_EQ(is_exponentiated_, ensemble.is_exponentiated_);
+    // Resize tree vector and 
+    trees_.resize(num_trees_);
+    for (int i = old_num_trees; i < num_trees_; i++) {
+      trees_[i].reset(new Tree());
+    }
+    // Clone trees in the input ensemble
+    for (int j = 0; j < ensemble.num_trees_; j++) {
+      Tree* tree = ensemble.GetTree(j);
+      this->CloneFromExistingTree(old_num_trees + j, tree);
+    }
+  }
+
+  /*!
+   * \brief Add a constant value to every leaf of every tree in an ensemble. If leaves are multi-dimensional, `constant_value` will be added to every dimension of the leaves.
+   * 
+   * \param constant_value Value that will be added to every leaf of every tree
+   */
+  void AddValueToLeaves(double constant_value) {
+    for (int j = 0; j < num_trees_; j++) {
+      Tree* tree = GetTree(j);
+      tree->AddValueToLeaves(constant_value);
+    }
+  }
+
+  /*!
+   * \brief Multiply every leaf of every tree by a constant value. If leaves are multi-dimensional, `constant_value` will be multiplied through every dimension of the leaves.
+   * 
+   * \param constant_multiple Value that will be multiplied by every leaf of every tree
+   */
+  void MultiplyLeavesByValue(double constant_multiple) {
+    for (int j = 0; j < num_trees_; j++) {
+      Tree* tree = GetTree(j);
+      tree->MultiplyLeavesByValue(constant_multiple);
+    }
+  }
+
+  /*!
    * \brief Return a pointer to a tree in the forest
    * 
    * \param i Index (0-based) of a tree to be queried
