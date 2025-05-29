@@ -928,6 +928,47 @@ class Forest:
         else:
             self.forest_cpp.SetRootValue(leaf_value)
         self.internal_forest_is_empty = False
+    
+    def merge_forest(self, other_forest):
+        """
+        Create a larger forest by merging the trees of this forest with those of another forest
+
+        Parameters
+        ----------
+        other_forest : Forest
+            Forest to be merged into this forest
+        """
+        if not isinstance(other_forest, Forest):
+            raise ValueError("other_forest must be an instance of the Forest class")
+        if self.leaf_constant() != other_forest.leaf_constant():
+            raise ValueError("Forests must have matching leaf dimensions in order to be merged")
+        if self.output_dimension() != other_forest.output_dimension():
+            raise ValueError("Forests must have matching leaf dimensions in order to be merged")
+        if self.is_exponentiated() != other_forest.is_exponentiated():
+            raise ValueError("Forests must have matching leaf dimensions in order to be merged")
+        self.forest_cpp.MergeForest(other_forest.forest_cpp)
+    
+    def add_constant(self, constant_value):
+        """
+        Add a constant value to every leaf of every tree in an ensemble. If leaves are multi-dimensional, `constant_value` will be added to every dimension of the leaves.
+
+        Parameters
+        ----------
+        constant_value : float
+            Value that will be added to every leaf of every tree
+        """
+        self.forest_cpp.AddConstant(constant_value)
+    
+    def multiply_constant(self, constant_multiple):
+        """
+        Multiply every leaf of every tree by a constant value. If leaves are multi-dimensional, `constant_multiple` will be multiplied through every dimension of the leaves.
+
+        Parameters
+        ----------
+        constant_multiple : float
+            Value that will be multiplied by every leaf of every tree
+        """
+        self.forest_cpp.MultiplyConstant(constant_multiple)
 
     def add_numeric_split(
         self,
