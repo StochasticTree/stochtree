@@ -664,7 +664,7 @@ class ForestCpp {
 
   StochTree::TreeEnsemble* GetForestPtr() {return forest_.get();}
 
-  void MergeForest(ForestCpp outbound_forest) {
+  void MergeForest(ForestCpp& outbound_forest) {
     forest_->MergeForest(*outbound_forest.GetForestPtr());
   }
 
