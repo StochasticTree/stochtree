@@ -74,6 +74,21 @@ cpp11::external_pointer<StochTree::ForestContainer> forest_container_from_json_s
 }
 
 [[cpp11::register]]
+void forest_merge_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> inbound_forest_ptr, cpp11::external_pointer<StochTree::TreeEnsemble> outbound_forest_ptr) {
+    inbound_forest_ptr->MergeForest(*outbound_forest_ptr);
+}
+
+[[cpp11::register]]
+void forest_add_constant_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> forest_ptr, double constant_value) {
+    forest_ptr->AddValueToLeaves(constant_value);
+}
+
+[[cpp11::register]]
+void forest_multiply_constant_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> forest_ptr, double constant_multiple) {
+    forest_ptr->MultiplyLeavesByValue(constant_multiple);
+}
+
+[[cpp11::register]]
 void forest_container_append_from_json_string_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_sample_ptr, std::string json_string, std::string forest_label) {
     // Create a nlohmann::json object from the string
     nlohmann::json json_object = nlohmann::json::parse(json_string);

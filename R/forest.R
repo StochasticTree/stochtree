@@ -574,6 +574,30 @@ Forest <- R6::R6Class(
         }, 
         
         #' @description
+        #' Create a larger forest by merging the trees of this forest with those of another forest
+        #' @param forest Forest to be merged into this forest
+        merge_forest = function(forest) {
+            stopifnot(self$leaf_dimension() == forest$leaf_dimension())
+            stopifnot(self$is_constant_leaf() == forest$is_constant_leaf())
+            stopifnot(self$is_exponentiated() == forest$is_exponentiated())
+            forest_merge_cpp(self$forest_ptr, forest$forest_ptr)
+        }, 
+        
+        #' @description
+        #' Add a constant value to every leaf of every tree in an ensemble. If leaves are multi-dimensional, `constant_value` will be added to every dimension of the leaves.
+        #' @param constant_value Value that will be added to every leaf of every tree
+        add_constant = function(constant_value) {
+            forest_add_constant_cpp(self$forest_ptr, constant_value)
+        }, 
+        
+        #' @description
+        #' Multiply every leaf of every tree by a constant value. If leaves are multi-dimensional, `constant_multiple` will be multiplied through every dimension of the leaves.
+        #' @param constant_multiple Value that will be multiplied by every leaf of every tree
+        multiply_constant = function(constant_multiple) {
+            forest_multiply_constant_cpp(self$forest_ptr, constant_multiple)
+        }, 
+        
+        #' @description
         #' Predict forest on every sample in `forest_dataset`
         #' @param forest_dataset `ForestDataset` R class
         #' @return vector of predictions with as many rows as in `forest_dataset`

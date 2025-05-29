@@ -95,7 +95,7 @@ class TreeEnsemble {
     CHECK_EQ(output_dimension_, ensemble.output_dimension_);
     CHECK_EQ(is_leaf_constant_, ensemble.is_leaf_constant_);
     CHECK_EQ(is_exponentiated_, ensemble.is_exponentiated_);
-    // Resize tree vector and 
+    // Resize tree vector and reset new trees
     trees_.resize(num_trees_);
     for (int i = old_num_trees; i < num_trees_; i++) {
       trees_[i].reset(new Tree());
@@ -120,7 +120,7 @@ class TreeEnsemble {
   }
 
   /*!
-   * \brief Multiply every leaf of every tree by a constant value. If leaves are multi-dimensional, `constant_value` will be multiplied through every dimension of the leaves.
+   * \brief Multiply every leaf of every tree by a constant value. If leaves are multi-dimensional, `constant_multiple` will be multiplied through every dimension of the leaves.
    * 
    * \param constant_multiple Value that will be multiplied by every leaf of every tree
    */
