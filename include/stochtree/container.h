@@ -59,7 +59,7 @@ class ForestContainer {
   /*!
    * \brief Add a constant value to every leaf of every tree of a specified forest
    * 
-   * \param forest_index Index of forest whos leaves will be modified
+   * \param forest_index Index of forest whose leaves will be modified
    * \param constant_value Value to add to every leaf of every tree of the forest at `forest_index`
    */
   void AddToForest(int forest_index, double constant_value) {
@@ -68,7 +68,7 @@ class ForestContainer {
   /*!
    * \brief Multiply every leaf of every tree of a specified forest by a constant value
    * 
-   * \param forest_index Index of forest whos leaves will be modified
+   * \param forest_index Index of forest whose leaves will be modified
    * \param constant_multiple Value to multiply through by every leaf of every tree of the forest at `forest_index`
    */
   void MultiplyForest(int forest_index, double constant_multiple) {

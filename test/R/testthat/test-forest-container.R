@@ -57,7 +57,7 @@ test_that("Univariate constant forest container", {
     # Add 1.0 to every tree in first forest
     forest_samples$add_to_forest(0, 1.0)
     
-    # Check that predictions are + num_trees
+    # Check that predictions are += num_trees
     pred_expected <- pred + num_trees
     pred <- forest_samples$predict(forest_dataset)
     

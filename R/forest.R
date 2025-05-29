@@ -36,7 +36,7 @@ ForestSamples <- R6::R6Class(
         
         #' @description
         #' Add a constant value to every leaf of every tree of a given forest
-        #' @param forest_index Index of forest whos leaves will be modified (0-indexed)
+        #' @param forest_index Index of forest whose leaves will be modified (0-indexed)
         #' @param constant_value Value to add to every leaf of every tree of the forest at `forest_index`
         add_to_forest = function(forest_index, constant_value) {
             stopifnot(forest_index < self$num_samples())
@@ -46,7 +46,7 @@ ForestSamples <- R6::R6Class(
         
         #' @description
         #' Multiply every leaf of every tree of a given forest by constant value
-        #' @param forest_index Index of forest whos leaves will be modified (0-indexed)
+        #' @param forest_index Index of forest whose leaves will be modified (0-indexed)
         #' @param constant_multiple Value to multiply through by every leaf of every tree of the forest at `forest_index`
         multiply_forest = function(forest_index, constant_multiple) {
             stopifnot(forest_index < self$num_samples())

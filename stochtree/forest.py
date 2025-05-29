@@ -159,6 +159,63 @@ class ForestContainer:
         else:
             self.forest_container_cpp.SetRootValue(forest_num, leaf_value)
 
+    def combine_forests(
+        self, forest_inds: np.array
+    ) -> None:
+        """
+        Collapse specified forests into a single forest
+
+        Parameters
+        ----------
+        forest_inds : np.array
+            Indices of forests to be combined (0-indexed).
+        """
+        if not isinstance(forest_inds, np.ndarray):
+            raise ValueError("forest_inds must be either a np.array")
+        if not np.issubdtype(forest_inds.dtype, np.number):
+            raise ValueError("forest_inds must be an integer-convertible np.array")
+        forest_inds_sorted = np.sort(forest_inds)
+        forest_inds_sorted = np.astype(forest_inds_sorted, int)
+        self.forest_container_cpp.CombineForests(forest_inds_sorted)
+
+    def add_to_forest(
+        self, forest_index: int, constant_value : float
+    ) -> None:
+        """
+        Add a constant value to every leaf of every tree of a given forest
+
+        Parameters
+        ----------
+        forest_index : int 
+            Index of forest whose leaves will be modified (0-indexed)
+        constant_value : float 
+            Value to add to every leaf of every tree of the forest at `forest_index`
+        """
+        if not isinstance(forest_index, int) and not isinstance(constant_value, (int, float)):
+            raise ValueError("forest_index must be an integer and constant_multiple must be a float or int")
+        if not forest_index >= 0 or not forest_index < self.forest_container_cpp.NumSamples():
+            raise ValueError("forest_index must be >= 0 and less than the total number of samples in a forest container")
+        self.forest_container_cpp.AddToForest(forest_index, constant_value)
+
+    def multiply_forest(
+        self, forest_index: int, constant_multiple : float
+    ) -> None:
+        """
+        Multiply every leaf of every tree of a given forest by constant value
+
+        Parameters
+        ----------
+        forest_index : int 
+            Index of forest whose leaves will be modified (0-indexed)
+        constant_multiple : float 
+            Value to multiply through by every leaf of every tree of the forest at `forest_index`
+        """
+        if not isinstance(forest_index, int) and not isinstance(constant_multiple, (int, float)):
+            raise ValueError("forest_index must be an integer and constant_multiple must be a float or int")
+        if not forest_index >= 0 or not forest_index < self.forest_container_cpp.NumSamples():
+            raise ValueError("forest_index must be >= 0 and less than the total number of samples in a forest container")
+        self.forest_container_cpp.MultiplyForest(forest_index, constant_multiple)
+
     def save_to_json_file(self, json_filename: str) -> None:
         """
         Save the forests in the container to a JSON file.
