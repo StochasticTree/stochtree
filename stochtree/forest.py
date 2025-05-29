@@ -940,11 +940,11 @@ class Forest:
         """
         if not isinstance(other_forest, Forest):
             raise ValueError("other_forest must be an instance of the Forest class")
-        if self.leaf_constant() != other_forest.leaf_constant():
+        if self.leaf_constant != other_forest.leaf_constant:
             raise ValueError("Forests must have matching leaf dimensions in order to be merged")
-        if self.output_dimension() != other_forest.output_dimension():
+        if self.output_dimension != other_forest.output_dimension:
             raise ValueError("Forests must have matching leaf dimensions in order to be merged")
-        if self.is_exponentiated() != other_forest.is_exponentiated():
+        if self.is_exponentiated != other_forest.is_exponentiated:
             raise ValueError("Forests must have matching leaf dimensions in order to be merged")
         self.forest_cpp.MergeForest(other_forest.forest_cpp)
     

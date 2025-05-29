@@ -89,7 +89,7 @@ class TestPredict:
         forest1.add_numeric_split(0, 0, 0, 4.0, -5., 5.)
         
         # Split the root of the first tree in the second forest at X[,1] > 3.0
-        forest2.add_numeric_split(0, 0, 0, 3.0, -5., 5.)
+        forest2.add_numeric_split(0, 0, 0, 3.0, -1., 1.)
 
         # Check that predictions are as expected
         pred1 = forest1.predict(forest_dataset)
