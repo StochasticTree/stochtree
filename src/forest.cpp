@@ -101,6 +101,26 @@ void forest_container_append_from_json_string_cpp(cpp11::external_pointer<StochT
 }
 
 [[cpp11::register]]
+void combine_forests_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::integers forest_inds) {
+    int num_forests = forest_inds.size();
+    for (int j = 1; j < num_forests; j++) {
+        forest_samples->MergeForests(forest_inds[0], forest_inds[j]);
+    }
+    // double combined_forest_scale_factor = 1.0 / num_forests;
+    // forest_samples->MultiplyForest(forest_inds[0], combined_forest_scale_factor);
+}
+
+[[cpp11::register]]
+void add_to_forest_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_index, double constant_value) {
+    forest_samples->AddToForest(forest_index, constant_value);
+}
+
+[[cpp11::register]]
+void multiply_forest_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_index, double constant_multiple) {
+    forest_samples->MultiplyForest(forest_index, constant_multiple);
+}
+
+[[cpp11::register]]
 int num_samples_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples) {
     return forest_samples->NumSamples();
 }

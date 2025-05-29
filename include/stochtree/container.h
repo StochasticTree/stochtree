@@ -48,6 +48,33 @@ class ForestContainer {
   ForestContainer(int num_samples, int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false);
   ~ForestContainer() {}
   /*!
+   * \brief Combine two forests into a single forest by merging their trees
+   * 
+   * \param inbound_forest_index Index of the forest that will be appended to
+   * \param outbound_forest_index Index of the forest that will be appended
+   */
+  void MergeForests(int inbound_forest_index, int outbound_forest_index) {
+    forests_[inbound_forest_index]->MergeForest(*forests_[outbound_forest_index]);
+  }
+  /*!
+   * \brief Add a constant value to every leaf of every tree of a specified forest
+   * 
+   * \param forest_index Index of forest whos leaves will be modified
+   * \param constant_value Value to add to every leaf of every tree of the forest at `forest_index`
+   */
+  void AddToForest(int forest_index, double constant_value) {
+    forests_[forest_index]->AddValueToLeaves(constant_value);
+  }
+  /*!
+   * \brief Multiply every leaf of every tree of a specified forest by a constant value
+   * 
+   * \param forest_index Index of forest whos leaves will be modified
+   * \param constant_multiple Value to multiply through by every leaf of every tree of the forest at `forest_index`
+   */
+  void MultiplyForest(int forest_index, double constant_multiple) {
+    forests_[forest_index]->MultiplyLeavesByValue(constant_multiple);
+  }
+  /*!
    * \brief Remove a forest from a container of forest samples and delete the corresponding object, freeing its memory.
    * 
    * \param sample_num Index of forest to be deleted.

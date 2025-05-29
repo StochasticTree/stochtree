@@ -23,6 +23,38 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
+        #' Collapse specified forests into a single forest
+        #' @param forest_inds Indices of forests to be combined (0-indexed)
+        combine_forests = function(forest_inds) {
+            stopifnot(max(forest_inds) < self$num_samples())
+            stopifnot(min(forest_inds) >= 0)
+            stopifnot(length(forest_inds) > 1)
+            stopifnot(all(as.integer(forest_inds) == forest_inds))
+            forest_inds_sorted <- as.integer(sort(forest_inds))
+            combine_forests_forest_container_cpp(self$forest_container_ptr, forest_inds_sorted)
+        }, 
+        
+        #' @description
+        #' Add a constant value to every leaf of every tree of a given forest
+        #' @param forest_index Index of forest whos leaves will be modified (0-indexed)
+        #' @param constant_value Value to add to every leaf of every tree of the forest at `forest_index`
+        add_to_forest = function(forest_index, constant_value) {
+            stopifnot(forest_index < self$num_samples())
+            stopifnot(forest_index >= 0)
+            add_to_forest_forest_container_cpp(self$forest_container_ptr, forest_index, constant_value)
+        }, 
+        
+        #' @description
+        #' Multiply every leaf of every tree of a given forest by constant value
+        #' @param forest_index Index of forest whos leaves will be modified (0-indexed)
+        #' @param constant_multiple Value to multiply through by every leaf of every tree of the forest at `forest_index`
+        multiply_forest = function(forest_index, constant_multiple) {
+            stopifnot(forest_index < self$num_samples())
+            stopifnot(forest_index >= 0)
+            multiply_forest_forest_container_cpp(self$forest_container_ptr, forest_index, constant_multiple)
+        }, 
+        
+        #' @description
         #' Create a new `ForestContainer` object from a json object
         #' @param json_object Object of class `CppJson`
         #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy

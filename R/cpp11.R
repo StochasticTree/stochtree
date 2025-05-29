@@ -268,6 +268,18 @@ forest_container_append_from_json_string_cpp <- function(forest_sample_ptr, json
   invisible(.Call(`_stochtree_forest_container_append_from_json_string_cpp`, forest_sample_ptr, json_string, forest_label))
 }
 
+combine_forests_forest_container_cpp <- function(forest_samples, forest_inds) {
+  invisible(.Call(`_stochtree_combine_forests_forest_container_cpp`, forest_samples, forest_inds))
+}
+
+add_to_forest_forest_container_cpp <- function(forest_samples, forest_index, constant_value) {
+  invisible(.Call(`_stochtree_add_to_forest_forest_container_cpp`, forest_samples, forest_index, constant_value))
+}
+
+multiply_forest_forest_container_cpp <- function(forest_samples, forest_index, constant_multiple) {
+  invisible(.Call(`_stochtree_multiply_forest_forest_container_cpp`, forest_samples, forest_index, constant_multiple))
+}
+
 num_samples_forest_container_cpp <- function(forest_samples) {
   .Call(`_stochtree_num_samples_forest_container_cpp`, forest_samples)
 }
