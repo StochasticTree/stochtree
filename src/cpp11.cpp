@@ -472,6 +472,30 @@ extern "C" SEXP _stochtree_forest_container_from_json_string_cpp(SEXP json_strin
   END_CPP11
 }
 // forest.cpp
+void forest_merge_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> inbound_forest_ptr, cpp11::external_pointer<StochTree::TreeEnsemble> outbound_forest_ptr);
+extern "C" SEXP _stochtree_forest_merge_cpp(SEXP inbound_forest_ptr, SEXP outbound_forest_ptr) {
+  BEGIN_CPP11
+    forest_merge_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(inbound_forest_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(outbound_forest_ptr));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
+void forest_add_constant_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> forest_ptr, double constant_value);
+extern "C" SEXP _stochtree_forest_add_constant_cpp(SEXP forest_ptr, SEXP constant_value) {
+  BEGIN_CPP11
+    forest_add_constant_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(forest_ptr), cpp11::as_cpp<cpp11::decay_t<double>>(constant_value));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
+void forest_multiply_constant_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> forest_ptr, double constant_multiple);
+extern "C" SEXP _stochtree_forest_multiply_constant_cpp(SEXP forest_ptr, SEXP constant_multiple) {
+  BEGIN_CPP11
+    forest_multiply_constant_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(forest_ptr), cpp11::as_cpp<cpp11::decay_t<double>>(constant_multiple));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
 void forest_container_append_from_json_string_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_sample_ptr, std::string json_string, std::string forest_label);
 extern "C" SEXP _stochtree_forest_container_append_from_json_string_cpp(SEXP forest_sample_ptr, SEXP json_string, SEXP forest_label) {
   BEGIN_CPP11
@@ -1466,6 +1490,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_ensemble_average_max_depth_forest_container_cpp",     (DL_FUNC) &_stochtree_ensemble_average_max_depth_forest_container_cpp,      2},
     {"_stochtree_ensemble_tree_max_depth_active_forest_cpp",           (DL_FUNC) &_stochtree_ensemble_tree_max_depth_active_forest_cpp,            2},
     {"_stochtree_ensemble_tree_max_depth_forest_container_cpp",        (DL_FUNC) &_stochtree_ensemble_tree_max_depth_forest_container_cpp,         3},
+    {"_stochtree_forest_add_constant_cpp",                             (DL_FUNC) &_stochtree_forest_add_constant_cpp,                              2},
     {"_stochtree_forest_container_append_from_json_cpp",               (DL_FUNC) &_stochtree_forest_container_append_from_json_cpp,                3},
     {"_stochtree_forest_container_append_from_json_string_cpp",        (DL_FUNC) &_stochtree_forest_container_append_from_json_string_cpp,         3},
     {"_stochtree_forest_container_cpp",                                (DL_FUNC) &_stochtree_forest_container_cpp,                                 4},
@@ -1476,6 +1501,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_forest_dataset_add_covariates_cpp",                   (DL_FUNC) &_stochtree_forest_dataset_add_covariates_cpp,                    2},
     {"_stochtree_forest_dataset_add_weights_cpp",                      (DL_FUNC) &_stochtree_forest_dataset_add_weights_cpp,                       2},
     {"_stochtree_forest_dataset_update_basis_cpp",                     (DL_FUNC) &_stochtree_forest_dataset_update_basis_cpp,                      2},
+    {"_stochtree_forest_merge_cpp",                                    (DL_FUNC) &_stochtree_forest_merge_cpp,                                     2},
+    {"_stochtree_forest_multiply_constant_cpp",                        (DL_FUNC) &_stochtree_forest_multiply_constant_cpp,                         2},
     {"_stochtree_forest_tracker_cpp",                                  (DL_FUNC) &_stochtree_forest_tracker_cpp,                                   4},
     {"_stochtree_get_alpha_tree_prior_cpp",                            (DL_FUNC) &_stochtree_get_alpha_tree_prior_cpp,                             1},
     {"_stochtree_get_beta_tree_prior_cpp",                             (DL_FUNC) &_stochtree_get_beta_tree_prior_cpp,                              1},

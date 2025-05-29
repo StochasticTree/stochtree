@@ -718,7 +718,7 @@ Forest <- R6::R6Class(
         #' Return constant leaf status of trees in a `Forest` object
         #' @return `TRUE` if leaves are constant, `FALSE` otherwise
         is_constant_leaf = function() {
-            return(is_constant_leaf_active_forest_cpp(self$forest_ptr))
+            return(is_leaf_constant_forest_container_cpp(self$forest_ptr))
         }, 
         
         #' @description

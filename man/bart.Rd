@@ -98,6 +98,7 @@ that were not in the training set.}
 \item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{probit_outcome_model} Whether or not the outcome should be modeled as explicitly binary via a probit link. If \code{TRUE}, \code{y} must only contain the values \code{0} and \code{1}. Default: \code{FALSE}.
 }}
 
 \item{variance_forest_params}{(Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.

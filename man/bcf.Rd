@@ -90,6 +90,7 @@ that were not in the training set.}
 \item \code{keep_every} How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default \code{1}. Setting \code{keep_every <- k} for some \code{k > 1} will "thin" the MCMC samples by retaining every \code{k}-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 \item \code{num_chains} How many independent MCMC chains should be sampled. If \code{num_mcmc = 0}, this is ignored. If \code{num_gfr = 0}, then each chain is run from root for \code{num_mcmc * keep_every + num_burnin} iterations, with \code{num_mcmc} samples retained. If \code{num_gfr > 0}, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that \code{num_gfr >= num_chains}. Default: \code{1}.
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
+\item \code{probit_outcome_model} Whether or not the outcome should be modeled as explicitly binary via a probit link. If \code{TRUE}, \code{y} must only contain the values \code{0} and \code{1}. Default: \code{FALSE}.
 }}
 
 \item{prognostic_forest_params}{(Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -120,6 +121,7 @@ that were not in the training set.}
 \item \code{sigma2_leaf_init} Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees} if not set here.
 \item \code{sigma2_leaf_shape} Shape parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Default: \code{3}.
 \item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
+\item \code{delta_max} Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in \code{general_params}. Must be > 0 and < 1. Default: \code{0.9}. Ignored if \code{sigma2_leaf_init} is set directly, as this parameter is used to calibrate \code{sigma2_leaf_init}.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
 }}
