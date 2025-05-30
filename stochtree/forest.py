@@ -175,7 +175,7 @@ class ForestContainer:
         if not np.issubdtype(forest_inds.dtype, np.number):
             raise ValueError("forest_inds must be an integer-convertible np.array")
         forest_inds_sorted = np.sort(forest_inds)
-        forest_inds_sorted = np.astype(forest_inds_sorted, int)
+        forest_inds_sorted = forest_inds_sorted.astype(int)
         self.forest_container_cpp.CombineForests(forest_inds_sorted)
 
     def add_to_forest(
