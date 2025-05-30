@@ -173,6 +173,21 @@ class ForestContainerCpp {
   }
   ~ForestContainerCpp() {}
 
+  void CombineForests(py::array_t<int> forest_inds) {
+    int num_forests = forest_inds.size();
+    for (int j = 1; j < num_forests; j++) {
+      forest_samples_->MergeForests(forest_inds.at(0), forest_inds.at(j));
+    }
+  }
+
+  void AddToForest(int forest_index, double constant_value) {
+    forest_samples_->AddToForest(forest_index, constant_value);
+  }
+
+  void MultiplyForest(int forest_index, double constant_multiple) {
+    forest_samples_->MultiplyForest(forest_index, constant_multiple);
+  }
+
   int OutputDimension() {
     return forest_samples_->OutputDimension();
   }
@@ -661,6 +676,20 @@ class ForestCpp {
     is_exponentiated_ = is_exponentiated;
   }
   ~ForestCpp() {}
+
+  StochTree::TreeEnsemble* GetForestPtr() {return forest_.get();}
+
+  void MergeForest(ForestCpp& outbound_forest) {
+    forest_->MergeForest(*outbound_forest.GetForestPtr());
+  }
+
+  void AddConstant(double constant_value) {
+    forest_->AddValueToLeaves(constant_value);
+  }
+
+  void MultiplyConstant(double constant_multiple) {
+    forest_->MultiplyLeavesByValue(constant_multiple);
+  }
 
   int OutputDimension() {
     return forest_->OutputDimension();
@@ -2009,9 +2038,12 @@ PYBIND11_MODULE(stochtree_cpp, m) {
 
   py::class_<RngCpp>(m, "RngCpp")
     .def(py::init<int>());
-
+  
   py::class_<ForestContainerCpp>(m, "ForestContainerCpp")
     .def(py::init<int,int,bool,bool>())
+    .def("CombineForests", &ForestContainerCpp::CombineForests)
+    .def("AddToForest", &ForestContainerCpp::AddToForest)
+    .def("MultiplyForest", &ForestContainerCpp::MultiplyForest)
     .def("OutputDimension", &ForestContainerCpp::OutputDimension)
     .def("NumTrees", &ForestContainerCpp::NumTrees)
     .def("NumSamples", &ForestContainerCpp::NumSamples)
@@ -2059,6 +2091,10 @@ PYBIND11_MODULE(stochtree_cpp, m) {
 
   py::class_<ForestCpp>(m, "ForestCpp")
     .def(py::init<int,int,bool,bool>())
+    .def("GetForestPtr", &ForestCpp::GetForestPtr)
+    .def("MergeForest", &ForestCpp::MergeForest)
+    .def("AddConstant", &ForestCpp::AddConstant)
+    .def("MultiplyConstant", &ForestCpp::MultiplyConstant)
     .def("OutputDimension", &ForestCpp::OutputDimension)
     .def("NumTrees", &ForestCpp::NumTrees)
     .def("NumLeavesForest", &ForestCpp::NumLeavesForest)
@@ -2096,7 +2132,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("NumSplitNodes", &ForestCpp::NumSplitNodes)
     .def("Nodes", &ForestCpp::Nodes)
     .def("Leaves", &ForestCpp::Leaves);
-
+  
   py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
     .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
     .def("ReconstituteTrackerFromForest", &ForestSamplerCpp::ReconstituteTrackerFromForest)

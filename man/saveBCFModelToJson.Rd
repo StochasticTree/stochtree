@@ -68,8 +68,8 @@ rfx_basis_test <- rfx_basis[test_inds,]
 rfx_basis_train <- rfx_basis[train_inds,]
 rfx_term_test <- rfx_term[test_inds]
 rfx_term_train <- rfx_term[train_inds]
-mu_params <- list(sample_sigma_leaf = TRUE)
-tau_params <- list(sample_sigma_leaf = FALSE)
+mu_params <- list(sample_sigma2_leaf = TRUE)
+tau_params <- list(sample_sigma2_leaf = FALSE)
 bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
                  propensity_train = pi_train, 
                  rfx_group_ids_train = rfx_group_ids_train, 
