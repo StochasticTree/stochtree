@@ -159,6 +159,42 @@ class ForestContainer:
         else:
             self.forest_container_cpp.SetRootValue(forest_num, leaf_value)
 
+    def collapse(self, batch_size: int) -> None:
+        """
+        Collapse forests in this container by a pre-specified batch size. 
+        For example, if we have a container of twenty 10-tree forests, and we 
+        specify a `batch_size` of 5, then this method will yield four 50-tree 
+        forests. "Excess" forests remaining after the size of a forest container 
+        is divided by `batch_size` will be pruned from the beginning of the 
+        container (i.e. earlier sampled forests will be deleted). This method 
+        has no effect if `batch_size` is larger than the number of forests 
+        in a container.
+
+        Parameters
+        ----------
+        batch_size : int
+            Number of forests to be collapsed into a single forest
+        """
+        container_size = self.num_samples()
+        if batch_size <= container_size and batch_size > 1:
+            reverse_container_inds = np.linspace(start=container_size, stop=1, num=container_size, dtype=int)
+            num_clean_batches = container_size // batch_size
+            batch_inds = (reverse_container_inds - (container_size - ((container_size // num_clean_batches) * num_clean_batches)) - 1) // batch_size
+            batch_inds = batch_inds.astype(int)
+            for batch_ind in np.flip(np.unique(batch_inds[batch_inds >= 0])):
+                merge_forest_inds = np.sort(reverse_container_inds[batch_inds == batch_ind] - 1)
+                num_merge_forests = len(merge_forest_inds)
+                self.combine_forests(merge_forest_inds)
+                for i in range(num_merge_forests - 1, 0, -1):
+                    self.delete_sample(merge_forest_inds[i])
+                forest_scale_factor = 1.0 / num_merge_forests
+                self.multiply_forest(merge_forest_inds[0], forest_scale_factor)
+            if np.min(batch_inds) < 0:
+                delete_forest_inds = np.sort(reverse_container_inds[batch_inds < 0] - 1)
+                num_delete_forests = len(delete_forest_inds)
+                for i in range(num_delete_forests - 1, -1, -1):
+                    self.delete_sample(delete_forest_inds[i])
+    
     def combine_forests(
         self, forest_inds: np.array
     ) -> None:
