@@ -74,6 +74,21 @@ cpp11::external_pointer<StochTree::ForestContainer> forest_container_from_json_s
 }
 
 [[cpp11::register]]
+void forest_merge_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> inbound_forest_ptr, cpp11::external_pointer<StochTree::TreeEnsemble> outbound_forest_ptr) {
+    inbound_forest_ptr->MergeForest(*outbound_forest_ptr);
+}
+
+[[cpp11::register]]
+void forest_add_constant_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> forest_ptr, double constant_value) {
+    forest_ptr->AddValueToLeaves(constant_value);
+}
+
+[[cpp11::register]]
+void forest_multiply_constant_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> forest_ptr, double constant_multiple) {
+    forest_ptr->MultiplyLeavesByValue(constant_multiple);
+}
+
+[[cpp11::register]]
 void forest_container_append_from_json_string_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_sample_ptr, std::string json_string, std::string forest_label) {
     // Create a nlohmann::json object from the string
     nlohmann::json json_object = nlohmann::json::parse(json_string);
@@ -83,6 +98,26 @@ void forest_container_append_from_json_string_cpp(cpp11::external_pointer<StochT
     
     // Append to the forest sample container using the json
     forest_sample_ptr->append_from_json(forest_json);
+}
+
+[[cpp11::register]]
+void combine_forests_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::integers forest_inds) {
+    int num_forests = forest_inds.size();
+    for (int j = 1; j < num_forests; j++) {
+        forest_samples->MergeForests(forest_inds[0], forest_inds[j]);
+    }
+    // double combined_forest_scale_factor = 1.0 / num_forests;
+    // forest_samples->MultiplyForest(forest_inds[0], combined_forest_scale_factor);
+}
+
+[[cpp11::register]]
+void add_to_forest_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_index, double constant_value) {
+    forest_samples->AddToForest(forest_index, constant_value);
+}
+
+[[cpp11::register]]
+void multiply_forest_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_index, double constant_multiple) {
+    forest_samples->MultiplyForest(forest_index, constant_multiple);
 }
 
 [[cpp11::register]]

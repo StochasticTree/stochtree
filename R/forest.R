@@ -23,6 +23,73 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
+        #' Collapse forests in this container by a pre-specified batch size. 
+        #' For example, if we have a container of twenty 10-tree forests, and we 
+        #' specify a `batch_size` of 5, then this method will yield four 50-tree 
+        #' forests. "Excess" forests remaining after the size of a forest container 
+        #' is divided by `batch_size` will be pruned from the beginning of the 
+        #' container (i.e. earlier sampled forests will be deleted). This method 
+        #' has no effect if `batch_size` is larger than the number of forests 
+        #' in a container.
+        #' @param batch_size Number of forests to be collapsed into a single forest
+        collapse = function(batch_size) {
+            container_size <- self$num_samples()
+            if ((batch_size <= container_size) && (batch_size > 1)) {
+                reverse_container_inds <- seq(container_size, 1, -1)
+                num_clean_batches <- container_size %/% batch_size
+                batch_inds <- (reverse_container_inds - (container_size - (container_size %/% num_clean_batches) * num_clean_batches) - 1) %/% batch_size
+                for (batch_ind in unique(batch_inds[batch_inds >= 0])) {
+                    merge_forest_inds <- sort(reverse_container_inds[batch_inds == batch_ind] - 1)
+                    num_merge_forests <- length(merge_forest_inds)
+                    self$combine_forests(merge_forest_inds)
+                    for (i in num_merge_forests:2) {
+                        self$delete_sample(merge_forest_inds[i])
+                    }
+                    forest_scale_factor <- 1.0 / num_merge_forests
+                    self$multiply_forest(merge_forest_inds[1], forest_scale_factor)
+                }
+                if (min(batch_inds) < 0) {
+                    delete_forest_inds <- sort(reverse_container_inds[batch_inds < 0] - 1)
+                    for (i in length(delete_forest_inds):1) {
+                        self$delete_sample(delete_forest_inds[i])
+                    }
+                }
+            }
+        }, 
+        
+        #' @description
+        #' Merge specified forests into a single forest
+        #' @param forest_inds Indices of forests to be combined (0-indexed)
+        combine_forests = function(forest_inds) {
+            stopifnot(max(forest_inds) < self$num_samples())
+            stopifnot(min(forest_inds) >= 0)
+            stopifnot(length(forest_inds) > 1)
+            stopifnot(all(as.integer(forest_inds) == forest_inds))
+            forest_inds_sorted <- as.integer(sort(forest_inds))
+            combine_forests_forest_container_cpp(self$forest_container_ptr, forest_inds_sorted)
+        }, 
+        
+        #' @description
+        #' Add a constant value to every leaf of every tree of a given forest
+        #' @param forest_index Index of forest whose leaves will be modified (0-indexed)
+        #' @param constant_value Value to add to every leaf of every tree of the forest at `forest_index`
+        add_to_forest = function(forest_index, constant_value) {
+            stopifnot(forest_index < self$num_samples())
+            stopifnot(forest_index >= 0)
+            add_to_forest_forest_container_cpp(self$forest_container_ptr, forest_index, constant_value)
+        }, 
+        
+        #' @description
+        #' Multiply every leaf of every tree of a given forest by constant value
+        #' @param forest_index Index of forest whose leaves will be modified (0-indexed)
+        #' @param constant_multiple Value to multiply through by every leaf of every tree of the forest at `forest_index`
+        multiply_forest = function(forest_index, constant_multiple) {
+            stopifnot(forest_index < self$num_samples())
+            stopifnot(forest_index >= 0)
+            multiply_forest_forest_container_cpp(self$forest_container_ptr, forest_index, constant_multiple)
+        }, 
+        
+        #' @description
         #' Create a new `ForestContainer` object from a json object
         #' @param json_object Object of class `CppJson`
         #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
@@ -574,6 +641,30 @@ Forest <- R6::R6Class(
         }, 
         
         #' @description
+        #' Create a larger forest by merging the trees of this forest with those of another forest
+        #' @param forest Forest to be merged into this forest
+        merge_forest = function(forest) {
+            stopifnot(self$leaf_dimension() == forest$leaf_dimension())
+            stopifnot(self$is_constant_leaf() == forest$is_constant_leaf())
+            stopifnot(self$is_exponentiated() == forest$is_exponentiated())
+            forest_merge_cpp(self$forest_ptr, forest$forest_ptr)
+        }, 
+        
+        #' @description
+        #' Add a constant value to every leaf of every tree in an ensemble. If leaves are multi-dimensional, `constant_value` will be added to every dimension of the leaves.
+        #' @param constant_value Value that will be added to every leaf of every tree
+        add_constant = function(constant_value) {
+            forest_add_constant_cpp(self$forest_ptr, constant_value)
+        }, 
+        
+        #' @description
+        #' Multiply every leaf of every tree by a constant value. If leaves are multi-dimensional, `constant_multiple` will be multiplied through every dimension of the leaves.
+        #' @param constant_multiple Value that will be multiplied by every leaf of every tree
+        multiply_constant = function(constant_multiple) {
+            forest_multiply_constant_cpp(self$forest_ptr, constant_multiple)
+        }, 
+        
+        #' @description
         #' Predict forest on every sample in `forest_dataset`
         #' @param forest_dataset `ForestDataset` R class
         #' @return vector of predictions with as many rows as in `forest_dataset`
@@ -694,7 +785,7 @@ Forest <- R6::R6Class(
         #' Return constant leaf status of trees in a `Forest` object
         #' @return `TRUE` if leaves are constant, `FALSE` otherwise
         is_constant_leaf = function() {
-            return(is_constant_leaf_active_forest_cpp(self$forest_ptr))
+            return(is_leaf_constant_forest_container_cpp(self$forest_ptr))
         }, 
         
         #' @description
