@@ -17,6 +17,7 @@ Wrapper around a C++ container of tree ensembles
 \subsection{Public methods}{
 \itemize{
 \item \href{#method-ForestSamples-new}{\code{ForestSamples$new()}}
+\item \href{#method-ForestSamples-collapse}{\code{ForestSamples$collapse()}}
 \item \href{#method-ForestSamples-combine_forests}{\code{ForestSamples$combine_forests()}}
 \item \href{#method-ForestSamples-add_to_forest}{\code{ForestSamples$add_to_forest()}}
 \item \href{#method-ForestSamples-multiply_forest}{\code{ForestSamples$multiply_forest()}}
@@ -102,10 +103,34 @@ A new \code{ForestContainer} object.
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestSamples-collapse"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-collapse}{}}}
+\subsection{Method \code{collapse()}}{
+Collapse forests in this container by a pre-specified batch size.
+For example, if we have a container of twenty 10-tree forests, and we
+specify a \code{batch_size} of 5, then this method will yield four 50-tree
+forests. "Excess" forests remaining after the size of a forest container
+is divided by \code{batch_size} will be pruned from the beginning of the
+container (i.e. earlier sampled forests will be deleted). This method
+has no effect if \code{batch_size} is larger than the number of forests
+in a container.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$collapse(batch_size)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{batch_size}}{Number of forests to be collapsed into a single forest}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ForestSamples-combine_forests"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestSamples-combine_forests}{}}}
 \subsection{Method \code{combine_forests()}}{
-Collapse specified forests into a single forest
+Merge specified forests into a single forest
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestSamples$combine_forests(forest_inds)}\if{html}{\out{</div>}}
 }
@@ -130,7 +155,7 @@ Add a constant value to every leaf of every tree of a given forest
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{forest_index}}{Index of forest whos leaves will be modified (0-indexed)}
+\item{\code{forest_index}}{Index of forest whose leaves will be modified (0-indexed)}
 
 \item{\code{constant_value}}{Value to add to every leaf of every tree of the forest at \code{forest_index}}
 }
@@ -149,7 +174,7 @@ Multiply every leaf of every tree of a given forest by constant value
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{forest_index}}{Index of forest whos leaves will be modified (0-indexed)}
+\item{\code{forest_index}}{Index of forest whose leaves will be modified (0-indexed)}
 
 \item{\code{constant_multiple}}{Value to multiply through by every leaf of every tree of the forest at \code{forest_index}}
 }

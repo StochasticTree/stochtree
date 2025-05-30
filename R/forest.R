@@ -23,7 +23,42 @@ ForestSamples <- R6::R6Class(
         }, 
         
         #' @description
-        #' Collapse specified forests into a single forest
+        #' Collapse forests in this container by a pre-specified batch size. 
+        #' For example, if we have a container of twenty 10-tree forests, and we 
+        #' specify a `batch_size` of 5, then this method will yield four 50-tree 
+        #' forests. "Excess" forests remaining after the size of a forest container 
+        #' is divided by `batch_size` will be pruned from the beginning of the 
+        #' container (i.e. earlier sampled forests will be deleted). This method 
+        #' has no effect if `batch_size` is larger than the number of forests 
+        #' in a container.
+        #' @param batch_size Number of forests to be collapsed into a single forest
+        collapse = function(batch_size) {
+            container_size <- self$num_samples()
+            if ((batch_size <= container_size) && (batch_size > 1)) {
+                reverse_container_inds <- seq(container_size, 1, -1)
+                num_clean_batches <- container_size %/% batch_size
+                batch_inds <- (reverse_container_inds - (container_size - (container_size %/% num_clean_batches) * num_clean_batches) - 1) %/% batch_size
+                for (batch_ind in unique(batch_inds[batch_inds >= 0])) {
+                    merge_forest_inds <- sort(reverse_container_inds[batch_inds == batch_ind] - 1)
+                    num_merge_forests <- length(merge_forest_inds)
+                    self$combine_forests(merge_forest_inds)
+                    for (i in num_merge_forests:2) {
+                        self$delete_sample(merge_forest_inds[i])
+                    }
+                    forest_scale_factor <- 1.0 / num_merge_forests
+                    self$multiply_forest(merge_forest_inds[1], forest_scale_factor)
+                }
+                if (min(batch_inds) < 0) {
+                    delete_forest_inds <- sort(reverse_container_inds[batch_inds < 0] - 1)
+                    for (i in length(delete_forest_inds):1) {
+                        self$delete_sample(delete_forest_inds[i])
+                    }
+                }
+            }
+        }, 
+        
+        #' @description
+        #' Merge specified forests into a single forest
         #' @param forest_inds Indices of forests to be combined (0-indexed)
         combine_forests = function(forest_inds) {
             stopifnot(max(forest_inds) < self$num_samples())
