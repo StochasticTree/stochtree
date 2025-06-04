@@ -29,6 +29,8 @@ class ForestModelConfig:
         Number of observations in training dataset
     feature_types : np.array or list, optional
         Vector of integer-coded feature types (where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+    sweep_update_indices : np.array or list, optional
+        Vector of (0-indexed) indices of trees to update in a sweep
     variable_weights : np.array or list, optional
         Vector specifying sampling probability for all p covariates in ForestDataset
     leaf_dimension : int, optional
@@ -59,6 +61,7 @@ class ForestModelConfig:
         num_features=None,
         num_observations=None,
         feature_types=None,
+        sweep_update_indices=None,
         variable_weights=None,
         leaf_dimension=1,
         alpha=0.95,
@@ -135,6 +138,17 @@ class ForestModelConfig:
                 raise ValueError(
                     "`leaf_model_scale` must be a scalar value or a 2d numpy array with matching dimensions"
                 )
+        if sweep_update_indices is not None:
+            sweep_update_indices = _standardize_array_to_np(sweep_update_indices)
+            if np.min(sweep_update_indices) < 0:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+            if np.max(sweep_update_indices) >= num_trees:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+        self.sweep_update_indices = sweep_update_indices
 
         # Set internal config values
         self.num_trees = num_trees
@@ -157,7 +171,7 @@ class ForestModelConfig:
 
         Parameters
         ----------
-        feature_types : list of np.ndarray
+        feature_types : list or np.ndarray
             Vector of integer-coded feature types (where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
 
         Returns
@@ -168,6 +182,31 @@ class ForestModelConfig:
         if self.num_features != len(feature_types):
             raise ValueError("`feature_types` must have `num_features` total elements")
         self.feature_types = feature_types
+
+    def update_sweep_indices(self, sweep_update_indices) -> None:
+        """
+        Update feature types
+
+        Parameters
+        ----------
+        sweep_update_indices : list or np.ndarray
+            Vector of (0-indexed) indices of trees to update in a sweep
+
+        Returns
+        -------
+        self
+        """
+        if sweep_update_indices is not None:
+            sweep_update_indices = _standardize_array_to_np(sweep_update_indices)
+            if np.min(sweep_update_indices) < 0:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+            if np.max(sweep_update_indices) >= self.num_trees:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+        self.sweep_update_indices = sweep_update_indices
 
     def update_variable_weights(
         self, variable_weights: Union[list, np.ndarray]
@@ -341,6 +380,17 @@ class ForestModelConfig:
         -------
         feature_types : np.ndarray
             Array of integer-coded feature types
+        """
+        return self.feature_types
+
+    def get_sweep_update_indices(self) -> Union[np.ndarray,None]:
+        """
+        Query vector of (0-indexed) indices of trees to update in a sweep
+
+        Returns
+        -------
+        sweep_update_indices : np.ndarray or None
+            Vector of (0-indexed) indices of trees to update in a sweep, or `None`
         """
         return self.feature_types
 
