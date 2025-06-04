@@ -152,7 +152,7 @@ class ForestSampler:
         # Unpack sweep update indices (initializing empty numpy array if None)
         sweep_update_indices = forest_config.get_sweep_update_indices()
         if sweep_update_indices is None:
-            sweep_update_indices = np.empty(shape=(0,), dtype=int)
+            sweep_update_indices = np.arange(forest_config.get_num_trees(), dtype=int)
 
         # Run the sampler
         self.forest_sampler_cpp.SampleOneIteration(

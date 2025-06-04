@@ -766,48 +766,37 @@ static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& 
                                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
                                     std::vector<int>& sweep_update_indices, double global_variance, std::vector<FeatureType>& feature_types, int cutpoint_grid_size, 
                                     bool keep_forest, bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
-  
   // Run the GFR algorithm for each tree
   int num_trees = forests.NumTrees();
-  bool update_tree;
   for (const int& i : sweep_update_indices) {
-  // for (int i = 0; i < num_trees; i++) {
-    // // Only update trees in sweep_update_indices
-    // if (sweep_update_indices.size() > 0) {
-    //   update_tree = (std::find(sweep_update_indices.begin(), sweep_update_indices.end(), i) != sweep_update_indices.end());
-    // } else {
-    //   update_tree = true;
-    // }
-    // if (update_tree) {
-      // Adjust any model state needed to run a tree sampler
-      // For models that involve Bayesian backfitting, this amounts to adding tree i's 
-      // predictions back to the residual (thus, training a model on the "partial residual")
-      // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
-      Tree* tree = active_forest.GetTree(i);
-      AdjustStateBeforeTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
-      
-      // Reset the tree and sample trackers
-      active_forest.ResetInitTree(i);
-      tracker.ResetRoot(dataset.GetCovariates(), feature_types, i);
-      tree = active_forest.GetTree(i);
-      
-      // Sample tree i
-      GFRSampleTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
-        tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, 
-        variable_weights, i, global_variance, feature_types, cutpoint_grid_size, 
-        leaf_suff_stat_args...
-      );
-      
-      // Sample leaf parameters for tree i
-      tree = active_forest.GetTree(i);
-      leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
-      
-      // Adjust any model state needed to run a tree sampler
-      // For models that involve Bayesian backfitting, this amounts to subtracting tree i's 
-      // predictions back out of the residual (thus, using an updated "partial residual" in the following interation).
-      // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
-      AdjustStateAfterTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
-    // }
+    // Adjust any model state needed to run a tree sampler
+    // For models that involve Bayesian backfitting, this amounts to adding tree i's 
+    // predictions back to the residual (thus, training a model on the "partial residual")
+    // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
+    Tree* tree = active_forest.GetTree(i);
+    AdjustStateBeforeTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
+    
+    // Reset the tree and sample trackers
+    active_forest.ResetInitTree(i);
+    tracker.ResetRoot(dataset.GetCovariates(), feature_types, i);
+    tree = active_forest.GetTree(i);
+    
+    // Sample tree i
+    GFRSampleTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
+      tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, 
+      variable_weights, i, global_variance, feature_types, cutpoint_grid_size, 
+      leaf_suff_stat_args...
+    );
+    
+    // Sample leaf parameters for tree i
+    tree = active_forest.GetTree(i);
+    leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
+    
+    // Adjust any model state needed to run a tree sampler
+    // For models that involve Bayesian backfitting, this amounts to subtracting tree i's 
+    // predictions back out of the residual (thus, using an updated "partial residual" in the following interation).
+    // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
+    AdjustStateAfterTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
   }
 
   if (keep_forest) {
@@ -1087,40 +1076,30 @@ static inline void MCMCSampleOneIter(TreeEnsemble& active_forest, ForestTracker&
                                      std::vector<int>& sweep_update_indices, double global_variance, bool keep_forest, bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Run the MCMC algorithm for each tree
   int num_trees = forests.NumTrees();
-  bool update_tree;
   for (const int& i : sweep_update_indices) {
-  // for (int i = 0; i < num_trees; i++) {
-    // // Only update trees in sweep_update_indices
-    // if (sweep_update_indices.size() > 0) {
-    //   update_tree = (std::find(sweep_update_indices.begin(), sweep_update_indices.end(), i) != sweep_update_indices.end());
-    // } else {
-    //   update_tree = true;
-    // }
-    // if (update_tree) {
-      // Adjust any model state needed to run a tree sampler
-      // For models that involve Bayesian backfitting, this amounts to adding tree i's 
-      // predictions back to the residual (thus, training a model on the "partial residual")
-      // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
-      Tree* tree = active_forest.GetTree(i);
-      AdjustStateBeforeTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
-      
-      // Sample tree i
-      tree = active_forest.GetTree(i);
-      MCMCSampleTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
-        tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, variable_weights, i, 
-        global_variance, leaf_suff_stat_args...
-      );
-      
-      // Sample leaf parameters for tree i
-      tree = active_forest.GetTree(i);
-      leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
-      
-      // Adjust any model state needed to run a tree sampler
-      // For models that involve Bayesian backfitting, this amounts to subtracting tree i's 
-      // predictions back out of the residual (thus, using an updated "partial residual" in the following interation).
-      // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
-      AdjustStateAfterTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
-    // }
+    // Adjust any model state needed to run a tree sampler
+    // For models that involve Bayesian backfitting, this amounts to adding tree i's 
+    // predictions back to the residual (thus, training a model on the "partial residual")
+    // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
+    Tree* tree = active_forest.GetTree(i);
+    AdjustStateBeforeTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
+    
+    // Sample tree i
+    tree = active_forest.GetTree(i);
+    MCMCSampleTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
+      tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, variable_weights, i, 
+      global_variance, leaf_suff_stat_args...
+    );
+    
+    // Sample leaf parameters for tree i
+    tree = active_forest.GetTree(i);
+    leaf_model.SampleLeafParameters(dataset, tracker, residual, tree, i, global_variance, gen);
+    
+    // Adjust any model state needed to run a tree sampler
+    // For models that involve Bayesian backfitting, this amounts to subtracting tree i's 
+    // predictions back out of the residual (thus, using an updated "partial residual" in the following interation).
+    // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
+    AdjustStateAfterTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
   }
 
   if (keep_forest) {

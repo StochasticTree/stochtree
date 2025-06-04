@@ -669,8 +669,9 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   // Prepare the samplers
   LeafModelVariant leaf_model = leafModelFactory(model_type, leaf_scale, leaf_scale_matrix, a_forest, b_forest);
 
-  // Initialize am empty vector of sweep update indices
-  std::vector<int> sweep_indices;
+  // Initialize vector of sweep update indices
+  std::vector<int> sweep_indices(num_trees);
+  std::iota(sweep_indices.begin(), sweep_indices.end(), 0);
 
   // Run the GFR sampler
   if (num_gfr > 0) {
