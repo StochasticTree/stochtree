@@ -751,6 +751,7 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
  * \param tree_prior Configuration for tree prior (i.e. max depth, min samples in a leaf, depth-defined split probability).
  * \param gen Random number generator for sampler.
  * \param variable_weights Vector of selection weights for each variable in `dataset`.
+ * \param sweep_update_indices Vector of (0-indexed) indices of trees to update in a sweep.
  * \param global_variance Current value of (possibly stochastic) global error variance parameter.
  * \param feature_types Enum-coded vector of feature types (see \ref FeatureType) for each feature in `dataset`.
  * \param cutpoint_grid_size Maximum size of a grid of potential cutpoints (the grow-from-root algorithm evaluates a series of potential cutpoints for each feature and this parameter "thins" the cutpoint candidates for numeric variables).
@@ -763,12 +764,11 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
-                                    double global_variance, std::vector<FeatureType>& feature_types, int cutpoint_grid_size, 
+                                    std::vector<int>& sweep_update_indices, double global_variance, std::vector<FeatureType>& feature_types, int cutpoint_grid_size, 
                                     bool keep_forest, bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
-  
   // Run the GFR algorithm for each tree
   int num_trees = forests.NumTrees();
-  for (int i = 0; i < num_trees; i++) {
+  for (const int& i : sweep_update_indices) {
     // Adjust any model state needed to run a tree sampler
     // For models that involve Bayesian backfitting, this amounts to adding tree i's 
     // predictions back to the residual (thus, training a model on the "partial residual")
@@ -1062,6 +1062,7 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
  * \param tree_prior Configuration for tree prior (i.e. max depth, min samples in a leaf, depth-defined split probability).
  * \param gen Random number generator for sampler.
  * \param variable_weights Vector of selection weights for each variable in `dataset`.
+ * \param sweep_update_indices Vector of (0-indexed) indices of trees to update in a sweep.
  * \param global_variance Current value of (possibly stochastic) global error variance parameter.
  * \param keep_forest Whether or not `active_forest` should be retained in `forests`.
  * \param pre_initialized Whether or not `active_forest` has already been initialized (note: this parameter will be refactored out soon).
@@ -1072,10 +1073,10 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCSampleOneIter(TreeEnsemble& active_forest, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
-                                     double global_variance, bool keep_forest, bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                     std::vector<int>& sweep_update_indices, double global_variance, bool keep_forest, bool pre_initialized, bool backfitting, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Run the MCMC algorithm for each tree
   int num_trees = forests.NumTrees();
-  for (int i = 0; i < num_trees; i++) {
+  for (const int& i : sweep_update_indices) {
     // Adjust any model state needed to run a tree sampler
     // For models that involve Bayesian backfitting, this amounts to adding tree i's 
     // predictions back to the residual (thus, training a model on the "partial residual")

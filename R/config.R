@@ -17,6 +17,9 @@ ForestModelConfig <- R6::R6Class(
         #' @field feature_types Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
         feature_types = NULL,
         
+        #' @field sweep_update_indices Vector of trees to update in a sweep
+        sweep_update_indices = NULL,
+        
         #' @field num_trees Number of trees in the forest being sampled
         num_trees = NULL,
         
@@ -62,6 +65,7 @@ ForestModelConfig <- R6::R6Class(
         #' Create a new ForestModelConfig object.
         #'
         #' @param feature_types Vector of integer-coded feature types (where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+        #' @param sweep_update_indices Vector of (0-indexed) indices of trees to update in a sweep
         #' @param num_trees Number of trees in the forest being sampled
         #' @param num_features Number of features in training dataset
         #' @param num_observations Number of observations in training dataset
@@ -78,7 +82,7 @@ ForestModelConfig <- R6::R6Class(
         #' @param cutpoint_grid_size Number of unique cutpoints to consider (default: `100`)
         #' 
         #' @return A new ForestModelConfig object.
-        initialize = function(feature_types = NULL, num_trees = NULL, num_features = NULL, 
+        initialize = function(feature_types = NULL, sweep_update_indices = NULL, num_trees = NULL, num_features = NULL, 
                               num_observations = NULL, variable_weights = NULL, leaf_dimension = 1, 
                               alpha = 0.95, beta = 2.0, min_samples_leaf = 5, max_depth = -1, 
                               leaf_model_type = 1, leaf_model_scale = NULL, variance_forest_shape = 1.0, 
@@ -101,6 +105,10 @@ ForestModelConfig <- R6::R6Class(
             if (is.null(num_trees)) {
                 stop("num_trees must be provided")
             }
+            if (!is.null(sweep_update_indices)) {
+                stopifnot(min(sweep_update_indices) >= 0)
+                stopifnot(max(sweep_update_indices) < num_trees)
+            }
             if (is.null(num_observations)) {
                 stop("num_observations must be provided")
             }
@@ -111,6 +119,7 @@ ForestModelConfig <- R6::R6Class(
                 stop("`variable_weights` must have `num_features` total elements")
             }
             self$feature_types <- feature_types
+            self$sweep_update_indices <- sweep_update_indices
             self$variable_weights <- variable_weights
             self$num_trees <- num_trees
             self$num_features <- num_features
@@ -156,6 +165,17 @@ ForestModelConfig <- R6::R6Class(
         update_feature_types = function(feature_types) {
             stopifnot(length(feature_types) == self$num_features)
             self$feature_types <- feature_types
+        }, 
+        
+        #' @description
+        #' Update sweep update indices
+        #' @param sweep_update_indices Vector of (0-indexed) indices of trees to update in a sweep
+        update_sweep_indices = function(sweep_update_indices) {
+            if (!is.null(sweep_update_indices)) {
+                stopifnot(min(sweep_update_indices) >= 0)
+                stopifnot(max(sweep_update_indices) < self$num_trees)
+            }
+            self$sweep_update_indices <- sweep_update_indices
         }, 
         
         #' @description
@@ -240,6 +260,13 @@ ForestModelConfig <- R6::R6Class(
         #' @returns Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
         get_feature_types = function() {
             return(self$feature_types)
+        }, 
+        
+        #' @description
+        #' Query sweep update indices for this ForestModelConfig object
+        #' @returns Vector of (0-indexed) indices of trees to update in a sweep
+        get_sweep_indices = function() {
+            return(self$sweep_update_indices)
         }, 
         
         #' @description
@@ -382,6 +409,7 @@ GlobalModelConfig <- R6::R6Class(
 #' Create a forest model config object
 #'
 #' @param feature_types Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+#' @param sweep_update_indices Vector of (0-indexed) indices of trees to update in a sweep
 #' @param num_trees Number of trees in the forest being sampled
 #' @param num_features Number of features in training dataset
 #' @param num_observations Number of observations in training dataset
@@ -401,13 +429,13 @@ GlobalModelConfig <- R6::R6Class(
 #'
 #' @examples
 #' config <- createForestModelConfig(num_trees = 10, num_features = 5, num_observations = 100)
-createForestModelConfig <- function(feature_types = NULL, num_trees = NULL, num_features = NULL, 
+createForestModelConfig <- function(feature_types = NULL, sweep_update_indices = NULL, num_trees = NULL, num_features = NULL, 
                                     num_observations = NULL, variable_weights = NULL, leaf_dimension = 1, 
                                     alpha = 0.95, beta = 2.0, min_samples_leaf = 5, max_depth = -1, 
                                     leaf_model_type = 1, leaf_model_scale = NULL, variance_forest_shape = 1.0, 
                                     variance_forest_scale = 1.0, cutpoint_grid_size = 100){
     return(invisible((
-        ForestModelConfig$new(feature_types, num_trees, num_features, num_observations, 
+        ForestModelConfig$new(feature_types, sweep_update_indices, num_trees, num_features, num_observations, 
                               variable_weights, leaf_dimension, alpha, beta, min_samples_leaf, 
                               max_depth, leaf_model_type, leaf_model_scale, variance_forest_shape, 
                               variance_forest_scale, cutpoint_grid_size)

@@ -70,13 +70,15 @@ ForestModel <- R6::R6Class(
         #' @param keep_forest (Optional) Whether the updated forest sample should be saved to `forest_samples`. Default: `TRUE`.
         #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: `TRUE`.
         sample_one_iteration = function(forest_dataset, residual, forest_samples, active_forest, 
-                                        rng, forest_model_config, global_model_config, keep_forest = TRUE, gfr = TRUE) {
+                                        rng, forest_model_config, global_model_config, 
+                                        keep_forest = TRUE, gfr = TRUE) {
             if (active_forest$is_empty()) {
                 stop("`active_forest` has not yet been initialized, which is necessary to run the sampler. Please set constant values for `active_forest`'s leaves using either the `set_root_leaves` or `prepare_for_sampler` methods.")
             }
 
             # Unpack parameters from model config object
             feature_types <- forest_model_config$feature_types
+            sweep_update_indices <- forest_model_config$sweep_update_indices
             leaf_model_int <- forest_model_config$leaf_model_type
             leaf_model_scale <- forest_model_config$leaf_model_scale
             variable_weights <- forest_model_config$variable_weights
@@ -84,6 +86,12 @@ ForestModel <- R6::R6Class(
             b_forest <- forest_model_config$variance_forest_scale
             global_scale <- global_model_config$global_error_variance
             cutpoint_grid_size <- forest_model_config$cutpoint_grid_size
+            
+            # Default to empty integer vector if sweep_update_indices is NULL
+            if (is.null(sweep_update_indices)) {
+                # sweep_update_indices <- integer(0)
+                sweep_update_indices <- 0:(forest_model_config$num_trees - 1)
+            }
             
             # Detect changes to tree prior
             if (forest_model_config$alpha != get_alpha_tree_prior_cpp(self$tree_prior_ptr)) {
@@ -104,14 +112,14 @@ ForestModel <- R6::R6Class(
                 sample_gfr_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
-                    self$tree_prior_ptr, rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
+                    self$tree_prior_ptr, rng$rng_ptr, sweep_update_indices, feature_types, cutpoint_grid_size, leaf_model_scale, 
                     variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest
                 )
             } else {
                 sample_mcmc_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
-                    self$tree_prior_ptr, rng$rng_ptr, feature_types, cutpoint_grid_size, leaf_model_scale, 
+                    self$tree_prior_ptr, rng$rng_ptr, sweep_update_indices, feature_types, cutpoint_grid_size, leaf_model_scale, 
                     variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest
                 ) 
             }
