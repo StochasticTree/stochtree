@@ -148,6 +148,11 @@ class ForestSampler:
             )
         if self.forest_sampler_cpp.GetMaxDepth() != forest_config.get_max_depth():
             self.forest_sampler_cpp.SetMaxDepth(forest_config.get_max_depth())
+        
+        # Unpack sweep update indices (initializing empty numpy array if None)
+        sweep_update_indices = forest_config.get_sweep_update_indices()
+        if sweep_update_indices is None:
+            sweep_update_indices = np.empty(shape=(0,), dtype=int)
 
         # Run the sampler
         self.forest_sampler_cpp.SampleOneIteration(
@@ -157,6 +162,7 @@ class ForestSampler:
             residual.residual_cpp,
             rng.rng_cpp,
             forest_config.get_feature_types(),
+            sweep_update_indices,
             forest_config.get_cutpoint_grid_size(),
             forest_config.get_leaf_model_scale(),
             forest_config.get_variable_weights(),
