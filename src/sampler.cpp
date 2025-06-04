@@ -38,13 +38,13 @@ void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDatas
     }
     
     // Unpack sweep indices
-    std::vector<int> sweep_indices_;
-    if (sweep_indices.size() > 0) {
-        sweep_indices_.resize(sweep_indices.size());
-        for (int i = 0; i < sweep_indices.size(); i++) {
-            sweep_indices_[i] = sweep_indices[i];
-        }
+    std::vector<int> sweep_indices_(sweep_indices.size());
+    // if (sweep_indices.size() > 0) {
+        // sweep_indices_.resize(sweep_indices.size());
+    for (int i = 0; i < sweep_indices.size(); i++) {
+        sweep_indices_[i] = sweep_indices[i];
     }
+    // }
     
     // Convert leaf model type to enum
     StochTree::ModelType model_type;

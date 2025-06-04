@@ -770,14 +770,15 @@ static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& 
   // Run the GFR algorithm for each tree
   int num_trees = forests.NumTrees();
   bool update_tree;
-  for (int i = 0; i < num_trees; i++) {
-    // Only update trees in sweep_update_indices
-    if (sweep_update_indices.size() > 0) {
-      update_tree = (std::find(sweep_update_indices.begin(), sweep_update_indices.end(), i) != sweep_update_indices.end());
-    } else {
-      update_tree = true;
-    }
-    if (update_tree) {
+  for (const int& i : sweep_update_indices) {
+  // for (int i = 0; i < num_trees; i++) {
+    // // Only update trees in sweep_update_indices
+    // if (sweep_update_indices.size() > 0) {
+    //   update_tree = (std::find(sweep_update_indices.begin(), sweep_update_indices.end(), i) != sweep_update_indices.end());
+    // } else {
+    //   update_tree = true;
+    // }
+    // if (update_tree) {
       // Adjust any model state needed to run a tree sampler
       // For models that involve Bayesian backfitting, this amounts to adding tree i's 
       // predictions back to the residual (thus, training a model on the "partial residual")
@@ -806,7 +807,7 @@ static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& 
       // predictions back out of the residual (thus, using an updated "partial residual" in the following interation).
       // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
       AdjustStateAfterTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
-    }
+    // }
   }
 
   if (keep_forest) {
@@ -1087,14 +1088,15 @@ static inline void MCMCSampleOneIter(TreeEnsemble& active_forest, ForestTracker&
   // Run the MCMC algorithm for each tree
   int num_trees = forests.NumTrees();
   bool update_tree;
-  for (int i = 0; i < num_trees; i++) {
-    // Only update trees in sweep_update_indices
-    if (sweep_update_indices.size() > 0) {
-      update_tree = (std::find(sweep_update_indices.begin(), sweep_update_indices.end(), i) != sweep_update_indices.end());
-    } else {
-      update_tree = true;
-    }
-    if (update_tree) {
+  for (const int& i : sweep_update_indices) {
+  // for (int i = 0; i < num_trees; i++) {
+    // // Only update trees in sweep_update_indices
+    // if (sweep_update_indices.size() > 0) {
+    //   update_tree = (std::find(sweep_update_indices.begin(), sweep_update_indices.end(), i) != sweep_update_indices.end());
+    // } else {
+    //   update_tree = true;
+    // }
+    // if (update_tree) {
       // Adjust any model state needed to run a tree sampler
       // For models that involve Bayesian backfitting, this amounts to adding tree i's 
       // predictions back to the residual (thus, training a model on the "partial residual")
@@ -1118,7 +1120,7 @@ static inline void MCMCSampleOneIter(TreeEnsemble& active_forest, ForestTracker&
       // predictions back out of the residual (thus, using an updated "partial residual" in the following interation).
       // For more general "blocked MCMC" models, this might require changes to a ForestTracker or Dataset object
       AdjustStateAfterTreeSampling<LeafModel>(tracker, leaf_model, dataset, residual, tree_prior, backfitting, tree, i);
-    }
+    // }
   }
 
   if (keep_forest) {

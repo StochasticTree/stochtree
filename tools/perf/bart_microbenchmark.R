@@ -2,14 +2,14 @@ library(microbenchmark)
 library(stochtree)
 
 # Generate data needed to train BART model
-n <- 1000
-p <- 5
+n <- 10000
+p <- 20
 X <- matrix(runif(n*p), ncol = p)
 f_XW <- (
     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
-        ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
-        ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
-        ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
 )
 noise_sd <- 1
 y <- f_XW + rnorm(n, 0, noise_sd)
@@ -24,6 +24,7 @@ y_test <- y[test_inds]
 y_train <- y[train_inds]
 
 # Run microbenchmark
-microbenchmark(
-    bart(X_train = X_train, y_train = y_train, X_test = X_test, num_gfr = 10, num_mcmc = 1000)
+bench_results <- microbenchmark(
+    bart(X_train = X_train, y_train = y_train, X_test = X_test, num_gfr = 10, num_mcmc = 100), 
+    times = 5
 )

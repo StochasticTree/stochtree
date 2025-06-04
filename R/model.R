@@ -89,7 +89,8 @@ ForestModel <- R6::R6Class(
             
             # Default to empty integer vector if sweep_update_indices is NULL
             if (is.null(sweep_update_indices)) {
-                sweep_update_indices <- integer(0)
+                # sweep_update_indices <- integer(0)
+                sweep_update_indices <- 0:(forest_model_config$num_trees - 1)
             }
             
             # Detect changes to tree prior
