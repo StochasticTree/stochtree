@@ -26,5 +26,5 @@ y_train <- y[train_inds]
 # Run microbenchmark
 bench_results <- microbenchmark(
     bart(X_train = X_train, y_train = y_train, X_test = X_test, num_gfr = 10, num_mcmc = 100), 
-    times = 5
+    times = 10
 )
