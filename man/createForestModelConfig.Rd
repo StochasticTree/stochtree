@@ -6,6 +6,7 @@
 \usage{
 createForestModelConfig(
   feature_types = NULL,
+  sweep_update_indices = NULL,
   num_trees = NULL,
   num_features = NULL,
   num_observations = NULL,
@@ -24,6 +25,8 @@ createForestModelConfig(
 }
 \arguments{
 \item{feature_types}{Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
+
+\item{sweep_update_indices}{Vector of (0-indexed) indices of trees to update in a sweep}
 
 \item{num_trees}{Number of trees in the forest being sampled}
 
