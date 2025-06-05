@@ -103,7 +103,7 @@ computeForestLeafIndices <- function(model_object, covariates, forest_type=NULL,
                     stop("propensity must be provided for this model")
                 }
                 # Compute propensity score using the internal bart model
-                propensity <- rowMeans(predict(model_object$bart_propensity_model, X)$y_hat)
+                propensity <- rowMeans(predict(model_object$bart_propensity_model, covariates)$y_hat)
             }
             covariates_processed <- cbind(covariates_processed, propensity)
         }
