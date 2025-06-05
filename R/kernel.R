@@ -32,6 +32,7 @@
 #'
 #'   - `NULL`: It is not necessary to disambiguate when this function is called directly on a `ForestSamples` object. This is the default value of this
 #' 
+#' @param propensity (Optional) Propensities used for prediction (BCF-only).
 #' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided, 
 #' this function will return leaf indices for every sample of a forest. 
 #' This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
@@ -46,7 +47,7 @@
 #' computeForestLeafIndices(bart_model, X, "mean")
 #' computeForestLeafIndices(bart_model, X, "mean", 0)
 #' computeForestLeafIndices(bart_model, X, "mean", c(1,3,9))
-computeForestLeafIndices <- function(model_object, covariates, forest_type=NULL, forest_inds=NULL) {
+computeForestLeafIndices <- function(model_object, covariates, forest_type=NULL, propensity=NULL, forest_inds=NULL) {
     # Extract relevant forest container
     stopifnot(any(c(inherits(model_object, "bartmodel"), inherits(model_object, "bcfmodel"), inherits(model_object, "ForestSamples"))))
     model_type <- ifelse(inherits(model_object, "bartmodel"), "bart", ifelse(inherits(model_object, "bcfmodel"), "bcf", "forest_samples"))
@@ -91,6 +92,21 @@ computeForestLeafIndices <- function(model_object, covariates, forest_type=NULL,
             stop("covariates must be a matrix since no covariate preprocessor is stored in a `ForestSamples` object provided as `model_object`")
         }
         covariates_processed <- covariates
+    }
+    
+    # Handle BCF propensity covariate
+    if (model_type == "bcf") {
+        # Add propensities to covariate set if necessary
+        if (model_object$model_params$propensity_covariate != "none") {
+            if (is.null(propensity)) {
+                if (!model_object$model_params$internal_propensity_model) {
+                    stop("propensity must be provided for this model")
+                }
+                # Compute propensity score using the internal bart model
+                propensity <- rowMeans(predict(model_object$bart_propensity_model, X)$y_hat)
+            }
+            covariates_processed <- cbind(covariates_processed, propensity)
+        }
     }
     
     # Preprocess forest indices
