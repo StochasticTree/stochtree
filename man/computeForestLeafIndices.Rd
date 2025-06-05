@@ -8,6 +8,7 @@ computeForestLeafIndices(
   model_object,
   covariates,
   forest_type = NULL,
+  propensity = NULL,
   forest_inds = NULL
 )
 }
@@ -36,6 +37,8 @@ Valid inputs depend on the model type, and whether or not a given forest was sam
 \itemize{
 \item \code{NULL}: It is not necessary to disambiguate when this function is called directly on a \code{ForestSamples} object. This is the default value of this
 }}
+
+\item{propensity}{(Optional) Propensities used for prediction (BCF-only).}
 
 \item{forest_inds}{(Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided,
 this function will return leaf indices for every sample of a forest.

@@ -9,7 +9,7 @@ from .bcf import BCFModel
 from .forest import ForestContainer
 
 
-def compute_forest_leaf_indices(model_object: Union[BARTModel, BCFModel, ForestContainer], covariates: Union[np.array, pd.DataFrame], forest_type: str = None, forest_inds: Union[int, np.ndarray] = None):
+def compute_forest_leaf_indices(model_object: Union[BARTModel, BCFModel, ForestContainer], covariates: Union[np.array, pd.DataFrame], forest_type: str = None, propensity: np.array = None, forest_inds: Union[int, np.ndarray] = None):
     """
     Compute and return a vector representation of a forest's leaf predictions for every observation in a dataset.
 
@@ -37,6 +37,8 @@ def compute_forest_leaf_indices(model_object: Union[BARTModel, BCFModel, ForestC
             * **ForestContainer**
                 * `NULL`: It is not necessary to disambiguate when this function is called directly on a `ForestSamples` object. This is the default value of this
     
+    propensity : `np.array`, optional
+        Optional test set propensities. Must be provided if propensities were provided when the model was sampled.
     forest_inds : int or np.ndarray
         Indices of the forest sample(s) for which to compute leaf indices. If not provided, this function will return leaf indices for every sample of a forest. 
         This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
@@ -88,6 +90,19 @@ def compute_forest_leaf_indices(model_object: Union[BARTModel, BCFModel, ForestC
     else:
         covariates_processed = covariates
     covariates_processed = np.asfortranarray(covariates_processed)
+
+    # Handle BCF propensity covariate
+    if model_type == "bcf":
+        if model_object.propensity_covariate != "none":
+            if propensity is None:
+                if not model_object.internal_propensity_model:
+                    raise ValueError(
+                        "Propensity scores not provided, but no propensity model was trained during sampling"
+                    )
+                propensity = np.mean(
+                    model_object.bart_propensity_model.predict(covariates), axis=1, keepdims=True
+                )
+            covariates_processed = np.c_[covariates_processed, propensity]
     
     # Preprocess forest indices
     num_forests = forest_container.num_samples()
