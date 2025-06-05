@@ -392,7 +392,7 @@ class ForestModelConfig:
         sweep_update_indices : np.ndarray or None
             Vector of (0-indexed) indices of trees to update in a sweep, or `None`
         """
-        return self.feature_types
+        return self.sweep_update_indices
 
     def get_variable_weights(self) -> np.ndarray:
         """
