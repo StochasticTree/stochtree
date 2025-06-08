@@ -24,7 +24,7 @@ Vector of size \code{sample_size}
 Draw \code{sample_size} samples from \code{population_vector} without replacement, weighted by \code{sampling_probabilities}
 }
 \examples{
-a <- c(4,3,2,5,1,9,7)
+a <- as.integer(c(4,3,2,5,1,9,7))
 p <- c(0.7,0.2,0.05,0.02,0.01,0.01,0.01)
 num_samples <- 5
 sample_without_replacement(a, p, num_samples)
