@@ -1,6 +1,7 @@
 #include <cpp11.hpp>
 #include "stochtree_types.h"
 #include <stochtree/container.h>
+#include <stochtree/discrete_sampler.h>
 #include <stochtree/leaf_model.h>
 #include <stochtree/meta.h>
 #include <stochtree/partition_tracker.h>
@@ -281,4 +282,39 @@ cpp11::external_pointer<StochTree::ForestTracker> forest_tracker_cpp(cpp11::exte
     
     // Release management of the pointer to R session
     return cpp11::external_pointer<StochTree::ForestTracker>(tracker_ptr_.release());
+}
+
+[[cpp11::register]]
+cpp11::writable::integers sample_without_replacement_integer_cpp(
+    cpp11::integers population_vector, 
+    cpp11::doubles sampling_probs, 
+    int sample_size
+) {
+    // Unpack pointer to population vector
+    int population_size = population_vector.size();
+    int* population_vector_ptr = INTEGER(PROTECT(population_vector));
+
+    // Unpack pointer to sampling probabilities
+    double* sampling_probs_ptr = REAL(PROTECT(sampling_probs));
+
+    // Create output vector
+    cpp11::writable::integers output(sample_size);
+    
+    // Unpack pointer to output vector
+    int* output_ptr = INTEGER(PROTECT(output));
+
+    // Create C++ RNG
+    std::random_device rd;
+    std::mt19937 gen(rd());
+  
+    // Run the sampler
+    StochTree::sample_without_replacement<int, double>(
+        output_ptr, sampling_probs_ptr, population_vector_ptr, population_size, sample_size, gen
+    );
+
+    // Unprotect raw pointers
+    UNPROTECT(3);
+
+    // Return result
+    return(output);
 }

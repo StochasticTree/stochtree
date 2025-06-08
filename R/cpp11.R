@@ -640,6 +640,10 @@ forest_tracker_cpp <- function(data, feature_types, num_trees, n) {
   .Call(`_stochtree_forest_tracker_cpp`, data, feature_types, num_trees, n)
 }
 
+sample_without_replacement_integer_cpp <- function(population_vector, sampling_probs, sample_size) {
+  .Call(`_stochtree_sample_without_replacement_integer_cpp`, population_vector, sampling_probs, sample_size)
+}
+
 init_json_cpp <- function() {
   .Call(`_stochtree_init_json_cpp`)
 }

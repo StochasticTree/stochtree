@@ -271,3 +271,21 @@ createForestModel <- function(forest_dataset, forest_model_config, global_model_
     )))
 }
 
+
+#' Draw `sample_size` samples from `population_vector` without replacement, weighted by `sampling_probabilities`
+#'
+#' @param population_vector Vector from which to draw samples.
+#' @param sampling_probabilities Vector of probabilities of drawing each element of `population_vector`.
+#' @param sample_size Number of samples to draw from `population_vector`. Must be less than or equal to `length(population_vector)`
+#'
+#' @returns Vector of size `sample_size`
+#' @export
+#'
+#' @examples
+#' a <- c(4,3,2,5,1,9,7)
+#' p <- c(0.7,0.2,0.05,0.02,0.01,0.01,0.01)
+#' num_samples <- 5
+#' sample_without_replacement(a, p, num_samples)
+sample_without_replacement <- function(population_vector, sampling_probabilities, sample_size) {
+    return(sample_without_replacement_integer_cpp(population_vector, sampling_probabilities, sample_size))
+}
