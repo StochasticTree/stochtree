@@ -282,7 +282,7 @@ createForestModel <- function(forest_dataset, forest_model_config, global_model_
 #' @export
 #'
 #' @examples
-#' a <- c(4,3,2,5,1,9,7)
+#' a <- as.integer(c(4,3,2,5,1,9,7))
 #' p <- c(0.7,0.2,0.05,0.02,0.01,0.01,0.01)
 #' num_samples <- 5
 #' sample_without_replacement(a, p, num_samples)
