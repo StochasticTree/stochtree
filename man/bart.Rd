@@ -99,6 +99,7 @@ that were not in the training set.}
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
 \item \code{probit_outcome_model} Whether or not the outcome should be modeled as explicitly binary via a probit link. If \code{TRUE}, \code{y} must only contain the values \code{0} and \code{1}. Default: \code{FALSE}.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features passed in the training dataset.
 }}
 
 \item{variance_forest_params}{(Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -114,6 +115,7 @@ that were not in the training set.}
 \item \code{var_forest_prior_scale} Scale parameter in the \code{IG(var_forest_prior_shape, var_forest_prior_scale)} conditional error variance model (which is only sampled if \code{num_trees > 0}). Calibrated internally as \code{num_trees / leaf_prior_calibration_param^2} if not set.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features passed in the training dataset.
 }}
 }
 \value{
@@ -143,6 +145,7 @@ X_test <- X[test_inds,]
 X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
+
 bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 }

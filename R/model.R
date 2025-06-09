@@ -86,6 +86,7 @@ ForestModel <- R6::R6Class(
             b_forest <- forest_model_config$variance_forest_scale
             global_scale <- global_model_config$global_error_variance
             cutpoint_grid_size <- forest_model_config$cutpoint_grid_size
+            num_features_subsample <- forest_model_config$num_features_subsample
             
             # Default to empty integer vector if sweep_update_indices is NULL
             if (is.null(sweep_update_indices)) {
@@ -113,7 +114,7 @@ ForestModel <- R6::R6Class(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
                     self$tree_prior_ptr, rng$rng_ptr, sweep_update_indices, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, num_features_subsample
                 )
             } else {
                 sample_mcmc_one_iteration_cpp(

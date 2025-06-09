@@ -59,6 +59,7 @@
 #'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 #'   - `probit_outcome_model` Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
+#'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features passed in the training dataset.
 #'
 #' @param variance_forest_params (Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -73,6 +74,7 @@
 #'   - `var_forest_prior_scale` Scale parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2` if not set.
 #'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+#'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features passed in the training dataset.
 #'   
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
@@ -98,6 +100,7 @@
 #' X_train <- X[train_inds,]
 #' y_test <- y[test_inds]
 #' y_train <- y[train_inds]
+#' 
 #' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
 #'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train = NULL, 
@@ -127,7 +130,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         sample_sigma2_leaf = TRUE, sigma2_leaf_init = NULL, 
         sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL, 
         keep_vars = NULL, drop_vars = NULL, 
-        probit_outcome_model = FALSE
+        probit_outcome_model = FALSE, 
+        num_features_subsample = NULL
     )
     mean_forest_params_updated <- preprocessParams(
         mean_forest_params_default, mean_forest_params
@@ -141,7 +145,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         var_forest_leaf_init = NULL,
         var_forest_prior_shape = NULL, 
         var_forest_prior_scale = NULL, 
-        keep_vars = NULL, drop_vars = NULL
+        keep_vars = NULL, drop_vars = NULL, 
+        num_features_subsample = NULL
     )
     variance_forest_params_updated <- preprocessParams(
         variance_forest_params_default, variance_forest_params
@@ -176,6 +181,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     keep_vars_mean <- mean_forest_params_updated$keep_vars
     drop_vars_mean <- mean_forest_params_updated$drop_vars
     probit_outcome_model <- mean_forest_params_updated$probit_outcome_model
+    num_features_subsample_mean <- mean_forest_params_updated$num_features_subsample
     
     # 3. Variance forest parameters
     num_trees_variance <- variance_forest_params_updated$num_trees
@@ -189,6 +195,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     b_forest <- variance_forest_params_updated$var_forest_prior_scale
     keep_vars_variance <- variance_forest_params_updated$keep_vars
     drop_vars_variance <- variance_forest_params_updated$drop_vars
+    num_features_subsample_variance <- variance_forest_params_updated$num_features_subsample
     
     # Check if there are enough GFR samples to seed num_chains samplers
     if (num_gfr > 0) {
@@ -373,6 +380,15 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         variable_weights_variance <- variable_weights_variance[original_var_indices]*variable_weights_adj
         variable_weights_variance[!(original_var_indices %in% variable_subset_variance)] <- 0
     }
+    
+    # Set num_features_subsample to default, ncol(X_train), if not already set
+    if (is.null(num_features_subsample_mean)) {
+        num_features_subsample_mean <- ncol(X_train)
+    }
+    if (is.null(num_features_subsample_variance)) {
+        num_features_subsample_variance <- ncol(X_train)
+    }
+    
 
     # Convert all input data to matrices if not already converted
     if ((is.null(dim(leaf_basis_train))) && (!is.null(leaf_basis_train))) {
@@ -633,7 +649,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                                                             num_observations=nrow(X_train), variable_weights=variable_weights_mean, leaf_dimension=leaf_dimension, 
                                                             alpha=alpha_mean, beta=beta_mean, min_samples_leaf=min_samples_leaf_mean, max_depth=max_depth_mean, 
                                                             leaf_model_type=leaf_model_mean_forest, leaf_model_scale=current_leaf_scale, 
-                                                            cutpoint_grid_size=cutpoint_grid_size)
+                                                            cutpoint_grid_size=cutpoint_grid_size, num_features_subsample=num_features_subsample_mean)
         forest_model_mean <- createForestModel(forest_dataset_train, forest_model_config_mean, global_model_config)
     }
     if (include_variance_forest) {
@@ -641,7 +657,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                                                                 num_observations=nrow(X_train), variable_weights=variable_weights_variance, leaf_dimension=1, 
                                                                 alpha=alpha_variance, beta=beta_variance, min_samples_leaf=min_samples_leaf_variance, 
                                                                 max_depth=max_depth_variance, leaf_model_type=leaf_model_variance_forest, 
-                                                                cutpoint_grid_size=cutpoint_grid_size)
+                                                                cutpoint_grid_size=cutpoint_grid_size, num_features_subsample=num_features_subsample_variance)
         forest_model_variance <- createForestModel(forest_dataset_train, forest_model_config_variance, global_model_config)
     }
     
