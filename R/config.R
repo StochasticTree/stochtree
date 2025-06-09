@@ -143,7 +143,7 @@ ForestModelConfig <- R6::R6Class(
                 stop("`num_features_subsample` cannot be larger than `num_features`")
             }
             if (num_features_subsample <= 0) {
-                stop("`num_features_subsample` must at least 1")
+                stop("`num_features_subsample` must be at least 1")
             }
             self$num_features_subsample <- num_features_subsample
             

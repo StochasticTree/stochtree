@@ -374,9 +374,8 @@ num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-general_params <- list(sample_sigma2_global = F)
-mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 100, 
-                           probit_outcome_model = T)
+general_params <- list(sample_sigma2_global = F, probit_outcome_model = T)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 100)
 bart_model_warmstart <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
@@ -447,9 +446,8 @@ num_gfr <- 0
 num_burnin <- 100
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-general_params <- list(sample_sigma2_global = F)
-mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 100, 
-                           probit_outcome_model = T)
+general_params <- list(sample_sigma2_global = F, probit_outcome_model = T)
+mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 100)
 bart_model_root <- stochtree::bart(
     X_train = X_train, y_train = y_train, X_test = X_test, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
