@@ -7,6 +7,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from stochtree import BARTModel
 from sklearn.model_selection import train_test_split
+import timeit
 
 # Generate sample data
 # RNG
@@ -15,7 +16,7 @@ rng = np.random.default_rng(random_seed)
 
 # Generate covariates and basis
 n = 1000
-p_X = 20
+p_X = 100
 X = rng.uniform(0, 1, (n, p_X))
 
 # Define the outcome mean function
@@ -44,11 +45,17 @@ y_train = y[train_inds]
 y_test = y[test_inds]
 
 # Run XBART with the full feature set
+s = """\
 bart_model_a = BARTModel()
 forest_config_a = {"num_trees": 100}
 bart_model_a.sample(X_train=X_train, y_train=y_train, X_test=X_test, num_gfr=100, num_mcmc=0, mean_forest_params=forest_config_a)
+"""
+print(timeit.timeit(stmt=s, number=5, globals=globals()))
 
 # Run XBART with each tree considering random subsets of 5 features
+s = """\
 bart_model_b = BARTModel()
 forest_config_b = {"num_trees": 100, "num_features_subsample": 5}
 bart_model_b.sample(X_train=X_train, y_train=y_train, X_test=X_test, num_gfr=100, num_mcmc=0, mean_forest_params=forest_config_b)
+"""
+print(timeit.timeit(stmt=s, number=5, globals=globals()))
