@@ -3,7 +3,7 @@ library(stochtree)
 library(microbenchmark)
 
 # Generate the data
-n <- 5000
+n <- 1000
 p <- 100
 snr <- 2
 X <- matrix(runif(n*p), ncol = p)
@@ -46,8 +46,8 @@ microbenchmark::microbenchmark(
 )
 
 Rprof()
-stochtree::bart(
-    X_train = X, y_train = y, 
+model_subsampling <- stochtree::bart(
+    X_train = X_train, y_train = y_train, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     general_params = general_params, mean_forest_params = mean_params_a
 )
@@ -55,10 +55,20 @@ Rprof(NULL)
 summaryRprof()
 
 Rprof()
-stochtree::bart(
-    X_train = X, y_train = y, 
+model_no_subsampling <- stochtree::bart(
+    X_train = X_train, y_train = y_train, 
     num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
     general_params = general_params, mean_forest_params = mean_params_b
 )
 Rprof(NULL)
 summaryRprof()
+
+# Compare out of sample RMSE of the two models
+y_hat_test_subsampling <- rowMeans(predict(model_subsampling, X = X_test)$y_hat)
+rmse_subsampling <- (
+    sqrt(mean((y_hat_test_subsampling - y_test)^2))
+)
+y_hat_test_no_subsampling <- rowMeans(predict(model_no_subsampling, X = X_test)$y_hat)
+rmse_no_subsampling <- (
+    sqrt(mean((y_hat_test_no_subsampling - y_test)^2))
+)
