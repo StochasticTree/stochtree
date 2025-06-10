@@ -107,6 +107,7 @@ that were not in the training set.}
 \item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 }}
 
 \item{treatment_effect_forest_params}{(Optional) A list of treatment effect forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -124,6 +125,7 @@ that were not in the training set.}
 \item \code{delta_max} Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in \code{general_params}. Must be > 0 and < 1. Default: \code{0.9}. Ignored if \code{sigma2_leaf_init} is set directly, as this parameter is used to calibrate \code{sigma2_leaf_init}.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 }}
 
 \item{variance_forest_params}{(Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -139,6 +141,7 @@ that were not in the training set.}
 \item \code{var_forest_prior_scale} Scale parameter in the \code{IG(var_forest_prior_shape, var_forest_prior_scale)} conditional error variance model (which is only sampled if \code{num_trees > 0}). Calibrated internally as \code{num_trees / 1.5^2} if not set.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 }}
 }
 \value{
