@@ -170,6 +170,7 @@ class ForestSampler:
             forest_config.get_variance_forest_scale(),
             global_config.get_global_error_variance(),
             forest_config.get_leaf_model_type(),
+            forest_config.get_num_features_subsample(),
             keep_forest,
             gfr,
         )

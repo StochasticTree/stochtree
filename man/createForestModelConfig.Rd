@@ -20,7 +20,8 @@ createForestModelConfig(
   leaf_model_scale = NULL,
   variance_forest_shape = 1,
   variance_forest_scale = 1,
-  cutpoint_grid_size = 100
+  cutpoint_grid_size = 100,
+  num_features_subsample = NULL
 )
 }
 \arguments{
@@ -55,6 +56,8 @@ createForestModelConfig(
 \item{variance_forest_scale}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
 
 \item{cutpoint_grid_size}{Number of unique cutpoints to consider (default: \code{100})}
+
+\item{num_features_subsample}{Number of features to subsample for the GFR algorithm}
 }
 \value{
 ForestModelConfig object

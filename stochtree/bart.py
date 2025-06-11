@@ -131,6 +131,7 @@ class BARTModel:
             * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
             * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
+            * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
 
         mean_forest_params : dict, optional
             Dictionary of mean forest model parameters, each of which has a default value processed internally, so this argument is optional.
@@ -146,7 +147,7 @@ class BARTModel:
             * `sigma2_leaf_scale` (`float`): Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the mean forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the mean forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
-            * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
+            * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 
         variance_forest_params : dict, optional
             Dictionary of variance forest model  parameters, each of which has a default value processed internally, so this argument is optional.
@@ -162,6 +163,7 @@ class BARTModel:
             * `var_forest_prior_scale` (`float`): Scale parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / leaf_prior_calibration_param^2` if not set here.
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the variance forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the variance forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+            * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 
         previous_model_json : str, optional
             JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Defaults to `None`.
@@ -206,6 +208,7 @@ class BARTModel:
             "sigma2_leaf_scale": None,
             "keep_vars": None,
             "drop_vars": None,
+            "num_features_subsample": None,
         }
         mean_forest_params_updated = _preprocess_params(
             mean_forest_params_default, mean_forest_params
@@ -224,6 +227,7 @@ class BARTModel:
             "var_forest_prior_scale": None,
             "keep_vars": None,
             "drop_vars": None,
+            "num_features_subsample": None,
         }
         variance_forest_params_updated = _preprocess_params(
             variance_forest_params_default, variance_forest_params
@@ -257,6 +261,7 @@ class BARTModel:
         b_leaf = mean_forest_params_updated["sigma2_leaf_scale"]
         keep_vars_mean = mean_forest_params_updated["keep_vars"]
         drop_vars_mean = mean_forest_params_updated["drop_vars"]
+        num_features_subsample_mean = mean_forest_params_updated["num_features_subsample"]
 
         # 3. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
@@ -272,6 +277,7 @@ class BARTModel:
         b_forest = variance_forest_params_updated["var_forest_prior_scale"]
         keep_vars_variance = variance_forest_params_updated["keep_vars"]
         drop_vars_variance = variance_forest_params_updated["drop_vars"]
+        num_features_subsample_variance = variance_forest_params_updated["num_features_subsample"]
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -714,6 +720,12 @@ class BARTModel:
             [variable_subset_variance.count(i) == 0 for i in original_var_indices]
         ] = 0
 
+        # Set num_features_subsample to default, ncol(X_train), if not already set
+        if num_features_subsample_mean is None:
+            num_features_subsample_mean = X_train.shape[1]
+        if num_features_subsample_variance is None:
+            num_features_subsample_variance = X_train.shape[1]
+
         # Preliminary runtime checks for probit link
         if not self.include_mean_forest:
             self.probit_outcome_model = False
@@ -1048,7 +1060,8 @@ class BARTModel:
                 max_depth=max_depth_mean,
                 leaf_model_type=leaf_model_mean_forest,
                 leaf_model_scale=current_leaf_scale,
-                cutpoint_grid_size=cutpoint_grid_size,
+                cutpoint_grid_size=cutpoint_grid_size, 
+                num_features_subsample=num_features_subsample_mean
             )
             forest_sampler_mean = ForestSampler(
                 forest_dataset_train,
@@ -1071,6 +1084,7 @@ class BARTModel:
                 cutpoint_grid_size=cutpoint_grid_size,
                 variance_forest_shape=a_forest,
                 variance_forest_scale=b_forest,
+                num_features_subsample=num_features_subsample_variance
             )
             forest_sampler_variance = ForestSampler(
                 forest_dataset_train,

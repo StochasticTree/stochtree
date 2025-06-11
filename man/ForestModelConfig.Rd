@@ -34,6 +34,8 @@ Shape parameter for IG leaf models
 Scale parameter for IG leaf models
 
 Number of unique cutpoints to consider
+
+Number of features to subsample for the GFR algorithm
 }
 \description{
 The "low-level" stochtree interface enables a high degreee of sampler
@@ -76,7 +78,9 @@ forest model they wish to run.
 
 \item{\code{variance_forest_scale}}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3})}
 
-\item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider
+\item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider}
+
+\item{\code{num_features_subsample}}{Number of features to subsample for the GFR algorithm
 Create a new ForestModelConfig object.}
 }
 \if{html}{\out{</div>}}
@@ -96,6 +100,7 @@ Create a new ForestModelConfig object.}
 \item \href{#method-ForestModelConfig-update_variance_forest_shape}{\code{ForestModelConfig$update_variance_forest_shape()}}
 \item \href{#method-ForestModelConfig-update_variance_forest_scale}{\code{ForestModelConfig$update_variance_forest_scale()}}
 \item \href{#method-ForestModelConfig-update_cutpoint_grid_size}{\code{ForestModelConfig$update_cutpoint_grid_size()}}
+\item \href{#method-ForestModelConfig-update_num_features_subsample}{\code{ForestModelConfig$update_num_features_subsample()}}
 \item \href{#method-ForestModelConfig-get_feature_types}{\code{ForestModelConfig$get_feature_types()}}
 \item \href{#method-ForestModelConfig-get_sweep_indices}{\code{ForestModelConfig$get_sweep_indices()}}
 \item \href{#method-ForestModelConfig-get_variable_weights}{\code{ForestModelConfig$get_variable_weights()}}
@@ -111,6 +116,7 @@ Create a new ForestModelConfig object.}
 \item \href{#method-ForestModelConfig-get_variance_forest_shape}{\code{ForestModelConfig$get_variance_forest_shape()}}
 \item \href{#method-ForestModelConfig-get_variance_forest_scale}{\code{ForestModelConfig$get_variance_forest_scale()}}
 \item \href{#method-ForestModelConfig-get_cutpoint_grid_size}{\code{ForestModelConfig$get_cutpoint_grid_size()}}
+\item \href{#method-ForestModelConfig-get_num_features_subsample}{\code{ForestModelConfig$get_num_features_subsample()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -134,7 +140,8 @@ Create a new ForestModelConfig object.}
   leaf_model_scale = NULL,
   variance_forest_shape = 1,
   variance_forest_scale = 1,
-  cutpoint_grid_size = 100
+  cutpoint_grid_size = 100,
+  num_features_subsample = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -172,6 +179,8 @@ Create a new ForestModelConfig object.}
 \item{\code{variance_forest_scale}}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
 
 \item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider (default: \code{100})}
+
+\item{\code{num_features_subsample}}{Number of features to subsample for the GFR algorithm}
 }
 \if{html}{\out{</div>}}
 }
@@ -367,6 +376,23 @@ Update number of unique cutpoints to consider
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-update_num_features_subsample"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-update_num_features_subsample}{}}}
+\subsection{Method \code{update_num_features_subsample()}}{
+Update number of features to subsample for the GFR algorithm
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$update_num_features_subsample(num_features_subsample)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{num_features_subsample}}{Number of features to subsample for the GFR algorithm}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ForestModelConfig-get_feature_types"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestModelConfig-get_feature_types}{}}}
 \subsection{Method \code{get_feature_types()}}{
@@ -513,6 +539,16 @@ Query scale parameter for IG leaf models for this ForestModelConfig object
 Query number of unique cutpoints to consider for this ForestModelConfig object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_cutpoint_grid_size()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-get_num_features_subsample"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_num_features_subsample}{}}}
+\subsection{Method \code{get_num_features_subsample()}}{
+Query number of features to subsample for the GFR algorithm
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_num_features_subsample()}\if{html}{\out{</div>}}
 }
 
 }

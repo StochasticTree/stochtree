@@ -62,6 +62,7 @@
 #'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
 #'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+#'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 #'
 #' @param treatment_effect_forest_params (Optional) A list of treatment effect forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -78,6 +79,7 @@
 #'   - `delta_max` Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in `general_params`. Must be > 0 and < 1. Default: `0.9`. Ignored if `sigma2_leaf_init` is set directly, as this parameter is used to calibrate `sigma2_leaf_init`.
 #'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+#'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 #'
 #' @param variance_forest_params (Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -92,6 +94,7 @@
 #'   - `var_forest_prior_scale` Scale parameter in the `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance model (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2` if not set.
 #'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+#'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 #'
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
@@ -171,7 +174,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         min_samples_leaf = 5, max_depth = 10, 
         sample_sigma2_leaf = TRUE, sigma2_leaf_init = NULL, 
         sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL, 
-        keep_vars = NULL, drop_vars = NULL
+        keep_vars = NULL, drop_vars = NULL, 
+        num_features_subsample = NULL
     )
     prognostic_forest_params_updated <- preprocessParams(
         prognostic_forest_params_default, prognostic_forest_params
@@ -183,8 +187,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         min_samples_leaf = 5, max_depth = 5, 
         sample_sigma2_leaf = FALSE, sigma2_leaf_init = NULL, 
         sigma2_leaf_shape = 3, sigma2_leaf_scale = NULL, 
-        keep_vars = NULL, drop_vars = NULL, 
-        delta_max = 0.9
+        keep_vars = NULL, drop_vars = NULL, delta_max = 0.9, 
+        num_features_subsample = NULL
     )
     treatment_effect_forest_params_updated <- preprocessParams(
         treatment_effect_forest_params_default, treatment_effect_forest_params
@@ -198,7 +202,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         variance_forest_init = NULL, 
         var_forest_prior_shape = NULL, 
         var_forest_prior_scale = NULL, 
-        keep_vars = NULL, drop_vars = NULL
+        keep_vars = NULL, drop_vars = NULL, 
+        num_features_subsample = NULL
     )
     variance_forest_params_updated <- preprocessParams(
         variance_forest_params_default, variance_forest_params
@@ -238,6 +243,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     b_leaf_mu <- prognostic_forest_params_updated$sigma2_leaf_scale
     keep_vars_mu <- prognostic_forest_params_updated$keep_vars
     drop_vars_mu <- prognostic_forest_params_updated$drop_vars
+    num_features_subsample_mu <- prognostic_forest_params_updated$num_features_subsample
     
     # 3. Tau forest parameters
     num_trees_tau <- treatment_effect_forest_params_updated$num_trees
@@ -252,6 +258,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     keep_vars_tau <- treatment_effect_forest_params_updated$keep_vars
     drop_vars_tau <- treatment_effect_forest_params_updated$drop_vars
     delta_max <- treatment_effect_forest_params_updated$delta_max
+    num_features_subsample_tau <- treatment_effect_forest_params_updated$num_features_subsample
     
     # 4. Variance forest parameters
     num_trees_variance <- variance_forest_params_updated$num_trees
@@ -265,6 +272,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     b_forest <- variance_forest_params_updated$var_forest_prior_scale
     keep_vars_variance <- variance_forest_params_updated$keep_vars
     drop_vars_variance <- variance_forest_params_updated$drop_vars
+    num_features_subsample_variance <- variance_forest_params_updated$num_features_subsample
     
     # Check if there are enough GFR samples to seed num_chains samplers
     if (num_gfr > 0) {
@@ -476,6 +484,17 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     feature_types <- X_train_metadata$feature_types
     X_test_raw <- X_test
     if (!is.null(X_test)) X_test <- preprocessPredictionData(X_test, X_train_metadata)
+    
+    # Set num_features_subsample to default, ncol(X_train), if not already set
+    if (is.null(num_features_subsample_mu)) {
+        num_features_subsample_mu <- ncol(X_train)
+    }
+    if (is.null(num_features_subsample_tau)) {
+        num_features_subsample_tau <- ncol(X_train)
+    }
+    if (is.null(num_features_subsample_variance)) {
+        num_features_subsample_variance <- ncol(X_train)
+    }
     
     # Convert all input data to matrices if not already converted
     if ((is.null(dim(Z_train))) && (!is.null(Z_train))) {
@@ -899,12 +918,12 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                                                       num_observations=nrow(X_train), variable_weights=variable_weights_mu, leaf_dimension=leaf_dimension_mu_forest, 
                                                       alpha=alpha_mu, beta=beta_mu, min_samples_leaf=min_samples_leaf_mu, max_depth=max_depth_mu, 
                                                       leaf_model_type=leaf_model_mu_forest, leaf_model_scale=current_leaf_scale_mu, 
-                                                      cutpoint_grid_size=cutpoint_grid_size)
+                                                      cutpoint_grid_size=cutpoint_grid_size, num_features_subsample = num_features_subsample_mu)
     forest_model_config_tau <- createForestModelConfig(feature_types=feature_types, num_trees=num_trees_tau, num_features=ncol(X_train), 
                                                        num_observations=nrow(X_train), variable_weights=variable_weights_tau, leaf_dimension=leaf_dimension_tau_forest, 
                                                        alpha=alpha_tau, beta=beta_tau, min_samples_leaf=min_samples_leaf_tau, max_depth=max_depth_tau, 
                                                        leaf_model_type=leaf_model_tau_forest, leaf_model_scale=current_leaf_scale_tau, 
-                                                       cutpoint_grid_size=cutpoint_grid_size)
+                                                       cutpoint_grid_size=cutpoint_grid_size, num_features_subsample = num_features_subsample_tau)
     forest_model_mu <- createForestModel(forest_dataset_train, forest_model_config_mu, global_model_config)
     forest_model_tau <- createForestModel(forest_dataset_train, forest_model_config_tau, global_model_config)
     if (include_variance_forest) {
@@ -912,7 +931,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                                                                 num_observations=nrow(X_train), variable_weights=variable_weights_variance, 
                                                                 leaf_dimension=leaf_dimension_variance_forest, alpha=alpha_variance, beta=beta_variance, 
                                                                 min_samples_leaf=min_samples_leaf_variance, max_depth=max_depth_variance, 
-                                                                leaf_model_type=leaf_model_variance_forest, cutpoint_grid_size=cutpoint_grid_size)
+                                                                leaf_model_type=leaf_model_variance_forest, cutpoint_grid_size=cutpoint_grid_size, 
+                                                                num_features_subsample=num_features_subsample_variance)
         forest_model_variance <- createForestModel(forest_dataset_train, forest_model_config_variance, global_model_config)
     }
     

@@ -168,6 +168,7 @@ class BCFModel:
             * `sigma2_leaf_scale` (`float`): Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the prognostic (`mu(X)`) forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the prognostic (`mu(X)`) forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+            * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 
         treatment_effect_forest_params : dict, optional
             Dictionary of treatment effect forest model parameters, each of which has a default value processed internally, so this argument is optional.
@@ -184,6 +185,7 @@ class BCFModel:
             * `delta_max` (`float`): Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in `general_params`. Must be > 0 and < 1. Defaults to `0.9`. Ignored if `sigma2_leaf_init` is set directly, as this parameter is used to calibrate `sigma2_leaf_init`.
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the treatment effect (`tau(X)`) forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (`tau(X)`) forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+            * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 
         variance_forest_params : dict, optional
             Dictionary of variance forest model  parameters, each of which has a default value processed internally, so this argument is optional.
@@ -199,6 +201,7 @@ class BCFModel:
             * `var_forest_prior_scale` (`float`): Scale parameter in the [optional] `IG(var_forest_prior_shape, var_forest_prior_scale)` conditional error variance forest (which is only sampled if `num_trees > 0`). Calibrated internally as `num_trees / 1.5^2` if not set here.
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the variance forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the variance forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
+            * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 
         Returns
         -------
@@ -242,6 +245,7 @@ class BCFModel:
             "sigma2_leaf_scale": None,
             "keep_vars": None,
             "drop_vars": None,
+            "num_features_subsample": None,
         }
         prognostic_forest_params_updated = _preprocess_params(
             prognostic_forest_params_default, prognostic_forest_params
@@ -261,6 +265,7 @@ class BCFModel:
             "delta_max": 0.9,
             "keep_vars": None,
             "drop_vars": None,
+            "num_features_subsample": None,
         }
         treatment_effect_forest_params_updated = _preprocess_params(
             treatment_effect_forest_params_default, treatment_effect_forest_params
@@ -279,6 +284,7 @@ class BCFModel:
             "var_forest_prior_scale": None,
             "keep_vars": None,
             "drop_vars": None,
+            "num_features_subsample": None,
         }
         variance_forest_params_updated = _preprocess_params(
             variance_forest_params_default, variance_forest_params
@@ -316,6 +322,7 @@ class BCFModel:
         b_leaf_mu = prognostic_forest_params_updated["sigma2_leaf_scale"]
         keep_vars_mu = prognostic_forest_params_updated["keep_vars"]
         drop_vars_mu = prognostic_forest_params_updated["drop_vars"]
+        num_features_subsample_mu = prognostic_forest_params_updated["num_features_subsample"]
 
         # 3. Tau forest parameters
         num_trees_tau = treatment_effect_forest_params_updated["num_trees"]
@@ -334,6 +341,7 @@ class BCFModel:
         delta_max = treatment_effect_forest_params_updated["delta_max"]
         keep_vars_tau = treatment_effect_forest_params_updated["keep_vars"]
         drop_vars_tau = treatment_effect_forest_params_updated["drop_vars"]
+        num_features_subsample_tau = treatment_effect_forest_params_updated["num_features_subsample"]
 
         # 4. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
@@ -349,6 +357,7 @@ class BCFModel:
         b_forest = variance_forest_params_updated["var_forest_prior_scale"]
         keep_vars_variance = variance_forest_params_updated["keep_vars"]
         drop_vars_variance = variance_forest_params_updated["drop_vars"]
+        num_features_subsample_variance = variance_forest_params_updated["num_features_subsample"]
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -744,6 +753,19 @@ class BCFModel:
             if not isinstance(keep_gfr, bool):
                 raise ValueError("keep_gfr must be a bool")
 
+        # Covariate preprocessing
+        self._covariate_preprocessor = CovariatePreprocessor()
+        self._covariate_preprocessor.fit(X_train)
+        X_train_processed = self._covariate_preprocessor.transform(X_train)
+        if X_test is not None:
+            X_test_processed = self._covariate_preprocessor.transform(X_test)
+        feature_types = np.asarray(
+            self._covariate_preprocessor._processed_feature_types
+        )
+        original_var_indices = (
+            self._covariate_preprocessor.fetch_original_feature_indices()
+        )
+
         # Standardize the keep variable lists to numeric indices
         if keep_vars_mu is not None:
             if isinstance(keep_vars_mu, list):
@@ -1052,18 +1074,13 @@ class BCFModel:
         else:
             variable_subset_variance = [i for i in range(X_train.shape[1])]
 
-        # Covariate preprocessing
-        self._covariate_preprocessor = CovariatePreprocessor()
-        self._covariate_preprocessor.fit(X_train)
-        X_train_processed = self._covariate_preprocessor.transform(X_train)
-        if X_test is not None:
-            X_test_processed = self._covariate_preprocessor.transform(X_test)
-        feature_types = np.asarray(
-            self._covariate_preprocessor._processed_feature_types
-        )
-        original_var_indices = (
-            self._covariate_preprocessor.fetch_original_feature_indices()
-        )
+        # Set num_features_subsample to default, ncol(X_train), if not already set
+        if num_features_subsample_mu is None:
+            num_features_subsample_mu = X_train.shape[1]
+        if num_features_subsample_tau is None:
+            num_features_subsample_tau = X_train.shape[1]
+        if num_features_subsample_variance is None:
+            num_features_subsample_variance = X_train.shape[1]
 
         # Determine whether a test set is provided
         self.has_test = X_test is not None
@@ -1519,6 +1536,7 @@ class BCFModel:
             leaf_model_type=leaf_model_mu,
             leaf_model_scale=current_leaf_scale_mu,
             cutpoint_grid_size=cutpoint_grid_size,
+            num_features_subsample=num_features_subsample_mu,
         )
         forest_sampler_mu = ForestSampler(
             forest_dataset_train,
@@ -1539,6 +1557,7 @@ class BCFModel:
             leaf_model_type=leaf_model_tau,
             leaf_model_scale=current_leaf_scale_tau,
             cutpoint_grid_size=cutpoint_grid_size,
+            num_features_subsample=num_features_subsample_tau,
         )
         forest_sampler_tau = ForestSampler(
             forest_dataset_train,
@@ -1561,6 +1580,7 @@ class BCFModel:
                 cutpoint_grid_size=cutpoint_grid_size,
                 variance_forest_shape=a_forest,
                 variance_forest_scale=b_forest,
+                num_features_subsample=num_features_subsample_variance,
             )
             forest_sampler_variance = ForestSampler(
                 forest_dataset_train, global_model_config, forest_model_config_variance

@@ -86,6 +86,7 @@ ForestModel <- R6::R6Class(
             b_forest <- forest_model_config$variance_forest_scale
             global_scale <- global_model_config$global_error_variance
             cutpoint_grid_size <- forest_model_config$cutpoint_grid_size
+            num_features_subsample <- forest_model_config$num_features_subsample
             
             # Default to empty integer vector if sweep_update_indices is NULL
             if (is.null(sweep_update_indices)) {
@@ -113,7 +114,7 @@ ForestModel <- R6::R6Class(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
                     self$tree_prior_ptr, rng$rng_ptr, sweep_update_indices, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, num_features_subsample
                 )
             } else {
                 sample_mcmc_one_iteration_cpp(
@@ -271,3 +272,21 @@ createForestModel <- function(forest_dataset, forest_model_config, global_model_
     )))
 }
 
+
+#' Draw `sample_size` samples from `population_vector` without replacement, weighted by `sampling_probabilities`
+#'
+#' @param population_vector Vector from which to draw samples.
+#' @param sampling_probabilities Vector of probabilities of drawing each element of `population_vector`.
+#' @param sample_size Number of samples to draw from `population_vector`. Must be less than or equal to `length(population_vector)`
+#'
+#' @returns Vector of size `sample_size`
+#' @export
+#'
+#' @examples
+#' a <- as.integer(c(4,3,2,5,1,9,7))
+#' p <- c(0.7,0.2,0.05,0.02,0.01,0.01,0.01)
+#' num_samples <- 5
+#' sample_without_replacement(a, p, num_samples)
+sample_without_replacement <- function(population_vector, sampling_probabilities, sample_size) {
+    return(sample_without_replacement_integer_cpp(population_vector, sampling_probabilities, sample_size))
+}
