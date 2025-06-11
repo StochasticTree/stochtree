@@ -61,6 +61,9 @@ ForestModelConfig <- R6::R6Class(
         
         #' @field cutpoint_grid_size Number of unique cutpoints to consider
         cutpoint_grid_size = NULL,
+        
+        #' @field num_features_subsample Number of features to subsample for the GFR algorithm
+        num_features_subsample = NULL,
 
         #' Create a new ForestModelConfig object.
         #'
@@ -80,13 +83,14 @@ ForestModelConfig <- R6::R6Class(
         #' @param variance_forest_shape Shape parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
         #' @param variance_forest_scale Scale parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
         #' @param cutpoint_grid_size Number of unique cutpoints to consider (default: `100`)
+        #' @param num_features_subsample Number of features to subsample for the GFR algorithm
         #' 
         #' @return A new ForestModelConfig object.
         initialize = function(feature_types = NULL, sweep_update_indices = NULL, num_trees = NULL, num_features = NULL, 
                               num_observations = NULL, variable_weights = NULL, leaf_dimension = 1, 
                               alpha = 0.95, beta = 2.0, min_samples_leaf = 5, max_depth = -1, 
                               leaf_model_type = 1, leaf_model_scale = NULL, variance_forest_shape = 1.0, 
-                              variance_forest_scale = 1.0, cutpoint_grid_size = 100) {
+                              variance_forest_scale = 1.0, cutpoint_grid_size = 100, num_features_subsample = NULL) {
             if (is.null(feature_types)) {
                 if (is.null(num_features)) {
                     stop("Neither of `num_features` nor `feature_types` (a vector from which `num_features` can be inferred) was provided. Please provide at least one of these inputs when creating a ForestModelConfig object.")
@@ -132,6 +136,16 @@ ForestModelConfig <- R6::R6Class(
             self$variance_forest_shape <- variance_forest_shape
             self$variance_forest_scale <- variance_forest_scale
             self$cutpoint_grid_size <- cutpoint_grid_size
+            if (is.null(num_features_subsample)) {
+                num_features_subsample <- num_features
+            }
+            if (num_features_subsample > num_features) {
+                stop("`num_features_subsample` cannot be larger than `num_features`")
+            }
+            if (num_features_subsample <= 0) {
+                stop("`num_features_subsample` must be at least 1")
+            }
+            self$num_features_subsample <- num_features_subsample
             
             if (!(as.integer(leaf_model_type) == leaf_model_type)) {
                 stop("`leaf_model_type` must be an integer between 0 and 3")
@@ -256,6 +270,19 @@ ForestModelConfig <- R6::R6Class(
         },
         
         #' @description
+        #' Update number of features to subsample for the GFR algorithm
+        #' @param num_features_subsample Number of features to subsample for the GFR algorithm
+        update_num_features_subsample = function(num_features_subsample) {
+            if (num_features_subsample > self$num_features) {
+                stop("`num_features_subsample` cannot be larger than `num_features`")
+            }
+            if (num_features_subsample <= 0) {
+                stop("`num_features_subsample` must at least 1")
+            }
+            self$num_features_subsample <- num_features_subsample
+        }, 
+        
+        #' @description
         #' Query feature types for this ForestModelConfig object
         #' @returns Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
         get_feature_types = function() {
@@ -358,6 +385,13 @@ ForestModelConfig <- R6::R6Class(
         #' @returns Number of unique cutpoints to consider
         get_cutpoint_grid_size = function() {
             return(self$cutpoint_grid_size)
+        }, 
+        
+        #' @description
+        #' Query number of features to subsample for the GFR algorithm
+        #' @returns Number of features to subsample for the GFR algorithm
+        get_num_features_subsample = function() {
+            return(self$num_features_subsample)
         }
     )
 )
@@ -424,6 +458,7 @@ GlobalModelConfig <- R6::R6Class(
 #' @param variance_forest_shape Shape parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
 #' @param variance_forest_scale Scale parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
 #' @param cutpoint_grid_size Number of unique cutpoints to consider (default: `100`)
+#' @param num_features_subsample Number of features to subsample for the GFR algorithm
 #' @return ForestModelConfig object
 #' @export
 #'
@@ -433,12 +468,13 @@ createForestModelConfig <- function(feature_types = NULL, sweep_update_indices =
                                     num_observations = NULL, variable_weights = NULL, leaf_dimension = 1, 
                                     alpha = 0.95, beta = 2.0, min_samples_leaf = 5, max_depth = -1, 
                                     leaf_model_type = 1, leaf_model_scale = NULL, variance_forest_shape = 1.0, 
-                                    variance_forest_scale = 1.0, cutpoint_grid_size = 100){
+                                    variance_forest_scale = 1.0, cutpoint_grid_size = 100, 
+                                    num_features_subsample = NULL){
     return(invisible((
         ForestModelConfig$new(feature_types, sweep_update_indices, num_trees, num_features, num_observations, 
                               variable_weights, leaf_dimension, alpha, beta, min_samples_leaf, 
                               max_depth, leaf_model_type, leaf_model_scale, variance_forest_shape, 
-                              variance_forest_scale, cutpoint_grid_size)
+                              variance_forest_scale, cutpoint_grid_size, num_features_subsample)
     )))
 }
 
