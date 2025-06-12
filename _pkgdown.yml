@@ -112,6 +112,12 @@ reference:
   - rootResetRandomEffectsModel
   - rootResetRandomEffectsTracker
 
+- subtitle: Utilities
+  desc: >
+    Miscellaneous "utility" classes and functions
+  contents:
+  - sample_without_replacement
+
 - title: Package info
   desc: >
     High-level package details
