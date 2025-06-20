@@ -994,7 +994,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     # Variance forest predictions
     if (include_variance_forest) {
         # sigma2_x_hat_train <- forest_samples_variance$predict(forest_dataset_train)
-        sigma2_x_hat_train <- variance_forest_pred_train
+        sigma2_x_hat_train <- exp(variance_forest_pred_train)
         if (has_test) sigma2_x_hat_test <- forest_samples_variance$predict(forest_dataset_test)
     }
     
