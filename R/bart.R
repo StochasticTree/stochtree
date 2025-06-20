@@ -707,6 +707,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     num_retained_samples <- num_gfr + ifelse(keep_burnin, num_burnin, 0) + num_mcmc * num_chains
     if (sample_sigma2_global) global_var_samples <- rep(NA, num_retained_samples)
     if (sample_sigma2_leaf) leaf_scale_samples <- rep(NA, num_retained_samples)
+    if (include_mean_forest) mean_forest_pred_train <- matrix(NA_real_, nrow(X_train), num_retained_samples)
+    if (include_variance_forest) variance_forest_pred_train <- matrix(NA_real_, nrow(X_train), num_retained_samples)
     sample_counter <- 0
     
     # Initialize the leaves of each tree in the mean forest
@@ -757,6 +759,11 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     active_forest = active_forest_mean, rng = rng, forest_model_config = forest_model_config_mean, 
                     global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
                 )
+                
+                # Cache predictions
+                if (keep_sample) {
+                    mean_forest_pred_train[,sample_counter] <- forest_model_mean$get_cached_forest_predictions()
+                }
             }
             if (include_variance_forest) {
                 forest_model_variance$sample_one_iteration(
@@ -764,6 +771,11 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
                     global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
                 )
+                
+                # Cache predictions
+                if (keep_sample) {
+                    variance_forest_pred_train[,sample_counter] <- forest_model_variance$get_cached_forest_predictions()
+                }
             }
             if (sample_sigma2_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
@@ -910,6 +922,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                         active_forest = active_forest_mean, rng = rng, forest_model_config = forest_model_config_mean, 
                         global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                     )
+                    
+                    if (keep_sample) {
+                        mean_forest_pred_train[,sample_counter] <- forest_model_mean$get_cached_forest_predictions()
+                    }
                 }
                 if (include_variance_forest) {
                     forest_model_variance$sample_one_iteration(
@@ -917,6 +933,10 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                         active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
                         global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                     )
+                    
+                    if (keep_sample) {
+                        variance_forest_pred_train[,sample_counter] <- forest_model_variance$get_cached_forest_predictions()
+                    }
                 }
                 if (sample_sigma2_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
@@ -949,6 +969,12 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 rfx_samples$delete_sample(0)
             }
         }
+        if (include_mean_forest) {
+            mean_forest_pred_train <- mean_forest_pred_train[,(num_gfr+1):ncol(mean_forest_pred_train)]
+        }
+        if (include_variance_forest) {
+            variance_forest_pred_train <- variance_forest_pred_train[,(num_gfr+1):ncol(variance_forest_pred_train)]
+        }
         if (sample_sigma2_global) {
             global_var_samples <- global_var_samples[(num_gfr+1):length(global_var_samples)]
         }
@@ -960,13 +986,15 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
 
     # Mean forest predictions
     if (include_mean_forest) {
-        y_hat_train <- forest_samples_mean$predict(forest_dataset_train)*y_std_train + y_bar_train
+        # y_hat_train <- forest_samples_mean$predict(forest_dataset_train)*y_std_train + y_bar_train
+        y_hat_train <- mean_forest_pred_train*y_std_train + y_bar_train
         if (has_test) y_hat_test <- forest_samples_mean$predict(forest_dataset_test)*y_std_train + y_bar_train
     }
     
     # Variance forest predictions
     if (include_variance_forest) {
-        sigma2_x_hat_train <- forest_samples_variance$predict(forest_dataset_train)
+        # sigma2_x_hat_train <- forest_samples_variance$predict(forest_dataset_train)
+        sigma2_x_hat_train <- variance_forest_pred_train
         if (has_test) sigma2_x_hat_test <- forest_samples_variance$predict(forest_dataset_test)
     }
     

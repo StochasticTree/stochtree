@@ -2147,6 +2147,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("ReconstituteTrackerFromForest", &ForestSamplerCpp::ReconstituteTrackerFromForest)
     .def("SampleOneIteration", &ForestSamplerCpp::SampleOneIteration)
     .def("InitializeForestModel", &ForestSamplerCpp::InitializeForestModel)
+    .def("GetCachedForestPredictions", &ForestSamplerCpp::GetCachedForestPredictions)
     .def("PropagateBasisUpdate", &ForestSamplerCpp::PropagateBasisUpdate)
     .def("PropagateResidualUpdate", &ForestSamplerCpp::PropagateResidualUpdate)
     .def("UpdateAlpha", &ForestSamplerCpp::UpdateAlpha)
