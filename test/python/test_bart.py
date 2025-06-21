@@ -406,13 +406,20 @@ class TestBART:
         bart_model_3.from_json_string_list(bart_models_json)
 
         # Assertions
-        y_hat_train_combined, _ = bart_model_3.predict(covariates=X_train)
+        y_hat_train_combined, sigma2_x_train_combined = bart_model_3.predict(covariates=X_train)
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
+        assert sigma2_x_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
         )
         np.testing.assert_allclose(
             y_hat_train_combined[:, num_mcmc : (2 * num_mcmc)], bart_model_2.y_hat_train
+        )
+        np.testing.assert_allclose(
+            sigma2_x_train_combined[:, 0:num_mcmc], bart_model.sigma2_x_train
+        )
+        np.testing.assert_allclose(
+            sigma2_x_train_combined[:, num_mcmc : (2 * num_mcmc)], bart_model_2.sigma2_x_train
         )
         np.testing.assert_allclose(
             bart_model_3.global_var_samples[0:num_mcmc], bart_model.global_var_samples

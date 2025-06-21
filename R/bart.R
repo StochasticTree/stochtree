@@ -760,7 +760,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
                 )
                 
-                # Cache predictions
+                # Cache train set predictions since they are already computed during sampling
                 if (keep_sample) {
                     mean_forest_pred_train[,sample_counter] <- forest_model_mean$get_cached_forest_predictions()
                 }
@@ -772,7 +772,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                     global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
                 )
                 
-                # Cache predictions
+                # Cache train set predictions since they are already computed during sampling
                 if (keep_sample) {
                     variance_forest_pred_train[,sample_counter] <- forest_model_variance$get_cached_forest_predictions()
                 }
@@ -923,6 +923,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                         global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                     )
                     
+                    # Cache train set predictions since they are already computed during sampling
                     if (keep_sample) {
                         mean_forest_pred_train[,sample_counter] <- forest_model_mean$get_cached_forest_predictions()
                     }
@@ -934,6 +935,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                         global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                     )
                     
+                    # Cache train set predictions since they are already computed during sampling
                     if (keep_sample) {
                         variance_forest_pred_train[,sample_counter] <- forest_model_variance$get_cached_forest_predictions()
                     }
