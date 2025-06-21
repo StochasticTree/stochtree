@@ -266,6 +266,17 @@ class ForestSampler:
         self.forest_sampler_cpp.PropagateBasisUpdate(
             dataset.dataset_cpp, residual.residual_cpp, forest.forest_cpp
         )
+    
+    def get_cached_forest_predictions(self) -> np.array:
+        """
+        Extract an internally-cached prediction of a forest on the training dataset in a sampler.
+
+        Returns
+        ----------
+        np.array
+            Numpy 1D array with as many elements as observations in the training dataset
+        """
+        return self.forest_sampler_cpp.GetCachedForestPredictions()
 
     def update_alpha(self, alpha: float) -> None:
         """

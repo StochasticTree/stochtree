@@ -1166,6 +1166,16 @@ class ForestSamplerCpp {
     }
   }
 
+  py::array_t<double> GetCachedForestPredictions() {
+    int n_train = tracker_->GetNumObservations();
+    auto output = py::array_t<double>(py::detail::any_container<py::ssize_t>({n_train}));
+    auto accessor = output.mutable_unchecked<1>();
+    for (size_t i = 0; i < n_train; i++) {
+      accessor(i) = tracker_->GetSamplePrediction(i);
+    }
+    return output;
+  }
+
   void PropagateBasisUpdate(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestCpp& forest) {
     // Perform the update operation
     StochTree::UpdateResidualNewBasis(*tracker_, *(dataset.GetDataset()), *(residual.GetData()), forest.GetEnsemble());
@@ -2147,6 +2157,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("ReconstituteTrackerFromForest", &ForestSamplerCpp::ReconstituteTrackerFromForest)
     .def("SampleOneIteration", &ForestSamplerCpp::SampleOneIteration)
     .def("InitializeForestModel", &ForestSamplerCpp::InitializeForestModel)
+    .def("GetCachedForestPredictions", &ForestSamplerCpp::GetCachedForestPredictions)
     .def("PropagateBasisUpdate", &ForestSamplerCpp::PropagateBasisUpdate)
     .def("PropagateResidualUpdate", &ForestSamplerCpp::PropagateResidualUpdate)
     .def("UpdateAlpha", &ForestSamplerCpp::UpdateAlpha)

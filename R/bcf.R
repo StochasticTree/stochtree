@@ -885,6 +885,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     if (sample_sigma2_global) global_var_samples <- rep(NA, num_retained_samples)
     if (sample_sigma2_leaf_mu) leaf_scale_mu_samples <- rep(NA, num_retained_samples)
     if (sample_sigma2_leaf_tau) leaf_scale_tau_samples <- rep(NA, num_retained_samples)
+    muhat_train_raw <- matrix(NA_real_, nrow(X_train), num_retained_samples)
+    if (include_variance_forest) sigma2_x_train_raw <- matrix(NA_real_, nrow(X_train), num_retained_samples)
     sample_counter <- 0
 
     # Prepare adaptive coding structure
@@ -997,6 +999,11 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
             )
             
+            # Cache train set predictions since they are already computed during sampling
+            if (keep_sample) {
+                muhat_train_raw[,sample_counter] <- forest_model_mu$get_cached_forest_predictions()
+            }
+            
             # Sample variance parameters (if requested)
             if (sample_sigma2_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
@@ -1016,6 +1023,10 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
             )
             
+            # Cannot cache train set predictions for tau because the cached predictions in the 
+            # tracking data structures are pre-multiplied by the basis (treatment)
+            # ...
+
             # Sample coding parameters (if requested)
             if (adaptive_coding) {
                 # Estimate mu(X) and tau(X) and compute y - mu(X)
@@ -1060,6 +1071,11 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
                     global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
                 )
+                
+                # Cache train set predictions since they are already computed during sampling
+                if (keep_sample) {
+                    sigma2_x_train_raw[,sample_counter] <- forest_model_variance$get_cached_forest_predictions()
+                }
             }
             if (sample_sigma2_global) {
                 current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
@@ -1263,6 +1279,11 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                 )
                 
+                # Cache train set predictions since they are already computed during sampling
+                if (keep_sample) {
+                    muhat_train_raw[,sample_counter] <- forest_model_mu$get_cached_forest_predictions()
+                }
+                
                 # Sample variance parameters (if requested)
                 if (sample_sigma2_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
@@ -1281,6 +1302,10 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     active_forest = active_forest_tau, rng = rng, forest_model_config = forest_model_config_tau, 
                     global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                 )
+                
+                # Cannot cache train set predictions for tau because the cached predictions in the 
+                # tracking data structures are pre-multiplied by the basis (treatment)
+                # ...
                 
                 # Sample coding parameters (if requested)
                 if (adaptive_coding) {
@@ -1326,6 +1351,11 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                         active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
                         global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
                     )
+                    
+                    # Cache train set predictions since they are already computed during sampling
+                    if (keep_sample) {
+                        sigma2_x_train_raw[,sample_counter] <- forest_model_variance$get_cached_forest_predictions()
+                    }
                 }
                 if (sample_sigma2_global) {
                     current_sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome_train, forest_dataset_train, rng, a_global, b_global)
@@ -1372,11 +1402,15 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             b_1_samples <- b_1_samples[(num_gfr+1):length(b_1_samples)]
             b_0_samples <- b_0_samples[(num_gfr+1):length(b_0_samples)]
         }
+        muhat_train_raw <- muhat_train_raw[,(num_gfr+1):ncol(muhat_train_raw)]
+        if (include_variance_forest) {
+            sigma2_x_train_raw <- sigma2_x_train_raw[,(num_gfr+1):ncol(sigma2_x_train_raw)]
+        }
         num_retained_samples <- num_retained_samples - num_gfr
     }
 
     # Forest predictions
-    mu_hat_train <- forest_samples_mu$predict(forest_dataset_train)*y_std_train + y_bar_train
+    mu_hat_train <- muhat_train_raw*y_std_train + y_bar_train
     if (adaptive_coding) {
         tau_hat_train_raw <- forest_samples_tau$predict_raw(forest_dataset_train)
         tau_hat_train <- t(t(tau_hat_train_raw) * (b_1_samples - b_0_samples))*y_std_train
@@ -1395,7 +1429,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         y_hat_test <- mu_hat_test + tau_hat_test * as.numeric(Z_test)
     }
     if (include_variance_forest) {
-        sigma2_x_hat_train <- forest_samples_variance$predict(forest_dataset_train)
+        sigma2_x_hat_train <- exp(sigma2_x_train_raw)
         if (has_test) sigma2_x_hat_test <- forest_samples_variance$predict(forest_dataset_test)
     }
 

@@ -91,6 +91,10 @@ class ForestTracker {
   SampleNodeMapper* GetSampleNodeMapper() {return sample_node_mapper_.get();}
   UnsortedNodeSampleTracker* GetUnsortedNodeSampleTracker() {return unsorted_node_sample_tracker_.get();}
   SortedNodeSampleTracker* GetSortedNodeSampleTracker() {return sorted_node_sample_tracker_.get();}
+  int GetNumObservations() {return num_observations_;}
+  int GetNumTrees() {return num_trees_;}
+  int GetNumFeatures() {return num_features_;}
+  bool Initialized() {return initialized_;}
 
  private:
   /*! \brief Mapper from observations to predicted values summed over every tree in a forest */

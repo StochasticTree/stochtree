@@ -1005,6 +1005,10 @@ class BARTModel:
             self.global_var_samples = np.empty(self.num_samples, dtype=np.float64)
         if sample_sigma2_leaf:
             self.leaf_scale_samples = np.empty(self.num_samples, dtype=np.float64)
+        if self.include_mean_forest:
+            yhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
+        if self.include_variance_forest:
+            sigma2_x_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
         sample_counter = -1
 
         # Forest Dataset (covariates and optional basis)
@@ -1187,6 +1191,10 @@ class BARTModel:
                         True,
                     )
 
+                    # Cache train set predictions since they are already computed during sampling
+                    if keep_sample:
+                        yhat_train_raw[:,sample_counter] = forest_sampler_mean.get_cached_forest_predictions()
+
                 # Sample the variance forest
                 if self.include_variance_forest:
                     forest_sampler_variance.sample_one_iteration(
@@ -1200,6 +1208,10 @@ class BARTModel:
                         keep_sample,
                         True,
                     )
+
+                    # Cache train set predictions since they are already computed during sampling
+                    if keep_sample:
+                        sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
@@ -1379,6 +1391,9 @@ class BARTModel:
                             False,
                         )
 
+                        if keep_sample:
+                            yhat_train_raw[:,sample_counter] = forest_sampler_mean.get_cached_forest_predictions()
+
                     # Sample the variance forest
                     if self.include_variance_forest:
                         forest_sampler_variance.sample_one_iteration(
@@ -1392,6 +1407,9 @@ class BARTModel:
                             keep_sample,
                             False,
                         )
+
+                        if keep_sample:
+                            sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
 
                     # Sample variance parameters (if requested)
                     if self.sample_sigma2_global:
@@ -1441,6 +1459,10 @@ class BARTModel:
                 self.global_var_samples = self.global_var_samples[num_gfr:]
             if self.sample_sigma2_leaf:
                 self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
+            if self.include_mean_forest:
+                yhat_train_raw = yhat_train_raw[:,num_gfr:]
+            if self.include_variance_forest:
+                sigma2_x_train_raw = sigma2_x_train_raw[:,num_gfr:]
             self.num_samples -= num_gfr
 
         # Store predictions
@@ -1451,9 +1473,6 @@ class BARTModel:
             self.leaf_scale_samples = self.leaf_scale_samples
 
         if self.include_mean_forest:
-            yhat_train_raw = self.forest_container_mean.forest_container_cpp.Predict(
-                forest_dataset_train.dataset_cpp
-            )
             self.y_hat_train = yhat_train_raw * self.y_std + self.y_bar
             if self.has_test:
                 yhat_test_raw = self.forest_container_mean.forest_container_cpp.Predict(
@@ -1482,20 +1501,15 @@ class BARTModel:
                     self.y_hat_test = rfx_preds_test
 
         if self.include_variance_forest:
-            sigma2_x_train_raw = (
-                self.forest_container_variance.forest_container_cpp.Predict(
-                    forest_dataset_train.dataset_cpp
-                )
-            )
             if self.sample_sigma2_global:
-                self.sigma2_x_train = sigma2_x_train_raw
+                self.sigma2_x_train = np.empty_like(sigma2_x_train_raw)
                 for i in range(self.num_samples):
                     self.sigma2_x_train[:, i] = (
-                        sigma2_x_train_raw[:, i] * self.global_var_samples[i]
+                        np.exp(sigma2_x_train_raw[:, i]) * self.global_var_samples[i]
                     )
             else:
                 self.sigma2_x_train = (
-                    sigma2_x_train_raw * self.sigma2_init * self.y_std * self.y_std
+                    np.exp(sigma2_x_train_raw) * self.sigma2_init * self.y_std * self.y_std
                 )
             if self.has_test:
                 sigma2_x_test_raw = (
@@ -1621,14 +1635,14 @@ class BARTModel:
                 )
             )
             if self.sample_sigma2_global:
-                variance_pred = variance_pred_raw
+                variance_pred = np.empty_like(variance_pred_raw)
                 for i in range(self.num_samples):
-                    variance_pred[:, i] = np.sqrt(
+                    variance_pred[:, i] = (
                         variance_pred_raw[:, i] * self.global_var_samples[i]
                     )
             else:
                 variance_pred = (
-                    np.sqrt(variance_pred_raw * self.sigma2_init) * self.y_std
+                    variance_pred_raw * self.sigma2_init * self.y_std * self.y_std
                 )
 
         has_mean_predictions = self.include_mean_forest or self.has_rfx
@@ -1810,7 +1824,7 @@ class BARTModel:
             pred_dataset.dataset_cpp
         )
         if self.sample_sigma2_global:
-            variance_pred = variance_pred_raw
+            variance_pred = np.empty_like(variance_pred_raw)
             for i in range(self.num_samples):
                 variance_pred[:, i] = (
                     variance_pred_raw[:, i] * self.global_var_samples[i]
@@ -2017,11 +2031,11 @@ class BARTModel:
             for i in range(len(json_object_list)):
                 if i == 0:
                     self.forest_container_variance.forest_container_cpp.LoadFromJson(
-                        json_object_list[i].json_cpp, "forest_1"
+                        json_object_list[i].json_cpp, "forest_0"
                     )
                 else:
                     self.forest_container_variance.forest_container_cpp.AppendFromJson(
-                        json_object_list[i].json_cpp, "forest_1"
+                        json_object_list[i].json_cpp, "forest_0"
                     )
 
         # Unpack random effects
@@ -2046,12 +2060,18 @@ class BARTModel:
         self.num_gfr = json_object_default.get_integer("num_gfr")
         self.num_burnin = json_object_default.get_integer("num_burnin")
         self.num_mcmc = json_object_default.get_integer("num_mcmc")
-        self.num_samples = json_object_default.get_integer("num_samples")
         self.num_basis = json_object_default.get_integer("num_basis")
         self.has_basis = json_object_default.get_boolean("requires_basis")
         self.probit_outcome_model = json_object_default.get_boolean(
             "probit_outcome_model"
         )
+
+        # Unpack number of samples
+        for i in range(len(json_object_list)):
+            if i == 0:
+                self.num_samples = json_object_list[i].get_integer("num_samples")
+            else:
+                self.num_samples += json_object_list[i].get_integer("num_samples")
 
         # Unpack parameter samples
         if self.sample_sigma2_global:

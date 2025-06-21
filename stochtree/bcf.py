@@ -1480,6 +1480,10 @@ class BCFModel:
             self.leaf_scale_mu_samples = np.empty(self.num_samples, dtype=np.float64)
         if sample_sigma2_leaf_tau:
             self.leaf_scale_tau_samples = np.empty(self.num_samples, dtype=np.float64)
+        muhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
+        tauhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
+        if self.include_variance_forest:
+            sigma2_x_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
         sample_counter = -1
 
         # Prepare adaptive coding structure
@@ -1692,6 +1696,10 @@ class BCFModel:
                     True,
                 )
 
+                # Cache train set predictions since they are already computed during sampling
+                if keep_sample:
+                    muhat_train_raw[:,sample_counter] = forest_sampler_mu.get_cached_forest_predictions()
+
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
                     current_sigma2 = global_var_model.sample_one_iteration(
@@ -1724,6 +1732,10 @@ class BCFModel:
                     keep_sample,
                     True,
                 )
+
+                # Cannot cache train set predictions for tau because the cached predictions in the 
+                # tracking data structures are pre-multiplied by the basis (treatment)
+                # ...
 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
@@ -1781,6 +1793,10 @@ class BCFModel:
                         keep_sample,
                         True,
                     )
+
+                    # Cache train set predictions since they are already computed during sampling
+                    if keep_sample:
+                        sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
@@ -1873,6 +1889,10 @@ class BCFModel:
                     False,
                 )
 
+                # Cache train set predictions since they are already computed during sampling
+                if keep_sample:
+                    muhat_train_raw[:,sample_counter] = forest_sampler_mu.get_cached_forest_predictions()
+
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
                     current_sigma2 = global_var_model.sample_one_iteration(
@@ -1905,6 +1925,10 @@ class BCFModel:
                     keep_sample,
                     False,
                 )
+
+                # Cannot cache train set predictions for tau because the cached predictions in the 
+                # tracking data structures are pre-multiplied by the basis (treatment)
+                # ...
 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
@@ -1963,6 +1987,10 @@ class BCFModel:
                         True,
                     )
 
+                    # Cache train set predictions since they are already computed during sampling
+                    if keep_sample:
+                        sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
+
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
                     current_sigma2 = global_var_model.sample_one_iteration(
@@ -2018,13 +2046,13 @@ class BCFModel:
                 self.leaf_scale_mu_samples = self.leaf_scale_mu_samples[num_gfr:]
             if self.sample_sigma2_leaf_tau:
                 self.leaf_scale_tau_samples = self.leaf_scale_tau_samples[num_gfr:]
+            muhat_train_raw = muhat_train_raw[:,num_gfr:]
+            if self.include_variance_forest:
+                sigma2_x_train_raw = sigma2_x_train_raw[:,num_gfr:]
             self.num_samples -= num_gfr
 
         # Store predictions
-        mu_raw = self.forest_container_mu.forest_container_cpp.Predict(
-            forest_dataset_train.dataset_cpp
-        )
-        self.mu_hat_train = mu_raw * self.y_std + self.y_bar
+        self.mu_hat_train = muhat_train_raw * self.y_std + self.y_bar
         tau_raw_train = self.forest_container_tau.forest_container_cpp.PredictRaw(
             forest_dataset_train.dataset_cpp
         )
@@ -2080,39 +2108,6 @@ class BCFModel:
             if self.has_test:
                 self.y_hat_test = self.y_hat_test + rfx_preds_test
 
-        if self.include_variance_forest:
-            sigma2_x_train_raw = (
-                self.forest_container_variance.forest_container_cpp.Predict(
-                    forest_dataset_train.dataset_cpp
-                )
-            )
-            if self.sample_sigma2_global:
-                self.sigma2_x_train = sigma2_x_train_raw
-                for i in range(self.num_samples):
-                    self.sigma2_x_train[:, i] = (
-                        sigma2_x_train_raw[:, i] * self.global_var_samples[i]
-                    )
-            else:
-                self.sigma2_x_train = (
-                    sigma2_x_train_raw * self.sigma2_init * self.y_std * self.y_std
-                )
-            if self.has_test:
-                sigma2_x_test_raw = (
-                    self.forest_container_variance.forest_container_cpp.Predict(
-                        forest_dataset_test.dataset_cpp
-                    )
-                )
-                if self.sample_sigma2_global:
-                    self.sigma2_x_test = sigma2_x_test_raw
-                    for i in range(self.num_samples):
-                        self.sigma2_x_test[:, i] = (
-                            sigma2_x_test_raw[:, i] * self.global_var_samples[i]
-                        )
-                else:
-                    self.sigma2_x_test = (
-                        sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
-                    )
-
         if self.sample_sigma2_global:
             self.global_var_samples = self.global_var_samples * self.y_std * self.y_std
 
@@ -2125,6 +2120,34 @@ class BCFModel:
         if self.adaptive_coding:
             self.b0_samples = self.b0_samples
             self.b1_samples = self.b1_samples
+
+        if self.include_variance_forest:
+            if self.sample_sigma2_global:
+                self.sigma2_x_train = np.empty_like(sigma2_x_train_raw)
+                for i in range(self.num_samples):
+                    self.sigma2_x_train[:, i] = (
+                        np.exp(sigma2_x_train_raw[:, i]) * self.global_var_samples[i]
+                    )
+            else:
+                self.sigma2_x_train = (
+                    np.exp(sigma2_x_train_raw) * self.sigma2_init * self.y_std * self.y_std
+                )
+            if self.has_test:
+                sigma2_x_test_raw = (
+                    self.forest_container_variance.forest_container_cpp.Predict(
+                        forest_dataset_test.dataset_cpp
+                    )
+                )
+                if self.sample_sigma2_global:
+                    self.sigma2_x_test = np.empty_like(sigma2_x_test_raw)
+                    for i in range(self.num_samples):
+                        self.sigma2_x_test[:, i] = (
+                            sigma2_x_test_raw[:, i] * self.global_var_samples[i]
+                        )
+                else:
+                    self.sigma2_x_test = (
+                        sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
+                    )
 
     def predict_tau(
         self, X: np.array, Z: np.array, propensity: np.array = None
@@ -2311,7 +2334,7 @@ class BCFModel:
             pred_dataset.dataset_cpp
         )
         if self.sample_sigma2_global:
-            variance_pred = variance_pred_raw
+            variance_pred = np.empty_like(variance_pred_raw)
             for i in range(self.num_samples):
                 variance_pred[:, i] = (
                     variance_pred_raw[:, i] * self.global_var_samples[i]
@@ -2463,7 +2486,7 @@ class BCFModel:
                 forest_dataset_test.dataset_cpp
             )
             if self.sample_sigma2_global:
-                sigma2_x = sigma2_x_raw
+                sigma2_x = np.empty_like(sigma2_x_raw)
                 for i in range(self.num_samples):
                     sigma2_x[:, i] = sigma2_x_raw[:, i] * self.global_var_samples[i]
             else:
@@ -2736,7 +2759,6 @@ class BCFModel:
         self.num_gfr = json_object_default.get_scalar("num_gfr")
         self.num_burnin = json_object_default.get_scalar("num_burnin")
         self.num_mcmc = json_object_default.get_scalar("num_mcmc")
-        self.num_samples = json_object_default.get_scalar("num_samples")
         self.adaptive_coding = json_object_default.get_boolean("adaptive_coding")
         self.propensity_covariate = json_object_default.get_string(
             "propensity_covariate"
@@ -2744,6 +2766,13 @@ class BCFModel:
         self.internal_propensity_model = json_object_default.get_boolean(
             "internal_propensity_model"
         )
+        
+        # Unpack number of samples
+        for i in range(len(json_object_list)):
+            if i == 0:
+                self.num_samples = json_object_list[i].get_integer("num_samples")
+            else:
+                self.num_samples += json_object_list[i].get_integer("num_samples")
 
         # Unpack parameter samples
         if self.sample_sigma2_global:

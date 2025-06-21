@@ -127,6 +127,13 @@ ForestModel <- R6::R6Class(
         }, 
         
         #' @description
+        #' Extract an internally-cached prediction of a forest on the training dataset in a sampler.
+        #' @return Vector with as many elements as observations in the training dataset
+        get_cached_forest_predictions = function() {
+            get_cached_forest_predictions_cpp(self$tracker_ptr)
+        }, 
+        
+        #' @description
         #' Propagates basis update through to the (full/partial) residual by iteratively 
         #' (a) adding back in the previous prediction of each tree, (b) recomputing predictions 
         #' for each tree (caching on the C++ side), (c) subtracting the new predictions from the residual.
