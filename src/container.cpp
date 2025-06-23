@@ -206,6 +206,7 @@ void ForestContainer::append_from_json(const json& forest_container_json) {
   CHECK_EQ(this->num_trees_, forest_container_json.at("num_trees"));
   CHECK_EQ(this->output_dimension_, forest_container_json.at("output_dimension"));
   CHECK_EQ(this->is_leaf_constant_, forest_container_json.at("is_leaf_constant"));
+  CHECK_EQ(this->is_exponentiated_, forest_container_json.at("is_exponentiated"));
   CHECK_EQ(this->initialized_, forest_container_json.at("initialized"));
   int new_num_samples = forest_container_json.at("num_samples");
 
@@ -215,8 +216,7 @@ void ForestContainer::append_from_json(const json& forest_container_json) {
   for (int i = 0; i < forest_container_json.at("num_samples"); i++) {
     forest_ind = this->num_samples_ + i;
     forest_label = "forest_" + std::to_string(i);
-    // forests_[forest_ind] = std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_);
-    forests_.push_back(std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_));
+    forests_.push_back(std::make_unique<TreeEnsemble>(this->num_trees_, this->output_dimension_, this->is_leaf_constant_, this->is_exponentiated_));
     forests_[forest_ind]->from_json(forest_container_json.at(forest_label));
   }
   this->num_samples_ += new_num_samples;
