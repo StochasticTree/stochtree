@@ -22,6 +22,7 @@ trees, and exposes functionality to run a forest sampler
 \itemize{
 \item \href{#method-ForestModel-new}{\code{ForestModel$new()}}
 \item \href{#method-ForestModel-sample_one_iteration}{\code{ForestModel$sample_one_iteration()}}
+\item \href{#method-ForestModel-get_cached_forest_predictions}{\code{ForestModel$get_cached_forest_predictions()}}
 \item \href{#method-ForestModel-propagate_basis_update}{\code{ForestModel$propagate_basis_update()}}
 \item \href{#method-ForestModel-propagate_residual_update}{\code{ForestModel$propagate_residual_update()}}
 \item \href{#method-ForestModel-update_alpha}{\code{ForestModel$update_alpha()}}
@@ -118,6 +119,19 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
 \item{\code{gfr}}{(Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: \code{TRUE}.}
 }
 \if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModel-get_cached_forest_predictions"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModel-get_cached_forest_predictions}{}}}
+\subsection{Method \code{get_cached_forest_predictions()}}{
+Extract an internally-cached prediction of a forest on the training dataset in a sampler.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModel$get_cached_forest_predictions()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Vector with as many elements as observations in the training dataset
 }
 }
 \if{html}{\out{<hr>}}

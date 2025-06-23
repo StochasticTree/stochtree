@@ -285,6 +285,16 @@ cpp11::external_pointer<StochTree::ForestTracker> forest_tracker_cpp(cpp11::exte
 }
 
 [[cpp11::register]]
+cpp11::writable::doubles get_cached_forest_predictions_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr) {
+    int n_train = tracker_ptr->GetNumObservations();
+    cpp11::writable::doubles output(n_train);
+    for (int i = 0; i < n_train; i++) {
+        output[i] = tracker_ptr->GetSamplePrediction(i);
+    }
+    return output;
+}
+
+[[cpp11::register]]
 cpp11::writable::integers sample_without_replacement_integer_cpp(
     cpp11::integers population_vector, 
     cpp11::doubles sampling_probs, 
