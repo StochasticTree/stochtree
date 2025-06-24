@@ -892,12 +892,12 @@ expand_dims_1d <- function(input, output_size) {
 #' @export
 expand_dims_2d <- function(input, output_rows, output_cols) {
     if (length(input) == 1) {
-        output <- as.matrix(rep(input, output_rows * output_cols), ncol = output_cols)
+        output <- matrix(rep(input, output_rows * output_cols), ncol = output_cols)
     } else if (is.numeric(input)) {
         if (length(input) == output_cols) {
-            output <- matrix(rep(x, output_rows), nrow=output_rows, byrow = T)
+            output <- matrix(rep(input, output_rows), nrow=output_rows, byrow = T)
         } else if (length(input) == output_rows) {
-            output <- matrix(rep(x, output_cols), ncol=output_cols, byrow = F)
+            output <- matrix(rep(input, output_cols), ncol=output_cols, byrow = F)
         } else {
             stop("If `input` is a vector, it must either contain `output_rows` or `output_cols` elements")
         }

@@ -143,10 +143,12 @@ class TestUtils:
         np.testing.assert_array_equal(np.array([scalar_1,scalar_1,scalar_1]), _expand_dims_1d(scalar_1, 3))
         np.testing.assert_array_equal(np.array([scalar_2,scalar_2,scalar_2,scalar_2]), _expand_dims_1d(scalar_2, 4))
         np.testing.assert_array_equal(np.array([scalar_3,scalar_3]), _expand_dims_1d(scalar_3, 2))
+        np.testing.assert_array_equal(np.array([array_1d_3[0],array_1d_3[0],array_1d_3[0]]), _expand_dims_1d(array_1d_3, 3))
         
         np.testing.assert_array_equal(np.array([[scalar_1,scalar_1,scalar_1],[scalar_1,scalar_1,scalar_1]]), _expand_dims_2d(scalar_1, 2, 3))
         np.testing.assert_array_equal(np.array([[scalar_2,scalar_2,scalar_2,scalar_2],[scalar_2,scalar_2,scalar_2,scalar_2]]), _expand_dims_2d(scalar_2, 2, 4))
         np.testing.assert_array_equal(np.array([[scalar_3,scalar_3],[scalar_3,scalar_3],[scalar_3,scalar_3]]), _expand_dims_2d(scalar_3, 3, 2))
+        np.testing.assert_array_equal(np.array([[array_1d_3[0],array_1d_3[0]],[array_1d_3[0],array_1d_3[0]],[array_1d_3[0],array_1d_3[0]]]), _expand_dims_2d(array_1d_3, 3, 2))
         np.testing.assert_array_equal(np.vstack((array_1d_1, array_1d_1)), _expand_dims_2d(array_1d_1, 2, 4))
         np.testing.assert_array_equal(np.vstack((array_1d_2, array_1d_2, array_1d_2)), _expand_dims_2d(array_1d_2, 3, 3))
         np.testing.assert_array_equal(np.column_stack((array_1d_2, array_1d_2, array_1d_2, array_1d_2)), _expand_dims_2d(array_1d_2, 3, 4))
@@ -156,3 +158,4 @@ class TestUtils:
         np.testing.assert_array_equal(np.array([[scalar_1,0.0,0.0],[0.0,scalar_1,0.0],[0.0,0.0,scalar_1]]), _expand_dims_2d_diag(scalar_1, 3))
         np.testing.assert_array_equal(np.array([[scalar_2,0.0],[0.0,scalar_2]]), _expand_dims_2d_diag(scalar_2, 2))
         np.testing.assert_array_equal(np.array([[scalar_3,0.0,0.0,0.0],[0.0,scalar_3,0.0,0.0],[0.0,0.0,scalar_3,0.0],[0.0,0.0,0.0,scalar_3]]), _expand_dims_2d_diag(scalar_3, 4))
+        np.testing.assert_array_equal(np.array([[array_1d_3[0],0.0],[0.0,array_1d_3[0]]]), _expand_dims_2d_diag(array_1d_3, 2))
