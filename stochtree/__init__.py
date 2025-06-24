@@ -31,6 +31,9 @@ from .utils import (
     _check_matrix_square,
     _standardize_array_to_list,
     _standardize_array_to_np,
+    _expand_dims_1d, 
+    _expand_dims_2d, 
+    _expand_dims_2d_diag
 )
 
 __all__ = [

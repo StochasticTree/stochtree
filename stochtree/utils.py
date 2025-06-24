@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 
 import numpy as np
 
@@ -186,3 +186,120 @@ def _check_matrix_square(input: np.ndarray) -> bool:
             return False
     else:
         return False
+
+
+def _expand_dims_1d(input: Union[int, float, np.array], output_size: int) -> np.array:
+    """
+    Convert scalar input to 1D numpy array of dimension `output_size`, 
+    or check that input array is equivalent to a 1D array of dimension `output_size`.
+    
+    Parameters
+    ----------
+    input : int, float, np.array
+        Input to be converted to a 1D array (or passed through as-is)
+    output_size : int
+        Intended size of the output vector
+        
+    Returns
+    -------
+    np.array
+        A 1D numpy array of length `output_size`
+    """
+    if isinstance(input, np.ndarray):
+        input = np.squeeze(input)
+        if input.ndim != 1:
+            raise ValueError("`input` must be convertible to a 1D numpy array")
+        if input.shape[0] != output_size:
+            raise ValueError("`input` must be a 1D numpy array with `output_size` elements")
+        output = input
+    elif isinstance(input, (int, float)):
+        output = np.repeat(input, output_size)
+    else:
+        raise ValueError("`input` must be either a 1D numpy array or a scalar that can be repeated `output_size` times")
+    return output
+
+
+def _expand_dims_2d(input: Union[int, float, np.array], output_rows: int, output_cols: int) -> np.array:
+    """
+    Ensures that input is propagated appropriately to a 2D numpy array of dimension `output_rows` x `output_cols`. 
+    Handles the following cases:
+        1. `input` is a scalar: output is simply a (`output_rows`, `output_cols`) array with `input` repeated for each element
+        2. `input` is a 1D array of length `output_rows`: output is a (`output_rows`, `output_cols`) array with `input` broadcast across each of `output_cols` columns
+        3. `input` is a 1D array of length `output_cols`: output is a (`output_rows`, `output_cols`) array with `input` broadcast across each of `output_rows` rows
+        4. `input` is a 2D array of dimension (`output_rows`, `output_cols`): input is passed through as-is
+    All other cases raise a `ValueError`.
+    
+    Parameters
+    ----------
+    input : int, float, np.array
+        Input to be converted to a 2D array (or passed through as-is)
+    output_rows : int
+        Intended number of rows in the output array
+    output_cols : int
+        Intended number of columns in the output array
+        
+    Returns
+    -------
+    np.array
+        A 2D numpy array of dimension `output_rows` x `output_cols`
+    """
+    if isinstance(input, np.ndarray):
+        input = np.squeeze(input)
+        if input.ndim > 2:
+            raise ValueError("`input` must be a 1D or 2D numpy array")
+        elif input.ndim == 2:
+            if input.shape[0] != output_rows:
+                raise ValueError("If `input` is passed as a 2D numpy array, it must contain `output_rows` rows")
+            if input.shape[1] != output_cols:
+                raise ValueError("If `input` is passed as a 2D numpy array, it must contain `output_cols` columns")
+            output = input
+        elif input.ndim == 1:
+            if input.shape[0] == output_cols:
+                output = np.tile(input, (output_rows, 1))
+            elif input.shape[0] == output_rows:
+                output = np.tile(input, (output_cols, 1)).T
+            else:
+                raise ValueError("If `input` is a 1D numpy array, it must either contain `output_rows` or `output_cols` elements")
+        elif input.ndim == 0:
+            output = np.tile(input, (output_rows, output_cols))
+    elif isinstance(input, (int, float)):
+        output = np.tile(input, (output_rows, output_cols))
+    else:
+        raise ValueError("`input` must be either a 1D or 2D numpy array or a scalar")
+    return output
+
+
+def _expand_dims_2d_diag(input: Union[int, float, np.array], output_size: int) -> np.array:
+    """
+    Convert scalar input to 2D square numpy array of dimension `output_size` x `output_size` with `input` along the diagonal, 
+    or check that input array is equivalent to a 2D square array of dimension `output_size` x `output_size`.
+    
+    Parameters
+    ----------
+    input : int, float, np.array
+        Input to be converted to a 2D square array (or passed through as-is)
+    output_size : int
+        Intended row and column dimension of the square output matrix
+        
+    Returns
+    -------
+    np.array
+        A 2D square numpy array of dimension `output_size` x `output_size`
+    """
+    if isinstance(input, np.ndarray):
+        input = np.squeeze(input)
+        if input.ndim != 2:
+            raise ValueError("`input` must be convertible to a 2D numpy array")
+        if input.shape[0] != input.shape[1]:
+            raise ValueError("`input` must be a 2D square numpy array")
+        if input.shape[0] != output_size:
+            raise ValueError("`input` must be a 2D square numpy array with exactly `output_size` rows and columns")
+        output = input
+    elif isinstance(input, (int, float)):
+        output = np.zeros(
+            (output_size, output_size), dtype=float
+        )
+        np.fill_diagonal(output, input)
+    else:
+        raise ValueError("`input` must be either a 2D square numpy array or a scalar that can be propagated along the diagonal of a square matrix")
+    return output
