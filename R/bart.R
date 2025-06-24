@@ -706,11 +706,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         if (is.null(rfx_group_parameter_prior_mean)) {
             xi_init <- matrix(rep(alpha_init, num_rfx_groups),num_rfx_components,num_rfx_groups)
         } else {
-            xi_init <- expand_dims_1d(rfx_group_parameter_prior_mean, num_rfx_components)
-            # If it's a vector, expand to matrix
-            if (is.vector(xi_init)) {
-                xi_init <- matrix(rep(xi_init, num_rfx_groups), num_rfx_components, num_rfx_groups)
-            }
+            xi_init <- expand_dims_2d(rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups)
         }
         
         if (is.null(rfx_working_parameter_prior_cov)) {
