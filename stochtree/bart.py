@@ -23,7 +23,7 @@ from .random_effects import (
 )
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
-from .utils import NotSampledError, _expand_dims_1d, _expand_dims_2d_diag
+from .utils import NotSampledError, _expand_dims_1d, _expand_dims_2d, _expand_dims_2d_diag
 
 
 class BARTModel:
@@ -260,6 +260,12 @@ class BARTModel:
         keep_every = general_params_updated["keep_every"]
         num_chains = general_params_updated["num_chains"]
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
+        rfx_working_parameter_prior_mean = general_params_updated["rfx_working_parameter_prior_mean"]
+        rfx_group_parameter_prior_mean = general_params_updated["rfx_group_parameter_prior_mean"]
+        rfx_working_parameter_prior_cov = general_params_updated["rfx_working_parameter_prior_cov"]
+        rfx_group_parameter_prior_cov = general_params_updated["rfx_group_parameter_prior_cov"]
+        rfx_variance_prior_shape = general_params_updated["rfx_variance_prior_shape"]
+        rfx_variance_prior_scale = general_params_updated["rfx_variance_prior_scale"]
 
         # 2. Mean forest parameters
         num_trees_mean = mean_forest_params_updated["num_trees"]
@@ -290,14 +296,6 @@ class BARTModel:
         keep_vars_variance = variance_forest_params_updated["keep_vars"]
         drop_vars_variance = variance_forest_params_updated["drop_vars"]
         num_features_subsample_variance = variance_forest_params_updated["num_features_subsample"]
-
-        # 4. Random effects parameters
-        rfx_working_parameter_prior_mean = general_params_updated["rfx_working_parameter_prior_mean"]
-        rfx_group_parameter_prior_mean = general_params_updated["rfx_group_parameter_prior_mean"]
-        rfx_working_parameter_prior_cov = general_params_updated["rfx_working_parameter_prior_cov"]
-        rfx_group_parameter_prior_cov = general_params_updated["rfx_group_parameter_prior_cov"]
-        rfx_variance_prior_shape = general_params_updated["rfx_variance_prior_shape"]
-        rfx_variance_prior_scale = general_params_updated["rfx_variance_prior_scale"]
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -993,10 +991,7 @@ class BARTModel:
             if rfx_group_parameter_prior_mean is None:
                 xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
             else:
-                xi_init = _expand_dims_1d(rfx_group_parameter_prior_mean, num_rfx_components)
-                # If it's a vector, expand to matrix
-                if xi_init.ndim == 1:
-                    xi_init = np.tile(np.expand_dims(xi_init, 1), (1, num_rfx_groups))
+                xi_init = _expand_dims_2d(rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups)
             
             if rfx_working_parameter_prior_cov is None:
                 sigma_alpha_init = np.identity(num_rfx_components)
