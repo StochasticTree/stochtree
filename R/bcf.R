@@ -503,17 +503,6 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     X_test_raw <- X_test
     if (!is.null(X_test)) X_test <- preprocessPredictionData(X_test, X_train_metadata)
     
-    # Set num_features_subsample to default, ncol(X_train), if not already set
-    if (is.null(num_features_subsample_mu)) {
-        num_features_subsample_mu <- ncol(X_train)
-    }
-    if (is.null(num_features_subsample_tau)) {
-        num_features_subsample_tau <- ncol(X_train)
-    }
-    if (is.null(num_features_subsample_variance)) {
-        num_features_subsample_variance <- ncol(X_train)
-    }
-    
     # Convert all input data to matrices if not already converted
     if ((is.null(dim(Z_train))) && (!is.null(Z_train))) {
         Z_train <- as.matrix(as.numeric(Z_train))
@@ -720,6 +709,17 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     variable_weights_tau <- variable_weights_tau / sum(variable_weights_tau)
     if (include_variance_forest) {
         variable_weights_variance <- variable_weights_variance / sum(variable_weights_variance)
+    }
+    
+    # Set num_features_subsample to default, ncol(X_train), if not already set
+    if (is.null(num_features_subsample_mu)) {
+        num_features_subsample_mu <- ncol(X_train)
+    }
+    if (is.null(num_features_subsample_tau)) {
+        num_features_subsample_tau <- ncol(X_train)
+    }
+    if (is.null(num_features_subsample_variance)) {
+        num_features_subsample_variance <- ncol(X_train)
     }
     
     # Preliminary runtime checks for probit link
