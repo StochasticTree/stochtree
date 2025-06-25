@@ -23,7 +23,7 @@ from .random_effects import (
 )
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
-from .utils import NotSampledError
+from .utils import NotSampledError, _expand_dims_1d, _expand_dims_2d, _expand_dims_2d_diag
 
 
 class BARTModel:
@@ -132,6 +132,12 @@ class BARTModel:
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
             * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
             * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
+            * `rfx_working_parameter_prior_mean`: Prior mean for the random effects "working parameter". Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+            * `rfx_group_parameter_prior_mean`: Prior mean for the random effects "group parameters." Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+            * `rfx_working_parameter_prior_cov`: Prior covariance matrix for the random effects "working parameter." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+            * `rfx_group_parameter_prior_cov`: Prior covariance matrix for the random effects "group parameters." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+            * `rfx_variance_prior_shape`: Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+            * `rfx_variance_prior_scale`: Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 
         mean_forest_params : dict, optional
             Dictionary of mean forest model parameters, each of which has a default value processed internally, so this argument is optional.
@@ -190,6 +196,12 @@ class BARTModel:
             "keep_every": 1,
             "num_chains": 1,
             "probit_outcome_model": False,
+            "rfx_working_parameter_prior_mean": None,
+            "rfx_group_parameter_prior_mean": None,
+            "rfx_working_parameter_prior_cov": None,
+            "rfx_group_parameter_prior_cov": None,
+            "rfx_variance_prior_shape": 1.0,
+            "rfx_variance_prior_scale": 1.0,
         }
         general_params_updated = _preprocess_params(
             general_params_default, general_params
@@ -248,6 +260,12 @@ class BARTModel:
         keep_every = general_params_updated["keep_every"]
         num_chains = general_params_updated["num_chains"]
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
+        rfx_working_parameter_prior_mean = general_params_updated["rfx_working_parameter_prior_mean"]
+        rfx_group_parameter_prior_mean = general_params_updated["rfx_group_parameter_prior_mean"]
+        rfx_working_parameter_prior_cov = general_params_updated["rfx_working_parameter_prior_cov"]
+        rfx_group_parameter_prior_cov = general_params_updated["rfx_group_parameter_prior_cov"]
+        rfx_variance_prior_shape = general_params_updated["rfx_variance_prior_shape"]
+        rfx_variance_prior_scale = general_params_updated["rfx_variance_prior_scale"]
 
         # 2. Mean forest parameters
         num_trees_mean = mean_forest_params_updated["num_trees"]
@@ -954,22 +972,41 @@ class BARTModel:
 
         # Set up random effects structures
         if self.has_rfx:
-            if num_rfx_components == 1:
-                alpha_init = np.array([1])
-            elif num_rfx_components > 1:
-                alpha_init = np.concatenate(
-                    (
-                        np.ones(1, dtype=float),
-                        np.zeros(num_rfx_components - 1, dtype=float),
+            # Prior parameters
+            if rfx_working_parameter_prior_mean is None:
+                if num_rfx_components == 1:
+                    alpha_init = np.array([1])
+                elif num_rfx_components > 1:
+                    alpha_init = np.concatenate(
+                        (
+                            np.ones(1, dtype=float),
+                            np.zeros(num_rfx_components - 1, dtype=float),
+                        )
                     )
-                )
+                else:
+                    raise ValueError("There must be at least 1 random effect component")
             else:
-                raise ValueError("There must be at least 1 random effect component")
-            xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
-            sigma_alpha_init = np.identity(num_rfx_components)
-            sigma_xi_init = np.identity(num_rfx_components)
-            sigma_xi_shape = 1.0
-            sigma_xi_scale = 1.0
+                alpha_init = _expand_dims_1d(rfx_working_parameter_prior_mean, num_rfx_components)
+            
+            if rfx_group_parameter_prior_mean is None:
+                xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
+            else:
+                xi_init = _expand_dims_2d(rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups)
+            
+            if rfx_working_parameter_prior_cov is None:
+                sigma_alpha_init = np.identity(num_rfx_components)
+            else:
+                sigma_alpha_init = _expand_dims_2d_diag(rfx_working_parameter_prior_cov, num_rfx_components)
+            
+            if rfx_group_parameter_prior_cov is None:
+                sigma_xi_init = np.identity(num_rfx_components)
+            else:
+                sigma_xi_init = _expand_dims_2d_diag(rfx_group_parameter_prior_cov, num_rfx_components)
+            
+            sigma_xi_shape = rfx_variance_prior_shape
+            sigma_xi_scale = rfx_variance_prior_scale
+            
+            # Random effects sampling data structures
             rfx_dataset_train = RandomEffectsDataset()
             rfx_dataset_train.add_group_labels(rfx_group_ids_train)
             rfx_dataset_train.add_basis(rfx_basis_train)
