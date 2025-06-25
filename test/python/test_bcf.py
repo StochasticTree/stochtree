@@ -768,3 +768,135 @@ class TestBCF:
 
         # Check treatment effect prediction method
         tau_hat = bcf_model.predict_tau(X_test, Z_test)
+    
+    def test_bcf_rfx_parameters(self):
+        # RNG
+        random_seed = 101
+        rng = np.random.default_rng(random_seed)
+
+        # Generate covariates and basis
+        n = 100
+        p_X = 5
+        X = rng.uniform(0, 1, (n, p_X))
+        pi_X = 0.25 + 0.5 * X[:, 0]
+        Z = rng.binomial(1, pi_X, n).astype(float)
+
+        # Define the outcome mean functions (prognostic and treatment effects)
+        mu_X = pi_X * 5
+        tau_X = X[:, 1] * 2
+
+        # Generate RFX group labels and basis term
+        num_rfx_basis = 2
+        num_rfx_groups = 4
+        group_labels = rng.choice(num_rfx_groups, size=n)
+        rfx_basis = np.empty((n, num_rfx_basis))
+        rfx_basis[:, 0] = 1.0
+        if num_rfx_basis > 1:
+            rfx_basis[:, 1:] = rng.uniform(-1, 1, (n, num_rfx_basis - 1))
+
+        # Define the group rfx function
+        def rfx_term(group_labels, basis):
+            return np.where(
+                group_labels == 0, -5 + 1. * basis[:,1], 5 - 1. * basis[:,1]
+            )
+        
+        # Generate outcome
+        epsilon = rng.normal(0, 1, n)
+        y = mu_X + tau_X * Z + rfx_term(group_labels, rfx_basis) + epsilon
+
+        # Test-train split
+        sample_inds = np.arange(n)
+        train_inds, test_inds = train_test_split(sample_inds, test_size=0.5)
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        Z_train = Z[train_inds]
+        Z_test = Z[test_inds]
+        y_train = y[train_inds]
+        pi_train = pi_X[train_inds]
+        pi_test = pi_X[test_inds]
+        group_labels_train = group_labels[train_inds]
+        group_labels_test = group_labels[test_inds]
+        rfx_basis_train = rfx_basis[train_inds, :]
+        rfx_basis_test = rfx_basis[test_inds, :]
+
+        # BART settings
+        num_gfr = 10
+        num_burnin = 0
+        num_mcmc = 10
+
+        # Specify no rfx parameters
+        general_params = {}
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            pi_train=pi_train,
+            X_test=X_test,
+            Z_test=Z_test,
+            pi_test=pi_test,
+            rfx_group_ids_train=group_labels_train,
+            rfx_basis_train=rfx_basis_train,
+            rfx_group_ids_test=group_labels_test,
+            rfx_basis_test=rfx_basis_test,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            general_params=general_params
+        )
+
+        # Specify scalar rfx parameters
+        general_params = {
+            "rfx_working_parameter_prior_mean": 1.,
+            "rfx_group_parameter_prior_mean": 1.,
+            "rfx_working_parameter_prior_cov": 1.,
+            "rfx_group_parameter_prior_cov": 1.,
+            "rfx_variance_prior_shape": 1,
+            "rfx_variance_prior_scale": 1
+        }
+        bcf_model_2 = BCFModel()
+        bcf_model_2.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            pi_train=pi_train,
+            X_test=X_test,
+            Z_test=Z_test,
+            pi_test=pi_test,
+            rfx_group_ids_train=group_labels_train,
+            rfx_basis_train=rfx_basis_train,
+            rfx_group_ids_test=group_labels_test,
+            rfx_basis_test=rfx_basis_test,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            general_params=general_params
+        )
+
+        # Specify all relevant rfx parameters as vectors
+        general_params = {
+            "rfx_working_parameter_prior_mean": np.repeat(1., num_rfx_basis),
+            "rfx_group_parameter_prior_mean": np.repeat(1., num_rfx_basis),
+            "rfx_working_parameter_prior_cov": np.identity(num_rfx_basis),
+            "rfx_group_parameter_prior_cov": np.identity(num_rfx_basis),
+            "rfx_variance_prior_shape": 1,
+            "rfx_variance_prior_scale": 1
+        }
+        bcf_model_3 = BCFModel()
+        bcf_model_3.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            pi_train=pi_train,
+            X_test=X_test,
+            Z_test=Z_test,
+            pi_test=pi_test,
+            rfx_group_ids_train=group_labels_train,
+            rfx_basis_train=rfx_basis_train,
+            rfx_group_ids_test=group_labels_test,
+            rfx_basis_test=rfx_basis_test,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            general_params=general_params
+        )

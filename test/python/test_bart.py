@@ -1148,8 +1148,8 @@ class TestBART:
             "rfx_variance_prior_shape": 1,
             "rfx_variance_prior_scale": 1
         }
-        bart_model_2 = BARTModel()
-        bart_model_2.sample(
+        bart_model_3 = BARTModel()
+        bart_model_3.sample(
             X_train=X_train,
             y_train=y_train,
             leaf_basis_train=basis_train,

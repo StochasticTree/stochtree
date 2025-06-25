@@ -690,7 +690,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     
     # Random effects initialization 
     if (has_rfx) {
-        # Prior parameters - use user-provided values or defaults
+        # Prior parameters
         if (is.null(rfx_working_parameter_prior_mean)) {
             if (num_rfx_components == 1) {
                 alpha_init <- c(1)

@@ -47,6 +47,12 @@
 #'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'   - `probit_outcome_model` Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
+#'   - `rfx_working_parameter_prior_mean` Prior mean for the random effects "working parameter". Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+#'   - `rfx_group_parameters_prior_mean` Prior mean for the random effects "group parameters." Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+#'   - `rfx_working_parameter_prior_cov` Prior covariance matrix for the random effects "working parameter." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+#'   - `rfx_group_parameter_prior_cov` Prior covariance matrix for the random effects "group parameters." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+#'   - `rfx_variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+#'   - `rfx_variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'
 #' @param prognostic_forest_params (Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -162,7 +168,13 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         treated_coding_init = 0.5, rfx_prior_var = NULL, 
         random_seed = -1, keep_burnin = FALSE, keep_gfr = FALSE, 
         keep_every = 1, num_chains = 1, verbose = FALSE, 
-        probit_outcome_model = FALSE
+        probit_outcome_model = FALSE, 
+        rfx_working_parameter_prior_mean = NULL,
+        rfx_group_parameter_prior_mean = NULL,
+        rfx_working_parameter_prior_cov = NULL,
+        rfx_group_parameter_prior_cov = NULL,
+        rfx_variance_prior_shape = 1,
+        rfx_variance_prior_scale = 1
     )
     general_params_updated <- preprocessParams(
         general_params_default, general_params
@@ -230,6 +242,12 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     num_chains <- general_params_updated$num_chains
     verbose <- general_params_updated$verbose
     probit_outcome_model <- general_params_updated$probit_outcome_model
+    rfx_working_parameter_prior_mean <- general_params_updated$rfx_working_parameter_prior_mean
+    rfx_group_parameter_prior_mean <- general_params_updated$rfx_group_parameter_prior_mean
+    rfx_working_parameter_prior_cov <- general_params_updated$rfx_working_parameter_prior_cov
+    rfx_group_parameter_prior_cov <- general_params_updated$rfx_group_parameter_prior_cov
+    rfx_variance_prior_shape <- general_params_updated$rfx_variance_prior_shape
+    rfx_variance_prior_scale <- general_params_updated$rfx_variance_prior_scale
     
     # 2. Mu forest parameters
     num_trees_mu <- prognostic_forest_params_updated$num_trees
@@ -842,24 +860,39 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     
     # Random effects prior parameters
     if (has_rfx) {
-        # Initialize the working parameter to 1
-        if (num_rfx_components < 1) {
-            stop("There must be at least 1 random effect component")
+        # Prior parameters
+        if (is.null(rfx_working_parameter_prior_mean)) {
+            if (num_rfx_components == 1) {
+                alpha_init <- c(1)
+            } else if (num_rfx_components > 1) {
+                alpha_init <- c(1,rep(0,num_rfx_components-1))
+            } else {
+                stop("There must be at least 1 random effect component")
+            }
+        } else {
+            alpha_init <- expand_dims_1d(rfx_working_parameter_prior_mean, num_rfx_components)
         }
-        alpha_init <- rep(1,num_rfx_components)
-        # Initialize each group parameter based on a regression of outcome on basis in that grou
-        xi_init <- matrix(0,num_rfx_components,num_rfx_groups)
-        for (i in 1:num_rfx_groups) {
-            group_subset_indices <- rfx_group_ids_train == i
-            basis_group <- rfx_basis_train[group_subset_indices,]
-            resid_group <- resid_train[group_subset_indices]
-            rfx_group_model <- lm(resid_group ~ 0+basis_group)
-            xi_init[,i] <- unname(coef(rfx_group_model))
+        
+        if (is.null(rfx_group_parameter_prior_mean)) {
+            xi_init <- matrix(rep(alpha_init, num_rfx_groups),num_rfx_components,num_rfx_groups)
+        } else {
+            xi_init <- expand_dims_2d(rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups)
         }
-        sigma_alpha_init <- diag(1,num_rfx_components,num_rfx_components)
-        sigma_xi_init <- diag(rfx_prior_var)
-        sigma_xi_shape <- 1
-        sigma_xi_scale <- 1
+        
+        if (is.null(rfx_working_parameter_prior_cov)) {
+            sigma_alpha_init <- diag(1,num_rfx_components,num_rfx_components)
+        } else {
+            sigma_alpha_init <- expand_dims_2d_diag(rfx_working_parameter_prior_cov, num_rfx_components)
+        }
+        
+        if (is.null(rfx_group_parameter_prior_cov)) {
+            sigma_xi_init <- diag(1,num_rfx_components,num_rfx_components)
+        } else {
+            sigma_xi_init <- expand_dims_2d_diag(rfx_group_parameter_prior_cov, num_rfx_components)
+        }
+        
+        sigma_xi_shape <- rfx_variance_prior_shape
+        sigma_xi_scale <- rfx_variance_prior_scale
     }
     
     # Random effects data structure and storage container

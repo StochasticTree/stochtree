@@ -972,7 +972,7 @@ class BARTModel:
 
         # Set up random effects structures
         if self.has_rfx:
-            # Use user-provided values or defaults
+            # Prior parameters
             if rfx_working_parameter_prior_mean is None:
                 if num_rfx_components == 1:
                     alpha_init = np.array([1])
@@ -1006,6 +1006,7 @@ class BARTModel:
             sigma_xi_shape = rfx_variance_prior_shape
             sigma_xi_scale = rfx_variance_prior_scale
             
+            # Random effects sampling data structures
             rfx_dataset_train = RandomEffectsDataset()
             rfx_dataset_train.add_group_labels(rfx_group_ids_train)
             rfx_dataset_train.add_basis(rfx_basis_train)
