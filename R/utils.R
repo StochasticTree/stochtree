@@ -855,3 +855,86 @@ orderedCatPreprocess <- function(x_input, unique_levels, var_name = NULL) {
     }
     return(x_preprocessed)
 }
+
+#' Convert scalar input to vector of dimension `output_size`, 
+#' or check that input array is equivalent to a vector of dimension `output_size`.
+#' 
+#' @param input Input to be converted to a vector (or passed through as-is)
+#' @param output_size Intended size of the output vector
+#' @return A vector of length `output_size`
+#' @export
+expand_dims_1d <- function(input, output_size) {
+    if (length(input) == 1) {
+        output <- rep(input, output_size)
+    } else if (is.numeric(input)) {
+        if (length(input) != output_size) {
+            stop("`input` must be a 1D numpy array with `output_size` elements")
+        }
+        output <- input
+    } else {
+        stop("`input` must be either a 1D numpy array or a scalar that can be repeated `output_size` times")
+    }
+    return(output)
+}
+
+#' Ensures that input is propagated appropriately to a matrix of dimension `output_rows` x `output_cols`. 
+#' Handles the following cases:
+#'  1. `input` is a scalar: output is simply a (`output_rows`, `output_cols`) matrix with `input` repeated for each element
+#'  2. `input` is a vector of length `output_rows`: output is a (`output_rows`, `output_cols`) array with `input` broadcast across each of `output_cols` columns
+#'  3. `input` is a vector of length `output_cols`: output is a (`output_rows`, `output_cols`) array with `input` broadcast across each of `output_rows` rows
+#'  4. `input` is a matrix of dimension (`output_rows`, `output_cols`): input is passed through as-is
+#' All other cases throw an error.
+#' 
+#' @param input Input to be converted to a matrix (or passed through as-is)
+#' @param output_rows Intended number of rows in the output array
+#' @param output_cols Intended number of columns in the output array
+#' @return A matrix of dimension `output_rows` x `output_cols`
+#' @export
+expand_dims_2d <- function(input, output_rows, output_cols) {
+    if (length(input) == 1) {
+        output <- matrix(rep(input, output_rows * output_cols), ncol = output_cols)
+    } else if (is.numeric(input)) {
+        if (length(input) == output_cols) {
+            output <- matrix(rep(input, output_rows), nrow=output_rows, byrow = T)
+        } else if (length(input) == output_rows) {
+            output <- matrix(rep(input, output_cols), ncol=output_cols, byrow = F)
+        } else {
+            stop("If `input` is a vector, it must either contain `output_rows` or `output_cols` elements")
+        }
+    } else if (is.matrix(input)) {
+        if (nrow(input) != output_rows) {
+            stop("`input` must be a matrix with `output_rows` rows")
+        }
+        if (ncol(input) != output_cols) {
+            stop("`input` must be a matrix with `output_cols` columns")
+        }
+        output <- input
+    } else {
+        stop("`input` must be either a matrix, vector or a scalar")
+    }
+    return(output)
+}
+
+#' Convert scalar input to square matrix of dimension `output_size` x `output_size` with `input` along the diagonal, 
+#' or check that input array is equivalent to a square matrix of dimension `output_size` x `output_size`.
+#' 
+#' @param input Input to be converted to a square matrix (or passed through as-is)
+#' @param output_size Intended row and column dimension of the square output matrix
+#' @return A square matrix of dimension `output_size` x `output_size`
+#' @export
+expand_dims_2d_diag <- function(input, output_size) {
+    if (length(input) == 1) {
+        output <- as.matrix(diag(input, output_size))
+    } else if (is.matrix(input)) {
+        if (nrow(input) != ncol(input)) {
+            stop("`input` must be a square matrix")
+        }
+        if (nrow(input) != output_size) {
+            stop("`input` must be a square matrix with `output_size` rows and columns")
+        }
+        output <- input
+    } else {
+        stop("`input` must be either a square matrix or a scalar")
+    }
+    return(output)
+}
