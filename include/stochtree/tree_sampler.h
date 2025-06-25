@@ -476,7 +476,7 @@ static inline void EvaluateAllPossibleSplits(
   data_size_t& valid_cutpoint_count, CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, 
   std::vector<FeatureType>& feature_types, std::vector<bool>& feature_subset, LeafSuffStatConstructorArgs&... leaf_suff_stat_args
 ) {
-    // Initialize sufficient statistics
+  // Initialize sufficient statistics
   LeafSuffStat node_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
   LeafSuffStat left_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
   LeafSuffStat right_suff_stat = LeafSuffStat(leaf_suff_stat_args...);

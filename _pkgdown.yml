@@ -1,4 +1,4 @@
-url: https://stochastictree.github.io/stochtree-r/
+url: https://stochtree.ai/
 template:
   bootstrap: 5
 
@@ -117,6 +117,9 @@ reference:
     Miscellaneous "utility" classes and functions
   contents:
   - sample_without_replacement
+  - expand_dims_1d
+  - expand_dims_2d
+  - expand_dims_2d_diag
 
 - title: Package info
   desc: >
