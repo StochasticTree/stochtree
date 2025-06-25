@@ -1093,14 +1093,6 @@ class BCFModel:
         else:
             variable_subset_variance = [i for i in range(X_train.shape[1])]
 
-        # Set num_features_subsample to default, ncol(X_train), if not already set
-        if num_features_subsample_mu is None:
-            num_features_subsample_mu = X_train.shape[1]
-        if num_features_subsample_tau is None:
-            num_features_subsample_tau = X_train.shape[1]
-        if num_features_subsample_variance is None:
-            num_features_subsample_variance = X_train.shape[1]
-
         # Determine whether a test set is provided
         self.has_test = X_test is not None
 
@@ -1497,6 +1489,14 @@ class BCFModel:
 
         # Store propensity score requirements of the BCF forests
         self.propensity_covariate = propensity_covariate
+
+        # Set num_features_subsample to default, ncol(X_train), if not already set
+        if num_features_subsample_mu is None:
+            num_features_subsample_mu = X_train_processed.shape[1]
+        if num_features_subsample_tau is None:
+            num_features_subsample_tau = X_train_processed.shape[1]
+        if num_features_subsample_variance is None:
+            num_features_subsample_variance = X_train_processed.shape[1]
 
         # Container of variance parameter samples
         self.num_gfr = num_gfr
