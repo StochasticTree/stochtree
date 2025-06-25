@@ -716,18 +716,28 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
   // Subsample features (if requested)
   std::vector<bool> feature_subset(p, true);
   if (num_features_subsample < p) {
-    std::vector<int> feature_indices(p);
-    std::iota(feature_indices.begin(), feature_indices.end(), 0);
-    std::vector<int> features_selected(num_features_subsample);
-    sample_without_replacement<int, double>(
-      features_selected.data(), variable_weights.data(), feature_indices.data(), 
-      p, num_features_subsample, gen
-    );
-    for (int i = 0; i < p; i++) {
-      feature_subset.at(i) = false;
+    // Check if the number of (meaningfully) nonzero selection probabilities is greater than num_features_subsample
+    int number_nonzero_weights = 0;
+    for (int j = 0; j < p; j++) {
+      if (std::abs(variable_weights.at(j)) > kEpsilon) {
+        number_nonzero_weights++;
+      }
     }
-    for (const auto& feat : features_selected) {
-      feature_subset.at(feat) = true;
+    if (number_nonzero_weights > num_features_subsample) {
+      // Sample with replacement according to variable_weights
+      std::vector<int> feature_indices(p);
+      std::iota(feature_indices.begin(), feature_indices.end(), 0);
+      std::vector<int> features_selected(num_features_subsample);
+      sample_without_replacement<int, double>(
+        features_selected.data(), variable_weights.data(), feature_indices.data(), 
+        p, num_features_subsample, gen
+      );
+      for (int i = 0; i < p; i++) {
+        feature_subset.at(i) = false;
+      }
+      for (const auto& feat : features_selected) {
+        feature_subset.at(feat) = true;
+      }
     }
   }
 
@@ -782,6 +792,7 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
  * \param pre_initialized Whether or not `active_forest` has already been initialized (note: this parameter will be refactored out soon).
  * \param backfitting Whether or not the sampler uses "backfitting" (wherein the sampler for a given tree only depends on the other trees via
  * their effect on the residual) or the more general "blocked MCMC" (wherein the state of other trees must be more explicitly considered).
+ * \param num_features_subsample How many features to subsample when running the GFR algorithm.
  * \param leaf_suff_stat_args Any arguments which must be supplied to initialize a `LeafSuffStat` object.
  */
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>

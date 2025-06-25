@@ -949,7 +949,7 @@ sqrt(mean((test_outcome_mean - y_test)^2))
 
 #### MCMC, covariate subset in $\tau(X)$
 
-Here we simulate from the model with the original MCMC sampler, using only covariate $X_1$ in the treatment effect forest.
+Here we simulate from the model with the original MCMC sampler, using only covariates $X_1$ and $X_2$ in the treatment effect forest.
 
 ```{r}
 num_gfr <- 0
@@ -1073,7 +1073,7 @@ sqrt(mean((y_test - test_outcome_mean)^2))
 
 #### Warmstart, covariate subset in $\tau(X)$
 
-Here we simulate from the model with the warm-start sampler, using only covariate $X_1$ in the treatment effect forest.
+Here we simulate from the model with the warm-start sampler, using only covariates $X_1$ and $X_2$ in the treatment effect forest.
 
 ```{r}
 num_gfr <- 10
