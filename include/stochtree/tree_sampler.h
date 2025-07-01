@@ -8,6 +8,7 @@
 #include <stochtree/discrete_sampler.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/leaf_model.h>
+#include <stochtree/openmp_utils.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/prior.h>
 
@@ -474,7 +475,7 @@ static inline void EvaluateAllPossibleSplits(
   ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, LeafModel& leaf_model, double global_variance, int tree_num, int split_node_id, 
   std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, 
   data_size_t& valid_cutpoint_count, CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, 
-  std::vector<FeatureType>& feature_types, std::vector<bool>& feature_subset, LeafSuffStatConstructorArgs&... leaf_suff_stat_args
+  std::vector<FeatureType>& feature_types, std::vector<bool>& feature_subset, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args
 ) {
   // Initialize sufficient statistics
   LeafSuffStat node_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
@@ -510,53 +511,92 @@ static inline void EvaluateAllPossibleSplits(
   double cutoff_value = 0.0;
   double log_split_eval = 0.0;
   double split_log_ml;
-  for (int j = 0; j < covariates.cols(); j++) {
-
+  if (num_threads == -1) {
+    num_threads = StochTree::ThreadManager::GetOptimalThreadCount(static_cast<int>(covariates.cols()));
+  }
+  
+  std::vector<double> all_log_cutpoint_evaluations;
+  std::vector<int> all_cutpoint_features;
+  std::vector<double> all_cutpoint_values;
+  std::vector<FeatureType> all_cutpoint_feature_types;
+  data_size_t total_cutpoints = 0;  
+  StochTree::ParallelFor(0, covariates.cols(), [&](int j) {
     if ((std::abs(variable_weights.at(j)) > kEpsilon) && (feature_subset[j])) {
       // Enumerate cutpoint strides
       cutpoint_grid_container.CalculateStrides(covariates, outcome, tracker.GetSortedNodeSampleTracker(), split_node_id, node_begin, node_end, j, feature_types);
       
-      // Reset sufficient statistics
-      left_suff_stat.ResetSuffStat();
-      right_suff_stat.ResetSuffStat();
+      // Thread-local sufficient statistics
+      LeafSuffStat local_left_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
+      LeafSuffStat local_right_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
+
+      // Thread-local result collection
+      std::vector<double> local_log_cutpoint_evaluations;
+      std::vector<int> local_cutpoint_features;
+      std::vector<double> local_cutpoint_values;
+      std::vector<FeatureType> local_cutpoint_feature_types;
+      data_size_t local_num_cutpoints = 0;
 
       // Iterate through possible cutpoints
       int32_t num_feature_cutpoints = cutpoint_grid_container.NumCutpoints(j);
-      feature_type = feature_types[j];
+      FeatureType local_feature_type = feature_types[j];
       // Since we partition an entire cutpoint bin to the left, we must stop one bin before the total number of cutpoint bins
       for (data_size_t cutpoint_idx = 0; cutpoint_idx < (num_feature_cutpoints - 1); cutpoint_idx++) {
-        current_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx, j);
-        current_bin_size = cutpoint_grid_container.BinLength(cutpoint_idx, j);
-        next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx + 1, j);
+        data_size_t local_current_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx, j);
+        data_size_t local_current_bin_size = cutpoint_grid_container.BinLength(cutpoint_idx, j);
+        data_size_t local_next_bin_begin = cutpoint_grid_container.BinStartIndex(cutpoint_idx + 1, j);
 
         // Accumulate sufficient statistics for the left node
-        AccumulateCutpointBinSuffStat<LeafSuffStat>(left_suff_stat, tracker, cutpoint_grid_container, dataset, residual,
+        AccumulateCutpointBinSuffStat<LeafSuffStat>(local_left_suff_stat, tracker, cutpoint_grid_container, dataset, residual,
                                                     global_variance, tree_num, split_node_id, j, cutpoint_idx);
 
         // Compute the corresponding right node sufficient statistics
-        right_suff_stat.SubtractSuffStat(node_suff_stat, left_suff_stat);
+        local_right_suff_stat.SubtractSuffStat(node_suff_stat, local_left_suff_stat);
 
         // Store the bin index as the "cutpoint value" - we can use this to query the actual split 
         // value or the set of split categories later on once a split is chose
-        cutoff_value = cutpoint_idx;
+        double local_cutoff_value = cutpoint_idx;
 
         // Only include cutpoint for consideration if it defines a valid split in the training data
-        valid_split = (left_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf) && 
-                      right_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf));
-        if (valid_split) {
-          num_cutpoints++;
+        bool local_valid_split = (local_left_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf) && 
+                                 local_right_suff_stat.SampleGreaterThanEqual(min_samples_in_leaf));
+        if (local_valid_split) {
+          local_num_cutpoints++;
           // Add to split rule vector
-          cutpoint_feature_types.push_back(feature_type);
-          cutpoint_features.push_back(j);
-          cutpoint_values.push_back(cutoff_value);
+          local_cutpoint_feature_types.push_back(local_feature_type);
+          local_cutpoint_features.push_back(j);
+          local_cutpoint_values.push_back(local_cutoff_value);
           // Add the log marginal likelihood of the split to the split eval vector 
-          split_log_ml = leaf_model.SplitLogMarginalLikelihood(left_suff_stat, right_suff_stat, global_variance);
-          log_cutpoint_evaluations.push_back(split_log_ml);
+          double local_split_log_ml = leaf_model.SplitLogMarginalLikelihood(local_left_suff_stat, local_right_suff_stat, global_variance);
+          local_log_cutpoint_evaluations.push_back(local_split_log_ml);
         }
       }
+      
+      // Critical section to safely add local results to global results
+      STOCHTREE_CRITICAL
+      {
+        total_cutpoints += local_num_cutpoints;
+        all_cutpoint_feature_types.insert(all_cutpoint_feature_types.end(), 
+                                         local_cutpoint_feature_types.begin(), 
+                                         local_cutpoint_feature_types.end());
+        all_cutpoint_features.insert(all_cutpoint_features.end(), 
+                                   local_cutpoint_features.begin(), 
+                                   local_cutpoint_features.end());
+        all_cutpoint_values.insert(all_cutpoint_values.end(), 
+                                 local_cutpoint_values.begin(), 
+                                 local_cutpoint_values.end());
+        all_log_cutpoint_evaluations.insert(all_log_cutpoint_evaluations.end(), 
+                                           local_log_cutpoint_evaluations.begin(), 
+                                           local_log_cutpoint_evaluations.end());
+      }
     }
+  }, num_threads);
 
-  }
+  // Copy the collected results to the output parameters
+  num_cutpoints = total_cutpoints;
+  cutpoint_feature_types = std::move(all_cutpoint_feature_types);
+  cutpoint_features = std::move(all_cutpoint_features);
+  cutpoint_values = std::move(all_cutpoint_values);
+  log_cutpoint_evaluations = std::move(all_log_cutpoint_evaluations);
 
   // Add the log marginal likelihood of the "no-split" option (adjusted for tree prior and cutpoint size per the XBART paper)
   cutpoint_features.push_back(-1);
@@ -574,14 +614,14 @@ static inline void EvaluateCutpoints(Tree* tree, ForestTracker& tracker, LeafMod
                                      std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, 
                                      std::vector<FeatureType>& cutpoint_feature_types, data_size_t& valid_cutpoint_count, std::vector<double>& variable_weights, 
                                      std::vector<FeatureType>& feature_types, CutpointGridContainer& cutpoint_grid_container, 
-                                     std::vector<bool>& feature_subset, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                     std::vector<bool>& feature_subset, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Evaluate all possible cutpoints according to the leaf node model, 
   // recording their log-likelihood and other split information in a series of vectors.
   // The last element of these vectors concerns the "no-split" option.
   EvaluateAllPossibleSplits<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
     dataset, tracker, residual, tree_prior, gen, leaf_model, global_variance, tree_num, node_id, log_cutpoint_evaluations, 
     cutpoint_features, cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 
-    node_begin, node_end, variable_weights, feature_types, feature_subset, leaf_suff_stat_args...
+    node_begin, node_end, variable_weights, feature_types, feature_subset, num_threads, leaf_suff_stat_args...
   );
   
   // Compute an adjustment to reflect the no split prior probability and the number of cutpoints
@@ -602,7 +642,7 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
                                    TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, int cutpoint_grid_size, 
                                    std::unordered_map<int, std::pair<data_size_t, data_size_t>>& node_index_map, std::deque<node_t>& split_queue, 
                                    int node_id, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, 
-                                   std::vector<FeatureType>& feature_types, std::vector<bool> feature_subset, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                   std::vector<FeatureType>& feature_types, std::vector<bool> feature_subset, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Leaf depth
   int leaf_depth = tree->GetDepth(node_id);
 
@@ -622,7 +662,7 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
       tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance,
       cutpoint_grid_size, node_id, node_begin, node_end, log_cutpoint_evaluations, cutpoint_features, 
       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, variable_weights, feature_types, 
-      cutpoint_grid_container, feature_subset, leaf_suff_stat_args...
+      cutpoint_grid_container, feature_subset, num_threads, leaf_suff_stat_args...
     );
     // TODO: maybe add some checks here?
     
@@ -705,7 +745,7 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset,
                                         ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
                                         int tree_num, double global_variance, std::vector<FeatureType>& feature_types, int cutpoint_grid_size, 
-                                        int num_features_subsample, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                        int num_features_subsample, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   int root_id = Tree::kRoot;
   int curr_node_id;
   data_size_t curr_node_begin;
@@ -761,7 +801,8 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
     SampleSplitRule<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
       tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance, cutpoint_grid_size, 
       node_index_map, split_queue, curr_node_id, curr_node_begin, curr_node_end, variable_weights, feature_types, 
-      feature_subset, leaf_suff_stat_args...);
+      feature_subset, num_threads, leaf_suff_stat_args...
+    );
   }
 }
 
@@ -799,7 +840,7 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
                                     std::vector<int>& sweep_update_indices, double global_variance, std::vector<FeatureType>& feature_types, int cutpoint_grid_size, 
-                                    bool keep_forest, bool pre_initialized, bool backfitting, int num_features_subsample, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                    bool keep_forest, bool pre_initialized, bool backfitting, int num_features_subsample, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Run the GFR algorithm for each tree
   int num_trees = forests.NumTrees();
   for (const int& i : sweep_update_indices) {
@@ -819,7 +860,7 @@ static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& 
     GFRSampleTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
       tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, 
       variable_weights, i, global_variance, feature_types, cutpoint_grid_size, 
-      num_features_subsample, leaf_suff_stat_args...
+      num_features_subsample, num_threads, leaf_suff_stat_args...
     );
     
     // Sample leaf parameters for tree i

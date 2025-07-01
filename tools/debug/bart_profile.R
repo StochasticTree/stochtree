@@ -26,7 +26,8 @@ X_test <- X[test_inds,]
 X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
-bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test)
+general_params <- list(num_threads = 10)
+bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, general_params = general_params)
 end_time <- Sys.time()
 print(paste("runtime:", end_time - start_time))
 
