@@ -7,7 +7,6 @@
 
 namespace StochTree {
 
-// OpenMP availability detection
 #ifdef STOCHTREE_OPENMP_AVAILABLE
 
 #include <omp.h>
@@ -97,9 +96,9 @@ public:
 
 // Parallel execution utilities
 template<typename Func>
-void ParallelFor(int start, int end, Func func, int num_threads = -1) {
+void ParallelFor(int start, int end, int num_threads, Func func) {
     if (num_threads <= 0) {
-        num_threads = ThreadManager::GetMaxThreads();
+        num_threads = ThreadManager::GetOptimalThreadCount(end - start);
     }
     
     if (num_threads == 1 || !STOCHTREE_HAS_OPENMP) {
