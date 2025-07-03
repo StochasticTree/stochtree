@@ -282,11 +282,11 @@ void ForestTracker::UpdatePredictions(TreeEnsemble* ensemble, ForestDataset& dat
   }
 }
 
-void ForestTracker::AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted) {
+void ForestTracker::AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted, int num_threads) {
   sample_node_mapper_->AddSplit(covariates, split, split_feature, tree_id, split_node_id, left_node_id, right_node_id);
   unsorted_node_sample_tracker_->PartitionTreeNode(covariates, tree_id, split_node_id, left_node_id, right_node_id, split_feature, split);
   if (keep_sorted) {
-    sorted_node_sample_tracker_->PartitionNode(covariates, split_node_id, split_feature, split);
+    sorted_node_sample_tracker_->PartitionNode(covariates, split_node_id, split_feature, split, num_threads);
   }
 }
 
