@@ -92,8 +92,11 @@ if(USE_OPENMP)
         execute_process(COMMAND brew --prefix libomp
                         OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
                         OUTPUT_STRIP_TRAILING_WHITESPACE)
+        set(OpenMP_C_FLAGS "-Xclang -fopenmp")
         set(OpenMP_CXX_FLAGS "-Xclang -fopenmp")
+        set(OpenMP_C_INCLUDE_DIR "-I${HOMEBREW_LIBOMP_PREFIX}/include")
         set(OpenMP_CXX_INCLUDE_DIR "-I${HOMEBREW_LIBOMP_PREFIX}/include")
+        set(OpenMP_C_LIB_NAMES omp)
         set(OpenMP_CXX_LIB_NAMES omp)
         set(OpenMP_libomp_LIBRARY ${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.dylib)
       endif()
