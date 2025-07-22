@@ -60,6 +60,8 @@ if (!dir.exists(cran_dir)) {
 src_files <- list.files("src", pattern = ".[^o]$", recursive = TRUE, full.names = TRUE)
 pybind_src_files <- list.files("src", pattern = "^(py_)", recursive = TRUE, full.names = TRUE)
 r_src_files <- src_files[!(src_files %in% pybind_src_files)]
+r_src_files <- r_src_files[!(r_src_files %in% c("src/Makevars"))]
+cat(r_src_files)
 pkg_core_files <- c(
     ".Rbuildignore",
     "cran-comments.md",
@@ -136,9 +138,14 @@ if (all(file.exists(pkg_core_files))) {
 }
 
 # Overwrite PKG_CPPFLAGS in src/Makevars
-cran_makevars <- file.path(cran_dir, "src/Makevars")
+cran_makevars <- file.path(cran_dir, "src/Makevars.in")
 makevars_lines <- readLines(cran_makevars)
-makevars_lines[grep("^(PKG_CPPFLAGS)", makevars_lines)] <- "PKG_CPPFLAGS= -I$(PKGROOT)/src/include $(STOCHTREE_CPPFLAGS)"
+makevars_lines[grep("    -I$(PKGROOT)/include \\", makevars_lines, fixed = T)] <- "    -I$(PKGROOT)/src/include \\"
+makevars_lines <- makevars_lines[-c(
+    grep("    -I$(PKGROOT)/deps/eigen \\", makevars_lines, fixed = T), 
+    grep("    -I$(PKGROOT)/deps/fmt/include \\", makevars_lines, fixed = T), 
+    grep("    -I$(PKGROOT)/deps/fast_double_parser/include \\", makevars_lines, fixed = T)
+)]
 writeLines(makevars_lines, cran_makevars)
 
 # Remove vignette deps from DESCRIPTION if no vignettes

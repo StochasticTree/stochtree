@@ -56,11 +56,17 @@ jobs:
       shell: bash
       run: |
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+    
+    - name: Set up dependencies (linux clang)
+      # Set up openMP on ubuntu-latest with clang compiler toolset (doesn't ship with the compiler suite like GCC and MSVC)
+      if: matrix.os == 'ubuntu-latest' && matrix.cpp_compiler == 'clang++'
+      run: | 
+        sudo apt-get update && sudo apt-get install -y libomp-dev
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: >
+      run: |
         cmake -B ${{ steps.strings.outputs.build-output-dir }}
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
@@ -69,6 +75,7 @@ jobs:
         -DUSE_SANITIZER=OFF
         -DBUILD_TEST=ON
         -DBUILD_DEBUG_TARGETS=OFF
+        -DUSE_OPENMP=ON
         -S ${{ github.workspace }}
 
     - name: Build
