@@ -28,7 +28,7 @@ namespace StochTree {
 /*!
  * \defgroup sampling_group Forest Sampler API
  *
- * \brief Functions for sampling from a forest. The core interfce of these functions, 
+ * \brief Functions for sampling from a forest. The core interface of these functions, 
  * as used by the R, Python, and standalone C++ program, is defined by 
  * \ref MCMCSampleOneIter, which runs one iteration of the MCMC sampler for a 
  * given forest, and \ref GFRSampleOneIter, which runs one iteration of the 
@@ -404,7 +404,7 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(
   ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, LeafModel& leaf_model, 
   TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance, 
-  LeafSuffStatConstructorArgs&... leaf_suff_stat_args
+  int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args
 ) {
   // Initialize sufficient statistics
   LeafSuffStat node_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
@@ -412,8 +412,11 @@ static inline std::tuple<double, double, data_size_t, data_size_t> EvaluatePropo
   LeafSuffStat right_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
 
   // Accumulate sufficient statistics
-  AccumulateSuffStatProposed<LeafSuffStat>(node_suff_stat, left_suff_stat, right_suff_stat, dataset, tracker, 
-                                           residual, global_variance, split, tree_num, leaf_num, split_feature);
+  AccumulateSuffStatProposed<LeafSuffStat, LeafSuffStatConstructorArgs...>(
+    node_suff_stat, left_suff_stat, right_suff_stat, dataset, tracker, 
+    residual, global_variance, split, tree_num, leaf_num, split_feature, num_threads, 
+    leaf_suff_stat_args...
+  );
   data_size_t left_n = left_suff_stat.n;
   data_size_t right_n = right_suff_stat.n;
 
@@ -516,7 +519,7 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
     // Compute sufficient statistics for each possible split
     data_size_t num_cutpoints = 0;
     if (num_threads == -1) {
-      num_threads = StochTree::ThreadManager::GetOptimalThreadCount(static_cast<int>(covariates.cols() * covariates.rows()));
+      num_threads = GetOptimalThreadCount(static_cast<int>(covariates.cols() * covariates.rows()));
     }
 
     // Initialize cutpoint grid container
@@ -872,7 +875,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
 
     // Compute the marginal likelihood of split and no split, given the leaf prior
     std::tuple<double, double, int32_t, int32_t> split_eval = EvaluateProposedSplit<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
-      dataset, tracker, residual, leaf_model, split, tree_num, leaf_chosen, var_chosen, global_variance, leaf_suff_stat_args...
+      dataset, tracker, residual, leaf_model, split, tree_num, leaf_chosen, var_chosen, global_variance, num_threads, leaf_suff_stat_args...
     );
     double split_log_marginal_likelihood = std::get<0>(split_eval);
     double no_split_log_marginal_likelihood = std::get<1>(split_eval);
@@ -1093,7 +1096,8 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCSampleOneIter(TreeEnsemble& active_forest, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
-                                     std::vector<int>& sweep_update_indices, double global_variance, bool keep_forest, bool pre_initialized, bool backfitting, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                     std::vector<int>& sweep_update_indices, double global_variance, bool keep_forest, bool pre_initialized, bool backfitting, int num_threads, 
+                                     LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Run the MCMC algorithm for each tree
   int num_trees = forests.NumTrees();
   for (const int& i : sweep_update_indices) {

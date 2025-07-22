@@ -53,6 +53,7 @@
 #'   - `rfx_group_parameter_prior_cov` Prior covariance matrix for the random effects "group parameters." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
 #'   - `rfx_variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'   - `rfx_variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+#'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 #'
 #' @param prognostic_forest_params (Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -174,7 +175,8 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         rfx_working_parameter_prior_cov = NULL,
         rfx_group_parameter_prior_cov = NULL,
         rfx_variance_prior_shape = 1,
-        rfx_variance_prior_scale = 1
+        rfx_variance_prior_scale = 1, 
+        num_threads = -1
     )
     general_params_updated <- preprocessParams(
         general_params_default, general_params
@@ -248,6 +250,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     rfx_group_parameter_prior_cov <- general_params_updated$rfx_group_parameter_prior_cov
     rfx_variance_prior_shape <- general_params_updated$rfx_variance_prior_shape
     rfx_variance_prior_scale <- general_params_updated$rfx_variance_prior_scale
+    num_threads <- general_params_updated$num_threads
     
     # 2. Mu forest parameters
     num_trees_mu <- prognostic_forest_params_updated$num_trees
@@ -1029,7 +1032,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             forest_model_mu$sample_one_iteration(
                 forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
                 active_forest = active_forest_mu, rng = rng, forest_model_config = forest_model_config_mu, 
-                global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
+                global_model_config = global_model_config, num_threads = num_threads, keep_forest = keep_sample, gfr = TRUE
             )
             
             # Cache train set predictions since they are already computed during sampling
@@ -1053,7 +1056,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
             forest_model_tau$sample_one_iteration(
                 forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_tau, 
                 active_forest = active_forest_tau, rng = rng, forest_model_config = forest_model_config_tau, 
-                global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
+                global_model_config = global_model_config, num_threads = num_threads, keep_forest = keep_sample, gfr = TRUE
             )
             
             # Cannot cache train set predictions for tau because the cached predictions in the 
@@ -1102,7 +1105,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 forest_model_variance$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
                     active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
-                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
+                    global_model_config = global_model_config, num_threads = num_threads, keep_forest = keep_sample, gfr = TRUE
                 )
                 
                 # Cache train set predictions since they are already computed during sampling
@@ -1309,7 +1312,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 forest_model_mu$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mu, 
                     active_forest = active_forest_mu, rng = rng, forest_model_config = forest_model_config_mu, 
-                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
+                    global_model_config = global_model_config, num_threads = num_threads, keep_forest = keep_sample, gfr = FALSE
                 )
                 
                 # Cache train set predictions since they are already computed during sampling
@@ -1333,7 +1336,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                 forest_model_tau$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_tau, 
                     active_forest = active_forest_tau, rng = rng, forest_model_config = forest_model_config_tau, 
-                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
+                    global_model_config = global_model_config, num_threads = num_threads, keep_forest = keep_sample, gfr = FALSE
                 )
                 
                 # Cannot cache train set predictions for tau because the cached predictions in the 
@@ -1382,7 +1385,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
                     forest_model_variance$sample_one_iteration(
                         forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_variance, 
                         active_forest = active_forest_variance, rng = rng, forest_model_config = forest_model_config_variance, 
-                        global_model_config = global_model_config, keep_forest = keep_sample, gfr = FALSE
+                        global_model_config = global_model_config, num_threads = num_threads, keep_forest = keep_sample, gfr = FALSE
                     )
                     
                     # Cache train set predictions since they are already computed during sampling

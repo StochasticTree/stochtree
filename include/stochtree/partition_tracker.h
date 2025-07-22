@@ -435,7 +435,7 @@ class UnsortedNodeSampleTracker {
   /*! \brief Number of trees */
   int NumTrees() { return num_trees_; }
 
-  /*! \brief Number of trees */
+  /*! \brief Return a pointer to the feature partition tracking tree i */
   FeatureUnsortedPartition* GetFeaturePartition(int i) { return feature_partitions_[i].get(); }
 
  private:

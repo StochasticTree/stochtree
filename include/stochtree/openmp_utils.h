@@ -58,47 +58,42 @@ inline void set_num_threads(int num_threads) {}
 
 #endif
 
-// Utility functions for thread management
-class ThreadManager {
-public:
-    static int GetMaxThreads() {
-        return get_max_threads();
+static int GetMaxThreads() {
+    return get_max_threads();
+}
+
+static int GetCurrentThreadNum() {
+    return get_thread_num();
+}
+    
+static int GetNumThreads() {
+    return get_num_threads();
+}
+    
+static void SetNumThreads(int num_threads) {
+    set_num_threads(num_threads);
+}
+    
+static bool IsOpenMPAvailable() {
+    return STOCHTREE_HAS_OPENMP;
+}
+    
+static int GetOptimalThreadCount(int workload_size, int min_work_per_thread = 1000) {
+    if (!IsOpenMPAvailable()) {
+        return 1;
     }
     
-    static int GetCurrentThreadNum() {
-        return get_thread_num();
-    }
+    int max_threads = GetMaxThreads();
+    int optimal_threads = workload_size / min_work_per_thread;
     
-    static int GetNumThreads() {
-        return get_num_threads();
-    }
-    
-    static void SetNumThreads(int num_threads) {
-        set_num_threads(num_threads);
-    }
-    
-    static bool IsOpenMPAvailable() {
-        return STOCHTREE_HAS_OPENMP;
-    }
-    
-    // Get optimal number of threads for a given workload
-    static int GetOptimalThreadCount(int workload_size, int min_work_per_thread = 1000) {
-        if (!IsOpenMPAvailable()) {
-            return 1;
-        }
-        
-        int max_threads = GetMaxThreads();
-        int optimal_threads = workload_size / min_work_per_thread;
-        
-        return std::min(optimal_threads, max_threads);
-    }
-};
+    return std::min(optimal_threads, max_threads);
+}
 
 // Parallel execution utilities
 template<typename Func>
 void ParallelFor(int start, int end, int num_threads, Func func) {
     if (num_threads <= 0) {
-        num_threads = ThreadManager::GetOptimalThreadCount(end - start);
+        num_threads = GetOptimalThreadCount(end - start);
     }
     
     if (num_threads == 1 || !STOCHTREE_HAS_OPENMP) {

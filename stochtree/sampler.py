@@ -103,6 +103,7 @@ class ForestSampler:
         forest_config: ForestModelConfig,
         keep_forest: bool,
         gfr: bool,
+        num_threads: int = -1,
     ) -> None:
         """
         Sample one iteration of a forest using the specified model and tree sampling algorithm
@@ -127,6 +128,8 @@ class ForestSampler:
             Whether or not the resulting forest should be retained in `forest_container` or discarded (due to burnin or thinning for example)
         gfr : bool
             Whether or not the "grow-from-root" (GFR) sampler is run (if this is `True` and `leaf_model_int=0` this is equivalent to XBART, if this is `FALSE` and `leaf_model_int=0` this is equivalent to the original BART)
+        num_threads : int
+            Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's system, this will default to `1`, otherwise to the maximum number of available threads.
         """
         # Ensure forest has been initialized
         if forest.is_empty():
@@ -173,6 +176,7 @@ class ForestSampler:
             forest_config.get_num_features_subsample(),
             keep_forest,
             gfr,
+            num_threads, 
         )
 
     def prepare_for_sampler(
