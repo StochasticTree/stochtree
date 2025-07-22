@@ -64,6 +64,8 @@ r_src_files <- r_src_files[!(r_src_files %in% c("src/Makevars"))]
 cat(r_src_files)
 pkg_core_files <- c(
     ".Rbuildignore",
+    "configure",
+    "configure.ac",
     "cran-comments.md",
     "DESCRIPTION",
     "inst/COPYRIGHTS",
