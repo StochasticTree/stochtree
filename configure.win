@@ -27,3 +27,14 @@ STOCHTREE_CPPFLAGS="${STOCHTREE_CPPFLAGS} -DEIGEN_MPL2_ONLY -DEIGEN_DONT_PARALLE
 ##########
 
 STOCHTREE_CPPFLAGS="${STOCHTREE_CPPFLAGS} -DSTOCHTREE_OPENMP_AVAILABLE"
+
+#########################
+# Generate Makevars.win #
+#########################
+
+sed -e \
+    "s/@CXX_STD@/$CXX_STD/" \
+    < src/Makevars.win.in > src/Makevars.win
+sed -e \
+    "s/@STOCHTREE_CPPFLAGS@/$STOCHTREE_CPPFLAGS/" \
+    < src/Makevars.win.in > src/Makevars.win
