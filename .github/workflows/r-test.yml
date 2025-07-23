@@ -22,6 +22,11 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     
     steps:
+      - name: Prevent conversion of line endings on Windows
+        if: startsWith(matrix.os, 'windows')
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      
       - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
