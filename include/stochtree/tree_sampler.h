@@ -13,14 +13,8 @@
 #include <stochtree/prior.h>
 
 #include <cmath>
-#include <map>
-#include <memory>
 #include <numeric>
 #include <random>
-#include <set>
-#include <string>
-#include <type_traits>
-#include <variant>
 #include <vector>
 
 namespace StochTree {

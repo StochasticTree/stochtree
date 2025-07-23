@@ -3,7 +3,6 @@
 
 #include <stochtree/common.h>
 #include <algorithm>
-#include <vector>
 
 namespace StochTree {
 

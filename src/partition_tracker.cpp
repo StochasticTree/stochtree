@@ -6,12 +6,6 @@
 #include <stochtree/io.h>
 #include <stochtree/partition_tracker.h>
 
-#include <chrono>
-#include <cstdio>
-#include <limits>
-#include <sstream>
-#include <unordered_map>
-
 namespace StochTree {
 
 ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations) {
