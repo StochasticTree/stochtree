@@ -419,13 +419,14 @@ test_that("Multivariate Treatment MCMC BCF", {
     y_train <- y[train_inds]
     
     # 1 chain, no thinning
-    general_param_list <- list(num_chains = 1, keep_every = 1)
-    expect_error(
+    general_param_list <- list(num_chains = 1, keep_every = 1, adaptive_coding = F)
+    expect_no_error({
         bcf_model <- bcf(X_train = X_train, y_train = y_train, Z_train = Z_train, 
                          propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
                          propensity_test = pi_test, num_gfr = 0, num_burnin = 10, 
                          num_mcmc = 10, general_params = general_param_list)
-    )
+        predict(bcf_model, X = X_test, Z = Z_test, propensity = pi_test)
+    })
 })
 
 test_that("BCF Predictions", {

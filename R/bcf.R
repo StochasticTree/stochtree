@@ -1762,7 +1762,7 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
         tau_num_obs <- tau_dim[1]
         tau_num_samples <- tau_dim[3]
         treatment_term <- matrix(NA_real_, nrow = tau_num_obs, tau_num_samples)
-        for (i in 1:nrow(Z_train)) {
+        for (i in 1:nrow(Z)) {
             treatment_term[i,] <- colSums(tau_hat[i,,] * Z[i,])
         }
     } else {
@@ -2020,6 +2020,7 @@ saveBCFModelToJson <- function(object){
     jsonobj$add_boolean("has_rfx", object$model_params$has_rfx)
     jsonobj$add_boolean("has_rfx_basis", object$model_params$has_rfx_basis)
     jsonobj$add_scalar("num_rfx_basis", object$model_params$num_rfx_basis)
+    jsonobj$add_boolean("multivariate_treatment", object$model_params$multivariate_treatment)
     jsonobj$add_boolean("adaptive_coding", object$model_params$adaptive_coding)
     jsonobj$add_boolean("internal_propensity_model", object$model_params$internal_propensity_model)
     jsonobj$add_scalar("num_gfr", object$model_params$num_gfr)
@@ -2351,6 +2352,7 @@ createBCFModelFromJson <- function(json_object){
     model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
     model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
     model_params[["adaptive_coding"]] <- json_object$get_boolean("adaptive_coding")
+    model_params[["multivariate_treatment"]] <- json_object$get_boolean("multivariate_treatment")
     model_params[["internal_propensity_model"]] <- json_object$get_boolean("internal_propensity_model")
     model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
     model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
@@ -2690,6 +2692,7 @@ createBCFModelFromCombinedJson <- function(json_object_list){
     model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
     model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
     model_params[["adaptive_coding"]] <- json_object_default$get_boolean("adaptive_coding")
+    model_params[["multivariate_treatment"]] <- json_object_default$get_boolean("multivariate_treatment")
     model_params[["internal_propensity_model"]] <- json_object_default$get_boolean("internal_propensity_model")
     model_params[["probit_outcome_model"]] <- json_object_default$get_boolean("probit_outcome_model")
     
@@ -2916,6 +2919,7 @@ createBCFModelFromCombinedJsonString <- function(json_string_list){
     model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
     model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
     model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
+    model_params[["multivariate_treatment"]] <- json_object_default$get_boolean("multivariate_treatment")
     model_params[["adaptive_coding"]] <- json_object_default$get_boolean("adaptive_coding")
     model_params[["internal_propensity_model"]] <- json_object_default$get_boolean("internal_propensity_model")
     model_params[["probit_outcome_model"]] <- json_object_default$get_boolean("probit_outcome_model")
