@@ -158,7 +158,7 @@ class BCFModel:
             * `rfx_group_parameter_prior_cov`: Prior covariance matrix for the random effects "group parameters." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
             * `rfx_variance_prior_shape`: Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
             * `rfx_variance_prior_scale`: Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
-
+            * `num_threads`: Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 
         prognostic_forest_params : dict, optional
             Dictionary of prognostic forest model parameters, each of which has a default value processed internally, so this argument is optional.
@@ -240,6 +240,7 @@ class BCFModel:
             "rfx_group_parameter_prior_cov": None,
             "rfx_variance_prior_shape": 1.0,
             "rfx_variance_prior_scale": 1.0,
+            "num_threads": -1,
         }
         general_params_updated = _preprocess_params(
             general_params_default, general_params
@@ -328,6 +329,7 @@ class BCFModel:
         rfx_group_parameter_prior_cov = general_params_updated["rfx_group_parameter_prior_cov"]
         rfx_variance_prior_shape = general_params_updated["rfx_variance_prior_shape"]
         rfx_variance_prior_scale = general_params_updated["rfx_variance_prior_scale"]
+        num_threads = general_params_updated["num_threads"]
 
         # 2. Mu forest parameters
         num_trees_mu = prognostic_forest_params_updated["num_trees"]
@@ -1735,6 +1737,7 @@ class BCFModel:
                     forest_model_config_mu,
                     keep_sample,
                     True,
+                    num_threads,
                 )
 
                 # Cache train set predictions since they are already computed during sampling
@@ -1772,6 +1775,7 @@ class BCFModel:
                     forest_model_config_tau,
                     keep_sample,
                     True,
+                    num_threads,
                 )
 
                 # Cannot cache train set predictions for tau because the cached predictions in the 
@@ -1833,6 +1837,7 @@ class BCFModel:
                         forest_model_config_variance,
                         keep_sample,
                         True,
+                        num_threads,
                     )
 
                     # Cache train set predictions since they are already computed during sampling
@@ -1928,6 +1933,7 @@ class BCFModel:
                     forest_model_config_mu,
                     keep_sample,
                     False,
+                    num_threads,
                 )
 
                 # Cache train set predictions since they are already computed during sampling
@@ -1965,6 +1971,7 @@ class BCFModel:
                     forest_model_config_tau,
                     keep_sample,
                     False,
+                    num_threads,
                 )
 
                 # Cannot cache train set predictions for tau because the cached predictions in the 
@@ -2026,6 +2033,7 @@ class BCFModel:
                         forest_model_config_variance,
                         keep_sample,
                         True,
+                        num_threads,
                     )
 
                     # Cache train set predictions since they are already computed during sampling

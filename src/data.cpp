@@ -1,7 +1,6 @@
 /*! Copyright (c) 2024 by stochtree authors */
 #include <Eigen/Dense>
 #include <stochtree/data.h>
-#include <iostream>
 
 namespace StochTree {
 

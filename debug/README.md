@@ -4,7 +4,7 @@ This subdirectory contains a debug program for the C++ codebase.
 The program takes several command line arguments (in order):
 
 1. Which data-generating process (DGP) to run (integer-coded, see below for a detailed description)
-1. Which leaf model to sample (integer-coded, see below for a detailed description)
+2. Which leaf model to sample (integer-coded, see below for a detailed description)
 3. Whether or not to include random effects (0 = no, 1 = yes)
 4. Number of grow-from-root (GFR) samples
 5. Number of MCMC samples
@@ -13,6 +13,7 @@ The program takes several command line arguments (in order):
 8. [Optional] index of outcome column in data file (leave this blank as `0`)
 9. [Optional] comma-delimited string of column indices of covariates (leave this blank as `""`)
 10. [Optional] comma-delimited string of column indices of leaf regression bases (leave this blank as `""`)
+11. [Optional] number of threads to use in the GFR sampler (leave this blank as `-1`)
 
 The DGPs are numbered as follows:
 
@@ -30,6 +31,6 @@ The models are numbered as follows:
 
 For an example of how to run this progam for DGP 0, leaf model 1, no random effects, 10 GFR samples, 100 MCMC samples and a default seed (`-1`), run
 
-`./build/debugstochtree 0 1 0 10 100 -1 "" 0 "" ""`
+`./build/debugstochtree 0 1 0 10 100 -1 "" 0 "" "" -1`
 
 from the main `stochtree` project directory after building with `BUILD_DEBUG_TARGETS` set to `ON`.

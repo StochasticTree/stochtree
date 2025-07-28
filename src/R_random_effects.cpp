@@ -7,9 +7,7 @@
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
-#include <functional>
 #include <memory>
-#include <vector>
 
 [[cpp11::register]]
 cpp11::external_pointer<StochTree::RandomEffectsContainer> rfx_container_cpp(int num_components, int num_groups) {

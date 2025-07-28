@@ -1,0 +1,40 @@
+# Script used to generate `Makevars.win` from `Makevars.win.in` on Windows
+# Adapted from LightGBM https://github.com/microsoft/LightGBM/blob/master/R-package/configure.win
+
+###########################
+# find compiler and flags #
+###########################
+
+R_EXE="${R_HOME}/bin${R_ARCH_BIN}/R"
+CXX17=`"${R_EXE}" CMD config CXX17`
+CXX17STD=`"${R_EXE}" CMD config CXX17STD`
+CXX="${CXX17} ${CXX17STD}"
+CXXFLAGS=`"${R_EXE}" CMD config CXX17FLAGS`
+CXX_STD="CXX17"
+CPPFLAGS=`"${R_EXE}" CMD config CPPFLAGS`
+
+# Stochtree-specific flags
+STOCHTREE_CPPFLAGS=""
+
+#########
+# Eigen #
+#########
+
+STOCHTREE_CPPFLAGS="${STOCHTREE_CPPFLAGS} -DEIGEN_MPL2_ONLY -DEIGEN_DONT_PARALLELIZE"
+
+##########
+# OpenMP #
+##########
+
+STOCHTREE_CPPFLAGS="${STOCHTREE_CPPFLAGS} -DSTOCHTREE_OPENMP_AVAILABLE"
+
+#########################
+# Generate Makevars.win #
+#########################
+
+sed -e \
+    "s/@CXX_STD@/$CXX_STD/" \
+    < src/Makevars.win.in > src/Makevars.win
+sed -e \
+    "s/@STOCHTREE_CPPFLAGS@/$STOCHTREE_CPPFLAGS/" \
+    < src/Makevars.win.in > src/Makevars.win

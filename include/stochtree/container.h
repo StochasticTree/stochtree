@@ -11,12 +11,7 @@
 #include <nlohmann/json.hpp>
 #include <stochtree/tree.h>
 
-#include <algorithm>
-#include <deque>
 #include <fstream>
-#include <optional>
-#include <random>
-#include <unordered_map>
 
 namespace StochTree {
 

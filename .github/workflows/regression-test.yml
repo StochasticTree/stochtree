@@ -1,0 +1,50 @@
+on:
+  workflow_dispatch:
+
+name: Running stochtree on benchmark datasets
+
+jobs:
+  stochtree_r_bart:
+    name: stochtree-r-bart-regression-test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout stochtree repo
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Setup pandoc
+        uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      
+      - name: Create a properly formatted version of the stochtree R package in a subfolder
+        run: |
+          Rscript cran-bootstrap.R 0 0 1
+
+      - name: Setup R dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::decor, local::stochtree_cran
+      
+      - name: Create output directory for regression test results
+        run: |
+          mkdir -p tools/regression/stochtree_bart_r_results
+
+      - name: Run the regression test benchmark suite
+        run: |
+          Rscript tools/regression/regression_test_dispatch_bart.R
+
+      - name: Collate and analyze regression test results
+        run: |
+          Rscript tools/regression/regression_test_analysis_bart.R
+
+      - name: Store benchmark test results as an artifact of the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: stochtree-r-bart-summary
+          path: tools/regression/stochtree_bart_r_results/stochtree_bart_r_summary.csv

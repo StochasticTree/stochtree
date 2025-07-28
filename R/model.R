@@ -67,10 +67,11 @@ ForestModel <- R6::R6Class(
         #' @param rng Wrapper around C++ random number generator
         #' @param forest_model_config ForestModelConfig object containing forest model parameters and settings
         #' @param global_model_config GlobalModelConfig object containing global model parameters and settings
+        #' @param num_threads Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's system, this will default to `1`, otherwise to the maximum number of available threads.
         #' @param keep_forest (Optional) Whether the updated forest sample should be saved to `forest_samples`. Default: `TRUE`.
         #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: `TRUE`.
         sample_one_iteration = function(forest_dataset, residual, forest_samples, active_forest, 
-                                        rng, forest_model_config, global_model_config, 
+                                        rng, forest_model_config, global_model_config, num_threads = -1, 
                                         keep_forest = TRUE, gfr = TRUE) {
             if (active_forest$is_empty()) {
                 stop("`active_forest` has not yet been initialized, which is necessary to run the sampler. Please set constant values for `active_forest`'s leaves using either the `set_root_leaves` or `prepare_for_sampler` methods.")
@@ -114,14 +115,15 @@ ForestModel <- R6::R6Class(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
                     self$tree_prior_ptr, rng$rng_ptr, sweep_update_indices, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, num_features_subsample
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, num_features_subsample, 
+                    num_threads
                 )
             } else {
                 sample_mcmc_one_iteration_cpp(
                     forest_dataset$data_ptr, residual$data_ptr, 
                     forest_samples$forest_container_ptr, active_forest$forest_ptr, self$tracker_ptr, 
                     self$tree_prior_ptr, rng$rng_ptr, sweep_update_indices, feature_types, cutpoint_grid_size, leaf_model_scale, 
-                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest
+                    variable_weights, a_forest, b_forest, global_scale, leaf_model_int, keep_forest, num_threads
                 ) 
             }
         }, 

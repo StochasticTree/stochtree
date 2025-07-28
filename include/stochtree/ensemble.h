@@ -14,12 +14,6 @@
 #include <stochtree/tree.h>
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
-#include <deque>
-#include <optional>
-#include <random>
-#include <unordered_map>
-
 using json = nlohmann::json;
 
 namespace StochTree {

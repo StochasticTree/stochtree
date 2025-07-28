@@ -54,6 +54,8 @@ class CMakeBuild(build_ext):
             "-DBUILD_TEST=OFF", 
             "-DBUILD_DEBUG_TARGETS=OFF", 
             "-DBUILD_PYTHON=ON", 
+            "-DUSE_OPENMP=ON", 
+            "-DUSE_HOMEBREW_FALLBACK=ON", 
         ]
         build_args = []
         # Adding CMake arguments set as environment variable
