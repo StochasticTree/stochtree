@@ -507,14 +507,13 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     if (!is.null(X_test)) X_test <- preprocessPredictionData(X_test, X_train_metadata)
     
     # Convert all input data to matrices if not already converted
-    if ((is.null(dim(Z_train))) && (!is.null(Z_train))) {
-        Z_train <- as.matrix(as.numeric(Z_train))
-    }
+    Z_col <- ifelse(is.null(dim(Z_train)), 1, ncol(Z_train))
+    Z_train <- matrix(as.numeric(Z_train), ncol = Z_col)
     if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
         propensity_train <- as.matrix(propensity_train)
     }
-    if ((is.null(dim(Z_test))) && (!is.null(Z_test))) {
-        Z_test <- as.matrix(as.numeric(Z_test))
+    if (!is.null(Z_test)) {
+        Z_test <- matrix(as.numeric(Z_test), ncol = Z_col)
     }
     if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
         propensity_test <- as.matrix(propensity_test)
@@ -583,9 +582,30 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         }
     }
     
-    # Stop if multivariate treatment is provided
-    if (ncol(Z_train) > 1) stop("Multivariate treatments are not currently supported")
-
+    # # Stop if multivariate treatment is provided
+    # if (ncol(Z_train) > 1) stop("Multivariate treatments are not currently supported")
+    
+    # Handle multivariate treatment
+    has_multivariate_treatment <- ncol(Z_train) > 1
+    if (has_multivariate_treatment) {
+        # Disable adaptive coding, internal propensity model, and 
+        # leaf scale sampling if treatment is multivariate
+        if (adaptive_coding) {
+            warning("Adaptive coding is incompatible with multivariate treatment and will be ignored")
+            adaptive_coding <- FALSE
+        }
+        if (is.null(propensity_train)) {
+            if (propensity_covariate != "none") {
+                warning("No propensities were provided for the multivariate treatment; an internal propensity model will not be fitted to the multivariate treatment and propensity_covariate will be set to 'none'")
+                propensity_covariate <- "none"
+            }
+        }
+        if (sample_sigma2_leaf_tau) {
+            warning("Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled for the treatment forest in this model.")
+            sample_sigma2_leaf_tau <- FALSE
+        }
+    }
+    
     # Random effects covariance prior
     if (has_rfx) {
         if (is.null(rfx_prior_var)) {
@@ -838,18 +858,10 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         current_sigma2 <- sigma2_init
     }
     
-    # Switch off leaf scale sampling for multivariate treatments
-    if (ncol(Z_train) > 1) {
-        if (sample_sigma2_leaf_tau) {
-            warning("Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled for the treatment forest in this model.")
-            sample_sigma2_leaf_tau <- FALSE
-        }
-    }
-    
     # Set mu and tau leaf models / dimensions
     leaf_model_mu_forest <- 0
     leaf_dimension_mu_forest <- 1
-    if (ncol(Z_train) > 1) {
+    if (has_multivariate_treatment) {
         leaf_model_tau_forest <- 2
         leaf_dimension_tau_forest <- ncol(Z_train)
     } else {
@@ -976,21 +988,21 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     
     # Container of forest samples
     forest_samples_mu <- createForestSamples(num_trees_mu, 1, TRUE)
-    forest_samples_tau <- createForestSamples(num_trees_tau, 1, FALSE)
+    forest_samples_tau <- createForestSamples(num_trees_tau, ncol(Z_train), FALSE)
     active_forest_mu <- createForest(num_trees_mu, 1, TRUE)
-    active_forest_tau <- createForest(num_trees_tau, 1, FALSE)
+    active_forest_tau <- createForest(num_trees_tau, ncol(Z_train), FALSE)
     if (include_variance_forest) {
         forest_samples_variance <- createForestSamples(num_trees_variance, 1, TRUE, TRUE)
         active_forest_variance <- createForest(num_trees_variance, 1, TRUE, TRUE)
     }
     
     # Initialize the leaves of each tree in the prognostic forest
-    active_forest_mu$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mu, 0, init_mu)
+    active_forest_mu$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_mu, leaf_model_mu_forest, init_mu)
     active_forest_mu$adjust_residual(forest_dataset_train, outcome_train, forest_model_mu, FALSE, FALSE)
 
     # Initialize the leaves of each tree in the treatment effect forest
-    init_tau <- 0.
-    active_forest_tau$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_tau, 1, init_tau)
+    init_tau <- rep(0., ncol(Z_train))
+    active_forest_tau$prepare_for_sampler(forest_dataset_train, outcome_train, forest_model_tau, leaf_model_tau_forest, init_tau)
     active_forest_tau$adjust_residual(forest_dataset_train, outcome_train, forest_model_tau, TRUE, FALSE)
 
     # Initialize the leaves of each tree in the variance forest
@@ -1453,7 +1465,18 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
     } else {
         tau_hat_train <- forest_samples_tau$predict_raw(forest_dataset_train)*y_std_train
     }
-    y_hat_train <- mu_hat_train + tau_hat_train * as.numeric(Z_train)
+    if (has_multivariate_treatment) {
+        tau_train_dim <- dim(tau_hat_train)
+        tau_num_obs <- tau_train_dim[1]
+        tau_num_samples <- tau_train_dim[3]
+        treatment_term_train <- matrix(NA_real_, nrow = tau_num_obs, tau_num_samples)
+        for (i in 1:nrow(Z_train)) {
+            treatment_term_train[i,] <- colSums(tau_hat_train[i,,] * Z_train[i,])
+        }
+    } else {
+        treatment_term_train <- tau_hat_train * as.numeric(Z_train)
+    }
+    y_hat_train <- mu_hat_train + treatment_term_train
     if (has_test) {
         mu_hat_test <- forest_samples_mu$predict(forest_dataset_test)*y_std_train + y_bar_train
         if (adaptive_coding) {
@@ -1462,7 +1485,18 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         } else {
             tau_hat_test <- forest_samples_tau$predict_raw(forest_dataset_test)*y_std_train
         }
-        y_hat_test <- mu_hat_test + tau_hat_test * as.numeric(Z_test)
+        if (has_multivariate_treatment) {
+            tau_test_dim <- dim(tau_hat_test)
+            tau_num_obs <- tau_test_dim[1]
+            tau_num_samples <- tau_test_dim[3]
+            treatment_term_test <- matrix(NA_real_, nrow = tau_num_obs, tau_num_samples)
+            for (i in 1:nrow(Z_test)) {
+                treatment_term_test[i,] <- colSums(tau_hat_test[i,,] * Z_test[i,])
+            }
+        } else {
+            treatment_term_test <- tau_hat_test * as.numeric(Z_test)
+        }
+        y_hat_test <- mu_hat_test + treatment_term_test
     }
     if (include_variance_forest) {
         sigma2_x_hat_train <- exp(sigma2_x_train_raw)
@@ -1529,6 +1563,7 @@ bcf <- function(X_train, Z_train, y_train, propensity_train = NULL, rfx_group_id
         "treatment_dim" = ncol(Z_train), 
         "propensity_covariate" = propensity_covariate, 
         "binary_treatment" = binary_treatment, 
+        "multivariate_treatment" = has_multivariate_treatment, 
         "adaptive_coding" = adaptive_coding, 
         "internal_propensity_model" = internal_propensity_model, 
         "num_samples" = num_retained_samples, 
@@ -1725,6 +1760,17 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
     } else {
         tau_hat <- object$forests_tau$predict_raw(forest_dataset_pred)*y_std
     }
+    if (object$model_params$multivariate_treatment) {
+        tau_dim <- dim(tau_hat)
+        tau_num_obs <- tau_dim[1]
+        tau_num_samples <- tau_dim[3]
+        treatment_term <- matrix(NA_real_, nrow = tau_num_obs, tau_num_samples)
+        for (i in 1:nrow(Z)) {
+            treatment_term[i,] <- colSums(tau_hat[i,,] * Z[i,])
+        }
+    } else {
+        treatment_term <- tau_hat * as.numeric(Z)
+    }
     if (object$model_params$include_variance_forest) {
         s_x_raw <- object$forests_variance$predict(forest_dataset_pred)
     }
@@ -1735,7 +1781,7 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
     }
     
     # Compute overall "y_hat" predictions
-    y_hat <- mu_hat + tau_hat * as.numeric(Z)
+    y_hat <- mu_hat + treatment_term
     if (object$model_params$has_rfx) y_hat <- y_hat + rfx_predictions
     
     # Scale variance forest predictions
@@ -1977,6 +2023,7 @@ saveBCFModelToJson <- function(object){
     jsonobj$add_boolean("has_rfx", object$model_params$has_rfx)
     jsonobj$add_boolean("has_rfx_basis", object$model_params$has_rfx_basis)
     jsonobj$add_scalar("num_rfx_basis", object$model_params$num_rfx_basis)
+    jsonobj$add_boolean("multivariate_treatment", object$model_params$multivariate_treatment)
     jsonobj$add_boolean("adaptive_coding", object$model_params$adaptive_coding)
     jsonobj$add_boolean("internal_propensity_model", object$model_params$internal_propensity_model)
     jsonobj$add_scalar("num_gfr", object$model_params$num_gfr)
@@ -2308,6 +2355,7 @@ createBCFModelFromJson <- function(json_object){
     model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
     model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
     model_params[["adaptive_coding"]] <- json_object$get_boolean("adaptive_coding")
+    model_params[["multivariate_treatment"]] <- json_object$get_boolean("multivariate_treatment")
     model_params[["internal_propensity_model"]] <- json_object$get_boolean("internal_propensity_model")
     model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
     model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
@@ -2647,6 +2695,7 @@ createBCFModelFromCombinedJson <- function(json_object_list){
     model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
     model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
     model_params[["adaptive_coding"]] <- json_object_default$get_boolean("adaptive_coding")
+    model_params[["multivariate_treatment"]] <- json_object_default$get_boolean("multivariate_treatment")
     model_params[["internal_propensity_model"]] <- json_object_default$get_boolean("internal_propensity_model")
     model_params[["probit_outcome_model"]] <- json_object_default$get_boolean("probit_outcome_model")
     
@@ -2873,6 +2922,7 @@ createBCFModelFromCombinedJsonString <- function(json_string_list){
     model_params[["num_covariates"]] <- json_object_default$get_scalar("num_covariates")
     model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
     model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
+    model_params[["multivariate_treatment"]] <- json_object_default$get_boolean("multivariate_treatment")
     model_params[["adaptive_coding"]] <- json_object_default$get_boolean("adaptive_coding")
     model_params[["internal_propensity_model"]] <- json_object_default$get_boolean("internal_propensity_model")
     model_params[["probit_outcome_model"]] <- json_object_default$get_boolean("probit_outcome_model")
