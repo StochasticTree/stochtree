@@ -10,7 +10,7 @@ test_case_grid <- cbind(
 )
 
 # Run script for every case
-script_path <- "tools/regression/individual_regression_test_bart.R"
+script_path <- "tools/regression/bart/individual_regression_test_bart.R"
 for (i in 1:nrow(test_case_grid)) {
     n_iter <- test_case_grid[i,1]
     n <- test_case_grid[i,2]

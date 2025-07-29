@@ -1,4 +1,4 @@
-reg_test_dir <- "tools/regression/stochtree_bart_r_results"
+reg_test_dir <- "tools/regression/bart/stochtree_bart_r_results"
 reg_test_files <- list.files(reg_test_dir, pattern = ".csv", full.names = T)
 
 reg_test_df <- data.frame()
