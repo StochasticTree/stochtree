@@ -1276,15 +1276,23 @@ predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL
     result <- list()
     if ((object$model_params$has_rfx) || (object$model_params$include_mean_forest)) {
         result[["y_hat"]] = y_hat
+    } else {
+        result[["y_hat"]] <- NULL
     }
     if (object$model_params$include_mean_forest) {
         result[["mean_forest_predictions"]] = mean_forest_predictions
+    } else {
+        result[["mean_forest_predictions"]] <- NULL
     }
     if (object$model_params$has_rfx) {
         result[["rfx_predictions"]] = rfx_predictions
+    } else {
+        result[["rfx_predictions"]] <- NULL
     }
     if (object$model_params$include_variance_forest) {
         result[["variance_forest_predictions"]] = variance_forest_predictions
+    } else {
+        result[["variance_forest_predictions"]] <- NULL
     }
     return(result)
 }

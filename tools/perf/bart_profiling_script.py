@@ -61,7 +61,8 @@ if __name__ == "__main__":
     bart_model = BARTModel()
     bart_model.sample(X_train=X_train, y_train=y_train, X_test=X_test, 
                       num_gfr=num_gfr, num_mcmc=num_mcmc, general_params=general_params)
-    test_preds = bart_model.predict(covariates=X_test)
+    bart_preds = bart_model.predict(covariates=X_test)
+    test_preds = bart_preds['y_hat']
     end_time = time.time()
     total_runtime = end_time - start_time
     print(f"Total runtime: {total_runtime:.3f} seconds")

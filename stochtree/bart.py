@@ -1691,11 +1691,11 @@ class BARTModel:
 
         has_mean_predictions = self.include_mean_forest or self.has_rfx
         if has_mean_predictions and self.include_variance_forest:
-            return (mean_pred, variance_pred)
+            return {"y_hat": mean_pred, "variance_forest_predictions": variance_pred}
         elif has_mean_predictions and not self.include_variance_forest:
-            return mean_pred
+            return {"y_hat": mean_pred, "variance_forest_predictions": None}
         elif not has_mean_predictions and self.include_variance_forest:
-            return variance_pred
+            return {"y_hat": None, "variance_forest_predictions": variance_pred}
 
     def predict_mean(
         self,

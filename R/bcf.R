@@ -1800,10 +1800,14 @@ predict.bcfmodel <- function(object, X, Z, propensity = NULL, rfx_group_ids = NU
         "y_hat" = y_hat
     )
     if (object$model_params$has_rfx) {
-        result[["rfx_predictions"]] = rfx_predictions
+        result[["rfx_predictions"]] <- rfx_predictions
+    } else {
+        result[["rfx_predictions"]] <- NULL
     }
     if (object$model_params$include_variance_forest) {
-        result[["variance_forest_predictions"]] = variance_forest_predictions
+        result[["variance_forest_predictions"]] <- variance_forest_predictions
+    } else {
+        result[["variance_forest_predictions"]] <- NULL
     }
     return(result)
 }

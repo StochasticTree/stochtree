@@ -70,7 +70,8 @@ class TestBCF:
         assert bcf_model.tau_hat_test.shape == (n_test, num_mcmc)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test, pi_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
@@ -99,11 +100,11 @@ class TestBCF:
         assert bcf_model.tau_hat_train.shape == (n_train, num_mcmc)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test, pi_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
-
         # Check treatment effect prediction method
         tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
         assert tau_hat.shape == (n_test, num_mcmc)
@@ -134,7 +135,8 @@ class TestBCF:
         assert bcf_model.bart_propensity_model.y_hat_test.shape == (n_test, 10)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
@@ -163,7 +165,8 @@ class TestBCF:
         assert bcf_model.bart_propensity_model.y_hat_train.shape == (n_train, 10)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
@@ -235,7 +238,8 @@ class TestBCF:
         assert bcf_model.tau_hat_test.shape == (n_test, num_mcmc)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test, pi_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
@@ -270,7 +274,8 @@ class TestBCF:
         assert bcf_model_2.tau_hat_test.shape == (n_test, num_mcmc)
 
         # Check overall prediction method
-        tau_hat_2, mu_hat_2, y_hat_2 = bcf_model_2.predict(X_test, Z_test, pi_test)
+        bcf_preds_2 = bcf_model_2.predict(X_test, Z_test, pi_test)
+        tau_hat_2, mu_hat_2, y_hat_2 = bcf_preds_2['tau_hat'], bcf_preds_2['mu_hat'], bcf_preds_2['y_hat']
         assert tau_hat_2.shape == (n_test, num_mcmc)
         assert mu_hat_2.shape == (n_test, num_mcmc)
         assert y_hat_2.shape == (n_test, num_mcmc)
@@ -285,7 +290,8 @@ class TestBCF:
         bcf_model_3.from_json_string_list(bcf_models_json)
 
         # Assertions
-        tau_hat_3, mu_hat_3, y_hat_3 = bcf_model_3.predict(X_test, Z_test, pi_test)
+        bcf_preds_3 = bcf_model_3.predict(X_test, Z_test, pi_test)
+        tau_hat_3, mu_hat_3, y_hat_3 = bcf_preds_3['tau_hat'], bcf_preds_3['mu_hat'], bcf_preds_3['y_hat']
         assert tau_hat_3.shape == (n_train, num_mcmc * 2)
         assert mu_hat_3.shape == (n_train, num_mcmc * 2)
         assert y_hat_3.shape == (n_train, num_mcmc * 2)
@@ -323,7 +329,8 @@ class TestBCF:
         assert bcf_model.tau_hat_train.shape == (n_train, num_mcmc)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test, pi_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
@@ -358,7 +365,8 @@ class TestBCF:
         assert bcf_model.bart_propensity_model.y_hat_test.shape == (n_test, 10)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
@@ -387,7 +395,8 @@ class TestBCF:
         assert bcf_model.bart_propensity_model.y_hat_train.shape == (n_train, 10)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
@@ -414,7 +423,8 @@ class TestBCF:
         assert bcf_model_2.tau_hat_train.shape == (n_train, num_mcmc)
 
         # Check overall prediction method
-        tau_hat_2, mu_hat_2, y_hat_2 = bcf_model_2.predict(X_test, Z_test)
+        bcf_preds_2 = bcf_model_2.predict(X_test, Z_test)
+        tau_hat_2, mu_hat_2, y_hat_2 = bcf_preds_2['tau_hat'], bcf_preds_2['mu_hat'], bcf_preds_2['y_hat']
         assert tau_hat_2.shape == (n_test, num_mcmc)
         assert mu_hat_2.shape == (n_test, num_mcmc)
         assert y_hat_2.shape == (n_test, num_mcmc)
@@ -429,7 +439,8 @@ class TestBCF:
         bcf_model_3.from_json_string_list(bcf_models_json)
 
         # Assertions
-        tau_hat_3, mu_hat_3, y_hat_3 = bcf_model_3.predict(X_test, Z_test)
+        bcf_preds_3 = bcf_model_3.predict(X_test, Z_test)
+        tau_hat_3, mu_hat_3, y_hat_3 = bcf_preds_3['tau_hat'], bcf_preds_3['mu_hat'], bcf_preds_3['y_hat']
         assert tau_hat_3.shape == (n_train, num_mcmc * 2)
         assert mu_hat_3.shape == (n_train, num_mcmc * 2)
         assert y_hat_3.shape == (n_train, num_mcmc * 2)
@@ -510,7 +521,8 @@ class TestBCF:
         assert bcf_model.tau_hat_test.shape == (n_test, num_mcmc, treatment_dim)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test, pi_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
@@ -539,7 +551,8 @@ class TestBCF:
         assert bcf_model.tau_hat_train.shape == (n_train, num_mcmc, treatment_dim)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test, pi_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
+        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
         assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
@@ -644,11 +657,12 @@ class TestBCF:
         assert bcf_model.sigma2_x_test.shape == (n_train, num_mcmc)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat, sigma2_hat = bcf_model.predict(X_test, Z_test, pi_test)
+        bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
+        tau_hat, mu_hat, y_hat, sigma2_x_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat'], bcf_preds['variance_forest_predictions']
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
-        assert sigma2_hat.shape == (n_test, num_mcmc)
+        assert sigma2_x_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
         tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
@@ -675,29 +689,29 @@ class TestBCF:
         assert bcf_model.sigma2_x_train.shape == (n_train, num_mcmc)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat, sigma2_hat = bcf_model.predict(X_test, Z_test, pi_test)
-        assert tau_hat.shape == (n_test, num_mcmc)
-        assert mu_hat.shape == (n_test, num_mcmc)
-        assert y_hat.shape == (n_test, num_mcmc)
-        assert sigma2_hat.shape == (n_test, num_mcmc)
+        bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
+        assert bcf_preds['tau_hat'].shape == (n_test, num_mcmc)
+        assert bcf_preds['mu_hat'].shape == (n_test, num_mcmc)
+        assert bcf_preds['y_hat'].shape == (n_test, num_mcmc)
+        assert bcf_preds['variance_forest_predictions'].shape == (n_test, num_mcmc)
 
         # Check predictions match
-        tau_hat, mu_hat, y_hat, sigma2_hat = bcf_model.predict(X_train, Z_train, pi_train)
-        assert tau_hat.shape == (n_train, num_mcmc)
-        assert mu_hat.shape == (n_train, num_mcmc)
-        assert y_hat.shape == (n_train, num_mcmc)
-        assert sigma2_hat.shape == (n_train, num_mcmc)
+        bcf_preds = bcf_model.predict(X_train, Z_train, pi_train)
+        assert bcf_preds['tau_hat'].shape == (n_train, num_mcmc)
+        assert bcf_preds['mu_hat'].shape == (n_train, num_mcmc)
+        assert bcf_preds['y_hat'].shape == (n_train, num_mcmc)
+        assert bcf_preds['variance_forest_predictions'].shape == (n_train, num_mcmc)
         np.testing.assert_allclose(
-            y_hat, bcf_model.y_hat_train
+            bcf_preds['y_hat'], bcf_model.y_hat_train
         )
         np.testing.assert_allclose(
-            mu_hat, bcf_model.mu_hat_train
+            bcf_preds['mu_hat'], bcf_model.mu_hat_train
         )
         np.testing.assert_allclose(
-            tau_hat, bcf_model.tau_hat_train
+            bcf_preds['tau_hat'], bcf_model.tau_hat_train
         )
         np.testing.assert_allclose(
-            sigma2_hat, bcf_model.sigma2_x_train
+            bcf_preds['variance_forest_predictions'], bcf_model.sigma2_x_train
         )
 
         # Check treatment effect prediction method
@@ -731,11 +745,11 @@ class TestBCF:
         assert bcf_model.bart_propensity_model.y_hat_test.shape == (n_test, 10)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat, sigma2_hat = bcf_model.predict(X_test, Z_test)
-        assert tau_hat.shape == (n_test, num_mcmc)
-        assert mu_hat.shape == (n_test, num_mcmc)
-        assert y_hat.shape == (n_test, num_mcmc)
-        assert sigma2_hat.shape == (n_test, num_mcmc)
+        bcf_preds = bcf_model.predict(X_test, Z_test)
+        assert bcf_preds['tau_hat'].shape == (n_test, num_mcmc)
+        assert bcf_preds['mu_hat'].shape == (n_test, num_mcmc)
+        assert bcf_preds['y_hat'].shape == (n_test, num_mcmc)
+        assert bcf_preds['variance_forest_predictions'].shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
         tau_hat = bcf_model.predict_tau(X_test, Z_test)
@@ -761,10 +775,10 @@ class TestBCF:
         assert bcf_model.bart_propensity_model.y_hat_train.shape == (n_train, 10)
 
         # Check overall prediction method
-        tau_hat, mu_hat, y_hat = bcf_model.predict(X_test, Z_test)
-        assert tau_hat.shape == (n_test, num_mcmc)
-        assert mu_hat.shape == (n_test, num_mcmc)
-        assert y_hat.shape == (n_test, num_mcmc)
+        bcf_preds = bcf_model.predict(X_test, Z_test)
+        assert bcf_preds['tau_hat'].shape == (n_test, num_mcmc)
+        assert bcf_preds['mu_hat'].shape == (n_test, num_mcmc)
+        assert bcf_preds['y_hat'].shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
         tau_hat = bcf_model.predict_tau(X_test, Z_test)

@@ -2239,23 +2239,6 @@ class BCFModel:
         # Data checks
         if Z.shape[0] != X.shape[0]:
             raise ValueError("X and Z must have the same number of rows")
-        if propensity is not None:
-            if propensity.shape[0] != X.shape[0]:
-                raise ValueError("X and propensity must have the same number of rows")
-        else:
-            if self.propensity_covariate == "tau":
-                if not self.internal_propensity_model:
-                    raise ValueError(
-                        "Propensity scores not provided, but no propensity model was trained during sampling"
-                    )
-                else:
-                    propensity = np.mean(
-                        self.bart_propensity_model.predict(X), axis=1, keepdims=True
-                    )
-            else:
-                # Dummy propensities if not provided but also not needed
-                propensity = np.ones(X.shape[0])
-                propensity = np.expand_dims(propensity, 1)
 
         # Covariate preprocessing
         if not self._covariate_preprocessor._check_is_fitted():
@@ -2277,6 +2260,22 @@ class BCFModel:
                 covariates_processed = X
         else:
             covariates_processed = self._covariate_preprocessor.transform(X)
+        
+        # Handle propensities
+        if propensity is not None:
+            if propensity.shape[0] != X.shape[0]:
+                raise ValueError("X and propensity must have the same number of rows")
+        else:
+            if self.propensity_covariate != "none":
+                if not self.internal_propensity_model:
+                    raise ValueError(
+                        "Propensity scores not provided, but no propensity model was trained during sampling"
+                    )
+                else:
+                    internal_propensity_preds = self.bart_propensity_model.predict(covariates_processed)
+                    propensity = np.mean(
+                        internal_propensity_preds['y_hat'], axis=1, keepdims=True
+                    )
 
         # Update covariates to include propensities if requested
         if self.propensity_covariate == "none":
@@ -2362,6 +2361,22 @@ class BCFModel:
                 covariates_processed = covariates
         else:
             covariates_processed = self._covariate_preprocessor.transform(covariates)
+        
+        # Handle propensities
+        if propensity is not None:
+            if propensity.shape[0] != covariates.shape[0]:
+                raise ValueError("X and propensity must have the same number of rows")
+        else:
+            if self.propensity_covariate != "none":
+                if not self.internal_propensity_model:
+                    raise ValueError(
+                        "Propensity scores not provided, but no propensity model was trained during sampling"
+                    )
+                else:
+                    internal_propensity_preds = self.bart_propensity_model.predict(covariates_processed)
+                    propensity = np.mean(
+                        internal_propensity_preds['y_hat'], axis=1, keepdims=True
+                    )
 
         # Update covariates to include propensities if requested
         if self.propensity_covariate == "none":
@@ -2402,7 +2417,7 @@ class BCFModel:
         propensity: np.array = None,
         rfx_group_ids: np.array = None,
         rfx_basis: np.array = None,
-    ) -> tuple:
+    ) -> dict:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.
 
@@ -2455,19 +2470,6 @@ class BCFModel:
         # Data checks
         if Z.shape[0] != X.shape[0]:
             raise ValueError("X and Z must have the same number of rows")
-        if propensity is not None:
-            if propensity.shape[0] != X.shape[0]:
-                raise ValueError("X and propensity must have the same number of rows")
-        else:
-            if self.propensity_covariate != "none":
-                if not self.internal_propensity_model:
-                    raise ValueError(
-                        "Propensity scores not provided, but no propensity model was trained during sampling"
-                    )
-                else:
-                    propensity = np.mean(
-                        self.bart_propensity_model.predict(X), axis=1, keepdims=True
-                    )
 
         # Covariate preprocessing
         if not self._covariate_preprocessor._check_is_fitted():
@@ -2489,6 +2491,22 @@ class BCFModel:
                 covariates_processed = X
         else:
             covariates_processed = self._covariate_preprocessor.transform(X)
+        
+        # Handle propensities
+        if propensity is not None:
+            if propensity.shape[0] != X.shape[0]:
+                raise ValueError("X and propensity must have the same number of rows")
+        else:
+            if self.propensity_covariate != "none":
+                if not self.internal_propensity_model:
+                    raise ValueError(
+                        "Propensity scores not provided, but no propensity model was trained during sampling"
+                    )
+                else:
+                    internal_propensity_preds = self.bart_propensity_model.predict(covariates_processed)
+                    propensity = np.mean(
+                        internal_propensity_preds['y_hat'], axis=1, keepdims=True
+                    )
 
         # Update covariates to include propensities if requested
         if self.propensity_covariate == "none":
@@ -2543,13 +2561,13 @@ class BCFModel:
 
         # Return result matrices as a tuple
         if self.has_rfx and self.include_variance_forest:
-            return (tau_x, mu_x, rfx_preds, yhat_x, sigma2_x)
+            return {"mu_hat": mu_x, "tau_hat": tau_x, "y_hat": yhat_x, "rfx_predictions": rfx_preds, "variance_forest_predictions": sigma2_x}
         elif not self.has_rfx and self.include_variance_forest:
-            return (tau_x, mu_x, yhat_x, sigma2_x)
+            return {"mu_hat": mu_x, "tau_hat": tau_x, "y_hat": yhat_x, "rfx_predictions": None, "variance_forest_predictions": sigma2_x}
         elif self.has_rfx and not self.include_variance_forest:
-            return (tau_x, mu_x, rfx_preds, yhat_x)
+            return {"mu_hat": mu_x, "tau_hat": tau_x, "y_hat": yhat_x, "rfx_predictions": rfx_preds, "variance_forest_predictions": None}
         else:
-            return (tau_x, mu_x, yhat_x)
+            return {"mu_hat": mu_x, "tau_hat": tau_x, "y_hat": yhat_x, "rfx_predictions": None, "variance_forest_predictions": None}
 
     def to_json(self) -> str:
         """
