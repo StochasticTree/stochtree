@@ -8,7 +8,7 @@ for (file in reg_test_files) {
 }
 
 summary_df <- aggregate(
-    cbind(rmse, coverage, runtime) ~ n + p + num_gfr + num_mcmc + dgp_num + snr + test_set_pct + num_threads, 
+    cbind(outcome_rmse, outcome_coverage, treatment_effect_rmse, treatment_effect_coverage, runtime) ~ n + p + num_gfr + num_mcmc + dgp_num + snr + test_set_pct + num_threads, 
     data = reg_test_df, FUN = median, drop = TRUE
 )
 
