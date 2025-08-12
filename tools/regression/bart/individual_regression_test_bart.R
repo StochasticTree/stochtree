@@ -231,5 +231,5 @@ filename <- paste(
     "dgp_num", dgp_num, "snr", snr_rounded, "test_set_pct", test_set_pct_rounded, 
     "num_threads", num_threads_clean, sep = "_"
 )
-filename_full <- paste0("tools/regression/stochtree_bart_r_results/", filename, ".csv")
+filename_full <- paste0("tools/regression/bart/stochtree_bart_r_results/", filename, ".csv")
 write.csv(x = results_df, file = filename_full, row.names = F)
