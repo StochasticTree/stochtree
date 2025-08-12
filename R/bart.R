@@ -51,6 +51,7 @@
 #'   - `rfx_group_parameter_prior_cov` Prior covariance matrix for the random effects "group parameters." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
 #'   - `rfx_variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'   - `rfx_variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+#'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 #'
 #' @param mean_forest_params (Optional) A list of mean forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -130,7 +131,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         rfx_working_parameter_prior_cov = NULL,
         rfx_group_parameter_prior_cov = NULL,
         rfx_variance_prior_shape = 1,
-        rfx_variance_prior_scale = 1
+        rfx_variance_prior_scale = 1,
+        num_threads = -1
     )
     general_params_updated <- preprocessParams(
         general_params_default, general_params
@@ -186,6 +188,7 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
     rfx_group_parameter_prior_cov <- general_params_updated$rfx_group_parameter_prior_cov
     rfx_variance_prior_shape <- general_params_updated$rfx_variance_prior_shape
     rfx_variance_prior_scale <- general_params_updated$rfx_variance_prior_scale
+    num_threads <- general_params_updated$num_threads
     
     # 2. Mean forest parameters
     num_trees_mean <- mean_forest_params_updated$num_trees
@@ -795,7 +798,8 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
                 forest_model_mean$sample_one_iteration(
                     forest_dataset = forest_dataset_train, residual = outcome_train, forest_samples = forest_samples_mean, 
                     active_forest = active_forest_mean, rng = rng, forest_model_config = forest_model_config_mean, 
-                    global_model_config = global_model_config, keep_forest = keep_sample, gfr = TRUE
+                    global_model_config = global_model_config, num_threads = num_threads, 
+                    keep_forest = keep_sample, gfr = TRUE
                 )
                 
                 # Cache train set predictions since they are already computed during sampling
@@ -1272,15 +1276,23 @@ predict.bartmodel <- function(object, X, leaf_basis = NULL, rfx_group_ids = NULL
     result <- list()
     if ((object$model_params$has_rfx) || (object$model_params$include_mean_forest)) {
         result[["y_hat"]] = y_hat
+    } else {
+        result[["y_hat"]] <- NULL
     }
     if (object$model_params$include_mean_forest) {
         result[["mean_forest_predictions"]] = mean_forest_predictions
+    } else {
+        result[["mean_forest_predictions"]] <- NULL
     }
     if (object$model_params$has_rfx) {
         result[["rfx_predictions"]] = rfx_predictions
+    } else {
+        result[["rfx_predictions"]] <- NULL
     }
     if (object$model_params$include_variance_forest) {
         result[["variance_forest_predictions"]] = variance_forest_predictions
+    } else {
+        result[["variance_forest_predictions"]] <- NULL
     }
     return(result)
 }

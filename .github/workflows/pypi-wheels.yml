@@ -21,26 +21,37 @@ jobs:
         include:
           - os: ubuntu-latest
             cibw_archs: "x86_64"
+            macos_deployment_target: "10.13" # Unused, just setting the variable as a placeholder
           - os: ubuntu-24.04-arm
             cibw_archs: "aarch64"
+            macos_deployment_target: "10.13" # Unused, just setting the variable as a placeholder
           - os: windows-latest
             cibw_archs: "auto64"
+            macos_deployment_target: "10.13" # Unused, just setting the variable as a placeholder
           - os: macos-13
             cibw_archs: "x86_64"
+            macos_deployment_target: "13.0"
           - os: macos-14
             cibw_archs: "arm64"
+            macos_deployment_target: "14.0"
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
+    
+      - name: Set up openmp (macos)
+        # Set up openMP on MacOS since it doesn't ship with the apple clang compiler suite
+        if: matrix.os == 'macos-13' || matrix.os == 'macos-14'
+        run: | 
+          brew install libomp
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.23.2
         env:
           CIBW_SKIP: "pp* *-musllinux_* *-win32"
           CIBW_ARCHS: ${{ matrix.cibw_archs }}
-          MACOSX_DEPLOYMENT_TARGET: "10.13"
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
 
       - uses: actions/upload-artifact@v4
         with:

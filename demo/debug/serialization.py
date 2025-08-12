@@ -98,11 +98,13 @@ for i in range(num_warmstart, num_samples):
     global_var_samples[i+1] = global_var_model.sample_one_iteration(residual, cpp_rng, a_global, b_global)
 
 # Extract predictions from the sampler
-y_hat_orig = forest_container.predict(dataset)
+bart_preds_orig = forest_container.predict(dataset)
+y_hat_orig = bart_preds_orig['y_hat']
 
 # "Round-trip" the forest to JSON string and back and check that the predictions agree
 forest_json_string = forest_container.dump_json_string()
 forest_container_reloaded = ForestContainer(num_trees, W.shape[1], False, False)
 forest_container_reloaded.load_from_json_string(forest_json_string)
-y_hat_reloaded = forest_container_reloaded.predict(dataset)
+bart_preds_reloaded = forest_container_reloaded.predict(dataset)
+y_hat_reloaded = bart_preds_reloaded['y_hat']
 np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)

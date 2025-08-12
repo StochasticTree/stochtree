@@ -138,6 +138,7 @@ class BARTModel:
             * `rfx_group_parameter_prior_cov`: Prior covariance matrix for the random effects "group parameters." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
             * `rfx_variance_prior_shape`: Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
             * `rfx_variance_prior_scale`: Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+            * `num_threads`: Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 
         mean_forest_params : dict, optional
             Dictionary of mean forest model parameters, each of which has a default value processed internally, so this argument is optional.
@@ -202,6 +203,7 @@ class BARTModel:
             "rfx_group_parameter_prior_cov": None,
             "rfx_variance_prior_shape": 1.0,
             "rfx_variance_prior_scale": 1.0,
+            "num_threads": -1,
         }
         general_params_updated = _preprocess_params(
             general_params_default, general_params
@@ -266,6 +268,7 @@ class BARTModel:
         rfx_group_parameter_prior_cov = general_params_updated["rfx_group_parameter_prior_cov"]
         rfx_variance_prior_shape = general_params_updated["rfx_variance_prior_shape"]
         rfx_variance_prior_scale = general_params_updated["rfx_variance_prior_scale"]
+        num_threads = general_params_updated["num_threads"]
 
         # 2. Mean forest parameters
         num_trees_mean = mean_forest_params_updated["num_trees"]
@@ -1226,6 +1229,7 @@ class BARTModel:
                         forest_model_config_mean,
                         keep_sample,
                         True,
+                        num_threads,
                     )
 
                     # Cache train set predictions since they are already computed during sampling
@@ -1244,6 +1248,7 @@ class BARTModel:
                         forest_model_config_variance,
                         keep_sample,
                         True,
+                        num_threads,
                     )
 
                     # Cache train set predictions since they are already computed during sampling
@@ -1426,6 +1431,7 @@ class BARTModel:
                             forest_model_config_mean,
                             keep_sample,
                             False,
+                            num_threads,
                         )
 
                         if keep_sample:
@@ -1443,6 +1449,7 @@ class BARTModel:
                             forest_model_config_variance,
                             keep_sample,
                             False,
+                            num_threads,
                         )
 
                         if keep_sample:
@@ -1684,11 +1691,11 @@ class BARTModel:
 
         has_mean_predictions = self.include_mean_forest or self.has_rfx
         if has_mean_predictions and self.include_variance_forest:
-            return (mean_pred, variance_pred)
+            return {"y_hat": mean_pred, "variance_forest_predictions": variance_pred}
         elif has_mean_predictions and not self.include_variance_forest:
-            return mean_pred
+            return {"y_hat": mean_pred, "variance_forest_predictions": None}
         elif not has_mean_predictions and self.include_variance_forest:
-            return variance_pred
+            return {"y_hat": None, "variance_forest_predictions": variance_pred}
 
     def predict_mean(
         self,

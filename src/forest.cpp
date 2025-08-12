@@ -7,9 +7,7 @@
 #include <stochtree/partition_tracker.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
-#include <functional>
 #include <memory>
-#include <vector>
 
 [[cpp11::register]]
 cpp11::external_pointer<StochTree::TreeEnsemble> active_forest_cpp(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {

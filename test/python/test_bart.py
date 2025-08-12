@@ -83,7 +83,8 @@ class TestBART:
         bart_model_3.from_json_string_list(bart_models_json)
 
         # Assertions
-        y_hat_train_combined = bart_model_3.predict(covariates=X_train)
+        bart_preds_combined = bart_model_3.predict(covariates=X_train)
+        y_hat_train_combined = bart_preds_combined['y_hat']
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -188,9 +189,10 @@ class TestBART:
         bart_model_3.from_json_string_list(bart_models_json)
 
         # Assertions
-        y_hat_train_combined = bart_model_3.predict(
+        bart_preds_combined = bart_model_3.predict(
             covariates=X_train, basis=basis_train
         )
+        y_hat_train_combined = bart_preds_combined['y_hat']
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -295,9 +297,10 @@ class TestBART:
         bart_model_3.from_json_string_list(bart_models_json)
 
         # Assertions
-        y_hat_train_combined = bart_model_3.predict(
+        bart_preds_combined = bart_model_3.predict(
             covariates=X_train, basis=basis_train
         )
+        y_hat_train_combined = bart_preds_combined['y_hat']
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -407,7 +410,8 @@ class TestBART:
         bart_model_3.from_json_string_list(bart_models_json)
 
         # Assertions
-        y_hat_train_combined, sigma2_x_train_combined = bart_model_3.predict(covariates=X_train)
+        bart_preds_combined = bart_model_3.predict(covariates=X_train)
+        y_hat_train_combined, sigma2_x_train_combined = bart_preds_combined['y_hat'], bart_preds_combined['variance_forest_predictions']
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         assert sigma2_x_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
@@ -536,9 +540,10 @@ class TestBART:
         bart_model_3.from_json_string_list(bart_models_json)
 
         # Assertions
-        y_hat_train_combined, _ = bart_model_3.predict(
+        bart_preds_combined = bart_model_3.predict(
             covariates=X_train, basis=basis_train
         )
+        y_hat_train_combined = bart_preds_combined['y_hat']
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -660,9 +665,10 @@ class TestBART:
         bart_model_3.from_json_string_list(bart_models_json)
 
         # Assertions
-        y_hat_train_combined, _ = bart_model_3.predict(
+        bart_preds_combined = bart_model_3.predict(
             covariates=X_train, basis=basis_train
         )
+        y_hat_train_combined = bart_preds_combined['y_hat']
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -814,11 +820,12 @@ class TestBART:
         )
 
         # Assertions
-        y_hat_train_combined, _ = bart_model_3.predict(
+        bart_preds_combined = bart_model_3.predict(
             covariates=X_train,
             rfx_group_ids=group_labels_train,
             rfx_basis=rfx_basis_train,
         )
+        y_hat_train_combined = bart_preds_combined['y_hat']
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -986,12 +993,13 @@ class TestBART:
         )
 
         # Assertions
-        y_hat_train_combined, _ = bart_model_3.predict(
+        bart_preds_combined = bart_model_3.predict(
             covariates=X_train,
             basis=basis_train,
             rfx_group_ids=group_labels_train,
             rfx_basis=rfx_basis_train,
         )
+        y_hat_train_combined = bart_preds_combined['y_hat']
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train

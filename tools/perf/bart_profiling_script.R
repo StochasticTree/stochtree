@@ -9,6 +9,7 @@ if (length(args) > 0){
     num_gfr <- as.integer(args[3])
     num_mcmc <- as.integer(args[4])
     snr <- as.numeric(args[5])
+    num_threads <- as.numeric(args[6])
 } else{
     # Default arguments
     n <- 1000
@@ -16,9 +17,11 @@ if (length(args) > 0){
     num_gfr <- 10
     num_mcmc <- 100
     snr <- 3.0
+    num_threads <- -1
 }
 cat("n = ", n, "\np = ", p, "\nnum_gfr = ", num_gfr, 
-    "\nnum_mcmc = ", num_mcmc, "\nsnr = ", snr, "\n", sep = "")
+    "\nnum_mcmc = ", num_mcmc, "\nsnr = ", snr, 
+    "\nnum_threads = ", num_threads, "\n", sep = "")
 
 # Generate data needed to train BART model
 X <- matrix(runif(n*p), ncol = p)
@@ -49,8 +52,9 @@ y_train <- y[train_inds]
 
 system.time({
     # Sample BART model
+    general_params <- list(num_threads = num_threads)
     bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
-                       num_gfr = num_gfr, num_mcmc = num_mcmc)
+                       num_gfr = num_gfr, num_mcmc = num_mcmc, general_params = general_params)
     
     # Predict on the test set
     test_preds <- predict(bart_model, X = X_test)

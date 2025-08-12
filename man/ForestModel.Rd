@@ -92,6 +92,7 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
   rng,
   forest_model_config,
   global_model_config,
+  num_threads = -1,
   keep_forest = TRUE,
   gfr = TRUE
 )}\if{html}{\out{</div>}}
@@ -113,6 +114,8 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
 \item{\code{forest_model_config}}{ForestModelConfig object containing forest model parameters and settings}
 
 \item{\code{global_model_config}}{GlobalModelConfig object containing global model parameters and settings}
+
+\item{\code{num_threads}}{Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to \code{1}, otherwise to the maximum number of available threads.}
 
 \item{\code{keep_forest}}{(Optional) Whether the updated forest sample should be saved to \code{forest_samples}. Default: \code{TRUE}.}
 
