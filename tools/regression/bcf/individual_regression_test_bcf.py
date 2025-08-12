@@ -364,12 +364,8 @@ def main():
         
         y_hat_posterior_mean = np.mean(y_hat_posterior, axis=1)
         if has_multivariate_treatment:
-            # For multivariate treatment, tau_hat_posterior has shape (n_test, n_samples, n_treatments)
-            # We want to average over the samples (axis 1) to get (n_test, n_treatments)
-            tau_hat_posterior_mean = np.mean(tau_hat_posterior, axis=1)
+            tau_hat_posterior_mean = np.mean(tau_hat_posterior, axis=2)
         else:
-            # For univariate treatment, tau_hat_posterior has shape (n_test, n_samples)
-            # We want to average over the samples (axis 1) to get (n_test,)
             tau_hat_posterior_mean = np.mean(tau_hat_posterior, axis=1)
         
         # Outcome RMSE and coverage
@@ -387,15 +383,13 @@ def main():
         tau_hat_rmse_test = np.sqrt(np.mean((tau_hat_posterior_mean - treatment_effect_test) ** 2))
         
         if has_multivariate_treatment:
-            # For multivariate treatment, compute percentiles over samples (axis 1)
-            tau_hat_posterior_quantile_025 = np.percentile(tau_hat_posterior, 2.5, axis=1)
-            tau_hat_posterior_quantile_975 = np.percentile(tau_hat_posterior, 97.5, axis=1)
+            tau_hat_posterior_quantile_025 = np.percentile(tau_hat_posterior, 2.5, axis=2)
+            tau_hat_posterior_quantile_975 = np.percentile(tau_hat_posterior, 97.5, axis=2)
             tau_hat_covered = np.logical_and(
                 treatment_effect_test >= tau_hat_posterior_quantile_025,
                 treatment_effect_test <= tau_hat_posterior_quantile_975
             )
         else:
-            # For univariate treatment, compute percentiles over samples (axis 1)
             tau_hat_posterior_quantile_025 = np.percentile(tau_hat_posterior, 2.5, axis=1)
             tau_hat_posterior_quantile_975 = np.percentile(tau_hat_posterior, 97.5, axis=1)
             tau_hat_covered = np.logical_and(
