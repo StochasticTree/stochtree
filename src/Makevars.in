@@ -1,0 +1,36 @@
+CXX_STD=CXX17
+
+PKGROOT=..
+
+STOCHTREE_CPPFLAGS = \
+    @STOCHTREE_CPPFLAGS@ \
+    @OPENMP_AVAILABILITY_FLAGS@ \
+    -DSTOCHTREE_R_BUILD
+
+PKG_CPPFLAGS = \
+    -I$(PKGROOT)/src/include \
+    $(STOCHTREE_CPPFLAGS)
+
+PKG_CXXFLAGS = \
+    @OPENMP_CXXFLAGS@
+
+PKG_LIBS = \
+    @OPENMP_CXXFLAGS@ \
+    @OPENMP_LIB@
+
+OBJECTS = \
+    forest.o \
+    kernel.o \
+    R_data.o \
+    R_random_effects.o \
+    sampler.o \
+    serialization.o \
+    cpp11.o \
+    container.o \
+    cutpoint_candidates.o \
+    data.o \
+    io.o \
+    leaf_model.o \
+    partition_tracker.o \
+    random_effects.o \
+    tree.o

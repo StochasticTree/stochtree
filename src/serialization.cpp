@@ -8,9 +8,6 @@
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 #include <nlohmann/json.hpp>
-#include <functional>
-#include <memory>
-#include <vector>
 
 [[cpp11::register]]
 cpp11::external_pointer<nlohmann::json> init_json_cpp() {

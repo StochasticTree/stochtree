@@ -1,0 +1,36 @@
+CXX_STD = @CXX_STD@
+
+PKGROOT=..
+
+STOCHTREE_CPPFLAGS = \
+    @STOCHTREE_CPPFLAGS@ \
+    -DSTOCHTREE_R_BUILD
+
+PKG_CPPFLAGS = \
+    -I$(PKGROOT)/src/include \
+    $(STOCHTREE_CPPFLAGS)
+
+PKG_CXXFLAGS = \
+    ${SHLIB_OPENMP_CXXFLAGS} \
+    ${SHLIB_PTHREAD_FLAGS}
+
+PKG_LIBS = \
+    ${SHLIB_OPENMP_CXXFLAGS} \
+    ${SHLIB_PTHREAD_FLAGS}
+
+OBJECTS = \
+    forest.o \
+    kernel.o \
+    R_data.o \
+    R_random_effects.o \
+    sampler.o \
+    serialization.o \
+    cpp11.o \
+    container.o \
+    cutpoint_candidates.o \
+    data.o \
+    io.o \
+    leaf_model.o \
+    partition_tracker.o \
+    random_effects.o \
+    tree.o
