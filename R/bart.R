@@ -696,9 +696,9 @@ bart <- function(X_train, y_train, leaf_basis_train = NULL, rfx_group_ids_train 
         # Prior parameters
         if (is.null(rfx_working_parameter_prior_mean)) {
             if (num_rfx_components == 1) {
-                alpha_init <- c(1)
+                alpha_init <- c(0)
             } else if (num_rfx_components > 1) {
-                alpha_init <- c(1,rep(0,num_rfx_components-1))
+                alpha_init <- rep(0,num_rfx_components)
             } else {
                 stop("There must be at least 1 random effect component")
             }
