@@ -19,11 +19,18 @@ Details on installation and use are available below:
 
 ## PyPI (`pip`)
 
-The python package is not yet on PyPI but can be installed from source using pip's [git interface](https://pip.pypa.io/en/stable/topics/vcs-support/). 
-To proceed, you will need a working version of [git](https://git-scm.com) and python 3.8 or greater (available from several sources, one of the most 
-straightforward being the [anaconda](https://docs.conda.io/projects/conda/en/stable/user-guide/install/index.html) suite).
+`stochtree`'s Python package can be installed from PyPI via:
+
+```
+pip install stochtree
+```
 
 ## Development Version (Local Build)
+
+The development version of stochtree can be installed from source using pip's [git interface](https://pip.pypa.io/en/stable/topics/vcs-support/).
+
+To proceed, you will need a working version of [git](https://git-scm.com) and python 3.8 or greater (available from several sources, one of the most straightforward being the [anaconda](https://docs.conda.io/projects/conda/en/stable/user-guide/install/index.html) suite).
+
 
 ### Quick start
 
