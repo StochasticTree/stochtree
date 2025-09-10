@@ -17,11 +17,15 @@ Details on installation and use are available below:
 
 # Python Package
 
+## PyPI
+
 The python package is not yet on PyPI but can be installed from source using pip's [git interface](https://pip.pypa.io/en/stable/topics/vcs-support/). 
 To proceed, you will need a working version of [git](https://git-scm.com) and python 3.8 or greater (available from several sources, one of the most 
 straightforward being the [anaconda](https://docs.conda.io/projects/conda/en/stable/user-guide/install/index.html) suite).
 
-## Quick start
+## Development Version (Local Build)
+
+### Quick start
 
 Without worrying about virtual environments (detailed further below), `stochtree` can be installed from the command line
 
@@ -30,11 +34,11 @@ pip install numpy scipy pytest pandas scikit-learn pybind11
 pip install git+https://github.com/StochasticTree/stochtree.git
 ```
 
-## Virtual environment installation
+### Virtual environment installation
 
 Often, users prefer to manage different projects (with different package / python version requirements) in virtual environments. 
 
-### Conda
+#### Conda
 
 Conda provides a straightforward experience in managing python dependencies, avoiding version conflicts / ABI issues / etc.
 
@@ -60,7 +64,7 @@ pip install jupyterlab
 
 With these dependencies installed, you can [clone the repo](###cloning-the-repository) and run the `demo/` examples.
 
-### Venv
+#### Venv
 
 You could also use venv for environment management. First, navigate to the folder in which you usually store virtual environments 
 (i.e. `cd /path/to/envs`) and create and activate a virtual environment:
