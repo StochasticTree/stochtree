@@ -7,6 +7,7 @@
 #include <stochtree/partition_tracker.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
+#include <stochtree/ordinal_sampler.h>
 #include <memory>
 
 [[cpp11::register]]
@@ -326,3 +327,103 @@ cpp11::writable::integers sample_without_replacement_integer_cpp(
     // Return result
     return(output);
 }
+
+// ============================================================================
+// ORDINAL AUXILIARY DATA FUNCTIONS
+// ============================================================================
+
+[[cpp11::register]]
+void ordinal_aux_data_initialize_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr, StochTree::data_size_t num_observations, int n_levels) {
+    tracker_ptr->InitializeOrdinalAuxData(num_observations, n_levels);
+}
+
+[[cpp11::register]]
+double ordinal_aux_data_get_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr, int type_idx, StochTree::data_size_t obs_idx) {
+    return tracker_ptr->GetOrdinalAuxData(type_idx, obs_idx);
+}
+
+[[cpp11::register]]
+void ordinal_aux_data_set_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr, int type_idx, StochTree::data_size_t obs_idx, double value) {
+    tracker_ptr->SetOrdinalAuxData(type_idx, obs_idx, value);
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles ordinal_aux_data_get_vector_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr, int type_idx) {
+    const std::vector<double>& aux_vec = tracker_ptr->GetOrdinalAuxDataVector(type_idx);
+    cpp11::writable::doubles output(aux_vec.size());
+    for (size_t i = 0; i < aux_vec.size(); i++) {
+        output[i] = aux_vec[i];
+    }
+    return output;
+}
+
+[[cpp11::register]]
+void ordinal_aux_data_set_vector_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr, int type_idx, cpp11::doubles values) {
+    std::vector<double>& aux_vec = tracker_ptr->GetOrdinalAuxDataVector(type_idx);
+    if (aux_vec.size() != values.size()) {
+        cpp11::stop("Size mismatch between auxiliary data vector and input values");
+    }
+    for (size_t i = 0; i < values.size(); i++) {
+        aux_vec[i] = values[i];
+    }
+}
+
+[[cpp11::register]]
+void ordinal_aux_data_update_cumsum_exp_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr) {
+    // Get auxiliary data vectors
+    const std::vector<double>& gamma = tracker_ptr->GetOrdinalAuxDataVector(2);  // cutpoints gamma
+    std::vector<double>& seg = tracker_ptr->GetOrdinalAuxDataVector(3);    // cumsum exp gamma 
+    
+    // Update seg (cumulative sum of exp(gamma))
+    for (size_t j = 0; j < seg.size(); j++) {
+        if (j == 0) {
+            seg[j] = 0.0;
+        } else {
+            seg[j] = seg[j - 1] + std::exp(gamma[j - 1]);
+        }
+    }
+}
+
+// ============================================================================
+// ORDINAL SAMPLER FUNCTIONS
+// ============================================================================
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::OrdinalSampler> ordinal_sampler_cpp() {
+    std::unique_ptr<StochTree::OrdinalSampler> sampler_ptr = std::make_unique<StochTree::OrdinalSampler>();
+    return cpp11::external_pointer<StochTree::OrdinalSampler>(sampler_ptr.release());
+}
+
+[[cpp11::register]]
+void ordinal_sampler_update_latent_variables_cpp(
+    cpp11::external_pointer<StochTree::OrdinalSampler> sampler_ptr,
+    cpp11::external_pointer<StochTree::ForestDataset> data_ptr, 
+    cpp11::external_pointer<StochTree::ColumnVector> outcome_ptr,
+    cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr,
+    cpp11::external_pointer<std::mt19937> rng_ptr
+) {
+    sampler_ptr->UpdateLatentVariables(*data_ptr, outcome_ptr->GetData(), *tracker_ptr, *rng_ptr);
+}
+
+[[cpp11::register]]
+void ordinal_sampler_update_gamma_params_cpp(
+    cpp11::external_pointer<StochTree::OrdinalSampler> sampler_ptr,
+    cpp11::external_pointer<StochTree::ForestDataset> data_ptr,
+    cpp11::external_pointer<StochTree::ColumnVector> outcome_ptr,
+    cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr,
+    double alpha_gamma,
+    double beta_gamma,
+    double gamma_0,
+    cpp11::external_pointer<std::mt19937> rng_ptr
+) {
+    sampler_ptr->UpdateGammaParams(*data_ptr, outcome_ptr->GetData(), *tracker_ptr, alpha_gamma, beta_gamma, gamma_0, *rng_ptr);
+}
+
+[[cpp11::register]]
+void ordinal_sampler_update_cumsum_exp_cpp(
+    cpp11::external_pointer<StochTree::OrdinalSampler> sampler_ptr,
+    cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr
+) {
+    sampler_ptr->UpdateCumulativeExpSums(*tracker_ptr);
+}
+
