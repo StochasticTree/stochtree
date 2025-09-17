@@ -394,6 +394,40 @@ static inline void UpdateVarModelTree(ForestTracker& tracker, ForestDataset& dat
   }
 }
 
+static inline void UpdateCLogLogModelTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, 
+                                      bool requires_basis, bool tree_new) {
+  data_size_t n = dataset.GetCovariates().rows();
+
+  double pred_value;
+  int32_t leaf_pred;
+  double pred_delta;
+  for (data_size_t i = 0; i < n; i++) {
+    if (tree_new) {
+      // If the tree has been newly sampled or adjusted, we must rerun the prediction 
+      // method and update the SamplePredMapper stored in tracker
+      leaf_pred = tracker.GetNodeId(i, tree_num);
+      if (requires_basis) {
+        pred_value = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+      } else {
+        pred_value = tree->PredictFromNode(leaf_pred);
+      }
+      pred_delta = pred_value - tracker.GetTreeSamplePrediction(i, tree_num);
+      tracker.SetTreeSamplePrediction(i, tree_num, pred_value);
+      tracker.SetSamplePrediction(i, tracker.GetSamplePrediction(i) + pred_delta);
+      // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num)
+      tracker.SetOrdinalAuxData(1, i, tracker.GetSamplePrediction(i) - pred_value);
+    } else {
+      // If the tree has not yet been modified via a sampling step, 
+      // we can query its prediction directly from the SamplePredMapper stored in tracker
+      pred_value = tracker.GetTreeSamplePrediction(i, tree_num);
+      // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num): needed? since tree not changed?
+      double current_lambda_hat = tracker.GetSamplePrediction(i);
+      double lambda_minus = current_lambda_hat - pred_value;
+      tracker.SetOrdinalAuxData(1, i, lambda_minus);
+    }
+  }
+}
+
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(
   ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, LeafModel& leaf_model, 
@@ -448,7 +482,9 @@ static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateExist
 template <typename LeafModel>
 static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
                                                  ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
-  if (backfitting) {
+  if constexpr (std::is_same_v<LeafModel, CloglogOrdinalLeafModel>) {
+  UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), false);
+  } else if (backfitting) {
     UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::plus<double>(), false);
   } else {
     // TODO: think about a generic way to store "state" corresponding to the other models?
@@ -459,7 +495,9 @@ static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, LeafMod
 template <typename LeafModel>
 static inline void AdjustStateAfterTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
                                                 ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
-  if (backfitting) {
+  if constexpr (std::is_same_v<LeafModel, CloglogOrdinalLeafModel>) {
+  UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), true);
+  } else if (backfitting) {
     UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::minus<double>(), true);
   } else {
     // TODO: think about a generic way to store "state" corresponding to the other models?
