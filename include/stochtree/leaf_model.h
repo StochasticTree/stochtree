@@ -347,12 +347,14 @@ namespace StochTree {
  * 2. `kUnivariateRegressionLeafGaussian`: Every leaf node has a zero-centered univariate normal prior and every leaf is a linear model, multiplying the leaf parameter by a (fixed) basis.
  * 3. `kMultivariateRegressionLeafGaussian`: Every leaf node has a multivariate normal prior, centered around the zero vector, and every leaf is a linear model, matrix-multiplying the leaf parameters by a (fixed) basis vector.
  * 4. `kLogLinearVariance`: Every leaf node has a inverse gamma prior and every leaf is constant.
+ * 5. `kCloglogOrdinal`: Every leaf node has a log-gamma prior and every leaf is constant.
  */
 enum ModelType {
   kConstantLeafGaussian, 
   kUnivariateRegressionLeafGaussian, 
   kMultivariateRegressionLeafGaussian, 
-  kLogLinearVariance
+  kLogLinearVariance,
+  kCloglogOrdinal
 };
 
 /*! \brief Sufficient statistic and associated operations for gaussian homoskedastic constant leaf outcome model */
@@ -969,6 +971,236 @@ class LogLinearVarianceLeafModel {
   GammaSampler gamma_sampler_;
 };
 
+/*! \brief Sufficient statistic and associated operations for complementary log-log ordinal BART model */
+class CloglogOrdinalSuffStat {
+ public:
+  data_size_t n;
+  double sum_Y_less_K;
+  double other_sum;
+  
+  /*!
+   * \brief Construct a new CloglogOrdinalSuffStat object, setting all sufficient statistics to zero
+   */
+  CloglogOrdinalSuffStat() {
+    n = 0;
+    sum_Y_less_K = 0.0;
+    other_sum = 0.0;
+  }
+  
+  /*!
+   * \brief Accumulate data from observation `row_idx` into the sufficient statistics
+   * 
+   * \param dataset Data object containing training data, including covariates
+   * \param outcome Data object containing the original ordinal outcome values, which are used to compute sufficient statistics
+   * \param tracker Tracking data structures that speed up sampler operations, synchronized with `active_forest` tracking a forest's state
+   * \param row_idx Index of the training data observation from which the sufficient statistics should be updated
+   * \param tree_idx Index of the tree being updated in the course of this sufficient statistic update
+   */
+  void IncrementSuffStat(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker, data_size_t row_idx, int tree_idx) {
+    n += 1;
+    
+    // Get ordinal outcome value for this observation
+    unsigned int y = static_cast<unsigned int>(outcome(row_idx));
+    
+    // Get auxiliary data from tracker (assuming types: 0=latents Z, 1=forest predictions, 2=cutpoints gamma, 3=cumsum exp of gamma)
+    double Z = tracker.GetOrdinalAuxData(0, row_idx);  // latent variables Z
+    double lambda_minus = tracker.GetOrdinalAuxData(1, row_idx);  // forest predictions excluding current tree 
+
+    // Get cutpoints gamma and cumulative sum of exp(gamma)
+    const std::vector<double>& gamma = tracker.GetOrdinalAuxDataVector(2);  // cutpoints gamma
+    const std::vector<double>& seg = tracker.GetOrdinalAuxDataVector(3);    // cumsum exp of gamma
+
+    int K = gamma.size() + 1;  // Number of ordinal categories
+    
+    if (y == K - 1) {
+      other_sum += std::exp(lambda_minus) * seg[y];  // checked and it's correct
+    } else {
+      sum_Y_less_K += 1.0;
+      other_sum += std::exp(lambda_minus) * (Z * std::exp(gamma[y]) + seg[y]); // checked and it's correct
+    }
+  }
+  
+  /*!
+   * \brief Reset all of the sufficient statistics to zero
+   */
+  void ResetSuffStat() {
+    n = 0;
+    sum_Y_less_K = 0.0;
+    other_sum = 0.0;
+  }
+  
+  /*!
+   * \brief Set the value of each sufficient statistic to the sum of the values provided by `lhs` and `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
+  void AddSuffStat(CloglogOrdinalSuffStat& lhs, CloglogOrdinalSuffStat& rhs) {
+    n = lhs.n + rhs.n;
+    sum_Y_less_K = lhs.sum_Y_less_K + rhs.sum_Y_less_K;
+    other_sum = lhs.other_sum + rhs.other_sum;
+  }
+  
+  /*!
+   * \brief Set the value of each sufficient statistic to the difference between the values provided by `lhs` and those provided by `rhs`
+   * 
+   * \param lhs First sufficient statistic ("left hand side")
+   * \param rhs Second sufficient statistic ("right hand side")
+   */
+  void SubtractSuffStat(CloglogOrdinalSuffStat& lhs, CloglogOrdinalSuffStat& rhs) {
+    n = lhs.n - rhs.n;
+    sum_Y_less_K = lhs.sum_Y_less_K - rhs.sum_Y_less_K;
+    other_sum = lhs.other_sum - rhs.other_sum;
+  }
+  
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than some threshold
+   * 
+   * \param threshold Value used to compute `n > threshold`
+   */
+  bool SampleGreaterThan(data_size_t threshold) {
+    return n > threshold;
+  }
+  
+  /*!
+   * \brief Check whether accumulated sample size, `n`, is greater than or equal to some threshold
+   * 
+   * \param threshold Value used to compute `n >= threshold`
+   */
+  bool SampleGreaterThanEqual(data_size_t threshold) {
+    return n >= threshold;
+  }
+  
+  /*!
+   * \brief Return the sample size accumulated by a sufficient stat object
+   */
+  data_size_t SampleSize() {
+    return n;
+  }
+};
+
+/*! \brief Marginal likelihood and posterior computation for complementary log-log ordinal BART model */
+class CloglogOrdinalLeafModel {
+ public:
+  /*!
+   * \brief Construct a new CloglogOrdinalLeafModel object
+   * 
+   * \param a Shape parameter for log-gamma prior on leaf parameters
+   * \param b rate parameter for log-gamma prior on leaf parameters
+   *  Log-gamma density: f(x) = b^a / Gamma(a) * exp(a*x - b*exp(x))
+   *  Relationship to tau (scale of leaf parameters): tau^2 = trigamma(a)
+   */
+  CloglogOrdinalLeafModel(double a, double b) {
+    a_ = a;
+    b_ = b;
+    gamma_sampler_ = GammaSampler();
+    tau_ = std::sqrt(boost::math::trigamma(a_));
+  }
+  ~CloglogOrdinalLeafModel() {}
+
+  /*!
+   * \brief Log marginal likelihood for a proposed split, evaluated only for observations that fall into the node being split.
+   */
+  double SplitLogMarginalLikelihood(CloglogOrdinalSuffStat& left_stat, CloglogOrdinalSuffStat& right_stat, double global_variance);
+
+  /*!
+   * \brief Log marginal likelihood of a node, evaluated only for observations that fall into the node being split.
+   */
+  double NoSplitLogMarginalLikelihood(CloglogOrdinalSuffStat& suff_stat, double global_variance);
+
+  /*!
+   * \brief Helper function to compute log marginal likelihood from sufficient statistics
+   */
+  double SuffStatLogMarginalLikelihood(CloglogOrdinalSuffStat& suff_stat, double global_variance);
+
+  /*!
+   * \brief Posterior shape parameter for leaf node log-gamma distribution
+   */
+  double PosteriorParameterShape(CloglogOrdinalSuffStat& suff_stat, double global_variance);
+
+  /*!
+   * \brief Posterior rate parameter for leaf node log-gamma distribution
+   */
+  double PosteriorParameterRate(CloglogOrdinalSuffStat& suff_stat, double global_variance);
+
+  /*!
+   * \brief Draw new parameters for every leaf node in `tree`, using a Gibbs update that conditions on the data, every other tree in the forest, and all model parameters.
+   * Samples from log-gamma: sample from gamma, then take log.
+   */
+  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
+
+  void SetScale(double tau) {tau_ = tau;}
+
+  /*!
+   * \brief Get the current scale parameter value (tau_)
+   * \return Current tau_ value
+   */
+  double GetScale() const {return tau_;}
+
+  inline bool RequiresBasis() {return false;}
+
+  /*!
+   * \brief Convert tau_ (scale_lambda i.e. scale for leaf parameters) to alpha (shape) and beta (rate) parameters for the log-gamma prior
+   * 
+   * \param alpha Output: shape parameter for log-gamma prior
+   * \param beta Output: rate parameter for log-gamma prior
+   * \param tau Scale parameter (tau_) for leaf parameters
+   */
+  void ScaleTauToAlphaBeta(double& alpha, double& beta, const double tau) {
+    double tau_sq = tau * tau;
+    alpha = TrigammaInverse(tau_sq);
+    // Note: Using exponential of digamma function for beta calculation
+    beta = std::exp(boost::math::digamma(alpha));
+  }
+
+  /*!
+   * \brief Convert alpha (shape) and beta (rate) parameters (for the log-gamma prior) back to tau_ (scale_lambda i.e. scale for leaf parameters)
+   * 
+   * \param alpha Shape parameter for log-gamma prior
+   * \param beta Rate parameter for log-gamma prior
+   * \return tau Scale parameter (tau_) for leaf parameters
+   */
+  double AlphaBetaToScaleTau(double alpha, double beta) {
+    // Inverse of the transformation: tau_sq = trigamma(alpha)
+    double tau_sq = boost::math::trigamma(alpha);
+    return std::sqrt(tau_sq);
+  }
+
+ private:
+  /*!
+   * \brief Compute inverse trigamma function using Newton's method
+   * 
+   * Implementation adapted from limma package in R, originally by Gordon Smyth
+   * 
+   * \param x Input value for which to compute trigamma inverse
+   * \return Value y such that trigamma(y) = x
+   */
+  double TrigammaInverse(double x) {
+    // Very large and very small values - deal with using asymptotics
+    if (x > 1E7) {
+      return 1.0 / std::sqrt(x);
+    }
+    if (x < 1E-6) {
+      return 1.0 / x;
+    }
+
+    // Otherwise, use Newton's method
+    double y = 0.5 + 1.0 / x;
+    for (int i = 0; i < 50; i++) {
+      double tri = boost::math::trigamma(y);
+      double dif = tri * (1.0 - tri / x) / boost::math::polygamma(3, y);  // tetragamma is polygamma(3, x)
+      y += dif;
+      if (-dif / y < 1E-8) break;
+    }
+
+    return y;
+  }
+  double a_;
+  double b_;
+  GammaSampler gamma_sampler_;
+  double tau_;
+};
+
 /*!
  * \brief Unifying layer for disparate sufficient statistic class types
  * 
@@ -980,7 +1212,8 @@ class LogLinearVarianceLeafModel {
 using SuffStatVariant = std::variant<GaussianConstantSuffStat, 
                                      GaussianUnivariateRegressionSuffStat, 
                                      GaussianMultivariateRegressionSuffStat, 
-                                     LogLinearVarianceSuffStat>;
+                                     LogLinearVarianceSuffStat,
+                                     CloglogOrdinalSuffStat>;
 
 /*!
  * \brief Unifying layer for disparate leaf model class types
@@ -993,7 +1226,8 @@ using SuffStatVariant = std::variant<GaussianConstantSuffStat,
 using LeafModelVariant = std::variant<GaussianConstantLeafModel, 
                                       GaussianUnivariateRegressionLeafModel, 
                                       GaussianMultivariateRegressionLeafModel, 
-                                      LogLinearVarianceLeafModel>;
+                                      LogLinearVarianceLeafModel,
+                                      CloglogOrdinalLeafModel>;
 
 template<typename SuffStatType, typename... SuffStatConstructorArgs>
 static inline SuffStatVariant createSuffStat(SuffStatConstructorArgs... leaf_suff_stat_args) {
@@ -1018,8 +1252,10 @@ static inline SuffStatVariant suffStatFactory(ModelType model_type, int basis_di
     return createSuffStat<GaussianUnivariateRegressionSuffStat>();
   } else if (model_type == kMultivariateRegressionLeafGaussian) {
     return createSuffStat<GaussianMultivariateRegressionSuffStat, int>(basis_dim);
-  } else {
+  } else if (model_type == kLogLinearVariance) {
     return createSuffStat<LogLinearVarianceSuffStat>();
+  } else {
+    return createSuffStat<CloglogOrdinalSuffStat>();
   }
 }
 
@@ -1031,16 +1267,20 @@ static inline SuffStatVariant suffStatFactory(ModelType model_type, int basis_di
  * \param Sigma0 Value of the leaf node prior covariance matrix, only used if `model_type = kMultivariateRegressionLeafGaussian`
  * \param a Value of the leaf node inverse gamma prior shape parameter, only used if `model_type = kLogLinearVariance`
  * \param b Value of the leaf node inverse gamma prior scale parameter, only used if `model_type = kLogLinearVariance`
+ * \param c Value of the leaf node log-gamma prior shape parameter, only used if `model_type = kCloglogOrdinal`
+ * \param d Value of the leaf node log-gamma prior rate parameter, only used if `model_type = kCloglogOrdinal`
  */
-static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau, Eigen::MatrixXd& Sigma0, double a, double b) {
+static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau, Eigen::MatrixXd& Sigma0, double a, double b, double c, double d) {
   if (model_type == kConstantLeafGaussian) {
     return createLeafModel<GaussianConstantLeafModel, double>(tau);
   } else if (model_type == kUnivariateRegressionLeafGaussian) {
     return createLeafModel<GaussianUnivariateRegressionLeafModel, double>(tau);
   } else if (model_type == kMultivariateRegressionLeafGaussian) {
     return createLeafModel<GaussianMultivariateRegressionLeafModel, Eigen::MatrixXd>(Sigma0);
-  } else {
+  } else if (model_type == kLogLinearVariance) {
     return createLeafModel<LogLinearVarianceLeafModel, double, double>(a, b);
+  } else {
+    return createLeafModel<CloglogOrdinalLeafModel, double, double>(c, d);
   }
 }
 

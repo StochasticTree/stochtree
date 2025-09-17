@@ -702,7 +702,6 @@ std::vector<data_size_t> FeaturePresortPartition::NodeIndices(int node_id) {
 // ============================================================================
 
 double ForestTracker::GetOrdinalAuxData(int type_idx, data_size_t obs_idx) const {
-  // CHECK(IsValidOrdinalIndex(type_idx, obs_idx));
   return ordinal_aux_data_vec_[type_idx][obs_idx];
 }
 
@@ -711,12 +710,10 @@ void ForestTracker::InitializeOrdinalAuxData(data_size_t num_observations, int n
 }
 
 void ForestTracker::SetOrdinalAuxData(int type_idx, data_size_t obs_idx, double value) {
-  // CHECK(IsValidOrdinalIndex(type_idx, obs_idx));
   ordinal_aux_data_vec_[type_idx][obs_idx] = value;
 }
 
 std::vector<double>& ForestTracker::GetOrdinalAuxDataVector(int type_idx) {
-  // CHECK(IsValidOrdinalType(type_idx));
   return ordinal_aux_data_vec_[type_idx];
 }
 
