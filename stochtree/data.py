@@ -85,8 +85,14 @@ class Dataset:
         variance_weights : np.array
             Univariate numpy array of variance weights.
         """
-        n = variance_weights.size
-        self.dataset_cpp.AddVarianceWeights(variance_weights, n)
+        if not isinstance(variance_weights, np.ndarray):
+            raise ValueError("variance_weights must be a numpy array.")
+        variance_weights_ = np.squeeze(variance_weights)
+        n = variance_weights_.size
+        if variance_weights_.ndim != 1:
+            raise ValueError("variance_weights must be a 1-dimensional numpy array.")
+        
+        self.dataset_cpp.AddVarianceWeights(variance_weights_, n)
     
     def update_variance_weights(self, variance_weights: np.array):
         """
@@ -98,16 +104,17 @@ class Dataset:
         variance_weights : np.array
             Univariate numpy array of variance weights.
         """
-        n = variance_weights.size
         if not self.has_variance_weights():
             raise ValueError("This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector.")
         if not isinstance(variance_weights, np.ndarray):
             raise ValueError("variance_weights must be a numpy array.")
-        if variance_weights.ndim != 1:
+        variance_weights_ = np.squeeze(variance_weights)
+        n = variance_weights_.size
+        if variance_weights_.ndim != 1:
             raise ValueError("variance_weights must be a 1-dimensional numpy array.")
         if self.num_observations() != n:
             raise ValueError(f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()}).")
-        self.dataset_cpp.AddVarianceWeights(variance_weights, n)
+        self.dataset_cpp.UpdateVarianceWeights(variance_weights_, n)
 
     def num_observations(self) -> int:
         """

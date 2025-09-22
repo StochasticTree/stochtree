@@ -554,6 +554,21 @@ class RandomEffectsDataset {
     }
   }
   /*!
+   * \brief Update a RandomEffectsDataset's group indices
+   *
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a weight vector
+   * \param num_row Number of rows in the weight vector
+   * \param exponentiate Whether or not inputs should be exponentiated before being saved to var weight vector
+   */
+  void UpdateGroupLabels(std::vector<int32_t>& group_labels, data_size_t num_row) {
+    CHECK(has_group_labels_);
+    CHECK_EQ(this->NumObservations(), num_row)
+    // Copy data from R / Python process memory to internal vector
+    for (data_size_t i = 0; i < num_row; ++i) {
+      group_labels_[i] = group_labels[i];
+    }
+  }
+  /*!
    * \brief Copy / load group indices for random effects
    * 
    * \param group_labels Vector of integers with as many elements as `num_row` in the basis matrix, 

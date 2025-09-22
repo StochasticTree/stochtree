@@ -72,7 +72,7 @@ class ForestDatasetCpp {
     double* data_ptr = static_cast<double*>(weight_vector.mutable_data());
     
     // Load covariates
-    dataset_->AddVarianceWeights(data_ptr, num_row);
+    dataset_->UpdateVarWeights(data_ptr, num_row);
   }
 
   data_size_t NumRows() {
@@ -1296,6 +1296,22 @@ class RandomEffectsDatasetCpp {
   void AddVarianceWeights(py::array_t<double> weights, data_size_t num_row) {
     double* weight_data_ptr = static_cast<double*>(weights.mutable_data());
     rfx_dataset_->AddVarianceWeights(weight_data_ptr, num_row);
+  }
+  void UpdateBasis(py::array_t<double> basis, data_size_t num_row, int num_col, bool row_major) {
+    double* basis_data_ptr = static_cast<double*>(basis.mutable_data());
+    rfx_dataset_->UpdateBasis(basis_data_ptr, num_row, num_col, row_major);
+  }
+  void UpdateVarianceWeights(py::array_t<double> weights, data_size_t num_row, bool exponentiate) {
+    double* weight_data_ptr = static_cast<double*>(weights.mutable_data());
+    rfx_dataset_->UpdateVarWeights(weight_data_ptr, num_row, exponentiate);
+  }
+  void UpdateGroupLabels(py::array_t<int> group_labels, data_size_t num_row) {
+    std::vector<int> group_labels_vec(num_row);
+    auto accessor = group_labels.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < num_row; i++) {
+      group_labels_vec[i] = accessor(i);
+    }
+    rfx_dataset_->UpdateGroupLabels(group_labels_vec, num_row);
   }
   bool HasGroupLabels() {return rfx_dataset_->HasGroupLabels();}
   bool HasBasis() {return rfx_dataset_->HasBasis();}

@@ -218,6 +218,14 @@ void rfx_dataset_update_var_weights_cpp(cpp11::external_pointer<StochTree::Rando
 }
 
 [[cpp11::register]]
+void rfx_dataset_update_group_labels_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr, cpp11::integers group_labels) {
+    // Update group labels
+    int n = group_labels.size();
+    std::vector<int32_t> group_labels_vec(group_labels.begin(), group_labels.end());
+    dataset_ptr->UpdateGroupLabels(group_labels_vec, n);
+}
+
+[[cpp11::register]]
 int rfx_dataset_num_basis_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset) {
     return dataset->NumBases();
 }
