@@ -29,6 +29,11 @@ class TestDataset:
         with np.testing.assert_no_warnings():
             forest_dataset.update_basis(new_basis)
             forest_dataset.update_variance_weights(new_variance_weights)
+        
+        # Check that we recover the correct data through get_covariates, get_basis, and get_variance_weights
+        np.testing.assert_array_equal(forest_dataset.get_covariates(), covariates)
+        np.testing.assert_array_equal(forest_dataset.get_basis(), new_basis)
+        np.testing.assert_array_equal(forest_dataset.get_variance_weights(), new_variance_weights)
 
 class TestRFXDataset:
     def test_rfx_dataset_update(self):
@@ -59,4 +64,9 @@ class TestRFXDataset:
         with np.testing.assert_no_warnings():
             rfx_dataset.update_basis(new_basis)
             rfx_dataset.update_variance_weights(new_variance_weights)
+        
+        # Check that we recover the correct data through get_group_labels, get_basis, and get_variance_weights
+        np.testing.assert_array_equal(rfx_dataset.get_group_labels(), group_labels)
+        np.testing.assert_array_equal(rfx_dataset.get_basis(), new_basis)
+        np.testing.assert_array_equal(rfx_dataset.get_variance_weights(), new_variance_weights)
 

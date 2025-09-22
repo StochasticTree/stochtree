@@ -150,6 +150,39 @@ class Dataset:
             Dimension of the basis vector in the dataset, returning 0 if the dataset does not have a basis
         """
         return self.dataset_cpp.NumBasis()
+    
+    def get_covariates(self) -> np.array:
+        """
+        Return the covariates in a Dataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            Covariate data
+        """
+        return self.dataset_cpp.GetCovariates()
+    
+    def get_basis(self) -> np.array:
+        """
+        Return the bases in a Dataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            Basis data
+        """
+        return self.dataset_cpp.GetBasis()
+    
+    def get_variance_weights(self) -> np.array:
+        """
+        Return the variance weights in a Dataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            Variance weights data
+        """
+        return self.dataset_cpp.GetVarianceWeights()
 
     def has_basis(self) -> bool:
         """

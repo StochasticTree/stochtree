@@ -136,6 +136,39 @@ class RandomEffectsDataset:
         if self.num_observations() != n:
             raise ValueError(f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()}).")
         self.rfx_dataset_cpp.UpdateVarianceWeights(variance_weights, n, exponentiate)
+    
+    def get_group_labels(self) -> np.array:
+        """
+        Return the group labels in a RandomEffectsDataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            One-dimensional numpy array of group labels.
+        """
+        return self.rfx_dataset_cpp.GetGroupLabels()
+    
+    def get_basis(self) -> np.array:
+        """
+        Return the bases in a RandomEffectsDataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            Two-dimensional numpy array of basis vectors.
+        """
+        return self.rfx_dataset_cpp.GetBasis()
+    
+    def get_variance_weights(self) -> np.array:
+        """
+        Return the variance weights in a RandomEffectsDataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            One-dimensional numpy array of variance weights.
+        """
+        return self.rfx_dataset_cpp.GetVarianceWeights()
 
     def num_observations(self) -> int:
         """
