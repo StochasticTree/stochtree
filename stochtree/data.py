@@ -58,15 +58,18 @@ class Dataset:
         basis : np.array
             Numpy array of basis vectors.
         """
-        basis_ = np.expand_dims(basis, 1) if np.ndim(basis) == 1 else basis
-        n, p = basis_.shape
-        basis_rowmajor = np.ascontiguousarray(basis_)
         if not self.has_basis():
             raise ValueError("This dataset does not have a basis to update. Please use `add_basis` to create and initialize the values in the Dataset's basis matrix.")
         if not isinstance(basis, np.ndarray):
             raise ValueError("basis must be a numpy array.")
-        if basis.ndim != 2:
-            raise ValueError("basis must be a 2-dimensional numpy array.")
+        if np.ndim(basis) == 1:
+            basis_ = np.expand_dims(basis, 1)
+        elif np.ndim(basis) == 2:
+            basis_ = basis
+        else:
+            raise ValueError("basis must be a numpy array with one or two dimension.")
+        n, p = basis_.shape
+        basis_rowmajor = np.ascontiguousarray(basis_)
         if self.num_basis() != p:
             raise ValueError(f"The number of columns in the new basis ({p}) must match the number of columns in the existing basis ({self.num_basis()}).")
         if self.num_observations() != n:
