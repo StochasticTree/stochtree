@@ -20,6 +20,7 @@ weights are optional.
 \itemize{
 \item \href{#method-ForestDataset-new}{\code{ForestDataset$new()}}
 \item \href{#method-ForestDataset-update_basis}{\code{ForestDataset$update_basis()}}
+\item \href{#method-ForestDataset-update_variance_weights}{\code{ForestDataset$update_variance_weights()}}
 \item \href{#method-ForestDataset-num_observations}{\code{ForestDataset$num_observations()}}
 \item \href{#method-ForestDataset-num_covariates}{\code{ForestDataset$num_covariates()}}
 \item \href{#method-ForestDataset-num_basis}{\code{ForestDataset$num_basis()}}
@@ -64,6 +65,25 @@ Update basis matrix in a dataset
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{basis}}{Updated matrix of bases used to define a leaf regression}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-update_variance_weights"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-update_variance_weights}{}}}
+\subsection{Method \code{update_variance_weights()}}{
+Update variance_weights in a dataset
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$update_variance_weights(variance_weights, exponentiate = F)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{variance_weights}}{Updated vector of variance weights used to define individual variance / case weights}
+
+\item{\code{exponentiate}}{Whether or not input vector should be exponentiated before being written to the Dataset's variance weights. Default: F.}
 }
 \if{html}{\out{</div>}}
 }

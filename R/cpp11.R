@@ -36,8 +36,8 @@ forest_dataset_update_basis_cpp <- function(dataset_ptr, basis) {
   invisible(.Call(`_stochtree_forest_dataset_update_basis_cpp`, dataset_ptr, basis))
 }
 
-forest_dataset_update_var_weights_cpp <- function(dataset_ptr, weights) {
-  invisible(.Call(`_stochtree_forest_dataset_update_var_weights_cpp`, dataset_ptr, weights))
+forest_dataset_update_var_weights_cpp <- function(dataset_ptr, weights, exponentiate) {
+  invisible(.Call(`_stochtree_forest_dataset_update_var_weights_cpp`, dataset_ptr, weights, exponentiate))
 }
 
 forest_dataset_add_weights_cpp <- function(dataset_ptr, weights) {
@@ -70,6 +70,18 @@ get_residual_cpp <- function(vector_ptr) {
 
 create_rfx_dataset_cpp <- function() {
   .Call(`_stochtree_create_rfx_dataset_cpp`)
+}
+
+rfx_dataset_update_basis_cpp <- function(dataset_ptr, basis) {
+  invisible(.Call(`_stochtree_rfx_dataset_update_basis_cpp`, dataset_ptr, basis))
+}
+
+rfx_dataset_update_var_weights_cpp <- function(dataset_ptr, weights, exponentiate) {
+  invisible(.Call(`_stochtree_rfx_dataset_update_var_weights_cpp`, dataset_ptr, weights, exponentiate))
+}
+
+rfx_dataset_num_basis_cpp <- function(dataset) {
+  .Call(`_stochtree_rfx_dataset_num_basis_cpp`, dataset)
 }
 
 rfx_dataset_num_rows_cpp <- function(dataset) {

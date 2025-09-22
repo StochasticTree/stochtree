@@ -497,6 +497,7 @@ class RandomEffectsDataset {
    */
    void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
     basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    num_basis_ = num_col;
     has_basis_ = true;
   }
   /*!
@@ -508,6 +509,49 @@ class RandomEffectsDataset {
   void AddVarianceWeights(double* data_ptr, data_size_t num_row) {
     var_weights_ = ColumnVector(data_ptr, num_row);
     has_var_weights_ = true;
+  }
+  /*!
+   * \brief Update the data in the internal basis matrix to new values stored in a raw double array
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a basis matrix
+   * \param num_row Number of rows in the basis matrix
+   * \param num_col Number of columns in the basis matrix
+   * \param is_row_major Whether or not the data in `data_ptr` are organized in a row-major or column-major fashion
+   */
+  void UpdateBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+    CHECK(has_basis_);
+    CHECK_EQ(num_col, num_basis_);
+    // Copy data from R / Python process memory to Eigen matrix
+    double temp_value;
+    for (data_size_t i = 0; i < num_row; ++i) {
+      for (int j = 0; j < num_col; ++j) {
+        if (is_row_major){
+          // Numpy 2-d arrays are stored in "row major" order
+          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
+        } else {
+          // R matrices are stored in "column major" order
+          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
+        }
+        basis_.SetElement(i, j, temp_value);
+      }
+    }
+  }
+  /*!
+   * \brief Update the data in the internal variance weight vector to new values stored in a raw double array
+   *
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a weight vector
+   * \param num_row Number of rows in the weight vector
+   * \param exponentiate Whether or not inputs should be exponentiated before being saved to var weight vector
+   */
+  void UpdateVarWeights(double* data_ptr, data_size_t num_row, bool exponentiate = true) {
+    CHECK(has_var_weights_);
+    // Copy data from R / Python process memory to Eigen vector
+    double temp_value;
+    for (data_size_t i = 0; i < num_row; ++i) {
+      if (exponentiate) temp_value = std::exp(static_cast<double>(*(data_ptr + i)));
+      else temp_value = static_cast<double>(*(data_ptr + i));
+      var_weights_.SetElement(i, temp_value);
+    }
   }
   /*!
    * \brief Copy / load group indices for random effects
@@ -570,6 +614,7 @@ class RandomEffectsDataset {
   ColumnMatrix basis_;
   ColumnVector var_weights_;
   std::vector<int32_t> group_labels_;
+  int num_basis_{0};
   bool has_basis_{false};
   bool has_var_weights_{false};
   bool has_group_labels_{false};

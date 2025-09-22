@@ -85,11 +85,11 @@ void forest_dataset_update_basis_cpp(cpp11::external_pointer<StochTree::ForestDa
 }
 
 [[cpp11::register]]
-void forest_dataset_update_var_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles weights) {
+void forest_dataset_update_var_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles weights, bool exponentiate) {
     // Add weights
     StochTree::data_size_t n = weights.size();
     double* weight_data_ptr = REAL(PROTECT(weights));
-    dataset_ptr->AddVarianceWeights(weight_data_ptr, n);
+    dataset_ptr->UpdateVarWeights(weight_data_ptr, n, exponentiate);
     
     // Unprotect pointers to R data
     UNPROTECT(1);
@@ -189,6 +189,37 @@ cpp11::external_pointer<StochTree::RandomEffectsDataset> create_rfx_dataset_cpp(
     
     // Release management of the pointer to R session
     return cpp11::external_pointer<StochTree::RandomEffectsDataset>(dataset_ptr_.release());
+}
+
+[[cpp11::register]]
+void rfx_dataset_update_basis_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr, cpp11::doubles_matrix<> basis) {
+    // TODO: add handling code on the R side to ensure matrices are column-major
+    bool row_major{false};
+    
+    // Add basis
+    StochTree::data_size_t n = basis.nrow();
+    int num_basis = basis.ncol();
+    double* basis_data_ptr = REAL(PROTECT(basis));
+    dataset_ptr->UpdateBasis(basis_data_ptr, n, num_basis, row_major);
+    
+    // Unprotect pointers to R data
+    UNPROTECT(1);
+}
+
+[[cpp11::register]]
+void rfx_dataset_update_var_weights_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr, cpp11::doubles weights, bool exponentiate) {
+    // Add weights
+    StochTree::data_size_t n = weights.size();
+    double* weight_data_ptr = REAL(PROTECT(weights));
+    dataset_ptr->UpdateVarWeights(weight_data_ptr, n, exponentiate);
+    
+    // Unprotect pointers to R data
+    UNPROTECT(1);
+}
+
+[[cpp11::register]]
+int rfx_dataset_num_basis_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset) {
+    return dataset->NumBases();
 }
 
 [[cpp11::register]]
