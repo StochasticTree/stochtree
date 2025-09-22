@@ -67,6 +67,14 @@ class ForestDatasetCpp {
     dataset_->AddVarianceWeights(data_ptr, num_row);
   }
 
+  void UpdateVarianceWeights(py::array_t<double> weight_vector, data_size_t num_row) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(weight_vector.mutable_data());
+    
+    // Load covariates
+    dataset_->AddVarianceWeights(data_ptr, num_row);
+  }
+
   data_size_t NumRows() {
     return dataset_->NumObservations();
   }

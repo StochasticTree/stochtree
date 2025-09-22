@@ -85,6 +85,17 @@ void forest_dataset_update_basis_cpp(cpp11::external_pointer<StochTree::ForestDa
 }
 
 [[cpp11::register]]
+void forest_dataset_update_var_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles weights) {
+    // Add weights
+    StochTree::data_size_t n = weights.size();
+    double* weight_data_ptr = REAL(PROTECT(weights));
+    dataset_ptr->AddVarianceWeights(weight_data_ptr, n);
+    
+    // Unprotect pointers to R data
+    UNPROTECT(1);
+}
+
+[[cpp11::register]]
 void forest_dataset_add_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles weights) {
     // Add weights
     StochTree::data_size_t n = weights.size();

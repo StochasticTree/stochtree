@@ -36,6 +36,10 @@ forest_dataset_update_basis_cpp <- function(dataset_ptr, basis) {
   invisible(.Call(`_stochtree_forest_dataset_update_basis_cpp`, dataset_ptr, basis))
 }
 
+forest_dataset_update_var_weights_cpp <- function(dataset_ptr, weights) {
+  invisible(.Call(`_stochtree_forest_dataset_update_var_weights_cpp`, dataset_ptr, weights))
+}
+
 forest_dataset_add_weights_cpp <- function(dataset_ptr, weights) {
   invisible(.Call(`_stochtree_forest_dataset_add_weights_cpp`, dataset_ptr, weights))
 }
