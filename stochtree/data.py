@@ -94,7 +94,7 @@ class Dataset:
         
         self.dataset_cpp.AddVarianceWeights(variance_weights_, n)
     
-    def update_variance_weights(self, variance_weights: np.array):
+    def update_variance_weights(self, variance_weights: np.array, exponentiate: bool = False):
         """
         Update variance weights in a dataset. Allows users to build an ensemble that depends on 
         variance weights that are updated throughout the sampler.
@@ -103,6 +103,8 @@ class Dataset:
         ----------
         variance_weights : np.array
             Univariate numpy array of variance weights.
+        exponentiate : bool
+            Whether to exponentiate the variance weights before storing them in the dataset.
         """
         if not self.has_variance_weights():
             raise ValueError("This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector.")
@@ -114,7 +116,7 @@ class Dataset:
             raise ValueError("variance_weights must be a 1-dimensional numpy array.")
         if self.num_observations() != n:
             raise ValueError(f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()}).")
-        self.dataset_cpp.UpdateVarianceWeights(variance_weights_, n)
+        self.dataset_cpp.UpdateVarianceWeights(variance_weights_, n, exponentiate)
 
     def num_observations(self) -> int:
         """

@@ -1,6 +1,6 @@
 import numpy as np
 
-from stochtree import Dataset
+from stochtree import Dataset, RandomEffectsDataset
 
 class TestDataset:
     def test_dataset_update(self):
@@ -29,3 +29,34 @@ class TestDataset:
         with np.testing.assert_no_warnings():
             forest_dataset.update_basis(new_basis)
             forest_dataset.update_variance_weights(new_variance_weights)
+
+class TestRFXDataset:
+    def test_rfx_dataset_update(self):
+        # Generate data
+        n = 20
+        num_groups = 4
+        num_basis = 5
+        rng = np.random.default_rng()
+        group_labels = rng.choice(num_groups, size=n)
+        basis = np.empty((n, num_basis))
+        basis[:, 0] = 1.0
+        if num_basis > 1:
+            basis[:, 1:] = rng.uniform(-1, 1, (n, num_basis - 1))
+        variance_weights = rng.uniform(0, 1, size=n)
+        
+        # Construct dataset
+        rfx_dataset = RandomEffectsDataset()
+        rfx_dataset.add_group_labels(group_labels)
+        rfx_dataset.add_basis(basis)
+        rfx_dataset.add_variance_weights(variance_weights)
+        assert rfx_dataset.num_observations() == n
+        assert rfx_dataset.num_basis() == num_basis
+        assert rfx_dataset.has_variance_weights()
+        
+        # Update dataset
+        new_basis = rng.uniform(0, 1, size=(n, num_basis))
+        new_variance_weights = rng.uniform(0, 1, size=n)
+        with np.testing.assert_no_warnings():
+            rfx_dataset.update_basis(new_basis)
+            rfx_dataset.update_variance_weights(new_variance_weights)
+

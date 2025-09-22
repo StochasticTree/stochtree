@@ -157,6 +157,14 @@ extern "C" SEXP _stochtree_rfx_dataset_update_var_weights_cpp(SEXP dataset_ptr, 
   END_CPP11
 }
 // R_data.cpp
+void rfx_dataset_update_group_labels_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr, cpp11::integers group_labels);
+extern "C" SEXP _stochtree_rfx_dataset_update_group_labels_cpp(SEXP dataset_ptr, SEXP group_labels) {
+  BEGIN_CPP11
+    rfx_dataset_update_group_labels_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(group_labels));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
 int rfx_dataset_num_basis_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset);
 extern "C" SEXP _stochtree_rfx_dataset_num_basis_cpp(SEXP dataset) {
   BEGIN_CPP11
@@ -1697,6 +1705,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_rfx_dataset_num_basis_cpp",                           (DL_FUNC) &_stochtree_rfx_dataset_num_basis_cpp,                            1},
     {"_stochtree_rfx_dataset_num_rows_cpp",                            (DL_FUNC) &_stochtree_rfx_dataset_num_rows_cpp,                             1},
     {"_stochtree_rfx_dataset_update_basis_cpp",                        (DL_FUNC) &_stochtree_rfx_dataset_update_basis_cpp,                         2},
+    {"_stochtree_rfx_dataset_update_group_labels_cpp",                 (DL_FUNC) &_stochtree_rfx_dataset_update_group_labels_cpp,                  2},
     {"_stochtree_rfx_dataset_update_var_weights_cpp",                  (DL_FUNC) &_stochtree_rfx_dataset_update_var_weights_cpp,                   3},
     {"_stochtree_rfx_group_ids_from_json_cpp",                         (DL_FUNC) &_stochtree_rfx_group_ids_from_json_cpp,                          2},
     {"_stochtree_rfx_group_ids_from_json_string_cpp",                  (DL_FUNC) &_stochtree_rfx_group_ids_from_json_string_cpp,                   2},

@@ -80,6 +80,10 @@ rfx_dataset_update_var_weights_cpp <- function(dataset_ptr, weights, exponentiat
   invisible(.Call(`_stochtree_rfx_dataset_update_var_weights_cpp`, dataset_ptr, weights, exponentiate))
 }
 
+rfx_dataset_update_group_labels_cpp <- function(dataset_ptr, group_labels) {
+  invisible(.Call(`_stochtree_rfx_dataset_update_group_labels_cpp`, dataset_ptr, group_labels))
+}
+
 rfx_dataset_num_basis_cpp <- function(dataset) {
   .Call(`_stochtree_rfx_dataset_num_basis_cpp`, dataset)
 }

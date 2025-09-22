@@ -67,12 +67,12 @@ class ForestDatasetCpp {
     dataset_->AddVarianceWeights(data_ptr, num_row);
   }
 
-  void UpdateVarianceWeights(py::array_t<double> weight_vector, data_size_t num_row) {
+  void UpdateVarianceWeights(py::array_t<double> weight_vector, data_size_t num_row, bool exponentiate) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(weight_vector.mutable_data());
     
     // Load covariates
-    dataset_->UpdateVarWeights(data_ptr, num_row);
+    dataset_->UpdateVarWeights(data_ptr, num_row, exponentiate);
   }
 
   data_size_t NumRows() {
@@ -2067,6 +2067,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("AddBasis", &ForestDatasetCpp::AddBasis)
     .def("UpdateBasis", &ForestDatasetCpp::UpdateBasis)
     .def("AddVarianceWeights", &ForestDatasetCpp::AddVarianceWeights)
+    .def("UpdateVarianceWeights", &ForestDatasetCpp::UpdateVarianceWeights)
     .def("NumRows", &ForestDatasetCpp::NumRows)
     .def("NumCovariates", &ForestDatasetCpp::NumCovariates)
     .def("NumBasis", &ForestDatasetCpp::NumBasis)
@@ -2200,6 +2201,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("AddGroupLabels", &RandomEffectsDatasetCpp::AddGroupLabels)
       .def("AddBasis", &RandomEffectsDatasetCpp::AddBasis)
       .def("AddVarianceWeights", &RandomEffectsDatasetCpp::AddVarianceWeights)
+      .def("UpdateGroupLabels", &RandomEffectsDatasetCpp::UpdateGroupLabels)
+      .def("UpdateBasis", &RandomEffectsDatasetCpp::UpdateBasis)
+      .def("UpdateVarianceWeights", &RandomEffectsDatasetCpp::UpdateVarianceWeights)
       .def("HasGroupLabels", &RandomEffectsDatasetCpp::HasGroupLabels)
       .def("HasBasis", &RandomEffectsDatasetCpp::HasBasis)
       .def("HasVarianceWeights", &RandomEffectsDatasetCpp::HasVarianceWeights);
