@@ -24,6 +24,9 @@ weights are optional.
 \item \href{#method-ForestDataset-num_observations}{\code{ForestDataset$num_observations()}}
 \item \href{#method-ForestDataset-num_covariates}{\code{ForestDataset$num_covariates()}}
 \item \href{#method-ForestDataset-num_basis}{\code{ForestDataset$num_basis()}}
+\item \href{#method-ForestDataset-get_covariates}{\code{ForestDataset$get_covariates()}}
+\item \href{#method-ForestDataset-get_basis}{\code{ForestDataset$get_basis()}}
+\item \href{#method-ForestDataset-get_variance_weights}{\code{ForestDataset$get_variance_weights()}}
 \item \href{#method-ForestDataset-has_basis}{\code{ForestDataset$has_basis()}}
 \item \href{#method-ForestDataset-has_variance_weights}{\code{ForestDataset$has_variance_weights()}}
 }
@@ -125,6 +128,45 @@ Return number of bases in a \code{ForestDataset} object
 
 \subsection{Returns}{
 Basis count
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_covariates"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_covariates}{}}}
+\subsection{Method \code{get_covariates()}}{
+Return covariates as an R matrix
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_covariates()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Covariate data
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_basis"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_basis}{}}}
+\subsection{Method \code{get_basis()}}{
+Return bases as an R matrix
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_basis()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Basis data
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_variance_weights"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_variance_weights}{}}}
+\subsection{Method \code{get_variance_weights()}}{
+Return variance weights as an R vector
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_variance_weights()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Variance weight data
 }
 }
 \if{html}{\out{<hr>}}

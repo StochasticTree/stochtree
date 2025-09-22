@@ -25,6 +25,11 @@ test_that("ForestDataset can be constructed and updated", {
     expect_no_error(
         forest_dataset$update_variance_weights(new_variance_weights)
     )
+    
+    # Check that we recover the correct data through get_covariates, get_basis, and get_variance_weights
+    expect_equal(covariates, forest_dataset$get_covariates())
+    expect_equal(new_basis, forest_dataset$get_basis())
+    expect_equal(new_variance_weights, forest_dataset$get_variance_weights())
 })
 
 test_that("RandomEffectsDataset can be constructed and updated", {
@@ -53,4 +58,9 @@ test_that("RandomEffectsDataset can be constructed and updated", {
     expect_no_error(
         rfx_dataset$update_variance_weights(new_variance_weights)
     )
+    
+    # Check that we recover the correct data through get_group_labels, get_basis, and get_variance_weights
+    expect_equal(group_ids, rfx_dataset$get_group_labels())
+    expect_equal(new_basis, rfx_dataset$get_basis())
+    expect_equal(new_variance_weights, rfx_dataset$get_variance_weights())
 })

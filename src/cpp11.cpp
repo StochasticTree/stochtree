@@ -88,6 +88,27 @@ extern "C" SEXP _stochtree_forest_dataset_add_weights_cpp(SEXP dataset_ptr, SEXP
   END_CPP11
 }
 // R_data.cpp
+cpp11::writable::doubles_matrix<> forest_dataset_get_covariates_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr);
+extern "C" SEXP _stochtree_forest_dataset_get_covariates_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_dataset_get_covariates_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles_matrix<> forest_dataset_get_basis_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr);
+extern "C" SEXP _stochtree_forest_dataset_get_basis_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_dataset_get_basis_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles forest_dataset_get_variance_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr);
+extern "C" SEXP _stochtree_forest_dataset_get_variance_weights_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_dataset_get_variance_weights_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
 cpp11::external_pointer<StochTree::ColumnVector> create_column_vector_cpp(cpp11::doubles outcome);
 extern "C" SEXP _stochtree_create_column_vector_cpp(SEXP outcome) {
   BEGIN_CPP11
@@ -221,6 +242,27 @@ extern "C" SEXP _stochtree_rfx_dataset_add_weights_cpp(SEXP dataset_ptr, SEXP we
   BEGIN_CPP11
     rfx_dataset_add_weights_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(weights));
     return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::integers rfx_dataset_get_group_labels_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr);
+extern "C" SEXP _stochtree_rfx_dataset_get_group_labels_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(rfx_dataset_get_group_labels_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles_matrix<> rfx_dataset_get_basis_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr);
+extern "C" SEXP _stochtree_rfx_dataset_get_basis_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(rfx_dataset_get_basis_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles rfx_dataset_get_variance_weights_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr);
+extern "C" SEXP _stochtree_rfx_dataset_get_variance_weights_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(rfx_dataset_get_variance_weights_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr)));
   END_CPP11
 }
 // R_random_effects.cpp
@@ -1579,6 +1621,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_forest_dataset_add_basis_cpp",                        (DL_FUNC) &_stochtree_forest_dataset_add_basis_cpp,                         2},
     {"_stochtree_forest_dataset_add_covariates_cpp",                   (DL_FUNC) &_stochtree_forest_dataset_add_covariates_cpp,                    2},
     {"_stochtree_forest_dataset_add_weights_cpp",                      (DL_FUNC) &_stochtree_forest_dataset_add_weights_cpp,                       2},
+    {"_stochtree_forest_dataset_get_basis_cpp",                        (DL_FUNC) &_stochtree_forest_dataset_get_basis_cpp,                         1},
+    {"_stochtree_forest_dataset_get_covariates_cpp",                   (DL_FUNC) &_stochtree_forest_dataset_get_covariates_cpp,                    1},
+    {"_stochtree_forest_dataset_get_variance_weights_cpp",             (DL_FUNC) &_stochtree_forest_dataset_get_variance_weights_cpp,              1},
     {"_stochtree_forest_dataset_update_basis_cpp",                     (DL_FUNC) &_stochtree_forest_dataset_update_basis_cpp,                      2},
     {"_stochtree_forest_dataset_update_var_weights_cpp",               (DL_FUNC) &_stochtree_forest_dataset_update_var_weights_cpp,                3},
     {"_stochtree_forest_merge_cpp",                                    (DL_FUNC) &_stochtree_forest_merge_cpp,                                     2},
@@ -1699,6 +1744,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_rfx_dataset_add_basis_cpp",                           (DL_FUNC) &_stochtree_rfx_dataset_add_basis_cpp,                            2},
     {"_stochtree_rfx_dataset_add_group_labels_cpp",                    (DL_FUNC) &_stochtree_rfx_dataset_add_group_labels_cpp,                     2},
     {"_stochtree_rfx_dataset_add_weights_cpp",                         (DL_FUNC) &_stochtree_rfx_dataset_add_weights_cpp,                          2},
+    {"_stochtree_rfx_dataset_get_basis_cpp",                           (DL_FUNC) &_stochtree_rfx_dataset_get_basis_cpp,                            1},
+    {"_stochtree_rfx_dataset_get_group_labels_cpp",                    (DL_FUNC) &_stochtree_rfx_dataset_get_group_labels_cpp,                     1},
+    {"_stochtree_rfx_dataset_get_variance_weights_cpp",                (DL_FUNC) &_stochtree_rfx_dataset_get_variance_weights_cpp,                 1},
     {"_stochtree_rfx_dataset_has_basis_cpp",                           (DL_FUNC) &_stochtree_rfx_dataset_has_basis_cpp,                            1},
     {"_stochtree_rfx_dataset_has_group_labels_cpp",                    (DL_FUNC) &_stochtree_rfx_dataset_has_group_labels_cpp,                     1},
     {"_stochtree_rfx_dataset_has_variance_weights_cpp",                (DL_FUNC) &_stochtree_rfx_dataset_has_variance_weights_cpp,                 1},

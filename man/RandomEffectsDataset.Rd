@@ -22,6 +22,9 @@ bases, and variance weights. Variance weights are optional.
 \item \href{#method-RandomEffectsDataset-update_variance_weights}{\code{RandomEffectsDataset$update_variance_weights()}}
 \item \href{#method-RandomEffectsDataset-num_observations}{\code{RandomEffectsDataset$num_observations()}}
 \item \href{#method-RandomEffectsDataset-num_basis}{\code{RandomEffectsDataset$num_basis()}}
+\item \href{#method-RandomEffectsDataset-get_group_labels}{\code{RandomEffectsDataset$get_group_labels()}}
+\item \href{#method-RandomEffectsDataset-get_basis}{\code{RandomEffectsDataset$get_basis()}}
+\item \href{#method-RandomEffectsDataset-get_variance_weights}{\code{RandomEffectsDataset$get_variance_weights()}}
 \item \href{#method-RandomEffectsDataset-has_group_labels}{\code{RandomEffectsDataset$has_group_labels()}}
 \item \href{#method-RandomEffectsDataset-has_basis}{\code{RandomEffectsDataset$has_basis()}}
 \item \href{#method-RandomEffectsDataset-has_variance_weights}{\code{RandomEffectsDataset$has_variance_weights()}}
@@ -114,6 +117,45 @@ Return dimension of the basis matrix in a \code{RandomEffectsDataset} object
 
 \subsection{Returns}{
 Basis vector count
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectsDataset-get_group_labels"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectsDataset-get_group_labels}{}}}
+\subsection{Method \code{get_group_labels()}}{
+Return group labels as an R vector
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectsDataset$get_group_labels()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Group label data
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectsDataset-get_basis"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectsDataset-get_basis}{}}}
+\subsection{Method \code{get_basis()}}{
+Return bases as an R matrix
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectsDataset$get_basis()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Basis data
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectsDataset-get_variance_weights"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectsDataset-get_variance_weights}{}}}
+\subsection{Method \code{get_variance_weights()}}{
+Return variance weights as an R vector
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectsDataset$get_variance_weights()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Variance weight data
 }
 }
 \if{html}{\out{<hr>}}

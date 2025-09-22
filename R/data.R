@@ -69,6 +69,27 @@ ForestDataset <- R6::R6Class(
         }, 
         
         #' @description
+        #' Return covariates as an R matrix
+        #' @return Covariate data
+        get_covariates = function() {
+            return(forest_dataset_get_covariates_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return bases as an R matrix
+        #' @return Basis data
+        get_basis = function() {
+            return(forest_dataset_get_basis_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return variance weights as an R vector
+        #' @return Variance weight data
+        get_variance_weights = function() {
+            return(forest_dataset_get_variance_weights_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
         #' Whether or not a dataset has a basis matrix
         #' @return True if basis matrix is loaded, false otherwise
         has_basis = function() {
@@ -229,6 +250,27 @@ RandomEffectsDataset <- R6::R6Class(
         num_basis = function() {
             return(rfx_dataset_num_basis_cpp(self$data_ptr))
         },  
+        
+        #' @description
+        #' Return group labels as an R vector
+        #' @return Group label data
+        get_group_labels = function() {
+            return(rfx_dataset_get_group_labels_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return bases as an R matrix
+        #' @return Basis data
+        get_basis = function() {
+            return(rfx_dataset_get_basis_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return variance weights as an R vector
+        #' @return Variance weight data
+        get_variance_weights = function() {
+            return(rfx_dataset_get_variance_weights_cpp(self$data_ptr))
+        }, 
         
         #' @description
         #' Whether or not a dataset has group label indices

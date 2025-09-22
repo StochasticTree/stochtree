@@ -1,3 +1,4 @@
+#include "cpp11/integers.hpp"
 #include <cpp11.hpp>
 #include <stochtree/container.h>
 #include <stochtree/data.h>
@@ -104,6 +105,47 @@ void forest_dataset_add_weights_cpp(cpp11::external_pointer<StochTree::ForestDat
 
     // Unprotect pointers to R data
     UNPROTECT(1);
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles_matrix<> forest_dataset_get_covariates_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr) {
+    // Initialize output matrix
+    int num_row = dataset_ptr->NumObservations();
+    int num_col = dataset_ptr->NumCovariates();
+    cpp11::writable::doubles_matrix<> output(num_row, num_col);
+
+    for (int i = 0; i < num_row; i++) {
+        for (int j = 0; j < num_col; j++) {
+            output(i, j) = dataset_ptr->CovariateValue(i, j);
+        }
+    }
+
+    return output;
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles_matrix<> forest_dataset_get_basis_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr) {
+    // Initialize output matrix
+    int num_row = dataset_ptr->NumObservations();
+    int num_col = dataset_ptr->NumBasis();
+    cpp11::writable::doubles_matrix<> output(num_row, num_col);
+    for (int i = 0; i < num_row; i++) {
+        for (int j = 0; j < num_col; j++) {
+            output(i, j) = dataset_ptr->BasisValue(i, j);
+        }
+    }   
+    return output;
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles forest_dataset_get_variance_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr) {
+    // Initialize output vector
+    int num_row = dataset_ptr->NumObservations();
+    cpp11::writable::doubles output(num_row);
+    for (int i = 0; i < num_row; i++) {
+        output.at(i) = dataset_ptr->VarWeightValue(i);
+    }
+    return output;
 }
 
 [[cpp11::register]]
@@ -281,4 +323,37 @@ void rfx_dataset_add_weights_cpp(cpp11::external_pointer<StochTree::RandomEffect
     
     // Unprotect pointers to R data
     UNPROTECT(1);
+}
+
+[[cpp11::register]]
+cpp11::writable::integers rfx_dataset_get_group_labels_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr) {
+    int num_row = dataset_ptr->NumObservations();
+    cpp11::writable::integers output(num_row);
+    for (int i = 0; i < num_row; i++) {
+        output.at(i) = dataset_ptr->GroupId(i);
+    }
+    return output;
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles_matrix<> rfx_dataset_get_basis_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr) {
+    int num_row = dataset_ptr->NumObservations();
+    int num_col = dataset_ptr->NumBases();
+    cpp11::writable::doubles_matrix<> output(num_row, num_col);
+    for (int i = 0; i < num_row; i++) {
+        for (int j = 0; j < num_col; j++) {
+            output(i, j) = dataset_ptr->BasisValue(i, j);
+        }
+    }   
+    return output;
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles rfx_dataset_get_variance_weights_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr) {
+    int num_row = dataset_ptr->NumObservations();
+    cpp11::writable::doubles output(num_row);
+    for (int i = 0; i < num_row; i++) {
+        output.at(i) = dataset_ptr->VarWeightValue(i);
+    }
+    return output;
 }
