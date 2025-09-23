@@ -36,8 +36,24 @@ forest_dataset_update_basis_cpp <- function(dataset_ptr, basis) {
   invisible(.Call(`_stochtree_forest_dataset_update_basis_cpp`, dataset_ptr, basis))
 }
 
+forest_dataset_update_var_weights_cpp <- function(dataset_ptr, weights, exponentiate) {
+  invisible(.Call(`_stochtree_forest_dataset_update_var_weights_cpp`, dataset_ptr, weights, exponentiate))
+}
+
 forest_dataset_add_weights_cpp <- function(dataset_ptr, weights) {
   invisible(.Call(`_stochtree_forest_dataset_add_weights_cpp`, dataset_ptr, weights))
+}
+
+forest_dataset_get_covariates_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_forest_dataset_get_covariates_cpp`, dataset_ptr)
+}
+
+forest_dataset_get_basis_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_forest_dataset_get_basis_cpp`, dataset_ptr)
+}
+
+forest_dataset_get_variance_weights_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_forest_dataset_get_variance_weights_cpp`, dataset_ptr)
 }
 
 create_column_vector_cpp <- function(outcome) {
@@ -68,6 +84,22 @@ create_rfx_dataset_cpp <- function() {
   .Call(`_stochtree_create_rfx_dataset_cpp`)
 }
 
+rfx_dataset_update_basis_cpp <- function(dataset_ptr, basis) {
+  invisible(.Call(`_stochtree_rfx_dataset_update_basis_cpp`, dataset_ptr, basis))
+}
+
+rfx_dataset_update_var_weights_cpp <- function(dataset_ptr, weights, exponentiate) {
+  invisible(.Call(`_stochtree_rfx_dataset_update_var_weights_cpp`, dataset_ptr, weights, exponentiate))
+}
+
+rfx_dataset_update_group_labels_cpp <- function(dataset_ptr, group_labels) {
+  invisible(.Call(`_stochtree_rfx_dataset_update_group_labels_cpp`, dataset_ptr, group_labels))
+}
+
+rfx_dataset_num_basis_cpp <- function(dataset) {
+  .Call(`_stochtree_rfx_dataset_num_basis_cpp`, dataset)
+}
+
 rfx_dataset_num_rows_cpp <- function(dataset) {
   .Call(`_stochtree_rfx_dataset_num_rows_cpp`, dataset)
 }
@@ -94,6 +126,18 @@ rfx_dataset_add_basis_cpp <- function(dataset_ptr, basis) {
 
 rfx_dataset_add_weights_cpp <- function(dataset_ptr, weights) {
   invisible(.Call(`_stochtree_rfx_dataset_add_weights_cpp`, dataset_ptr, weights))
+}
+
+rfx_dataset_get_group_labels_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_rfx_dataset_get_group_labels_cpp`, dataset_ptr)
+}
+
+rfx_dataset_get_basis_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_rfx_dataset_get_basis_cpp`, dataset_ptr)
+}
+
+rfx_dataset_get_variance_weights_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_rfx_dataset_get_variance_weights_cpp`, dataset_ptr)
 }
 
 rfx_container_cpp <- function(num_components, num_groups) {

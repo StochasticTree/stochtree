@@ -36,7 +36,16 @@ ForestDataset <- R6::R6Class(
         update_basis = function(basis) {
             stopifnot(self$has_basis())
             forest_dataset_update_basis_cpp(self$data_ptr, basis)
-        }, 
+        },
+
+        #' @description
+        #' Update variance_weights in a dataset
+        #' @param variance_weights Updated vector of variance weights used to define individual variance / case weights
+        #' @param exponentiate Whether or not input vector should be exponentiated before being written to the Dataset's variance weights. Default: F.
+        update_variance_weights = function(variance_weights, exponentiate = F) {
+            stopifnot(self$has_variance_weights())
+            forest_dataset_update_var_weights_cpp(self$data_ptr, variance_weights, exponentiate)
+        },
         
         #' @description
         #' Return number of observations in a `ForestDataset` object
@@ -57,6 +66,27 @@ ForestDataset <- R6::R6Class(
         #' @return Basis count
         num_basis = function() {
             return(dataset_num_basis_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return covariates as an R matrix
+        #' @return Covariate data
+        get_covariates = function() {
+            return(forest_dataset_get_covariates_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return bases as an R matrix
+        #' @return Basis data
+        get_basis = function() {
+            return(forest_dataset_get_basis_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return variance weights as an R vector
+        #' @return Variance weight data
+        get_variance_weights = function() {
+            return(forest_dataset_get_variance_weights_cpp(self$data_ptr))
         }, 
         
         #' @description
@@ -191,10 +221,55 @@ RandomEffectsDataset <- R6::R6Class(
         }, 
         
         #' @description
+        #' Update basis matrix in a dataset
+        #' @param basis Updated matrix of bases used to define random slopes / intercepts
+        update_basis = function(basis) {
+            stopifnot(self$has_basis())
+            rfx_dataset_update_basis_cpp(self$data_ptr, basis)
+        },
+        
+        #' @description
+        #' Update variance_weights in a dataset
+        #' @param variance_weights Updated vector of variance weights used to define individual variance / case weights
+        #' @param exponentiate Whether or not input vector should be exponentiated before being written to the RandomEffectsDataset's variance weights. Default: F.
+        update_variance_weights = function(variance_weights, exponentiate = F) {
+            stopifnot(self$has_variance_weights())
+            rfx_dataset_update_var_weights_cpp(self$data_ptr, variance_weights, exponentiate)
+        },
+        
+        #' @description
         #' Return number of observations in a `RandomEffectsDataset` object
         #' @return Observation count
         num_observations = function() {
             return(rfx_dataset_num_rows_cpp(self$data_ptr))
+        },
+        
+        #' @description
+        #' Return dimension of the basis matrix in a `RandomEffectsDataset` object
+        #' @return Basis vector count
+        num_basis = function() {
+            return(rfx_dataset_num_basis_cpp(self$data_ptr))
+        },  
+        
+        #' @description
+        #' Return group labels as an R vector
+        #' @return Group label data
+        get_group_labels = function() {
+            return(rfx_dataset_get_group_labels_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return bases as an R matrix
+        #' @return Basis data
+        get_basis = function() {
+            return(rfx_dataset_get_basis_cpp(self$data_ptr))
+        }, 
+        
+        #' @description
+        #' Return variance weights as an R vector
+        #' @return Variance weight data
+        get_variance_weights = function() {
+            return(rfx_dataset_get_variance_weights_cpp(self$data_ptr))
         }, 
         
         #' @description
