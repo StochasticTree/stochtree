@@ -53,7 +53,7 @@ test_that("RandomEffectsDataset can be constructed and updated", {
     new_rfx_basis <- matrix(runif(n * num_basis), ncol = num_basis)
     new_variance_weights <- runif(n)
     expect_no_error(
-        rfx_dataset$update_basis(new_basis)
+        rfx_dataset$update_basis(new_rfx_basis)
     )
     expect_no_error(
         rfx_dataset$update_variance_weights(new_variance_weights)
@@ -61,6 +61,6 @@ test_that("RandomEffectsDataset can be constructed and updated", {
     
     # Check that we recover the correct data through get_group_labels, get_basis, and get_variance_weights
     expect_equal(group_ids, rfx_dataset$get_group_labels())
-    expect_equal(new_basis, rfx_dataset$get_basis())
+    expect_equal(new_rfx_basis, rfx_dataset$get_basis())
     expect_equal(new_variance_weights, rfx_dataset$get_variance_weights())
 })
