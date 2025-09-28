@@ -29,8 +29,12 @@
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 
+#include <cmath>
 #include <map>
 #include <numeric>
+#include <random>
+#include <set>
+#include <string>
 #include <vector>
 
 namespace StochTree {

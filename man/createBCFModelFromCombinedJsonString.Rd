@@ -22,21 +22,21 @@ n <- 500
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
 mu_x <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
 )
 pi_x <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
 )
 tau_x <- (
-    ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
-    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
-    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+    ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
+    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
+    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
 )
 Z <- rbinom(n, 1, pi_x)
@@ -70,13 +70,13 @@ rfx_basis_test <- rfx_basis[test_inds,]
 rfx_basis_train <- rfx_basis[train_inds,]
 rfx_term_test <- rfx_term[test_inds]
 rfx_term_train <- rfx_term[train_inds]
-bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-                 propensity_train = pi_train, 
-                 rfx_group_ids_train = rfx_group_ids_train, 
-                 rfx_basis_train = rfx_basis_train, X_test = X_test, 
-                 Z_test = Z_test, propensity_test = pi_test, 
+bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
+                 propensity_train = pi_train,
+                 rfx_group_ids_train = rfx_group_ids_train,
+                 rfx_basis_train = rfx_basis_train, X_test = X_test,
+                 Z_test = Z_test, propensity_test = pi_test,
                  rfx_group_ids_test = rfx_group_ids_test,
-                 rfx_basis_test = rfx_basis_test, 
+                 rfx_basis_test = rfx_basis_test,
                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 bcf_json_string_list <- list(saveBCFModelToJsonString(bcf_model))
 bcf_model_roundtrip <- createBCFModelFromCombinedJsonString(bcf_json_string_list)

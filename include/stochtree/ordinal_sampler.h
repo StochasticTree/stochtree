@@ -43,7 +43,6 @@ class OrdinalSampler {
    */
   static double SampleTruncatedExponential(double lambda, std::mt19937& gen);
 
-
   /*!
    * \brief Update truncated exponential latent variables (Z)
    * 

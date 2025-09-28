@@ -136,9 +136,9 @@ n <- 100
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
 f_XW <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
 )
 noise_sd <- 1
@@ -153,6 +153,6 @@ X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
 
-bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
+bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test,
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 }

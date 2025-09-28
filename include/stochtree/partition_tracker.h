@@ -31,7 +31,11 @@
 #include <stochtree/openmp_utils.h>
 #include <stochtree/tree.h>
 
+#include <cmath>
 #include <numeric>
+#include <random>
+#include <set>
+#include <string>
 #include <vector>
 
 namespace StochTree {
@@ -104,6 +108,7 @@ class ForestTracker {
   void SetOrdinalAuxData(int type_idx, data_size_t obs_idx, double value);
   std::vector<double>& GetOrdinalAuxDataVector(int type_idx);
 
+
  private:
   /*! \brief Mapper from observations to predicted values summed over every tree in a forest */
   std::vector<double> sum_predictions_;
@@ -132,7 +137,7 @@ class ForestTracker {
   void UpdateSampleTrackersInternal(TreeEnsemble& forest, Eigen::MatrixXd& covariates);
   void UpdateSampleTrackersResidualInternalBasis(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model);
   void UpdateSampleTrackersResidualInternalNoBasis(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model);
-
+  
   /*! 
   * \brief Track auxiliary data for cloglog ordinal bart models 
   * Vector of vectors to store these auxiliary data
@@ -146,6 +151,8 @@ class ForestTracker {
   * type_idx is the index of the type of auxiliary data (0: latent Z, 1: forest predictions, 2: cutpoints gamma, 3: cumsum exp of cutpoints)
   */
   void ResizeOrdinalAuxData(data_size_t num_observations, int n_levels);
+  // bool IsValidOrdinalType(int type_idx) const;
+  // bool IsValidOrdinalIndex(int type_idx, data_size_t obs_idx) const;
 };
 
 /*! \brief Class storing sample-prediction map for each tree in an ensemble */
@@ -456,7 +463,7 @@ class UnsortedNodeSampleTracker {
   /*! \brief Number of trees */
   int NumTrees() { return num_trees_; }
 
-  /*! \brief Return a pointer to the feature partition tracking tree i */
+  /*! \brief Number of trees */
   FeatureUnsortedPartition* GetFeaturePartition(int i) { return feature_partitions_[i].get(); }
 
  private:
@@ -637,24 +644,24 @@ class SortedNodeSampleTracker {
   }
 
   /*! \brief Partition a node based on a new split rule */
-  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, TreeSplit& split, int num_threads = -1) {
-    StochTree::ParallelFor(0, num_features_, num_threads, [&](int i) {
+  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, TreeSplit& split) {
+    for (int i = 0; i < num_features_; i++) {
       feature_partitions_[i]->SplitFeature(covariates, node_id, feature_split, split);
-    });
+    }
   }
 
   /*! \brief Partition a node based on a new split rule */
-  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, double split_value, int num_threads = -1) {
-    StochTree::ParallelFor(0, num_features_, num_threads, [&](int i) {
+  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, double split_value) {
+    for (int i = 0; i < num_features_; i++) {
       feature_partitions_[i]->SplitFeatureNumeric(covariates, node_id, feature_split, split_value);
-    });
+    }
   }
 
   /*! \brief Partition a node based on a new split rule */
-  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, std::vector<std::uint32_t> const& category_list, int num_threads = -1) {
-    StochTree::ParallelFor(0, num_features_, num_threads, [&](int i) {
+  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, std::vector<std::uint32_t> const& category_list) {
+    for (int i = 0; i < num_features_; i++) {
       feature_partitions_[i]->SplitFeatureCategorical(covariates, node_id, feature_split, category_list);
-    });
+    }
   }
 
   /*! \brief First index of data points contained in node_id */

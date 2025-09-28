@@ -5,6 +5,7 @@
 #ifndef STOCHTREE_RANDOM_H_
 #define STOCHTREE_RANDOM_H_
 
+#include <cstdint>
 #include <random>
 #include <set>
 #include <vector>

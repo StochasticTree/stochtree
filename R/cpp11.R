@@ -624,12 +624,12 @@ compute_leaf_indices_cpp <- function(forest_container, covariates, forest_nums) 
   .Call(`_stochtree_compute_leaf_indices_cpp`, forest_container, covariates, forest_nums)
 }
 
-sample_gfr_one_iteration_cpp <- function(data, residual, forest_samples, active_forest, tracker, split_prior, rng, sweep_indices, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, num_features_subsample, num_threads) {
-  invisible(.Call(`_stochtree_sample_gfr_one_iteration_cpp`, data, residual, forest_samples, active_forest, tracker, split_prior, rng, sweep_indices, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, num_features_subsample, num_threads))
+sample_gfr_one_iteration_cpp <- function(data, residual, forest_samples, active_forest, tracker, split_prior, rng, sweep_indices, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, num_features_subsample) {
+  invisible(.Call(`_stochtree_sample_gfr_one_iteration_cpp`, data, residual, forest_samples, active_forest, tracker, split_prior, rng, sweep_indices, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, num_features_subsample))
 }
 
-sample_mcmc_one_iteration_cpp <- function(data, residual, forest_samples, active_forest, tracker, split_prior, rng, sweep_indices, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, num_threads) {
-  invisible(.Call(`_stochtree_sample_mcmc_one_iteration_cpp`, data, residual, forest_samples, active_forest, tracker, split_prior, rng, sweep_indices, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest, num_threads))
+sample_mcmc_one_iteration_cpp <- function(data, residual, forest_samples, active_forest, tracker, split_prior, rng, sweep_indices, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest) {
+  invisible(.Call(`_stochtree_sample_mcmc_one_iteration_cpp`, data, residual, forest_samples, active_forest, tracker, split_prior, rng, sweep_indices, feature_types, cutpoint_grid_size, leaf_model_scale_input, variable_weights, a_forest, b_forest, global_variance, leaf_model_int, keep_forest))
 }
 
 sample_sigma2_one_iteration_cpp <- function(residual, dataset, rng, a, b) {
@@ -690,6 +690,46 @@ get_cached_forest_predictions_cpp <- function(tracker_ptr) {
 
 sample_without_replacement_integer_cpp <- function(population_vector, sampling_probs, sample_size) {
   .Call(`_stochtree_sample_without_replacement_integer_cpp`, population_vector, sampling_probs, sample_size)
+}
+
+ordinal_aux_data_initialize_cpp <- function(tracker_ptr, num_observations, n_levels) {
+  invisible(.Call(`_stochtree_ordinal_aux_data_initialize_cpp`, tracker_ptr, num_observations, n_levels))
+}
+
+ordinal_aux_data_get_cpp <- function(tracker_ptr, type_idx, obs_idx) {
+  .Call(`_stochtree_ordinal_aux_data_get_cpp`, tracker_ptr, type_idx, obs_idx)
+}
+
+ordinal_aux_data_set_cpp <- function(tracker_ptr, type_idx, obs_idx, value) {
+  invisible(.Call(`_stochtree_ordinal_aux_data_set_cpp`, tracker_ptr, type_idx, obs_idx, value))
+}
+
+ordinal_aux_data_get_vector_cpp <- function(tracker_ptr, type_idx) {
+  .Call(`_stochtree_ordinal_aux_data_get_vector_cpp`, tracker_ptr, type_idx)
+}
+
+ordinal_aux_data_set_vector_cpp <- function(tracker_ptr, type_idx, values) {
+  invisible(.Call(`_stochtree_ordinal_aux_data_set_vector_cpp`, tracker_ptr, type_idx, values))
+}
+
+ordinal_aux_data_update_cumsum_exp_cpp <- function(tracker_ptr) {
+  invisible(.Call(`_stochtree_ordinal_aux_data_update_cumsum_exp_cpp`, tracker_ptr))
+}
+
+ordinal_sampler_cpp <- function() {
+  .Call(`_stochtree_ordinal_sampler_cpp`)
+}
+
+ordinal_sampler_update_latent_variables_cpp <- function(sampler_ptr, data_ptr, outcome_ptr, tracker_ptr, rng_ptr) {
+  invisible(.Call(`_stochtree_ordinal_sampler_update_latent_variables_cpp`, sampler_ptr, data_ptr, outcome_ptr, tracker_ptr, rng_ptr))
+}
+
+ordinal_sampler_update_gamma_params_cpp <- function(sampler_ptr, data_ptr, outcome_ptr, tracker_ptr, alpha_gamma, beta_gamma, gamma_0, rng_ptr) {
+  invisible(.Call(`_stochtree_ordinal_sampler_update_gamma_params_cpp`, sampler_ptr, data_ptr, outcome_ptr, tracker_ptr, alpha_gamma, beta_gamma, gamma_0, rng_ptr))
+}
+
+ordinal_sampler_update_cumsum_exp_cpp <- function(sampler_ptr, tracker_ptr) {
+  invisible(.Call(`_stochtree_ordinal_sampler_update_cumsum_exp_cpp`, sampler_ptr, tracker_ptr))
 }
 
 init_json_cpp <- function() {

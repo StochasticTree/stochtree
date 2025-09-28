@@ -17,11 +17,14 @@
 #include <nlohmann/json.hpp>
 #include <Eigen/Dense>
 
+#include <cmath>
 #include <fstream>
 #include <map>
 #include <memory>
 #include <random>
+#include <set>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace StochTree {

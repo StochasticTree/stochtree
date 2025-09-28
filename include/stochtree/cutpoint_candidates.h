@@ -42,6 +42,8 @@
 #include <stochtree/meta.h>
 #include <stochtree/partition_tracker.h>
 
+#include <tuple>
+
 namespace StochTree {
 
 /*! \brief Computing and tracking cutpoints available for a given feature at a given node

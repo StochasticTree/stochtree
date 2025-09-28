@@ -12,7 +12,11 @@
 #include <stochtree/ig_sampler.h>
 #include <stochtree/meta.h>
 
+#include <cmath>
 #include <random>
+#include <set>
+#include <string>
+#include <vector>
 
 namespace StochTree {
 
