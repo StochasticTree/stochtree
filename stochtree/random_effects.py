@@ -40,6 +40,23 @@ class RandomEffectsDataset:
         n = group_labels_.shape[0]
         self.rfx_dataset_cpp.AddGroupLabels(group_labels_, n)
 
+    def update_group_labels(self, group_labels: np.array):
+        """
+        Update group labels in a dataset
+
+        Parameters
+        ----------
+        group_labels : np.array
+            One-dimensional numpy array of group labels.
+        """
+        group_labels_ = np.squeeze(group_labels)
+        if group_labels_.ndim > 1:
+            raise ValueError(
+                "group_labels must be a one-dimensional numpy array of group indices"
+            )
+        n = group_labels_.shape[0]
+        self.rfx_dataset_cpp.UpdateGroupLabels(group_labels_, n)
+
     def add_basis(self, basis: np.array):
         """
         Add basis matrix to a dataset
@@ -93,6 +110,65 @@ class RandomEffectsDataset:
             )
         n = variance_weights_.shape[0]
         self.rfx_dataset_cpp.AddVarianceWeights(variance_weights_, n)
+    
+    def update_variance_weights(self, variance_weights: np.array, exponentiate: bool = False):
+        """
+        Update variance weights in a dataset. Allows users to build an ensemble that depends on 
+        variance weights that are updated throughout the sampler.
+
+        Parameters
+        ----------
+        variance_weights : np.array
+            Univariate numpy array of variance weights.
+        exponentiate : bool
+            Whether to exponentiate the variance weights before storing them in the dataset.
+        """
+        if not self.has_variance_weights():
+            raise ValueError("This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector.")
+        if not isinstance(variance_weights, np.ndarray):
+            raise ValueError("variance_weights must be a numpy array.")
+        variance_weights_ = np.squeeze(variance_weights)
+        if variance_weights_.ndim > 1:
+            raise ValueError(
+                "variance_weights must be a one-dimensional numpy array of group indices"
+            )
+        n = variance_weights_.shape[0]
+        if self.num_observations() != n:
+            raise ValueError(f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()}).")
+        self.rfx_dataset_cpp.UpdateVarianceWeights(variance_weights, n, exponentiate)
+    
+    def get_group_labels(self) -> np.array:
+        """
+        Return the group labels in a RandomEffectsDataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            One-dimensional numpy array of group labels.
+        """
+        return self.rfx_dataset_cpp.GetGroupLabels()
+    
+    def get_basis(self) -> np.array:
+        """
+        Return the bases in a RandomEffectsDataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            Two-dimensional numpy array of basis vectors.
+        """
+        return self.rfx_dataset_cpp.GetBasis()
+    
+    def get_variance_weights(self) -> np.array:
+        """
+        Return the variance weights in a RandomEffectsDataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            One-dimensional numpy array of variance weights.
+        """
+        return self.rfx_dataset_cpp.GetVarianceWeights()
 
     def num_observations(self) -> int:
         """

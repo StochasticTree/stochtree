@@ -67,6 +67,56 @@ class ForestDatasetCpp {
     dataset_->AddVarianceWeights(data_ptr, num_row);
   }
 
+  void UpdateVarianceWeights(py::array_t<double> weight_vector, data_size_t num_row, bool exponentiate) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(weight_vector.mutable_data());
+    
+    // Load covariates
+    dataset_->UpdateVarWeights(data_ptr, num_row, exponentiate);
+  }
+
+  py::array_t<double> GetCovariates() {
+    // Initialize n x p numpy array to store the covariates
+    data_size_t n = dataset_->NumObservations();
+    int num_covariates = dataset_->NumCovariates();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, num_covariates}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (size_t i = 0; i < n; i++) {
+      for (int j = 0; j < num_covariates; j++) {
+        accessor(i,j) = dataset_->CovariateValue(i,j);
+      }
+    }
+
+    return result;
+  }
+
+  py::array_t<double> GetBasis() {
+    // Initialize n x k numpy array to store the basis
+    data_size_t n = dataset_->NumObservations();
+    int num_basis = dataset_->NumBasis();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, num_basis}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (size_t i = 0; i < n; i++) {
+      for (int j = 0; j < num_basis; j++) {
+        accessor(i,j) = dataset_->BasisValue(i,j);
+      }
+    }
+
+    return result;
+  }
+
+  py::array_t<double> GetVarianceWeights() {
+    // Initialize n x 1 numpy array to store the variance weights
+    data_size_t n = dataset_->NumObservations();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < n; i++) {
+      accessor(i) = dataset_->VarWeightValue(i);
+    }
+
+    return result;
+  }
+
   data_size_t NumRows() {
     return dataset_->NumObservations();
   }
@@ -1289,6 +1339,52 @@ class RandomEffectsDatasetCpp {
     double* weight_data_ptr = static_cast<double*>(weights.mutable_data());
     rfx_dataset_->AddVarianceWeights(weight_data_ptr, num_row);
   }
+  void UpdateBasis(py::array_t<double> basis, data_size_t num_row, int num_col, bool row_major) {
+    double* basis_data_ptr = static_cast<double*>(basis.mutable_data());
+    rfx_dataset_->UpdateBasis(basis_data_ptr, num_row, num_col, row_major);
+  }
+  void UpdateVarianceWeights(py::array_t<double> weights, data_size_t num_row, bool exponentiate) {
+    double* weight_data_ptr = static_cast<double*>(weights.mutable_data());
+    rfx_dataset_->UpdateVarWeights(weight_data_ptr, num_row, exponentiate);
+  }
+  void UpdateGroupLabels(py::array_t<int> group_labels, data_size_t num_row) {
+    std::vector<int> group_labels_vec(num_row);
+    auto accessor = group_labels.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < num_row; i++) {
+      group_labels_vec[i] = accessor(i);
+    }
+    rfx_dataset_->UpdateGroupLabels(group_labels_vec, num_row);
+  }
+  py::array_t<double> GetBasis() {
+    int num_row = rfx_dataset_->NumObservations();
+    int num_col = rfx_dataset_->NumBases();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_row, num_col}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (py::ssize_t i = 0; i < num_row; i++) {
+      for (int j = 0; j < num_col; j++) {
+        accessor(i,j) = rfx_dataset_->BasisValue(i,j);
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetVarianceWeights() {
+    int num_row = rfx_dataset_->NumObservations();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_row}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < num_row; i++) {
+      accessor(i) = rfx_dataset_->VarWeightValue(i);
+    }
+    return result;
+  }
+  py::array_t<int> GetGroupLabels() {
+    int num_row = rfx_dataset_->NumObservations();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_row}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < num_row; i++) {
+      accessor(i) = rfx_dataset_->GroupId(i);
+    }
+    return result;
+  }
   bool HasGroupLabels() {return rfx_dataset_->HasGroupLabels();}
   bool HasBasis() {return rfx_dataset_->HasBasis();}
   bool HasVarianceWeights() {return rfx_dataset_->HasVarWeights();}
@@ -2043,9 +2139,13 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("AddBasis", &ForestDatasetCpp::AddBasis)
     .def("UpdateBasis", &ForestDatasetCpp::UpdateBasis)
     .def("AddVarianceWeights", &ForestDatasetCpp::AddVarianceWeights)
+    .def("UpdateVarianceWeights", &ForestDatasetCpp::UpdateVarianceWeights)
     .def("NumRows", &ForestDatasetCpp::NumRows)
     .def("NumCovariates", &ForestDatasetCpp::NumCovariates)
     .def("NumBasis", &ForestDatasetCpp::NumBasis)
+    .def("GetCovariates", &ForestDatasetCpp::GetCovariates)
+    .def("GetBasis", &ForestDatasetCpp::GetBasis)
+    .def("GetVarianceWeights", &ForestDatasetCpp::GetVarianceWeights)
     .def("HasBasis", &ForestDatasetCpp::HasBasis)
     .def("HasVarianceWeights", &ForestDatasetCpp::HasVarianceWeights);
 
@@ -2176,6 +2276,12 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("AddGroupLabels", &RandomEffectsDatasetCpp::AddGroupLabels)
       .def("AddBasis", &RandomEffectsDatasetCpp::AddBasis)
       .def("AddVarianceWeights", &RandomEffectsDatasetCpp::AddVarianceWeights)
+      .def("UpdateGroupLabels", &RandomEffectsDatasetCpp::UpdateGroupLabels)
+      .def("UpdateBasis", &RandomEffectsDatasetCpp::UpdateBasis)
+      .def("UpdateVarianceWeights", &RandomEffectsDatasetCpp::UpdateVarianceWeights)
+      .def("GetGroupLabels", &RandomEffectsDatasetCpp::GetGroupLabels)
+      .def("GetBasis", &RandomEffectsDatasetCpp::GetBasis)
+      .def("GetVarianceWeights", &RandomEffectsDatasetCpp::GetVarianceWeights)
       .def("HasGroupLabels", &RandomEffectsDatasetCpp::HasGroupLabels)
       .def("HasBasis", &RandomEffectsDatasetCpp::HasBasis)
       .def("HasVarianceWeights", &RandomEffectsDatasetCpp::HasVarianceWeights);
