@@ -11,6 +11,7 @@
 #' @param beta_gamma Rate parameter for the log-gamma prior on cutpoints. Default: `2.0`.
 #' @param variable_weights Optional vector of variable weights for splitting (default: equal weights).
 #' @param feature_types Optional vector indicating feature types (0 for continuous, 1 for categorical; default: all continuous).
+#' @export
 
 
 cloglog_ordinal_bart <- function(X, y, X_test = NULL,

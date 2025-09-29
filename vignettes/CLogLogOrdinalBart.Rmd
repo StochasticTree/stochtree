@@ -1,10 +1,49 @@
-# Simulate ordinal data and run Cloglog Ordinal BART
+---
+title: "Complementary Log-Log Ordinal BART in StochTree"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{CLogLog-Ordinal-BART}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+bibliography: vignettes.bib
+editor_options: 
+  markdown: 
+    wrap: 72
+---
 
-# Load
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette demonstrates how to use the `cloglog_ordinal_bart()` function for modeling ordinal outcomes using a complementary log-log link function in the BART (Bayesian Additive Regression Trees) framework. 
+
+To begin, we load the `stochtree` package.
+
+```{r setup}
 library(stochtree)
+```
 
+# Introduction to Ordinal BART with CLogLog Link
+
+Ordinal data represents outcomes that have a natural ordering but undefined distances between categories. Examples include survey responses (strongly disagree, disagree, neutral, agree, strongly agree), severity ratings (mild, moderate, severe), or educational levels (elementary, high school, college, graduate).
+
+The complementary log-log (CLogLog) model uses the link function:
+$$\text{cloglog}(p) = \log(-\log(1-p))$$
+
+This link function is asymmetric and particularly appropriate when the probability of being in higher categories changes rapidly at certain thresholds, making it different from the symmetric probit or logit links commonly used in ordinal regression.
+
+In the BART framework with CLogLog ordinal regression, we model:
+$$P(Y = k \mid Y \geq k, X = x) = 1 - \exp\left(-e^{\gamma_k + \lambda(x)}\right)$$
+
+where $\lambda(x)$ is learned by the BART ensemble and $c_k = \log \sum_{j \leq k}e^{\gamma_j}$ are the cutpoints for the ordinal categories.
+
+## Data Simulation
+
+```{r demo1-simulation}
 set.seed(2025)
-
 # Sample size and number of predictors
 n <- 2000
 p <- 5
@@ -37,8 +76,14 @@ for (j in 1:n_categories) {
 # Generate ordinal outcomes
 y <- sapply(1:nrow(X), function(i) sample(1:n_categories, 1, prob = true_probs[i, ]))
 cat("Outcome distribution:", table(y), "\n")
+```
 
-# CLogLog Ordinal BART model fitting
+## Model Fitting
+
+Now let's fit the CLogLog Ordinal BART model:
+
+```{r demo1-model-fitting}
+# Split data into train and test sets
 train_idx <- sample(1:n, size = floor(0.8 * n))
 test_idx <- setdiff(1:n, train_idx)
 
@@ -47,7 +92,8 @@ y_train <- y[train_idx]
 X_test <- X[test_idx, ]
 y_test <- y[test_idx]
 
-out <- cloglog_ordinal_bart(
+# Fit CLogLog Ordinal BART model
+out <- stochtree::cloglog_ordinal_bart(
   X = X_train,
   y = y_train,
   X_test = X_test,
@@ -55,33 +101,13 @@ out <- cloglog_ordinal_bart(
   n_burnin = 500,
   n_thin = 1
 )
+```
 
+## Model Results and Interpretation
 
-# Inference and diagnostics
-par(mfrow = c(2, 1))
-plot(out$gamma_samples[1, ], type = 'l', main = expression(gamma[1]), ylab = "Value", xlab = "MCMC Sample")
-abline(h = gamma_true[1], col = 'red', lty = 2)
-plot(out$gamma_samples[2, ], type = 'l', main = expression(gamma[2]), ylab = "Value", xlab = "MCMC Sample")
-abline(h = gamma_true[2], col = 'red', lty = 2)
+Let's examine the posterior samples and model performance:
 
-gamma1 <- out$gamma_samples[1,] + colMeans(out$forest_predictions_train)
-summary(gamma1)
-hist(gamma1)
-
-gamma2 <- out$gamma_samples[2,] + colMeans(out$forest_predictions_train)
-summary(gamma2)
-hist(gamma2)
-
-par(mfrow = c(3,2), mar = c(5,4,1,1))
-rowMeans(out$gamma_samples)
-moo <- t(out$gamma_samples) + colMeans(out$forest_predictions_train)
-plot(moo[,1])
-abline(h = gamma_true[1] + mean(true_lambda_function[train_idx]))
-plot(moo[,2])
-abline(h = gamma_true[2] + mean(true_lambda_function[train_idx]))
-plot(out$gamma_samples[1,])
-plot(out$gamma_samples[2,])
-
+```{r demo1-results}
 # Compare forest predictions with the truth function (for training and test sets)
 lambda_pred_train <- rowMeans(out$forest_predictions_train) - mean(out$forest_predictions_train)
 plot(lambda_pred_train, true_lambda_function[train_idx])
@@ -108,8 +134,6 @@ for (j in 1:n_categories) {
   }
 }
 
-mean(log(-log(1 - est_probs_train[, 1])) - rowMeans(out$forest_predictions_train))
-
 # Compare estimated vs true class probabilities for training set
 for (j in 1:n_categories) {
   plot(true_probs[train_idx, j], est_probs_train[, j], xlab = paste("True Prob Category", j), ylab = paste("Estimated Prob Category", j))
@@ -131,8 +155,6 @@ for (j in 1:n_categories) {
   }
 }
 
-mean(log(-log(1 - est_probs_test[, 1])) - rowMeans(out$forest_predictions_test))
-
 # Compare estimated vs true class probabilities for test set
 for (j in 1:n_categories) {
   plot(true_probs[test_idx, j], est_probs_test[, j], xlab = paste("True Prob Category", j), ylab = paste("Estimated Prob Category", j))
@@ -140,3 +162,12 @@ for (j in 1:n_categories) {
   cor_test_prob <- cor(true_probs[test_idx, j], est_probs_test[, j])
   text(min(true_probs[test_idx, j]), max(est_probs_test[, j]), paste('Correlation:', round(cor_test_prob, 3)), adj = 0, col = 'red')
 }
+```
+
+# Conclusion
+
+The CLogLog Ordinal BART model in `stochtree` provides a flexible and powerful approach for modeling ordinal outcomes, especially better suited for asymmetric outcomes: Rare events (e.g., credit default, fraud detection, system failures, adverse drug reactions), Toxic thresholds (e.g., credit risk escalation, dose-response toxicity, engagement drop-offs), Discrete survival outcomes (e.g., time-to-default, customer churn, progression-free survival).
+
+The CLogLog Ordinal BART implementation in `stochtree` builds on the paper by @alam2025unified.
+
+# References
