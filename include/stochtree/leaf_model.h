@@ -403,7 +403,7 @@ class GaussianConstantSuffStat {
     sum_w = 0.0;
     sum_yw = 0.0;
   }
-   /*!
+  /*!
    * \brief Increment the value of each sufficient statistic by the values provided by `suff_stat`
    *
    * \param suff_stat Sufficient statistic to be added to the current sufficient statistics
