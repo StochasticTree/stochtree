@@ -2558,6 +2558,8 @@ bcf <- function(
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param type (Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
+#' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "cate", "rfx", "variance_forest", or "all". If a model doesn't have random effects or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
 #' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of 3-5 `nrow(X)` by `object$num_samples` matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
@@ -2616,8 +2618,59 @@ predict.bcfmodel <- function(
     propensity = NULL,
     rfx_group_ids = NULL,
     rfx_basis = NULL,
+    type = "posterior",
+    terms = "all",
     ...
 ) {
+    # Handle prediction type
+    if (!is.character(type)) {
+        stop("type must be a string or character vector")
+    }
+    if (!(type %in% c("mean", "posterior"))) {
+        stop("type must either be 'mean' or 'posterior")
+    }
+    predict_mean <- type == "mean"
+    
+    # Handle prediction terms
+    if (!is.character(terms)) {
+        stop("type must be a string or character vector")
+    }
+    num_terms <- length(terms)
+    has_mu_forest <- T
+    has_tau_forest <- T
+    has_variance_forest <- object$model_params$include_variance_forest
+    has_rfx <- object$model_params$has_rfx
+    has_y_hat <- T
+    predict_y_hat <- (((has_y_hat) && ("y_hat" %in% terms)) ||
+                          ((has_y_hat) && ("all" %in% terms)))
+    predict_mu_forest <- (((has_mu_forest) && ("prognostic_function" %in% terms)) ||
+                              ((has_mu_forest) && ("all" %in% terms)))
+    predict_tau_forest <- (((has_tau_forest) && ("cate" %in% terms)) ||
+                              ((has_tau_forest) && ("all" %in% terms)))
+    predict_rfx <- (((has_rfx) && ("rfx" %in% terms)) ||
+                        ((has_rfx) && ("all" %in% terms)))
+    predict_variance_forest <- (((has_variance_forest) &&
+                                     ("variance_forest" %in% terms)) ||
+                                    ((has_variance_forest) && ("all" %in% terms)))
+    predict_count <- sum(c(
+        predict_y_hat,
+        predict_mu_forest,
+        predict_tau_forest,
+        predict_rfx,
+        predict_variance_forest
+    ))
+    if (predict_count == 0) {
+        warning(paste0(
+            "None of the requested model terms, ",
+            paste(terms, collapse = ", "),
+            ", were fit in this model"
+        ))
+        return(NULL)
+    }
+    predict_rfx_intermediate <- (predict_y_hat && has_rfx)
+    predict_mu_forest_intermediate <- (predict_y_hat && has_mu_forest)
+    predict_tau_forest_intermediate <- (predict_y_hat && has_tau_forest)
+    
     # Preprocess covariates
     if ((!is.data.frame(X)) && (!is.matrix(X))) {
         stop("X must be a matrix or dataframe")
@@ -2699,53 +2752,77 @@ predict.bcfmodel <- function(
     # Create prediction datasets
     forest_dataset_pred <- createForestDataset(X_combined, Z)
 
-    # Compute forest predictions
+    # Compute mu forest predictions
     num_samples <- object$model_params$num_samples
     y_std <- object$model_params$outcome_scale
     y_bar <- object$model_params$outcome_mean
     initial_sigma2 <- object$model_params$initial_sigma2
-    mu_hat <- object$forests_mu$predict(forest_dataset_pred) * y_std + y_bar
-    if (object$model_params$adaptive_coding) {
-        tau_hat_raw <- object$forests_tau$predict_raw(forest_dataset_pred)
-        tau_hat <- t(
-            t(tau_hat_raw) * (object$b_1_samples - object$b_0_samples)
-        ) *
-            y_std
-    } else {
-        tau_hat <- object$forests_tau$predict_raw(forest_dataset_pred) * y_std
-    }
-    if (object$model_params$multivariate_treatment) {
-        tau_dim <- dim(tau_hat)
-        tau_num_obs <- tau_dim[1]
-        tau_num_samples <- tau_dim[3]
-        treatment_term <- matrix(NA_real_, nrow = tau_num_obs, tau_num_samples)
-        for (i in 1:nrow(Z)) {
-            treatment_term[i, ] <- colSums(tau_hat[i, , ] * Z[i, ])
+    if (predict_mu_forest || predict_mu_forest_intermediate) {
+        mu_hat <- object$forests_mu$predict(forest_dataset_pred) * y_std + y_bar
+        if (predict_mean) {
+            mu_hat <- rowMeans(mu_hat)
         }
-    } else {
-        treatment_term <- tau_hat * as.numeric(Z)
     }
-    if (object$model_params$include_variance_forest) {
+    
+    # Compute CATE forest predictions
+    if (predict_tau_forest || predict_tau_forest_intermediate) {
+        if (object$model_params$adaptive_coding) {
+            tau_hat_raw <- object$forests_tau$predict_raw(forest_dataset_pred)
+            tau_hat <- t(
+                t(tau_hat_raw) * (object$b_1_samples - object$b_0_samples)
+            ) *
+                y_std
+        } else {
+            tau_hat <- object$forests_tau$predict_raw(forest_dataset_pred) * y_std
+        }
+        if (object$model_params$multivariate_treatment) {
+            tau_dim <- dim(tau_hat)
+            tau_num_obs <- tau_dim[1]
+            tau_num_samples <- tau_dim[3]
+            treatment_term <- matrix(NA_real_, nrow = tau_num_obs, tau_num_samples)
+            for (i in 1:nrow(Z)) {
+                treatment_term[i, ] <- colSums(tau_hat[i, , ] * Z[i, ])
+            }
+            if (predict_mean) {
+                tau_hat <- apply(tau_hat, c(1,2), mean)
+                treatment_term <- rowMeans(treatment_term)
+            }
+        } else {
+            treatment_term <- tau_hat * as.numeric(Z)
+            if (predict_mean) {
+                tau_hat <- rowMeans(tau_hat)
+                treatment_term <- rowMeans(treatment_term)
+            }
+        }
+    }
+    
+    # Compute variance forest predictions
+    if (predict_variance_forest) {
         s_x_raw <- object$forests_variance$predict(forest_dataset_pred)
     }
 
-    # Compute rfx predictions (if needed)
-    if (object$model_params$has_rfx) {
+    # Compute rfx predictions
+    if (predict_rfx) {
         rfx_predictions <- object$rfx_samples$predict(
             rfx_group_ids,
             rfx_basis
         ) *
             y_std
+        if (predict_mean) {
+            rfx_predictions <- rowMeans(rfx_predictions)
+        }
     }
 
     # Compute overall "y_hat" predictions
-    y_hat <- mu_hat + treatment_term
-    if (object$model_params$has_rfx) {
-        y_hat <- y_hat + rfx_predictions
+    if (predict_y_hat) {
+        y_hat <- mu_hat + treatment_term
+        if (has_rfx) {
+            y_hat <- y_hat + rfx_predictions
+        }
     }
 
     # Scale variance forest predictions
-    if (object$model_params$include_variance_forest) {
+    if (predict_variance_forest) {
         if (object$model_params$sample_sigma2_global) {
             sigma2_global_samples <- object$sigma2_global_samples
             variance_forest_predictions <- sapply(1:num_samples, function(i) {
@@ -2757,22 +2834,51 @@ predict.bcfmodel <- function(
                 y_std *
                 y_std
         }
+        if (predict_mean) {
+            variance_forest_predictions <- rowMeans(variance_forest_predictions)
+        }
     }
 
-    result <- list(
-        "mu_hat" = mu_hat,
-        "tau_hat" = tau_hat,
-        "y_hat" = y_hat
-    )
-    if (object$model_params$has_rfx) {
-        result[["rfx_predictions"]] <- rfx_predictions
+    # Return results
+    if (predict_count == 1) {
+        if (predict_y_hat) {
+            return(y_hat)
+        } else if (predict_mu_forest) {
+            return(mu_hat)
+        } else if (predict_tau_forest) {
+            return(tau_hat)
+        } else if (predict_rfx) {
+            return(rfx_predictions)
+        } else if (predict_variance_forest) {
+            return(variance_forest_predictions)
+        }
     } else {
-        result[["rfx_predictions"]] <- NULL
-    }
-    if (object$model_params$include_variance_forest) {
-        result[["variance_forest_predictions"]] <- variance_forest_predictions
-    } else {
-        result[["variance_forest_predictions"]] <- NULL
+        result <- list()
+        if (predict_y_hat) {
+            result[["y_hat"]] = y_hat
+        } else {
+            result[["y_hat"]] <- NULL
+        }
+        if (predict_mu_forest) {
+            result[["mu_hat"]] = mu_hat
+        } else {
+            result[["mu_hat"]] <- NULL
+        }
+        if (predict_tau_forest) {
+            result[["tau_hat"]] = tau_hat
+        } else {
+            result[["tau_hat"]] <- NULL
+        }
+        if (predict_rfx) {
+            result[["rfx_predictions"]] = rfx_predictions
+        } else {
+            result[["rfx_predictions"]] <- NULL
+        }
+        if (predict_variance_forest) {
+            result[["variance_forest_predictions"]] = variance_forest_predictions
+        } else {
+            result[["variance_forest_predictions"]] <- NULL
+        }
     }
     return(result)
 }

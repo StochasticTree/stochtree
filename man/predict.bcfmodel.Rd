@@ -11,6 +11,8 @@
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
+  type = "posterior",
+  terms = "all",
   ...
 )
 }
@@ -28,6 +30,10 @@ We do not currently support (but plan to in the near future), test set evaluatio
 that were not in the training set.}
 
 \item{rfx_basis}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
+
+\item{type}{(Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".}
+
+\item{terms}{(Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "cate", "rfx", "variance_forest", or "all". If a model doesn't have random effects or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return \code{NULL} along with a warning. Default: "all".}
 
 \item{...}{(Optional) Other prediction parameters.}
 }

@@ -1768,7 +1768,7 @@ bart <- function(
 #' that were not in the training set.
 #' @param rfx_basis (Optional) Test set basis for "random-slope" regression in additive random effects model.
 #' @param type (Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
-#' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL`. Default: "all".
+#' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
 #' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest.
