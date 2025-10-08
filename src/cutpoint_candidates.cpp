@@ -2,6 +2,7 @@
 #include <stochtree/meta.h>
 
 #include <numeric>
+#include <tuple>
 
 namespace StochTree {
 

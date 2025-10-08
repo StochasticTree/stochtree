@@ -7,7 +7,9 @@
 #include <stochtree/io.h>
 #include <stochtree/log.h>
 
+#include <algorithm>
 #include <sstream>
+#include <unordered_map>
 
 namespace StochTree {
 

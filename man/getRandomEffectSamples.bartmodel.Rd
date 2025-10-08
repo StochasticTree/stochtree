@@ -24,9 +24,9 @@ n <- 100
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
 f_XW <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
 )
 snr <- 3
@@ -51,11 +51,11 @@ rfx_basis_test <- rfx_basis[test_inds,]
 rfx_basis_train <- rfx_basis[train_inds,]
 rfx_term_test <- rfx_term[test_inds]
 rfx_term_train <- rfx_term[train_inds]
-bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test, 
-                   rfx_group_ids_train = rfx_group_ids_train, 
-                   rfx_group_ids_test = rfx_group_ids_test, 
-                   rfx_basis_train = rfx_basis_train, 
-                   rfx_basis_test = rfx_basis_test, 
+bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test,
+                   rfx_group_ids_train = rfx_group_ids_train,
+                   rfx_group_ids_test = rfx_group_ids_test,
+                   rfx_basis_train = rfx_basis_train,
+                   rfx_basis_test = rfx_basis_test,
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 rfx_samples <- getRandomEffectSamples(bart_model)
 }

@@ -9,6 +9,7 @@
 #include <stochtree/io.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
+#include <memory>
 
 namespace StochTree {
 
