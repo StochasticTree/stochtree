@@ -1577,7 +1577,9 @@ class BARTModel:
         covariates: Union[np.array, pd.DataFrame],
         basis: np.array = None,
         rfx_group_ids: np.array = None,
-        rfx_basis: np.array = None,
+        rfx_basis: np.array = None, 
+        type: str = "posterior", 
+        terms: Union[list[str], str] = "all"
     ) -> Union[np.array, tuple]:
         """Return predictions from every forest sampled (either / both of mean and variance).
         Return type is either a single array of predictions, if a BART model only includes a
@@ -1593,14 +1595,46 @@ class BARTModel:
             Optional group labels used for an additive random effects model.
         rfx_basis : np.array, optional
             Optional basis for "random-slope" regression in an additive random effects model.
+        type : str, optional
+            Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
+        terms : str, optional
+            Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
 
         Returns
         -------
-        mu_x : np.array, optional
-            Mean forest and / or random effects predictions.
-        sigma2_x : np.array, optional
-            Variance forest predictions.
+        Dict of numpy arrays for each prediction term, or a simple numpy array if a single term is requested 
         """
+        # Handle prediction type
+        if not isinstance(type, str):
+            raise ValueError("type must be a string")
+        if not type in ["mean", "posterior"]:
+            raise ValueError("type must either be 'mean' or 'posterior'")
+        predict_mean = type == "mean"
+
+        # Handle prediction terms
+        if not isinstance(terms, str) and not isinstance(terms, list):
+            raise ValueError("type must be a string or list of strings")
+        num_terms = 1 if isinstance(terms, str) else len(terms)
+        has_mean_forest = self.include_mean_forest
+        has_variance_forest = self.include_variance_forest
+        has_rfx = self.has_rfx
+        has_y_hat = has_mean_forest or has_rfx
+        predict_y_hat = ((has_y_hat and ("y_hat" in terms)) or
+            (has_y_hat and ("all" in terms)))
+        predict_mean_forest = ((has_mean_forest and ("mean_forest" in terms)) or
+            (has_mean_forest and ("all" in terms)))
+        predict_rfx = ((has_rfx and ("rfx" in terms)) or
+            (has_rfx and ("all" in terms)))
+        predict_variance_forest = ((has_variance_forest and ("variance_forest" in terms)) or
+            (has_variance_forest and ("all" in terms)))
+        predict_count = (predict_y_hat + predict_mean_forest + predict_rfx + predict_variance_forest)
+        if predict_count == 0:
+            term_list = ", ".join(terms)
+            warnings.warn(f"None of the requested model terms, {term_list}, were fit in this model")
+            return None
+        predict_rfx_intermediate = predict_y_hat and has_rfx
+        predict_mean_forest_intermediate = predict_y_hat and has_mean_forest
+
         if not self.is_sampled():
             msg = (
                 "This BARTModel instance is not fitted yet. Call 'fit' with "
@@ -1657,22 +1691,22 @@ class BARTModel:
             pred_dataset.add_basis(basis)
 
         # Forest predictions
-        if self.include_mean_forest:
+        if predict_mean_forest or predict_mean_forest_intermediate:
             mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(
                 pred_dataset.dataset_cpp
             )
-            mean_pred = mean_pred_raw * self.y_std + self.y_bar
+            mean_forest_predictions = mean_pred_raw * self.y_std + self.y_bar
+            if predict_mean:
+                mean_forest_predictions = np.mean(mean_forest_predictions, axis = 1)
 
-        if self.has_rfx:
-            rfx_preds = (
+        if predict_rfx or predict_rfx_intermediate:
+            rfx_predictions = (
                 self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
             )
-            if self.include_mean_forest:
-                mean_pred = mean_pred + rfx_preds
-            else:
-                mean_pred = rfx_preds + self.y_bar
+            if predict_mean:
+                rfx_predictions = np.mean(rfx_predictions, axis = 1)
 
-        if self.include_variance_forest:
+        if predict_variance_forest:
             variance_pred_raw = (
                 self.forest_container_variance.forest_container_cpp.Predict(
                     pred_dataset.dataset_cpp
@@ -1685,18 +1719,48 @@ class BARTModel:
                         variance_pred_raw[:, i] * self.global_var_samples[i]
                     )
             else:
-                variance_pred = (
+                variance_forest_predictions = (
                     variance_pred_raw * self.sigma2_init * self.y_std * self.y_std
                 )
+            if predict_mean:
+                variance_forest_predictions = np.mean(variance_forest_predictions, axis = 1)
 
-        has_mean_predictions = self.include_mean_forest or self.has_rfx
-        if has_mean_predictions and self.include_variance_forest:
-            return {"y_hat": mean_pred, "variance_forest_predictions": variance_pred}
-        elif has_mean_predictions and not self.include_variance_forest:
-            return {"y_hat": mean_pred, "variance_forest_predictions": None}
-        elif not has_mean_predictions and self.include_variance_forest:
-            return {"y_hat": None, "variance_forest_predictions": variance_pred}
-
+        if predict_y_hat and has_mean_forest and has_rfx:
+            y_hat = mean_forest_predictions + rfx_predictions
+        elif predict_y_hat and has_mean_forest:
+            y_hat = mean_forest_predictions
+        elif predict_y_hat and has_rfx:
+            y_hat = rfx_predictions
+        
+        if predict_count == 1:
+            if predict_y_hat:
+                return y_hat
+            elif predict_mean_forest:
+                return mean_forest_predictions
+            elif predict_rfx:
+                return rfx_predictions
+            elif predict_variance_forest:
+                return variance_forest_predictions
+        else:
+            result = dict()
+            if predict_y_hat:
+                result["y_hat"] = y_hat
+            else:
+                result["y_hat"] = None
+            if predict_mean_forest:
+                result["mean_forest_predictions"] = mean_forest_predictions
+            else:
+                result["mean_forest_predictions"] = None
+            if predict_rfx:
+                result["rfx_predictions"] = rfx_predictions
+            else:
+                result["rfx_predictions"] = None
+            if predict_variance_forest:
+                result["variance_forest_predictions"] = variance_forest_predictions
+            else:
+                result["variance_forest_predictions"] = None
+            return result
+        
     def predict_mean(
         self,
         covariates: np.array,

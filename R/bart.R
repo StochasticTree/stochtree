@@ -1814,7 +1814,7 @@ predict.bartmodel <- function(
     stop("type must be a string or character vector")
   }
   if (!(type %in% c("mean", "posterior"))) {
-    stop("type must either be 'mean' or 'posterior")
+    stop("type must either be 'mean' or 'posterior'")
   }
   predict_mean <- type == "mean"
 
