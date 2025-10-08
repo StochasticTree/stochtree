@@ -1602,12 +1602,12 @@ class BARTModel:
 
         Returns
         -------
-        Dict of numpy arrays for each prediction term, or a simple numpy array if a single term is requested 
+        Dict of numpy arrays for each prediction term, or a simple numpy array if a single term is requested.
         """
         # Handle prediction type
         if not isinstance(type, str):
             raise ValueError("type must be a string")
-        if not type in ["mean", "posterior"]:
+        if type not in ["mean", "posterior"]:
             raise ValueError("type must either be 'mean' or 'posterior'")
         predict_mean = type == "mean"
 
@@ -1713,9 +1713,9 @@ class BARTModel:
                 )
             )
             if self.sample_sigma2_global:
-                variance_pred = np.empty_like(variance_pred_raw)
+                variance_forest_predictions = np.empty_like(variance_pred_raw)
                 for i in range(self.num_samples):
-                    variance_pred[:, i] = (
+                    variance_forest_predictions[:, i] = (
                         variance_pred_raw[:, i] * self.global_var_samples[i]
                     )
             else:

@@ -2416,7 +2416,9 @@ class BCFModel:
         Z: np.array,
         propensity: np.array = None,
         rfx_group_ids: np.array = None,
-        rfx_basis: np.array = None,
+        rfx_basis: np.array = None, 
+        type: str = "posterior", 
+        terms: Union[list[str], str] = "all"
     ) -> dict:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.
@@ -2433,21 +2435,51 @@ class BCFModel:
             Optional group labels used for an additive random effects model.
         rfx_basis : np.array, optional
             Optional basis for "random-slope" regression in an additive random effects model.
+        
+        type : str, optional
+            Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
+        terms : str, optional
+            Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "cate", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
 
         Returns
         -------
-        tau_x : np.array
-            Conditional average treatment effect (CATE) samples for every observation provided.
-        mu_x : np.array
-            Prognostic effect samples for every observation provided.
-        rfx : np.array, optional
-            Random effect samples for every observation provided, if the model includes a random effects term.
-        yhat_x : np.array
-            Outcome prediction samples for every observation provided.
-        sigma2_x : np.array, optional
-            Variance forest samples for every observation provided. Only returned if the
-            model includes a heteroskedasticity forest.
+        Dict of numpy arrays for each prediction term, or a simple numpy array if a single term is requested.
         """
+        # Handle prediction type
+        if not isinstance(type, str):
+            raise ValueError("type must be a string")
+        if type not in ["mean", "posterior"]:
+            raise ValueError("type must either be 'mean' or 'posterior'")
+        predict_mean = type == "mean"
+
+        # Handle prediction terms
+        if not isinstance(terms, str) and not isinstance(terms, list):
+            raise ValueError("type must be a string or list of strings")
+        num_terms = 1 if isinstance(terms, str) else len(terms)
+        has_mu_forest = True
+        has_tau_forest = True
+        has_variance_forest = self.include_variance_forest
+        has_rfx = self.has_rfx
+        has_y_hat = has_mu_forest or has_tau_forest or has_rfx
+        predict_y_hat = ((has_y_hat and ("y_hat" in terms)) or
+            (has_y_hat and ("all" in terms)))
+        predict_mu_forest = ((has_mu_forest and ("prognostic_function" in terms)) or
+            (has_mu_forest and ("all" in terms)))
+        predict_tau_forest = ((has_tau_forest and ("cate" in terms)) or
+            (has_tau_forest and ("all" in terms)))
+        predict_rfx = ((has_rfx and ("rfx" in terms)) or
+            (has_rfx and ("all" in terms)))
+        predict_variance_forest = ((has_variance_forest and ("variance_forest" in terms)) or
+            (has_variance_forest and ("all" in terms)))
+        predict_count = (predict_y_hat + predict_mu_forest + predict_tau_forest + predict_rfx + predict_variance_forest)
+        if predict_count == 0:
+            term_list = ", ".join(terms)
+            warnings.warn(f"None of the requested model terms, {term_list}, were fit in this model")
+            return None
+        predict_rfx_intermediate = predict_y_hat and has_rfx
+        predict_mu_forest_intermediate = predict_y_hat and has_mu_forest
+        predict_tau_forest_intermediate = predict_y_hat and has_tau_forest
+        
         if not self.is_sampled():
             msg = (
                 "This BCFModel instance is not fitted yet. Call 'fit' with "
@@ -2520,35 +2552,42 @@ class BCFModel:
         forest_dataset_test.add_basis(Z)
 
         # Compute predicted outcome and decomposed outcome model terms
-        mu_raw = self.forest_container_mu.forest_container_cpp.Predict(
-            forest_dataset_test.dataset_cpp
-        )
-        mu_x = mu_raw * self.y_std + self.y_bar
-        tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(
-            forest_dataset_test.dataset_cpp
-        )
-        if self.adaptive_coding:
-            adaptive_coding_weights = np.expand_dims(
-                self.b1_samples - self.b0_samples, axis=(0, 2)
+        if predict_mu_forest or predict_mu_forest_intermediate:
+            mu_raw = self.forest_container_mu.forest_container_cpp.Predict(
+                forest_dataset_test.dataset_cpp
             )
-            tau_raw = tau_raw * adaptive_coding_weights
-        tau_x = np.squeeze(tau_raw * self.y_std)
-        if Z.shape[1] > 1:
-            treatment_term = np.multiply(np.atleast_3d(Z).swapaxes(1, 2), tau_x).sum(
-                axis=2
+            mu_x = mu_raw * self.y_std + self.y_bar
+        if predict_tau_forest or predict_tau_forest_intermediate:
+            tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(
+                forest_dataset_test.dataset_cpp
             )
-        else:
-            treatment_term = Z * np.squeeze(tau_x)
-        yhat_x = mu_x + treatment_term
+            if self.adaptive_coding:
+                adaptive_coding_weights = np.expand_dims(
+                    self.b1_samples - self.b0_samples, axis=(0, 2)
+                )
+                tau_raw = tau_raw * adaptive_coding_weights
+            tau_x = np.squeeze(tau_raw * self.y_std)
+            if Z.shape[1] > 1:
+                treatment_term = np.multiply(np.atleast_3d(Z).swapaxes(1, 2), tau_x).sum(
+                    axis=2
+                )
+            else:
+                treatment_term = Z * np.squeeze(tau_x)
 
-        if self.has_rfx:
+        if predict_rfx or predict_rfx_intermediate:
             rfx_preds = (
                 self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
             )
-            yhat_x = yhat_x + rfx_preds
+        
+        if predict_y_hat and has_mu_forest and has_rfx:
+            y_hat = mu_x + treatment_term + rfx_preds
+        elif predict_y_hat and has_mu_forest:
+            y_hat = mu_x + treatment_term
+        elif predict_y_hat and has_rfx:
+            y_hat = rfx_preds
 
         # Compute predictions from the variance forest (if included)
-        if self.include_variance_forest:
+        if predict_variance_forest:
             sigma2_x_raw = self.forest_container_variance.forest_container_cpp.Predict(
                 forest_dataset_test.dataset_cpp
             )
@@ -2559,15 +2598,40 @@ class BCFModel:
             else:
                 sigma2_x = sigma2_x_raw * self.sigma2_init * self.y_std * self.y_std
 
-        # Return result matrices as a tuple
-        if self.has_rfx and self.include_variance_forest:
-            return {"mu_hat": mu_x, "tau_hat": tau_x, "y_hat": yhat_x, "rfx_predictions": rfx_preds, "variance_forest_predictions": sigma2_x}
-        elif not self.has_rfx and self.include_variance_forest:
-            return {"mu_hat": mu_x, "tau_hat": tau_x, "y_hat": yhat_x, "rfx_predictions": None, "variance_forest_predictions": sigma2_x}
-        elif self.has_rfx and not self.include_variance_forest:
-            return {"mu_hat": mu_x, "tau_hat": tau_x, "y_hat": yhat_x, "rfx_predictions": rfx_preds, "variance_forest_predictions": None}
+        if predict_count == 1:
+            if predict_y_hat:
+                return y_hat
+            elif predict_mu_forest:
+                return mu_x
+            elif predict_tau_forest:
+                return tau_x
+            elif predict_rfx:
+                return rfx_preds
+            elif predict_variance_forest:
+                return sigma2_x
         else:
-            return {"mu_hat": mu_x, "tau_hat": tau_x, "y_hat": yhat_x, "rfx_predictions": None, "variance_forest_predictions": None}
+            result = dict()
+            if predict_y_hat:
+                result["y_hat"] = y_hat
+            else:
+                result["y_hat"] = None
+            if predict_mu_forest:
+                result["mu_hat"] = mu_x
+            else:
+                result["mu_hat"] = None
+            if predict_tau_forest:
+                result["tau_hat"] = tau_x
+            else:
+                result["tau_hat"] = None
+            if predict_rfx:
+                result["rfx_predictions"] = rfx_preds
+            else:
+                result["rfx_predictions"] = None
+            if predict_variance_forest:
+                result["variance_forest_predictions"] = sigma2_x
+            else:
+                result["variance_forest_predictions"] = None
+            return result
 
     def to_json(self) -> str:
         """

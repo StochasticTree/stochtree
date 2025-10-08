@@ -1771,8 +1771,7 @@ bart <- function(
 #' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
 #' @param ... (Optional) Other prediction parameters.
 #'
-#' @return List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest.
-#' If the model does have random effects, the list has three elements -- forest predictions, random effects predictions, and their sum (`y_hat`).
+#' @return List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
 #' @export
 #'
 #' @examples
