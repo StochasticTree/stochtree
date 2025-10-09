@@ -2557,6 +2557,8 @@ class BCFModel:
                 forest_dataset_test.dataset_cpp
             )
             mu_x = mu_raw * self.y_std + self.y_bar
+            if predict_mean:
+                mu_x = np.mean(mu_x, axis=1)
         if predict_tau_forest or predict_tau_forest_intermediate:
             tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(
                 forest_dataset_test.dataset_cpp
@@ -2571,13 +2573,21 @@ class BCFModel:
                 treatment_term = np.multiply(np.atleast_3d(Z).swapaxes(1, 2), tau_x).sum(
                     axis=2
                 )
+                if predict_mean:
+                    treatment_term = np.mean(treatment_term, axis=1)
+                    tau_x = np.mean(tau_x, axis=2)
             else:
                 treatment_term = Z * np.squeeze(tau_x)
+                if predict_mean:
+                    treatment_term = np.mean(treatment_term, axis=1)
+                    tau_x = np.mean(tau_x, axis=1)
 
         if predict_rfx or predict_rfx_intermediate:
             rfx_preds = (
                 self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
             )
+            if predict_mean:
+                rfx_preds = np.mean(rfx_preds, axis=1)
         
         if predict_y_hat and has_mu_forest and has_rfx:
             y_hat = mu_x + treatment_term + rfx_preds
@@ -2597,6 +2607,8 @@ class BCFModel:
                     sigma2_x[:, i] = sigma2_x_raw[:, i] * self.global_var_samples[i]
             else:
                 sigma2_x = sigma2_x_raw * self.sigma2_init * self.y_std * self.y_std
+            if predict_mean:
+                sigma2_x = np.mean(sigma2_x, axis=1)
 
         if predict_count == 1:
             if predict_y_hat:
