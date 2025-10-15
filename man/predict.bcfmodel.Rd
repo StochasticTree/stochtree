@@ -13,6 +13,7 @@
   rfx_basis = NULL,
   type = "posterior",
   terms = "all",
+  scale = "linear",
   ...
 )
 }
@@ -35,10 +36,12 @@ that were not in the training set.}
 
 \item{terms}{(Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "cate", "rfx", "variance_forest", or "all". If a model doesn't have random effects or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return \code{NULL} along with a warning. Default: "all".}
 
+\item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
+
 \item{...}{(Optional) Other prediction parameters.}
 }
 \value{
-List of 3-5 \code{nrow(X)} by \code{object$num_samples} matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
+List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
 }
 \description{
 Predict from a sampled BCF model on new data

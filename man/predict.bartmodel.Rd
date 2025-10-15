@@ -6,19 +6,18 @@
 \usage{
 \method{predict}{bartmodel}(
   object,
-  X,
+  covariates,
   leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
   type = "posterior",
   terms = "all",
+  scale = "linear",
   ...
 )
 }
 \arguments{
 \item{object}{Object of type \code{bart} containing draws of a regression forest and associated sampling outputs.}
-
-\item{X}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
 
 \item{leaf_basis}{(Optional) Bases used for prediction (by e.g. dot product with leaf values). Default: \code{NULL}.}
 
@@ -32,11 +31,14 @@ that were not in the training set.}
 
 \item{terms}{(Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return \code{NULL} along with a warning. Default: "all".}
 
+\item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
+
 \item{...}{(Optional) Other prediction parameters.}
+
+\item{X}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
 }
 \value{
-List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest.
-If the model does have random effects, the list has three elements -- forest predictions, random effects predictions, and their sum (\code{y_hat}).
+List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
 }
 \description{
 Predict from a sampled BART model on new data

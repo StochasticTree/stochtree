@@ -1769,6 +1769,7 @@ bart <- function(
 #' @param rfx_basis (Optional) Test set basis for "random-slope" regression in additive random effects model.
 #' @param type (Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
 #' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
+#' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
 #' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
@@ -1800,14 +1801,30 @@ bart <- function(
 #' y_hat_test <- predict(bart_model, X_test)$y_hat
 predict.bartmodel <- function(
   object,
-  X,
+  covariates,
   leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
   type = "posterior",
   terms = "all",
+  scale = "linear",
   ...
 ) {
+  # Handle mean function scale
+  if (!is.character(scale)) {
+    stop("scale must be a string or character vector")
+  }
+  if (!(scale %in% c("linear", "probability"))) {
+    stop("scale must either be 'linear' or 'probability'")
+  }
+  is_probit <- object$model_params$probit_outcome_model
+  if ((scale == "probability") && (!is_probit)) {
+    stop(
+      "scale cannot be 'probability' for models not fit with a probit outcome model"
+    )
+  }
+  probability_scale <- scale == "probability"
+
   # Handle prediction type
   if (!is.character(type)) {
     stop("type must be a string or character vector")
@@ -1852,12 +1869,24 @@ predict.bartmodel <- function(
   predict_rfx_intermediate <- (predict_y_hat && has_rfx)
   predict_mean_forest_intermediate <- (predict_y_hat && has_mean_forest)
 
+  # Check that we have at least one term to predict on probability scale
+  if (
+    probability_scale &&
+      !predict_y_hat &&
+      !predict_mean_forest &&
+      !predict_rfx
+  ) {
+    stop(
+      "scale can only be 'probability' if at least one mean term is requested"
+    )
+  }
+
   # Preprocess covariates
-  if ((!is.data.frame(X)) && (!is.matrix(X))) {
-    stop("X must be a matrix or dataframe")
+  if ((!is.data.frame(covariates)) && (!is.matrix(covariates))) {
+    stop("covariates must be a matrix or dataframe")
   }
   train_set_metadata <- object$train_set_metadata
-  X <- preprocessPredictionData(X, train_set_metadata)
+  X <- preprocessPredictionData(covariates, train_set_metadata)
 
   # Convert all input data to matrices if not already converted
   if ((is.null(dim(leaf_basis))) && (!is.null(leaf_basis))) {
@@ -1922,40 +1951,13 @@ predict.bartmodel <- function(
     prediction_dataset <- createForestDataset(X)
   }
 
-  # Compute mean forest predictions
-  num_samples <- object$model_params$num_samples
-  y_std <- object$model_params$outcome_scale
-  y_bar <- object$model_params$outcome_mean
-  sigma2_init <- object$model_params$sigma2_init
-  if (predict_mean_forest || predict_mean_forest_intermediate) {
-    mean_forest_predictions <- object$mean_forests$predict(
-      prediction_dataset
-    ) *
-      y_std +
-      y_bar
-    if (predict_mean) {
-      mean_forest_predictions <- rowMeans(mean_forest_predictions)
-    }
-  }
-
   # Compute variance forest predictions
   if (predict_variance_forest) {
     s_x_raw <- object$variance_forests$predict(prediction_dataset)
   }
 
-  # Compute rfx predictions (if needed)
-  if (predict_rfx || predict_rfx_intermediate) {
-    rfx_predictions <- object$rfx_samples$predict(
-      rfx_group_ids,
-      rfx_basis
-    ) *
-      y_std
-    if (predict_mean) {
-      rfx_predictions <- rowMeans(rfx_predictions)
-    }
-  }
-
   # Scale variance forest predictions
+  sigma2_init <- object$model_params$sigma2_init
   if (predict_variance_forest) {
     if (object$model_params$sample_sigma2_global) {
       sigma2_global_samples <- object$sigma2_global_samples
@@ -1970,12 +1972,61 @@ predict.bartmodel <- function(
     }
   }
 
-  if (predict_y_hat && has_mean_forest && has_rfx) {
-    y_hat <- mean_forest_predictions + rfx_predictions
-  } else if (predict_y_hat && has_mean_forest) {
-    y_hat <- mean_forest_predictions
-  } else if (predict_y_hat && has_rfx) {
-    y_hat <- rfx_predictions
+  # Compute mean forest predictions
+  num_samples <- object$model_params$num_samples
+  y_std <- object$model_params$outcome_scale
+  y_bar <- object$model_params$outcome_mean
+  if (predict_mean_forest || predict_mean_forest_intermediate) {
+    mean_forest_predictions <- object$mean_forests$predict(
+      prediction_dataset
+    ) *
+      y_std +
+      y_bar
+  }
+
+  # Compute rfx predictions (if needed)
+  if (predict_rfx || predict_rfx_intermediate) {
+    rfx_predictions <- object$rfx_samples$predict(
+      rfx_group_ids,
+      rfx_basis
+    ) *
+      y_std
+  }
+
+  # Combine into y hat predictions
+  if (probability_scale) {
+    if (predict_y_hat && has_mean_forest && has_rfx) {
+      y_hat <- pnorm(mean_forest_predictions + rfx_predictions)
+      mean_forest_predictions <- pnorm(mean_forest_predictions)
+      rfx_predictions <- pnorm(rfx_predictions)
+    } else if (predict_y_hat && has_mean_forest) {
+      y_hat <- pnorm(mean_forest_predictions)
+      mean_forest_predictions <- pnorm(mean_forest_predictions)
+    } else if (predict_y_hat && has_rfx) {
+      y_hat <- pnorm(rfx_predictions)
+      rfx_predictions <- pnorm(rfx_predictions)
+    }
+  } else {
+    if (predict_y_hat && has_mean_forest && has_rfx) {
+      y_hat <- mean_forest_predictions + rfx_predictions
+    } else if (predict_y_hat && has_mean_forest) {
+      y_hat <- mean_forest_predictions
+    } else if (predict_y_hat && has_rfx) {
+      y_hat <- rfx_predictions
+    }
+  }
+
+  # Collapse to posterior mean predictions if requested
+  if (predict_mean) {
+    if (predict_mean_forest) {
+      mean_forest_predictions <- rowMeans(mean_forest_predictions)
+    }
+    if (predict_rfx) {
+      rfx_predictions <- rowMeans(rfx_predictions)
+    }
+    if (predict_y_hat) {
+      y_hat <- rowMeans(y_hat)
+    }
   }
 
   if (predict_count == 1) {
