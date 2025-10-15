@@ -702,61 +702,6 @@ compute_bart_posterior_interval <- function(
   }
 }
 
-transform_power <- function(array, exponent) {
-  return(compute_transformation(array, fn = function(x) x**exponent))
-}
-
-transform_multiply <- function(array, multiple) {
-  return(compute_transformation(array, fn = function(x) x * multiple))
-}
-
-transform_add <- function(array, addend) {
-  return(compute_transformation(array, fn = function(x) x + addend))
-}
-
-transform_exp <- function(array) {
-  return(compute_transformation(array, fn = exp))
-}
-
-transform_log <- function(array) {
-  return(compute_transformation(array, fn = log))
-}
-
-transform_pnorm <- function(array) {
-  return(compute_transformation(array, fn = pnorm))
-}
-
-compute_transformation <- function(array, fn = NULL) {
-  # Check that the array is numeric and at least 1 dimensional
-  stopifnot(is.numeric(array) && length(dim(array)) >= 1)
-
-  # Calculate the transformation
-  return(fn(array))
-}
-
-summarize_mean <- function(array, sample_dim = 2) {
-  return(compute_summary(array, sample_dim, mean))
-}
-
-summarize_median <- function(array, sample_dim = 2) {
-  return(compute_summary(array, sample_dim, median))
-}
-
-compute_summary <- function(array, sample_dim = 2, fn = mean) {
-  # Check that the array is numeric and at least 2 dimensional
-  stopifnot(is.numeric(array) && length(dim(array)) >= 2)
-
-  # Determine the dimensions over which reduction is computed
-  apply_dim <- setdiff(1:length(dim(array)), sample_dim)
-
-  # Compute the reduction
-  result <- apply(array, apply_dim, function(x) {
-    fn(x)
-  })
-
-  return(result)
-}
-
 summarize_interval <- function(array, sample_dim = 2, level = 0.95) {
   # Check that the array is numeric and at least 2 dimensional
   stopifnot(is.numeric(array) && length(dim(array)) >= 2)
