@@ -15,10 +15,13 @@
 #' n <- 100
 #' p <- 5
 #' X <- matrix(rnorm(n * p), nrow = n, ncol = p)
-#' y <- 2 * X[,1] + rnorm(n)
-#' bart_model <- bart(y_train = y, X_train = X)
-#' ppd_samples <- sample_bart_posterior_predictive(
-#'   model_object = bart_model, covariates = X
+#' pi_X <- pnorm(X[,1] / 2)
+#' Z <- rbinom(n, 1, pi_X)
+#' y <- 2 * X[,2] + 0.5 * X[,2] * Z + rnorm(n)
+#' bcf_model <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_X)
+#' ppd_samples <- sample_bcf_posterior_predictive(
+#'   model_object = bcf_model, covariates = X,
+#'   treatment = Z, propensity = pi_X
 #' )
 sample_bcf_posterior_predictive <- function(
   model_object,

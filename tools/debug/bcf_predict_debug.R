@@ -63,6 +63,7 @@ pred <- predict(
   type = "mean",
   terms = c("all")
 )
+# Check that this throws a warning
 y_hat_test <- predict(
   bcf_model,
   X = X_test,
@@ -72,6 +73,7 @@ y_hat_test <- predict(
   terms = c("rfx", "variance")
 )
 
+# Compute intervals around model terms (including E[y | X, Z])
 y_hat_intervals <- compute_bcf_posterior_interval(
   model_object = bcf_model,
   scale = "linear",
@@ -82,10 +84,25 @@ y_hat_intervals <- compute_bcf_posterior_interval(
   level = 0.95
 )
 
+# Estimate coverage of intervals on tau(X)
 (tau_coverage <- mean(
   (y_hat_intervals$tau_hat$upper >= tau_test) &
     (y_hat_intervals$tau_hat$lower <= tau_test)
 ))
+
+# Posterior predictive coverage and MSE checks
+quantiles <- c(0.05, 0.95)
+ppd_samples <- sample_bcf_posterior_predictive(
+  model_object = bcf_model,
+  covariates = X_test,
+  treatment = Z_test,
+  propensity = pi_test,
+  num_draws = 1
+)
+yhat_ppd <- apply(ppd_samples, 1, mean)
+yhat_interval_ppd <- apply(ppd_samples, 1, quantile, probs = quantiles)
+mean((yhat_interval_ppd[1, ] <= y_test) & (yhat_interval_ppd[2, ] >= y_test))
+sqrt(mean((yhat_ppd - y_test)^2))
 
 # Generate probit outcome data
 n <- 1000
