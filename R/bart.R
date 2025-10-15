@@ -1957,6 +1957,9 @@ predict.bartmodel <- function(
   }
 
   # Scale variance forest predictions
+  num_samples <- object$model_params$num_samples
+  y_std <- object$model_params$outcome_scale
+  y_bar <- object$model_params$outcome_mean
   sigma2_init <- object$model_params$sigma2_init
   if (predict_variance_forest) {
     if (object$model_params$sample_sigma2_global) {
@@ -1973,9 +1976,6 @@ predict.bartmodel <- function(
   }
 
   # Compute mean forest predictions
-  num_samples <- object$model_params$num_samples
-  y_std <- object$model_params$outcome_scale
-  y_bar <- object$model_params$outcome_mean
   if (predict_mean_forest || predict_mean_forest_intermediate) {
     mean_forest_predictions <- object$mean_forests$predict(
       prediction_dataset
