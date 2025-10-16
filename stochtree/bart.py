@@ -1803,13 +1803,6 @@ class BARTModel:
             #     rfx_predictions = np.mean(rfx_predictions, axis = 1)
 
         # Combine into y hat predictions
-        if predict_y_hat and has_mean_forest and has_rfx:
-            y_hat = mean_forest_predictions + rfx_predictions
-        elif predict_y_hat and has_mean_forest:
-            y_hat = mean_forest_predictions
-        elif predict_y_hat and has_rfx:
-            y_hat = rfx_predictions
-
         if probability_scale:
             if predict_y_hat and has_mean_forest and has_rfx:
                 y_hat = norm.ppf(mean_forest_predictions + rfx_predictions)

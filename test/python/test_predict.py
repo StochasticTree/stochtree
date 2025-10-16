@@ -263,10 +263,6 @@ class TestPredict:
     def test_bcf_prediction(self):
         # Generate data and test/train split
         rng = np.random.default_rng(1234)
-        
-
-        # Convert the R code down below to Python
-        rng = np.random.default_rng(1234)
         n = 100
         g = lambda x: np.where(x[:, 4] == 1, 2, np.where(x[:, 4] == 2, -1, -4))
         x1 = rng.normal(size=n)
@@ -328,7 +324,7 @@ class TestPredict:
             num_mcmc = 10
         )
 
-        # Check that the default predict method returns a list
+        # Check that the default predict method returns a dictionary
         pred = bcf_model.predict(X=X_test, Z=Z_test, propensity=pi_x_test)
         y_hat_posterior_test = pred['y_hat']
         assert y_hat_posterior_test.shape == (20, 10)

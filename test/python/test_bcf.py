@@ -76,8 +76,8 @@ class TestBCF:
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
-        # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        # Check that we can predict just treatment effects
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, propensity = pi_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and with propensity score
@@ -106,7 +106,7 @@ class TestBCF:
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, propensity = pi_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF with test set and without propensity score
@@ -142,7 +142,7 @@ class TestBCF:
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and without propensity score
@@ -172,7 +172,7 @@ class TestBCF:
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, terms = "cate")
 
     def test_continuous_univariate_bcf(self):
         # RNG
@@ -245,7 +245,7 @@ class TestBCF:
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, propensity = pi_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run second BCF model with test set and propensity score
@@ -281,7 +281,7 @@ class TestBCF:
         assert y_hat_2.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat_2 = bcf_model_2.predict_tau(X_test, Z_test, pi_test)
+        tau_hat_2 = bcf_model_2.predict(X = X_test, Z = Z_test, propensity = pi_test, terms = "cate")
         assert tau_hat_2.shape == (n_test, num_mcmc)
 
         # Combine into a single model
@@ -336,7 +336,7 @@ class TestBCF:
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, propensity = pi_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF with test set and without propensity score
@@ -372,7 +372,7 @@ class TestBCF:
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and without propensity score
@@ -402,7 +402,7 @@ class TestBCF:
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, terms = "cate")
 
         # Run second BCF model with test set and propensity score
         bcf_model_2 = BCFModel()
@@ -430,7 +430,7 @@ class TestBCF:
         assert y_hat_2.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat_2 = bcf_model_2.predict_tau(X_test, Z_test)
+        tau_hat_2 = bcf_model_2.predict(X = X_test, Z = Z_test, terms = "cate")
         assert tau_hat_2.shape == (n_test, num_mcmc)
 
         # Combine into a single model
@@ -528,7 +528,7 @@ class TestBCF:
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, propensity = pi_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
 
         # Run BCF without test set and with propensity score
@@ -558,7 +558,7 @@ class TestBCF:
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, propensity = pi_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
 
         # Run BCF with test set and without propensity score
@@ -665,7 +665,7 @@ class TestBCF:
         assert sigma2_x_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, propensity = pi_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and with propensity score
@@ -715,7 +715,7 @@ class TestBCF:
         )
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, propensity = pi_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF with test set and without propensity score
@@ -752,7 +752,7 @@ class TestBCF:
         assert bcf_preds['variance_forest_predictions'].shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, terms = "cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and without propensity score
@@ -781,7 +781,7 @@ class TestBCF:
         assert bcf_preds['y_hat'].shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X = X_test, Z = Z_test, terms = "cate")
     
     def test_bcf_rfx_parameters(self):
         # RNG

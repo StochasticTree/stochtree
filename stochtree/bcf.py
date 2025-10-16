@@ -2400,51 +2400,6 @@ class BCFModel:
         forest_dataset_test.add_covariates(X_combined)
         forest_dataset_test.add_basis(Z)
 
-        # Compute predicted outcome and decomposed outcome model terms
-        if predict_mu_forest or predict_mu_forest_intermediate:
-            mu_raw = self.forest_container_mu.forest_container_cpp.Predict(
-                forest_dataset_test.dataset_cpp
-            )
-            mu_x = mu_raw * self.y_std + self.y_bar
-            if predict_mean:
-                mu_x = np.mean(mu_x, axis=1)
-        if predict_tau_forest or predict_tau_forest_intermediate:
-            tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(
-                forest_dataset_test.dataset_cpp
-            )
-            if self.adaptive_coding:
-                adaptive_coding_weights = np.expand_dims(
-                    self.b1_samples - self.b0_samples, axis=(0, 2)
-                )
-                tau_raw = tau_raw * adaptive_coding_weights
-            tau_x = np.squeeze(tau_raw * self.y_std)
-            if Z.shape[1] > 1:
-                treatment_term = np.multiply(
-                    np.atleast_3d(Z).swapaxes(1, 2), tau_x
-                ).sum(axis=2)
-                if predict_mean:
-                    treatment_term = np.mean(treatment_term, axis=1)
-                    tau_x = np.mean(tau_x, axis=2)
-            else:
-                treatment_term = Z * np.squeeze(tau_x)
-                if predict_mean:
-                    treatment_term = np.mean(treatment_term, axis=1)
-                    tau_x = np.mean(tau_x, axis=1)
-
-        if predict_rfx or predict_rfx_intermediate:
-            rfx_preds = (
-                self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
-            )
-            if predict_mean:
-                rfx_preds = np.mean(rfx_preds, axis=1)
-
-        if predict_y_hat and has_mu_forest and has_rfx:
-            y_hat = mu_x + treatment_term + rfx_preds
-        elif predict_y_hat and has_mu_forest:
-            y_hat = mu_x + treatment_term
-        elif predict_y_hat and has_rfx:
-            y_hat = rfx_preds
-
         # Compute predictions from the variance forest (if included)
         if predict_variance_forest:
             sigma2_x_raw = self.forest_container_variance.forest_container_cpp.Predict(
@@ -2459,6 +2414,87 @@ class BCFModel:
             if predict_mean:
                 sigma2_x = np.mean(sigma2_x, axis=1)
 
+        # Prognostic forest predictions
+        if predict_mu_forest or predict_mu_forest_intermediate:
+            mu_raw = self.forest_container_mu.forest_container_cpp.Predict(
+                forest_dataset_test.dataset_cpp
+            )
+            mu_x = mu_raw * self.y_std + self.y_bar
+        
+        # Treatment effect forest predictions
+        if predict_tau_forest or predict_tau_forest_intermediate:
+            tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(
+                forest_dataset_test.dataset_cpp
+            )
+            if self.adaptive_coding:
+                adaptive_coding_weights = np.expand_dims(
+                    self.b1_samples - self.b0_samples, axis=(0, 2)
+                )
+                tau_raw = tau_raw * adaptive_coding_weights
+            tau_x = np.squeeze(tau_raw * self.y_std)
+            if Z.shape[1] > 1:
+                treatment_term = np.multiply(
+                    np.atleast_3d(Z).swapaxes(1, 2), tau_x
+                ).sum(axis=2)
+            else:
+                treatment_term = Z * np.squeeze(tau_x)
+
+        # Random effects predictions
+        if predict_rfx or predict_rfx_intermediate:
+            rfx_preds = (
+                self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+            )
+            if predict_mean:
+                rfx_preds = np.mean(rfx_preds, axis=1)
+
+        # Combine into y hat predictions
+        if predict_y_hat and has_mu_forest and has_rfx:
+            y_hat = mu_x + treatment_term + rfx_preds
+        elif predict_y_hat and has_mu_forest:
+            y_hat = mu_x + treatment_term
+        elif predict_y_hat and has_rfx:
+            y_hat = rfx_preds
+        
+        needs_mean_term_preds = predict_y_hat or \
+            predict_mu_forest or \
+            predict_tau_forest or \
+            predict_rfx
+        if needs_mean_term_preds:
+            if probability_scale:
+                if has_rfx:
+                    if predict_y_hat:
+                        y_hat = norm.cdf(mu_x + treatment_term + rfx_preds)
+                    if predict_rfx:
+                        rfx_preds = norm.cdf(rfx_preds)
+                else:
+                    if predict_y_hat:
+                        y_hat = norm.cdf(mu_x + treatment_term)
+                if predict_mu_forest:
+                    mu_x = norm.cdf(mu_x)
+                if predict_tau_forest:
+                    tau_x = norm.cdf(tau_x)
+            else:
+                if has_rfx:
+                    if predict_y_hat:
+                        y_hat = mu_x + treatment_term + rfx_preds
+                else:
+                    if predict_y_hat:
+                        y_hat = mu_x + treatment_term
+
+        # Collapse to posterior mean predictions if requested
+        if predict_mean:
+            if predict_mu_forest:
+                mu_x = np.mean(mu_x, axis=1)
+            if predict_tau_forest:
+                if Z.shape[1] > 1:
+                    tau_x = np.mean(tau_x, axis=2)
+                else:
+                    tau_x = np.mean(tau_x, axis=1)
+            if predict_rfx:
+                rfx_preds = np.mean(rfx_preds, axis=1)
+            if predict_y_hat:
+                y_hat = np.mean(y_hat, axis=1)
+        
         if predict_count == 1:
             if predict_y_hat:
                 return y_hat
@@ -2753,6 +2789,9 @@ class BCFModel:
         )
         self.internal_propensity_model = json_object_default.get_boolean(
             "internal_propensity_model"
+        )
+        self.probit_outcome_model = json_object_default.get_boolean(
+            "probit_outcome_model"
         )
 
         # Unpack number of samples
