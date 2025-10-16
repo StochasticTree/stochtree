@@ -772,7 +772,7 @@ cpp11::writable::integers get_overall_split_counts_active_forest_cpp(cpp11::exte
         for (int j = 0; j < split_nodes.size(); j++) {
             auto node_id = split_nodes.at(j);
             auto feature_split = tree->SplitIndex(node_id);
-            output.at(split_feature)++;
+            output.at(feature_split)++;
         }
     }
     return output;
@@ -789,7 +789,7 @@ cpp11::writable::integers get_granular_split_count_array_active_forest_cpp(cpp11
         for (int j = 0; j < split_nodes.size(); j++) {
             auto node_id = split_nodes.at(j);
             auto feature_split = tree->SplitIndex(node_id);
-            output.at(split_feature*num_trees + i)++;
+            output.at(feature_split*num_trees + i)++;
         }
     }
     return output;
