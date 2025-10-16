@@ -433,7 +433,7 @@ test_that("BART Predictions", {
   )
 
   # Check that cached predictions agree with results of predict() function
-  train_preds <- predict(bart_model, X = X_train)
+  train_preds <- predict(bart_model, covariates = X_train)
   train_preds_mean_cached <- bart_model$y_hat_train
   train_preds_mean_recomputed <- train_preds$mean_forest_predictions
   train_preds_variance_cached <- bart_model$sigma2_x_hat_train

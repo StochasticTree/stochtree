@@ -983,6 +983,16 @@ bcf <- function(
     }
   }
 
+  # Runtime checks for variance forest
+  if (include_variance_forest) {
+    if (sample_sigma2_global) {
+      warning(
+        "Global error variance will not be sampled with a heteroskedasticity"
+      )
+      sample_sigma2_global <- F
+    }
+  }
+
   # Handle standardization, prior calibration, and initialization of forest
   # differently for binary and continuous outcomes
   if (probit_outcome_model) {
@@ -2827,26 +2837,43 @@ predict.bcfmodel <- function(
       rfx_basis
     ) *
       y_std
-    if (predict_mean) {
-      rfx_predictions <- rowMeans(rfx_predictions)
-    }
   }
 
   # Combine into y hat predictions
-  if (probability_scale) {
-    if (has_rfx) {
-      y_hat <- pnorm(mu_hat + treatment_term + rfx_predictions)
-      rfx_predictions <- pnorm(rfx_predictions)
+  needs_mean_term_preds <- predict_y_hat ||
+    predict_mu_forest ||
+    predict_tau_forest ||
+    predict_rfx
+  if (needs_mean_term_preds) {
+    if (probability_scale) {
+      if (has_rfx) {
+        if (predict_y_hat) {
+          y_hat <- pnorm(mu_hat + treatment_term + rfx_predictions)
+        }
+        if (predict_rfx) {
+          rfx_predictions <- pnorm(rfx_predictions)
+        }
+      } else {
+        if (predict_y_hat) {
+          y_hat <- pnorm(mu_hat + treatment_term)
+        }
+      }
+      if (predict_mu_forest) {
+        mu_hat <- pnorm(mu_hat)
+      }
+      if (predict_tau_forest) {
+        tau_hat <- pnorm(tau_hat)
+      }
     } else {
-      y_hat <- pnorm(mu_hat + treatment_term)
-    }
-    mu_hat <- pnorm(mu_hat)
-    tau_hat <- pnorm(tau_hat)
-  } else {
-    if (has_rfx) {
-      y_hat <- mu_hat + treatment_term + rfx_predictions
-    } else {
-      y_hat <- mu_hat + treatment_term
+      if (has_rfx) {
+        if (predict_y_hat) {
+          y_hat <- mu_hat + treatment_term + rfx_predictions
+        }
+      } else {
+        if (predict_y_hat) {
+          y_hat <- mu_hat + treatment_term
+        }
+      }
     }
   }
 
