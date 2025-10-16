@@ -110,10 +110,12 @@ class RandomEffectsDataset:
             )
         n = variance_weights_.shape[0]
         self.rfx_dataset_cpp.AddVarianceWeights(variance_weights_, n)
-    
-    def update_variance_weights(self, variance_weights: np.array, exponentiate: bool = False):
+
+    def update_variance_weights(
+        self, variance_weights: np.array, exponentiate: bool = False
+    ):
         """
-        Update variance weights in a dataset. Allows users to build an ensemble that depends on 
+        Update variance weights in a dataset. Allows users to build an ensemble that depends on
         variance weights that are updated throughout the sampler.
 
         Parameters
@@ -124,7 +126,9 @@ class RandomEffectsDataset:
             Whether to exponentiate the variance weights before storing them in the dataset.
         """
         if not self.has_variance_weights():
-            raise ValueError("This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector.")
+            raise ValueError(
+                "This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector."
+            )
         if not isinstance(variance_weights, np.ndarray):
             raise ValueError("variance_weights must be a numpy array.")
         variance_weights_ = np.squeeze(variance_weights)
@@ -134,9 +138,11 @@ class RandomEffectsDataset:
             )
         n = variance_weights_.shape[0]
         if self.num_observations() != n:
-            raise ValueError(f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()}).")
+            raise ValueError(
+                f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()})."
+            )
         self.rfx_dataset_cpp.UpdateVarianceWeights(variance_weights, n, exponentiate)
-    
+
     def get_group_labels(self) -> np.array:
         """
         Return the group labels in a RandomEffectsDataset as a numpy array
@@ -147,7 +153,7 @@ class RandomEffectsDataset:
             One-dimensional numpy array of group labels.
         """
         return self.rfx_dataset_cpp.GetGroupLabels()
-    
+
     def get_basis(self) -> np.array:
         """
         Return the bases in a RandomEffectsDataset as a numpy array
@@ -158,7 +164,7 @@ class RandomEffectsDataset:
             Two-dimensional numpy array of basis vectors.
         """
         return self.rfx_dataset_cpp.GetBasis()
-    
+
     def get_variance_weights(self) -> np.array:
         """
         Return the variance weights in a RandomEffectsDataset as a numpy array

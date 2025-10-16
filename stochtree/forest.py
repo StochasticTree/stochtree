@@ -161,13 +161,13 @@ class ForestContainer:
 
     def collapse(self, batch_size: int) -> None:
         """
-        Collapse forests in this container by a pre-specified batch size. 
-        For example, if we have a container of twenty 10-tree forests, and we 
-        specify a `batch_size` of 5, then this method will yield four 50-tree 
-        forests. "Excess" forests remaining after the size of a forest container 
-        is divided by `batch_size` will be pruned from the beginning of the 
-        container (i.e. earlier sampled forests will be deleted). This method 
-        has no effect if `batch_size` is larger than the number of forests 
+        Collapse forests in this container by a pre-specified batch size.
+        For example, if we have a container of twenty 10-tree forests, and we
+        specify a `batch_size` of 5, then this method will yield four 50-tree
+        forests. "Excess" forests remaining after the size of a forest container
+        is divided by `batch_size` will be pruned from the beginning of the
+        container (i.e. earlier sampled forests will be deleted). This method
+        has no effect if `batch_size` is larger than the number of forests
         in a container.
 
         Parameters
@@ -177,12 +177,23 @@ class ForestContainer:
         """
         container_size = self.num_samples()
         if batch_size <= container_size and batch_size > 1:
-            reverse_container_inds = np.linspace(start=container_size, stop=1, num=container_size, dtype=int)
+            reverse_container_inds = np.linspace(
+                start=container_size, stop=1, num=container_size, dtype=int
+            )
             num_clean_batches = container_size // batch_size
-            batch_inds = (reverse_container_inds - (container_size - ((container_size // num_clean_batches) * num_clean_batches)) - 1) // batch_size
+            batch_inds = (
+                reverse_container_inds
+                - (
+                    container_size
+                    - ((container_size // num_clean_batches) * num_clean_batches)
+                )
+                - 1
+            ) // batch_size
             batch_inds = batch_inds.astype(int)
             for batch_ind in np.flip(np.unique(batch_inds[batch_inds >= 0])):
-                merge_forest_inds = np.sort(reverse_container_inds[batch_inds == batch_ind] - 1)
+                merge_forest_inds = np.sort(
+                    reverse_container_inds[batch_inds == batch_ind] - 1
+                )
                 num_merge_forests = len(merge_forest_inds)
                 self.combine_forests(merge_forest_inds)
                 for i in range(num_merge_forests - 1, 0, -1):
@@ -194,10 +205,8 @@ class ForestContainer:
                 num_delete_forests = len(delete_forest_inds)
                 for i in range(num_delete_forests - 1, -1, -1):
                     self.delete_sample(delete_forest_inds[i])
-    
-    def combine_forests(
-        self, forest_inds: np.array
-    ) -> None:
+
+    def combine_forests(self, forest_inds: np.array) -> None:
         """
         Collapse specified forests into a single forest
 
@@ -214,42 +223,56 @@ class ForestContainer:
         forest_inds_sorted = forest_inds_sorted.astype(int)
         self.forest_container_cpp.CombineForests(forest_inds_sorted)
 
-    def add_to_forest(
-        self, forest_index: int, constant_value : float
-    ) -> None:
+    def add_to_forest(self, forest_index: int, constant_value: float) -> None:
         """
         Add a constant value to every leaf of every tree of a given forest
 
         Parameters
         ----------
-        forest_index : int 
+        forest_index : int
             Index of forest whose leaves will be modified (0-indexed)
-        constant_value : float 
+        constant_value : float
             Value to add to every leaf of every tree of the forest at `forest_index`
         """
-        if not isinstance(forest_index, int) and not isinstance(constant_value, (int, float)):
-            raise ValueError("forest_index must be an integer and constant_multiple must be a float or int")
-        if not forest_index >= 0 or not forest_index < self.forest_container_cpp.NumSamples():
-            raise ValueError("forest_index must be >= 0 and less than the total number of samples in a forest container")
+        if not isinstance(forest_index, int) and not isinstance(
+            constant_value, (int, float)
+        ):
+            raise ValueError(
+                "forest_index must be an integer and constant_multiple must be a float or int"
+            )
+        if (
+            not forest_index >= 0
+            or not forest_index < self.forest_container_cpp.NumSamples()
+        ):
+            raise ValueError(
+                "forest_index must be >= 0 and less than the total number of samples in a forest container"
+            )
         self.forest_container_cpp.AddToForest(forest_index, constant_value)
 
-    def multiply_forest(
-        self, forest_index: int, constant_multiple : float
-    ) -> None:
+    def multiply_forest(self, forest_index: int, constant_multiple: float) -> None:
         """
         Multiply every leaf of every tree of a given forest by constant value
 
         Parameters
         ----------
-        forest_index : int 
+        forest_index : int
             Index of forest whose leaves will be modified (0-indexed)
-        constant_multiple : float 
+        constant_multiple : float
             Value to multiply through by every leaf of every tree of the forest at `forest_index`
         """
-        if not isinstance(forest_index, int) and not isinstance(constant_multiple, (int, float)):
-            raise ValueError("forest_index must be an integer and constant_multiple must be a float or int")
-        if not forest_index >= 0 or not forest_index < self.forest_container_cpp.NumSamples():
-            raise ValueError("forest_index must be >= 0 and less than the total number of samples in a forest container")
+        if not isinstance(forest_index, int) and not isinstance(
+            constant_multiple, (int, float)
+        ):
+            raise ValueError(
+                "forest_index must be an integer and constant_multiple must be a float or int"
+            )
+        if (
+            not forest_index >= 0
+            or not forest_index < self.forest_container_cpp.NumSamples()
+        ):
+            raise ValueError(
+                "forest_index must be >= 0 and less than the total number of samples in a forest container"
+            )
         self.forest_container_cpp.MultiplyForest(forest_index, constant_multiple)
 
     def save_to_json_file(self, json_filename: str) -> None:
@@ -1021,7 +1044,7 @@ class Forest:
         else:
             self.forest_cpp.SetRootValue(leaf_value)
         self.internal_forest_is_empty = False
-    
+
     def merge_forest(self, other_forest):
         """
         Create a larger forest by merging the trees of this forest with those of another forest
@@ -1034,13 +1057,19 @@ class Forest:
         if not isinstance(other_forest, Forest):
             raise ValueError("other_forest must be an instance of the Forest class")
         if self.leaf_constant != other_forest.leaf_constant:
-            raise ValueError("Forests must have matching leaf dimensions in order to be merged")
+            raise ValueError(
+                "Forests must have matching leaf dimensions in order to be merged"
+            )
         if self.output_dimension != other_forest.output_dimension:
-            raise ValueError("Forests must have matching leaf dimensions in order to be merged")
+            raise ValueError(
+                "Forests must have matching leaf dimensions in order to be merged"
+            )
         if self.is_exponentiated != other_forest.is_exponentiated:
-            raise ValueError("Forests must have matching leaf dimensions in order to be merged")
+            raise ValueError(
+                "Forests must have matching leaf dimensions in order to be merged"
+            )
         self.forest_cpp.MergeForest(other_forest.forest_cpp)
-    
+
     def add_constant(self, constant_value):
         """
         Add a constant value to every leaf of every tree in an ensemble. If leaves are multi-dimensional, `constant_value` will be added to every dimension of the leaves.
@@ -1051,7 +1080,7 @@ class Forest:
             Value that will be added to every leaf of every tree
         """
         self.forest_cpp.AddConstant(constant_value)
-    
+
     def multiply_constant(self, constant_multiple):
         """
         Multiply every leaf of every tree by a constant value. If leaves are multi-dimensional, `constant_multiple` will be multiplied through every dimension of the leaves.

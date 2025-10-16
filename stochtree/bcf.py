@@ -23,7 +23,12 @@ from .random_effects import (
 )
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
-from .utils import NotSampledError, _expand_dims_1d, _expand_dims_2d, _expand_dims_2d_diag
+from .utils import (
+    NotSampledError,
+    _expand_dims_1d,
+    _expand_dims_2d,
+    _expand_dims_2d_diag,
+)
 
 
 class BCFModel:
@@ -323,10 +328,18 @@ class BCFModel:
         keep_every = general_params_updated["keep_every"]
         num_chains = general_params_updated["num_chains"]
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
-        rfx_working_parameter_prior_mean = general_params_updated["rfx_working_parameter_prior_mean"]
-        rfx_group_parameter_prior_mean = general_params_updated["rfx_group_parameter_prior_mean"]
-        rfx_working_parameter_prior_cov = general_params_updated["rfx_working_parameter_prior_cov"]
-        rfx_group_parameter_prior_cov = general_params_updated["rfx_group_parameter_prior_cov"]
+        rfx_working_parameter_prior_mean = general_params_updated[
+            "rfx_working_parameter_prior_mean"
+        ]
+        rfx_group_parameter_prior_mean = general_params_updated[
+            "rfx_group_parameter_prior_mean"
+        ]
+        rfx_working_parameter_prior_cov = general_params_updated[
+            "rfx_working_parameter_prior_cov"
+        ]
+        rfx_group_parameter_prior_cov = general_params_updated[
+            "rfx_group_parameter_prior_cov"
+        ]
         rfx_variance_prior_shape = general_params_updated["rfx_variance_prior_shape"]
         rfx_variance_prior_scale = general_params_updated["rfx_variance_prior_scale"]
         num_threads = general_params_updated["num_threads"]
@@ -343,7 +356,9 @@ class BCFModel:
         b_leaf_mu = prognostic_forest_params_updated["sigma2_leaf_scale"]
         keep_vars_mu = prognostic_forest_params_updated["keep_vars"]
         drop_vars_mu = prognostic_forest_params_updated["drop_vars"]
-        num_features_subsample_mu = prognostic_forest_params_updated["num_features_subsample"]
+        num_features_subsample_mu = prognostic_forest_params_updated[
+            "num_features_subsample"
+        ]
 
         # 3. Tau forest parameters
         num_trees_tau = treatment_effect_forest_params_updated["num_trees"]
@@ -362,7 +377,9 @@ class BCFModel:
         delta_max = treatment_effect_forest_params_updated["delta_max"]
         keep_vars_tau = treatment_effect_forest_params_updated["keep_vars"]
         drop_vars_tau = treatment_effect_forest_params_updated["drop_vars"]
-        num_features_subsample_tau = treatment_effect_forest_params_updated["num_features_subsample"]
+        num_features_subsample_tau = treatment_effect_forest_params_updated[
+            "num_features_subsample"
+        ]
 
         # 4. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
@@ -378,7 +395,9 @@ class BCFModel:
         b_forest = variance_forest_params_updated["var_forest_prior_scale"]
         keep_vars_variance = variance_forest_params_updated["keep_vars"]
         drop_vars_variance = variance_forest_params_updated["drop_vars"]
-        num_features_subsample_variance = variance_forest_params_updated["num_features_subsample"]
+        num_features_subsample_variance = variance_forest_params_updated[
+            "num_features_subsample"
+        ]
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -1193,34 +1212,24 @@ class BCFModel:
             current_sigma2 = sigma2_init
             self.sigma2_init = sigma2_init
             # Skip variance_forest_init, since variance forests are not supported with probit link
-            b_leaf_mu = (
-                1.0 / num_trees_mu
-                if b_leaf_mu is None
-                else b_leaf_mu
-            )
-            b_leaf_tau = (
-                1.0 / (2 * num_trees_tau)
-                if b_leaf_tau is None
-                else b_leaf_tau
-            )
+            b_leaf_mu = 1.0 / num_trees_mu if b_leaf_mu is None else b_leaf_mu
+            b_leaf_tau = 1.0 / (2 * num_trees_tau) if b_leaf_tau is None else b_leaf_tau
             sigma2_leaf_mu = (
-                1 / num_trees_mu
-                if sigma2_leaf_mu is None
-                else sigma2_leaf_mu
+                1 / num_trees_mu if sigma2_leaf_mu is None else sigma2_leaf_mu
             )
             if isinstance(sigma2_leaf_mu, float):
                 current_leaf_scale_mu = np.array([[sigma2_leaf_mu]])
             else:
                 raise ValueError("sigma2_leaf_mu must be a scalar")
             # Calibrate prior so that P(abs(tau(X)) < delta_max / dnorm(0)) = p
-            # Use p = 0.9 as an internal default rather than adding another 
-            # user-facing "parameter" of the binary outcome BCF prior. 
-            # Can be overriden by specifying `sigma2_leaf_init` in 
+            # Use p = 0.9 as an internal default rather than adding another
+            # user-facing "parameter" of the binary outcome BCF prior.
+            # Can be overriden by specifying `sigma2_leaf_init` in
             # treatment_effect_forest_params.
             p = 0.6827
             q_quantile = norm.ppf((p + 1) / 2.0)
             sigma2_leaf_tau = (
-                ((delta_max / (q_quantile*norm.pdf(0)))**2) / num_trees_tau
+                ((delta_max / (q_quantile * norm.pdf(0))) ** 2) / num_trees_tau
                 if sigma2_leaf_tau is None
                 else sigma2_leaf_tau
             )
@@ -1231,7 +1240,9 @@ class BCFModel:
                     )
             if isinstance(sigma2_leaf_tau, float):
                 if Z_train.shape[1] > 1:
-                    current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]), dtype=float)
+                    current_leaf_scale_tau = np.zeros(
+                        (Z_train.shape[1], Z_train.shape[1]), dtype=float
+                    )
                     np.fill_diagonal(current_leaf_scale_tau, sigma2_leaf_tau)
                 else:
                     current_leaf_scale_tau = np.array([[sigma2_leaf_tau]])
@@ -1304,7 +1315,9 @@ class BCFModel:
                     )
             if isinstance(sigma2_leaf_tau, float):
                 if Z_train.shape[1] > 1:
-                    current_leaf_scale_tau = np.zeros((Z_train.shape[1], Z_train.shape[1]), dtype=float)
+                    current_leaf_scale_tau = np.zeros(
+                        (Z_train.shape[1], Z_train.shape[1]), dtype=float
+                    )
                     np.fill_diagonal(current_leaf_scale_tau, sigma2_leaf_tau)
                 else:
                     current_leaf_scale_tau = np.array([[sigma2_leaf_tau]])
@@ -1333,7 +1346,7 @@ class BCFModel:
                 if not a_forest:
                     a_forest = 1.0
                 if not b_forest:
-                    b_forest = 1.0        
+                    b_forest = 1.0
 
         # Runtime checks on RFX group ids
         self.has_rfx = False
@@ -1381,23 +1394,31 @@ class BCFModel:
                 else:
                     raise ValueError("There must be at least 1 random effect component")
             else:
-                alpha_init = _expand_dims_1d(rfx_working_parameter_prior_mean, num_rfx_components)
-            
+                alpha_init = _expand_dims_1d(
+                    rfx_working_parameter_prior_mean, num_rfx_components
+                )
+
             if rfx_group_parameter_prior_mean is None:
                 xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
             else:
-                xi_init = _expand_dims_2d(rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups)
-            
+                xi_init = _expand_dims_2d(
+                    rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups
+                )
+
             if rfx_working_parameter_prior_cov is None:
                 sigma_alpha_init = np.identity(num_rfx_components)
             else:
-                sigma_alpha_init = _expand_dims_2d_diag(rfx_working_parameter_prior_cov, num_rfx_components)
-            
+                sigma_alpha_init = _expand_dims_2d_diag(
+                    rfx_working_parameter_prior_cov, num_rfx_components
+                )
+
             if rfx_group_parameter_prior_cov is None:
                 sigma_xi_init = np.identity(num_rfx_components)
             else:
-                sigma_xi_init = _expand_dims_2d_diag(rfx_group_parameter_prior_cov, num_rfx_components)
-            
+                sigma_xi_init = _expand_dims_2d_diag(
+                    rfx_group_parameter_prior_cov, num_rfx_components
+                )
+
             sigma_xi_shape = rfx_variance_prior_shape
             sigma_xi_scale = rfx_variance_prior_scale
 
@@ -1526,7 +1547,9 @@ class BCFModel:
         muhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
         tauhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
         if self.include_variance_forest:
-            sigma2_x_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
+            sigma2_x_train_raw = np.empty(
+                (self.n_train, self.num_samples), dtype=np.float64
+            )
         sample_counter = -1
 
         # Prepare adaptive coding structure
@@ -1699,7 +1722,7 @@ class BCFModel:
                 keep_sample = True
                 if keep_sample:
                     sample_counter += 1
-                
+
                 if self.probit_outcome_model:
                     # Sample latent probit variable z | -
                     forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
@@ -1725,7 +1748,7 @@ class BCFModel:
                     # Update outcome
                     new_outcome = np.squeeze(resid_train) - forest_pred
                     residual_train.update_data(new_outcome)
-                
+
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
                     self.forest_container_mu,
@@ -1742,7 +1765,9 @@ class BCFModel:
 
                 # Cache train set predictions since they are already computed during sampling
                 if keep_sample:
-                    muhat_train_raw[:,sample_counter] = forest_sampler_mu.get_cached_forest_predictions()
+                    muhat_train_raw[:, sample_counter] = (
+                        forest_sampler_mu.get_cached_forest_predictions()
+                    )
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
@@ -1778,7 +1803,7 @@ class BCFModel:
                     num_threads,
                 )
 
-                # Cannot cache train set predictions for tau because the cached predictions in the 
+                # Cannot cache train set predictions for tau because the cached predictions in the
                 # tracking data structures are pre-multiplied by the basis (treatment)
                 # ...
 
@@ -1842,7 +1867,9 @@ class BCFModel:
 
                     # Cache train set predictions since they are already computed during sampling
                     if keep_sample:
-                        sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
+                        sigma2_x_train_raw[:, sample_counter] = (
+                            forest_sampler_variance.get_cached_forest_predictions()
+                        )
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
@@ -1895,7 +1922,7 @@ class BCFModel:
                         keep_sample = False
                 if keep_sample:
                     sample_counter += 1
-                
+
                 if self.probit_outcome_model:
                     # Sample latent probit variable z | -
                     forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
@@ -1921,7 +1948,7 @@ class BCFModel:
                     # Update outcome
                     new_outcome = np.squeeze(resid_train) - forest_pred
                     residual_train.update_data(new_outcome)
-                
+
                 # Sample the prognostic forest
                 forest_sampler_mu.sample_one_iteration(
                     self.forest_container_mu,
@@ -1938,7 +1965,9 @@ class BCFModel:
 
                 # Cache train set predictions since they are already computed during sampling
                 if keep_sample:
-                    muhat_train_raw[:,sample_counter] = forest_sampler_mu.get_cached_forest_predictions()
+                    muhat_train_raw[:, sample_counter] = (
+                        forest_sampler_mu.get_cached_forest_predictions()
+                    )
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
@@ -1974,7 +2003,7 @@ class BCFModel:
                     num_threads,
                 )
 
-                # Cannot cache train set predictions for tau because the cached predictions in the 
+                # Cannot cache train set predictions for tau because the cached predictions in the
                 # tracking data structures are pre-multiplied by the basis (treatment)
                 # ...
 
@@ -2038,7 +2067,9 @@ class BCFModel:
 
                     # Cache train set predictions since they are already computed during sampling
                     if keep_sample:
-                        sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
+                        sigma2_x_train_raw[:, sample_counter] = (
+                            forest_sampler_variance.get_cached_forest_predictions()
+                        )
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
@@ -2095,9 +2126,9 @@ class BCFModel:
                 self.leaf_scale_mu_samples = self.leaf_scale_mu_samples[num_gfr:]
             if self.sample_sigma2_leaf_tau:
                 self.leaf_scale_tau_samples = self.leaf_scale_tau_samples[num_gfr:]
-            muhat_train_raw = muhat_train_raw[:,num_gfr:]
+            muhat_train_raw = muhat_train_raw[:, num_gfr:]
             if self.include_variance_forest:
-                sigma2_x_train_raw = sigma2_x_train_raw[:,num_gfr:]
+                sigma2_x_train_raw = sigma2_x_train_raw[:, num_gfr:]
             self.num_samples -= num_gfr
 
         # Store predictions
@@ -2179,7 +2210,10 @@ class BCFModel:
                     )
             else:
                 self.sigma2_x_train = (
-                    np.exp(sigma2_x_train_raw) * self.sigma2_init * self.y_std * self.y_std
+                    np.exp(sigma2_x_train_raw)
+                    * self.sigma2_init
+                    * self.y_std
+                    * self.y_std
                 )
             if self.has_test:
                 sigma2_x_test_raw = (
@@ -2260,7 +2294,7 @@ class BCFModel:
                 covariates_processed = X
         else:
             covariates_processed = self._covariate_preprocessor.transform(X)
-        
+
         # Handle propensities
         if propensity is not None:
             if propensity.shape[0] != X.shape[0]:
@@ -2272,9 +2306,11 @@ class BCFModel:
                         "Propensity scores not provided, but no propensity model was trained during sampling"
                     )
                 else:
-                    internal_propensity_preds = self.bart_propensity_model.predict(covariates_processed)
+                    internal_propensity_preds = self.bart_propensity_model.predict(
+                        covariates_processed
+                    )
                     propensity = np.mean(
-                        internal_propensity_preds['y_hat'], axis=1, keepdims=True
+                        internal_propensity_preds["y_hat"], axis=1, keepdims=True
                     )
 
         # Update covariates to include propensities if requested
@@ -2361,7 +2397,7 @@ class BCFModel:
                 covariates_processed = covariates
         else:
             covariates_processed = self._covariate_preprocessor.transform(covariates)
-        
+
         # Handle propensities
         if propensity is not None:
             if propensity.shape[0] != covariates.shape[0]:
@@ -2373,9 +2409,11 @@ class BCFModel:
                         "Propensity scores not provided, but no propensity model was trained during sampling"
                     )
                 else:
-                    internal_propensity_preds = self.bart_propensity_model.predict(covariates_processed)
+                    internal_propensity_preds = self.bart_propensity_model.predict(
+                        covariates_processed
+                    )
                     propensity = np.mean(
-                        internal_propensity_preds['y_hat'], axis=1, keepdims=True
+                        internal_propensity_preds["y_hat"], axis=1, keepdims=True
                     )
 
         # Update covariates to include propensities if requested
@@ -2416,9 +2454,9 @@ class BCFModel:
         Z: np.array,
         propensity: np.array = None,
         rfx_group_ids: np.array = None,
-        rfx_basis: np.array = None, 
-        type: str = "posterior", 
-        terms: Union[list[str], str] = "all"
+        rfx_basis: np.array = None,
+        type: str = "posterior",
+        terms: Union[list[str], str] = "all",
     ) -> dict:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.
@@ -2435,7 +2473,7 @@ class BCFModel:
             Optional group labels used for an additive random effects model.
         rfx_basis : np.array, optional
             Optional basis for "random-slope" regression in an additive random effects model.
-        
+
         type : str, optional
             Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
         terms : str, optional
@@ -2461,25 +2499,36 @@ class BCFModel:
         has_variance_forest = self.include_variance_forest
         has_rfx = self.has_rfx
         has_y_hat = has_mu_forest or has_tau_forest or has_rfx
-        predict_y_hat = ((has_y_hat and ("y_hat" in terms)) or
-            (has_y_hat and ("all" in terms)))
-        predict_mu_forest = ((has_mu_forest and ("prognostic_function" in terms)) or
-            (has_mu_forest and ("all" in terms)))
-        predict_tau_forest = ((has_tau_forest and ("cate" in terms)) or
-            (has_tau_forest and ("all" in terms)))
-        predict_rfx = ((has_rfx and ("rfx" in terms)) or
-            (has_rfx and ("all" in terms)))
-        predict_variance_forest = ((has_variance_forest and ("variance_forest" in terms)) or
-            (has_variance_forest and ("all" in terms)))
-        predict_count = (predict_y_hat + predict_mu_forest + predict_tau_forest + predict_rfx + predict_variance_forest)
+        predict_y_hat = (has_y_hat and ("y_hat" in terms)) or (
+            has_y_hat and ("all" in terms)
+        )
+        predict_mu_forest = (has_mu_forest and ("prognostic_function" in terms)) or (
+            has_mu_forest and ("all" in terms)
+        )
+        predict_tau_forest = (has_tau_forest and ("cate" in terms)) or (
+            has_tau_forest and ("all" in terms)
+        )
+        predict_rfx = (has_rfx and ("rfx" in terms)) or (has_rfx and ("all" in terms))
+        predict_variance_forest = (
+            has_variance_forest and ("variance_forest" in terms)
+        ) or (has_variance_forest and ("all" in terms))
+        predict_count = (
+            predict_y_hat
+            + predict_mu_forest
+            + predict_tau_forest
+            + predict_rfx
+            + predict_variance_forest
+        )
         if predict_count == 0:
             term_list = ", ".join(terms)
-            warnings.warn(f"None of the requested model terms, {term_list}, were fit in this model")
+            warnings.warn(
+                f"None of the requested model terms, {term_list}, were fit in this model"
+            )
             return None
         predict_rfx_intermediate = predict_y_hat and has_rfx
         predict_mu_forest_intermediate = predict_y_hat and has_mu_forest
         predict_tau_forest_intermediate = predict_y_hat and has_tau_forest
-        
+
         if not self.is_sampled():
             msg = (
                 "This BCFModel instance is not fitted yet. Call 'fit' with "
@@ -2523,7 +2572,7 @@ class BCFModel:
                 covariates_processed = X
         else:
             covariates_processed = self._covariate_preprocessor.transform(X)
-        
+
         # Handle propensities
         if propensity is not None:
             if propensity.shape[0] != X.shape[0]:
@@ -2535,9 +2584,11 @@ class BCFModel:
                         "Propensity scores not provided, but no propensity model was trained during sampling"
                     )
                 else:
-                    internal_propensity_preds = self.bart_propensity_model.predict(covariates_processed)
+                    internal_propensity_preds = self.bart_propensity_model.predict(
+                        covariates_processed
+                    )
                     propensity = np.mean(
-                        internal_propensity_preds['y_hat'], axis=1, keepdims=True
+                        internal_propensity_preds["y_hat"], axis=1, keepdims=True
                     )
 
         # Update covariates to include propensities if requested
@@ -2570,9 +2621,9 @@ class BCFModel:
                 tau_raw = tau_raw * adaptive_coding_weights
             tau_x = np.squeeze(tau_raw * self.y_std)
             if Z.shape[1] > 1:
-                treatment_term = np.multiply(np.atleast_3d(Z).swapaxes(1, 2), tau_x).sum(
-                    axis=2
-                )
+                treatment_term = np.multiply(
+                    np.atleast_3d(Z).swapaxes(1, 2), tau_x
+                ).sum(axis=2)
                 if predict_mean:
                     treatment_term = np.mean(treatment_term, axis=1)
                     tau_x = np.mean(tau_x, axis=2)
@@ -2588,7 +2639,7 @@ class BCFModel:
             )
             if predict_mean:
                 rfx_preds = np.mean(rfx_preds, axis=1)
-        
+
         if predict_y_hat and has_mu_forest and has_rfx:
             y_hat = mu_x + treatment_term + rfx_preds
         elif predict_y_hat and has_mu_forest:
@@ -2694,9 +2745,7 @@ class BCFModel:
         bcf_json.add_boolean(
             "internal_propensity_model", self.internal_propensity_model
         )
-        bcf_json.add_boolean(
-            "probit_outcome_model", self.probit_outcome_model
-        )
+        bcf_json.add_boolean("probit_outcome_model", self.probit_outcome_model)
 
         # Add parameter samples
         if self.sample_sigma2_global:
@@ -2781,9 +2830,7 @@ class BCFModel:
         self.internal_propensity_model = bcf_json.get_boolean(
             "internal_propensity_model"
         )
-        self.probit_outcome_model = bcf_json.get_boolean(
-            "probit_outcome_model"
-        )
+        self.probit_outcome_model = bcf_json.get_boolean("probit_outcome_model")
 
         # Unpack parameter samples
         if self.sample_sigma2_global:
@@ -2909,7 +2956,7 @@ class BCFModel:
         self.internal_propensity_model = json_object_default.get_boolean(
             "internal_propensity_model"
         )
-        
+
         # Unpack number of samples
         for i in range(len(json_object_list)):
             if i == 0:
@@ -2949,9 +2996,9 @@ class BCFModel:
         if self.sample_sigma2_leaf_tau:
             for i in range(len(json_object_list)):
                 if i == 0:
-                    self.sample_sigma2_leaf_tau = json_object_list[i].get_numeric_vector(
-                        "sigma2_leaf_tau_samples", "parameters"
-                    )
+                    self.sample_sigma2_leaf_tau = json_object_list[
+                        i
+                    ].get_numeric_vector("sigma2_leaf_tau_samples", "parameters")
                 else:
                     sample_sigma2_leaf_tau = json_object_list[i].get_numeric_vector(
                         "sigma2_leaf_tau_samples", "parameters"
