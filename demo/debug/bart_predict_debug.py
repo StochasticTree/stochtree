@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 # Generate data
 rng = np.random.default_rng()
-n = 100
+n = 500
 p = 5
 X = rng.uniform(low=0.0, high=1.0, size=(n, p))
 f_X = np.where(
@@ -42,7 +42,7 @@ bart_model.sample(
     X_test=X_test,
     num_gfr=10,
     num_burnin=0,
-    num_mcmc=10,
+    num_mcmc=1000,
 )
 
 # # Check several predict approaches
@@ -66,3 +66,17 @@ plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Y hat")
 plt.show()
+
+# Compute posterior interval
+intervals = bart_model.compute_posterior_interval(
+    terms = "all", 
+    scale = "linear", 
+    level = 0.95, 
+    covariates = X_test
+)
+
+# Check coverage
+mean_coverage = np.mean(
+    (intervals["y_hat"]["lower"] <= f_X_test) & (f_X_test <= intervals["y_hat"]["upper"])
+)
+print(f"Coverage of 95% posterior interval for f(X): {mean_coverage:.3f}")

@@ -1,7 +1,3 @@
-"""
-Bayesian Causal Forests (BCF) module
-"""
-
 import warnings
 from typing import Any, Dict, Optional, Union
 
@@ -28,6 +24,8 @@ from .utils import (
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
+    _posterior_predictive_heuristic_multiplier, 
+    _summarize_interval
 )
 
 
@@ -2529,6 +2527,130 @@ class BCFModel:
             else:
                 result["variance_forest_predictions"] = None
             return result
+    
+    def compute_posterior_interval(self, terms: Union[list[str], str] = "all", scale: str = "linear", level: float = 0.95, covariates: np.array = None, treatment: np.array = None, propensity: np.array = None, rfx_group_ids: np.array = None, rfx_basis: np.array = None) -> dict:
+        """
+        Compute posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.
+
+        Parameters
+        ----------
+        terms : str, optional
+            Character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"cate"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Defaults to `"all"`.
+        scale : str, optional
+            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
+        level : float, optional
+            A numeric value between 0 and 1 specifying the credible interval level. Defaults to 0.95 for a 95% credible interval.
+        covariates : np.array, optional
+            Optional array or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, treatment effect forest, variance forest, or overall predictions).
+        treatment : np.array, optional
+            Optional array of treatment assignments. Required if the requested term is `"y_hat"` (overall predictions).
+        propensity : np.array, optional
+            Optional array of propensity scores. Required if the underlying model depends on user-provided propensities.
+        rfx_group_ids : np.array, optional
+            Optional vector of group IDs for random effects. Required if the requested term includes random effects.
+        rfx_basis : np.array, optional
+            Optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
+
+        Returns
+        -------
+        dict
+            A dict containing the lower and upper bounds of the credible interval for the specified term. If multiple terms are requested, a dict with intervals for each term is returned.
+        """
+        # Check the provided model object and requested term
+        self.is_sampled()
+        for term in terms:
+            self.has_term(term)
+
+        # Handle mean function scale
+        if not isinstance(scale, str):
+            raise ValueError("scale must be a string")
+        if scale not in ["linear", "probability"]:
+            raise ValueError("scale must either be 'linear' or 'probability'")
+        is_probit = self.probit_outcome_model
+        if (scale == "probability") and (not is_probit):
+            raise ValueError(
+                "scale cannot be 'probability' for models not fit with a probit outcome model"
+            )
+
+        # Check that all the necessary inputs were provided for interval computation
+        needs_covariates_intermediate = (("y_hat" in terms) or ("all" in terms))
+        needs_covariates = ("prognostic_function" in terms) or ("cate" in terms) or ("variance_forest" in terms) or needs_covariates_intermediate
+        if needs_covariates:
+            if covariates is None:
+                raise ValueError(
+                    "'covariates' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(covariates, np.ndarray) and not isinstance(
+                covariates, pd.DataFrame
+            ):
+                raise ValueError("'covariates' must be a matrix or data frame")
+        needs_treatment = needs_covariates
+        if needs_treatment:
+            if treatment is None:
+                raise ValueError(
+                    "'treatment' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(treatment, np.ndarray):
+                raise ValueError("'treatment' must be a numpy array")
+            if treatment.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'treatment' must have the same number of rows as 'covariates'"
+                )
+        uses_propensity = self.propensity_covariate is not "none"
+        internal_propensity_model = self.internal_propensity_model
+        needs_propensity = needs_covariates and uses_propensity and not internal_propensity_model
+        if needs_propensity:
+            if propensity is None:
+                raise ValueError(
+                    "'propensity' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(propensity, np.ndarray):
+                raise ValueError("'propensity' must be a numpy array")
+            if propensity.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'propensity' must have the same number of rows as 'covariates'"
+                )
+        needs_rfx_data_intermediate = (("y_hat" in terms) or ("all" in terms)) and self.has_rfx
+        needs_rfx_data = ("rfx" in terms) or needs_rfx_data_intermediate
+        if needs_rfx_data:
+            if rfx_group_ids is None:
+                raise ValueError(
+                    "'rfx_group_ids' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(rfx_group_ids, np.ndarray):
+                raise ValueError("'rfx_group_ids' must be a numpy array")
+            if rfx_group_ids.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+                )
+            if rfx_basis is None:
+                raise ValueError(
+                    "'rfx_basis' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(rfx_basis, np.ndarray):
+                raise ValueError("'rfx_basis' must be a numpy array")
+            if rfx_basis.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'rfx_basis' must have the same number of rows as 'covariates'"
+                )
+
+        # Compute posterior matrices for the requested model terms
+        predictions = self.predict(X=covariates, Z=treatment, propensity=propensity, rfx_group_ids=rfx_group_ids, rfx_basis=rfx_basis, type="posterior", terms=terms, scale=scale)
+        has_multiple_terms = True if isinstance(predictions, dict) else False
+
+        # Compute posterior intervals
+        if has_multiple_terms:
+            result = dict()
+            for term in predictions.keys():
+                if predictions[term] is not None:
+                    result[term] = _summarize_interval(
+                        predictions[term], 1, level=level
+                    )
+            return result
+        else:
+            return _summarize_interval(
+                    predictions, 1, level=level
+                )
 
     def to_json(self) -> str:
         """
@@ -2871,3 +2993,32 @@ class BCFModel:
             `True` if a BCF model has been sampled, `False` otherwise
         """
         return self.sampled
+
+    def has_term(self, term: str) -> bool:
+        """
+        Whether or not a model includes a term.
+
+        Parameters
+        ----------
+        term : str
+            Character string specifying the model term to check for. Options for BCF models are `"prognostic_function"`, `"cate"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`.
+        
+        Returns
+        -------
+        bool
+            `True` if the model includes the specified term, `False` otherwise
+        """
+        if term == "prognostic_function":
+            return True
+        if term == "cate":
+            return True
+        elif term == "variance_forest":
+            return self.include_variance_forest
+        elif term == "rfx":
+            return self.has_rfx
+        elif term == "y_hat":
+            return True
+        elif term == "all":
+            return True
+        else:
+            return False

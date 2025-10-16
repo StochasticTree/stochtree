@@ -1,4 +1,5 @@
 from typing import Union
+import math
 
 import numpy as np
 
@@ -332,3 +333,35 @@ def _expand_dims_2d_diag(
             "`input` must be either a 2D square numpy array or a scalar that can be propagated along the diagonal of a square matrix"
         )
     return output
+
+def _posterior_predictive_heuristic_multiplier(num_samples: int, num_observations: int) -> int:
+    if num_samples >= 1000:
+        return 1
+    else:
+        return math.ceil(1000 / num_samples)
+
+def _summarize_interval(array: np.ndarray, sample_dim: int = 2, level: float = 0.95) -> dict:
+    # Check that the array is numeric and at least 2 dimensional
+    if not isinstance(array, np.ndarray):
+        raise ValueError("`array` must be a numpy array")
+    if not _check_array_numeric(array):
+        raise ValueError("`array` must be a numeric numpy array")
+    if not len(array.shape) >= 2:
+        raise ValueError("`array` must be at least a 2-dimensional numpy array")
+    if not _check_is_int(sample_dim) or (sample_dim < 0) or (sample_dim >= len(array.shape)):
+        raise ValueError(
+            "`sample_dim` must be an integer between 0 and the number of dimensions of `array` - 1"
+        )
+    if not isinstance(level, float) or (level <= 0) or (level >= 1):
+        raise ValueError("`level` must be a float between 0 and 1")
+
+    # Compute lower and upper quantiles based on the requested interval
+    quantile_lb = (1 - level) / 2
+    quantile_ub = 1 - quantile_lb
+
+    # Calculate the interval
+    result_lb = np.quantile(array, q=quantile_lb, axis=sample_dim)
+    result_ub = np.quantile(array, q=quantile_ub, axis=sample_dim)
+
+    # Return results as a dictionary
+    return {"lower": result_lb, "upper": result_ub}

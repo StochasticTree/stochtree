@@ -1,7 +1,3 @@
-"""
-Python classes wrapping C++ forest container object
-"""
-
 from typing import Union
 
 import numpy as np

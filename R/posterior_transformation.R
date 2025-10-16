@@ -361,7 +361,7 @@ posterior_predictive_heuristic_multiplier <- function(
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
 #' @param covariates (Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).
 #' @param treatment (Optional) A vector or matrix of treatment assignments. Required if the requested term is `"y_hat"` (overall predictions).
-#' @param propensity (Optional) A vector or matrix of propensity scores. Required if the requested term is `"y_hat"` (overall predictions) and the underlying model depends on user-provided propensities.
+#' @param propensity (Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.
 #' @param rfx_group_ids An optional vector of group IDs for random effects. Required if the requested term includes random effects.
 #' @param rfx_basis An optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
 #'
@@ -417,7 +417,6 @@ compute_bcf_posterior_interval <- function(
       "scale cannot be 'probability' for models not fit with a probit outcome model"
     )
   }
-  probability_scale <- scale == "probability"
 
   # Check that all the necessary inputs were provided for interval computation
   needs_covariates_intermediate <- ((("y_hat" %in% terms) ||
@@ -547,9 +546,7 @@ compute_bcf_posterior_interval <- function(
   }
 }
 
-#' Compute posterior credible intervals for BART model terms
-#'
-#' This function computes posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.
+#' Compute posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.
 #' @param model_object A fitted BART or BCF model object of class `bartmodel`.
 #' @param terms A character string specifying the model term(s) for which to compute intervals. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`.
 #' @param level A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95% credible interval).
@@ -604,7 +601,6 @@ compute_bart_posterior_interval <- function(
       "scale cannot be 'probability' for models not fit with a probit outcome model"
     )
   }
-  probability_scale <- scale == "probability"
 
   # Check that all the necessary inputs were provided for interval computation
   needs_covariates_intermediate <- ((("y_hat" %in% terms) ||
