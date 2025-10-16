@@ -23,7 +23,12 @@ from .random_effects import (
 )
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
-from .utils import NotSampledError, _expand_dims_1d, _expand_dims_2d, _expand_dims_2d_diag
+from .utils import (
+    NotSampledError,
+    _expand_dims_1d,
+    _expand_dims_2d,
+    _expand_dims_2d_diag,
+)
 
 
 class BARTModel:
@@ -262,10 +267,18 @@ class BARTModel:
         keep_every = general_params_updated["keep_every"]
         num_chains = general_params_updated["num_chains"]
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
-        rfx_working_parameter_prior_mean = general_params_updated["rfx_working_parameter_prior_mean"]
-        rfx_group_parameter_prior_mean = general_params_updated["rfx_group_parameter_prior_mean"]
-        rfx_working_parameter_prior_cov = general_params_updated["rfx_working_parameter_prior_cov"]
-        rfx_group_parameter_prior_cov = general_params_updated["rfx_group_parameter_prior_cov"]
+        rfx_working_parameter_prior_mean = general_params_updated[
+            "rfx_working_parameter_prior_mean"
+        ]
+        rfx_group_parameter_prior_mean = general_params_updated[
+            "rfx_group_parameter_prior_mean"
+        ]
+        rfx_working_parameter_prior_cov = general_params_updated[
+            "rfx_working_parameter_prior_cov"
+        ]
+        rfx_group_parameter_prior_cov = general_params_updated[
+            "rfx_group_parameter_prior_cov"
+        ]
         rfx_variance_prior_shape = general_params_updated["rfx_variance_prior_shape"]
         rfx_variance_prior_scale = general_params_updated["rfx_variance_prior_scale"]
         num_threads = general_params_updated["num_threads"]
@@ -282,7 +295,9 @@ class BARTModel:
         b_leaf = mean_forest_params_updated["sigma2_leaf_scale"]
         keep_vars_mean = mean_forest_params_updated["keep_vars"]
         drop_vars_mean = mean_forest_params_updated["drop_vars"]
-        num_features_subsample_mean = mean_forest_params_updated["num_features_subsample"]
+        num_features_subsample_mean = mean_forest_params_updated[
+            "num_features_subsample"
+        ]
 
         # 3. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
@@ -298,7 +313,9 @@ class BARTModel:
         b_forest = variance_forest_params_updated["var_forest_prior_scale"]
         keep_vars_variance = variance_forest_params_updated["keep_vars"]
         drop_vars_variance = variance_forest_params_updated["drop_vars"]
-        num_features_subsample_variance = variance_forest_params_updated["num_features_subsample"]
+        num_features_subsample_variance = variance_forest_params_updated[
+            "num_features_subsample"
+        ]
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -989,26 +1006,34 @@ class BARTModel:
                 else:
                     raise ValueError("There must be at least 1 random effect component")
             else:
-                alpha_init = _expand_dims_1d(rfx_working_parameter_prior_mean, num_rfx_components)
-            
+                alpha_init = _expand_dims_1d(
+                    rfx_working_parameter_prior_mean, num_rfx_components
+                )
+
             if rfx_group_parameter_prior_mean is None:
                 xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
             else:
-                xi_init = _expand_dims_2d(rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups)
-            
+                xi_init = _expand_dims_2d(
+                    rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups
+                )
+
             if rfx_working_parameter_prior_cov is None:
                 sigma_alpha_init = np.identity(num_rfx_components)
             else:
-                sigma_alpha_init = _expand_dims_2d_diag(rfx_working_parameter_prior_cov, num_rfx_components)
-            
+                sigma_alpha_init = _expand_dims_2d_diag(
+                    rfx_working_parameter_prior_cov, num_rfx_components
+                )
+
             if rfx_group_parameter_prior_cov is None:
                 sigma_xi_init = np.identity(num_rfx_components)
             else:
-                sigma_xi_init = _expand_dims_2d_diag(rfx_group_parameter_prior_cov, num_rfx_components)
-            
+                sigma_xi_init = _expand_dims_2d_diag(
+                    rfx_group_parameter_prior_cov, num_rfx_components
+                )
+
             sigma_xi_shape = rfx_variance_prior_shape
             sigma_xi_scale = rfx_variance_prior_scale
-            
+
             # Random effects sampling data structures
             rfx_dataset_train = RandomEffectsDataset()
             rfx_dataset_train.add_group_labels(rfx_group_ids_train)
@@ -1046,9 +1071,13 @@ class BARTModel:
         if sample_sigma2_leaf:
             self.leaf_scale_samples = np.empty(self.num_samples, dtype=np.float64)
         if self.include_mean_forest:
-            yhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
+            yhat_train_raw = np.empty(
+                (self.n_train, self.num_samples), dtype=np.float64
+            )
         if self.include_variance_forest:
-            sigma2_x_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
+            sigma2_x_train_raw = np.empty(
+                (self.n_train, self.num_samples), dtype=np.float64
+            )
         sample_counter = -1
 
         # Forest Dataset (covariates and optional basis)
@@ -1104,8 +1133,8 @@ class BARTModel:
                 max_depth=max_depth_mean,
                 leaf_model_type=leaf_model_mean_forest,
                 leaf_model_scale=current_leaf_scale,
-                cutpoint_grid_size=cutpoint_grid_size, 
-                num_features_subsample=num_features_subsample_mean
+                cutpoint_grid_size=cutpoint_grid_size,
+                num_features_subsample=num_features_subsample_mean,
             )
             forest_sampler_mean = ForestSampler(
                 forest_dataset_train,
@@ -1128,7 +1157,7 @@ class BARTModel:
                 cutpoint_grid_size=cutpoint_grid_size,
                 variance_forest_shape=a_forest,
                 variance_forest_scale=b_forest,
-                num_features_subsample=num_features_subsample_variance
+                num_features_subsample=num_features_subsample_variance,
             )
             forest_sampler_variance = ForestSampler(
                 forest_dataset_train,
@@ -1234,7 +1263,9 @@ class BARTModel:
 
                     # Cache train set predictions since they are already computed during sampling
                     if keep_sample:
-                        yhat_train_raw[:,sample_counter] = forest_sampler_mean.get_cached_forest_predictions()
+                        yhat_train_raw[:, sample_counter] = (
+                            forest_sampler_mean.get_cached_forest_predictions()
+                        )
 
                 # Sample the variance forest
                 if self.include_variance_forest:
@@ -1253,7 +1284,9 @@ class BARTModel:
 
                     # Cache train set predictions since they are already computed during sampling
                     if keep_sample:
-                        sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
+                        sigma2_x_train_raw[:, sample_counter] = (
+                            forest_sampler_variance.get_cached_forest_predictions()
+                        )
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
@@ -1435,7 +1468,9 @@ class BARTModel:
                         )
 
                         if keep_sample:
-                            yhat_train_raw[:,sample_counter] = forest_sampler_mean.get_cached_forest_predictions()
+                            yhat_train_raw[:, sample_counter] = (
+                                forest_sampler_mean.get_cached_forest_predictions()
+                            )
 
                     # Sample the variance forest
                     if self.include_variance_forest:
@@ -1453,7 +1488,9 @@ class BARTModel:
                         )
 
                         if keep_sample:
-                            sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
+                            sigma2_x_train_raw[:, sample_counter] = (
+                                forest_sampler_variance.get_cached_forest_predictions()
+                            )
 
                     # Sample variance parameters (if requested)
                     if self.sample_sigma2_global:
@@ -1504,9 +1541,9 @@ class BARTModel:
             if self.sample_sigma2_leaf:
                 self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
             if self.include_mean_forest:
-                yhat_train_raw = yhat_train_raw[:,num_gfr:]
+                yhat_train_raw = yhat_train_raw[:, num_gfr:]
             if self.include_variance_forest:
-                sigma2_x_train_raw = sigma2_x_train_raw[:,num_gfr:]
+                sigma2_x_train_raw = sigma2_x_train_raw[:, num_gfr:]
             self.num_samples -= num_gfr
 
         # Store predictions
@@ -1553,7 +1590,10 @@ class BARTModel:
                     )
             else:
                 self.sigma2_x_train = (
-                    np.exp(sigma2_x_train_raw) * self.sigma2_init * self.y_std * self.y_std
+                    np.exp(sigma2_x_train_raw)
+                    * self.sigma2_init
+                    * self.y_std
+                    * self.y_std
                 )
             if self.has_test:
                 sigma2_x_test_raw = (
@@ -1577,10 +1617,10 @@ class BARTModel:
         covariates: Union[np.array, pd.DataFrame],
         basis: np.array = None,
         rfx_group_ids: np.array = None,
-        rfx_basis: np.array = None, 
-        type: str = "posterior", 
-        terms: Union[list[str], str] = "all", 
-        scale: str = "linear"
+        rfx_basis: np.array = None,
+        type: str = "posterior",
+        terms: Union[list[str], str] = "all",
+        scale: str = "linear",
     ) -> Union[np.array, tuple]:
         """Return predictions from every forest sampled (either / both of mean and variance).
         Return type is either a single array of predictions, if a BART model only includes a
@@ -1634,28 +1674,39 @@ class BARTModel:
         has_variance_forest = self.include_variance_forest
         has_rfx = self.has_rfx
         has_y_hat = has_mean_forest or has_rfx
-        predict_y_hat = ((has_y_hat and ("y_hat" in terms)) or
-            (has_y_hat and ("all" in terms)))
-        predict_mean_forest = ((has_mean_forest and ("mean_forest" in terms)) or
-            (has_mean_forest and ("all" in terms)))
-        predict_rfx = ((has_rfx and ("rfx" in terms)) or
-            (has_rfx and ("all" in terms)))
-        predict_variance_forest = ((has_variance_forest and ("variance_forest" in terms)) or
-            (has_variance_forest and ("all" in terms)))
-        predict_count = (predict_y_hat + predict_mean_forest + predict_rfx + predict_variance_forest)
+        predict_y_hat = (has_y_hat and ("y_hat" in terms)) or (
+            has_y_hat and ("all" in terms)
+        )
+        predict_mean_forest = (has_mean_forest and ("mean_forest" in terms)) or (
+            has_mean_forest and ("all" in terms)
+        )
+        predict_rfx = (has_rfx and ("rfx" in terms)) or (has_rfx and ("all" in terms))
+        predict_variance_forest = (
+            has_variance_forest and ("variance_forest" in terms)
+        ) or (has_variance_forest and ("all" in terms))
+        predict_count = (
+            predict_y_hat + predict_mean_forest + predict_rfx + predict_variance_forest
+        )
         if predict_count == 0:
             term_list = ", ".join(terms)
-            warnings.warn(f"None of the requested model terms, {term_list}, were fit in this model")
+            warnings.warn(
+                f"None of the requested model terms, {term_list}, were fit in this model"
+            )
             return None
         predict_rfx_intermediate = predict_y_hat and has_rfx
         predict_mean_forest_intermediate = predict_y_hat and has_mean_forest
 
         # Check that we have at least one term to predict on probability scale
-        if (probability_scale and not predict_y_hat and not predict_mean_forest and not predict_rfx):
+        if (
+            probability_scale
+            and not predict_y_hat
+            and not predict_mean_forest
+            and not predict_rfx
+        ):
             raise ValueError(
                 "scale can only be 'probability' if at least one mean term is requested"
             )
-        
+
         # Check the model is valid
         if not self.is_sampled():
             msg = (
@@ -1730,7 +1781,9 @@ class BARTModel:
                     variance_pred_raw * self.sigma2_init * self.y_std * self.y_std
                 )
             if predict_mean:
-                variance_forest_predictions = np.mean(variance_forest_predictions, axis = 1)
+                variance_forest_predictions = np.mean(
+                    variance_forest_predictions, axis=1
+                )
 
         # Forest predictions
         if predict_mean_forest or predict_mean_forest_intermediate:
@@ -1756,7 +1809,7 @@ class BARTModel:
             y_hat = mean_forest_predictions
         elif predict_y_hat and has_rfx:
             y_hat = rfx_predictions
-        
+
         if probability_scale:
             if predict_y_hat and has_mean_forest and has_rfx:
                 y_hat = norm.ppf(mean_forest_predictions + rfx_predictions)
@@ -1775,16 +1828,16 @@ class BARTModel:
                 y_hat = mean_forest_predictions
             elif predict_y_hat and has_rfx:
                 y_hat = rfx_predictions
-        
+
         # Collapse to posterior mean predictions if requested
         if predict_mean:
             if predict_mean_forest:
-                mean_forest_predictions = np.mean(mean_forest_predictions, axis = 1)
+                mean_forest_predictions = np.mean(mean_forest_predictions, axis=1)
             if predict_rfx:
-                rfx_predictions = np.mean(rfx_predictions, axis = 1)
+                rfx_predictions = np.mean(rfx_predictions, axis=1)
             if predict_y_hat:
-                y_hat = np.mean(y_hat, axis = 1)
-        
+                y_hat = np.mean(y_hat, axis=1)
+
         if predict_count == 1:
             if predict_y_hat:
                 return y_hat
@@ -1813,7 +1866,7 @@ class BARTModel:
             else:
                 result["variance_forest_predictions"] = None
             return result
-        
+
     def predict_mean(
         self,
         covariates: np.array,
