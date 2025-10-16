@@ -2232,222 +2232,6 @@ class BCFModel:
                         sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
                     )
 
-    def predict_tau(
-        self, X: np.array, Z: np.array, propensity: np.array = None
-    ) -> np.array:
-        """Predict CATE function for every provided observation.
-
-        Parameters
-        ----------
-        X : np.array or pd.DataFrame
-            Test set covariates.
-        Z : np.array
-            Test set treatment indicators.
-        propensity : np.array, optional
-            Optional test set propensities. Must be provided if propensities were provided when the model was sampled.
-
-        Returns
-        -------
-        np.array
-            Array with as many rows as in `X` and as many columns as retained samples of the algorithm.
-        """
-        if not self.is_sampled():
-            msg = (
-                "This BCFModel instance is not fitted yet. Call 'fit' with "
-                "appropriate arguments before using this model."
-            )
-            raise NotSampledError(msg)
-
-        # Convert everything to standard shape (2-dimensional)
-        if X.ndim == 1:
-            X = np.expand_dims(X, 1)
-        if Z.ndim == 1:
-            Z = np.expand_dims(Z, 1)
-        else:
-            if Z.ndim != 2:
-                raise ValueError("treatment must have 1 or 2 dimensions")
-        if propensity is not None:
-            if propensity.ndim == 1:
-                propensity = np.expand_dims(propensity, 1)
-
-        # Data checks
-        if Z.shape[0] != X.shape[0]:
-            raise ValueError("X and Z must have the same number of rows")
-
-        # Covariate preprocessing
-        if not self._covariate_preprocessor._check_is_fitted():
-            if not isinstance(X, np.ndarray):
-                raise ValueError(
-                    "Prediction cannot proceed on a pandas dataframe, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe."
-                )
-            else:
-                warnings.warn(
-                    "This BCF model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
-                    RuntimeWarning,
-                )
-                if not np.issubdtype(X.dtype, np.floating) and not np.issubdtype(
-                    X.dtype, np.integer
-                ):
-                    raise ValueError(
-                        "Prediction cannot proceed on a non-numeric numpy array, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
-                    )
-                covariates_processed = X
-        else:
-            covariates_processed = self._covariate_preprocessor.transform(X)
-
-        # Handle propensities
-        if propensity is not None:
-            if propensity.shape[0] != X.shape[0]:
-                raise ValueError("X and propensity must have the same number of rows")
-        else:
-            if self.propensity_covariate != "none":
-                if not self.internal_propensity_model:
-                    raise ValueError(
-                        "Propensity scores not provided, but no propensity model was trained during sampling"
-                    )
-                else:
-                    internal_propensity_preds = self.bart_propensity_model.predict(
-                        covariates_processed
-                    )
-                    propensity = np.mean(
-                        internal_propensity_preds["y_hat"], axis=1, keepdims=True
-                    )
-
-        # Update covariates to include propensities if requested
-        if self.propensity_covariate == "none":
-            X_combined = covariates_processed
-        else:
-            X_combined = np.c_[covariates_processed, propensity]
-
-        # Forest dataset
-        forest_dataset_test = Dataset()
-        forest_dataset_test.add_covariates(X_combined)
-        forest_dataset_test.add_basis(Z)
-
-        # Estimate treatment effect
-        tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(
-            forest_dataset_test.dataset_cpp
-        )
-        tau_raw = tau_raw
-        if self.adaptive_coding:
-            adaptive_coding_weights = np.expand_dims(
-                self.b1_samples - self.b0_samples, axis=(0, 2)
-            )
-            tau_raw = tau_raw * adaptive_coding_weights
-        tau_x = np.squeeze(tau_raw * self.y_std)
-
-        # Return result matrix
-        return tau_x
-
-    def predict_variance(
-        self, covariates: np.array, propensity: np.array = None
-    ) -> np.array:
-        """Predict expected conditional variance from a BART model.
-
-        Parameters
-        ----------
-        covariates : np.array
-            Test set covariates.
-        propensity : np.array, optional
-            Test set propensity scores. Optional (not currently used in variance forests).
-
-        Returns
-        -------
-        np.array
-            Array of predictions corresponding to the variance forest. Each array will contain as many rows as in `covariates` and as many columns as retained samples of the algorithm.
-        """
-        if not self.is_sampled():
-            msg = (
-                "This BARTModel instance is not fitted yet. Call 'fit' with "
-                "appropriate arguments before using this model."
-            )
-            raise NotSampledError(msg)
-
-        if not self.include_variance_forest:
-            msg = (
-                "This BARTModel instance was not sampled with a variance forest. "
-                "Call 'fit' with appropriate arguments before using this model."
-            )
-            raise NotSampledError(msg)
-
-        # Convert everything to standard shape (2-dimensional)
-        if covariates.ndim == 1:
-            covariates = np.expand_dims(covariates, 1)
-        if propensity is not None:
-            if propensity.ndim == 1:
-                propensity = np.expand_dims(propensity, 1)
-
-        # Covariate preprocessing
-        if not self._covariate_preprocessor._check_is_fitted():
-            if not isinstance(covariates, np.ndarray):
-                raise ValueError(
-                    "Prediction cannot proceed on a pandas dataframe, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe."
-                )
-            else:
-                warnings.warn(
-                    "This BCF model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
-                    RuntimeWarning,
-                )
-                if not np.issubdtype(
-                    covariates.dtype, np.floating
-                ) and not np.issubdtype(covariates.dtype, np.integer):
-                    raise ValueError(
-                        "Prediction cannot proceed on a non-numeric numpy array, since the BCF model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
-                    )
-                covariates_processed = covariates
-        else:
-            covariates_processed = self._covariate_preprocessor.transform(covariates)
-
-        # Handle propensities
-        if propensity is not None:
-            if propensity.shape[0] != covariates.shape[0]:
-                raise ValueError("X and propensity must have the same number of rows")
-        else:
-            if self.propensity_covariate != "none":
-                if not self.internal_propensity_model:
-                    raise ValueError(
-                        "Propensity scores not provided, but no propensity model was trained during sampling"
-                    )
-                else:
-                    internal_propensity_preds = self.bart_propensity_model.predict(
-                        covariates_processed
-                    )
-                    propensity = np.mean(
-                        internal_propensity_preds["y_hat"], axis=1, keepdims=True
-                    )
-
-        # Update covariates to include propensities if requested
-        if self.propensity_covariate == "none":
-            X_combined = covariates_processed
-        else:
-            if propensity is not None:
-                X_combined = np.c_[covariates_processed, propensity]
-            else:
-                # Dummy propensities if not provided but also not needed
-                propensity = np.ones(covariates_processed.shape[0])
-                propensity = np.expand_dims(propensity, 1)
-                X_combined = np.c_[covariates_processed, propensity]
-
-        # Forest dataset
-        pred_dataset = Dataset()
-        pred_dataset.add_covariates(X_combined)
-
-        variance_pred_raw = self.forest_container_variance.forest_container_cpp.Predict(
-            pred_dataset.dataset_cpp
-        )
-        if self.sample_sigma2_global:
-            variance_pred = np.empty_like(variance_pred_raw)
-            for i in range(self.num_samples):
-                variance_pred[:, i] = (
-                    variance_pred_raw[:, i] * self.global_var_samples[i]
-                )
-        else:
-            variance_pred = (
-                variance_pred_raw * self.sigma2_init * self.y_std * self.y_std
-            )
-
-        return variance_pred
-
     def predict(
         self,
         X: np.array,
@@ -2457,6 +2241,7 @@ class BCFModel:
         rfx_basis: np.array = None,
         type: str = "posterior",
         terms: Union[list[str], str] = "all",
+        scale: str = "linear"
     ) -> dict:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.
@@ -2473,16 +2258,29 @@ class BCFModel:
             Optional group labels used for an additive random effects model.
         rfx_basis : np.array, optional
             Optional basis for "random-slope" regression in an additive random effects model.
-
         type : str, optional
             Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
         terms : str, optional
             Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "cate", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
+        scale : str, optional
+            Scale on which to return predictions. Options are "linear" (the default), which returns predictions on the original outcome scale, and "probit", which returns predictions on the probit (latent) scale. Only applicable for models fit with `probit_outcome_model=True`.
 
         Returns
         -------
         Dict of numpy arrays for each prediction term, or a simple numpy array if a single term is requested.
         """
+        # Handle mean function scale
+        if not isinstance(scale, str):
+            raise ValueError("scale must be a string")
+        if scale not in ["linear", "probability"]:
+            raise ValueError("scale must either be 'linear' or 'probability'")
+        is_probit = self.probit_outcome_model
+        if (scale == "probability") and (not is_probit):
+            raise ValueError(
+                "scale cannot be 'probability' for models not fit with a probit outcome model"
+            )
+        probability_scale = scale == "probability"
+        
         # Handle prediction type
         if not isinstance(type, str):
             raise ValueError("type must be a string")
