@@ -18,6 +18,8 @@ compute_bart_posterior_interval(
 \arguments{
 \item{model_object}{A fitted BART or BCF model object of class \code{bartmodel}.}
 
+\item{terms}{A character string specifying the model term(s) for which to compute intervals. Options for BART models are \code{"mean_forest"}, \code{"variance_forest"}, \code{"rfx"}, or \code{"y_hat"}.}
+
 \item{level}{A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95\% credible interval).}
 
 \item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
@@ -29,8 +31,6 @@ compute_bart_posterior_interval(
 \item{rfx_group_ids}{An optional vector of group IDs for random effects. Required if the requested term includes random effects.}
 
 \item{rfx_basis}{An optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.}
-
-\item{term}{A character string specifying the model term for which to compute intervals. Options for BART models are \code{"mean_forest"}, \code{"variance_forest"}, \code{"rfx"}, or \code{"y_hat"}.}
 }
 \value{
 A list containing the lower and upper bounds of the credible interval for the specified term. If multiple terms are requested, a named list with intervals for each term is returned.

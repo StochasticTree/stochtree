@@ -19,6 +19,8 @@
 \arguments{
 \item{object}{Object of type \code{bart} containing draws of a regression forest and associated sampling outputs.}
 
+\item{covariates}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
+
 \item{leaf_basis}{(Optional) Bases used for prediction (by e.g. dot product with leaf values). Default: \code{NULL}.}
 
 \item{rfx_group_ids}{(Optional) Test set group labels used for an additive random effects model.
@@ -34,8 +36,6 @@ that were not in the training set.}
 \item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
 
 \item{...}{(Optional) Other prediction parameters.}
-
-\item{X}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
 }
 \value{
 List of prediction matrices or single prediction matrix / vector, depending on the terms requested.

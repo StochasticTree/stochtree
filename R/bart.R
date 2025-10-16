@@ -1761,7 +1761,7 @@ bart <- function(
 #' Predict from a sampled BART model on new data
 #'
 #' @param object Object of type `bart` containing draws of a regression forest and associated sampling outputs.
-#' @param X Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.
+#' @param covariates Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.
 #' @param leaf_basis (Optional) Bases used for prediction (by e.g. dot product with leaf values). Default: `NULL`.
 #' @param rfx_group_ids (Optional) Test set group labels used for an additive random effects model.
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
