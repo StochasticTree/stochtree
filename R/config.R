@@ -275,7 +275,7 @@ ForestModelConfig <- R6::R6Class(
                         "`leaf_model_scale` must be positive, if provided as scalar"
                     )
                 }
-                self$leaf_model_scale <- diag(leaf_model_scale, leaf_dimension)
+                self$leaf_model_scale <- diag(leaf_model_scale, self$leaf_dimension)
             }
         },
 
