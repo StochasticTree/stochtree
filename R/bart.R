@@ -250,6 +250,16 @@ bart <- function(
     drop_vars_variance <- variance_forest_params_updated$drop_vars
     num_features_subsample_variance <- variance_forest_params_updated$num_features_subsample
 
+    # Set a function-scoped RNG if user provided a random seed
+    custom_rng <- random_seed >= 0
+    if (custom_rng) {
+        # Store original global environment RNG state
+        original_global_seed <- .Random.seed
+        # Set new seed and store associated RNG state
+        set.seed(random_seed)
+        function_scoped_seed <- .Random.seed
+    }
+    
     # Check if there are enough GFR samples to seed num_chains samplers
     if (num_gfr > 0) {
         if (num_chains > num_gfr) {
@@ -1758,6 +1768,11 @@ bart <- function(
     }
     rm(outcome_train)
     rm(rng)
+    
+    # Restore global RNG state if user provided a random seed
+    if (custom_rng) {
+        .Random.seed <- original_global_seed
+    }
 
     return(result)
 }
