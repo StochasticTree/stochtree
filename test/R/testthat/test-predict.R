@@ -375,18 +375,20 @@ test_that("BCF predictions with pre-summarization", {
 
   # Fit a heteroskedastic BCF model
   var_params <- list(num_trees = 20)
-  het_bcf_model <- bcf(
-    X_train = X_train,
-    Z_train = Z_train,
-    y_train = y_train,
-    propensity_train = pi_train,
-    X_test = X_test,
-    Z_test = Z_test,
-    propensity_test = pi_test,
-    num_gfr = 10,
-    num_burnin = 0,
-    num_mcmc = 10,
-    variance_forest_params = var_params
+  expect_warning(
+    het_bcf_model <- bcf(
+      X_train = X_train,
+      Z_train = Z_train,
+      y_train = y_train,
+      propensity_train = pi_train,
+      X_test = X_test,
+      Z_test = Z_test,
+      propensity_test = pi_test,
+      num_gfr = 10,
+      num_burnin = 0,
+      num_mcmc = 10,
+      variance_forest_params = var_params
+    )
   )
 
   # Check that the default predict method returns a list

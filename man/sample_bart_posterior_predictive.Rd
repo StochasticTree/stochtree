@@ -10,13 +10,13 @@ sample_bart_posterior_predictive(
   basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
-  num_draws = NULL
+  num_draws_per_sample = NULL
 )
 }
 \arguments{
 \item{model_object}{A fitted BART model object of class \code{bartmodel}.}
 
-\item{covariates}{A matrix or data frame of covariates at which to compute the intervals. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).}
+\item{covariates}{A matrix or data frame of covariates. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).}
 
 \item{basis}{A matrix of bases for mean forest models with regression defined in the leaves. Required for "leaf regression" models.}
 
@@ -24,10 +24,10 @@ sample_bart_posterior_predictive(
 
 \item{rfx_basis}{A matrix of bases for random effects model. Required if the BART model includes random effects.}
 
-\item{num_draws}{The number of posterior predictive samples to draw in computing intervals. Defaults to a heuristic based on the number of samples in a BART model (i.e. if the BART model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure intervals are based on at least 1000 posterior predictive draws).}
+\item{num_draws_per_sample}{The number of posterior predictive samples to draw for each posterior sample. Defaults to a heuristic based on the number of samples in a BART model (i.e. if the BART model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure intervals are based on at least 1000 posterior predictive draws).}
 }
 \value{
-Array of posterior predictive samples with dimensions (num_observations, num_posterior_samples, num_draws) if num_draws > 1, otherwise (num_observations, num_posterior_samples).
+Array of posterior predictive samples with dimensions (num_observations, num_posterior_samples, num_draws_per_sample) if num_draws_per_sample > 1, otherwise (num_observations, num_posterior_samples).
 }
 \description{
 Sample from the posterior predictive distribution for outcomes modeled by BART

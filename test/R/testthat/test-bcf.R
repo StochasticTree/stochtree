@@ -615,19 +615,21 @@ test_that("BCF Predictions", {
   # Run a BCF model with only GFR
   general_params <- list(num_chains = 1, keep_every = 1)
   variance_forest_params <- list(num_trees = 50)
-  bcf_model <- bcf(
-    X_train = X_train,
-    y_train = y_train,
-    Z_train = Z_train,
-    propensity_train = pi_train,
-    X_test = X_test,
-    Z_test = Z_test,
-    propensity_test = pi_test,
-    num_gfr = 10,
-    num_burnin = 0,
-    num_mcmc = 10,
-    general_params = general_params,
-    variance_forest_params = variance_forest_params
+  expect_warning(
+    bcf_model <- bcf(
+      X_train = X_train,
+      y_train = y_train,
+      Z_train = Z_train,
+      propensity_train = pi_train,
+      X_test = X_test,
+      Z_test = Z_test,
+      propensity_test = pi_test,
+      num_gfr = 10,
+      num_burnin = 0,
+      num_mcmc = 10,
+      general_params = general_params,
+      variance_forest_params = variance_forest_params
+    )
   )
 
   # Check that cached predictions agree with results of predict() function

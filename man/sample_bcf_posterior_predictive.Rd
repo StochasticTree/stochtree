@@ -11,26 +11,26 @@ sample_bcf_posterior_predictive(
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
-  num_draws = NULL
+  num_draws_per_sample = NULL
 )
 }
 \arguments{
 \item{model_object}{A fitted BCF model object of class \code{bcfmodel}.}
 
-\item{covariates}{(Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).}
+\item{covariates}{A matrix or data frame of covariates.}
 
-\item{treatment}{(Optional) A vector or matrix of treatment assignments. Required if the requested term is \code{"y_hat"} (overall predictions).}
+\item{treatment}{A vector or matrix of treatment assignments.}
 
-\item{propensity}{(Optional) A vector or matrix of propensity scores. Required if the requested term is \code{"y_hat"} (overall predictions) and the underlying model depends on user-provided propensities.}
+\item{propensity}{(Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.}
 
 \item{rfx_group_ids}{(Optional) A vector of group IDs for random effects model. Required if the BCF model includes random effects.}
 
 \item{rfx_basis}{(Optional) A matrix of bases for random effects model. Required if the BCF model includes random effects.}
 
-\item{num_draws}{(Optional) The number of samples to draw from the likelihood, for each draw of the posterior, in computing intervals. Defaults to a heuristic based on the number of samples in a BCF model (i.e. if the BCF model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure at least 1000 posterior predictive draws).}
+\item{num_draws_per_sample}{(Optional) The number of samples to draw from the likelihood for each draw of the posterior. Defaults to a heuristic based on the number of samples in a BCF model (i.e. if the BCF model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure at least 1000 posterior predictive draws).}
 }
 \value{
-Array of posterior predictive samples with dimensions (num_observations, num_posterior_samples, num_draws) if num_draws > 1, otherwise (num_observations, num_posterior_samples).
+Array of posterior predictive samples with dimensions (num_observations, num_posterior_samples, num_draws_per_sample) if num_draws_per_sample > 1, otherwise (num_observations, num_posterior_samples).
 }
 \description{
 Sample from the posterior predictive distribution for outcomes modeled by BCF

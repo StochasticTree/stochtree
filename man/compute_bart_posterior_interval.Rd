@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{compute_bart_posterior_interval}
 \alias{compute_bart_posterior_interval}
-\title{Compute posterior credible intervals for BART model terms}
+\title{Compute posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.}
 \usage{
 compute_bart_posterior_interval(
   model_object,
@@ -36,7 +36,7 @@ compute_bart_posterior_interval(
 A list containing the lower and upper bounds of the credible interval for the specified term. If multiple terms are requested, a named list with intervals for each term is returned.
 }
 \description{
-This function computes posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.
+Compute posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.
 }
 \examples{
 n <- 100
