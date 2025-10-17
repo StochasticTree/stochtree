@@ -24,8 +24,8 @@ from .utils import (
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
-    _posterior_predictive_heuristic_multiplier, 
-    _summarize_interval
+    _posterior_predictive_heuristic_multiplier,
+    _summarize_interval,
 )
 
 
@@ -1858,7 +1858,16 @@ class BARTModel:
                 result["variance_forest_predictions"] = None
             return result
 
-    def compute_posterior_interval(self, terms: Union[list[str], str] = "all", scale: str = "linear", level: float = 0.95, covariates: np.array = None, basis: np.array = None, rfx_group_ids: np.array = None, rfx_basis: np.array = None) -> dict:
+    def compute_posterior_interval(
+        self,
+        terms: Union[list[str], str] = "all",
+        scale: str = "linear",
+        level: float = 0.95,
+        covariates: np.array = None,
+        basis: np.array = None,
+        rfx_group_ids: np.array = None,
+        rfx_basis: np.array = None,
+    ) -> dict:
         """
         Compute posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.
 
@@ -1889,7 +1898,9 @@ class BARTModel:
             raise ValueError("Model has not yet been sampled")
         for term in terms:
             if not self.has_term(term):
-                warnings.warn(f"Term {term} was not sampled in this model and its intervals will not be returned.")
+                warnings.warn(
+                    f"Term {term} was not sampled in this model and its intervals will not be returned."
+                )
 
         # Handle mean function scale
         if not isinstance(scale, str):
@@ -1903,8 +1914,14 @@ class BARTModel:
             )
 
         # Check that all the necessary inputs were provided for interval computation
-        needs_covariates_intermediate = (("y_hat" in terms) or ("all" in terms)) and self.include_mean_forest
-        needs_covariates = ("mean_forest" in terms) or ("variance_forest" in terms) or needs_covariates_intermediate
+        needs_covariates_intermediate = (
+            ("y_hat" in terms) or ("all" in terms)
+        ) and self.include_mean_forest
+        needs_covariates = (
+            ("mean_forest" in terms)
+            or ("variance_forest" in terms)
+            or needs_covariates_intermediate
+        )
         if needs_covariates:
             if covariates is None:
                 raise ValueError(
@@ -1926,7 +1943,9 @@ class BARTModel:
                 raise ValueError(
                     "'basis' must have the same number of rows as 'covariates'"
                 )
-        needs_rfx_data_intermediate = (("y_hat" in terms) or ("all" in terms)) and self.has_rfx
+        needs_rfx_data_intermediate = (
+            ("y_hat" in terms) or ("all" in terms)
+        ) and self.has_rfx
         needs_rfx_data = ("rfx" in terms) or needs_rfx_data_intermediate
         if needs_rfx_data:
             if rfx_group_ids is None:
@@ -1951,7 +1970,15 @@ class BARTModel:
                 )
 
         # Compute posterior matrices for the requested model terms
-        predictions = self.predict(covariates=covariates, basis=basis, rfx_group_ids=rfx_group_ids, rfx_basis=rfx_basis, type="posterior", terms=terms, scale=scale)
+        predictions = self.predict(
+            covariates=covariates,
+            basis=basis,
+            rfx_group_ids=rfx_group_ids,
+            rfx_basis=rfx_basis,
+            type="posterior",
+            terms=terms,
+            scale=scale,
+        )
         has_multiple_terms = True if isinstance(predictions, dict) else False
 
         # Compute posterior intervals
@@ -1964,11 +1991,16 @@ class BARTModel:
                     )
             return result
         else:
-            return _summarize_interval(
-                    predictions, 1, level=level
-                )
-    
-    def sample_posterior_predictive(self, covariates: np.array = None, basis: np.array = None, rfx_group_ids: np.array = None, rfx_basis: np.array = None, num_draws_per_sample: int = None) -> np.array:
+            return _summarize_interval(predictions, 1, level=level)
+
+    def sample_posterior_predictive(
+        self,
+        covariates: np.array = None,
+        basis: np.array = None,
+        rfx_group_ids: np.array = None,
+        rfx_basis: np.array = None,
+        num_draws_per_sample: int = None,
+    ) -> np.array:
         """
         Sample from the posterior predictive distribution for outcomes modeled by BART
 
@@ -1984,7 +2016,7 @@ class BARTModel:
             An array of basis function evaluations for random effects. Required if the BART model includes random effects.
         num_draws_per_sample : int, optional
             The number of posterior predictive samples to draw for each posterior sample. Defaults to a heuristic based on the number of samples in a BART model (i.e. if the BART model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure intervals are based on at least 1000 posterior predictive draws).
-        
+
         Returns
         -------
         np.array
@@ -2044,10 +2076,17 @@ class BARTModel:
                 )
 
         # Compute posterior predictive samples
-        bart_preds = self.predict(covariates=covariates, basis=basis, rfx_group_ids=rfx_group_ids, rfx_basis=rfx_basis, type="posterior", terms="all")
+        bart_preds = self.predict(
+            covariates=covariates,
+            basis=basis,
+            rfx_group_ids=rfx_group_ids,
+            rfx_basis=rfx_basis,
+            type="posterior",
+            terms="all",
+        )
 
         # Compute outcome mean and variance for posterior predictive distribution
-        has_mean_term = (self.include_mean_forest or self.has_rfx)
+        has_mean_term = self.include_mean_forest or self.has_rfx
         has_variance_forest = self.include_variance_forest
         samples_global_variance = self.sample_sigma2_global
         num_posterior_draws = self.num_samples
@@ -2055,23 +2094,19 @@ class BARTModel:
         if has_mean_term:
             ppd_mean = bart_preds["y_hat"]
         else:
-            ppd_mean = 0.
+            ppd_mean = 0.0
         if has_variance_forest:
             ppd_variance = bart_preds["variance_forest_predictions"]
         else:
             if samples_global_variance:
-                ppd_variance = np.tile(
-                    self.global_var_samples,
-                    (num_observations, 1)
-                )
+                ppd_variance = np.tile(self.global_var_samples, (num_observations, 1))
             else:
                 ppd_variance = self.sigma2_init
-        
+
         # Sample from the posterior predictive distribution
         if num_draws_per_sample is None:
             ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
-                num_posterior_draws,
-                num_observations
+                num_posterior_draws, num_observations
             )
         else:
             ppd_draw_multiplier = num_draws_per_sample
@@ -2079,23 +2114,23 @@ class BARTModel:
             ppd_mean = np.tile(ppd_mean, (ppd_draw_multiplier, 1, 1))
             ppd_variance = np.tile(ppd_variance, (ppd_draw_multiplier, 1, 1))
             ppd_array = np.random.normal(
-                loc = ppd_mean,
-                scale = np.sqrt(ppd_variance), 
-                size = (ppd_draw_multiplier, num_observations, num_posterior_draws)
+                loc=ppd_mean,
+                scale=np.sqrt(ppd_variance),
+                size=(ppd_draw_multiplier, num_observations, num_posterior_draws),
             )
         else:
             ppd_array = np.random.normal(
-                loc = ppd_mean,
-                scale = np.sqrt(ppd_variance), 
-                size = (num_observations, num_posterior_draws)
+                loc=ppd_mean,
+                scale=np.sqrt(ppd_variance),
+                size=(num_observations, num_posterior_draws),
             )
-    
+
         # Binarize outcome for probit models
         if is_probit:
             ppd_array = (ppd_array > 0.0) * 1
-        
+
         return ppd_array
-    
+
     def to_json(self) -> str:
         """
         Converts a sampled BART model to JSON string representation (which can then be saved to a file or
@@ -2381,7 +2416,7 @@ class BARTModel:
             `True` if a BART model has been sampled, `False` otherwise
         """
         return self.sampled
-    
+
     def has_term(self, term: str) -> bool:
         """
         Whether or not a model includes a term.
@@ -2390,7 +2425,7 @@ class BARTModel:
         ----------
         term : str
             Character string specifying the model term to check for. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`.
-        
+
         Returns
         -------
         bool

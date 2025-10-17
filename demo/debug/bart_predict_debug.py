@@ -47,21 +47,15 @@ bart_model.sample(
 
 # # Check several predict approaches
 bart_preds = bart_model.predict(covariates=X_test)
-y_hat_posterior_test = bart_model.predict(covariates=X_test)['y_hat']
-y_hat_mean_test = bart_model.predict(
-    covariates=X_test, 
-    type = "mean",
-    terms = ["y_hat"]
-)
+y_hat_posterior_test = bart_model.predict(covariates=X_test)["y_hat"]
+y_hat_mean_test = bart_model.predict(covariates=X_test, type="mean", terms=["y_hat"])
 y_hat_test = bart_model.predict(
-    covariates=X_test, 
-    type = "mean",
-    terms = ["rfx", "variance"]
+    covariates=X_test, type="mean", terms=["rfx", "variance"]
 )
 
 # Plot predicted versus actual
 plt.scatter(y_hat_mean_test, y_test, color="black")
-plt.axline((0, 0), slope=1, color="red", linestyle=(0, (3,3)))
+plt.axline((0, 0), slope=1, color="red", linestyle=(0, (3, 3)))
 plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Y hat")
@@ -69,28 +63,26 @@ plt.show()
 
 # Compute posterior interval
 intervals = bart_model.compute_posterior_interval(
-    terms = "all", 
-    scale = "linear", 
-    level = 0.95, 
-    covariates = X_test
+    terms="all", scale="linear", level=0.95, covariates=X_test
 )
 
 # Check coverage
 mean_coverage = np.mean(
-    (intervals["y_hat"]["lower"] <= f_X_test) & (f_X_test <= intervals["y_hat"]["upper"])
+    (intervals["y_hat"]["lower"] <= f_X_test)
+    & (f_X_test <= intervals["y_hat"]["upper"])
 )
 print(f"Coverage of 95% posterior interval for f(X): {mean_coverage:.3f}")
 
 # Sample from the posterior predictive distribution
 bart_ppd_samples = bart_model.sample_posterior_predictive(
-    covariates = X_test, num_draws_per_sample = 10
+    covariates=X_test, num_draws_per_sample=10
 )
 
 # Plot PPD mean vs actual
 ppd_mean = np.mean(bart_ppd_samples, axis=(0, 2))
 plt.clf()
 plt.scatter(ppd_mean, y_test, color="blue")
-plt.axline((0, 0), slope=1, color="red", linestyle=(0, (3,3)))
+plt.axline((0, 0), slope=1, color="red", linestyle=(0, (3, 3)))
 plt.xlabel("Predicted")
 plt.ylabel("Actual")
 plt.title("Posterior Predictive Mean Comparison")
