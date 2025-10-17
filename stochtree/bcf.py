@@ -2557,9 +2557,11 @@ class BCFModel:
             A dict containing the lower and upper bounds of the credible interval for the specified term. If multiple terms are requested, a dict with intervals for each term is returned.
         """
         # Check the provided model object and requested term
-        self.is_sampled()
+        if not self.is_sampled():
+            raise ValueError("Model has not yet been sampled")
         for term in terms:
-            self.has_term(term)
+            if not self.has_term(term):
+                warnings.warn(f"Term {term} was not sampled in this model and its intervals will not be returned.")
 
         # Handle mean function scale
         if not isinstance(scale, str):
@@ -2652,6 +2654,146 @@ class BCFModel:
                     predictions, 1, level=level
                 )
 
+    def sample_posterior_predictive(self, covariates: np.array, treatment: np.array, propensity: np.array = None, rfx_group_ids: np.array = None, rfx_basis: np.array = None, num_draws_per_sample: int = None) -> np.array:
+        """
+        Sample from the posterior predictive distribution for outcomes modeled by BART
+
+        Parameters
+        ----------
+        covariates : np.array
+            An array or data frame of covariates.
+        treatment : np.array
+            An array of treatment assignments.
+        propensity : np.array, optional
+            Optional array of propensity scores. Required if the underlying model depends on user-provided propensities.
+        rfx_group_ids : np.array, optional
+            Optional vector of group IDs for random effects. Required if the requested term includes random effects.
+        rfx_basis : np.array, optional
+            Optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
+        num_draws_per_sample : int, optional
+            The number of posterior predictive samples to draw for each posterior sample. Defaults to a heuristic based on the number of samples in a BCF model (i.e. if the BCF model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure intervals are based on at least 1000 posterior predictive draws).
+        
+        Returns
+        -------
+        np.array
+            A matrix of posterior predictive samples. If `num_draws = 1`.
+        """
+        # Check the provided model object
+        if not self.is_sampled():
+            raise ValueError("Model has not yet been sampled")
+
+        # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
+        is_probit = self.probit_outcome_model
+
+        # Check that all the necessary inputs were provided for interval computation
+        needs_covariates = True
+        if needs_covariates:
+            if covariates is None:
+                raise ValueError(
+                    "'covariates' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(covariates, np.ndarray) and not isinstance(
+                covariates, pd.DataFrame
+            ):
+                raise ValueError("'covariates' must be a matrix or data frame")
+        needs_treatment = needs_covariates
+        if needs_treatment:
+            if treatment is None:
+                raise ValueError(
+                    "'treatment' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(treatment, np.ndarray):
+                raise ValueError("'treatment' must be a numpy array")
+            if treatment.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'treatment' must have the same number of rows as 'covariates'"
+                )
+        uses_propensity = self.propensity_covariate != "none"
+        internal_propensity_model = self.internal_propensity_model
+        needs_propensity = needs_covariates and uses_propensity and not internal_propensity_model
+        if needs_propensity:
+            if propensity is None:
+                raise ValueError(
+                    "'propensity' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(propensity, np.ndarray):
+                raise ValueError("'propensity' must be a numpy array")
+            if propensity.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'propensity' must have the same number of rows as 'covariates'"
+                )
+        needs_rfx_data = self.has_rfx
+        if needs_rfx_data:
+            if rfx_group_ids is None:
+                raise ValueError(
+                    "'rfx_group_ids' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(rfx_group_ids, np.ndarray):
+                raise ValueError("'rfx_group_ids' must be a numpy array")
+            if rfx_group_ids.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+                )
+            if rfx_basis is None:
+                raise ValueError(
+                    "'rfx_basis' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(rfx_basis, np.ndarray):
+                raise ValueError("'rfx_basis' must be a numpy array")
+            if rfx_basis.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'rfx_basis' must have the same number of rows as 'covariates'"
+                )
+
+        # Compute posterior predictive samples
+        bcf_preds = self.predict(X=covariates, Z=treatment, propensity=propensity, rfx_group_ids=rfx_group_ids, rfx_basis=rfx_basis, type="posterior", terms="all", scale="linear")
+
+        # Compute outcome mean and variance for posterior predictive distribution
+        has_variance_forest = self.include_variance_forest
+        samples_global_variance = self.sample_sigma2_global
+        num_posterior_draws = self.num_samples
+        num_observations = covariates.shape[0]
+        ppd_mean = bcf_preds["y_hat"]
+        if has_variance_forest:
+            ppd_variance = bcf_preds["variance_forest_predictions"]
+        else:
+            if samples_global_variance:
+                ppd_variance = np.tile(
+                    self.global_var_samples,
+                    (num_observations, 1)
+                )
+            else:
+                ppd_variance = self.sigma2_init
+        
+        # Sample from the posterior predictive distribution
+        if num_draws_per_sample is None:
+            ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
+                num_posterior_draws,
+                num_observations
+            )
+        else:
+            ppd_draw_multiplier = num_draws_per_sample
+        if ppd_draw_multiplier > 1:
+            ppd_mean = np.tile(ppd_mean, (ppd_draw_multiplier, 1, 1))
+            ppd_variance = np.tile(ppd_variance, (ppd_draw_multiplier, 1, 1))
+            ppd_array = np.random.normal(
+                loc = ppd_mean,
+                scale = np.sqrt(ppd_variance), 
+                size = (ppd_draw_multiplier, num_observations, num_posterior_draws)
+            )
+        else:
+            ppd_array = np.random.normal(
+                loc = ppd_mean,
+                scale = np.sqrt(ppd_variance), 
+                size = (num_observations, num_posterior_draws)
+            )
+    
+        # Binarize outcome for probit models
+        if is_probit:
+            ppd_array = (ppd_array > 0.0) * 1
+        
+        return ppd_array
+    
     def to_json(self) -> str:
         """
         Converts a sampled BART model to JSON string representation (which can then be saved to a file or

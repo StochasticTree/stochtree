@@ -1,14 +1,14 @@
 #' Sample from the posterior predictive distribution for outcomes modeled by BCF
 #'
 #' @param model_object A fitted BCF model object of class `bcfmodel`.
-#' @param covariates (Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).
-#' @param treatment (Optional) A vector or matrix of treatment assignments. Required if the requested term is `"y_hat"` (overall predictions).
-#' @param propensity (Optional) A vector or matrix of propensity scores. Required if the requested term is `"y_hat"` (overall predictions) and the underlying model depends on user-provided propensities.
+#' @param covariates A matrix or data frame of covariates.
+#' @param treatment A vector or matrix of treatment assignments.
+#' @param propensity (Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.
 #' @param rfx_group_ids (Optional) A vector of group IDs for random effects model. Required if the BCF model includes random effects.
 #' @param rfx_basis (Optional) A matrix of bases for random effects model. Required if the BCF model includes random effects.
-#' @param num_draws (Optional) The number of samples to draw from the likelihood, for each draw of the posterior, in computing intervals. Defaults to a heuristic based on the number of samples in a BCF model (i.e. if the BCF model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure at least 1000 posterior predictive draws).
+#' @param num_draws_per_sample (Optional) The number of samples to draw from the likelihood for each draw of the posterior. Defaults to a heuristic based on the number of samples in a BCF model (i.e. if the BCF model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure at least 1000 posterior predictive draws).
 #'
-#' @returns Array of posterior predictive samples with dimensions (num_observations, num_posterior_samples, num_draws) if num_draws > 1, otherwise (num_observations, num_posterior_samples).
+#' @returns Array of posterior predictive samples with dimensions (num_observations, num_posterior_samples, num_draws_per_sample) if num_draws_per_sample > 1, otherwise (num_observations, num_posterior_samples).
 #'
 #' @export
 #' @examples
@@ -30,9 +30,9 @@ sample_bcf_posterior_predictive <- function(
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
-  num_draws = NULL
+  num_draws_per_sample = NULL
 ) {
-  # Check the provided model object and requested term
+  # Check the provided model object
   check_model_is_valid(model_object)
 
   # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
@@ -123,7 +123,7 @@ sample_bcf_posterior_predictive <- function(
     }
   }
 
-  # Compute posterior predictive samples
+  # Compute posterior samples
   bcf_preds <- predict(
     model_object,
     X = covariates,
@@ -132,8 +132,11 @@ sample_bcf_posterior_predictive <- function(
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
     type = "posterior",
-    terms = c("all")
+    terms = c("all"),
+    scale = "linear"
   )
+
+  # Compute outcome mean and variance for every posterior draw
   has_rfx <- model_object$model_params$has_rfx
   has_variance_forest <- model_object$model_params$include_variance_forest
   samples_global_variance <- model_object$model_params$sample_sigma2_global
@@ -155,16 +158,20 @@ sample_bcf_posterior_predictive <- function(
       ppd_variance <- model_object$model_params$initial_sigma2
     }
   }
-  if (is.null(num_draws)) {
+
+  # Sample from the posterior predictive distribution
+  if (is.null(num_draws_per_sample)) {
     ppd_draw_multiplier <- posterior_predictive_heuristic_multiplier(
       num_posterior_draws,
       num_observations
     )
   } else {
-    ppd_draw_multiplier <- num_draws
+    ppd_draw_multiplier <- num_draws_per_sample
   }
   num_ppd_draws <- ppd_draw_multiplier * num_posterior_draws * num_observations
   ppd_vector <- rnorm(num_ppd_draws, ppd_mean, sqrt(ppd_variance))
+
+  # Reshape data
   if (ppd_draw_multiplier > 1) {
     ppd_array <- array(
       ppd_vector,
@@ -177,6 +184,7 @@ sample_bcf_posterior_predictive <- function(
     )
   }
 
+  # Binarize outcomes for probit models
   if (is_probit) {
     ppd_array <- (ppd_array > 0.0) * 1
   }
@@ -187,13 +195,13 @@ sample_bcf_posterior_predictive <- function(
 #' Sample from the posterior predictive distribution for outcomes modeled by BART
 #'
 #' @param model_object A fitted BART model object of class `bartmodel`.
-#' @param covariates A matrix or data frame of covariates at which to compute the intervals. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).
+#' @param covariates A matrix or data frame of covariates. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).
 #' @param basis A matrix of bases for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
 #' @param rfx_group_ids A vector of group IDs for random effects model. Required if the BART model includes random effects.
 #' @param rfx_basis A matrix of bases for random effects model. Required if the BART model includes random effects.
-#' @param num_draws The number of posterior predictive samples to draw in computing intervals. Defaults to a heuristic based on the number of samples in a BART model (i.e. if the BART model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure intervals are based on at least 1000 posterior predictive draws).
+#' @param num_draws_per_sample The number of posterior predictive samples to draw for each posterior sample. Defaults to a heuristic based on the number of samples in a BART model (i.e. if the BART model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure intervals are based on at least 1000 posterior predictive draws).
 #'
-#' @returns Array of posterior predictive samples with dimensions (num_observations, num_posterior_samples, num_draws) if num_draws > 1, otherwise (num_observations, num_posterior_samples).
+#' @returns Array of posterior predictive samples with dimensions (num_observations, num_posterior_samples, num_draws_per_sample) if num_draws_per_sample > 1, otherwise (num_observations, num_posterior_samples).
 #'
 #' @export
 #' @examples
@@ -211,9 +219,9 @@ sample_bart_posterior_predictive <- function(
   basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
-  num_draws = NULL
+  num_draws_per_sample = NULL
 ) {
-  # Check the provided model object and requested term
+  # Check the provided model object
   check_model_is_valid(model_object)
 
   # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
@@ -276,7 +284,7 @@ sample_bart_posterior_predictive <- function(
     }
   }
 
-  # Compute posterior predictive samples
+  # Compute posterior samples
   bart_preds <- predict(
     model_object,
     covariates = covariates,
@@ -284,8 +292,11 @@ sample_bart_posterior_predictive <- function(
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
     type = "posterior",
-    terms = c("all")
+    terms = c("all"),
+    scale = "linear"
   )
+
+  # Compute outcome mean and variance for every posterior draw
   has_mean_term <- (model_object$model_params$include_mean_forest ||
     model_object$model_params$has_rfx)
   has_variance_forest <- model_object$model_params$include_variance_forest
@@ -312,16 +323,20 @@ sample_bart_posterior_predictive <- function(
       ppd_variance <- model_object$model_params$sigma2_init
     }
   }
-  if (is.null(num_draws)) {
+
+  # Sample from the posterior predictive distribution
+  if (is.null(num_draws_per_sample)) {
     ppd_draw_multiplier <- posterior_predictive_heuristic_multiplier(
       num_posterior_draws,
       num_observations
     )
   } else {
-    ppd_draw_multiplier <- num_draws
+    ppd_draw_multiplier <- num_draws_per_sample
   }
   num_ppd_draws <- ppd_draw_multiplier * num_posterior_draws * num_observations
   ppd_vector <- rnorm(num_ppd_draws, ppd_mean, sqrt(ppd_variance))
+
+  # Reshape data
   if (ppd_draw_multiplier > 1) {
     ppd_array <- array(
       ppd_vector,
@@ -334,6 +349,7 @@ sample_bart_posterior_predictive <- function(
     )
   }
 
+  # Binarize outcomes for probit models
   if (is_probit) {
     ppd_array <- (ppd_array > 0.0) * 1
   }

@@ -116,3 +116,25 @@ mu_coverage = np.mean(
     (intervals["mu_hat"]["lower"] <= mu_test) & (mu_test <= intervals["mu_hat"]["upper"])
 )
 print(f"Coverage of 95% posterior interval for mu(X): {mu_coverage:.3f}")
+
+# Sample from the posterior predictive distribution
+bcf_ppd_samples = bcf_model.sample_posterior_predictive(
+    covariates = X_test, treatment = Z_test, propensity = pi_test, num_draws_per_sample = 10
+)
+
+# Plot PPD mean vs actual
+ppd_mean = np.mean(bcf_ppd_samples, axis=(0, 2))
+plt.clf()
+plt.scatter(ppd_mean, y_test, color="blue")
+plt.axline((0, 0), slope=1, color="red", linestyle=(0, (3,3)))
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Posterior Predictive Mean Comparison")
+plt.show()
+
+# Check coverage of posterior predictive distribution
+ppd_intervals = np.percentile(bcf_ppd_samples, [2.5, 97.5], axis=(0, 2))
+ppd_coverage = np.mean(
+    (ppd_intervals[0, :] <= y_test) & (y_test <= ppd_intervals[1, :])
+)
+print(f"Coverage of 95% posterior predictive interval for Y: {ppd_coverage:.3f}")
