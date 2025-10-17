@@ -6,6 +6,7 @@
 #' @importFrom stats predict
 #' @importFrom stats qgamma
 #' @importFrom stats qnorm
+#' @importFrom stats quantile
 #' @importFrom stats pnorm
 #' @importFrom stats resid
 #' @importFrom stats rnorm

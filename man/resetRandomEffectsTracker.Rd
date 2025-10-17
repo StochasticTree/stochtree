@@ -57,8 +57,8 @@ rfx_model$set_group_parameter_cov(sigma_xi_init)
 rfx_model$set_variance_prior_shape(sigma_xi_shape)
 rfx_model$set_variance_prior_scale(sigma_xi_scale)
 for (i in 1:3) {
-    rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome, 
-                                   rfx_tracker=rfx_tracker, rfx_samples=rfx_samples, 
+    rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome,
+                                   rfx_tracker=rfx_tracker, rfx_samples=rfx_samples,
                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
 }
 resetRandomEffectsModel(rfx_model, rfx_samples, 0, 1.0)

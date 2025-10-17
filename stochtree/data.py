@@ -59,7 +59,9 @@ class Dataset:
             Numpy array of basis vectors.
         """
         if not self.has_basis():
-            raise ValueError("This dataset does not have a basis to update. Please use `add_basis` to create and initialize the values in the Dataset's basis matrix.")
+            raise ValueError(
+                "This dataset does not have a basis to update. Please use `add_basis` to create and initialize the values in the Dataset's basis matrix."
+            )
         if not isinstance(basis, np.ndarray):
             raise ValueError("basis must be a numpy array.")
         if np.ndim(basis) == 1:
@@ -71,9 +73,13 @@ class Dataset:
         n, p = basis_.shape
         basis_rowmajor = np.ascontiguousarray(basis_)
         if self.num_basis() != p:
-            raise ValueError(f"The number of columns in the new basis ({p}) must match the number of columns in the existing basis ({self.num_basis()}).")
+            raise ValueError(
+                f"The number of columns in the new basis ({p}) must match the number of columns in the existing basis ({self.num_basis()})."
+            )
         if self.num_observations() != n:
-            raise ValueError(f"The number of rows in the new basis ({n}) must match the number of rows in the existing basis ({self.num_observations()}).")
+            raise ValueError(
+                f"The number of rows in the new basis ({n}) must match the number of rows in the existing basis ({self.num_observations()})."
+            )
         self.dataset_cpp.UpdateBasis(basis_rowmajor, n, p, True)
 
     def add_variance_weights(self, variance_weights: np.array):
@@ -91,12 +97,14 @@ class Dataset:
         n = variance_weights_.size
         if variance_weights_.ndim != 1:
             raise ValueError("variance_weights must be a 1-dimensional numpy array.")
-        
+
         self.dataset_cpp.AddVarianceWeights(variance_weights_, n)
-    
-    def update_variance_weights(self, variance_weights: np.array, exponentiate: bool = False):
+
+    def update_variance_weights(
+        self, variance_weights: np.array, exponentiate: bool = False
+    ):
         """
-        Update variance weights in a dataset. Allows users to build an ensemble that depends on 
+        Update variance weights in a dataset. Allows users to build an ensemble that depends on
         variance weights that are updated throughout the sampler.
 
         Parameters
@@ -107,7 +115,9 @@ class Dataset:
             Whether to exponentiate the variance weights before storing them in the dataset.
         """
         if not self.has_variance_weights():
-            raise ValueError("This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector.")
+            raise ValueError(
+                "This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector."
+            )
         if not isinstance(variance_weights, np.ndarray):
             raise ValueError("variance_weights must be a numpy array.")
         variance_weights_ = np.squeeze(variance_weights)
@@ -115,7 +125,9 @@ class Dataset:
         if variance_weights_.ndim != 1:
             raise ValueError("variance_weights must be a 1-dimensional numpy array.")
         if self.num_observations() != n:
-            raise ValueError(f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()}).")
+            raise ValueError(
+                f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()})."
+            )
         self.dataset_cpp.UpdateVarianceWeights(variance_weights_, n, exponentiate)
 
     def num_observations(self) -> int:
@@ -150,7 +162,7 @@ class Dataset:
             Dimension of the basis vector in the dataset, returning 0 if the dataset does not have a basis
         """
         return self.dataset_cpp.NumBasis()
-    
+
     def get_covariates(self) -> np.array:
         """
         Return the covariates in a Dataset as a numpy array
@@ -161,7 +173,7 @@ class Dataset:
             Covariate data
         """
         return self.dataset_cpp.GetCovariates()
-    
+
     def get_basis(self) -> np.array:
         """
         Return the bases in a Dataset as a numpy array
@@ -172,7 +184,7 @@ class Dataset:
             Basis data
         """
         return self.dataset_cpp.GetBasis()
-    
+
     def get_variance_weights(self) -> np.array:
         """
         Return the variance weights in a Dataset as a numpy array

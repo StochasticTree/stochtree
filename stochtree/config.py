@@ -119,7 +119,9 @@ class ForestModelConfig:
             raise ValueError("`leaf_dimension` must be an integer greater than 0")
         if leaf_model_scale is None:
             diag_value = 1.0 / num_trees
-            leaf_model_scale_array = np.zeros((leaf_dimension, leaf_dimension), dtype=float)
+            leaf_model_scale_array = np.zeros(
+                (leaf_dimension, leaf_dimension), dtype=float
+            )
             np.fill_diagonal(leaf_model_scale_array, diag_value)
         else:
             if isinstance(leaf_model_scale, np.ndarray):
@@ -432,7 +434,7 @@ class ForestModelConfig:
         """
         return self.feature_types
 
-    def get_sweep_update_indices(self) -> Union[np.ndarray,None]:
+    def get_sweep_update_indices(self) -> Union[np.ndarray, None]:
         """
         Query vector of (0-indexed) indices of trees to update in a sweep
 

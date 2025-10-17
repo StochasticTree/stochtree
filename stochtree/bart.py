@@ -1,7 +1,3 @@
-"""
-Bayesian Additive Regression Trees (BART) module
-"""
-
 import warnings
 from math import log
 from numbers import Integral
@@ -23,7 +19,14 @@ from .random_effects import (
 )
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
-from .utils import NotSampledError, _expand_dims_1d, _expand_dims_2d, _expand_dims_2d_diag
+from .utils import (
+    NotSampledError,
+    _expand_dims_1d,
+    _expand_dims_2d,
+    _expand_dims_2d_diag,
+    _posterior_predictive_heuristic_multiplier,
+    _summarize_interval,
+)
 
 
 class BARTModel:
@@ -262,10 +265,18 @@ class BARTModel:
         keep_every = general_params_updated["keep_every"]
         num_chains = general_params_updated["num_chains"]
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
-        rfx_working_parameter_prior_mean = general_params_updated["rfx_working_parameter_prior_mean"]
-        rfx_group_parameter_prior_mean = general_params_updated["rfx_group_parameter_prior_mean"]
-        rfx_working_parameter_prior_cov = general_params_updated["rfx_working_parameter_prior_cov"]
-        rfx_group_parameter_prior_cov = general_params_updated["rfx_group_parameter_prior_cov"]
+        rfx_working_parameter_prior_mean = general_params_updated[
+            "rfx_working_parameter_prior_mean"
+        ]
+        rfx_group_parameter_prior_mean = general_params_updated[
+            "rfx_group_parameter_prior_mean"
+        ]
+        rfx_working_parameter_prior_cov = general_params_updated[
+            "rfx_working_parameter_prior_cov"
+        ]
+        rfx_group_parameter_prior_cov = general_params_updated[
+            "rfx_group_parameter_prior_cov"
+        ]
         rfx_variance_prior_shape = general_params_updated["rfx_variance_prior_shape"]
         rfx_variance_prior_scale = general_params_updated["rfx_variance_prior_scale"]
         num_threads = general_params_updated["num_threads"]
@@ -282,7 +293,9 @@ class BARTModel:
         b_leaf = mean_forest_params_updated["sigma2_leaf_scale"]
         keep_vars_mean = mean_forest_params_updated["keep_vars"]
         drop_vars_mean = mean_forest_params_updated["drop_vars"]
-        num_features_subsample_mean = mean_forest_params_updated["num_features_subsample"]
+        num_features_subsample_mean = mean_forest_params_updated[
+            "num_features_subsample"
+        ]
 
         # 3. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
@@ -298,7 +311,9 @@ class BARTModel:
         b_forest = variance_forest_params_updated["var_forest_prior_scale"]
         keep_vars_variance = variance_forest_params_updated["keep_vars"]
         drop_vars_variance = variance_forest_params_updated["drop_vars"]
-        num_features_subsample_variance = variance_forest_params_updated["num_features_subsample"]
+        num_features_subsample_variance = variance_forest_params_updated[
+            "num_features_subsample"
+        ]
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -989,26 +1004,34 @@ class BARTModel:
                 else:
                     raise ValueError("There must be at least 1 random effect component")
             else:
-                alpha_init = _expand_dims_1d(rfx_working_parameter_prior_mean, num_rfx_components)
-            
+                alpha_init = _expand_dims_1d(
+                    rfx_working_parameter_prior_mean, num_rfx_components
+                )
+
             if rfx_group_parameter_prior_mean is None:
                 xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
             else:
-                xi_init = _expand_dims_2d(rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups)
-            
+                xi_init = _expand_dims_2d(
+                    rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups
+                )
+
             if rfx_working_parameter_prior_cov is None:
                 sigma_alpha_init = np.identity(num_rfx_components)
             else:
-                sigma_alpha_init = _expand_dims_2d_diag(rfx_working_parameter_prior_cov, num_rfx_components)
-            
+                sigma_alpha_init = _expand_dims_2d_diag(
+                    rfx_working_parameter_prior_cov, num_rfx_components
+                )
+
             if rfx_group_parameter_prior_cov is None:
                 sigma_xi_init = np.identity(num_rfx_components)
             else:
-                sigma_xi_init = _expand_dims_2d_diag(rfx_group_parameter_prior_cov, num_rfx_components)
-            
+                sigma_xi_init = _expand_dims_2d_diag(
+                    rfx_group_parameter_prior_cov, num_rfx_components
+                )
+
             sigma_xi_shape = rfx_variance_prior_shape
             sigma_xi_scale = rfx_variance_prior_scale
-            
+
             # Random effects sampling data structures
             rfx_dataset_train = RandomEffectsDataset()
             rfx_dataset_train.add_group_labels(rfx_group_ids_train)
@@ -1046,9 +1069,13 @@ class BARTModel:
         if sample_sigma2_leaf:
             self.leaf_scale_samples = np.empty(self.num_samples, dtype=np.float64)
         if self.include_mean_forest:
-            yhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
+            yhat_train_raw = np.empty(
+                (self.n_train, self.num_samples), dtype=np.float64
+            )
         if self.include_variance_forest:
-            sigma2_x_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
+            sigma2_x_train_raw = np.empty(
+                (self.n_train, self.num_samples), dtype=np.float64
+            )
         sample_counter = -1
 
         # Forest Dataset (covariates and optional basis)
@@ -1104,8 +1131,8 @@ class BARTModel:
                 max_depth=max_depth_mean,
                 leaf_model_type=leaf_model_mean_forest,
                 leaf_model_scale=current_leaf_scale,
-                cutpoint_grid_size=cutpoint_grid_size, 
-                num_features_subsample=num_features_subsample_mean
+                cutpoint_grid_size=cutpoint_grid_size,
+                num_features_subsample=num_features_subsample_mean,
             )
             forest_sampler_mean = ForestSampler(
                 forest_dataset_train,
@@ -1128,7 +1155,7 @@ class BARTModel:
                 cutpoint_grid_size=cutpoint_grid_size,
                 variance_forest_shape=a_forest,
                 variance_forest_scale=b_forest,
-                num_features_subsample=num_features_subsample_variance
+                num_features_subsample=num_features_subsample_variance,
             )
             forest_sampler_variance = ForestSampler(
                 forest_dataset_train,
@@ -1234,7 +1261,9 @@ class BARTModel:
 
                     # Cache train set predictions since they are already computed during sampling
                     if keep_sample:
-                        yhat_train_raw[:,sample_counter] = forest_sampler_mean.get_cached_forest_predictions()
+                        yhat_train_raw[:, sample_counter] = (
+                            forest_sampler_mean.get_cached_forest_predictions()
+                        )
 
                 # Sample the variance forest
                 if self.include_variance_forest:
@@ -1253,7 +1282,9 @@ class BARTModel:
 
                     # Cache train set predictions since they are already computed during sampling
                     if keep_sample:
-                        sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
+                        sigma2_x_train_raw[:, sample_counter] = (
+                            forest_sampler_variance.get_cached_forest_predictions()
+                        )
 
                 # Sample variance parameters (if requested)
                 if self.sample_sigma2_global:
@@ -1435,7 +1466,9 @@ class BARTModel:
                         )
 
                         if keep_sample:
-                            yhat_train_raw[:,sample_counter] = forest_sampler_mean.get_cached_forest_predictions()
+                            yhat_train_raw[:, sample_counter] = (
+                                forest_sampler_mean.get_cached_forest_predictions()
+                            )
 
                     # Sample the variance forest
                     if self.include_variance_forest:
@@ -1453,7 +1486,9 @@ class BARTModel:
                         )
 
                         if keep_sample:
-                            sigma2_x_train_raw[:,sample_counter] = forest_sampler_variance.get_cached_forest_predictions()
+                            sigma2_x_train_raw[:, sample_counter] = (
+                                forest_sampler_variance.get_cached_forest_predictions()
+                            )
 
                     # Sample variance parameters (if requested)
                     if self.sample_sigma2_global:
@@ -1504,9 +1539,9 @@ class BARTModel:
             if self.sample_sigma2_leaf:
                 self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
             if self.include_mean_forest:
-                yhat_train_raw = yhat_train_raw[:,num_gfr:]
+                yhat_train_raw = yhat_train_raw[:, num_gfr:]
             if self.include_variance_forest:
-                sigma2_x_train_raw = sigma2_x_train_raw[:,num_gfr:]
+                sigma2_x_train_raw = sigma2_x_train_raw[:, num_gfr:]
             self.num_samples -= num_gfr
 
         # Store predictions
@@ -1553,7 +1588,10 @@ class BARTModel:
                     )
             else:
                 self.sigma2_x_train = (
-                    np.exp(sigma2_x_train_raw) * self.sigma2_init * self.y_std * self.y_std
+                    np.exp(sigma2_x_train_raw)
+                    * self.sigma2_init
+                    * self.y_std
+                    * self.y_std
                 )
             if self.has_test:
                 sigma2_x_test_raw = (
@@ -1578,6 +1616,9 @@ class BARTModel:
         basis: np.array = None,
         rfx_group_ids: np.array = None,
         rfx_basis: np.array = None,
+        type: str = "posterior",
+        terms: Union[list[str], str] = "all",
+        scale: str = "linear",
     ) -> Union[np.array, tuple]:
         """Return predictions from every forest sampled (either / both of mean and variance).
         Return type is either a single array of predictions, if a BART model only includes a
@@ -1593,14 +1634,78 @@ class BARTModel:
             Optional group labels used for an additive random effects model.
         rfx_basis : np.array, optional
             Optional basis for "random-slope" regression in an additive random effects model.
+        type : str, optional
+            Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
+        terms : str, optional
+            Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
+        scale : str, optional
+            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
 
         Returns
         -------
-        mu_x : np.array, optional
-            Mean forest and / or random effects predictions.
-        sigma2_x : np.array, optional
-            Variance forest predictions.
+        Dict of numpy arrays for each prediction term, or a simple numpy array if a single term is requested.
         """
+        # Handle mean function scale
+        if not isinstance(scale, str):
+            raise ValueError("scale must be a string")
+        if scale not in ["linear", "probability"]:
+            raise ValueError("scale must either be 'linear' or 'probability'")
+        is_probit = self.probit_outcome_model
+        if (scale == "probability") and (not is_probit):
+            raise ValueError(
+                "scale cannot be 'probability' for models not fit with a probit outcome model"
+            )
+        probability_scale = scale == "probability"
+
+        # Handle prediction type
+        if not isinstance(type, str):
+            raise ValueError("type must be a string")
+        if type not in ["mean", "posterior"]:
+            raise ValueError("type must either be 'mean' or 'posterior'")
+        predict_mean = type == "mean"
+
+        # Handle prediction terms
+        if not isinstance(terms, str) and not isinstance(terms, list):
+            raise ValueError("type must be a string or list of strings")
+        num_terms = 1 if isinstance(terms, str) else len(terms)
+        has_mean_forest = self.include_mean_forest
+        has_variance_forest = self.include_variance_forest
+        has_rfx = self.has_rfx
+        has_y_hat = has_mean_forest or has_rfx
+        predict_y_hat = (has_y_hat and ("y_hat" in terms)) or (
+            has_y_hat and ("all" in terms)
+        )
+        predict_mean_forest = (has_mean_forest and ("mean_forest" in terms)) or (
+            has_mean_forest and ("all" in terms)
+        )
+        predict_rfx = (has_rfx and ("rfx" in terms)) or (has_rfx and ("all" in terms))
+        predict_variance_forest = (
+            has_variance_forest and ("variance_forest" in terms)
+        ) or (has_variance_forest and ("all" in terms))
+        predict_count = (
+            predict_y_hat + predict_mean_forest + predict_rfx + predict_variance_forest
+        )
+        if predict_count == 0:
+            term_list = ", ".join(terms)
+            warnings.warn(
+                f"None of the requested model terms, {term_list}, were fit in this model"
+            )
+            return None
+        predict_rfx_intermediate = predict_y_hat and has_rfx
+        predict_mean_forest_intermediate = predict_y_hat and has_mean_forest
+
+        # Check that we have at least one term to predict on probability scale
+        if (
+            probability_scale
+            and not predict_y_hat
+            and not predict_mean_forest
+            and not predict_rfx
+        ):
+            raise ValueError(
+                "scale can only be 'probability' if at least one mean term is requested"
+            )
+
+        # Check the model is valid
         if not self.is_sampled():
             msg = (
                 "This BARTModel instance is not fitted yet. Call 'fit' with "
@@ -1656,229 +1761,375 @@ class BARTModel:
         if basis is not None:
             pred_dataset.add_basis(basis)
 
-        # Forest predictions
-        if self.include_mean_forest:
-            mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(
-                pred_dataset.dataset_cpp
-            )
-            mean_pred = mean_pred_raw * self.y_std + self.y_bar
-
-        if self.has_rfx:
-            rfx_preds = (
-                self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
-            )
-            if self.include_mean_forest:
-                mean_pred = mean_pred + rfx_preds
-            else:
-                mean_pred = rfx_preds + self.y_bar
-
-        if self.include_variance_forest:
+        # Variance forest predictions
+        if predict_variance_forest:
             variance_pred_raw = (
                 self.forest_container_variance.forest_container_cpp.Predict(
                     pred_dataset.dataset_cpp
                 )
             )
             if self.sample_sigma2_global:
-                variance_pred = np.empty_like(variance_pred_raw)
+                variance_forest_predictions = np.empty_like(variance_pred_raw)
                 for i in range(self.num_samples):
-                    variance_pred[:, i] = (
+                    variance_forest_predictions[:, i] = (
                         variance_pred_raw[:, i] * self.global_var_samples[i]
                     )
             else:
-                variance_pred = (
+                variance_forest_predictions = (
                     variance_pred_raw * self.sigma2_init * self.y_std * self.y_std
                 )
-
-        has_mean_predictions = self.include_mean_forest or self.has_rfx
-        if has_mean_predictions and self.include_variance_forest:
-            return {"y_hat": mean_pred, "variance_forest_predictions": variance_pred}
-        elif has_mean_predictions and not self.include_variance_forest:
-            return {"y_hat": mean_pred, "variance_forest_predictions": None}
-        elif not has_mean_predictions and self.include_variance_forest:
-            return {"y_hat": None, "variance_forest_predictions": variance_pred}
-
-    def predict_mean(
-        self,
-        covariates: np.array,
-        basis: np.array = None,
-        rfx_group_ids: np.array = None,
-        rfx_basis: np.array = None,
-    ) -> np.array:
-        """Predict expected conditional outcome from a BART model.
-
-        Parameters
-        ----------
-        covariates : np.array
-            Test set covariates.
-        basis : np.array, optional
-            Optional test set basis vector, must be provided if the model was trained with a leaf regression basis.
-
-        Returns
-        -------
-        np.array
-            Mean forest predictions.
-        """
-        if not self.is_sampled():
-            msg = (
-                "This BARTModel instance is not fitted yet. Call 'fit' with "
-                "appropriate arguments before using this model."
-            )
-            raise NotSampledError(msg)
-
-        has_mean_predictions = self.include_mean_forest or self.has_rfx
-        if not has_mean_predictions:
-            msg = (
-                "This BARTModel instance was not sampled with a mean forest or random effects. "
-                "Call 'fit' with appropriate arguments before using this model."
-            )
-            raise NotSampledError(msg)
-
-        # Data checks
-        if not isinstance(covariates, pd.DataFrame) and not isinstance(
-            covariates, np.ndarray
-        ):
-            raise ValueError("covariates must be a pandas dataframe or numpy array")
-        if basis is not None:
-            if not isinstance(basis, np.ndarray):
-                raise ValueError("basis must be a numpy array")
-            if basis.shape[0] != covariates.shape[0]:
-                raise ValueError(
-                    "covariates and basis must have the same number of rows"
+            if predict_mean:
+                variance_forest_predictions = np.mean(
+                    variance_forest_predictions, axis=1
                 )
 
-        # Convert everything to standard shape (2-dimensional)
-        if isinstance(covariates, np.ndarray):
-            if covariates.ndim == 1:
-                covariates = np.expand_dims(covariates, 1)
-        if basis is not None:
-            if basis.ndim == 1:
-                basis = np.expand_dims(basis, 1)
-
-        # Covariate preprocessing
-        if not self._covariate_preprocessor._check_is_fitted():
-            if not isinstance(covariates, np.ndarray):
-                raise ValueError(
-                    "Prediction cannot proceed on a pandas dataframe, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe."
-                )
-            else:
-                warnings.warn(
-                    "This BART model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
-                    RuntimeWarning,
-                )
-                if not np.issubdtype(
-                    covariates.dtype, np.floating
-                ) and not np.issubdtype(covariates.dtype, np.integer):
-                    raise ValueError(
-                        "Prediction cannot proceed on a non-numeric numpy array, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
-                    )
-                covariates_processed = covariates
-        else:
-            covariates_processed = self._covariate_preprocessor.transform(covariates)
-
-        # Dataset construction
-        pred_dataset = Dataset()
-        pred_dataset.add_covariates(covariates_processed)
-        if basis is not None:
-            pred_dataset.add_basis(basis)
-
-        # Mean forest predictions
-        if self.include_mean_forest:
+        # Forest predictions
+        if predict_mean_forest or predict_mean_forest_intermediate:
             mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(
                 pred_dataset.dataset_cpp
             )
-            mean_pred = mean_pred_raw * self.y_std + self.y_bar
+            mean_forest_predictions = mean_pred_raw * self.y_std + self.y_bar
+            # if predict_mean:
+            #     mean_forest_predictions = np.mean(mean_forest_predictions, axis = 1)
 
-        # RFX predictions
-        if self.has_rfx:
-            rfx_preds = (
+        # Random effects predictions
+        if predict_rfx or predict_rfx_intermediate:
+            rfx_predictions = (
                 self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
             )
-            if self.include_mean_forest:
-                mean_pred = mean_pred + rfx_preds
+            # if predict_mean:
+            #     rfx_predictions = np.mean(rfx_predictions, axis = 1)
+
+        # Combine into y hat predictions
+        if probability_scale:
+            if predict_y_hat and has_mean_forest and has_rfx:
+                y_hat = norm.ppf(mean_forest_predictions + rfx_predictions)
+                mean_forest_predictions = norm.ppf(mean_forest_predictions)
+                rfx_predictions = norm.ppf(rfx_predictions)
+            elif predict_y_hat and has_mean_forest:
+                y_hat = norm.ppf(mean_forest_predictions)
+                mean_forest_predictions = norm.ppf(mean_forest_predictions)
+            elif predict_y_hat and has_rfx:
+                y_hat = norm.ppf(rfx_predictions)
+                rfx_predictions = norm.ppf(rfx_predictions)
+        else:
+            if predict_y_hat and has_mean_forest and has_rfx:
+                y_hat = mean_forest_predictions + rfx_predictions
+            elif predict_y_hat and has_mean_forest:
+                y_hat = mean_forest_predictions
+            elif predict_y_hat and has_rfx:
+                y_hat = rfx_predictions
+
+        # Collapse to posterior mean predictions if requested
+        if predict_mean:
+            if predict_mean_forest:
+                mean_forest_predictions = np.mean(mean_forest_predictions, axis=1)
+            if predict_rfx:
+                rfx_predictions = np.mean(rfx_predictions, axis=1)
+            if predict_y_hat:
+                y_hat = np.mean(y_hat, axis=1)
+
+        if predict_count == 1:
+            if predict_y_hat:
+                return y_hat
+            elif predict_mean_forest:
+                return mean_forest_predictions
+            elif predict_rfx:
+                return rfx_predictions
+            elif predict_variance_forest:
+                return variance_forest_predictions
+        else:
+            result = dict()
+            if predict_y_hat:
+                result["y_hat"] = y_hat
             else:
-                mean_pred = rfx_preds + self.y_bar
+                result["y_hat"] = None
+            if predict_mean_forest:
+                result["mean_forest_predictions"] = mean_forest_predictions
+            else:
+                result["mean_forest_predictions"] = None
+            if predict_rfx:
+                result["rfx_predictions"] = rfx_predictions
+            else:
+                result["rfx_predictions"] = None
+            if predict_variance_forest:
+                result["variance_forest_predictions"] = variance_forest_predictions
+            else:
+                result["variance_forest_predictions"] = None
+            return result
 
-        return mean_pred
-
-    def predict_variance(self, covariates: np.array) -> np.array:
-        """Predict expected conditional variance from a BART model.
+    def compute_posterior_interval(
+        self,
+        terms: Union[list[str], str] = "all",
+        scale: str = "linear",
+        level: float = 0.95,
+        covariates: np.array = None,
+        basis: np.array = None,
+        rfx_group_ids: np.array = None,
+        rfx_basis: np.array = None,
+    ) -> dict:
+        """
+        Compute posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.
 
         Parameters
         ----------
-        covariates : np.array
-            Test set covariates.
+        terms : str, optional
+            Character string specifying the model term(s) for which to compute intervals. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`. Defaults to `"all"`.
+        scale : str, optional
+            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
+        level : float, optional
+            A numeric value between 0 and 1 specifying the credible interval level. Defaults to 0.95 for a 95% credible interval.
+        covariates : np.array, optional
+            Optional array or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).
+        basis : np.array, optional
+            Optional array of basis function evaluations for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
+        rfx_group_ids : np.array, optional
+            Optional vector of group IDs for random effects. Required if the requested term includes random effects.
+        rfx_basis : np.array, optional
+            Optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
+
+        Returns
+        -------
+        dict
+            A dict containing the lower and upper bounds of the credible interval for the specified term. If multiple terms are requested, a dict with intervals for each term is returned.
+        """
+        # Check the provided model object and requested terms
+        if not self.is_sampled():
+            raise ValueError("Model has not yet been sampled")
+        for term in terms:
+            if not self.has_term(term):
+                warnings.warn(
+                    f"Term {term} was not sampled in this model and its intervals will not be returned."
+                )
+
+        # Handle mean function scale
+        if not isinstance(scale, str):
+            raise ValueError("scale must be a string")
+        if scale not in ["linear", "probability"]:
+            raise ValueError("scale must either be 'linear' or 'probability'")
+        is_probit = self.probit_outcome_model
+        if (scale == "probability") and (not is_probit):
+            raise ValueError(
+                "scale cannot be 'probability' for models not fit with a probit outcome model"
+            )
+
+        # Check that all the necessary inputs were provided for interval computation
+        needs_covariates_intermediate = (
+            ("y_hat" in terms) or ("all" in terms)
+        ) and self.include_mean_forest
+        needs_covariates = (
+            ("mean_forest" in terms)
+            or ("variance_forest" in terms)
+            or needs_covariates_intermediate
+        )
+        if needs_covariates:
+            if covariates is None:
+                raise ValueError(
+                    "'covariates' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(covariates, np.ndarray) and not isinstance(
+                covariates, pd.DataFrame
+            ):
+                raise ValueError("'covariates' must be a matrix or data frame")
+        needs_basis = needs_covariates and self.has_basis
+        if needs_basis:
+            if basis is None:
+                raise ValueError(
+                    "'basis' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(basis, np.ndarray):
+                raise ValueError("'basis' must be a numpy array")
+            if basis.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'basis' must have the same number of rows as 'covariates'"
+                )
+        needs_rfx_data_intermediate = (
+            ("y_hat" in terms) or ("all" in terms)
+        ) and self.has_rfx
+        needs_rfx_data = ("rfx" in terms) or needs_rfx_data_intermediate
+        if needs_rfx_data:
+            if rfx_group_ids is None:
+                raise ValueError(
+                    "'rfx_group_ids' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(rfx_group_ids, np.ndarray):
+                raise ValueError("'rfx_group_ids' must be a numpy array")
+            if rfx_group_ids.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+                )
+            if rfx_basis is None:
+                raise ValueError(
+                    "'rfx_basis' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(rfx_basis, np.ndarray):
+                raise ValueError("'rfx_basis' must be a numpy array")
+            if rfx_basis.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'rfx_basis' must have the same number of rows as 'covariates'"
+                )
+
+        # Compute posterior matrices for the requested model terms
+        predictions = self.predict(
+            covariates=covariates,
+            basis=basis,
+            rfx_group_ids=rfx_group_ids,
+            rfx_basis=rfx_basis,
+            type="posterior",
+            terms=terms,
+            scale=scale,
+        )
+        has_multiple_terms = True if isinstance(predictions, dict) else False
+
+        # Compute posterior intervals
+        if has_multiple_terms:
+            result = dict()
+            for term in predictions.keys():
+                if predictions[term] is not None:
+                    result[term] = _summarize_interval(
+                        predictions[term], 1, level=level
+                    )
+            return result
+        else:
+            return _summarize_interval(predictions, 1, level=level)
+
+    def sample_posterior_predictive(
+        self,
+        covariates: np.array = None,
+        basis: np.array = None,
+        rfx_group_ids: np.array = None,
+        rfx_basis: np.array = None,
+        num_draws_per_sample: int = None,
+    ) -> np.array:
+        """
+        Sample from the posterior predictive distribution for outcomes modeled by BART
+
+        Parameters
+        ----------
+        covariates : np.array, optional
+            An array or data frame of covariates at which to compute the intervals. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).
+        basis : np.array, optional
+            An array of basis function evaluations for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
+        rfx_group_ids : np.array, optional
+            An array of group IDs for random effects. Required if the BART model includes random effects.
+        rfx_basis : np.array, optional
+            An array of basis function evaluations for random effects. Required if the BART model includes random effects.
+        num_draws_per_sample : int, optional
+            The number of posterior predictive samples to draw for each posterior sample. Defaults to a heuristic based on the number of samples in a BART model (i.e. if the BART model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure intervals are based on at least 1000 posterior predictive draws).
 
         Returns
         -------
         np.array
-            Variance forest predictions.
+            A matrix of posterior predictive samples. If `num_draws = 1`.
         """
+        # Check the provided model object
         if not self.is_sampled():
-            msg = (
-                "This BARTModel instance is not fitted yet. Call 'fit' with "
-                "appropriate arguments before using this model."
-            )
-            raise NotSampledError(msg)
+            raise ValueError("Model has not yet been sampled")
 
-        if not self.include_variance_forest:
-            msg = (
-                "This BARTModel instance was not sampled with a variance forest. "
-                "Call 'fit' with appropriate arguments before using this model."
-            )
-            raise NotSampledError(msg)
+        # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
+        is_probit = self.probit_outcome_model
 
-        # Data checks
-        if not isinstance(covariates, pd.DataFrame) and not isinstance(
-            covariates, np.ndarray
-        ):
-            raise ValueError("covariates must be a pandas dataframe or numpy array")
-
-        # Convert everything to standard shape (2-dimensional)
-        if isinstance(covariates, np.ndarray):
-            if covariates.ndim == 1:
-                covariates = np.expand_dims(covariates, 1)
-
-        # Covariate preprocessing
-        if not self._covariate_preprocessor._check_is_fitted():
-            if not isinstance(covariates, np.ndarray):
+        # Check that all the necessary inputs were provided for interval computation
+        needs_covariates = self.include_mean_forest
+        if needs_covariates:
+            if covariates is None:
                 raise ValueError(
-                    "Prediction cannot proceed on a pandas dataframe, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing covariate data as a Pandas dataframe."
+                    "'covariates' must be provided in order to compute the requested intervals"
                 )
-            else:
-                warnings.warn(
-                    "This BART model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
-                    RuntimeWarning,
+            if not isinstance(covariates, np.ndarray) and not isinstance(
+                covariates, pd.DataFrame
+            ):
+                raise ValueError("'covariates' must be a matrix or data frame")
+        needs_basis = needs_covariates and self.has_basis
+        if needs_basis:
+            if basis is None:
+                raise ValueError(
+                    "'basis' must be provided in order to compute the requested intervals"
                 )
-                if not np.issubdtype(
-                    covariates.dtype, np.floating
-                ) and not np.issubdtype(covariates.dtype, np.integer):
-                    raise ValueError(
-                        "Prediction cannot proceed on a non-numeric numpy array, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
-                    )
-                covariates_processed = covariates
-        else:
-            covariates_processed = self._covariate_preprocessor.transform(covariates)
+            if not isinstance(basis, np.ndarray):
+                raise ValueError("'basis' must be a numpy array")
+            if basis.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'basis' must have the same number of rows as 'covariates'"
+                )
+        needs_rfx_data = self.has_rfx
+        if needs_rfx_data:
+            if rfx_group_ids is None:
+                raise ValueError(
+                    "'rfx_group_ids' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(rfx_group_ids, np.ndarray):
+                raise ValueError("'rfx_group_ids' must be a numpy array")
+            if rfx_group_ids.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+                )
+            if rfx_basis is None:
+                raise ValueError(
+                    "'rfx_basis' must be provided in order to compute the requested intervals"
+                )
+            if not isinstance(rfx_basis, np.ndarray):
+                raise ValueError("'rfx_basis' must be a numpy array")
+            if rfx_basis.shape[0] != covariates.shape[0]:
+                raise ValueError(
+                    "'rfx_basis' must have the same number of rows as 'covariates'"
+                )
 
-        # Dataset construction
-        pred_dataset = Dataset()
-        pred_dataset.add_covariates(covariates_processed)
-
-        # Variance forest predictions
-        variance_pred_raw = self.forest_container_variance.forest_container_cpp.Predict(
-            pred_dataset.dataset_cpp
+        # Compute posterior predictive samples
+        bart_preds = self.predict(
+            covariates=covariates,
+            basis=basis,
+            rfx_group_ids=rfx_group_ids,
+            rfx_basis=rfx_basis,
+            type="posterior",
+            terms="all",
         )
-        if self.sample_sigma2_global:
-            variance_pred = np.empty_like(variance_pred_raw)
-            for i in range(self.num_samples):
-                variance_pred[:, i] = (
-                    variance_pred_raw[:, i] * self.global_var_samples[i]
-                )
+
+        # Compute outcome mean and variance for posterior predictive distribution
+        has_mean_term = self.include_mean_forest or self.has_rfx
+        has_variance_forest = self.include_variance_forest
+        samples_global_variance = self.sample_sigma2_global
+        num_posterior_draws = self.num_samples
+        num_observations = covariates.shape[0]
+        if has_mean_term:
+            ppd_mean = bart_preds["y_hat"]
         else:
-            variance_pred = (
-                variance_pred_raw * self.sigma2_init * self.y_std * self.y_std
+            ppd_mean = 0.0
+        if has_variance_forest:
+            ppd_variance = bart_preds["variance_forest_predictions"]
+        else:
+            if samples_global_variance:
+                ppd_variance = np.tile(self.global_var_samples, (num_observations, 1))
+            else:
+                ppd_variance = self.sigma2_init
+
+        # Sample from the posterior predictive distribution
+        if num_draws_per_sample is None:
+            ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
+                num_posterior_draws, num_observations
+            )
+        else:
+            ppd_draw_multiplier = num_draws_per_sample
+        if ppd_draw_multiplier > 1:
+            ppd_mean = np.tile(ppd_mean, (ppd_draw_multiplier, 1, 1))
+            ppd_variance = np.tile(ppd_variance, (ppd_draw_multiplier, 1, 1))
+            ppd_array = np.random.normal(
+                loc=ppd_mean,
+                scale=np.sqrt(ppd_variance),
+                size=(ppd_draw_multiplier, num_observations, num_posterior_draws),
+            )
+        else:
+            ppd_array = np.random.normal(
+                loc=ppd_mean,
+                scale=np.sqrt(ppd_variance),
+                size=(num_observations, num_posterior_draws),
             )
 
-        return variance_pred
+        # Binarize outcome for probit models
+        if is_probit:
+            ppd_array = (ppd_array > 0.0) * 1
+
+        return ppd_array
 
     def to_json(self) -> str:
         """
@@ -2165,3 +2416,30 @@ class BARTModel:
             `True` if a BART model has been sampled, `False` otherwise
         """
         return self.sampled
+
+    def has_term(self, term: str) -> bool:
+        """
+        Whether or not a model includes a term.
+
+        Parameters
+        ----------
+        term : str
+            Character string specifying the model term to check for. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`.
+
+        Returns
+        -------
+        bool
+            `True` if the model includes the specified term, `False` otherwise
+        """
+        if term == "mean_forest":
+            return self.include_mean_forest
+        elif term == "variance_forest":
+            return self.include_variance_forest
+        elif term == "rfx":
+            return self.has_rfx
+        elif term == "y_hat":
+            return self.include_mean_forest or self.has_rfx
+        elif term == "all":
+            return True
+        else:
+            return False
