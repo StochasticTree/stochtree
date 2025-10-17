@@ -1696,7 +1696,7 @@ bart <- function(
     "is_leaf_constant" = is_leaf_constant,
     "leaf_regression" = leaf_regression,
     "requires_basis" = requires_basis,
-    "num_covariates" = ncol(X_train),
+    "num_covariates" = num_cov_orig,
     "num_basis" = ifelse(
       is.null(leaf_basis_train),
       0,
@@ -1896,12 +1896,10 @@ predict.bartmodel <- function(
     )
   }
 
-  # Preprocess covariates
+  # Check that covariates are matrix or data frame
   if ((!is.data.frame(covariates)) && (!is.matrix(covariates))) {
     stop("covariates must be a matrix or dataframe")
   }
-  train_set_metadata <- object$train_set_metadata
-  X <- preprocessPredictionData(covariates, train_set_metadata)
 
   # Convert all input data to matrices if not already converted
   if ((is.null(dim(leaf_basis))) && (!is.null(leaf_basis))) {
@@ -1915,11 +1913,13 @@ predict.bartmodel <- function(
   if ((object$model_params$requires_basis) && (is.null(leaf_basis))) {
     stop("Basis (leaf_basis) must be provided for this model")
   }
-  if ((!is.null(leaf_basis)) && (nrow(X) != nrow(leaf_basis))) {
-    stop("X and leaf_basis must have the same number of rows")
+  if ((!is.null(leaf_basis)) && (nrow(covariates) != nrow(leaf_basis))) {
+    stop("covariates and leaf_basis must have the same number of rows")
   }
-  if (object$model_params$num_covariates != ncol(X)) {
-    stop("X and leaf_basis must have the same number of rows")
+  if (object$model_params$num_covariates != ncol(covariates)) {
+    stop(
+      "covariates must contain the same number of columns as the BART model's training dataset"
+    )
   }
   if ((predict_rfx) && (is.null(rfx_group_ids))) {
     stop(
@@ -1937,6 +1937,10 @@ predict.bartmodel <- function(
       "Random effects basis has a different dimension than the basis used to train this model"
     )
   }
+
+  # Preprocess covariates
+  train_set_metadata <- object$train_set_metadata
+  covariates <- preprocessPredictionData(covariates, train_set_metadata)
 
   # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
   has_rfx <- FALSE
@@ -1956,14 +1960,14 @@ predict.bartmodel <- function(
 
   # Produce basis for the "intercept-only" random effects case
   if ((predict_rfx) && (is.null(rfx_basis))) {
-    rfx_basis <- matrix(rep(1, nrow(X)), ncol = 1)
+    rfx_basis <- matrix(rep(1, nrow(covariates)), ncol = 1)
   }
 
   # Create prediction dataset
   if (!is.null(leaf_basis)) {
-    prediction_dataset <- createForestDataset(X, leaf_basis)
+    prediction_dataset <- createForestDataset(covariates, leaf_basis)
   } else {
-    prediction_dataset <- createForestDataset(X)
+    prediction_dataset <- createForestDataset(covariates)
   }
 
   # Compute variance forest predictions

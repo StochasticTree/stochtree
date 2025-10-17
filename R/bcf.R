@@ -2708,12 +2708,10 @@ predict.bcfmodel <- function(
   predict_mu_forest_intermediate <- (predict_y_hat && has_mu_forest)
   predict_tau_forest_intermediate <- (predict_y_hat && has_tau_forest)
 
-  # Preprocess covariates
+  # Make sure covariates are matrix or data frame
   if ((!is.data.frame(X)) && (!is.matrix(X))) {
     stop("X must be a matrix or dataframe")
   }
-  train_set_metadata <- object$train_set_metadata
-  X <- preprocessPredictionData(X, train_set_metadata)
 
   # Convert all input data to matrices if not already converted
   if ((is.null(dim(Z))) && (!is.null(Z))) {
@@ -2761,6 +2759,10 @@ predict.bcfmodel <- function(
       "Random effects basis has a different dimension than the basis used to train this model"
     )
   }
+
+  # Preprocess covariates
+  train_set_metadata <- object$train_set_metadata
+  X <- preprocessPredictionData(X, train_set_metadata)
 
   # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
   has_rfx <- FALSE
@@ -2846,7 +2848,7 @@ predict.bcfmodel <- function(
   }
 
   # Compute rfx predictions
-  if (predict_rfx) {
+  if (predict_rfx || predict_rfx_intermediate) {
     rfx_predictions <- object$rfx_samples$predict(
       rfx_group_ids,
       rfx_basis
