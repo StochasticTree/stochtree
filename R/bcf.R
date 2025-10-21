@@ -1460,16 +1460,23 @@ bcf <- function(
         tau_forest_pred <- active_forest_tau$predict(
           forest_dataset_train
         )
-        forest_pred <- mu_forest_pred + tau_forest_pred
-        mu0 <- forest_pred[y_train == 0]
-        mu1 <- forest_pred[y_train == 1]
+        outcome_pred <- mu_forest_pred + tau_forest_pred
+        if (has_rfx) {
+          rfx_pred <- rfx_model$predict(
+            rfx_dataset_train,
+            rfx_tracker_train
+          )
+          outcome_pred <- outcome_pred + rfx_pred
+        }
+        mu0 <- outcome_pred[y_train == 0]
+        mu1 <- outcome_pred[y_train == 1]
         u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
         u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
         resid_train[y_train == 0] <- mu0 + qnorm(u0)
         resid_train[y_train == 1] <- mu1 + qnorm(u1)
 
         # Update outcome
-        outcome_train$update_data(resid_train - forest_pred)
+        outcome_train$update_data(resid_train - outcome_pred)
       }
 
       # Sample the prognostic forest
@@ -2057,16 +2064,23 @@ bcf <- function(
           tau_forest_pred <- active_forest_tau$predict(
             forest_dataset_train
           )
-          forest_pred <- mu_forest_pred + tau_forest_pred
-          mu0 <- forest_pred[y_train == 0]
-          mu1 <- forest_pred[y_train == 1]
+          outcome_pred <- mu_forest_pred + tau_forest_pred
+          if (has_rfx) {
+            rfx_pred <- rfx_model$predict(
+              rfx_dataset_train,
+              rfx_tracker_train
+            )
+            outcome_pred <- outcome_pred + rfx_pred
+          }
+          mu0 <- outcome_pred[y_train == 0]
+          mu1 <- outcome_pred[y_train == 1]
           u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
           u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
           resid_train[y_train == 0] <- mu0 + qnorm(u0)
           resid_train[y_train == 1] <- mu1 + qnorm(u1)
 
           # Update outcome
-          outcome_train$update_data(resid_train - forest_pred)
+          outcome_train$update_data(resid_train - outcome_pred)
         }
 
         # Sample the prognostic forest
@@ -2771,7 +2785,7 @@ predict.bcfmodel <- function(
     group_ids_factor <- factor(rfx_group_ids, levels = rfx_unique_group_ids)
     if (sum(is.na(group_ids_factor)) > 0) {
       stop(
-        "All random effect group labels provided in rfx_group_ids must be present in rfx_group_ids_train"
+        "All random effect group labels provided in rfx_group_ids must be present in rfx_group_ids"
       )
     }
     rfx_group_ids <- as.integer(group_ids_factor)

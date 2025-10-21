@@ -29,7 +29,7 @@ compute_bcf_posterior_interval(
 
 \item{treatment}{(Optional) A vector or matrix of treatment assignments. Required if the requested term is \code{"y_hat"} (overall predictions).}
 
-\item{propensity}{(Optional) A vector or matrix of propensity scores. Required if the requested term is \code{"y_hat"} (overall predictions) and the underlying model depends on user-provided propensities.}
+\item{propensity}{(Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.}
 
 \item{rfx_group_ids}{An optional vector of group IDs for random effects. Required if the requested term includes random effects.}
 

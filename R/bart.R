@@ -1106,18 +1106,25 @@ bart <- function(
       if (include_mean_forest) {
         if (probit_outcome_model) {
           # Sample latent probit variable, z | -
-          forest_pred <- active_forest_mean$predict(
+          outcome_pred <- active_forest_mean$predict(
             forest_dataset_train
           )
-          mu0 <- forest_pred[y_train == 0]
-          mu1 <- forest_pred[y_train == 1]
+          if (has_rfx) {
+            rfx_pred <- rfx_model$predict(
+              rfx_dataset_train,
+              rfx_tracker_train
+            )
+            outcome_pred <- outcome_pred + rfx_pred
+          }
+          mu0 <- outcome_pred[y_train == 0]
+          mu1 <- outcome_pred[y_train == 1]
           u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
           u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
           resid_train[y_train == 0] <- mu0 + qnorm(u0)
           resid_train[y_train == 1] <- mu1 + qnorm(u1)
 
           # Update outcome
-          outcome_train$update_data(resid_train - forest_pred)
+          outcome_train$update_data(resid_train - outcome_pred)
         }
 
         # Sample mean forest
@@ -1467,18 +1474,25 @@ bart <- function(
         if (include_mean_forest) {
           if (probit_outcome_model) {
             # Sample latent probit variable, z | -
-            forest_pred <- active_forest_mean$predict(
+            outcome_pred <- active_forest_mean$predict(
               forest_dataset_train
             )
-            mu0 <- forest_pred[y_train == 0]
-            mu1 <- forest_pred[y_train == 1]
+            if (has_rfx) {
+              rfx_pred <- rfx_model$predict(
+                rfx_dataset_train,
+                rfx_tracker_train
+              )
+              outcome_pred <- outcome_pred + rfx_pred
+            }
+            mu0 <- outcome_pred[y_train == 0]
+            mu1 <- outcome_pred[y_train == 1]
             u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
             u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
             resid_train[y_train == 0] <- mu0 + qnorm(u0)
             resid_train[y_train == 1] <- mu1 + qnorm(u1)
 
             # Update outcome
-            outcome_train$update_data(resid_train - forest_pred)
+            outcome_train$update_data(resid_train - outcome_pred)
           }
 
           forest_model_mean$sample_one_iteration(

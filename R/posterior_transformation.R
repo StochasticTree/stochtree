@@ -1,3 +1,253 @@
+#' Compute a contrast using a BCF model by making two sets of outcome predictions and taking their difference.
+#' For simple BCF models with binary treatment, this will yield the same prediction as requesting `terms = "cate"`
+#' in the `predict.bcfmodel` function. For more general models, such as models with continuous / multivariate treatments or
+#' an additive random effects term with a coefficient on the treatment, this function provides the flexibility to compute a
+#' any contrast of interest by specifying covariates, treatment, and random effects bases and IDs for both sides of a two term
+#' contrast. For simplicity, we refer to the subtrahend of the contrast as the "control" or `Y0` term and the minuend of the
+#' contrast as the `Y1` term, though the requested contrast need not match the "control vs treatment" terminology of a classic
+#' two-arm experiment. We mirror the function calls and terminology of the `predict.bcfmodel` function, labeling each prediction
+#' data term with a `1` to denote its contribution to the treatment prediction of a contrast and `0` to denote inclusion in the
+#' control prediction.
+#'
+#' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
+#' @param X_0 Covariates used for prediction in the "control" case.
+#' @param X_1 Covariates used for prediction in the "treatment" case.
+#' @param Z_0 Treatments used for prediction in the "control" case.
+#' @param Z_1 Treatments used for prediction in the "treatment" case.
+#' @param propensity_0 (Optional) Propensities used for prediction in the "control" case.
+#' @param propensity_1 (Optional) Propensities used for prediction in the "treatment" case.
+#' @param rfx_group_ids_0 (Optional) Test set group labels used for prediction from an additive random effects
+#' model in the "control" case. We do not currently support (but plan to in the near future), test set evaluation
+#' for group labels that were not in the training set.
+#' @param rfx_group_ids_1 (Optional) Test set group labels used for prediction from an additive random effects
+#' model in the "treatment" case. We do not currently support (but plan to in the near future), test set evaluation
+#' for group labels that were not in the training set.
+#' @param rfx_basis_0 (Optional) Test set basis for used for prediction from an additive random effects model in the "control" case.
+#' @param rfx_basis_1 (Optional) Test set basis for used for prediction from an additive random effects model in the "treatment" case.
+#' @param type (Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
+#' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns a contrast on the original scale of the mean forest / RFX terms, and "probability", which transforms each contrast term into a probability of observing `y == 1` before taking their difference. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
+#' @param ... (Optional) Other prediction parameters.
+#'
+#' @return List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
+#' @export
+#'
+#' @examples
+#' n <- 500
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
+#' noise_sd <- 1
+#' y <- mu_x + tau_x*Z + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' pi_test <- pi_x[test_inds]
+#' pi_train <- pi_x[train_inds]
+#' Z_test <- Z[test_inds]
+#' Z_train <- Z[train_inds]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' mu_test <- mu_x[test_inds]
+#' mu_train <- mu_x[train_inds]
+#' tau_test <- tau_x[test_inds]
+#' tau_train <- tau_x[train_inds]
+#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
+#'                  propensity_train = pi_train, num_gfr = 10,
+#'                  num_burnin = 0, num_mcmc = 10)
+#' preds <- compute_posterior_contrast_bcf_model(
+#'     bcf_model, X0=X_test, X1=X_test, Z0=rep(0, n_test), Z1=rep(1, n_test),
+#'     propensity_0 = pi_test, propensity_1 = pi_test
+#' )
+compute_contrast_bcf_model <- function(
+  object,
+  X_0,
+  X_1,
+  Z_0,
+  Z_1,
+  propensity_0 = NULL,
+  propensity_1 = NULL,
+  rfx_group_ids_0 = NULL,
+  rfx_group_ids_1 = NULL,
+  rfx_basis_0 = NULL,
+  rfx_basis_1 = NULL,
+  type = "posterior",
+  scale = "linear",
+  ...
+) {
+  # Handle mean function scale
+  if (!is.character(scale)) {
+    stop("scale must be a string or character vector")
+  }
+  if (!(scale %in% c("linear", "probability"))) {
+    stop("scale must either be 'linear' or 'probability'")
+  }
+  is_probit <- object$model_params$probit_outcome_model
+  if ((scale == "probability") && (!is_probit)) {
+    stop(
+      "scale cannot be 'probability' for models not fit with a probit outcome model"
+    )
+  }
+  probability_scale <- scale == "probability"
+
+  # Handle prediction type
+  if (!is.character(type)) {
+    stop("type must be a string or character vector")
+  }
+  if (!(type %in% c("mean", "posterior"))) {
+    stop("type must either be 'mean' or 'posterior")
+  }
+  predict_mean <- type == "mean"
+
+  # Make sure covariates are matrix or data frame
+  if ((!is.data.frame(X_0)) && (!is.matrix(X_0))) {
+    stop("X_0 must be a matrix or dataframe")
+  }
+  if ((!is.data.frame(X_1)) && (!is.matrix(X_1))) {
+    stop("X_1 must be a matrix or dataframe")
+  }
+
+  # Convert all input data to matrices if not already converted
+  if ((is.null(dim(Z_0))) && (!is.null(Z_0))) {
+    Z_0 <- as.matrix(as.numeric(Z_0))
+  }
+  if ((is.null(dim(Z_1))) && (!is.null(Z_1))) {
+    Z_1 <- as.matrix(as.numeric(Z_1))
+  }
+  if ((is.null(dim(propensity_0))) && (!is.null(propensity_0))) {
+    propensity_0 <- as.matrix(propensity_0)
+  }
+  if ((is.null(dim(propensity_1))) && (!is.null(propensity_1))) {
+    propensity_1 <- as.matrix(propensity_1)
+  }
+  if ((is.null(dim(rfx_basis_0))) && (!is.null(rfx_basis_0))) {
+    rfx_basis_0 <- as.matrix(rfx_basis_0)
+  }
+  if ((is.null(dim(rfx_basis_1))) && (!is.null(rfx_basis_1))) {
+    rfx_basis_1 <- as.matrix(rfx_basis_1)
+  }
+
+  # Data checks
+  if (
+    (object$model_params$propensity_covariate != "none") &&
+      ((is.null(propensity_0)) ||
+        (is.null(propensity_1)))
+  ) {
+    if (!object$model_params$internal_propensity_model) {
+      stop("propensity_0 and propensity_1 must be provided for this model")
+    }
+  }
+  if (nrow(X_0) != nrow(Z_0)) {
+    stop("X_0 and Z_0 must have the same number of rows")
+  }
+  if (nrow(X_1) != nrow(Z_1)) {
+    stop("X_1 and Z_1 must have the same number of rows")
+  }
+  if (object$model_params$num_covariates != ncol(X_0)) {
+    stop(
+      "X_0 and must have the same number of columns as the covariates used to train the model"
+    )
+  }
+  if (object$model_params$num_covariates != ncol(X_1)) {
+    stop(
+      "X_1 and must have the same number of columns as the covariates used to train the model"
+    )
+  }
+  if ((object$model_params$has_rfx) && (is.null(rfx_group_ids_0))) {
+    stop(
+      "Random effect group labels (rfx_group_ids_0) must be provided for this model"
+    )
+  }
+  if ((object$model_params$has_rfx) && (is.null(rfx_group_ids_1))) {
+    stop(
+      "Random effect group labels (rfx_group_ids_1) must be provided for this model"
+    )
+  }
+  if ((object$model_params$has_rfx_basis) && (is.null(rfx_basis_0))) {
+    stop("Random effects basis (rfx_basis_0) must be provided for this model")
+  }
+  if ((object$model_params$has_rfx_basis) && (is.null(rfx_basis_1))) {
+    stop("Random effects basis (rfx_basis_1) must be provided for this model")
+  }
+  if (
+    (object$model_params$num_rfx_basis > 0) &&
+      (ncol(rfx_basis_0) != object$model_params$num_rfx_basis)
+  ) {
+    stop(
+      "Random effects basis has a different dimension than the basis used to train this model"
+    )
+  }
+  if (
+    (object$model_params$num_rfx_basis > 0) &&
+      (ncol(rfx_basis_1) != object$model_params$num_rfx_basis)
+  ) {
+    stop(
+      "Random effects basis has a different dimension than the basis used to train this model"
+    )
+  }
+
+  # Predict for the control arm
+  control_preds <- predict(
+    object = object,
+    X = X_0,
+    Z = Z_0,
+    propensity = propensity_0,
+    rfx_group_ids = rfx_group_ids_0,
+    rfx_basis = rfx_basis_0,
+    type = "posterior",
+    term = "y_hat",
+    scale = "linear"
+  )
+
+  # Predict for the treatment arm
+  treatment_preds <- predict(
+    object = object,
+    X = X_1,
+    Z = Z_1,
+    propensity = propensity_1,
+    rfx_group_ids = rfx_group_ids_1,
+    rfx_basis = rfx_basis_1,
+    type = "posterior",
+    term = "y_hat",
+    scale = "linear"
+  )
+
+  # Transform to probability scale if requested
+  if (probability_scale) {
+    treatment_preds <- pnorm(treatment_preds)
+    control_preds <- pnorm(control_preds)
+  }
+
+  # Compute and return contrast
+  if (predict_mean) {
+    return(rowMeans(treatment_preds - control_preds))
+  } else {
+    return(treatment_preds - control_preds)
+  }
+}
+
+
 #' Sample from the posterior predictive distribution for outcomes modeled by BCF
 #'
 #' @param model_object A fitted BCF model object of class `bcfmodel`.
