@@ -1233,9 +1233,12 @@ class BARTModel:
                 if self.include_mean_forest:
                     if self.probit_outcome_model:
                         # Sample latent probit variable z | -
-                        forest_pred = active_forest_mean.predict(forest_dataset_train)
-                        mu0 = forest_pred[y_train[:, 0] == 0]
-                        mu1 = forest_pred[y_train[:, 0] == 1]
+                        outcome_pred = active_forest_mean.predict(forest_dataset_train)
+                        if self.has_rfx:
+                            rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                            outcome_pred = outcome_pred + rfx_pred
+                        mu0 = outcome_pred[y_train[:, 0] == 0]
+                        mu1 = outcome_pred[y_train[:, 0] == 1]
                         n0 = np.sum(y_train[:, 0] == 0)
                         n1 = np.sum(y_train[:, 0] == 1)
                         u0 = self.rng.uniform(
@@ -1252,7 +1255,7 @@ class BARTModel:
                         resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
                         # Update outcome
-                        new_outcome = np.squeeze(resid_train) - forest_pred
+                        new_outcome = np.squeeze(resid_train) - outcome_pred
                         residual_train.update_data(new_outcome)
 
                     # Sample the mean forest
@@ -1437,11 +1440,14 @@ class BARTModel:
                     if self.include_mean_forest:
                         if self.probit_outcome_model:
                             # Sample latent probit variable z | -
-                            forest_pred = active_forest_mean.predict(
+                            outcome_pred = active_forest_mean.predict(
                                 forest_dataset_train
                             )
-                            mu0 = forest_pred[y_train[:, 0] == 0]
-                            mu1 = forest_pred[y_train[:, 0] == 1]
+                            if self.has_rfx:
+                                rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                                outcome_pred = outcome_pred + rfx_pred
+                            mu0 = outcome_pred[y_train[:, 0] == 0]
+                            mu1 = outcome_pred[y_train[:, 0] == 1]
                             n0 = np.sum(y_train[:, 0] == 0)
                             n1 = np.sum(y_train[:, 0] == 1)
                             u0 = self.rng.uniform(
@@ -1458,7 +1464,7 @@ class BARTModel:
                             resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
                             # Update outcome
-                            new_outcome = np.squeeze(resid_train) - forest_pred
+                            new_outcome = np.squeeze(resid_train) - outcome_pred
                             residual_train.update_data(new_outcome)
 
                         # Sample the mean forest
@@ -1813,15 +1819,15 @@ class BARTModel:
         # Combine into y hat predictions
         if probability_scale:
             if predict_y_hat and has_mean_forest and has_rfx:
-                y_hat = norm.ppf(mean_forest_predictions + rfx_predictions)
-                mean_forest_predictions = norm.ppf(mean_forest_predictions)
-                rfx_predictions = norm.ppf(rfx_predictions)
+                y_hat = norm.cdf(mean_forest_predictions + rfx_predictions)
+                mean_forest_predictions = norm.cdf(mean_forest_predictions)
+                rfx_predictions = norm.cdf(rfx_predictions)
             elif predict_y_hat and has_mean_forest:
-                y_hat = norm.ppf(mean_forest_predictions)
-                mean_forest_predictions = norm.ppf(mean_forest_predictions)
+                y_hat = norm.cdf(mean_forest_predictions)
+                mean_forest_predictions = norm.cdf(mean_forest_predictions)
             elif predict_y_hat and has_rfx:
-                y_hat = norm.ppf(rfx_predictions)
-                rfx_predictions = norm.ppf(rfx_predictions)
+                y_hat = norm.cdf(rfx_predictions)
+                rfx_predictions = norm.cdf(rfx_predictions)
         else:
             if predict_y_hat and has_mean_forest and has_rfx:
                 y_hat = mean_forest_predictions + rfx_predictions
@@ -2006,8 +2012,8 @@ class BARTModel:
 
         # Transform to probability scale if requested
         if probability_scale:
-            treatment_preds = norm.ppf(treatment_preds)
-            control_preds = norm.ppf(control_preds)
+            treatment_preds = norm.cdf(treatment_preds)
+            control_preds = norm.cdf(control_preds)
 
         # Compute and return contrast
         if predict_mean:

@@ -426,6 +426,28 @@ class RandomEffectsModel:
             rng.rng_cpp,
         )
 
+    def predict(
+        self, rfx_dataset: RandomEffectsDataset, rfx_tracker: RandomEffectsTracker
+    ) -> np.ndarray:
+        """
+        Predict random effects for each observation in `rfx_dataset`
+
+        Parameters
+        ----------
+        rfx_dataset: RandomEffectsDataset
+            Object of type `RandomEffectsDataset`
+        rfx_tracker: RandomEffectsTracker
+            Object of type `RandomEffectsTracker`
+
+        Returns
+        -------
+        np.ndarray
+            Numpy array with as many rows as observations in `rfx_dataset` and as many columns as samples in the container
+        """
+        return self.rfx_model_cpp.Predict(
+            rfx_dataset.rfx_dataset_cpp, rfx_tracker.rfx_tracker_cpp
+        )
+
     def set_working_parameter(self, working_parameter: np.ndarray) -> None:
         """
         Set values for the "working parameter." This is typically used for initialization,

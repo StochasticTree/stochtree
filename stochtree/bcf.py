@@ -1735,9 +1735,12 @@ class BCFModel:
                     # Sample latent probit variable z | -
                     forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
                     forest_pred_tau = active_forest_tau.predict(forest_dataset_train)
-                    forest_pred = forest_pred_mu + forest_pred_tau
-                    mu0 = forest_pred[y_train[:, 0] == 0]
-                    mu1 = forest_pred[y_train[:, 0] == 1]
+                    outcome_pred = forest_pred_mu + forest_pred_tau
+                    if self.has_rfx:
+                        rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                        outcome_pred = outcome_pred + rfx_pred
+                    mu0 = outcome_pred[y_train[:, 0] == 0]
+                    mu1 = outcome_pred[y_train[:, 0] == 1]
                     n0 = np.sum(y_train[:, 0] == 0)
                     n1 = np.sum(y_train[:, 0] == 1)
                     u0 = self.rng.uniform(
@@ -1754,7 +1757,7 @@ class BCFModel:
                     resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
                     # Update outcome
-                    new_outcome = np.squeeze(resid_train) - forest_pred
+                    new_outcome = np.squeeze(resid_train) - outcome_pred
                     residual_train.update_data(new_outcome)
 
                 # Sample the prognostic forest
@@ -1817,18 +1820,21 @@ class BCFModel:
 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
-                    mu_x = active_forest_mu.predict_raw(forest_dataset_train)
+                    partial_outcome_pred = active_forest_mu.predict_raw(forest_dataset_train)
                     tau_x = np.squeeze(
                         active_forest_tau.predict_raw(forest_dataset_train)
                     )
+                    if self.has_rfx:
+                        rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                        partial_outcome_pred = partial_outcome_pred + rfx_pred
                     s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
                     s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
-                    partial_resid_mu = np.squeeze(resid_train - mu_x)
+                    partial_resid = np.squeeze(resid_train - partial_outcome_pred)
                     s_ty0 = np.sum(
-                        tau_x * partial_resid_mu * (np.squeeze(Z_train) == 0)
+                        tau_x * partial_resid * (np.squeeze(Z_train) == 0)
                     )
                     s_ty1 = np.sum(
-                        tau_x * partial_resid_mu * (np.squeeze(Z_train) == 1)
+                        tau_x * partial_resid * (np.squeeze(Z_train) == 1)
                     )
                     current_b_0 = self.rng.normal(
                         loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -1935,9 +1941,12 @@ class BCFModel:
                     # Sample latent probit variable z | -
                     forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
                     forest_pred_tau = active_forest_tau.predict(forest_dataset_train)
-                    forest_pred = forest_pred_mu + forest_pred_tau
-                    mu0 = forest_pred[y_train[:, 0] == 0]
-                    mu1 = forest_pred[y_train[:, 0] == 1]
+                    outcome_pred = forest_pred_mu + forest_pred_tau
+                    if self.has_rfx:
+                        rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                        outcome_pred = outcome_pred + rfx_pred
+                    mu0 = outcome_pred[y_train[:, 0] == 0]
+                    mu1 = outcome_pred[y_train[:, 0] == 1]
                     n0 = np.sum(y_train[:, 0] == 0)
                     n1 = np.sum(y_train[:, 0] == 1)
                     u0 = self.rng.uniform(
@@ -1954,7 +1963,7 @@ class BCFModel:
                     resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
                     # Update outcome
-                    new_outcome = np.squeeze(resid_train) - forest_pred
+                    new_outcome = np.squeeze(resid_train) - outcome_pred
                     residual_train.update_data(new_outcome)
 
                 # Sample the prognostic forest
@@ -2017,18 +2026,21 @@ class BCFModel:
 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
-                    mu_x = active_forest_mu.predict_raw(forest_dataset_train)
+                    partial_outcome_pred = active_forest_mu.predict_raw(forest_dataset_train)
                     tau_x = np.squeeze(
                         active_forest_tau.predict_raw(forest_dataset_train)
                     )
+                    if self.has_rfx:
+                        rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                        partial_outcome_pred = partial_outcome_pred + rfx_pred
                     s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
                     s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
-                    partial_resid_mu = np.squeeze(resid_train - mu_x)
+                    partial_resid = np.squeeze(resid_train - partial_outcome_pred)
                     s_ty0 = np.sum(
-                        tau_x * partial_resid_mu * (np.squeeze(Z_train) == 0)
+                        tau_x * partial_resid * (np.squeeze(Z_train) == 0)
                     )
                     s_ty1 = np.sum(
-                        tau_x * partial_resid_mu * (np.squeeze(Z_train) == 1)
+                        tau_x * partial_resid * (np.squeeze(Z_train) == 1)
                     )
                     current_b_0 = self.rng.normal(
                         loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -2655,8 +2667,8 @@ class BCFModel:
 
         # Transform to probability scale if requested
         if probability_scale:
-            treatment_preds = norm.ppf(treatment_preds)
-            control_preds = norm.ppf(control_preds)
+            treatment_preds = norm.cdf(treatment_preds)
+            control_preds = norm.cdf(control_preds)
 
         # Compute and return contrast
         if predict_mean:
