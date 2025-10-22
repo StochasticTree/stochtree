@@ -26,7 +26,6 @@
 #' @param rfx_basis_1 (Optional) Test set basis for used for prediction from an additive random effects model in the "treatment" case. Must be a matrix or vector.
 #' @param type (Optional) Type of prediction to return. Options are "mean", which averages the contrast evaluations over every draw of a BCF model, and "posterior", which returns the entire matrix of posterior contrast estimates. Default: "posterior".
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns a contrast on the original scale of the mean forest / RFX terms, and "probability", which transforms each contrast term into a probability of observing `y == 1` before taking their difference. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
-#' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
 #' @export
@@ -77,7 +76,7 @@
 #'                  propensity_train = pi_train, num_gfr = 10,
 #'                  num_burnin = 0, num_mcmc = 10)
 #' tau_hat_test <- compute_contrast_bcf_model(
-#'     bcf_model, X0=X_test, X1=X_test, Z0=rep(0, n_test), Z1=rep(1, n_test),
+#'     bcf_model, X_0=X_test, X_1=X_test, Z_0=rep(0, n_test), Z_1=rep(1, n_test),
 #'     propensity_0 = pi_test, propensity_1 = pi_test
 #' )
 compute_contrast_bcf_model <- function(
@@ -93,8 +92,7 @@ compute_contrast_bcf_model <- function(
   rfx_basis_0 = NULL,
   rfx_basis_1 = NULL,
   type = "posterior",
-  scale = "linear",
-  ...
+  scale = "linear"
 ) {
   # Handle mean function scale
   if (!is.character(scale)) {
@@ -322,8 +320,7 @@ compute_contrast_bart_model <- function(
   rfx_basis_0 = NULL,
   rfx_basis_1 = NULL,
   type = "posterior",
-  scale = "linear",
-  ...
+  scale = "linear"
 ) {
   # Handle mean function scale
   if (!is.character(scale)) {

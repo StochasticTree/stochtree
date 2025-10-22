@@ -21,8 +21,7 @@ compute_contrast_bart_model(
   rfx_basis_0 = NULL,
   rfx_basis_1 = NULL,
   type = "posterior",
-  scale = "linear",
-  ...
+  scale = "linear"
 )
 }
 \arguments{
