@@ -1122,13 +1122,13 @@ class TestBART:
         )
 
         # Specify scalar rfx parameters
-        general_params = {
-            "rfx_working_parameter_prior_mean": 1.,
-            "rfx_group_parameter_prior_mean": 1.,
-            "rfx_working_parameter_prior_cov": 1.,
-            "rfx_group_parameter_prior_cov": 1.,
-            "rfx_variance_prior_shape": 1,
-            "rfx_variance_prior_scale": 1
+        rfx_params = {
+            "working_parameter_prior_mean": 1.,
+            "group_parameter_prior_mean": 1.,
+            "working_parameter_prior_cov": 1.,
+            "group_parameter_prior_cov": 1.,
+            "variance_prior_shape": 1,
+            "variance_prior_scale": 1
         }
         bart_model_2 = BARTModel()
         bart_model_2.sample(
@@ -1144,17 +1144,17 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params=general_params,
+            rfx_params=rfx_params,
         )
 
         # Specify all relevant rfx parameters as vectors
-        general_params = {
-            "rfx_working_parameter_prior_mean": np.repeat(1., num_rfx_basis),
-            "rfx_group_parameter_prior_mean": np.repeat(1., num_rfx_basis),
-            "rfx_working_parameter_prior_cov": np.identity(num_rfx_basis),
-            "rfx_group_parameter_prior_cov": np.identity(num_rfx_basis),
-            "rfx_variance_prior_shape": 1,
-            "rfx_variance_prior_scale": 1
+        rfx_params = {
+            "working_parameter_prior_mean": np.repeat(1., num_rfx_basis),
+            "group_parameter_prior_mean": np.repeat(1., num_rfx_basis),
+            "working_parameter_prior_cov": np.identity(num_rfx_basis),
+            "group_parameter_prior_cov": np.identity(num_rfx_basis),
+            "variance_prior_shape": 1,
+            "variance_prior_scale": 1
         }
         bart_model_3 = BARTModel()
         bart_model_3.sample(
@@ -1170,5 +1170,5 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params=general_params,
+            rfx_params=rfx_params,
         )

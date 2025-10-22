@@ -85,6 +85,7 @@ class BARTModel:
         general_params: Optional[Dict[str, Any]] = None,
         mean_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
+        rfx_params: Optional[Dict[str, Any]] = None,
         previous_model_json: Optional[str] = None,
         previous_model_warmstart_sample_num: Optional[int] = None,
     ) -> None:
@@ -135,12 +136,6 @@ class BARTModel:
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
             * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
             * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
-            * `rfx_working_parameter_prior_mean`: Prior mean for the random effects "working parameter". Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
-            * `rfx_group_parameter_prior_mean`: Prior mean for the random effects "group parameters." Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
-            * `rfx_working_parameter_prior_cov`: Prior covariance matrix for the random effects "working parameter." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
-            * `rfx_group_parameter_prior_cov`: Prior covariance matrix for the random effects "group parameters." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
-            * `rfx_variance_prior_shape`: Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
-            * `rfx_variance_prior_scale`: Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
             * `num_threads`: Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 
         mean_forest_params : dict, optional
@@ -160,7 +155,7 @@ class BARTModel:
             * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 
         variance_forest_params : dict, optional
-            Dictionary of variance forest model  parameters, each of which has a default value processed internally, so this argument is optional.
+            Dictionary of variance forest model parameters, each of which has a default value processed internally, so this argument is optional.
 
             * `num_trees` (`int`): Number of trees in the conditional variance model. Defaults to `0`. Variance is only modeled using a tree / forest if `num_trees > 0`.
             * `alpha` (`float`): Prior probability of splitting for a tree of depth 0 in the conditional variance model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `0.95`.
@@ -174,6 +169,16 @@ class BARTModel:
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the variance forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the variance forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
             * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+
+        rfx_params : dict, optional
+            Dictionary of random effects parameters, each of which has a default value processed internally, so this argument is optional.
+
+            * `working_parameter_prior_mean`: Prior mean for the random effects "working parameter". Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+            * `group_parameter_prior_mean`: Prior mean for the random effects "group parameters." Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+            * `working_parameter_prior_cov`: Prior covariance matrix for the random effects "working parameter." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+            * `group_parameter_prior_cov`: Prior covariance matrix for the random effects "group parameters." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+            * `variance_prior_shape`: Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+            * `variance_prior_scale`: Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 
         previous_model_json : str, optional
             JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Defaults to `None`.
@@ -200,12 +205,6 @@ class BARTModel:
             "keep_every": 1,
             "num_chains": 1,
             "probit_outcome_model": False,
-            "rfx_working_parameter_prior_mean": None,
-            "rfx_group_parameter_prior_mean": None,
-            "rfx_working_parameter_prior_cov": None,
-            "rfx_group_parameter_prior_cov": None,
-            "rfx_variance_prior_shape": 1.0,
-            "rfx_variance_prior_scale": 1.0,
             "num_threads": -1,
         }
         general_params_updated = _preprocess_params(
@@ -250,6 +249,19 @@ class BARTModel:
             variance_forest_params_default, variance_forest_params
         )
 
+        # Update random effects parameters
+        rfx_params_default = {
+            "working_parameter_prior_mean": None,
+            "group_parameter_prior_mean": None,
+            "working_parameter_prior_cov": None,
+            "group_parameter_prior_cov": None,
+            "variance_prior_shape": 1.0,
+            "variance_prior_scale": 1.0,
+        }
+        rfx_params_updated = _preprocess_params(
+            rfx_params_default, rfx_params
+        )
+
         ### Unpack all parameter values
         # 1. General parameters
         cutpoint_grid_size = general_params_updated["cutpoint_grid_size"]
@@ -265,20 +277,6 @@ class BARTModel:
         keep_every = general_params_updated["keep_every"]
         num_chains = general_params_updated["num_chains"]
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
-        rfx_working_parameter_prior_mean = general_params_updated[
-            "rfx_working_parameter_prior_mean"
-        ]
-        rfx_group_parameter_prior_mean = general_params_updated[
-            "rfx_group_parameter_prior_mean"
-        ]
-        rfx_working_parameter_prior_cov = general_params_updated[
-            "rfx_working_parameter_prior_cov"
-        ]
-        rfx_group_parameter_prior_cov = general_params_updated[
-            "rfx_group_parameter_prior_cov"
-        ]
-        rfx_variance_prior_shape = general_params_updated["rfx_variance_prior_shape"]
-        rfx_variance_prior_scale = general_params_updated["rfx_variance_prior_scale"]
         num_threads = general_params_updated["num_threads"]
 
         # 2. Mean forest parameters
@@ -314,6 +312,22 @@ class BARTModel:
         num_features_subsample_variance = variance_forest_params_updated[
             "num_features_subsample"
         ]
+
+        # 4. Random effects parameters
+        rfx_working_parameter_prior_mean = rfx_params_updated[
+            "working_parameter_prior_mean"
+        ]
+        rfx_group_parameter_prior_mean = rfx_params_updated[
+            "group_parameter_prior_mean"
+        ]
+        rfx_working_parameter_prior_cov = rfx_params_updated[
+            "working_parameter_prior_cov"
+        ]
+        rfx_group_parameter_prior_cov = rfx_params_updated[
+            "group_parameter_prior_cov"
+        ]
+        rfx_variance_prior_shape = rfx_params_updated["variance_prior_shape"]
+        rfx_variance_prior_scale = rfx_params_updated["variance_prior_scale"]
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:

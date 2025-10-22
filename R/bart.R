@@ -149,12 +149,6 @@ bart <- function(
     num_chains = 1,
     verbose = FALSE,
     probit_outcome_model = FALSE,
-    rfx_working_parameter_prior_mean = NULL,
-    rfx_group_parameter_prior_mean = NULL,
-    rfx_working_parameter_prior_cov = NULL,
-    rfx_group_parameter_prior_cov = NULL,
-    rfx_variance_prior_shape = 1,
-    rfx_variance_prior_scale = 1,
     num_threads = -1
   )
   general_params_updated <- preprocessParams(
