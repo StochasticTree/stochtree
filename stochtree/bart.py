@@ -1872,6 +1872,140 @@ class BARTModel:
                 result["variance_forest_predictions"] = None
             return result
 
+    def compute_contrast(
+        self,
+        covariates_0: Union[np.array, pd.DataFrame],
+        covariates_1: Union[np.array, pd.DataFrame],
+        basis_0: np.array = None,
+        basis_1: np.array = None,
+        rfx_group_ids_0: np.array = None,
+        rfx_group_ids_1: np.array = None,
+        rfx_basis_0: np.array = None,
+        rfx_basis_1: np.array = None,
+        type: str = "posterior",
+        scale: str = "linear",
+    ) -> Union[np.array, tuple]:
+        """Compute a contrast using a BART model by making two sets of outcome predictions and taking their 
+        difference. This function provides the flexibility to compute any contrast of interest by specifying 
+        covariates, leaf basis, and random effects bases / IDs for both sides of a two term contrast. 
+        For simplicity, we refer to the subtrahend of the contrast as the "control" or `Y0` term and the minuend 
+        of the contrast as the `Y1` term, though the requested contrast need not match the "control vs treatment" 
+        terminology of a classic two-treatment causal inference problem. We mirror the function calls and 
+        terminology of the `predict.bartmodel` function, labeling each prediction data term with a `1` to denote 
+        its contribution to the treatment prediction of a contrast and `0` to denote inclusion in the control prediction.
+
+        Parameters
+        ----------
+        covariates_0 : np.array or pd.DataFrame
+            Covariates used for prediction in the "control" case. Must be a numpy array or dataframe.
+        covariates_1 : np.array or pd.DataFrame
+            Covariates used for prediction in the "treatment" case. Must be a numpy array or dataframe.
+        basis_0 : np.array, optional
+            Bases used for prediction in the "control" case (by e.g. dot product with leaf values).
+        basis_1 : np.array, optional
+            Bases used for prediction in the "treatment" case (by e.g. dot product with leaf values).
+        rfx_group_ids_0 : np.array, optional
+            Test set group labels used for prediction from an additive random effects model in the "control" case. 
+            We do not currently support (but plan to in the near future), test set evaluation for group labels that 
+            were not in the training set. Must be a numpy array.
+        rfx_group_ids_1 : np.array, optional
+            Test set group labels used for prediction from an additive random effects model in the "treatment" case. 
+            We do not currently support (but plan to in the near future), test set evaluation for group labels that 
+            were not in the training set. Must be a numpy array.
+        rfx_basis_0 : np.array, optional
+            Test set basis for used for prediction from an additive random effects model in the "control" case.
+        rfx_basis_1 : np.array, optional
+            Test set basis for used for prediction from an additive random effects model in the "treatment" case.
+        type : str, optional
+            Aggregation level of the contrast. Options are "mean", which averages the contrast evaluations over every draw of a BART model, and "posterior", which returns the entire matrix of posterior contrast estimates. Default: "posterior".
+        scale : str, optional
+            Scale of the contrast. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
+
+        Returns
+        -------
+        Array, either 1d or 2d depending on whether type = "mean" or "posterior".
+        """
+        # Handle mean function scale
+        if not isinstance(scale, str):
+            raise ValueError("scale must be a string")
+        if scale not in ["linear", "probability"]:
+            raise ValueError("scale must either be 'linear' or 'probability'")
+        is_probit = self.probit_outcome_model
+        if (scale == "probability") and (not is_probit):
+            raise ValueError(
+                "scale cannot be 'probability' for models not fit with a probit outcome model"
+            )
+        probability_scale = scale == "probability"
+
+        # Handle prediction type
+        if not isinstance(type, str):
+            raise ValueError("type must be a string")
+        if type not in ["mean", "posterior"]:
+            raise ValueError("type must either be 'mean' or 'posterior'")
+        predict_mean = type == "mean"
+
+        # Handle prediction terms
+        has_mean_forest = self.include_mean_forest
+        has_rfx = self.has_rfx
+
+        # Check that we have at least one term to predict on probability scale
+        if (
+            not has_mean_forest
+            and not has_rfx
+        ):
+            raise ValueError(
+                "Contrast cannot be computed as the model does not have a mean forest or random effects term"
+            )
+
+        # Check the model is valid
+        if not self.is_sampled():
+            msg = (
+                "This BARTModel instance is not fitted yet. Call 'fit' with "
+                "appropriate arguments before using this model."
+            )
+            raise NotSampledError(msg)
+
+        # Data checks
+        if not isinstance(covariates_0, pd.DataFrame) and not isinstance(
+            covariates_0, np.ndarray
+        ):
+            raise ValueError("covariates_0 must be a pandas dataframe or numpy array")
+        if not isinstance(covariates_1, pd.DataFrame) and not isinstance(
+            covariates_1, np.ndarray
+        ):
+            raise ValueError("covariates_1 must be a pandas dataframe or numpy array")
+        if basis_0 is not None:
+            if not isinstance(basis_0, np.ndarray):
+                raise ValueError("basis_0 must be a numpy array")
+            if basis_0.shape[0] != covariates_0.shape[0]:
+                raise ValueError(
+                    "covariates_0 and basis_0 must have the same number of rows"
+                )
+        if basis_1 is not None:
+            if not isinstance(basis_1, np.ndarray):
+                raise ValueError("basis_1 must be a numpy array")
+            if basis_1.shape[0] != covariates_1.shape[0]:
+                raise ValueError(
+                    "covariates_1 and basis_1 must have the same number of rows"
+                )
+        
+        # Predict for the control arm
+        control_preds = self.predict(covariates=covariates_0, basis=basis_0, rfx_group_ids=rfx_group_ids_0, rfx_basis=rfx_basis_0, type="posterior", terms="y_hat", scale="linear")
+
+        # Predict for the treatment arm
+        treatment_preds = self.predict(covariates=covariates_1, basis=basis_1, rfx_group_ids=rfx_group_ids_1, rfx_basis=rfx_basis_1, type="posterior", terms="y_hat", scale="linear")
+
+        # Transform to probability scale if requested
+        if probability_scale:
+            treatment_preds = norm.ppf(treatment_preds)
+            control_preds = norm.ppf(control_preds)
+
+        # Compute and return contrast
+        if predict_mean:
+            return(np.mean(treatment_preds - control_preds, axis=1))
+        else:
+            return(treatment_preds - control_preds)
+
     def compute_posterior_interval(
         self,
         terms: Union[list[str], str] = "all",

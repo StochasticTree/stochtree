@@ -22,7 +22,7 @@ bart(
   general_params = list(),
   mean_forest_params = list(),
   variance_forest_params = list(),
-  rfx_params = list()
+  random_effects_params = list()
 )
 }
 \arguments{

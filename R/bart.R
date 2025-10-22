@@ -131,7 +131,7 @@ bart <- function(
   general_params = list(),
   mean_forest_params = list(),
   variance_forest_params = list(),
-  rfx_params = list()
+  random_effects_params = list()
 ) {
   # Update general BART parameters
   general_params_default <- list(
@@ -207,7 +207,7 @@ bart <- function(
   )
   rfx_params_updated <- preprocessParams(
     rfx_params_default,
-    rfx_params
+    random_effects_params
   )
 
   ### Unpack all parameter values

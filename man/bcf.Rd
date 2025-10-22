@@ -25,7 +25,7 @@ bcf(
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
   variance_forest_params = list(),
-  rfx_params = list()
+  random_effects_params = list()
 )
 }
 \arguments{
@@ -146,7 +146,7 @@ that were not in the training set.}
 \item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 }}
 
-\item{rfx_params}{(Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
+\item{random_effects_params}{(Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
 \item \code{working_parameter_prior_mean} Prior mean for the random effects "working parameter". Default: \code{NULL}. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
 \item \code{group_parameters_prior_mean} Prior mean for the random effects "group parameters." Default: \code{NULL}. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.

@@ -97,7 +97,7 @@
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 #'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 #'
-#' @param rfx_params (Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
+#' @param random_effects_params (Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
 #'   - `working_parameter_prior_mean` Prior mean for the random effects "working parameter". Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
 #'   - `group_parameters_prior_mean` Prior mean for the random effects "group parameters." Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
@@ -176,7 +176,7 @@ bcf <- function(
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
   variance_forest_params = list(),
-  rfx_params = list()
+  random_effects_params = list()
 ) {
   # Update general BCF parameters
   general_params_default <- list(
@@ -278,7 +278,7 @@ bcf <- function(
   )
   rfx_params_updated <- preprocessParams(
     rfx_params_default,
-    rfx_params
+    random_effects_params
   )
 
   ### Unpack all parameter values

@@ -2541,6 +2541,115 @@ class BCFModel:
                 result["variance_forest_predictions"] = None
             return result
 
+    def compute_contrast(
+        self,
+        X_0: np.array,
+        X_1: np.array,
+        Z_0: np.array,
+        Z_1: np.array,
+        propensity_0: np.array = None,
+        propensity_1: np.array = None,
+        rfx_group_ids_0: np.array = None,
+        rfx_group_ids_1: np.array = None,
+        rfx_basis_0: np.array = None,
+        rfx_basis_1: np.array = None,
+        type: str = "posterior",
+        scale: str = "linear",
+    ) -> dict:
+        """Compute a contrast using a BCF model by making two sets of outcome predictions and taking their 
+        difference. This function provides the flexibility to compute any contrast of interest by specifying 
+        covariates, leaf basis, and random effects bases / IDs for both sides of a two term contrast. 
+        For simplicity, we refer to the subtrahend of the contrast as the "control" or `Y0` term and the minuend 
+        of the contrast as the `Y1` term, though the requested contrast need not match the "control vs treatment" 
+        terminology of a classic two-treatment causal inference problem. We mirror the function calls and 
+        terminology of the `predict.bartmodel` function, labeling each prediction data term with a `1` to denote 
+        its contribution to the treatment prediction of a contrast and `0` to denote inclusion in the control prediction.
+
+        Parameters
+        ----------
+        X_0 : np.array or pd.DataFrame
+            Covariates used for prediction in the "control" case. Must be a numpy array or dataframe.
+        X_1 : np.array or pd.DataFrame
+            Covariates used for prediction in the "treatment" case. Must be a numpy array or dataframe.
+        Z_0 : np.array
+            Treatments used for prediction in the "control" case. Must be a numpy array or vector.
+        Z_1 : np.array
+            Treatments used for prediction in the "treatment" case. Must be a numpy array or vector.
+        propensity_0 : `np.array`, optional
+            Propensities used for prediction in the "control" case. Must be a numpy array or vector.
+        propensity_1 : `np.array`, optional
+            Propensities used for prediction in the "treatment" case. Must be a numpy array or vector.
+        rfx_group_ids_0 : np.array, optional
+            Test set group labels used for prediction from an additive random effects model in the "control" case. 
+            We do not currently support (but plan to in the near future), test set evaluation for group labels that 
+            were not in the training set. Must be a numpy array.
+        rfx_group_ids_1 : np.array, optional
+            Test set group labels used for prediction from an additive random effects model in the "control" case. 
+            We do not currently support (but plan to in the near future), test set evaluation for group labels that 
+            were not in the training set. Must be a numpy array.
+        rfx_basis_0 : np.array, optional
+            Test set basis for used for prediction from an additive random effects model in the "control" case.  Must be a numpy array.
+        rfx_basis_1 : np.array, optional
+            Test set basis for used for prediction from an additive random effects model in the "treatment" case.  Must be a numpy array.
+        type : str, optional
+            Aggregation level of the contrast. Options are "mean", which averages the contrast evaluations over every draw of a BCF model, and "posterior", which returns the entire matrix of posterior contrast estimates. Default: "posterior".
+        scale : str, optional
+            Scale of the contrast. Options are "linear", which returns a contrast on the original scale of the mean forest / RFX terms, and "probability", which transforms each contrast term into a probability of observing `y == 1` before taking their difference. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
+
+        Returns
+        -------
+        Array, either 1d or 2d depending on whether type = "mean" or "posterior".
+        """
+        # Handle mean function scale
+        if not isinstance(scale, str):
+            raise ValueError("scale must be a string")
+        if scale not in ["linear", "probability"]:
+            raise ValueError("scale must either be 'linear' or 'probability'")
+        is_probit = self.probit_outcome_model
+        if (scale == "probability") and (not is_probit):
+            raise ValueError(
+                "scale cannot be 'probability' for models not fit with a probit outcome model"
+            )
+        probability_scale = scale == "probability"
+
+        # Handle prediction type
+        if not isinstance(type, str):
+            raise ValueError("type must be a string")
+        if type not in ["mean", "posterior"]:
+            raise ValueError("type must either be 'mean' or 'posterior'")
+        predict_mean = type == "mean"
+
+        # Check the model is valid
+        if not self.is_sampled():
+            msg = (
+                "This BCFModel instance is not fitted yet. Call 'fit' with "
+                "appropriate arguments before using this model."
+            )
+            raise NotSampledError(msg)
+
+        # Data checks
+        if Z_0.shape[0] != X_0.shape[0]:
+            raise ValueError("X_0 and Z_0 must have the same number of rows")
+        if Z_1.shape[0] != X_1.shape[0]:
+            raise ValueError("X_1 and Z_1 must have the same number of rows")
+
+        # Predict for the control arm
+        control_preds = self.predict(X=X_0, Z=Z_0, propensity=propensity_0, rfx_group_ids=rfx_group_ids_0, rfx_basis=rfx_basis_0, type="posterior", terms="y_hat", scale="linear")
+
+        # Predict for the treatment arm
+        treatment_preds = self.predict(X=X_1, Z=Z_1, propensity=propensity_1, rfx_group_ids=rfx_group_ids_1, rfx_basis=rfx_basis_1, type="posterior", terms="y_hat", scale="linear")
+
+        # Transform to probability scale if requested
+        if probability_scale:
+            treatment_preds = norm.ppf(treatment_preds)
+            control_preds = norm.ppf(control_preds)
+
+        # Compute and return contrast
+        if predict_mean:
+            return(np.mean(treatment_preds - control_preds, axis=1))
+        else:
+            return(treatment_preds - control_preds)
+
     def compute_posterior_interval(
         self,
         terms: Union[list[str], str] = "all",
