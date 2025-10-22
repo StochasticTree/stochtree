@@ -84,7 +84,7 @@ y_test <- y[test_inds]
 y_train <- y[train_inds]
 bart_model <- bart(X_train = X_train, leaf_basis_train = W_train, y_train = y_train,
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-contrast <- compute_contrast_bart_model(
+contrast_test <- compute_contrast_bart_model(
     bart_model,
     covariates_0 = X_test,
     covariates_1 = X_test,

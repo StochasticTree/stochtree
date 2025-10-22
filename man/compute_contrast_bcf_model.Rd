@@ -123,7 +123,7 @@ tau_train <- tau_x[train_inds]
 bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
                  propensity_train = pi_train, num_gfr = 10,
                  num_burnin = 0, num_mcmc = 10)
-preds <- compute_posterior_contrast_bcf_model(
+tau_hat_test <- compute_contrast_bcf_model(
     bcf_model, X0=X_test, X1=X_test, Z0=rep(0, n_test), Z1=rep(1, n_test),
     propensity_0 = pi_test, propensity_1 = pi_test
 )
