@@ -1391,14 +1391,9 @@ class BCFModel:
             # Prior parameters
             if rfx_working_parameter_prior_mean is None:
                 if num_rfx_components == 1:
-                    alpha_init = np.array([1])
+                    alpha_init = np.array([0.0], dtype=float)
                 elif num_rfx_components > 1:
-                    alpha_init = np.concatenate(
-                        (
-                            np.ones(1, dtype=float),
-                            np.zeros(num_rfx_components - 1, dtype=float),
-                        )
-                    )
+                    alpha_init = np.zeros(num_rfx_components, dtype=float)
                 else:
                     raise ValueError("There must be at least 1 random effect component")
             else:
@@ -2763,7 +2758,7 @@ class BCFModel:
                 raise ValueError(
                     "'treatment' must have the same number of rows as 'covariates'"
                 )
-        uses_propensity = self.propensity_covariate is not "none"
+        uses_propensity = self.propensity_covariate != "none"
         internal_propensity_model = self.internal_propensity_model
         needs_propensity = (
             needs_covariates and uses_propensity and not internal_propensity_model
