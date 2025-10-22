@@ -315,9 +315,7 @@ class BCFModel:
             "variance_prior_shape": 1.0,
             "variance_prior_scale": 1.0,
         }
-        rfx_params_updated = _preprocess_params(
-            rfx_params_default, rfx_params
-        )
+        rfx_params_updated = _preprocess_params(rfx_params_default, rfx_params)
 
         ### Unpack all parameter values
         # 1. General parameters
@@ -405,9 +403,7 @@ class BCFModel:
         rfx_working_parameter_prior_cov = rfx_params_updated[
             "working_parameter_prior_cov"
         ]
-        rfx_group_parameter_prior_cov = rfx_params_updated[
-            "group_parameter_prior_cov"
-        ]
+        rfx_group_parameter_prior_cov = rfx_params_updated["group_parameter_prior_cov"]
         rfx_variance_prior_shape = rfx_params_updated["variance_prior_shape"]
         rfx_variance_prior_scale = rfx_params_updated["variance_prior_scale"]
 
@@ -2556,13 +2552,13 @@ class BCFModel:
         type: str = "posterior",
         scale: str = "linear",
     ) -> dict:
-        """Compute a contrast using a BCF model by making two sets of outcome predictions and taking their 
-        difference. This function provides the flexibility to compute any contrast of interest by specifying 
-        covariates, leaf basis, and random effects bases / IDs for both sides of a two term contrast. 
-        For simplicity, we refer to the subtrahend of the contrast as the "control" or `Y0` term and the minuend 
-        of the contrast as the `Y1` term, though the requested contrast need not match the "control vs treatment" 
-        terminology of a classic two-treatment causal inference problem. We mirror the function calls and 
-        terminology of the `predict.bartmodel` function, labeling each prediction data term with a `1` to denote 
+        """Compute a contrast using a BCF model by making two sets of outcome predictions and taking their
+        difference. This function provides the flexibility to compute any contrast of interest by specifying
+        covariates, leaf basis, and random effects bases / IDs for both sides of a two term contrast.
+        For simplicity, we refer to the subtrahend of the contrast as the "control" or `Y0` term and the minuend
+        of the contrast as the `Y1` term, though the requested contrast need not match the "control vs treatment"
+        terminology of a classic two-treatment causal inference problem. We mirror the function calls and
+        terminology of the `predict.bartmodel` function, labeling each prediction data term with a `1` to denote
         its contribution to the treatment prediction of a contrast and `0` to denote inclusion in the control prediction.
 
         Parameters
@@ -2580,12 +2576,12 @@ class BCFModel:
         propensity_1 : `np.array`, optional
             Propensities used for prediction in the "treatment" case. Must be a numpy array or vector.
         rfx_group_ids_0 : np.array, optional
-            Test set group labels used for prediction from an additive random effects model in the "control" case. 
-            We do not currently support (but plan to in the near future), test set evaluation for group labels that 
+            Test set group labels used for prediction from an additive random effects model in the "control" case.
+            We do not currently support (but plan to in the near future), test set evaluation for group labels that
             were not in the training set. Must be a numpy array.
         rfx_group_ids_1 : np.array, optional
-            Test set group labels used for prediction from an additive random effects model in the "control" case. 
-            We do not currently support (but plan to in the near future), test set evaluation for group labels that 
+            Test set group labels used for prediction from an additive random effects model in the "control" case.
+            We do not currently support (but plan to in the near future), test set evaluation for group labels that
             were not in the training set. Must be a numpy array.
         rfx_basis_0 : np.array, optional
             Test set basis for used for prediction from an additive random effects model in the "control" case.  Must be a numpy array.
@@ -2634,10 +2630,28 @@ class BCFModel:
             raise ValueError("X_1 and Z_1 must have the same number of rows")
 
         # Predict for the control arm
-        control_preds = self.predict(X=X_0, Z=Z_0, propensity=propensity_0, rfx_group_ids=rfx_group_ids_0, rfx_basis=rfx_basis_0, type="posterior", terms="y_hat", scale="linear")
+        control_preds = self.predict(
+            X=X_0,
+            Z=Z_0,
+            propensity=propensity_0,
+            rfx_group_ids=rfx_group_ids_0,
+            rfx_basis=rfx_basis_0,
+            type="posterior",
+            terms="y_hat",
+            scale="linear",
+        )
 
         # Predict for the treatment arm
-        treatment_preds = self.predict(X=X_1, Z=Z_1, propensity=propensity_1, rfx_group_ids=rfx_group_ids_1, rfx_basis=rfx_basis_1, type="posterior", terms="y_hat", scale="linear")
+        treatment_preds = self.predict(
+            X=X_1,
+            Z=Z_1,
+            propensity=propensity_1,
+            rfx_group_ids=rfx_group_ids_1,
+            rfx_basis=rfx_basis_1,
+            type="posterior",
+            terms="y_hat",
+            scale="linear",
+        )
 
         # Transform to probability scale if requested
         if probability_scale:
@@ -2646,9 +2660,9 @@ class BCFModel:
 
         # Compute and return contrast
         if predict_mean:
-            return(np.mean(treatment_preds - control_preds, axis=1))
+            return np.mean(treatment_preds - control_preds, axis=1)
         else:
-            return(treatment_preds - control_preds)
+            return treatment_preds - control_preds
 
     def compute_posterior_interval(
         self,

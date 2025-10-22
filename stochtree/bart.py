@@ -258,9 +258,7 @@ class BARTModel:
             "variance_prior_shape": 1.0,
             "variance_prior_scale": 1.0,
         }
-        rfx_params_updated = _preprocess_params(
-            rfx_params_default, rfx_params
-        )
+        rfx_params_updated = _preprocess_params(rfx_params_default, rfx_params)
 
         ### Unpack all parameter values
         # 1. General parameters
@@ -323,9 +321,7 @@ class BARTModel:
         rfx_working_parameter_prior_cov = rfx_params_updated[
             "working_parameter_prior_cov"
         ]
-        rfx_group_parameter_prior_cov = rfx_params_updated[
-            "group_parameter_prior_cov"
-        ]
+        rfx_group_parameter_prior_cov = rfx_params_updated["group_parameter_prior_cov"]
         rfx_variance_prior_shape = rfx_params_updated["variance_prior_shape"]
         rfx_variance_prior_scale = rfx_params_updated["variance_prior_scale"]
 
@@ -1885,13 +1881,13 @@ class BARTModel:
         type: str = "posterior",
         scale: str = "linear",
     ) -> Union[np.array, tuple]:
-        """Compute a contrast using a BART model by making two sets of outcome predictions and taking their 
-        difference. This function provides the flexibility to compute any contrast of interest by specifying 
-        covariates, leaf basis, and random effects bases / IDs for both sides of a two term contrast. 
-        For simplicity, we refer to the subtrahend of the contrast as the "control" or `Y0` term and the minuend 
-        of the contrast as the `Y1` term, though the requested contrast need not match the "control vs treatment" 
-        terminology of a classic two-treatment causal inference problem. We mirror the function calls and 
-        terminology of the `predict.bartmodel` function, labeling each prediction data term with a `1` to denote 
+        """Compute a contrast using a BART model by making two sets of outcome predictions and taking their
+        difference. This function provides the flexibility to compute any contrast of interest by specifying
+        covariates, leaf basis, and random effects bases / IDs for both sides of a two term contrast.
+        For simplicity, we refer to the subtrahend of the contrast as the "control" or `Y0` term and the minuend
+        of the contrast as the `Y1` term, though the requested contrast need not match the "control vs treatment"
+        terminology of a classic two-treatment causal inference problem. We mirror the function calls and
+        terminology of the `predict.bartmodel` function, labeling each prediction data term with a `1` to denote
         its contribution to the treatment prediction of a contrast and `0` to denote inclusion in the control prediction.
 
         Parameters
@@ -1905,12 +1901,12 @@ class BARTModel:
         basis_1 : np.array, optional
             Bases used for prediction in the "treatment" case (by e.g. dot product with leaf values).
         rfx_group_ids_0 : np.array, optional
-            Test set group labels used for prediction from an additive random effects model in the "control" case. 
-            We do not currently support (but plan to in the near future), test set evaluation for group labels that 
+            Test set group labels used for prediction from an additive random effects model in the "control" case.
+            We do not currently support (but plan to in the near future), test set evaluation for group labels that
             were not in the training set. Must be a numpy array.
         rfx_group_ids_1 : np.array, optional
-            Test set group labels used for prediction from an additive random effects model in the "treatment" case. 
-            We do not currently support (but plan to in the near future), test set evaluation for group labels that 
+            Test set group labels used for prediction from an additive random effects model in the "treatment" case.
+            We do not currently support (but plan to in the near future), test set evaluation for group labels that
             were not in the training set. Must be a numpy array.
         rfx_basis_0 : np.array, optional
             Test set basis for used for prediction from an additive random effects model in the "control" case.
@@ -1949,10 +1945,7 @@ class BARTModel:
         has_rfx = self.has_rfx
 
         # Check that we have at least one term to predict on probability scale
-        if (
-            not has_mean_forest
-            and not has_rfx
-        ):
+        if not has_mean_forest and not has_rfx:
             raise ValueError(
                 "Contrast cannot be computed as the model does not have a mean forest or random effects term"
             )
@@ -1988,12 +1981,28 @@ class BARTModel:
                 raise ValueError(
                     "covariates_1 and basis_1 must have the same number of rows"
                 )
-        
+
         # Predict for the control arm
-        control_preds = self.predict(covariates=covariates_0, basis=basis_0, rfx_group_ids=rfx_group_ids_0, rfx_basis=rfx_basis_0, type="posterior", terms="y_hat", scale="linear")
+        control_preds = self.predict(
+            covariates=covariates_0,
+            basis=basis_0,
+            rfx_group_ids=rfx_group_ids_0,
+            rfx_basis=rfx_basis_0,
+            type="posterior",
+            terms="y_hat",
+            scale="linear",
+        )
 
         # Predict for the treatment arm
-        treatment_preds = self.predict(covariates=covariates_1, basis=basis_1, rfx_group_ids=rfx_group_ids_1, rfx_basis=rfx_basis_1, type="posterior", terms="y_hat", scale="linear")
+        treatment_preds = self.predict(
+            covariates=covariates_1,
+            basis=basis_1,
+            rfx_group_ids=rfx_group_ids_1,
+            rfx_basis=rfx_basis_1,
+            type="posterior",
+            terms="y_hat",
+            scale="linear",
+        )
 
         # Transform to probability scale if requested
         if probability_scale:
@@ -2002,9 +2011,9 @@ class BARTModel:
 
         # Compute and return contrast
         if predict_mean:
-            return(np.mean(treatment_preds - control_preds, axis=1))
+            return np.mean(treatment_preds - control_preds, axis=1)
         else:
-            return(treatment_preds - control_preds)
+            return treatment_preds - control_preds
 
     def compute_posterior_interval(
         self,
