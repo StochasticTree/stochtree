@@ -505,13 +505,13 @@ test_that("Random Effects BART", {
   )
 
   # Specify all rfx parameters as scalars
-  general_param_list <- list(
-    rfx_working_parameter_prior_mean = 1.,
-    rfx_group_parameter_prior_mean = 1.,
-    rfx_working_parameter_prior_cov = 1.,
-    rfx_group_parameter_prior_cov = 1.,
-    rfx_variance_prior_shape = 1,
-    rfx_variance_prior_scale = 1
+  rfx_param_list <- list(
+    working_parameter_prior_mean = 1.,
+    group_parameter_prior_mean = 1.,
+    working_parameter_prior_cov = 1.,
+    group_parameter_prior_cov = 1.,
+    variance_prior_shape = 1,
+    variance_prior_scale = 1
   )
   mean_forest_param_list <- list(sample_sigma2_leaf = FALSE)
   expect_no_error(
@@ -528,19 +528,19 @@ test_that("Random Effects BART", {
       num_gfr = 0,
       num_burnin = 10,
       num_mcmc = 10,
-      general_params = general_param_list,
-      mean_forest_params = mean_forest_param_list
+      mean_forest_params = mean_forest_param_list,
+      rfx_params = rfx_param_list
     )
   )
 
   # Specify all relevant rfx parameters as vectors
-  general_param_list <- list(
-    rfx_working_parameter_prior_mean = c(1., 1.),
-    rfx_group_parameter_prior_mean = c(1., 1.),
-    rfx_working_parameter_prior_cov = diag(1., 2),
-    rfx_group_parameter_prior_cov = diag(1., 2),
-    rfx_variance_prior_shape = 1,
-    rfx_variance_prior_scale = 1
+  rfx_param_list <- list(
+    working_parameter_prior_mean = c(1., 1.),
+    group_parameter_prior_mean = c(1., 1.),
+    working_parameter_prior_cov = diag(1., 2),
+    group_parameter_prior_cov = diag(1., 2),
+    variance_prior_shape = 1,
+    variance_prior_scale = 1
   )
   mean_forest_param_list <- list(sample_sigma2_leaf = FALSE)
   expect_no_error(
@@ -557,8 +557,8 @@ test_that("Random Effects BART", {
       num_gfr = 0,
       num_burnin = 10,
       num_mcmc = 10,
-      general_params = general_param_list,
-      mean_forest_params = mean_forest_param_list
+      mean_forest_params = mean_forest_param_list,
+      rfx_params = rfx_param_list
     )
   )
 })

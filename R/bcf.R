@@ -103,6 +103,15 @@
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 #'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 #'
+#' @param rfx_params (Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
+#'
+#'   - `working_parameter_prior_mean` Prior mean for the random effects "working parameter". Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+#'   - `group_parameters_prior_mean` Prior mean for the random effects "group parameters." Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+#'   - `working_parameter_prior_cov` Prior covariance matrix for the random effects "working parameter." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+#'   - `group_parameter_prior_cov` Prior covariance matrix for the random effects "group parameters." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+#'   - `variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+#'   - `variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+#'
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
 #'
@@ -172,7 +181,8 @@ bcf <- function(
   general_params = list(),
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
-  variance_forest_params = list()
+  variance_forest_params = list(),
+  rfx_params = list()
 ) {
   # Update general BCF parameters
   general_params_default <- list(
@@ -269,6 +279,20 @@ bcf <- function(
     variance_forest_params
   )
 
+  # Update random effects parameters
+  rfx_params_default <- list(
+    working_parameter_prior_mean = NULL,
+    group_parameter_prior_mean = NULL,
+    working_parameter_prior_cov = NULL,
+    group_parameter_prior_cov = NULL,
+    variance_prior_shape = 1,
+    variance_prior_scale = 1
+  )
+  rfx_params_updated <- preprocessParams(
+    rfx_params_default,
+    rfx_params
+  )
+
   ### Unpack all parameter values
   # 1. General parameters
   cutpoint_grid_size <- general_params_updated$cutpoint_grid_size
@@ -290,12 +314,6 @@ bcf <- function(
   num_chains <- general_params_updated$num_chains
   verbose <- general_params_updated$verbose
   probit_outcome_model <- general_params_updated$probit_outcome_model
-  rfx_working_parameter_prior_mean <- general_params_updated$rfx_working_parameter_prior_mean
-  rfx_group_parameter_prior_mean <- general_params_updated$rfx_group_parameter_prior_mean
-  rfx_working_parameter_prior_cov <- general_params_updated$rfx_working_parameter_prior_cov
-  rfx_group_parameter_prior_cov <- general_params_updated$rfx_group_parameter_prior_cov
-  rfx_variance_prior_shape <- general_params_updated$rfx_variance_prior_shape
-  rfx_variance_prior_scale <- general_params_updated$rfx_variance_prior_scale
   num_threads <- general_params_updated$num_threads
 
   # 2. Mu forest parameters
@@ -340,6 +358,14 @@ bcf <- function(
   keep_vars_variance <- variance_forest_params_updated$keep_vars
   drop_vars_variance <- variance_forest_params_updated$drop_vars
   num_features_subsample_variance <- variance_forest_params_updated$num_features_subsample
+
+  # 5. Random effects parameters
+  rfx_working_parameter_prior_mean <- rfx_params_updated$working_parameter_prior_mean
+  rfx_group_parameter_prior_mean <- rfx_params_updated$group_parameter_prior_mean
+  rfx_working_parameter_prior_cov <- rfx_params_updated$working_parameter_prior_cov
+  rfx_group_parameter_prior_cov <- rfx_params_updated$group_parameter_prior_cov
+  rfx_variance_prior_shape <- rfx_params_updated$variance_prior_shape
+  rfx_variance_prior_scale <- rfx_params_updated$variance_prior_scale
 
   # Set a function-scoped RNG if user provided a random seed
   custom_rng <- random_seed >= 0

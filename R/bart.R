@@ -45,12 +45,6 @@
 #'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'   - `probit_outcome_model` Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
-#'   - `rfx_working_parameter_prior_mean` Prior mean for the random effects "working parameter". Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
-#'   - `rfx_group_parameters_prior_mean` Prior mean for the random effects "group parameters." Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
-#'   - `rfx_working_parameter_prior_cov` Prior covariance matrix for the random effects "working parameter." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
-#'   - `rfx_group_parameter_prior_cov` Prior covariance matrix for the random effects "group parameters." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
-#'   - `rfx_variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
-#'   - `rfx_variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 #'
 #' @param mean_forest_params (Optional) A list of mean forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -82,6 +76,15 @@
 #'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 #'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+#'
+#' @param random_effects_params (Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
+#'
+#'   - `working_parameter_prior_mean` Prior mean for the random effects "working parameter". Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+#'   - `group_parameters_prior_mean` Prior mean for the random effects "group parameters." Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+#'   - `working_parameter_prior_cov` Prior covariance matrix for the random effects "working parameter." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+#'   - `group_parameter_prior_cov` Prior covariance matrix for the random effects "group parameters." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+#'   - `variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+#'   - `variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
@@ -127,7 +130,8 @@ bart <- function(
   previous_model_warmstart_sample_num = NULL,
   general_params = list(),
   mean_forest_params = list(),
-  variance_forest_params = list()
+  variance_forest_params = list(),
+  rfx_params = list()
 ) {
   # Update general BART parameters
   general_params_default <- list(
@@ -198,6 +202,20 @@ bart <- function(
     variance_forest_params
   )
 
+  # Update rfx parameters
+  rfx_params_default <- list(
+    working_parameter_prior_mean = NULL,
+    group_parameter_prior_mean = NULL,
+    working_parameter_prior_cov = NULL,
+    group_parameter_prior_cov = NULL,
+    variance_prior_shape = 1,
+    variance_prior_scale = 1
+  )
+  rfx_params_updated <- preprocessParams(
+    rfx_params_default,
+    rfx_params
+  )
+
   ### Unpack all parameter values
   # 1. General parameters
   cutpoint_grid_size <- general_params_updated$cutpoint_grid_size
@@ -214,12 +232,6 @@ bart <- function(
   num_chains <- general_params_updated$num_chains
   verbose <- general_params_updated$verbose
   probit_outcome_model <- general_params_updated$probit_outcome_model
-  rfx_working_parameter_prior_mean <- general_params_updated$rfx_working_parameter_prior_mean
-  rfx_group_parameter_prior_mean <- general_params_updated$rfx_group_parameter_prior_mean
-  rfx_working_parameter_prior_cov <- general_params_updated$rfx_working_parameter_prior_cov
-  rfx_group_parameter_prior_cov <- general_params_updated$rfx_group_parameter_prior_cov
-  rfx_variance_prior_shape <- general_params_updated$rfx_variance_prior_shape
-  rfx_variance_prior_scale <- general_params_updated$rfx_variance_prior_scale
   num_threads <- general_params_updated$num_threads
 
   # 2. Mean forest parameters
@@ -249,6 +261,14 @@ bart <- function(
   keep_vars_variance <- variance_forest_params_updated$keep_vars
   drop_vars_variance <- variance_forest_params_updated$drop_vars
   num_features_subsample_variance <- variance_forest_params_updated$num_features_subsample
+
+  # 4. RFX parameters
+  rfx_working_parameter_prior_mean <- rfx_params_updated$working_parameter_prior_mean
+  rfx_group_parameter_prior_mean <- rfx_params_updated$group_parameter_prior_mean
+  rfx_working_parameter_prior_cov <- rfx_params_updated$working_parameter_prior_cov
+  rfx_group_parameter_prior_cov <- rfx_params_updated$group_parameter_prior_cov
+  rfx_variance_prior_shape <- rfx_params_updated$variance_prior_shape
+  rfx_variance_prior_scale <- rfx_params_updated$variance_prior_scale
 
   # Set a function-scoped RNG if user provided a random seed
   custom_rng <- random_seed >= 0
