@@ -33,31 +33,31 @@ compute_contrast_bcf_model(
 \arguments{
 \item{object}{Object of type \code{bcfmodel} containing draws of a Bayesian causal forest model and associated sampling outputs.}
 
-\item{X_0}{Covariates used for prediction in the "control" case.}
+\item{X_0}{Covariates used for prediction in the "control" case. Must be a matrix or dataframe.}
 
-\item{X_1}{Covariates used for prediction in the "treatment" case.}
+\item{X_1}{Covariates used for prediction in the "treatment" case. Must be a matrix or dataframe.}
 
-\item{Z_0}{Treatments used for prediction in the "control" case.}
+\item{Z_0}{Treatments used for prediction in the "control" case. Must be a matrix or vector.}
 
-\item{Z_1}{Treatments used for prediction in the "treatment" case.}
+\item{Z_1}{Treatments used for prediction in the "treatment" case. Must be a matrix or vector.}
 
-\item{propensity_0}{(Optional) Propensities used for prediction in the "control" case.}
+\item{propensity_0}{(Optional) Propensities used for prediction in the "control" case. Must be a matrix or vector.}
 
-\item{propensity_1}{(Optional) Propensities used for prediction in the "treatment" case.}
+\item{propensity_1}{(Optional) Propensities used for prediction in the "treatment" case. Must be a matrix or vector.}
 
 \item{rfx_group_ids_0}{(Optional) Test set group labels used for prediction from an additive random effects
 model in the "control" case. We do not currently support (but plan to in the near future), test set evaluation
-for group labels that were not in the training set.}
+for group labels that were not in the training set. Must be a vector.}
 
 \item{rfx_group_ids_1}{(Optional) Test set group labels used for prediction from an additive random effects
 model in the "treatment" case. We do not currently support (but plan to in the near future), test set evaluation
-for group labels that were not in the training set.}
+for group labels that were not in the training set. Must be a vector.}
 
-\item{rfx_basis_0}{(Optional) Test set basis for used for prediction from an additive random effects model in the "control" case.}
+\item{rfx_basis_0}{(Optional) Test set basis for used for prediction from an additive random effects model in the "control" case.  Must be a matrix or vector.}
 
-\item{rfx_basis_1}{(Optional) Test set basis for used for prediction from an additive random effects model in the "treatment" case.}
+\item{rfx_basis_1}{(Optional) Test set basis for used for prediction from an additive random effects model in the "treatment" case. Must be a matrix or vector.}
 
-\item{type}{(Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".}
+\item{type}{(Optional) Type of prediction to return. Options are "mean", which averages the contrast evaluations over every draw of a BCF model, and "posterior", which returns the entire matrix of posterior contrast estimates. Default: "posterior".}
 
 \item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns a contrast on the original scale of the mean forest / RFX terms, and "probability", which transforms each contrast term into a probability of observing \code{y == 1} before taking their difference. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
 

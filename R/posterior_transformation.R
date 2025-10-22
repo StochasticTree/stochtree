@@ -10,21 +10,21 @@
 #' control prediction.
 #'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
-#' @param X_0 Covariates used for prediction in the "control" case.
-#' @param X_1 Covariates used for prediction in the "treatment" case.
-#' @param Z_0 Treatments used for prediction in the "control" case.
-#' @param Z_1 Treatments used for prediction in the "treatment" case.
-#' @param propensity_0 (Optional) Propensities used for prediction in the "control" case.
-#' @param propensity_1 (Optional) Propensities used for prediction in the "treatment" case.
+#' @param X_0 Covariates used for prediction in the "control" case. Must be a matrix or dataframe.
+#' @param X_1 Covariates used for prediction in the "treatment" case. Must be a matrix or dataframe.
+#' @param Z_0 Treatments used for prediction in the "control" case. Must be a matrix or vector.
+#' @param Z_1 Treatments used for prediction in the "treatment" case. Must be a matrix or vector.
+#' @param propensity_0 (Optional) Propensities used for prediction in the "control" case. Must be a matrix or vector.
+#' @param propensity_1 (Optional) Propensities used for prediction in the "treatment" case. Must be a matrix or vector.
 #' @param rfx_group_ids_0 (Optional) Test set group labels used for prediction from an additive random effects
 #' model in the "control" case. We do not currently support (but plan to in the near future), test set evaluation
-#' for group labels that were not in the training set.
+#' for group labels that were not in the training set. Must be a vector.
 #' @param rfx_group_ids_1 (Optional) Test set group labels used for prediction from an additive random effects
 #' model in the "treatment" case. We do not currently support (but plan to in the near future), test set evaluation
-#' for group labels that were not in the training set.
-#' @param rfx_basis_0 (Optional) Test set basis for used for prediction from an additive random effects model in the "control" case.
-#' @param rfx_basis_1 (Optional) Test set basis for used for prediction from an additive random effects model in the "treatment" case.
-#' @param type (Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
+#' for group labels that were not in the training set. Must be a vector.
+#' @param rfx_basis_0 (Optional) Test set basis for used for prediction from an additive random effects model in the "control" case.  Must be a matrix or vector.
+#' @param rfx_basis_1 (Optional) Test set basis for used for prediction from an additive random effects model in the "treatment" case. Must be a matrix or vector.
+#' @param type (Optional) Type of prediction to return. Options are "mean", which averages the contrast evaluations over every draw of a BCF model, and "posterior", which returns the entire matrix of posterior contrast estimates. Default: "posterior".
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns a contrast on the original scale of the mean forest / RFX terms, and "probability", which transforms each contrast term into a probability of observing `y == 1` before taking their difference. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
 #' @param ... (Optional) Other prediction parameters.
 #'
@@ -247,6 +247,219 @@ compute_contrast_bcf_model <- function(
   }
 }
 
+#' Compute a contrast using a BART model by making two sets of outcome predictions and taking their difference.
+#' This function provides the flexibility to compute any contrast of interest by specifying covariates, leaf basis, and random effects
+#' bases / IDs for both sides of a two term contrast. For simplicity, we refer to the subtrahend of the contrast as the "control" or
+#' `Y0` term and the minuend of the contrast as the `Y1` term, though the requested contrast need not match the "control vs treatment"
+#' terminology of a classic two-treatment causal inference problem. We mirror the function calls and terminology of the `predict.bartmodel`
+#' function, labeling each prediction data term with a `1` to denote its contribution to the treatment prediction of a contrast and
+#' `0` to denote inclusion in the control prediction.
+#'
+#' Only valid when there is either a mean forest or a random effects term in the BART model.
+#'
+#' @param object Object of type `bart` containing draws of a regression forest and associated sampling outputs.
+#' @param covariates_0 Covariates used for prediction in the "control" case. Must be a matrix or dataframe.
+#' @param covariates_1 Covariates used for prediction in the "treatment" case. Must be a matrix or dataframe.
+#' @param leaf_basis_0 (Optional) Bases used for prediction in the "control" case (by e.g. dot product with leaf values). Default: `NULL`.
+#' @param leaf_basis_1 (Optional) Bases used for prediction in the "treatment" case (by e.g. dot product with leaf values). Default: `NULL`.
+#' @param rfx_group_ids_0 (Optional) Test set group labels used for prediction from an additive random effects
+#' model in the "control" case. We do not currently support (but plan to in the near future), test set evaluation
+#' for group labels that were not in the training set. Must be a vector.
+#' @param rfx_group_ids_1 (Optional) Test set group labels used for prediction from an additive random effects
+#' model in the "treatment" case. We do not currently support (but plan to in the near future), test set evaluation
+#' for group labels that were not in the training set. Must be a vector.
+#' @param rfx_basis_0 (Optional) Test set basis for used for prediction from an additive random effects model in the "control" case.  Must be a matrix or vector.
+#' @param rfx_basis_1 (Optional) Test set basis for used for prediction from an additive random effects model in the "treatment" case. Must be a matrix or vector.
+#' @param type (Optional) Type of prediction to return. Options are "mean", which averages the contrast evaluations over every draw of a BART model, and "posterior", which returns the entire matrix of posterior contrast estimates. Default: "posterior".
+#' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns a contrast on the original scale of the mean forest / RFX terms, and "probability", which transforms each contrast term into a probability of observing `y == 1` before taking their difference. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
+#'
+#' @return Contrast matrix or vector, depending on whether type = "mean" or "posterior".
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' W <- matrix(runif(n*1), ncol = 1)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5*W[,1]) +
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5*W[,1]) +
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5*W[,1]) +
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5*W[,1])
+#' )
+#' noise_sd <- 1
+#' y <- f_XW + rnorm(n, 0, noise_sd)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' W_test <- W[test_inds,]
+#' W_train <- W[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' bart_model <- bart(X_train = X_train, leaf_basis_train = W_train, y_train = y_train,
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
+#' contrast <- compute_contrast_bart_model(
+#'     bart_model,
+#'     covariates_0 = X_test,
+#'     covariates_1 = X_test,
+#'     leaf_basis_0 = matrix(0, nrow = n_test, ncol = 1),
+#'     leaf_basis_1 = matrix(1, nrow = n_test, ncol = 1),
+#'     type = "posterior",
+#'     scale = "linear"
+#' )
+compute_contrast_bart_model <- function(
+  object,
+  covariates_0,
+  covariates_1,
+  leaf_basis_0 = NULL,
+  leaf_basis_1 = NULL,
+  rfx_group_ids_0 = NULL,
+  rfx_group_ids_1 = NULL,
+  rfx_basis_0 = NULL,
+  rfx_basis_1 = NULL,
+  type = "posterior",
+  scale = "linear",
+  ...
+) {
+  # Handle mean function scale
+  if (!is.character(scale)) {
+    stop("scale must be a string or character vector")
+  }
+  if (!(scale %in% c("linear", "probability"))) {
+    stop("scale must either be 'linear' or 'probability'")
+  }
+  is_probit <- object$model_params$probit_outcome_model
+  if ((scale == "probability") && (!is_probit)) {
+    stop(
+      "scale cannot be 'probability' for models not fit with a probit outcome model"
+    )
+  }
+  probability_scale <- scale == "probability"
+
+  # Handle prediction type
+  if (!is.character(type)) {
+    stop("type must be a string or character vector")
+  }
+  if (!(type %in% c("mean", "posterior"))) {
+    stop("type must either be 'mean' or 'posterior'")
+  }
+  predict_mean <- type == "mean"
+
+  # Handle prediction terms
+  has_mean_forest <- object$model_params$include_mean_forest
+  has_rfx <- object$model_params$has_rfx
+  if ((!has_mean_forest) && (!has_rfx)) {
+    stop(
+      "Model must have either or both of mean forest or random effects terms to compute the requested contrast."
+    )
+  }
+
+  # Check that covariates are matrix or data frame
+  if ((!is.data.frame(covariates_0)) && (!is.matrix(covariates_0))) {
+    stop("covariates_0 must be a matrix or dataframe")
+  }
+  if ((!is.data.frame(covariates_1)) && (!is.matrix(covariates_1))) {
+    stop("covariates_1 must be a matrix or dataframe")
+  }
+
+  # Convert all input data to matrices if not already converted
+  if ((is.null(dim(leaf_basis_0))) && (!is.null(leaf_basis_0))) {
+    leaf_basis_0 <- as.matrix(leaf_basis_0)
+  }
+  if ((is.null(dim(leaf_basis_1))) && (!is.null(leaf_basis_1))) {
+    leaf_basis_1 <- as.matrix(leaf_basis_1)
+  }
+  if ((is.null(dim(rfx_basis_0))) && (!is.null(rfx_basis_0))) {
+    rfx_basis_0 <- as.matrix(rfx_basis_0)
+  }
+  if ((is.null(dim(rfx_basis_1))) && (!is.null(rfx_basis_1))) {
+    rfx_basis_1 <- as.matrix(rfx_basis_1)
+  }
+
+  # Data checks
+  if (
+    (object$model_params$requires_basis) &&
+      (is.null(leaf_basis_0) || is.null(leaf_basis_1))
+  ) {
+    stop("leaf_basis_0 and leaf_basis_1 must be provided for this model")
+  }
+  if ((!is.null(leaf_basis_0)) && (nrow(covariates_0) != nrow(leaf_basis_0))) {
+    stop("covariates_0 and leaf_basis_0 must have the same number of rows")
+  }
+  if ((!is.null(leaf_basis_1)) && (nrow(covariates_1) != nrow(leaf_basis_1))) {
+    stop("covariates_1 and leaf_basis_1 must have the same number of rows")
+  }
+  if (object$model_params$num_covariates != ncol(covariates_0)) {
+    stop(
+      "covariates_0 must contain the same number of columns as the BART model's training dataset"
+    )
+  }
+  if (object$model_params$num_covariates != ncol(covariates_1)) {
+    stop(
+      "covariates_1 must contain the same number of columns as the BART model's training dataset"
+    )
+  }
+  if ((has_rfx) && (is.null(rfx_group_ids_0) || is.null(rfx_group_ids_1))) {
+    stop(
+      "rfx_group_ids_0 and rfx_group_ids_1 must be provided for this model"
+    )
+  }
+  if ((has_rfx) && (is.null(rfx_basis_0) || is.null(rfx_basis_1))) {
+    stop(
+      "rfx_basis_0 and rfx_basis_1 must be provided for this model"
+    )
+  }
+  if (
+    (object$model_params$num_rfx_basis > 0) &&
+      ((ncol(rfx_basis_0) != object$model_params$num_rfx_basis) ||
+        (ncol(rfx_basis_1) != object$model_params$num_rfx_basis))
+  ) {
+    stop(
+      "rfx_basis_0 and / or rfx_basis_1 have a different dimension than the basis used to train this model"
+    )
+  }
+
+  # Predict for the control arm
+  control_preds <- predict(
+    object = object,
+    covariates = covariates_0,
+    leaf_basis = leaf_basis_0,
+    rfx_group_ids = rfx_group_ids_0,
+    rfx_basis = rfx_basis_0,
+    type = "posterior",
+    term = "y_hat",
+    scale = "linear"
+  )
+
+  # Predict for the treatment arm
+  treatment_preds <- predict(
+    object = object,
+    covariates = covariates_1,
+    leaf_basis = leaf_basis_1,
+    rfx_group_ids = rfx_group_ids_1,
+    rfx_basis = rfx_basis_1,
+    type = "posterior",
+    term = "y_hat",
+    scale = "linear"
+  )
+
+  # Transform to probability scale if requested
+  if (probability_scale) {
+    treatment_preds <- pnorm(treatment_preds)
+    control_preds <- pnorm(control_preds)
+  }
+
+  # Compute and return contrast
+  if (predict_mean) {
+    return(rowMeans(treatment_preds - control_preds))
+  } else {
+    return(treatment_preds - control_preds)
+  }
+}
 
 #' Sample from the posterior predictive distribution for outcomes modeled by BCF
 #'
