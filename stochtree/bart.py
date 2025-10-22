@@ -1800,16 +1800,12 @@ class BARTModel:
                 pred_dataset.dataset_cpp
             )
             mean_forest_predictions = mean_pred_raw * self.y_std + self.y_bar
-            # if predict_mean:
-            #     mean_forest_predictions = np.mean(mean_forest_predictions, axis = 1)
 
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
             rfx_predictions = (
                 self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
             )
-            # if predict_mean:
-            #     rfx_predictions = np.mean(rfx_predictions, axis = 1)
 
         # Combine into y hat predictions
         if probability_scale:

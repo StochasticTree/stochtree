@@ -1815,21 +1815,21 @@ class BCFModel:
 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
-                    partial_outcome_pred = active_forest_mu.predict_raw(forest_dataset_train)
+                    mu_x = active_forest_mu.predict_raw(forest_dataset_train)
                     tau_x = np.squeeze(
                         active_forest_tau.predict_raw(forest_dataset_train)
                     )
+                    partial_resid_train = np.squeeze(resid_train - mu_x)
                     if self.has_rfx:
-                        rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
-                        partial_outcome_pred = partial_outcome_pred + rfx_pred
+                        rfx_pred = np.squeeze(rfx_model.predict(rfx_dataset_train, rfx_tracker))
+                        partial_resid_train = partial_resid_train - rfx_pred
                     s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
                     s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
-                    partial_resid = np.squeeze(resid_train - partial_outcome_pred)
                     s_ty0 = np.sum(
-                        tau_x * partial_resid * (np.squeeze(Z_train) == 0)
+                        tau_x * partial_resid_train * (np.squeeze(Z_train) == 0)
                     )
                     s_ty1 = np.sum(
-                        tau_x * partial_resid * (np.squeeze(Z_train) == 1)
+                        tau_x * partial_resid_train * (np.squeeze(Z_train) == 1)
                     )
                     current_b_0 = self.rng.normal(
                         loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -2021,21 +2021,21 @@ class BCFModel:
 
                 # Sample coding parameters (if requested)
                 if self.adaptive_coding:
-                    partial_outcome_pred = active_forest_mu.predict_raw(forest_dataset_train)
+                    mu_x = active_forest_mu.predict_raw(forest_dataset_train)
                     tau_x = np.squeeze(
                         active_forest_tau.predict_raw(forest_dataset_train)
                     )
+                    partial_resid_train = np.squeeze(resid_train - mu_x)
                     if self.has_rfx:
-                        rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
-                        partial_outcome_pred = partial_outcome_pred + rfx_pred
+                        rfx_pred = np.squeeze(rfx_model.predict(rfx_dataset_train, rfx_tracker))
+                        partial_resid_train = partial_resid_train - rfx_pred
                     s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
                     s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
-                    partial_resid = np.squeeze(resid_train - partial_outcome_pred)
                     s_ty0 = np.sum(
-                        tau_x * partial_resid * (np.squeeze(Z_train) == 0)
+                        tau_x * partial_resid_train * (np.squeeze(Z_train) == 0)
                     )
                     s_ty1 = np.sum(
-                        tau_x * partial_resid * (np.squeeze(Z_train) == 1)
+                        tau_x * partial_resid_train * (np.squeeze(Z_train) == 1)
                     )
                     current_b_0 = self.rng.normal(
                         loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -2459,8 +2459,6 @@ class BCFModel:
             rfx_preds = (
                 self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
             )
-            if predict_mean:
-                rfx_preds = np.mean(rfx_preds, axis=1)
 
         # Combine into y hat predictions
         if predict_y_hat and has_mu_forest and has_rfx:
