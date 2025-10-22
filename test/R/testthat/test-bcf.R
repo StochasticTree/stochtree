@@ -750,7 +750,7 @@ test_that("Random Effects BCF", {
       num_gfr = 10,
       num_burnin = 0,
       num_mcmc = 10,
-      rfx_params = rfx_param_list
+      random_effects_params = rfx_param_list
     )
   )
 
@@ -779,7 +779,7 @@ test_that("Random Effects BCF", {
       num_gfr = 10,
       num_burnin = 0,
       num_mcmc = 10,
-      rfx_params = rfx_param_list
+      random_effects_params = rfx_param_list
     )
   )
 })

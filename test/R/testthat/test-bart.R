@@ -529,7 +529,7 @@ test_that("Random Effects BART", {
       num_burnin = 10,
       num_mcmc = 10,
       mean_forest_params = mean_forest_param_list,
-      rfx_params = rfx_param_list
+      random_effects_params = rfx_param_list
     )
   )
 
@@ -558,7 +558,7 @@ test_that("Random Effects BART", {
       num_burnin = 10,
       num_mcmc = 10,
       mean_forest_params = mean_forest_param_list,
-      rfx_params = rfx_param_list
+      random_effects_params = rfx_param_list
     )
   )
 })
