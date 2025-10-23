@@ -193,6 +193,61 @@ all(
   abs(tau_diff) < 0.001
 )
 
+# Now repeat the same process but via random effects model spec
+bcf_model <- bcf(
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  rfx_group_ids_train = group_ids_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  rfx_group_ids_test = group_ids_test,
+  num_gfr = 10,
+  num_burnin = 0,
+  num_mcmc = 1000,
+  random_effects_params = list(
+    model_spec = "intercept_plus_treatment"
+  )
+)
+
+# Compute CATE posterior
+tau_hat_posterior_test <- compute_contrast_bcf_model(
+  bcf_model,
+  X_0 = X_test,
+  X_1 = X_test,
+  Z_0 = rep(0, n_test),
+  Z_1 = rep(1, n_test),
+  propensity_0 = pi_test,
+  propensity_1 = pi_test,
+  rfx_group_ids_0 = group_ids_test,
+  rfx_group_ids_1 = group_ids_test,
+  rfx_basis_0 = cbind(1, rep(0, n_test)),
+  rfx_basis_1 = cbind(1, rep(1, n_test)),
+  type = "posterior",
+  scale = "linear"
+)
+
+# Compute the same quantity via predict
+tau_hat_posterior_test_comparison <- predict(
+  bcf_model,
+  X = X_test,
+  Z = Z_test,
+  propensity = pi_test,
+  rfx_group_ids = group_ids_test,
+  rfx_basis = rfx_basis_test,
+  type = "posterior",
+  terms = "cate",
+  scale = "linear"
+)
+
+# Compare results
+tau_diff <- tau_hat_posterior_test_comparison - tau_hat_posterior_test
+all(
+  abs(tau_diff) < 0.001
+)
+
 # Generate data for a probit BCF model with random effects
 X <- matrix(rnorm(n * p), ncol = p)
 mu_x <- X[, 1]

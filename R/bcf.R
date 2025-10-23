@@ -2628,7 +2628,7 @@ bcf <- function(
 #' @param rfx_group_ids (Optional) Test set group labels used for an additive random effects model.
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
-#' @param rfx_basis (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param rfx_basis (Optional) Test set basis for "random-slope" regression in additive random effects model. If the model was sampled with a random effects `model_spec` of "intercept_only" or "intercept_plus_treatment", this is optional, but if it is provided, it will be used.
 #' @param type (Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BCF model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
 #' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "cate", "rfx", "variance_forest", or "all". If a model doesn't have random effects or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
@@ -2830,7 +2830,7 @@ predict.bcfmodel <- function(
     group_ids_factor <- factor(rfx_group_ids, levels = rfx_unique_group_ids)
     if (sum(is.na(group_ids_factor)) > 0) {
       stop(
-        "All random effect group labels provided in rfx_group_ids must be present in rfx_group_ids"
+        "All random effect group labels provided in rfx_group_ids must have been present at sampling time"
       )
     }
     rfx_group_ids <- as.integer(group_ids_factor)
@@ -2838,23 +2838,33 @@ predict.bcfmodel <- function(
   }
 
   # Handle RFX model specification
-  if (object$model_params$rfx_model_spec == "custom") {
-    if (is.null(rfx_basis)) {
-      stop(
-        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
-      )
+  if (has_rfx) {
+    if (object$model_params$rfx_model_spec == "custom") {
+      if (is.null(rfx_basis)) {
+        stop(
+          "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+        )
+      }
+    } else if (object$model_params$rfx_model_spec == "intercept_only") {
+      # Only construct a basis if user-provided basis missing
+      if (is.null(rfx_basis)) {
+        rfx_basis <- matrix(
+          rep(1, nrow(X)),
+          nrow = nrow(X),
+          ncol = 1
+        )
+      }
+    } else if (
+      object$model_params$rfx_model_spec == "intercept_plus_treatment"
+    ) {
+      # Only construct a basis if user-provided basis missing
+      if (is.null(rfx_basis)) {
+        rfx_basis <- cbind(
+          rep(1, nrow(X)),
+          Z
+        )
+      }
     }
-  } else if (object$model_params$rfx_model_spec == "intercept_only") {
-    rfx_basis <- matrix(
-      rep(1, nrow(X)),
-      nrow = nrow(X),
-      ncol = 1
-    )
-  } else if (object$model_params$rfx_model_spec == "intercept_plus_treatment") {
-    rfx_basis <- cbind(
-      rep(1, nrow(X)),
-      Z
-    )
   }
 
   # Add propensities to covariate set if necessary
@@ -2953,14 +2963,18 @@ predict.bcfmodel <- function(
       rfx_predictions_raw[i, , ] <-
         rfx_beta_draws[, rfx_group_ids[i], ]
     }
+  }
 
-    # Add these RFX predictions to mu and tau if warranted by the RFX model spec
-    if (predict_mu_forest && rfx_intercept) {
+  # Add raw RFX predictions to mu and tau if warranted by the RFX model spec
+  if (predict_mu_forest || predict_mu_forest_intermediate) {
+    if (rfx_intercept && predict_rfx_raw) {
       mu_hat_final <- mu_hat_forest + rfx_predictions_raw[, 1, ]
     } else {
       mu_hat_final <- mu_hat_forest
     }
-    if (predict_tau_forest && rfx_intercept_plus_treatment) {
+  }
+  if (predict_tau_forest || predict_tau_forest_intermediate) {
+    if (rfx_intercept_plus_treatment && predict_rfx_raw) {
       tau_hat_final <- (tau_hat_forest +
         rfx_predictions_raw[, 2:ncol(rfx_basis), ])
     } else {
