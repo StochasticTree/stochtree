@@ -3402,6 +3402,10 @@ saveBCFModelToJson <- function(object) {
       object$rfx_unique_group_ids
     )
   }
+  jsonobj$add_boolean(
+    "rfx_model_spec",
+    object$model_params$rfx_model_spec
+  )
 
   # Add propensity model (if it exists)
   if (object$model_params$internal_propensity_model) {
