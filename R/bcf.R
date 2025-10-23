@@ -99,6 +99,7 @@
 #'
 #' @param random_effects_params (Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
+#'   - `model_spec` Specification of the random effects model. Options are "custom", "intercept_only", and "intercept_plus_treatment". If "custom" is specified, then a user-provided basis must be passed through `rfx_basis_train`. If "intercept_only" is specified, a random effects basis of all ones will be dispatched internally at sampling and prediction time. If "intercept_plus_treatment" is specified, a random effects basis that combines an "intercept" basis of all ones with the treatment variable (`Z_train`) will be dispatched internally at sampling and prediction time. Default: "custom". If either "intercept_only" or "intercept_plus_treatment" is specified, `rfx_basis_train` and `rfx_basis_test` (if provided) will be ignored.
 #'   - `working_parameter_prior_mean` Prior mean for the random effects "working parameter". Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
 #'   - `group_parameters_prior_mean` Prior mean for the random effects "group parameters." Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
 #'   - `working_parameter_prior_cov` Prior covariance matrix for the random effects "working parameter." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
@@ -269,6 +270,7 @@ bcf <- function(
 
   # Update random effects parameters
   rfx_params_default <- list(
+    model_spec = "custom",
     working_parameter_prior_mean = NULL,
     group_parameter_prior_mean = NULL,
     working_parameter_prior_cov = NULL,
@@ -348,6 +350,7 @@ bcf <- function(
   num_features_subsample_variance <- variance_forest_params_updated$num_features_subsample
 
   # 5. Random effects parameters
+  rfx_model_spec <- rfx_params_updated$model_spec
   rfx_working_parameter_prior_mean <- rfx_params_updated$working_parameter_prior_mean
   rfx_group_parameter_prior_mean <- rfx_params_updated$group_parameter_prior_mean
   rfx_working_parameter_prior_cov <- rfx_params_updated$working_parameter_prior_cov
@@ -769,20 +772,6 @@ bcf <- function(
     }
   }
 
-  # Random effects covariance prior
-  if (has_rfx) {
-    if (is.null(rfx_prior_var)) {
-      rfx_prior_var <- rep(1, ncol(rfx_basis_train))
-    } else {
-      if ((!is.integer(rfx_prior_var)) && (!is.numeric(rfx_prior_var))) {
-        stop("rfx_prior_var must be a numeric vector")
-      }
-      if (length(rfx_prior_var) != ncol(rfx_basis_train)) {
-        stop("length(rfx_prior_var) must equal ncol(rfx_basis_train)")
-      }
-    }
-  }
-
   # Update variable weights
   variable_weights_adj <- 1 /
     sapply(original_var_indices, function(x) sum(original_var_indices == x))
@@ -799,40 +788,74 @@ bcf <- function(
     ] <- 0
   }
 
-  # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided
+  # Handle the rfx basis matrices
   has_basis_rfx <- FALSE
   num_basis_rfx <- 0
   if (has_rfx) {
-    if (is.null(rfx_basis_train)) {
+    if (rfx_model_spec == "custom") {
+      if (is.null(rfx_basis_train)) {
+        stop(
+          "A user-provided basis (`rfx_basis_train`) must be provided when the random effects model spec is 'custom'"
+        )
+      }
+      has_basis_rfx <- TRUE
+      num_basis_rfx <- ncol(rfx_basis_train)
+    } else if (rfx_model_spec == "intercept_only") {
       rfx_basis_train <- matrix(
         rep(1, nrow(X_train)),
         nrow = nrow(X_train),
         ncol = 1
       )
-    } else {
       has_basis_rfx <- TRUE
-      num_basis_rfx <- ncol(rfx_basis_train)
+      num_basis_rfx <- 1
+    } else if (rfx_model_spec == "intercept_plus_treatment") {
+      rfx_basis_train <- cbind(
+        rep(1, nrow(X_train)),
+        Z_train
+      )
+      has_basis_rfx <- TRUE
+      num_basis_rfx <- 1 + ncol(Z_train)
     }
     num_rfx_groups <- length(unique(rfx_group_ids_train))
     num_rfx_components <- ncol(rfx_basis_train)
     if (num_rfx_groups == 1) {
       warning(
-        "Only one group was provided for random effect sampling, so the 'redundant parameterization' is likely overkill"
+        "Only one group was provided for random effect sampling, so the random effects model is likely overkill"
       )
     }
   }
   if (has_rfx_test) {
-    if (is.null(rfx_basis_test)) {
-      if (!is.null(rfx_basis_train)) {
+    if (rfx_model_spec == "custom") {
+      if (is.null(rfx_basis_test)) {
         stop(
-          "Random effects basis provided for training set, must also be provided for the test set"
+          "A user-provided basis (`rfx_basis_test`) must be provided when the random effects model spec is 'custom'"
         )
       }
+    } else if (rfx_model_spec == "intercept_only") {
       rfx_basis_test <- matrix(
         rep(1, nrow(X_test)),
         nrow = nrow(X_test),
         ncol = 1
       )
+    } else if (rfx_model_spec == "intercept_plus_treatment") {
+      rfx_basis_test <- cbind(
+        rep(1, nrow(X_test)),
+        Z_test
+      )
+    }
+  }
+
+  # Random effects covariance prior
+  if (has_rfx) {
+    if (is.null(rfx_prior_var)) {
+      rfx_prior_var <- rep(1, ncol(rfx_basis_train))
+    } else {
+      if ((!is.integer(rfx_prior_var)) && (!is.numeric(rfx_prior_var))) {
+        stop("rfx_prior_var must be a numeric vector")
+      }
+      if (length(rfx_prior_var) != ncol(rfx_basis_train)) {
+        stop("length(rfx_prior_var) must equal ncol(rfx_basis_train)")
+      }
     }
   }
 
@@ -2536,7 +2559,8 @@ bcf <- function(
     "sample_sigma2_global" = sample_sigma2_global,
     "sample_sigma2_leaf_mu" = sample_sigma2_leaf_mu,
     "sample_sigma2_leaf_tau" = sample_sigma2_leaf_tau,
-    "probit_outcome_model" = probit_outcome_model
+    "probit_outcome_model" = probit_outcome_model,
+    "rfx_model_spec" = rfx_model_spec
   )
   result <- list(
     "forests_mu" = forest_samples_mu,
@@ -2806,9 +2830,24 @@ predict.bcfmodel <- function(
     has_rfx <- TRUE
   }
 
-  # Produce basis for the "intercept-only" random effects case
-  if ((object$model_params$has_rfx) && (is.null(rfx_basis))) {
-    rfx_basis <- matrix(rep(1, nrow(X)), ncol = 1)
+  # Handle RFX model specification
+  if (object$model_params$rfx_model_spec == "custom") {
+    if (is.null(rfx_basis)) {
+      stop(
+        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+      )
+    }
+  } else if (object$model_params$rfx_model_spec == "intercept_only") {
+    rfx_basis <- matrix(
+      rep(1, nrow(X)),
+      nrow = nrow(X),
+      ncol = 1
+    )
+  } else if (object$model_params$rfx_model_spec == "intercept_plus_treatment") {
+    rfx_basis <- cbind(
+      rep(1, nrow(X)),
+      Z
+    )
   }
 
   # Add propensities to covariate set if necessary
@@ -3650,6 +3689,9 @@ createBCFModelFromJson <- function(json_object) {
   model_params[["probit_outcome_model"]] <- json_object$get_boolean(
     "probit_outcome_model"
   )
+  model_params[["rfx_model_spec"]] <- json_object$get_string(
+    "rfx_model_spec"
+  )
   output[["model_params"]] <- model_params
 
   # Unpack sampled parameters
@@ -4069,6 +4111,9 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
     "probit_outcome_model"
   )
+  model_params[["rfx_model_spec"]] <- json_object_default$get_string(
+    "rfx_model_spec"
+  )
 
   # Combine values that are sample-specific
   for (i in 1:length(json_object_list)) {
@@ -4422,6 +4467,9 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   ]] <- json_object_default$get_boolean("internal_propensity_model")
   model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
     "probit_outcome_model"
+  )
+  model_params[["rfx_model_spec"]] <- json_object_default$get_string(
+    "rfx_model_spec"
   )
 
   # Combine values that are sample-specific
