@@ -358,6 +358,19 @@ bcf <- function(
   rfx_variance_prior_shape <- rfx_params_updated$variance_prior_shape
   rfx_variance_prior_scale <- rfx_params_updated$variance_prior_scale
 
+  # Handle random effects specification
+  if (!is.character(rfx_model_spec)) {
+    stop("rfx_model_spec must be a string or character vector")
+  }
+  if (
+    !(rfx_model_spec %in%
+      c("custom", "intercept_only", "intercept_plus_treatment"))
+  ) {
+    stop(
+      "rfx_model_spec must either be 'custom', 'intercept_only', or 'intercept_plus_treatment'"
+    )
+  }
+
   # Set a function-scoped RNG if user provided a random seed
   custom_rng <- random_seed >= 0
   if (custom_rng) {
@@ -2760,9 +2773,8 @@ predict.bcfmodel <- function(
     ))
     return(NULL)
   }
-  predict_rfx_intermediate <- ((predict_y_hat && has_rfx))
-  predict_rfx_raw <- ((predict_mu_forest && has_rfx && rfx_intercept_only) ||
-    (predict_mu_forest && has_rfx && rfx_intercept_plus_treatment) ||
+  predict_rfx_intermediate <- (predict_y_hat && has_rfx)
+  predict_rfx_raw <- ((predict_mu_forest && has_rfx && rfx_intercept) ||
     (predict_tau_forest && has_rfx && rfx_intercept_plus_treatment))
   predict_mu_forest_intermediate <- (predict_y_hat && has_mu_forest)
   predict_tau_forest_intermediate <- (predict_y_hat && has_tau_forest)
@@ -2946,12 +2958,12 @@ predict.bcfmodel <- function(
 
   # Extract "raw" rfx coefficients for each rfx basis term if needed
   if (predict_rfx_raw) {
-    # Extract the raw RFX samples and scale by train set outcome sd
+    # Extract the raw RFX samples and scale by train set outcome standard deviation
     rfx_param_list <- object$rfx_samples$extract_parameter_samples()
     rfx_beta_draws <- rfx_param_list$beta_samples *
       object$model_params$outcome_scale
 
-    # Construct a matrix with the correct random effects
+    # Construct a matrix with the appropriate group random effects arranged for each observation
     rfx_predictions_raw <- array(
       NA,
       dim = c(

@@ -97,7 +97,7 @@ class BCFModel:
         prognostic_forest_params: Optional[Dict[str, Any]] = None,
         treatment_effect_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
-        rfx_params: Optional[Dict[str, Any]] = None,
+        random_effects_params: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Runs a BCF sampler on provided training set. Outcome predictions and estimates of the prognostic and treatment effect functions
         will be cached for the training set and (if provided) the test set.
@@ -211,6 +211,7 @@ class BCFModel:
         rfx_params : dict, optional
             Dictionary of random effects parameters, each of which has a default value processed internally, so this argument is optional.
 
+            * `model_spec`: Specification of the random effects model. Options are "custom", "intercept_only", and "intercept_plus_treatment". If "custom" is specified, then a user-provided basis must be passed through `rfx_basis_train`. If "intercept_only" is specified, a random effects basis of all ones will be dispatched internally at sampling and prediction time. If "intercept_plus_treatment" is specified, a random effects basis that combines an "intercept" basis of all ones with the treatment variable (`Z_train`) will be dispatched internally at sampling and prediction time. Default: "custom". If either "intercept_only" or "intercept_plus_treatment" is specified, `rfx_basis_train` and `rfx_basis_test` (if provided) will be ignored.
             * `working_parameter_prior_mean`: Prior mean for the random effects "working parameter". Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
             * `group_parameter_prior_mean`: Prior mean for the random effects "group parameters." Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
             * `working_parameter_prior_cov`: Prior covariance matrix for the random effects "working parameter." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
@@ -308,6 +309,7 @@ class BCFModel:
 
         # Update random effects parameters
         rfx_params_default = {
+            "model_spec": "custom",
             "working_parameter_prior_mean": None,
             "group_parameter_prior_mean": None,
             "working_parameter_prior_cov": None,
@@ -315,7 +317,7 @@ class BCFModel:
             "variance_prior_shape": 1.0,
             "variance_prior_scale": 1.0,
         }
-        rfx_params_updated = _preprocess_params(rfx_params_default, rfx_params)
+        rfx_params_updated = _preprocess_params(rfx_params_default, random_effects_params)
 
         ### Unpack all parameter values
         # 1. General parameters
@@ -394,6 +396,7 @@ class BCFModel:
         ]
 
         # 5. Random effects parameters
+        self.rfx_model_spec = rfx_params_updated["model_spec"]
         rfx_working_parameter_prior_mean = rfx_params_updated[
             "working_parameter_prior_mean"
         ]
@@ -406,6 +409,12 @@ class BCFModel:
         rfx_group_parameter_prior_cov = rfx_params_updated["group_parameter_prior_cov"]
         rfx_variance_prior_shape = rfx_params_updated["variance_prior_shape"]
         rfx_variance_prior_scale = rfx_params_updated["variance_prior_scale"]
+
+        # Check random effects specification
+        if not isinstance(self.rfx_model_spec, str):
+            raise ValueError("rfx_model_spec must be a string")
+        if self.rfx_model_spec not in ["custom", "intercept_only", "intercept_plus_treatment"]:
+            raise ValueError("type must either be 'custom', 'intercept_only', 'intercept_plus_treatment'")
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -1368,23 +1377,45 @@ class BCFModel:
                         "All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train"
                     )
 
-        # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided
-        has_basis_rfx = False
+        # Handle the rfx basis matrices
+        self.has_rfx_basis = False
+        self.num_rfx_basis = 0
         if self.has_rfx:
-            if rfx_basis_train is None:
-                rfx_basis_train = np.ones((rfx_group_ids_train.shape[0], 1))
-            else:
-                has_basis_rfx = True
+            if self.rfx_model_spec == "custom":
+                if rfx_basis_train is None:
+                    raise ValueError(
+                        "rfx_basis_train must be provided when rfx_model_spec = 'custom'"
+                    )
+            elif self.rfx_model_spec == "intercept_only":
+                if rfx_basis_train is None:
+                    rfx_basis_train = np.ones((rfx_group_ids_train.shape[0], 1))
+            elif self.rfx_model_spec == "intercept_plus_treatment":
+                if rfx_basis_train is None:
+                    rfx_basis_train = np.concatenate(
+                        (np.ones((rfx_group_ids_train.shape[0], 1)), Z_train), axis=1
+                    )
+            self.has_rfx_basis = True
+            self.num_rfx_basis = rfx_basis_train.shape[1]
             num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
             num_rfx_components = rfx_basis_train.shape[1]
-            # TODO warn if num_rfx_groups is 1
+            if num_rfx_groups == 1:
+                warnings.warn(
+                    "Only one group was provided for random effect sampling, so the random effects model is likely overkill"
+                )
         if has_rfx_test:
-            if rfx_basis_test is None:
-                if has_basis_rfx:
+            if self.rfx_model_spec == "custom":
+                if rfx_basis_test is None:
                     raise ValueError(
-                        "Random effects basis provided for training set, must also be provided for the test set"
+                        "rfx_basis_test must be provided when rfx_model_spec = 'custom' and a test set is provided"
                     )
-                rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
+            elif self.rfx_model_spec == "intercept_only":
+                if rfx_basis_test is None:
+                    rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
+            elif self.rfx_model_spec == "intercept_plus_treatment":
+                if rfx_basis_test is None:
+                    rfx_basis_test = np.concatenate(
+                        (np.ones((rfx_group_ids_test.shape[0], 1)), Z_test), axis=1
+                    )
 
         # Set up random effects structures
         if self.has_rfx:
@@ -1821,7 +1852,9 @@ class BCFModel:
                     )
                     partial_resid_train = np.squeeze(resid_train - mu_x)
                     if self.has_rfx:
-                        rfx_pred = np.squeeze(rfx_model.predict(rfx_dataset_train, rfx_tracker))
+                        rfx_pred = np.squeeze(
+                            rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                        )
                         partial_resid_train = partial_resid_train - rfx_pred
                     s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
                     s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
@@ -2027,7 +2060,9 @@ class BCFModel:
                     )
                     partial_resid_train = np.squeeze(resid_train - mu_x)
                     if self.has_rfx:
-                        rfx_pred = np.squeeze(rfx_model.predict(rfx_dataset_train, rfx_tracker))
+                        rfx_pred = np.squeeze(
+                            rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                        )
                         partial_resid_train = partial_resid_train - rfx_pred
                     s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
                     s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
@@ -2257,9 +2292,11 @@ class BCFModel:
         type: str = "posterior",
         terms: Union[list[str], str] = "all",
         scale: str = "linear",
-    ) -> dict:
+    ) -> Union[dict[str, np.array], np.array]:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.
+        When random effects are present, they are either included in yhat additively if `rfx_model_spec == "custom"`. They are included in mu_x if `rfx_model_spec == "intercept_only"` or 
+        partially included in mu_x and partially included in tau_x `rfx_model_spec == "intercept_plus_treatment"`.
 
         Parameters
         ----------
@@ -2272,7 +2309,7 @@ class BCFModel:
         rfx_group_ids : np.array, optional
             Optional group labels used for an additive random effects model.
         rfx_basis : np.array, optional
-            Optional basis for "random-slope" regression in an additive random effects model.
+            Optional basis for "random-slope" regression in an additive random effects model. Not necessary if `rfx_model_spec` is "intercept_only" or "intercept_plus_treatment", but if rfx_basis is provided, it will supercede the basis implied by `rfx_model_spec`.
         type : str, optional
             Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
         terms : str, optional
@@ -2304,6 +2341,10 @@ class BCFModel:
         predict_mean = type == "mean"
 
         # Handle prediction terms
+        rfx_model_spec = self.rfx_model_spec
+        rfx_intercept_only = rfx_model_spec == "intercept_only"
+        rfx_intercept_plus_treatment = rfx_model_spec == "intercept_plus_treatment"
+        rfx_intercept = rfx_intercept_only or rfx_intercept_plus_treatment
         if not isinstance(terms, str) and not isinstance(terms, list):
             raise ValueError("type must be a string or list of strings")
         num_terms = 1 if isinstance(terms, str) else len(terms)
@@ -2339,6 +2380,9 @@ class BCFModel:
             )
             return None
         predict_rfx_intermediate = predict_y_hat and has_rfx
+        predict_rfx_raw = (predict_mu_forest and has_rfx and rfx_intercept) or (
+            predict_tau_forest and has_rfx and rfx_intercept_plus_treatment
+        )
         predict_mu_forest_intermediate = predict_y_hat and has_mu_forest
         predict_tau_forest_intermediate = predict_y_hat and has_tau_forest
 
@@ -2434,7 +2478,7 @@ class BCFModel:
             mu_raw = self.forest_container_mu.forest_container_cpp.Predict(
                 forest_dataset_test.dataset_cpp
             )
-            mu_x = mu_raw * self.y_std + self.y_bar
+            mu_x_forest = mu_raw * self.y_std + self.y_bar
 
         # Treatment effect forest predictions
         if predict_tau_forest or predict_tau_forest_intermediate:
@@ -2446,13 +2490,27 @@ class BCFModel:
                     self.b1_samples - self.b0_samples, axis=(0, 2)
                 )
                 tau_raw = tau_raw * adaptive_coding_weights
-            tau_x = np.squeeze(tau_raw * self.y_std)
+            tau_x_forest = np.squeeze(tau_raw * self.y_std)
             if Z.shape[1] > 1:
                 treatment_term = np.multiply(
-                    np.atleast_3d(Z).swapaxes(1, 2), tau_x
+                    np.atleast_3d(Z).swapaxes(1, 2), tau_x_forest
                 ).sum(axis=2)
             else:
-                treatment_term = Z * np.squeeze(tau_x)
+                treatment_term = Z * np.squeeze(tau_x_forest)
+
+        # Random effects data checks
+        if has_rfx:
+            if rfx_group_ids is None:
+                raise ValueError(
+                    "rfx_group_ids must be provided if rfx_basis is provided"
+                )
+        if rfx_basis is not None:
+            if rfx_basis.ndim == 1:
+                rfx_basis = np.expand_dims(rfx_basis, 1)
+            if rfx_basis.shape[0] != X.shape[0]:
+                raise ValueError("X and rfx_basis must have the same number of rows")
+            if rfx_basis.shape[1] != self.num_rfx_basis:
+                raise ValueError("rfx_basis must have the same number of columns as the random effects basis used to sample this model")
 
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
@@ -2460,14 +2518,33 @@ class BCFModel:
                 self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
             )
 
-        # Combine into y hat predictions
-        if predict_y_hat and has_mu_forest and has_rfx:
-            y_hat = mu_x + treatment_term + rfx_preds
-        elif predict_y_hat and has_mu_forest:
-            y_hat = mu_x + treatment_term
-        elif predict_y_hat and has_rfx:
-            y_hat = rfx_preds
+        # Extract "raw" rfx predictions for each rfx basis term if needed
+        if predict_rfx_raw:
+            # Extract the raw RFX samples and scale by train set outcome standard deviation
+            rfx_samples_raw = self.rfx_container.extract_parameter_samples()
+            rfx_beta_draws = rfx_samples_raw['beta_samples'] * self.y_std
 
+            # Construct a matrix with the appropriate group random effects arranged for each observation
+            rfx_predictions_raw = np.empty(shape=(X.shape[0], rfx_beta_draws.shape[0], rfx_beta_draws.shape[2]))
+            for i in range(X.shape[0]):
+                rfx_predictions_raw[i, :, :] = rfx_beta_draws[
+                    :, rfx_group_ids[i], :
+                ]
+        
+        # Add raw RFX predictions to mu and tau if warranted by the RFX model spec
+        if predict_mu_forest or predict_mu_forest_intermediate:
+            if rfx_intercept and predict_rfx_raw:
+                mu_x = mu_x_forest + np.squeeze(rfx_predictions_raw[:, 0, :])
+            else:
+                mu_x = mu_x_forest
+        if predict_tau_forest or predict_tau_forest_intermediate:
+            if rfx_intercept_plus_treatment and predict_rfx_raw:
+                tau_x = tau_x_forest + np.squeeze(rfx_predictions_raw[:, 1:, :])
+            else:
+                tau_x = tau_x_forest
+        
+
+        # Combine into y hat predictions
         needs_mean_term_preds = (
             predict_y_hat or predict_mu_forest or predict_tau_forest or predict_rfx
         )
@@ -2475,12 +2552,12 @@ class BCFModel:
             if probability_scale:
                 if has_rfx:
                     if predict_y_hat:
-                        y_hat = norm.cdf(mu_x + treatment_term + rfx_preds)
+                        y_hat = norm.cdf(mu_x_forest + treatment_term + rfx_preds)
                     if predict_rfx:
                         rfx_preds = norm.cdf(rfx_preds)
                 else:
                     if predict_y_hat:
-                        y_hat = norm.cdf(mu_x + treatment_term)
+                        y_hat = norm.cdf(mu_x_forest + treatment_term)
                 if predict_mu_forest:
                     mu_x = norm.cdf(mu_x)
                 if predict_tau_forest:
@@ -2488,10 +2565,14 @@ class BCFModel:
             else:
                 if has_rfx:
                     if predict_y_hat:
-                        y_hat = mu_x + treatment_term + rfx_preds
+                        y_hat = mu_x_forest + treatment_term + rfx_preds
                 else:
                     if predict_y_hat:
-                        y_hat = mu_x + treatment_term
+                        y_hat = mu_x_forest + treatment_term
+                if predict_mu_forest:
+                    mu_x = mu_x
+                if predict_tau_forest:
+                    tau_x = tau_x
 
         # Collapse to posterior mean predictions if requested
         if predict_mean:
@@ -3018,6 +3099,9 @@ class BCFModel:
         bcf_json.add_boolean("sample_sigma2_leaf_tau", self.sample_sigma2_leaf_tau)
         bcf_json.add_boolean("include_variance_forest", self.include_variance_forest)
         bcf_json.add_boolean("has_rfx", self.has_rfx)
+        bcf_json.add_boolean("has_rfx_basis", self.has_rfx_basis)
+        bcf_json.add_scalar("num_rfx_basis", self.num_rfx_basis)
+        bcf_json.add_boolean("multivariate_treatment", self.multivariate_treatment)
         bcf_json.add_scalar("num_gfr", self.num_gfr)
         bcf_json.add_scalar("num_burnin", self.num_burnin)
         bcf_json.add_scalar("num_mcmc", self.num_mcmc)
@@ -3028,6 +3112,7 @@ class BCFModel:
             "internal_propensity_model", self.internal_propensity_model
         )
         bcf_json.add_boolean("probit_outcome_model", self.probit_outcome_model)
+        bcf_json.add_string("rfx_model_spec", self.rfx_model_spec)
 
         # Add parameter samples
         if self.sample_sigma2_global:
@@ -3073,6 +3158,9 @@ class BCFModel:
         # Unpack forests
         self.include_variance_forest = bcf_json.get_boolean("include_variance_forest")
         self.has_rfx = bcf_json.get_boolean("has_rfx")
+        self.has_rfx_basis = bcf_json.get_boolean("has_rfx_basis")
+        self.num_rfx_basis = bcf_json.get_scalar("num_rfx_basis")
+        self.multivariate_treatment = bcf_json.get_boolean("multivariate_treatment")
         # TODO: don't just make this a placeholder that we overwrite
         self.forest_container_mu = ForestContainer(0, 0, False, False)
         self.forest_container_mu.forest_container_cpp.LoadFromJson(
@@ -3113,6 +3201,7 @@ class BCFModel:
             "internal_propensity_model"
         )
         self.probit_outcome_model = bcf_json.get_boolean("probit_outcome_model")
+        self.rfx_model_spec = bcf_json.get_string("rfx_model_spec")
 
         # Unpack parameter samples
         if self.sample_sigma2_global:
@@ -3206,6 +3295,9 @@ class BCFModel:
 
         # Unpack random effects
         self.has_rfx = json_object_default.get_boolean("has_rfx")
+        self.has_rfx_basis = json_object_default.get_boolean("has_rfx_basis")
+        self.num_rfx_basis = json_object_default.get_scalar("num_rfx_basis")
+        self.multivariate_treatment = json_object_default.get_boolean("multivariate_treatment")
         if self.has_rfx:
             self.rfx_container = RandomEffectsContainer()
             for i in range(len(json_object_list)):
@@ -3240,6 +3332,9 @@ class BCFModel:
         )
         self.probit_outcome_model = json_object_default.get_boolean(
             "probit_outcome_model"
+        )
+        self.rfx_model_spec = json_object_default.get_string(
+            "rfx_model_spec"
         )
 
         # Unpack number of samples

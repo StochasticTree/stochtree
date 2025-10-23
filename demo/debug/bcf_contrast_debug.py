@@ -153,6 +153,47 @@ contrast_posterior_test_comparison = y_hat_posterior_test_1 - y_hat_posterior_te
 contrast_diff = contrast_posterior_test_comparison - contrast_posterior_test
 np.allclose(contrast_diff, 0, atol=0.001)
 
+# Now repeat the same process but via random effects model spec
+bcf_model = BCFModel()
+bcf_model.sample(
+    X_train=X_train,
+    Z_train=Z_train,
+    y_train=y_train,
+    rfx_group_ids_train=group_ids_train,
+    num_gfr=10,
+    num_burnin=0,
+    num_mcmc=1000,
+    random_effects_params={"model_spec": "intercept_plus_treatment"},
+)
+
+# Compute CATE posterior
+tau_hat_posterior_test = bcf_model.compute_contrast(
+    X_0=X_test,
+    X_1=X_test,
+    Z_0=np.zeros((n_test, 1)),
+    Z_1=np.ones((n_test, 1)),
+    rfx_group_ids_0=group_ids_test,
+    rfx_group_ids_1=group_ids_test,
+    rfx_basis_0=np.concatenate((np.ones((n_test, 1)), np.zeros((n_test, 1))), axis=1),
+    rfx_basis_1=np.ones((n_test, 2)),
+    type="posterior",
+    scale="linear",
+)
+
+# Compute the same quantity via predict
+tau_hat_posterior_test_comparison = bcf_model.predict(
+    X=X_test,
+    Z=Z_test,
+    rfx_group_ids=group_ids_test,
+    type="posterior",
+    terms="cate",
+    scale="linear",
+)
+
+# Compare results
+contrast_diff = tau_hat_posterior_test_comparison - tau_hat_posterior_test
+np.allclose(contrast_diff, 0, atol=0.001)
+
 # Generate data for a probit BCF model with random effects
 X = rng.uniform(low=0.0, high=1.0, size=(n, p))
 mu_x = X[:, 0]
