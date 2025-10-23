@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Generate data for a probit BCF model with random effects
-n = 500
+n = 1000
 p = 5
 rng = np.random.default_rng(1234)
 X = rng.uniform(low=0.0, high=1.0, size=(n, p))
@@ -21,7 +21,7 @@ group_labels = rng.choice(num_rfx_groups, size=n)
 basis = np.empty((n, 2))
 basis[:, 0] = 1.0
 basis[:, 1] = rng.uniform(0, 1, (n,))
-rfx_coefs = np.array([[-2, -2], [0, 0], [2, 2]])
+rfx_coefs = np.array([[-1, 1], [0, 1], [1, 1]])
 rfx_term = np.sum(rfx_coefs[group_labels, :] * basis, axis=1)
 E_XZ = mu_x + Z * tau_x + rfx_term
 W = E_XZ + rng.normal(loc=0.0, scale=1.0, size=(n,))
