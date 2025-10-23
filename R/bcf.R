@@ -2720,6 +2720,10 @@ predict.bcfmodel <- function(
   predict_mean <- type == "mean"
 
   # Handle prediction terms
+  rfx_model_spec = object$model_params$rfx_model_spec
+  rfx_intercept_only <- rfx_model_spec == "intercept_only"
+  rfx_intercept_plus_treatment <- (rfx_model_spec == "intercept_plus_treatment")
+  rfx_intercept <- rfx_intercept_only || rfx_intercept_plus_treatment
   if (!is.character(terms)) {
     stop("type must be a string or character vector")
   }
@@ -2756,7 +2760,10 @@ predict.bcfmodel <- function(
     ))
     return(NULL)
   }
-  predict_rfx_intermediate <- (predict_y_hat && has_rfx)
+  predict_rfx_intermediate <- ((predict_y_hat && has_rfx))
+  predict_rfx_raw <- ((predict_mu_forest && has_rfx && rfx_intercept_only) ||
+    (predict_mu_forest && has_rfx && rfx_intercept_plus_treatment) ||
+    (predict_tau_forest && has_rfx && rfx_intercept_plus_treatment))
   predict_mu_forest_intermediate <- (predict_y_hat && has_mu_forest)
   predict_tau_forest_intermediate <- (predict_y_hat && has_tau_forest)
 
@@ -2887,30 +2894,33 @@ predict.bcfmodel <- function(
 
   # Compute mu forest predictions
   if (predict_mu_forest || predict_mu_forest_intermediate) {
-    mu_hat <- object$forests_mu$predict(forest_dataset_pred) * y_std + y_bar
+    mu_hat_forest <- object$forests_mu$predict(forest_dataset_pred) *
+      y_std +
+      y_bar
   }
 
   # Compute CATE forest predictions
   if (predict_tau_forest || predict_tau_forest_intermediate) {
     if (object$model_params$adaptive_coding) {
       tau_hat_raw <- object$forests_tau$predict_raw(forest_dataset_pred)
-      tau_hat <- t(
+      tau_hat_forest <- t(
         t(tau_hat_raw) * (object$b_1_samples - object$b_0_samples)
       ) *
         y_std
     } else {
-      tau_hat <- object$forests_tau$predict_raw(forest_dataset_pred) * y_std
+      tau_hat_forest <- object$forests_tau$predict_raw(forest_dataset_pred) *
+        y_std
     }
     if (object$model_params$multivariate_treatment) {
-      tau_dim <- dim(tau_hat)
+      tau_dim <- dim(tau_hat_forest)
       tau_num_obs <- tau_dim[1]
       tau_num_samples <- tau_dim[3]
       treatment_term <- matrix(NA_real_, nrow = tau_num_obs, tau_num_samples)
       for (i in 1:nrow(Z)) {
-        treatment_term[i, ] <- colSums(tau_hat[i, , ] * Z[i, ])
+        treatment_term[i, ] <- colSums(tau_hat_forest[i, , ] * Z[i, ])
       }
     } else {
-      treatment_term <- tau_hat * as.numeric(Z)
+      treatment_term <- tau_hat_forest * as.numeric(Z)
     }
   }
 
@@ -2923,6 +2933,41 @@ predict.bcfmodel <- function(
       y_std
   }
 
+  # Extract "raw" rfx coefficients for each rfx basis term if needed
+  if (predict_rfx_raw) {
+    # Extract the raw RFX samples and scale by train set outcome sd
+    rfx_param_list <- object$rfx_samples$extract_parameter_samples()
+    rfx_beta_draws <- rfx_param_list$beta_samples *
+      object$model_params$outcome_scale
+
+    # Construct a matrix with the correct random effects
+    rfx_predictions_raw <- array(
+      NA,
+      dim = c(
+        nrow(X),
+        ncol(rfx_basis),
+        object$model_params$num_samples
+      )
+    )
+    for (i in 1:nrow(X)) {
+      rfx_predictions_raw[i, , ] <-
+        rfx_beta_draws[, rfx_group_ids[i], ]
+    }
+
+    # Add these RFX predictions to mu and tau if warranted by the RFX model spec
+    if (predict_mu_forest && rfx_intercept) {
+      mu_hat_final <- mu_hat_forest + rfx_predictions_raw[, 1, ]
+    } else {
+      mu_hat_final <- mu_hat_forest
+    }
+    if (predict_tau_forest && rfx_intercept_plus_treatment) {
+      tau_hat_final <- (tau_hat_forest +
+        rfx_predictions_raw[, 2:ncol(rfx_basis), ])
+    } else {
+      tau_hat_final <- tau_hat_forest
+    }
+  }
+
   # Combine into y hat predictions
   needs_mean_term_preds <- predict_y_hat ||
     predict_mu_forest ||
@@ -2932,31 +2977,37 @@ predict.bcfmodel <- function(
     if (probability_scale) {
       if (has_rfx) {
         if (predict_y_hat) {
-          y_hat <- pnorm(mu_hat + treatment_term + rfx_predictions)
+          y_hat <- pnorm(mu_hat_forest + treatment_term + rfx_predictions)
         }
         if (predict_rfx) {
           rfx_predictions <- pnorm(rfx_predictions)
         }
       } else {
         if (predict_y_hat) {
-          y_hat <- pnorm(mu_hat + treatment_term)
+          y_hat <- pnorm(mu_hat_forest + treatment_term)
         }
       }
       if (predict_mu_forest) {
-        mu_hat <- pnorm(mu_hat)
+        mu_hat <- pnorm(mu_hat_final)
       }
       if (predict_tau_forest) {
-        tau_hat <- pnorm(tau_hat)
+        tau_hat <- pnorm(tau_hat_final)
       }
     } else {
       if (has_rfx) {
         if (predict_y_hat) {
-          y_hat <- mu_hat + treatment_term + rfx_predictions
+          y_hat <- mu_hat_forest + treatment_term + rfx_predictions
         }
       } else {
         if (predict_y_hat) {
-          y_hat <- mu_hat + treatment_term
+          y_hat <- mu_hat_forest + treatment_term
         }
+      }
+      if (predict_mu_forest) {
+        mu_hat <- mu_hat_final
+      }
+      if (predict_tau_forest) {
+        tau_hat <- tau_hat_final
       }
     }
   }
