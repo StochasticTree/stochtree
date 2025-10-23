@@ -3402,7 +3402,7 @@ saveBCFModelToJson <- function(object) {
       object$rfx_unique_group_ids
     )
   }
-  jsonobj$add_boolean(
+  jsonobj$add_string(
     "rfx_model_spec",
     object$model_params$rfx_model_spec
   )
