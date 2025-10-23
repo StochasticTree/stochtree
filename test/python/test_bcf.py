@@ -884,7 +884,7 @@ class TestBCF:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            rfx_params=rfx_params
+            random_effects_params=rfx_params
         )
 
         # Specify all relevant rfx parameters as vectors
@@ -912,5 +912,5 @@ class TestBCF:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            rfx_params=rfx_params
+            random_effects_params=rfx_params
         )
