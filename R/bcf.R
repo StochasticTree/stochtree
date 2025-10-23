@@ -2881,6 +2881,7 @@ predict.bcfmodel <- function(
   }
 
   # Add propensities to covariate set if necessary
+  X_combined <- X
   if (object$model_params$propensity_covariate != "none") {
     X_combined <- cbind(X, propensity)
   }
