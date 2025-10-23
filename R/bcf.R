@@ -2808,15 +2808,16 @@ predict.bcfmodel <- function(
     )
   }
   if ((object$model_params$has_rfx_basis) && (is.null(rfx_basis))) {
-    stop("Random effects basis (rfx_basis) must be provided for this model")
+    if (object$model_params$rfx_model_spec == "custom") {
+      stop("Random effects basis (rfx_basis) must be provided for this model")
+    }
   }
-  if (
-    (object$model_params$num_rfx_basis > 0) &&
-      (ncol(rfx_basis) != object$model_params$num_rfx_basis)
-  ) {
-    stop(
-      "Random effects basis has a different dimension than the basis used to train this model"
-    )
+  if ((object$model_params$num_rfx_basis > 0) && (!is.null(rfx_basis))) {
+    if (ncol(rfx_basis) != object$model_params$num_rfx_basis) {
+      stop(
+        "Random effects basis has a different dimension than the basis used to train this model"
+      )
+    }
   }
 
   # Preprocess covariates

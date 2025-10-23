@@ -229,14 +229,13 @@ tau_hat_posterior_test <- compute_contrast_bcf_model(
   scale = "linear"
 )
 
-# Compute the same quantity via predict
+# Compute the same quantity directly via predict
 tau_hat_posterior_test_comparison <- predict(
   bcf_model,
   X = X_test,
   Z = Z_test,
   propensity = pi_test,
   rfx_group_ids = group_ids_test,
-  rfx_basis = rfx_basis_test,
   type = "posterior",
   terms = "cate",
   scale = "linear"
