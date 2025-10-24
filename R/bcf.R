@@ -340,6 +340,16 @@ bcf <- function(
     keep_vars_variance <- variance_forest_params_updated$keep_vars
     drop_vars_variance <- variance_forest_params_updated$drop_vars
     num_features_subsample_variance <- variance_forest_params_updated$num_features_subsample
+    
+    # Set a function-scoped RNG if user provided a random seed
+    custom_rng <- random_seed >= 0
+    if (custom_rng) {
+        # Store original global environment RNG state
+        original_global_seed <- .Random.seed
+        # Set new seed and store associated RNG state
+        set.seed(random_seed)
+        function_scoped_seed <- .Random.seed
+    }
 
     # Check if there are enough GFR samples to seed num_chains samplers
     if (num_gfr > 0) {
@@ -2544,6 +2554,11 @@ bcf <- function(
         result[["bart_propensity_model"]] = bart_model_propensity
     }
     class(result) <- "bcfmodel"
+    
+    # Restore global RNG state if user provided a random seed
+    if (custom_rng) {
+        .Random.seed <- original_global_seed
+    }
 
     return(result)
 }
@@ -2692,6 +2707,7 @@ predict.bcfmodel <- function(
     }
 
     # Add propensities to covariate set if necessary
+    X_combined <- X
     if (object$model_params$propensity_covariate != "none") {
         X_combined <- cbind(X, propensity)
     }

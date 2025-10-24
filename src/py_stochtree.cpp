@@ -502,7 +502,8 @@ class ForestContainerCpp {
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     std::vector<int32_t> split_nodes = tree->GetInternalNodes();
     for (int i = 0; i < split_nodes.size(); i++) {
-        auto split_feature = split_nodes.at(i);
+        auto node_id = split_nodes.at(i);
+        auto split_feature = tree->SplitIndex(node_id);
         accessor(split_feature)++;
     }
     return result;
