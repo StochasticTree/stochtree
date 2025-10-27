@@ -301,8 +301,6 @@ static inline void UpdateResidualNewOutcome(ForestTracker& tracker, ColumnVector
   }
 }
 
-
-
 static inline void UpdateMeanModelTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, 
                                       bool requires_basis, std::function<double(double, double)> op, bool tree_new) {
   data_size_t n = dataset.GetCovariates().rows();
@@ -840,7 +838,7 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                     ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
                                     std::vector<int>& sweep_update_indices, double global_variance, std::vector<FeatureType>& feature_types, int cutpoint_grid_size, 
-                                    bool keep_forest, bool pre_initialized, bool backfitting, int num_features_subsample, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                    bool keep_forest, bool pre_initialized, bool backfitting, int num_features_subsample, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Run the GFR algorithm for each tree
   int num_trees = forests.NumTrees();
   for (const int& i : sweep_update_indices) {
@@ -860,7 +858,7 @@ static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& 
     GFRSampleTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
       tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, 
       variable_weights, i, global_variance, feature_types, cutpoint_grid_size, 
-      num_features_subsample, leaf_suff_stat_args...
+      num_features_subsample, num_threads, leaf_suff_stat_args...
     );
     
     // Sample leaf parameters for tree i
