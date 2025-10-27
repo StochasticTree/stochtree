@@ -1105,14 +1105,11 @@ class CloglogOrdinalLeafModel {
    * \param a shape parameter for log-gamma prior on leaf parameters
    * \param b rate parameter for log-gamma prior on leaf parameters
    *  Log-gamma density: f(x) = b^a / Gamma(a) * exp(a*x - b*exp(x))
-   *  Relationship to tau (scale of leaf parameters): tau^2 = trigamma(a)
    */
   CloglogOrdinalLeafModel(double a, double b) {
     a_ = a;
     b_ = b;
     gamma_sampler_ = GammaSampler();
-    // slice_sampler_ = SliceSampler();
-    tau_ = std::sqrt(boost::math::trigamma(a_));
   }
   ~CloglogOrdinalLeafModel() {}
 
@@ -1146,108 +1143,12 @@ class CloglogOrdinalLeafModel {
    * Samples from log-gamma: sample from gamma, then take log.
    */
   void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
-
-  void SetScale(double tau) {tau_ = tau;}
-
-  /*!
-   * \brief Get the current scale parameter value (tau_)
-   * \return Current tau_ value
-   */
-  double GetScale() const {return tau_;}
-
   inline bool RequiresBasis() {return false;}
 
-  // /*!
-  //  * \brief Update the scale parameter (tau_) using slice sampling
-  //  *
-  //  * \param lambda Vector of leaf parameter values from all trees
-  //  * \param scale_sigma_lambda Prior scale parameter for scale parameter (tau_) of leaf parameters
-  //  * \param gen Random number generator
-  //  */
-  // void UpdateScaleLambda(const std::vector<double>& lambda, double scale_sigma_lambda, std::mt19937& gen) {
-  //   double n = static_cast<double>(lambda.size());
-  //   double sum_lambda = 0.0;
-  //   double sum_exp_lambda = 0.0;
-
-  //   for (size_t i = 0; i < lambda.size(); i++) {
-  //     sum_lambda += lambda[i];
-  //     sum_exp_lambda += std::exp(lambda[i]);
-  //   }
-
-  //   // Create log-likelihood function
-  //   ScaleLambdaLoglik loglik_func(n, sum_lambda, sum_exp_lambda, scale_sigma_lambda);
-
-  //   // Sample new scale parameter using slice sampling
-  //   double current_tau = tau_;
-  //   double w = 1.0;  // Step size for slice sampler
-  //   double lower = 1e-6;  // Lower bound for tau
-  //   double upper = std::numeric_limits<double>::infinity();  // Upper bound
-
-  //   double new_tau = slice_sampler_.Sample(current_tau, &loglik_func, w, lower, upper, gen);
-  //   tau_ = new_tau;
-  // }
-
-  /*!
-   * \brief Convert tau_ (scale_lambda i.e. scale for leaf parameters) to alpha (shape) and beta (rate) parameters for the log-gamma prior
-   *
-   * \param alpha Output: shape parameter for log-gamma prior
-   * \param beta Output: rate parameter for log-gamma prior
-   * \param tau Scale parameter (tau_) for leaf parameters
-   */
-  void ScaleTauToAlphaBeta(double& alpha, double& beta, const double tau) {
-    double tau_sq = tau * tau;
-    alpha = TrigammaInverse(tau_sq);
-    // Note: Using exponential of digamma function for beta calculation
-    beta = std::exp(boost::math::digamma(alpha));
-  }
-
-  /*!
-   * \brief Convert alpha (shape) and beta (rate) parameters (for the log-gamma prior) back to tau_ (scale_lambda i.e. scale for leaf parameters)
-   *
-   * \param alpha Shape parameter for log-gamma prior
-   * \param beta Rate parameter for log-gamma prior
-   * \return tau Scale parameter (tau_) for leaf parameters
-   */
-  double AlphaBetaToScaleTau(double alpha, double beta) {
-    // Inverse of the transformation: tau_sq = trigamma(alpha)
-    double tau_sq = boost::math::trigamma(alpha);
-    return std::sqrt(tau_sq);
-  }
-
  private:
-  /*!
-   * \brief Compute inverse trigamma function using Newton's method
-   *
-   * Implementation adapted from limma package in R, originally by Gordon Smyth
-   *
-   * \param x Input value for which to compute trigamma inverse
-   * \return Value y such that trigamma(y) = x
-   */
-  double TrigammaInverse(double x) {
-    // Very large and very small values - deal with using asymptotics
-    if (x > 1E7) {
-      return 1.0 / std::sqrt(x);
-    }
-    if (x < 1E-6) {
-      return 1.0 / x;
-    }
-
-    // Otherwise, use Newton's method
-    double y = 0.5 + 1.0 / x;
-    for (int i = 0; i < 50; i++) {
-      double tri = boost::math::trigamma(y);
-      double dif = tri * (1.0 - tri / x) / boost::math::polygamma(3, y);  // tetragamma is polygamma(3, x)
-      y += dif;
-      if (-dif / y < 1E-8) break;
-    }
-
-    return y;
-  }
   double a_;
   double b_;
   GammaSampler gamma_sampler_;
-  // SliceSampler slice_sampler_;
-  double tau_;
 };
 
 /*! \brief Unifying layer for disparate sufficient statistic class types
