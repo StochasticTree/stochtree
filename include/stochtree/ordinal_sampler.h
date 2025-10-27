@@ -46,35 +46,32 @@ class OrdinalSampler {
   /*!
    * \brief Update truncated exponential latent variables (Z)
    * 
-   * \param dataset Forest dataset containing training data (covariates)
+   * \param dataset Forest dataset containing training data (covariates) and auxiliary data needed for sampling
    * \param outcome Vector of outcome values
-   * \param tracker Forest tracker containing auxiliary data 
    * \param gen Random number generator
    */
-  void UpdateLatentVariables(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker,
-                            std::mt19937& gen);
+  void UpdateLatentVariables(ForestDataset& dataset, Eigen::VectorXd& outcome, std::mt19937& gen);
 
   /*!
    * \brief Update gamma cutpoint parameters
    * 
-   * \param dataset Forest dataset containing training data (covariates)
+   * \param dataset Forest dataset containing training data (covariates) and auxiliary data needed for sampling
    * \param outcome Vector of outcome values
-   * \param tracker Forest tracker containing auxiliary data
    * \param alpha_gamma Shape parameter for log-gamma prior on cutpoints gamma
    * \param beta_gamma Rate parameter for log-gamma prior on cutpoints gamma
    * \param gamma_0 Fixed value for first cutpoint parameter (for identifiability)
    * \param gen Random number generator
    */
-  void UpdateGammaParams(ForestDataset& dataset, Eigen::VectorXd& outcome, ForestTracker& tracker,
-                        double alpha_gamma, double beta_gamma, double gamma_0,
-                        std::mt19937& gen);
+  void UpdateGammaParams(ForestDataset& dataset, Eigen::VectorXd& outcome, 
+                         double alpha_gamma, double beta_gamma, 
+                         double gamma_0, std::mt19937& gen);
 
   /*!
    * \brief Update cumulative exponential sums (seg)
    * 
-   * \param tracker Forest tracker containing auxiliary data
+   * \param dataset Forest dataset containing training data (covariates) and auxiliary data needed for sampling
    */
-  void UpdateCumulativeExpSums(ForestTracker& tracker);
+  void UpdateCumulativeExpSums(ForestDataset& dataset);
 
  private:
   GammaSampler gamma_sampler_;

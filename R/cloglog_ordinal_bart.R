@@ -98,19 +98,40 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
     as.integer(n_samples)
   )
   stochtree:::ordinal_aux_data_initialize_cpp(forest_tracker, as.integer(n_samples), as.integer(n_levels))
+  # Latent variable (Z in Alam et al (2025) notation)
+  dataX$add_auxiliary_dimension(nrow(X))
+  # Forest predictions (eta in Alam et al (2025) notation)
+  dataX$add_auxiliary_dimension(nrow(X))
+  # Log-scale non-cumulative cutpoint (gamma in Alam et al (2025) notation)
+  dataX$add_auxiliary_dimension(n_levels - 1)
+  # Exponentiated cumulative cutpoints (exp(c_k) in Alam et al (2025) notation)
+  # This auxiliary series is designed so that the element stored at position `i`
+  # corresponds to the sum of all exponentiated gamma_j values for j < i.
+  # It has n_levels elements instead of n_levels - 1 because even the largest 
+  # categorical index has a valid value of sum_{j < i} exp(gamma_j)
+  dataX$add_auxiliary_dimension(n_levels)
   
-  # Initialize gamma parameters to zero (slot 2)
+  # Initialize gamma parameters to zero (3rd auxiliary data series, mapped to `dim_idx = 2` with 0-indexing)
   initial_gamma <- rep(0.0, n_levels - 1)
   for (i in seq_along(initial_gamma)) {
-    stochtree:::ordinal_aux_data_set_cpp(forest_tracker, 2, i - 1, initial_gamma[i])
+    dataX$set_auxiliary_data_value(2, i - 1, initial_gamma[i])
   }
-  stochtree:::ordinal_aux_data_update_cumsum_exp_cpp(forest_tracker)
+
+  # Convert the log-scale parameters into cumulative exponentiated parameters.
+  # This is done under the hood in a C++ function for efficiency.
+  dataX$update_auxiliary_data_vector_cumulative_exp_sum(2, 3)
   
-  # Initialize forest predictions slot to zero (slot 1)
+  # Initialize forest predictions to zero (slot 1)
   for (i in 1:n_samples) {
-    stochtree:::ordinal_aux_data_set_cpp(forest_tracker, 1, i - 1, 0.0)
+    dataX$set_auxiliary_data_value(1, i - 1, 0.0)
   }
   
+  # Initialize latent variables to zero (slot 0)
+  for (i in 1:n_samples) {
+    dataX$set_auxiliary_data_value(0, i - 1, 0.0)
+  }
+  
+  # Initialize samplers
   ordinal_sampler <- stochtree:::ordinal_sampler_cpp()
   rng <- stochtree::createCppRNG(if (is.null(seed)) sample.int(.Machine$integer.max, 1) else seed)
 
@@ -135,32 +156,32 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
     # Set auxiliary data slot 1 to current forest predictions = lambda_hat = sum of all the tree predictions
     # This is needed for updating gamma parameters, latent z_i's
     forest_pred_current <- active_forest$predict(dataX)
-    for (j in 1:n_samples) {
-      stochtree:::ordinal_aux_data_set_cpp(forest_tracker, 1, j - 1, forest_pred_current[j])
+    for (i in 1:n_samples) {
+      dataX$set_auxiliary_data_value(1, i - 1, forest_pred_current[i]);
     }
 
     # 2. Sample latent z_i's using truncated exponential
     stochtree:::ordinal_sampler_update_latent_variables_cpp(
-      ordinal_sampler, dataX$data_ptr, outcome_data$data_ptr, forest_tracker, rng$rng_ptr
+      ordinal_sampler, dataX$data_ptr, outcome_data$data_ptr, rng$rng_ptr
     )
 
     # 3. Sample gamma parameters
     stochtree:::ordinal_sampler_update_gamma_params_cpp(
-      ordinal_sampler, dataX$data_ptr, outcome_data$data_ptr, forest_tracker,
+      ordinal_sampler, dataX$data_ptr, outcome_data$data_ptr,
       alpha_gamma, beta_gamma, gamma_0, rng$rng_ptr
     )
     
     # 4. Update cumulative sum of exp(gamma) values
-    stochtree:::ordinal_sampler_update_cumsum_exp_cpp(ordinal_sampler, forest_tracker)
+    dataX$update_auxiliary_data_vector_cumulative_exp_sum(2,3)
     
     if (keep_sample) {
       forest_pred_train[, sample_counter] <- active_forest$predict(dataX)
       if (has_test) {
         forest_pred_test[, sample_counter] <- active_forest$predict(dataXtest)
       }
-      gamma_current <- stochtree:::ordinal_aux_data_get_vector_cpp(forest_tracker, 2)
+      gamma_current <- dataX$get_auxiliary_data_vector(2)
       gamma_samples[, sample_counter] <- gamma_current
-      latent_current <- stochtree:::ordinal_aux_data_get_vector_cpp(forest_tracker, 0)
+      latent_current <- dataX$get_auxiliary_data_vector(0)
       latent_samples[, sample_counter] <- latent_current
     }
   }

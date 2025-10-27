@@ -47,6 +47,8 @@ y_train <- y[train_idx]
 X_test <- X[test_idx, ]
 y_test <- y[test_idx]
 
+start <- Sys.time()
+
 out <- cloglog_ordinal_bart(
   X = X_train,
   y = y_train,
@@ -56,6 +58,8 @@ out <- cloglog_ordinal_bart(
   n_thin = 1
 )
 
+end <- Sys.time()
+print(end - start)
 
 # Inference and diagnostics
 par(mfrow = c(2, 1))

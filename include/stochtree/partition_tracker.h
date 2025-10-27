@@ -96,19 +96,6 @@ class ForestTracker {
   int GetNumTrees() {return num_trees_;}
   int GetNumFeatures() {return num_features_;}
   bool Initialized() {return initialized_;}
-
-  /*! 
-  * \brief Ordinal auxiliary data management methods 
-  * Methods to initialize, get, and set auxiliary data for cloglog ordinal bart models
-  * n_levels is the number of outcome levels for the ordinal response
-  * type_idx is the index of the type of auxiliary data (0: latent Z, 1: forest predictions, 2: cutpoints gamma, 3: cumsum exp of cutpoints)
-  */
-  void InitializeOrdinalAuxData(data_size_t num_observations, int n_levels);
-  double GetOrdinalAuxData(int type_idx, data_size_t obs_idx) const;
-  void SetOrdinalAuxData(int type_idx, data_size_t obs_idx, double value);
-  std::vector<double>& GetOrdinalAuxDataVector(int type_idx);
-
-
  private:
   /*! \brief Mapper from observations to predicted values summed over every tree in a forest */
   std::vector<double> sum_predictions_;
@@ -137,22 +124,6 @@ class ForestTracker {
   void UpdateSampleTrackersInternal(TreeEnsemble& forest, Eigen::MatrixXd& covariates);
   void UpdateSampleTrackersResidualInternalBasis(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model);
   void UpdateSampleTrackersResidualInternalNoBasis(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model);
-  
-  /*! 
-  * \brief Track auxiliary data for cloglog ordinal bart models 
-  * Vector of vectors to store these auxiliary data
-  * Each inner vector holds one type of data (order: Latent variable Z, Forest predictions, Cutpoints gamma, Cumsum exp of cutpoints)
-  */
-  std::vector<std::vector<double>> ordinal_aux_data_vec_;
-
-  /*! 
-  * \brief Private helper methods for ordinal auxiliary data
-  * n_levels is the number of outcome levels for the ordinal response
-  * type_idx is the index of the type of auxiliary data (0: latent Z, 1: forest predictions, 2: cutpoints gamma, 3: cumsum exp of cutpoints)
-  */
-  void ResizeOrdinalAuxData(data_size_t num_observations, int n_levels);
-  // bool IsValidOrdinalType(int type_idx) const;
-  // bool IsValidOrdinalIndex(int type_idx, data_size_t obs_idx) const;
 };
 
 /*! \brief Class storing sample-prediction map for each tree in an ensemble */

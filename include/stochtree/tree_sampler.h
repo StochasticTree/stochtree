@@ -423,7 +423,7 @@ static inline void UpdateCLogLogModelTree(ForestTracker& tracker, ForestDataset&
       tracker.SetTreeSamplePrediction(i, tree_num, pred_value);
       tracker.SetSamplePrediction(i, tracker.GetSamplePrediction(i) + pred_delta);
       // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num)
-      tracker.SetOrdinalAuxData(1, i, tracker.GetSamplePrediction(i) - pred_value);
+      dataset.SetAuxiliaryDataValue(1, i, tracker.GetSamplePrediction(i) - pred_value);
     } else {
       // If the tree has not yet been modified via a sampling step, 
       // we can query its prediction directly from the SamplePredMapper stored in tracker
@@ -431,7 +431,7 @@ static inline void UpdateCLogLogModelTree(ForestTracker& tracker, ForestDataset&
       // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num): needed? since tree not changed?
       double current_lambda_hat = tracker.GetSamplePrediction(i);
       double lambda_minus = current_lambda_hat - pred_value;
-      tracker.SetOrdinalAuxData(1, i, lambda_minus);
+      dataset.SetAuxiliaryDataValue(1, i, lambda_minus);
     }
   }
 }

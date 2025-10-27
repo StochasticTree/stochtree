@@ -56,6 +56,34 @@ forest_dataset_get_variance_weights_cpp <- function(dataset_ptr) {
   .Call(`_stochtree_forest_dataset_get_variance_weights_cpp`, dataset_ptr)
 }
 
+forest_dataset_has_auxiliary_dimension_cpp <- function(dataset_ptr, dim_idx) {
+  .Call(`_stochtree_forest_dataset_has_auxiliary_dimension_cpp`, dataset_ptr, dim_idx)
+}
+
+forest_dataset_add_auxiliary_dimension_cpp <- function(dataset_ptr, dim_size) {
+  invisible(.Call(`_stochtree_forest_dataset_add_auxiliary_dimension_cpp`, dataset_ptr, dim_size))
+}
+
+forest_dataset_get_auxiliary_data_value_cpp <- function(dataset_ptr, dim_idx, element_idx) {
+  .Call(`_stochtree_forest_dataset_get_auxiliary_data_value_cpp`, dataset_ptr, dim_idx, element_idx)
+}
+
+forest_dataset_set_auxiliary_data_value_cpp <- function(dataset_ptr, dim_idx, element_idx, value) {
+  invisible(.Call(`_stochtree_forest_dataset_set_auxiliary_data_value_cpp`, dataset_ptr, dim_idx, element_idx, value))
+}
+
+forest_dataset_get_auxiliary_data_vector_cpp <- function(dataset_ptr, dim_idx) {
+  .Call(`_stochtree_forest_dataset_get_auxiliary_data_vector_cpp`, dataset_ptr, dim_idx)
+}
+
+forest_dataset_store_auxiliary_data_vector_as_column_cpp <- function(dataset_ptr, output_matrix, dim_idx, matrix_col_idx) {
+  .Call(`_stochtree_forest_dataset_store_auxiliary_data_vector_as_column_cpp`, dataset_ptr, output_matrix, dim_idx, matrix_col_idx)
+}
+
+forest_dataset_update_auxiliary_data_vector_cumulative_exp_sum <- function(dataset_ptr, reference_vector_idx, target_vector_idx) {
+  invisible(.Call(`_stochtree_forest_dataset_update_auxiliary_data_vector_cumulative_exp_sum`, dataset_ptr, reference_vector_idx, target_vector_idx))
+}
+
 create_column_vector_cpp <- function(outcome) {
   .Call(`_stochtree_create_column_vector_cpp`, outcome)
 }
@@ -692,44 +720,20 @@ sample_without_replacement_integer_cpp <- function(population_vector, sampling_p
   .Call(`_stochtree_sample_without_replacement_integer_cpp`, population_vector, sampling_probs, sample_size)
 }
 
-ordinal_aux_data_initialize_cpp <- function(tracker_ptr, num_observations, n_levels) {
-  invisible(.Call(`_stochtree_ordinal_aux_data_initialize_cpp`, tracker_ptr, num_observations, n_levels))
-}
-
-ordinal_aux_data_get_cpp <- function(tracker_ptr, type_idx, obs_idx) {
-  .Call(`_stochtree_ordinal_aux_data_get_cpp`, tracker_ptr, type_idx, obs_idx)
-}
-
-ordinal_aux_data_set_cpp <- function(tracker_ptr, type_idx, obs_idx, value) {
-  invisible(.Call(`_stochtree_ordinal_aux_data_set_cpp`, tracker_ptr, type_idx, obs_idx, value))
-}
-
-ordinal_aux_data_get_vector_cpp <- function(tracker_ptr, type_idx) {
-  .Call(`_stochtree_ordinal_aux_data_get_vector_cpp`, tracker_ptr, type_idx)
-}
-
-ordinal_aux_data_set_vector_cpp <- function(tracker_ptr, type_idx, values) {
-  invisible(.Call(`_stochtree_ordinal_aux_data_set_vector_cpp`, tracker_ptr, type_idx, values))
-}
-
-ordinal_aux_data_update_cumsum_exp_cpp <- function(tracker_ptr) {
-  invisible(.Call(`_stochtree_ordinal_aux_data_update_cumsum_exp_cpp`, tracker_ptr))
-}
-
 ordinal_sampler_cpp <- function() {
   .Call(`_stochtree_ordinal_sampler_cpp`)
 }
 
-ordinal_sampler_update_latent_variables_cpp <- function(sampler_ptr, data_ptr, outcome_ptr, tracker_ptr, rng_ptr) {
-  invisible(.Call(`_stochtree_ordinal_sampler_update_latent_variables_cpp`, sampler_ptr, data_ptr, outcome_ptr, tracker_ptr, rng_ptr))
+ordinal_sampler_update_latent_variables_cpp <- function(sampler_ptr, data_ptr, outcome_ptr, rng_ptr) {
+  invisible(.Call(`_stochtree_ordinal_sampler_update_latent_variables_cpp`, sampler_ptr, data_ptr, outcome_ptr, rng_ptr))
 }
 
-ordinal_sampler_update_gamma_params_cpp <- function(sampler_ptr, data_ptr, outcome_ptr, tracker_ptr, alpha_gamma, beta_gamma, gamma_0, rng_ptr) {
-  invisible(.Call(`_stochtree_ordinal_sampler_update_gamma_params_cpp`, sampler_ptr, data_ptr, outcome_ptr, tracker_ptr, alpha_gamma, beta_gamma, gamma_0, rng_ptr))
+ordinal_sampler_update_gamma_params_cpp <- function(sampler_ptr, data_ptr, outcome_ptr, alpha_gamma, beta_gamma, gamma_0, rng_ptr) {
+  invisible(.Call(`_stochtree_ordinal_sampler_update_gamma_params_cpp`, sampler_ptr, data_ptr, outcome_ptr, alpha_gamma, beta_gamma, gamma_0, rng_ptr))
 }
 
-ordinal_sampler_update_cumsum_exp_cpp <- function(sampler_ptr, tracker_ptr) {
-  invisible(.Call(`_stochtree_ordinal_sampler_update_cumsum_exp_cpp`, sampler_ptr, tracker_ptr))
+ordinal_sampler_update_cumsum_exp_cpp <- function(sampler_ptr, data_ptr) {
+  invisible(.Call(`_stochtree_ordinal_sampler_update_cumsum_exp_cpp`, sampler_ptr, data_ptr))
 }
 
 init_json_cpp <- function() {

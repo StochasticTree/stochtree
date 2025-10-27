@@ -150,6 +150,52 @@ cpp11::writable::doubles forest_dataset_get_variance_weights_cpp(cpp11::external
 }
 
 [[cpp11::register]]
+bool forest_dataset_has_auxiliary_dimension_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx) {
+    return dataset_ptr->HasAuxiliaryDimension(dim_idx);
+}
+
+[[cpp11::register]]
+void forest_dataset_add_auxiliary_dimension_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_size) {
+    dataset_ptr->AddAuxiliaryDimension(dim_size);
+}
+
+[[cpp11::register]]
+double forest_dataset_get_auxiliary_data_value_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx, int element_idx) {
+    return dataset_ptr->GetAuxiliaryDataValue(dim_idx, element_idx);
+}
+
+[[cpp11::register]]
+void forest_dataset_set_auxiliary_data_value_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx, int element_idx, double value) {
+    dataset_ptr->SetAuxiliaryDataValue(dim_idx, element_idx, value);
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles forest_dataset_get_auxiliary_data_vector_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx) {
+    const std::vector<double> output_raw = dataset_ptr->GetAuxiliaryDataVector(dim_idx);
+    int n = output_raw.size();
+    cpp11::writable::doubles output(n);
+    for (int i = 0; i < n; i++) {
+        output[i] = output_raw[i];
+    }
+    return output;
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles_matrix<> forest_dataset_store_auxiliary_data_vector_as_column_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::writable::doubles_matrix<> output_matrix, int dim_idx, int matrix_col_idx) {
+    const std::vector<double> output_raw = dataset_ptr->GetAuxiliaryDataVector(dim_idx);
+    int n = output_raw.size();
+    for (int i = 0; i < n; i++) {
+        output_matrix(i, matrix_col_idx) = output_raw[i];
+    }
+    return output_matrix;
+}
+
+[[cpp11::register]]
+void forest_dataset_update_auxiliary_data_vector_cumulative_exp_sum(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int reference_vector_idx, int target_vector_idx) {
+    dataset_ptr->UpdateAuxiliaryDataVectorCumulativeExpSum(reference_vector_idx, target_vector_idx);
+}
+
+[[cpp11::register]]
 cpp11::external_pointer<StochTree::ColumnVector> create_column_vector_cpp(cpp11::doubles outcome) {
     // Unpack pointers to data and dimensions
     StochTree::data_size_t n = outcome.size();
