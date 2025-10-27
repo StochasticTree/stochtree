@@ -744,7 +744,7 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset,
                                         ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
                                         int tree_num, double global_variance, std::vector<FeatureType>& feature_types, int cutpoint_grid_size, 
-                                        int num_features_subsample, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                        int num_features_subsample, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   int root_id = Tree::kRoot;
   int curr_node_id;
   data_size_t curr_node_begin;
@@ -800,7 +800,7 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
     SampleSplitRule<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
       tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance, cutpoint_grid_size, 
       node_index_map, split_queue, curr_node_id, curr_node_begin, curr_node_end, variable_weights, feature_types, 
-      feature_subset, leaf_suff_stat_args...);
+      feature_subset, num_threads, leaf_suff_stat_args...);
   }
 }
 
@@ -832,6 +832,7 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
  * \param backfitting Whether or not the sampler uses "backfitting" (wherein the sampler for a given tree only depends on the other trees via
  * their effect on the residual) or the more general "blocked MCMC" (wherein the state of other trees must be more explicitly considered).
  * \param num_features_subsample How many features to subsample when running the GFR algorithm.
+ * \param num_threads Number of threads to use for split evaluations and other compute-intensive operations.
  * \param leaf_suff_stat_args Any arguments which must be supplied to initialize a `LeafSuffStat` object.
  */
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
@@ -1142,7 +1143,7 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
  * \param pre_initialized Whether or not `active_forest` has already been initialized (note: this parameter will be refactored out soon).
  * \param backfitting Whether or not the sampler uses "backfitting" (wherein the sampler for a given tree only depends on the other trees via
  * their effect on the residual) or the more general "blocked MCMC" (wherein the state of other trees must be more explicitly considered).
- * \param num_threads
+ * \param num_threads Number of threads to use for split evaluations and other compute-intensive operations.
  * \param leaf_suff_stat_args Any arguments which must be supplied to initialize a `LeafSuffStat` object.
  */
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
