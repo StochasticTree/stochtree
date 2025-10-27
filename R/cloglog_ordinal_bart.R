@@ -97,7 +97,6 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
     as.integer(n_trees),
     as.integer(n_samples)
   )
-  stochtree:::ordinal_aux_data_initialize_cpp(forest_tracker, as.integer(n_samples), as.integer(n_levels))
   # Latent variable (Z in Alam et al (2025) notation)
   dataX$add_auxiliary_dimension(nrow(X))
   # Forest predictions (eta in Alam et al (2025) notation)
