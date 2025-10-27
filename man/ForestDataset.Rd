@@ -35,7 +35,6 @@ weights are optional.
 \item \href{#method-ForestDataset-set_auxiliary_data_value}{\code{ForestDataset$set_auxiliary_data_value()}}
 \item \href{#method-ForestDataset-get_auxiliary_data_vector}{\code{ForestDataset$get_auxiliary_data_vector()}}
 \item \href{#method-ForestDataset-store_auxiliary_data_vector_matrix}{\code{ForestDataset$store_auxiliary_data_vector_matrix()}}
-\item \href{#method-ForestDataset-update_auxiliary_data_vector_cumulative_exp_sum}{\code{ForestDataset$update_auxiliary_data_vector_cumulative_exp_sum()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -334,32 +333,6 @@ Retrieve auxiliary data vector and place it into a column of the supplied matrix
 }
 \subsection{Returns}{
 Vector of all of the auxiliary data stored at dimension \code{dim_idx}
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestDataset-update_auxiliary_data_vector_cumulative_exp_sum"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestDataset-update_auxiliary_data_vector_cumulative_exp_sum}{}}}
-\subsection{Method \code{update_auxiliary_data_vector_cumulative_exp_sum()}}{
-Updates the elements of one auxiliary data vector based on the cumulative exponentiated values of elements of another vector.
-If the target value has \code{k} elements, the reference vector must have \code{k - 1} elements.
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$update_auxiliary_data_vector_cumulative_exp_sum(
-  reference_vector_idx,
-  target_vector_idx
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{reference_vector_idx}}{Index of the auxiliary data vector to be exponentiated and scanned}
-
-\item{\code{target_vector_idx}}{Index of the auxiliary data vector to be written with exponentiated and scanned values of \code{reference_vector_idx}}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-None
 }
 }
 }

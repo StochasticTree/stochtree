@@ -9,8 +9,10 @@
 #' @param n_thin Thinning interval for MCMC samples. Default: `1`.
 #' @param alpha_gamma Shape parameter for the log-gamma prior on cutpoints. Default: `2.0`.
 #' @param beta_gamma Rate parameter for the log-gamma prior on cutpoints. Default: `2.0`.
-#' @param variable_weights Optional vector of variable weights for splitting (default: equal weights).
-#' @param feature_types Optional vector indicating feature types (0 for continuous, 1 for categorical; default: all continuous).
+#' @param variable_weights (Optional) vector of variable weights for splitting (default: equal weights).
+#' @param feature_types (Optional) vector indicating feature types (0 for continuous, 1 for categorical; default: all continuous).
+#' @param seed (Optional) random seed for reproducibility.
+#' @param num_threads (Optional) Number of threads to use in split evaluations and other compute-intensive operations. Default: 1.
 #' @export
 cloglog_ordinal_bart <- function(X, y, X_test = NULL,
                                  n_trees = 50,
@@ -21,7 +23,8 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
                                  beta_gamma = 2.0,
                                  variable_weights = NULL,
                                  feature_types = NULL,
-                                 seed = NULL) {
+                                 seed = NULL, 
+                                 num_threads = 1) {
 
   # BART parameters
   alpha_bart <- 0.95
@@ -148,7 +151,8 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
       dataX$data_ptr, outcome_data$data_ptr, forest_samples$forest_container_ptr,
       active_forest$forest_ptr, forest_tracker, split_prior, rng$rng_ptr,
       sweep_indices, as.integer(feature_types), as.integer(cutpoint_grid_size),
-      scale_leaf, variable_weights, alpha_gamma, beta_gamma, 1.0, 4L, keep_sample
+      scale_leaf, variable_weights, alpha_gamma, beta_gamma, 1.0, 4L, keep_sample, 
+      num_threads
     )
 
     # Set auxiliary data slot 1 to current forest predictions = lambda_hat = sum of all the tree predictions

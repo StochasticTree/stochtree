@@ -16,7 +16,8 @@ cloglog_ordinal_bart(
   beta_gamma = 2,
   variable_weights = NULL,
   feature_types = NULL,
-  seed = NULL
+  seed = NULL,
+  num_threads = 1
 )
 }
 \arguments{
@@ -38,9 +39,13 @@ cloglog_ordinal_bart(
 
 \item{beta_gamma}{Rate parameter for the log-gamma prior on cutpoints. Default: \code{2.0}.}
 
-\item{variable_weights}{Optional vector of variable weights for splitting (default: equal weights).}
+\item{variable_weights}{(Optional) vector of variable weights for splitting (default: equal weights).}
 
-\item{feature_types}{Optional vector indicating feature types (0 for continuous, 1 for categorical; default: all continuous).}
+\item{feature_types}{(Optional) vector indicating feature types (0 for continuous, 1 for categorical; default: all continuous).}
+
+\item{seed}{(Optional) random seed for reproducibility.}
+
+\item{num_threads}{(Optional) Number of threads to use in split evaluations and other compute-intensive operations. Default: 1.}
 }
 \description{
 Run the BART algorithm for ordinal outcomes using a complementary log-log link

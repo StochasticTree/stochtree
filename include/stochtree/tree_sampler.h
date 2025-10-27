@@ -702,7 +702,7 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
       }
       
       // Add split to tree and trackers
-      AddSplitToModel(tracker, dataset, tree_prior, tree_split, gen, tree, tree_num, node_id, feature_split, true, num_threads);
+      AddSplitToModel(tracker, dataset, tree_prior, tree_split, gen, tree, tree_num, node_id, feature_split, true);
 
       // Determine the number of observation in the newly created left node
       int left_node = tree->LeftChild(node_id);
@@ -1053,7 +1053,7 @@ static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, Leaf
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset,
                                          ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
-                                         int tree_num, double global_variance, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                         int tree_num, double global_variance, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Determine whether it is possible to grow any of the leaves
   bool grow_possible = false;
   std::vector<int> leaves = tree->GetLeaves();
