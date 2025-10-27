@@ -375,5 +375,3 @@ void ordinal_sampler_update_cumsum_exp_cpp(
 ) {
     sampler_ptr->UpdateCumulativeExpSums(*data_ptr);
 }
-
-

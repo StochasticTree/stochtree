@@ -191,11 +191,6 @@ cpp11::writable::doubles_matrix<> forest_dataset_store_auxiliary_data_vector_as_
 }
 
 [[cpp11::register]]
-void forest_dataset_update_auxiliary_data_vector_cumulative_exp_sum(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int reference_vector_idx, int target_vector_idx) {
-    dataset_ptr->UpdateAuxiliaryDataVectorCumulativeExpSum(reference_vector_idx, target_vector_idx);
-}
-
-[[cpp11::register]]
 cpp11::external_pointer<StochTree::ColumnVector> create_column_vector_cpp(cpp11::doubles outcome) {
     // Unpack pointers to data and dimensions
     StochTree::data_size_t n = outcome.size();

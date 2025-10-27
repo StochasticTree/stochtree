@@ -78,6 +78,10 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
   }
   gamma_samples <- matrix(0, n_levels - 1, n_keep)
   latent_samples <- matrix(0, n_samples, n_keep)
+
+    # Initialize samplers
+  ordinal_sampler <- stochtree:::ordinal_sampler_cpp()
+  rng <- stochtree::createCppRNG(if (is.null(seed)) sample.int(.Machine$integer.max, 1) else seed)
   
   # Initialize other model structures as before
   dataX <- stochtree::createForestDataset(X)
@@ -95,6 +99,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
     as.integer(n_trees),
     as.integer(n_samples)
   )
+
   # Latent variable (Z in Alam et al (2025) notation)
   dataX$add_auxiliary_dimension(nrow(X))
   # Forest predictions (eta in Alam et al (2025) notation)
@@ -116,7 +121,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
 
   # Convert the log-scale parameters into cumulative exponentiated parameters.
   # This is done under the hood in a C++ function for efficiency.
-  dataX$update_auxiliary_data_vector_cumulative_exp_sum(2, 3)
+  ordinal_sampler_update_cumsum_exp_cpp(ordinal_sampler, dataX$data_ptr)
   
   # Initialize forest predictions to zero (slot 1)
   for (i in 1:n_samples) {
@@ -128,10 +133,6 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
     dataX$set_auxiliary_data_value(0, i - 1, 0.0)
   }
   
-  # Initialize samplers
-  ordinal_sampler <- stochtree:::ordinal_sampler_cpp()
-  rng <- stochtree::createCppRNG(if (is.null(seed)) sample.int(.Machine$integer.max, 1) else seed)
-
   # Set up sweep indices for tree updates (sample all trees each iteration)
   sweep_indices <- as.integer(seq(0, n_trees - 1))
   
@@ -169,7 +170,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
     )
     
     # 4. Update cumulative sum of exp(gamma) values
-    dataX$update_auxiliary_data_vector_cumulative_exp_sum(2, 3)
+    ordinal_sampler_update_cumsum_exp_cpp(ordinal_sampler, dataX$data_ptr)
     
     if (keep_sample) {
       forest_pred_train[, sample_counter] <- active_forest$predict(dataX)

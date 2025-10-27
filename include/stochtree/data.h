@@ -496,20 +496,6 @@ class ForestDataset {
     return (num_auxiliary_dims_ > dim_idx) & (dim_idx >= 0);
   }
 
-  void UpdateAuxiliaryDataVectorCumulativeExpSum(int reference_vector_idx, int target_vector_idx) {
-    CHECK(HasAuxiliaryDimension(reference_vector_idx));
-    CHECK(HasAuxiliaryDimension(target_vector_idx));
-    const std::vector<double>& reference_vector = GetAuxiliaryDataVectorConst(reference_vector_idx);
-    std::vector<double>& target_vector = GetAuxiliaryDataVector(target_vector_idx);
-    int num_levels = target_vector.size();
-    double cumulative_exp_sum = 0.0;
-    target_vector[0] = cumulative_exp_sum;
-    for (int i = 1; i < num_levels - 1; i++) {
-      cumulative_exp_sum = cumulative_exp_sum + std::exp(reference_vector[i - 1]);
-      target_vector[i] = cumulative_exp_sum;
-    }
-  }
-
  private:
   ColumnMatrix covariates_;
   ColumnMatrix basis_;

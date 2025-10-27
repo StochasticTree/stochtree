@@ -161,16 +161,6 @@ ForestDataset <- R6::R6Class(
         #' @return Vector of all of the auxiliary data stored at dimension `dim_idx`
         store_auxiliary_data_vector_matrix = function(output_matrix, dim_idx, matrix_col_idx) {
             return(forest_dataset_store_auxiliary_data_vector_as_column_cpp(self$data_ptr, output_matrix, dim_idx, matrix_col_idx))
-        }, 
-
-        #' @description
-        #' Updates the elements of one auxiliary data vector based on the cumulative exponentiated values of elements of another vector. 
-        #' If the target value has `k` elements, the reference vector must have `k - 1` elements.
-        #' @param reference_vector_idx Index of the auxiliary data vector to be exponentiated and scanned
-        #' @param target_vector_idx Index of the auxiliary data vector to be written with exponentiated and scanned values of `reference_vector_idx`
-        #' @return None
-        update_auxiliary_data_vector_cumulative_exp_sum = function(reference_vector_idx, target_vector_idx) {
-            return(forest_dataset_update_auxiliary_data_vector_cumulative_exp_sum(self$data_ptr, reference_vector_idx, target_vector_idx))
         }
     )
 )
