@@ -276,10 +276,6 @@ void LogLinearVarianceLeafModel::SetEnsembleRootPredictedValue(ForestDataset& da
   }
 }
 
-// ============================================================================
-// Cloglog Ordinal Leaf Model
-// ============================================================================
-
 double CloglogOrdinalLeafModel::SplitLogMarginalLikelihood(CloglogOrdinalSuffStat& left_stat, CloglogOrdinalSuffStat& right_stat, double global_variance) {
   double left_log_ml = SuffStatLogMarginalLikelihood(left_stat, global_variance);
   double right_log_ml = SuffStatLogMarginalLikelihood(right_stat, global_variance);

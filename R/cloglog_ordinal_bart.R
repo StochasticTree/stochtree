@@ -4,8 +4,9 @@
 #' @param y A numeric vector of ordinal outcomes (positive integers starting from 1).
 #' @param X_test An optional numeric matrix of predictors (test data).
 #' @param n_trees Number of trees in the BART ensemble. Default: `50`.
-#' @param n_samples_mcmc Total number of MCMC samples to draw. Default: `500`.
-#' @param n_burnin Number of burn-in samples to discard. Default: `250`.
+#' @param num_gfr Number of GFR samples to draw at the beginning of the sampler. Default: `10`.
+#' @param num_burnin Number of burn-in MCMC samples to discard. Default: `0`.
+#' @param num_mcmc Total number of MCMC samples to draw. Default: `500`.
 #' @param n_thin Thinning interval for MCMC samples. Default: `1`.
 #' @param alpha_gamma Shape parameter for the log-gamma prior on cutpoints. Default: `2.0`.
 #' @param beta_gamma Rate parameter for the log-gamma prior on cutpoints. Default: `2.0`.
@@ -16,8 +17,9 @@
 #' @export
 cloglog_ordinal_bart <- function(X, y, X_test = NULL,
                                  n_trees = 50,
-                                 n_samples_mcmc = 500,
-                                 n_burnin = 250, 
+                                 num_gfr = 10, 
+                                 num_burnin = 0, 
+                                 num_mcmc = 500,
                                  n_thin = 1,
                                  alpha_gamma = 2.0,
                                  beta_gamma = 2.0,
@@ -25,7 +27,6 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
                                  feature_types = NULL,
                                  seed = NULL, 
                                  num_threads = 1) {
-
   # BART parameters
   alpha_bart <- 0.95
   beta_bart <- 2
@@ -39,6 +40,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
   
   # Determine whether a test dataset is provided
   has_test <- !is.null(X_test)
+  
   # Data checks
   if (!is.matrix(X)) X <- as.matrix(X)
   if (!is.numeric(y)) y <- as.numeric(y)
@@ -71,9 +73,11 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
     set.seed(seed)
   }
   
-  keep_idx <- seq((n_burnin + 1), n_samples_mcmc, by = n_thin)
+  # Indices of MCMC samples to keep after GFR, burn-in, and thinning
+  keep_idx <- seq(num_gfr + num_burnin + 1, num_gfr + num_burnin + num_mcmc, by = n_thin)
   n_keep <- length(keep_idx)
   
+  # Storage for MCMC samples
   forest_pred_train <- matrix(0, n_samples, n_keep)
   if (has_test) {
     n_samples_test <- nrow(X_test)
@@ -82,7 +86,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
   gamma_samples <- matrix(0, n_levels - 1, n_keep)
   latent_samples <- matrix(0, n_samples, n_keep)
 
-    # Initialize samplers
+  # Initialize samplers
   ordinal_sampler <- stochtree:::ordinal_sampler_cpp()
   rng <- stochtree::createCppRNG(if (is.null(seed)) sample.int(.Machine$integer.max, 1) else seed)
   
@@ -140,20 +144,30 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
   sweep_indices <- as.integer(seq(0, n_trees - 1))
   
   sample_counter <- 0
-  for (i in 1:n_samples_mcmc) {
+  for (i in 1:(num_mcmc + num_burnin + num_gfr)) {
     keep_sample <- i %in% keep_idx
     if (keep_sample) {
       sample_counter <- sample_counter + 1
     }
 
     # 1. Sample forest using MCMC
-    stochtree:::sample_mcmc_one_iteration_cpp(
-      dataX$data_ptr, outcome_data$data_ptr, forest_samples$forest_container_ptr,
-      active_forest$forest_ptr, forest_tracker, split_prior, rng$rng_ptr,
-      sweep_indices, as.integer(feature_types), as.integer(cutpoint_grid_size),
-      scale_leaf, variable_weights, alpha_gamma, beta_gamma, 1.0, 4L, keep_sample, 
-      num_threads
-    )
+    if (i > num_gfr) {
+      stochtree:::sample_mcmc_one_iteration_cpp(
+        dataX$data_ptr, outcome_data$data_ptr, forest_samples$forest_container_ptr,
+        active_forest$forest_ptr, forest_tracker, split_prior, rng$rng_ptr,
+        sweep_indices, as.integer(feature_types), as.integer(cutpoint_grid_size),
+        scale_leaf, variable_weights, alpha_gamma, beta_gamma, 1.0, 4L, keep_sample, 
+        num_threads
+      )
+    } else {
+      stochtree:::sample_gfr_one_iteration_cpp(
+        dataX$data_ptr, outcome_data$data_ptr, forest_samples$forest_container_ptr,
+        active_forest$forest_ptr, forest_tracker, split_prior, rng$rng_ptr,
+        sweep_indices, as.integer(feature_types), as.integer(cutpoint_grid_size),
+        scale_leaf, variable_weights, alpha_gamma, beta_gamma, 1.0, 4L, keep_sample, 
+        ncol(X), num_threads
+      )
+    }
 
     # Set auxiliary data slot 1 to current forest predictions = lambda_hat = sum of all the tree predictions
     # This is needed for updating gamma parameters, latent z_i's

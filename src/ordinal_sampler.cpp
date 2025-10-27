@@ -72,7 +72,7 @@ void OrdinalSampler::UpdateGammaParams(ForestDataset& dataset, Eigen::VectorXd& 
   }
 
   // Set the first gamma parameter to gamma_0 (e.g., 0) for identifiability
-    gamma[0] = gamma_0;
+  gamma[0] = gamma_0;
 }
 
 void OrdinalSampler::UpdateCumulativeExpSums(ForestDataset& dataset) {

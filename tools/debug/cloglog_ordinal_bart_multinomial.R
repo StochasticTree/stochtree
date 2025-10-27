@@ -52,8 +52,9 @@ out <- cloglog_ordinal_bart(
   X = X_train,
   y = y_train,
   X_test = X_test,
-  n_samples_mcmc = 1000,
-  n_burnin = 500,
+  num_gfr = 10,
+  num_burnin = 0,
+  num_mcmc = 1000,
   n_thin = 1
 )
 

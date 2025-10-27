@@ -7,15 +7,17 @@ set.seed(2025)
 
 # Sample size and number of predictors
 n <- 2000
-p_X <- 5
+p <- 5
 
 # Design matrix and true lambda function
-X <- matrix(runif(n * p_X), ncol = p_X)
-true_lambda_function <- ifelse(X[, 1] > 0.5, 2, -1)
+X <- matrix(runif(n * p), ncol = p)
+# true_lambda_function <- ifelse(X[, 1] > 0.5, 2, -1)
+beta <- rep(1 / sqrt(p), p)
+true_lambda_function <- X %*% beta
 
 # Set cutpoints for ordinal categories (2 categories: 1, 2)
 n_categories <- 2
-gamma_true <- c(-1)
+gamma_true <- c(-2)
 ordinal_cutpoints <- log(cumsum(exp(gamma_true)))
 ordinal_cutpoints
 
@@ -51,8 +53,9 @@ out <- cloglog_ordinal_bart(
   X = X_train,
   y = y_train,
   X_test = X_test,
-  n_samples_mcmc = 1000,
-  n_burnin = 500,
+  num_gfr = 0,
+  num_burnin = 5000,
+  num_mcmc = 1000,
   n_thin = 1
 )
 
@@ -63,8 +66,6 @@ print(end - start)
 par(mfrow = c(2, 1))
 plot(out$gamma_samples[1, ], type = 'l', main = expression(gamma[1]), ylab = "Value", xlab = "MCMC Sample")
 abline(h = gamma_true[1], col = 'red', lty = 2)
-# plot(out$gamma_samples[2, ], type = 'l', main = expression(gamma[2]), ylab = "Value", xlab = "MCMC Sample")
-# abline(h = gamma_true[2], col = 'red', lty = 2)
 
 gamma1 <- out$gamma_samples[1,] + colMeans(out$forest_predictions_train)
 summary(gamma1)

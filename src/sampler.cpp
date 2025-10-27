@@ -55,7 +55,7 @@ void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDatas
     else if (leaf_model_int == 1) model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
     else if (leaf_model_int == 2) model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
     else if (leaf_model_int == 3) model_type = StochTree::ModelType::kLogLinearVariance;
-    else if (leaf_model_int == 4) StochTree::Log::Fatal("Ordinal models only support MCMC sampling, not GFR");
+    else if (leaf_model_int == 4) model_type = StochTree::ModelType::kCloglogOrdinal;
     else StochTree::Log::Fatal("Invalid model type");
 
     // Unpack leaf model parameters
