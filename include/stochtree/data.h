@@ -476,8 +476,8 @@ class ForestDataset {
    */
   void AddAuxiliaryDimension(int dim_size) {
     if (!has_auxiliary_data_) has_auxiliary_data_ = true;
-    auxiliary_data_.resize(num_auxiliary_dims_);
-    auxiliary_data_[num_auxiliary_dims_].assign(dim_size, 0.0);
+    auxiliary_data_.resize(num_auxiliary_dims_ + 1);
+    auxiliary_data_[num_auxiliary_dims_].resize(dim_size);
     num_auxiliary_dims_++;
   }
   double GetAuxiliaryDataValue(int dim_idx, data_size_t element_idx) {
@@ -505,7 +505,7 @@ class ForestDataset {
     double cumulative_exp_sum = 0.0;
     target_vector[0] = cumulative_exp_sum;
     for (int i = 1; i < num_levels - 1; i++) {
-      cumulative_exp_sum += std::exp(reference_vector[i]);
+      cumulative_exp_sum = cumulative_exp_sum + std::exp(reference_vector[i - 1]);
       target_vector[i] = cumulative_exp_sum;
     }
   }

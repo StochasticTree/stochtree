@@ -12,8 +12,6 @@
 #' @param variable_weights Optional vector of variable weights for splitting (default: equal weights).
 #' @param feature_types Optional vector indicating feature types (0 for continuous, 1 for categorical; default: all continuous).
 #' @export
-
-
 cloglog_ordinal_bart <- function(X, y, X_test = NULL,
                                  n_trees = 50,
                                  n_samples_mcmc = 500,
@@ -31,7 +29,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
   min_samples_in_leaf <- 5
   max_depth <- 10
   scale_leaf <- 2 / sqrt(n_trees)
-  cutpoint_grid_size <- 100       # Needed for stochtree:::sample_mcmc_one_iteration_cpp (for GFR), not used in ordinal BART
+  cutpoint_grid_size <- 100       # Needed for stochtree:::sample_mcmc_one_iteration_cpp (for GFR), not used in MCMC BART
   
   # Fixed for identifiability (can be pass as argument later if desired)
   gamma_0 = 0.0  # First gamma cutpoint fixed at gamma_0 = 0
@@ -171,7 +169,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
     )
     
     # 4. Update cumulative sum of exp(gamma) values
-    dataX$update_auxiliary_data_vector_cumulative_exp_sum(2,3)
+    dataX$update_auxiliary_data_vector_cumulative_exp_sum(2, 3)
     
     if (keep_sample) {
       forest_pred_train[, sample_counter] <- active_forest$predict(dataX)

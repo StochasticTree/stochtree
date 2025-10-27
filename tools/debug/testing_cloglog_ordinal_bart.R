@@ -14,7 +14,6 @@ X <- matrix(rnorm(n * p), n, p)
 beta <- rep(1 / sqrt(p), p)
 true_lambda_function <- X %*% beta
 
-
 # Set cutpoints for ordinal categories (3 categories: 1, 2, 3)
 n_categories <- 3
 gamma_true <- c(-2, 1)
@@ -38,10 +37,9 @@ for (j in 1:n_categories) {
 y <- sapply(1:nrow(X), function(i) sample(1:n_categories, 1, prob = true_probs[i, ]))
 cat("Outcome distribution:", table(y), "\n")
 
-# CLogLog Ordinal BART model fitting
+# Train test split
 train_idx <- sample(1:n, size = floor(0.8 * n))
 test_idx <- setdiff(1:n, train_idx)
-
 X_train <- X[train_idx, ]
 y_train <- y[train_idx]
 X_test <- X[test_idx, ]
@@ -49,6 +47,7 @@ y_test <- y[test_idx]
 
 start <- Sys.time()
 
+# Sample the cloglog ordinal BART model
 out <- cloglog_ordinal_bart(
   X = X_train,
   y = y_train,
