@@ -513,7 +513,7 @@ static inline void EvaluateAllPossibleSplits(
   ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, LeafModel& leaf_model, double global_variance, int tree_num, int split_node_id, 
   std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, std::vector<FeatureType>& cutpoint_feature_types, 
   data_size_t& valid_cutpoint_count, CutpointGridContainer& cutpoint_grid_container, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, 
-  std::vector<FeatureType>& feature_types, std::vector<bool>& feature_subset, LeafSuffStatConstructorArgs&... leaf_suff_stat_args
+  std::vector<FeatureType>& feature_types, std::vector<bool>& feature_subset, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args
 ) {
   // Initialize sufficient statistics
   LeafSuffStat node_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
@@ -613,14 +613,14 @@ static inline void EvaluateCutpoints(Tree* tree, ForestTracker& tracker, LeafMod
                                      std::vector<double>& log_cutpoint_evaluations, std::vector<int>& cutpoint_features, std::vector<double>& cutpoint_values, 
                                      std::vector<FeatureType>& cutpoint_feature_types, data_size_t& valid_cutpoint_count, std::vector<double>& variable_weights, 
                                      std::vector<FeatureType>& feature_types, CutpointGridContainer& cutpoint_grid_container, 
-                                     std::vector<bool>& feature_subset, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                     std::vector<bool>& feature_subset, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Evaluate all possible cutpoints according to the leaf node model, 
   // recording their log-likelihood and other split information in a series of vectors.
   // The last element of these vectors concerns the "no-split" option.
   EvaluateAllPossibleSplits<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
     dataset, tracker, residual, tree_prior, gen, leaf_model, global_variance, tree_num, node_id, log_cutpoint_evaluations, 
     cutpoint_features, cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, cutpoint_grid_container, 
-    node_begin, node_end, variable_weights, feature_types, feature_subset, leaf_suff_stat_args...
+    node_begin, node_end, variable_weights, feature_types, feature_subset, num_threads, leaf_suff_stat_args...
   );
   
   // Compute an adjustment to reflect the no split prior probability and the number of cutpoints
@@ -641,7 +641,7 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
                                    TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, int cutpoint_grid_size, 
                                    std::unordered_map<int, std::pair<data_size_t, data_size_t>>& node_index_map, std::deque<node_t>& split_queue, 
                                    int node_id, data_size_t node_begin, data_size_t node_end, std::vector<double>& variable_weights, 
-                                   std::vector<FeatureType>& feature_types, std::vector<bool> feature_subset, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                   std::vector<FeatureType>& feature_types, std::vector<bool> feature_subset, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Leaf depth
   int leaf_depth = tree->GetDepth(node_id);
 
@@ -661,7 +661,7 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
       tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance,
       cutpoint_grid_size, node_id, node_begin, node_end, log_cutpoint_evaluations, cutpoint_features, 
       cutpoint_values, cutpoint_feature_types, valid_cutpoint_count, variable_weights, feature_types, 
-      cutpoint_grid_container, feature_subset, leaf_suff_stat_args...
+      cutpoint_grid_container, feature_subset, num_threads, leaf_suff_stat_args...
     );
     // TODO: maybe add some checks here?
     
