@@ -440,7 +440,7 @@ template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatCon
 static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(
   ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, LeafModel& leaf_model, 
   TreeSplit& split, int tree_num, int leaf_num, int split_feature, double global_variance, 
-  LeafSuffStatConstructorArgs&... leaf_suff_stat_args
+  int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args
 ) {
   // Initialize sufficient statistics
   LeafSuffStat node_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
@@ -882,7 +882,7 @@ static inline void GFRSampleOneIter(TreeEnsemble& active_forest, ForestTracker& 
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, 
                                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, std::vector<double>& variable_weights, 
-                                       double global_variance, double prob_grow_old, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                       double global_variance, double prob_grow_old, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Extract dataset information
   data_size_t n = dataset.GetCovariates().rows();
 
@@ -927,7 +927,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
 
     // Compute the marginal likelihood of split and no split, given the leaf prior
     std::tuple<double, double, int32_t, int32_t> split_eval = EvaluateProposedSplit<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
-      dataset, tracker, residual, leaf_model, split, tree_num, leaf_chosen, var_chosen, global_variance, leaf_suff_stat_args...
+      dataset, tracker, residual, leaf_model, split, tree_num, leaf_chosen, var_chosen, global_variance, num_threads, leaf_suff_stat_args...
     );
     double split_log_marginal_likelihood = std::get<0>(split_eval);
     double no_split_log_marginal_likelihood = std::get<1>(split_eval);
@@ -990,7 +990,8 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
 
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, 
-                                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, int num_threads, 
+                                        LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Choose a "leaf parent" node at random
   int num_leaves = tree->NumLeaves();
   int num_leaf_parents = tree->NumLeafParents();
@@ -1109,11 +1110,11 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
   
   if (step_chosen == 0) {
     MCMCGrowTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
-      tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, variable_weights, global_variance, prob_grow, leaf_suff_stat_args...
+      tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, variable_weights, global_variance, prob_grow, num_threads, leaf_suff_stat_args...
     );
   } else {
     MCMCPruneTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
-      tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance, leaf_suff_stat_args...
+      tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance, num_threads, leaf_suff_stat_args...
     );
   }
 }
@@ -1143,6 +1144,7 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
  * \param pre_initialized Whether or not `active_forest` has already been initialized (note: this parameter will be refactored out soon).
  * \param backfitting Whether or not the sampler uses "backfitting" (wherein the sampler for a given tree only depends on the other trees via
  * their effect on the residual) or the more general "blocked MCMC" (wherein the state of other trees must be more explicitly considered).
+ * \param num_threads
  * \param leaf_suff_stat_args Any arguments which must be supplied to initialize a `LeafSuffStat` object.
  */
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
@@ -1163,7 +1165,7 @@ static inline void MCMCSampleOneIter(TreeEnsemble& active_forest, ForestTracker&
     tree = active_forest.GetTree(i);
     MCMCSampleTreeOneIter<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
       tree, tracker, forests, leaf_model, dataset, residual, tree_prior, gen, variable_weights, i, 
-      global_variance, leaf_suff_stat_args...
+      global_variance, num_threads, leaf_suff_stat_args...
     );
     
     // Sample leaf parameters for tree i
