@@ -6,7 +6,7 @@ library(stochtree)
 set.seed(2025)
 
 # Sample size and number of predictors
-n <- 10000
+n <- 2000
 p <- 5
 
 # Design matrix and true lambda function
@@ -17,7 +17,7 @@ true_lambda_function <- X %*% beta
 
 # Set cutpoints for ordinal categories (2 categories: 1, 2)
 n_categories <- 2
-gamma_true <- c(-2)
+gamma_true <- c(-1)
 ordinal_cutpoints <- log(cumsum(exp(gamma_true)))
 ordinal_cutpoints
 
@@ -53,10 +53,12 @@ out <- cloglog_ordinal_bart(
   X = X_train,
   y = y_train,
   X_test = X_test,
-  num_gfr = 10,
-  num_burnin = 0,
+  num_gfr = 0,
+  num_burnin = 1000,
   num_mcmc = 1000,
-  n_thin = 1
+  n_thin = 1, 
+  alpha_gamma = 1.0,
+  beta_gamma = 1.0
 )
 
 end <- Sys.time()
@@ -71,7 +73,7 @@ gamma1 <- out$gamma_samples[1,] + colMeans(out$forest_predictions_train)
 summary(gamma1)
 hist(gamma1)
 
-par(mfrow = c(2,1), mar = c(5,4,1,1))
+par(mfrow = c(2,1))
 rowMeans(out$gamma_samples)
 moo <- t(out$gamma_samples) + colMeans(out$forest_predictions_train)
 plot(moo[,1])
@@ -81,9 +83,10 @@ plot(out$gamma_samples[1,])
 # Compare forest predictions with the truth function (for training and test sets)
 par(mfrow = c(2,1))
 lambda_pred_train <- rowMeans(out$forest_predictions_train) - mean(out$forest_predictions_train)
-plot(lambda_pred_train, true_lambda_function[train_idx])
+# lambda_pred_train <- rowMeans(out$forest_predictions_train)
+plot(lambda_pred_train, gamma_true[1] + true_lambda_function[train_idx])
 abline(a=0,b=1,col='blue', lwd=2)
-cor_train <- cor(true_lambda_function[train_idx], lambda_pred_train)
+cor_train <- cor(true_lambda_function[train_idx] + mean(out$gamma_samples[1,]), gamma_true[1] + lambda_pred_train)
 text(min(true_lambda_function[train_idx]), max(true_lambda_function[train_idx]), paste('Correlation:', round(cor_train, 3)), adj = 0, col = 'red')
 
 lambda_pred_test <- rowMeans(out$forest_predictions_test) - mean(out$forest_predictions_test)

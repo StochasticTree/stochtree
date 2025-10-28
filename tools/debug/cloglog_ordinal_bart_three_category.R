@@ -16,7 +16,7 @@ true_lambda_function <- X %*% beta
 
 # Set cutpoints for ordinal categories (3 categories: 1, 2, 3)
 n_categories <- 3
-gamma_true <- c(-2, 1)
+gamma_true <- c(-2, 3)
 ordinal_cutpoints <- log(cumsum(exp(gamma_true)))
 ordinal_cutpoints
 
@@ -116,6 +116,7 @@ for (j in 1:n_categories) {
 mean(log(-log(1 - est_probs_train[, 1])) - rowMeans(out$forest_predictions_train))
 
 # Compare estimated vs true class probabilities for training set
+par(mfrow = c(2,2))
 for (j in 1:n_categories) {
   plot(true_probs[train_idx, j], est_probs_train[, j], xlab = paste("True Prob Category", j), ylab = paste("Estimated Prob Category", j))
   abline(a = 0, b = 1, col = 'blue', lwd = 2)
@@ -139,6 +140,7 @@ for (j in 1:n_categories) {
 mean(log(-log(1 - est_probs_test[, 1])) - rowMeans(out$forest_predictions_test))
 
 # Compare estimated vs true class probabilities for test set
+par(mfrow = c(2,2))
 for (j in 1:n_categories) {
   plot(true_probs[test_idx, j], est_probs_test[, j], xlab = paste("True Prob Category", j), ylab = paste("Estimated Prob Category", j))
   abline(a = 0, b = 1, col = 'blue', lwd = 2)
