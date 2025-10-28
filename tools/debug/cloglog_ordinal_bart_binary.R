@@ -1,8 +1,7 @@
-# Simulate ordinal data and run Cloglog Ordinal BART
-
-# Load
+# Load library
 library(stochtree)
 
+# Set seed
 set.seed(2025)
 
 # Sample size and number of predictors
@@ -11,7 +10,6 @@ p <- 5
 
 # Design matrix and true lambda function
 X <- matrix(runif(n * p), ncol = p)
-# true_lambda_function <- ifelse(X[, 1] > 0.5, 2, -1)
 beta <- rep(1 / sqrt(p), p)
 true_lambda_function <- X %*% beta
 
@@ -46,8 +44,6 @@ y_train <- y[train_idx]
 X_test <- X[test_idx, ]
 y_test <- y[test_idx]
 
-start <- Sys.time()
-
 # Sample the cloglog ordinal BART model
 out <- cloglog_ordinal_bart(
   X = X_train,
@@ -59,18 +55,17 @@ out <- cloglog_ordinal_bart(
   n_thin = 1
 )
 
-end <- Sys.time()
-print(end - start)
-
-# Inference and diagnostics
+# Traceplot of cutoff parameters
 par(mfrow = c(2, 1))
 plot(out$gamma_samples[1, ], type = 'l', main = expression(gamma[1]), ylab = "Value", xlab = "MCMC Sample")
 abline(h = gamma_true[1], col = 'red', lty = 2)
 
+# Histogram of cutoff parameters
 gamma1 <- out$gamma_samples[1,] + colMeans(out$forest_predictions_train)
 summary(gamma1)
 hist(gamma1)
 
+# Traceplots of cutoff parameters combined with average forest predictions
 par(mfrow = c(2,1))
 rowMeans(out$gamma_samples)
 moo <- t(out$gamma_samples) + colMeans(out$forest_predictions_train)
@@ -78,15 +73,17 @@ plot(moo[,1])
 abline(h = gamma_true[1] + mean(true_lambda_function[train_idx]))
 plot(out$gamma_samples[1,])
 
-# Compare forest predictions with the truth function (for training and test sets)
+# Compare forest predictions with the truth (for training and test sets)
 par(mfrow = c(2,1))
+
+# Train set
 lambda_pred_train <- rowMeans(out$forest_predictions_train) - mean(out$forest_predictions_train)
-# lambda_pred_train <- rowMeans(out$forest_predictions_train)
 plot(lambda_pred_train, gamma_true[1] + true_lambda_function[train_idx])
 abline(a=0,b=1,col='blue', lwd=2)
 cor_train <- cor(true_lambda_function[train_idx] + mean(out$gamma_samples[1,]), gamma_true[1] + lambda_pred_train)
 text(min(true_lambda_function[train_idx]), max(true_lambda_function[train_idx]), paste('Correlation:', round(cor_train, 3)), adj = 0, col = 'red')
 
+# Test set
 lambda_pred_test <- rowMeans(out$forest_predictions_test) - mean(out$forest_predictions_test)
 plot(lambda_pred_test, gamma_true[1] + true_lambda_function[test_idx])
 abline(a=0,b=1,col='blue', lwd=2)
@@ -105,10 +102,10 @@ for (j in 1:n_categories) {
                                        (1 - exp(-exp(out$forest_predictions_train + out$gamma_samples[j,]))))
   }
 }
-
+# Compute average difference
 mean(log(-log(1 - est_probs_train[, 1])) - rowMeans(out$forest_predictions_train))
 
-# Compare estimated vs true class probabilities for training set
+# Plot estimated vs true class probabilities for training set
 for (j in 1:n_categories) {
   plot(true_probs[train_idx, j], est_probs_train[, j], xlab = paste("True Prob Category", j), ylab = paste("Estimated Prob Category", j))
   abline(a = 0, b = 1, col = 'blue', lwd = 2)
@@ -128,10 +125,10 @@ for (j in 1:n_categories) {
                                        (1 - exp(-exp(out$forest_predictions_test + out$gamma_samples[j,]))))
   }
 }
-
+# Compute average difference
 mean(log(-log(1 - est_probs_test[, 1])) - rowMeans(out$forest_predictions_test))
 
-# Compare estimated vs true class probabilities for test set
+# Plot estimated vs true class probabilities for test set
 for (j in 1:n_categories) {
   plot(true_probs[test_idx, j], est_probs_test[, j], xlab = paste("True Prob Category", j), ylab = paste("Estimated Prob Category", j))
   abline(a = 0, b = 1, col = 'blue', lwd = 2)
