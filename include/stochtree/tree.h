@@ -13,9 +13,6 @@
 #include <Eigen/Dense>
 
 #include <cstdint>
-#include <map>
-#include <optional>
-#include <set>
 #include <stack>
 #include <string>
 

@@ -8,19 +8,13 @@
 #include <stochtree/discrete_sampler.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/leaf_model.h>
+#include <stochtree/openmp_utils.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/prior.h>
 
 #include <cmath>
-#include <map>
-#include <memory>
 #include <numeric>
 #include <random>
-#include <set>
-#include <stdexcept>
-#include <string>
-#include <type_traits>
-#include <variant>
 #include <vector>
 
 namespace StochTree {
@@ -28,7 +22,7 @@ namespace StochTree {
 /*!
  * \defgroup sampling_group Forest Sampler API
  *
- * \brief Functions for sampling from a forest. The core interfce of these functions, 
+ * \brief Functions for sampling from a forest. The core interface of these functions, 
  * as used by the R, Python, and standalone C++ program, is defined by 
  * \ref MCMCSampleOneIter, which runs one iteration of the MCMC sampler for a 
  * given forest, and \ref GFRSampleOneIter, which runs one iteration of the 
@@ -153,7 +147,7 @@ static inline bool NodeNonConstant(ForestDataset& dataset, ForestTracker& tracke
 }
 
 static inline void AddSplitToModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, TreeSplit& split, std::mt19937& gen, Tree* tree, 
-                                   int tree_num, int leaf_node, int feature_split, bool keep_sorted = false) {
+                                   int tree_num, int leaf_node, int feature_split, bool keep_sorted = false, int num_threads = -1) {
   // Use zeros as a "temporary" leaf values since we draw leaf parameters after tree sampling is complete
   if (tree->OutputDimension() > 1) {
     std::vector<double> temp_leaf_values(tree->OutputDimension(), 0.);
@@ -166,7 +160,7 @@ static inline void AddSplitToModel(ForestTracker& tracker, ForestDataset& datase
   int right_node = tree->RightChild(leaf_node);
 
   // Update the ForestTracker
-  tracker.AddSplit(dataset.GetCovariates(), split, feature_split, tree_num, leaf_node, left_node, right_node, keep_sorted);
+  tracker.AddSplit(dataset.GetCovariates(), split, feature_split, tree_num, leaf_node, left_node, right_node, keep_sorted, num_threads);
 }
 
 static inline void RemoveSplitFromModel(ForestTracker& tracker, ForestDataset& dataset, TreePrior& tree_prior, std::mt19937& gen, Tree* tree, 
@@ -446,8 +440,11 @@ static inline std::tuple<double, double, data_size_t, data_size_t> EvaluatePropo
   LeafSuffStat right_suff_stat = LeafSuffStat(leaf_suff_stat_args...);
 
   // Accumulate sufficient statistics
-  AccumulateSuffStatProposed<LeafSuffStat>(node_suff_stat, left_suff_stat, right_suff_stat, dataset, tracker, 
-                                           residual, global_variance, split, tree_num, leaf_num, split_feature, 1, leaf_suff_stat_args...);
+  AccumulateSuffStatProposed<LeafSuffStat, LeafSuffStatConstructorArgs...>(
+    node_suff_stat, left_suff_stat, right_suff_stat, dataset, tracker, 
+    residual, global_variance, split, tree_num, leaf_num, split_feature, num_threads, 
+    leaf_suff_stat_args...
+  );
   data_size_t left_n = left_suff_stat.n;
   data_size_t right_n = right_suff_stat.n;
 
@@ -486,12 +483,12 @@ template <typename LeafModel>
 static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
                          ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
   if constexpr (std::is_same_v<LeafModel, CloglogOrdinalLeafModel>) {
-  UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), false);
+    UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), false);
   } else if (backfitting) {
-  UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::plus<double>(), false);
+    UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::plus<double>(), false);
   } else {
-  // TODO: think about a generic way to store "state" corresponding to the other models?
-  UpdateVarModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::minus<double>(), false);
+    // TODO: think about a generic way to store "state" corresponding to the other models?
+    UpdateVarModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::minus<double>(), false);
   }
 }
 
@@ -499,12 +496,12 @@ template <typename LeafModel>
 static inline void AdjustStateAfterTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
                         ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
   if constexpr (std::is_same_v<LeafModel, CloglogOrdinalLeafModel>) {
-  UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), true);
+    UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), true);
   } else if (backfitting) {
-  UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::minus<double>(), true);
+    UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::minus<double>(), true);
   } else {
-  // TODO: think about a generic way to store "state" corresponding to the other models?
-  UpdateVarModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::plus<double>(), true);
+    // TODO: think about a generic way to store "state" corresponding to the other models?
+    UpdateVarModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::plus<double>(), true);
   }
 }
 
@@ -702,7 +699,7 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
       }
       
       // Add split to tree and trackers
-      AddSplitToModel(tracker, dataset, tree_prior, tree_split, gen, tree, tree_num, node_id, feature_split, true);
+      AddSplitToModel(tracker, dataset, tree_prior, tree_split, gen, tree, tree_num, node_id, feature_split, true, num_threads);
 
       // Determine the number of observation in the newly created left node
       int left_node = tree->LeftChild(node_id);
@@ -784,7 +781,8 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
     SampleSplitRule<LeafModel, LeafSuffStat, LeafSuffStatConstructorArgs...>(
       tree, tracker, leaf_model, dataset, residual, tree_prior, gen, tree_num, global_variance, cutpoint_grid_size, 
       node_index_map, split_queue, curr_node_id, curr_node_begin, curr_node_end, variable_weights, feature_types, 
-      feature_subset, num_threads, leaf_suff_stat_args...);
+      feature_subset, num_threads, leaf_suff_stat_args...
+    );
   }
 }
 
@@ -960,7 +958,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
       double log_acceptance_prob = std::log(mh_accept(gen));
       if (log_acceptance_prob <= log_mh_ratio) {
         accept = true;
-        AddSplitToModel(tracker, dataset, tree_prior, split, gen, tree, tree_num, leaf_chosen, var_chosen, false);
+        AddSplitToModel(tracker, dataset, tree_prior, split, gen, tree, tree_num, leaf_chosen, var_chosen, false, num_threads);
       } else {
         accept = false;
       }
@@ -1133,7 +1131,8 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCSampleOneIter(TreeEnsemble& active_forest, ForestTracker& tracker, ForestContainer& forests, LeafModel& leaf_model, ForestDataset& dataset, 
                                      ColumnVector& residual, TreePrior& tree_prior, std::mt19937& gen, std::vector<double>& variable_weights, 
-                                     std::vector<int>& sweep_update_indices, double global_variance, bool keep_forest, bool pre_initialized, bool backfitting, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                     std::vector<int>& sweep_update_indices, double global_variance, bool keep_forest, bool pre_initialized, bool backfitting, int num_threads, 
+                                     LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Run the MCMC algorithm for each tree
   int num_trees = forests.NumTrees();
   for (const int& i : sweep_update_indices) {

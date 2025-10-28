@@ -6,12 +6,6 @@
 #include <stochtree/io.h>
 #include <stochtree/partition_tracker.h>
 
-#include <chrono>
-#include <cstdio>
-#include <limits>
-#include <sstream>
-#include <unordered_map>
-
 namespace StochTree {
 
 ForestTracker::ForestTracker(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int num_trees, int num_observations) {
@@ -286,7 +280,7 @@ void ForestTracker::AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int3
   sample_node_mapper_->AddSplit(covariates, split, split_feature, tree_id, split_node_id, left_node_id, right_node_id);
   unsorted_node_sample_tracker_->PartitionTreeNode(covariates, tree_id, split_node_id, left_node_id, right_node_id, split_feature, split);
   if (keep_sorted) {
-    sorted_node_sample_tracker_->PartitionNode(covariates, split_node_id, split_feature, split);
+    sorted_node_sample_tracker_->PartitionNode(covariates, split_node_id, split_feature, split, num_threads);
   }
 }
 

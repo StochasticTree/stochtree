@@ -31,12 +31,7 @@
 #include <stochtree/openmp_utils.h>
 #include <stochtree/tree.h>
 
-#include <cmath>
 #include <numeric>
-#include <random>
-#include <set>
-#include <string>
-#include <vector>
 
 namespace StochTree {
 
@@ -434,7 +429,7 @@ class UnsortedNodeSampleTracker {
   /*! \brief Number of trees */
   int NumTrees() { return num_trees_; }
 
-  /*! \brief Number of trees */
+  /*! \brief Return a pointer to the feature partition tracking tree i */
   FeatureUnsortedPartition* GetFeaturePartition(int i) { return feature_partitions_[i].get(); }
 
  private:
@@ -615,24 +610,24 @@ class SortedNodeSampleTracker {
   }
 
   /*! \brief Partition a node based on a new split rule */
-  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, TreeSplit& split) {
-    for (int i = 0; i < num_features_; i++) {
+  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, TreeSplit& split, int num_threads = -1) {
+    StochTree::ParallelFor(0, num_features_, num_threads, [&](int i) {
       feature_partitions_[i]->SplitFeature(covariates, node_id, feature_split, split);
-    }
+    });
   }
 
   /*! \brief Partition a node based on a new split rule */
-  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, double split_value) {
-    for (int i = 0; i < num_features_; i++) {
+  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, double split_value, int num_threads = -1) {
+    StochTree::ParallelFor(0, num_features_, num_threads, [&](int i) {
       feature_partitions_[i]->SplitFeatureNumeric(covariates, node_id, feature_split, split_value);
-    }
+    });
   }
 
   /*! \brief Partition a node based on a new split rule */
-  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, std::vector<std::uint32_t> const& category_list) {
-    for (int i = 0; i < num_features_; i++) {
+  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, std::vector<std::uint32_t> const& category_list, int num_threads = -1) {
+    StochTree::ParallelFor(0, num_features_, num_threads, [&](int i) {
       feature_partitions_[i]->SplitFeatureCategorical(covariates, node_id, feature_split, category_list);
-    }
+    });
   }
 
   /*! \brief First index of data points contained in node_id */

@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2024 stochtree authors. All rights reserved.
+ * Copyright (c) 2025 stochtree authors. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for license information.
  */
 #ifndef STOCHTREE_ORDINAL_SAMPLER_H_

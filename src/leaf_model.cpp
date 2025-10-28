@@ -1,7 +1,5 @@
 #include <stochtree/leaf_model.h>
 #include <boost/math/special_functions/gamma.hpp>
-#include <boost/math/special_functions/digamma.hpp>
-#include <boost/math/special_functions/polygamma.hpp>
 
 namespace StochTree {
 

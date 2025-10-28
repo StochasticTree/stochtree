@@ -2,9 +2,6 @@
 #include "stochtree_types.h"
 #include <stochtree/log.h>
 #include <Eigen/Dense>
-#include <Eigen/Dense>
-#include <memory>
-#include <vector>
 
 typedef Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>> DoubleMatrixType;
 typedef Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>> IntMatrixType;

@@ -8,10 +8,7 @@
 #include <stochtree/partition_tracker.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
-#include <functional>
 #include <memory>
-#include <variant>
-#include <vector>
 
 [[cpp11::register]]
 void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDataset> data,
@@ -336,11 +333,6 @@ cpp11::writable::integers sample_without_replacement_integer_cpp(
     // Return result
     return(output);
 }
-
-
-// ============================================================================
-// ORDINAL SAMPLER FUNCTIONS
-// ============================================================================
 
 [[cpp11::register]]
 cpp11::external_pointer<StochTree::OrdinalSampler> ordinal_sampler_cpp() {

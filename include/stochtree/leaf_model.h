@@ -16,15 +16,9 @@
 #include <stochtree/openmp_utils.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/prior.h>
-#include <stochtree/slice_sampler.h>
 #include <stochtree/tree.h>
 
-#include <boost/math/special_functions/digamma.hpp>
-#include <boost/math/special_functions/polygamma.hpp>
 #include <random>
-#include <stdexcept>
-#include <tuple>
-#include <variant>
 
 namespace StochTree {
 
