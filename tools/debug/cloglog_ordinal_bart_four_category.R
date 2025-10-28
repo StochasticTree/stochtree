@@ -14,9 +14,9 @@ X <- matrix(rnorm(n * p), n, p)
 beta <- rep(1 / sqrt(p), p)
 true_lambda_function <- X %*% beta
 
-# Set cutpoints for ordinal categories (3 categories: 1, 2, 3)
-n_categories <- 3
-gamma_true <- c(-2, 1)
+# Set cutpoints for ordinal categories (4 categories: 1, 2, 3, 4)
+n_categories <- 4
+gamma_true <- c(-2, 0, 1)
 ordinal_cutpoints <- log(cumsum(exp(gamma_true)))
 ordinal_cutpoints
 
@@ -28,7 +28,7 @@ for (j in 1:n_categories) {
   } else if (j == n_categories) {
     true_probs[, j] <- 1 - rowSums(true_probs[, 1:(j - 1), drop = FALSE])
   } else {
-    true_probs[, j] <- exp(-exp(gamma_true[j - 1] + true_lambda_function)) *
+    true_probs[, j] <- apply(sapply(1:(j-1), function(k) exp(-exp(gamma_true[k] + true_lambda_function))), 1, prod) *
       (1 - exp(-exp(gamma_true[j] + true_lambda_function)))
   }
 }
@@ -62,12 +62,15 @@ end <- Sys.time()
 print(end - start)
 
 # Inference and diagnostics
-par(mfrow = c(2, 1))
+par(mfrow = c(2, 2))
 plot(out$gamma_samples[1, ], type = 'l', main = expression(gamma[1]), ylab = "Value", xlab = "MCMC Sample")
 abline(h = gamma_true[1], col = 'red', lty = 2)
 plot(out$gamma_samples[2, ], type = 'l', main = expression(gamma[2]), ylab = "Value", xlab = "MCMC Sample")
 abline(h = gamma_true[2], col = 'red', lty = 2)
+plot(out$gamma_samples[3, ], type = 'l', main = expression(gamma[3]), ylab = "Value", xlab = "MCMC Sample")
+abline(h = gamma_true[3], col = 'red', lty = 2)
 
+par(mfrow = c(2, 2))
 gamma1 <- out$gamma_samples[1,] + colMeans(out$forest_predictions_train)
 summary(gamma1)
 hist(gamma1)
@@ -76,17 +79,25 @@ gamma2 <- out$gamma_samples[2,] + colMeans(out$forest_predictions_train)
 summary(gamma2)
 hist(gamma2)
 
-par(mfrow = c(3,2), mar = c(5,4,1,1))
+gamma3 <- out$gamma_samples[3,] + colMeans(out$forest_predictions_train)
+summary(gamma3)
+hist(gamma3)
+
+par(mfrow = c(2,3), mar = c(5,4,1,1))
 rowMeans(out$gamma_samples)
 moo <- t(out$gamma_samples) + colMeans(out$forest_predictions_train)
 plot(moo[,1])
 abline(h = gamma_true[1] + mean(true_lambda_function[train_idx]))
 plot(moo[,2])
 abline(h = gamma_true[2] + mean(true_lambda_function[train_idx]))
+plot(moo[,3])
+abline(h = gamma_true[3] + mean(true_lambda_function[train_idx]))
 plot(out$gamma_samples[1,])
 plot(out$gamma_samples[2,])
+plot(out$gamma_samples[3,])
 
 # Compare forest predictions with the truth function (for training and test sets)
+par(mfrow = c(2,1))
 lambda_pred_train <- rowMeans(out$forest_predictions_train) - mean(out$forest_predictions_train)
 plot(lambda_pred_train, true_lambda_function[train_idx])
 abline(a=0,b=1,col='blue', lwd=2)
@@ -115,6 +126,7 @@ for (j in 1:n_categories) {
 mean(log(-log(1 - est_probs_train[, 1])) - rowMeans(out$forest_predictions_train))
 
 # Compare estimated vs true class probabilities for training set
+par(mfrow = c(2,2))
 for (j in 1:n_categories) {
   plot(true_probs[train_idx, j], est_probs_train[, j], xlab = paste("True Prob Category", j), ylab = paste("Estimated Prob Category", j))
   abline(a = 0, b = 1, col = 'blue', lwd = 2)
@@ -138,6 +150,7 @@ for (j in 1:n_categories) {
 mean(log(-log(1 - est_probs_test[, 1])) - rowMeans(out$forest_predictions_test))
 
 # Compare estimated vs true class probabilities for test set
+par(mfrow = c(2,2))
 for (j in 1:n_categories) {
   plot(true_probs[test_idx, j], est_probs_test[, j], xlab = paste("True Prob Category", j), ylab = paste("Estimated Prob Category", j))
   abline(a = 0, b = 1, col = 'blue', lwd = 2)

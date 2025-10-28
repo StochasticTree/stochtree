@@ -6,18 +6,17 @@ library(stochtree)
 set.seed(2025)
 
 # Sample size and number of predictors
-n <- 10000
+n <- 2000
 p <- 5
 
 # Design matrix and true lambda function
-X <- matrix(runif(n * p), ncol = p)
-# true_lambda_function <- ifelse(X[, 1] > 0.5, 2, -1)
+X <- matrix(rnorm(n * p), n, p)
 beta <- rep(1 / sqrt(p), p)
 true_lambda_function <- X %*% beta
 
-# Set cutpoints for ordinal categories (2 categories: 1, 2)
-n_categories <- 2
-gamma_true <- c(-2)
+# Set cutpoints for ordinal categories (3 categories: 1, 2, 3)
+n_categories <- 3
+gamma_true <- c(-2, 1)
 ordinal_cutpoints <- log(cumsum(exp(gamma_true)))
 ordinal_cutpoints
 
@@ -66,17 +65,26 @@ print(end - start)
 par(mfrow = c(2, 1))
 plot(out$gamma_samples[1, ], type = 'l', main = expression(gamma[1]), ylab = "Value", xlab = "MCMC Sample")
 abline(h = gamma_true[1], col = 'red', lty = 2)
+plot(out$gamma_samples[2, ], type = 'l', main = expression(gamma[2]), ylab = "Value", xlab = "MCMC Sample")
+abline(h = gamma_true[2], col = 'red', lty = 2)
 
 gamma1 <- out$gamma_samples[1,] + colMeans(out$forest_predictions_train)
 summary(gamma1)
 hist(gamma1)
 
-par(mfrow = c(2,1), mar = c(5,4,1,1))
+gamma2 <- out$gamma_samples[2,] + colMeans(out$forest_predictions_train)
+summary(gamma2)
+hist(gamma2)
+
+par(mfrow = c(3,2), mar = c(5,4,1,1))
 rowMeans(out$gamma_samples)
 moo <- t(out$gamma_samples) + colMeans(out$forest_predictions_train)
 plot(moo[,1])
 abline(h = gamma_true[1] + mean(true_lambda_function[train_idx]))
+plot(moo[,2])
+abline(h = gamma_true[2] + mean(true_lambda_function[train_idx]))
 plot(out$gamma_samples[1,])
+plot(out$gamma_samples[2,])
 
 # Compare forest predictions with the truth function (for training and test sets)
 par(mfrow = c(2,1))
@@ -87,7 +95,7 @@ cor_train <- cor(true_lambda_function[train_idx], lambda_pred_train)
 text(min(true_lambda_function[train_idx]), max(true_lambda_function[train_idx]), paste('Correlation:', round(cor_train, 3)), adj = 0, col = 'red')
 
 lambda_pred_test <- rowMeans(out$forest_predictions_test) - mean(out$forest_predictions_test)
-plot(lambda_pred_test, gamma_true[1] + true_lambda_function[test_idx])
+plot(lambda_pred_test, true_lambda_function[test_idx])
 abline(a=0,b=1,col='blue', lwd=2)
 cor_test <- cor(true_lambda_function[test_idx], lambda_pred_test)
 text(min(true_lambda_function[test_idx]), max(true_lambda_function[test_idx]), paste('Correlation:', round(cor_test, 3)), adj = 0, col = 'red')
