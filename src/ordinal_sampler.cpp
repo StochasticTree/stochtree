@@ -19,19 +19,37 @@ void OrdinalSampler::UpdateLatentVariables(ForestDataset& dataset, Eigen::Vector
   int K = gamma.size() + 1;  // Number of ordinal categories
   int N = dataset.NumObservations();
 
-  // Update truncated exponentials (stored in latent auxiliary data slot 0)
-  // z_i ~ TExp(rate = e^{gamma[y_i] + lambda_hat_i}; 0, 1)
-  // where y_i is the ordinal outcome for observation i: make sure y_i converted to {0, 1, ..., K-1}
-  // and lambda_hat_i is the total forest prediction for observation i
-  // If y_i = K-1 (last category), then we set z_i = 1.0 deterministically just for bookkeeping, we don't need it
-  // We only need to sample latent z_i for y_i < K-1 (as z_i is only used in the likelihood for y_i < K-1)
-  for (int i = 0; i < N; i++) {
-    int y = static_cast<int>(outcome(i));
-    if (y == K - 1) {
-      Z[i] = 1.0;
-    } else {
-      double rate = std::exp(gamma[y] + lambda_hat[i]);
-      Z[i] = SampleTruncatedExponential(rate, gen);
+  // Handle data augmentation separately for binary and multinomial outcomes (as documented in each branch below)
+  if (K == 2) {
+    // Here we fix gamma_1 = exp(0) = 1 for identifiability and augment
+    // z_i ~ TExp(rate = e^{lambda_hat_i}; 0, 1) if y_i = 0
+    // z_i ~ TExp(rate = e^{lambda_hat_i}; 1, infty) if y_i = 1
+    // where y_i is the ordinal outcome for observation i: make sure y_i converted to {0, 1, ..., K-1}
+    // and lambda_hat_i is the total forest prediction for observation i
+    for (int i = 0; i < N; i++) {
+      int y = static_cast<int>(outcome(i));
+      double rate = std::exp(lambda_hat[i]);
+      if (y == 0) {
+        Z[i] = SampleTruncatedExponential(rate, gen);
+      } else {
+        Z[i] = SampleTruncatedExponential(rate, gen);
+      }
+    }
+  } else {
+    // Update truncated exponentials (stored in latent auxiliary data slot 0)
+    // z_i ~ TExp(rate = e^{gamma[y_i] + lambda_hat_i}; 0, 1)
+    // where y_i is the ordinal outcome for observation i: make sure y_i converted to {0, 1, ..., K-1}
+    // and lambda_hat_i is the total forest prediction for observation i
+    // If y_i = K-1 (last category), then we set z_i = 1.0 deterministically just for bookkeeping, we don't need it
+    // We only need to sample latent z_i for y_i < K-1 (as z_i is only used in the likelihood for y_i < K-1)
+    for (int i = 0; i < N; i++) {
+      int y = static_cast<int>(outcome(i));
+      if (y == K - 1) {
+        Z[i] = 1.0;
+      } else {
+        double rate = std::exp(gamma[y] + lambda_hat[i]);
+        Z[i] = SampleTruncatedExponential(rate, gen);
+      }
     }
   }
 }
@@ -72,7 +90,9 @@ void OrdinalSampler::UpdateGammaParams(ForestDataset& dataset, Eigen::VectorXd& 
   }
 
   // Set the first gamma parameter to gamma_0 (e.g., 0) for identifiability
-  gamma[0] = gamma_0;
+  if (K > 2) {
+    gamma[0] = gamma_0;
+  }
 }
 
 void OrdinalSampler::UpdateCumulativeExpSums(ForestDataset& dataset) {
