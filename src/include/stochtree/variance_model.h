@@ -41,7 +41,7 @@ class GlobalHomoskedasticVarianceModel {
     data_size_t n = residuals.rows();
     double sum_sq_resid = 0.;
     for (data_size_t i = 0; i < n; i++) {
-      sum_sq_resid += (residuals(i) * residuals(i)) * weights(i);
+      sum_sq_resid += (residuals(i) * residuals(i)) / weights(i);
     }
     return b + (0.5 * sum_sq_resid);
   }
