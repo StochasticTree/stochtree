@@ -19,6 +19,7 @@
 #include <stochtree/tree.h>
 
 #include <random>
+#include <variant>
 
 namespace StochTree {
 
