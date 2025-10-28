@@ -56,9 +56,7 @@ out <- cloglog_ordinal_bart(
   num_gfr = 0,
   num_burnin = 1000,
   num_mcmc = 1000,
-  n_thin = 1, 
-  alpha_gamma = 1.0,
-  beta_gamma = 1.0
+  n_thin = 1
 )
 
 end <- Sys.time()

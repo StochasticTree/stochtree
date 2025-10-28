@@ -9,8 +9,8 @@ cloglog_ordinal_bart(
   y,
   X_test = NULL,
   n_trees = 50,
-  num_gfr = 10,
-  num_burnin = 0,
+  num_gfr = 0,
+  num_burnin = 1000,
   num_mcmc = 500,
   n_thin = 1,
   alpha_gamma = 2,
@@ -30,9 +30,9 @@ cloglog_ordinal_bart(
 
 \item{n_trees}{Number of trees in the BART ensemble. Default: \code{50}.}
 
-\item{num_gfr}{Number of GFR samples to draw at the beginning of the sampler. Default: \code{10}.}
+\item{num_gfr}{Number of GFR samples to draw at the beginning of the sampler. Default: \code{0}.}
 
-\item{num_burnin}{Number of burn-in MCMC samples to discard. Default: \code{0}.}
+\item{num_burnin}{Number of burn-in MCMC samples to discard. Default: \code{1000}.}
 
 \item{num_mcmc}{Total number of MCMC samples to draw. Default: \code{500}.}
 

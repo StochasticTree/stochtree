@@ -16,7 +16,7 @@ true_lambda_function <- X %*% beta
 
 # Set cutpoints for ordinal categories (3 categories: 1, 2, 3)
 n_categories <- 3
-gamma_true <- c(-2, 3)
+gamma_true <- c(-2, 1)
 ordinal_cutpoints <- log(cumsum(exp(gamma_true)))
 ordinal_cutpoints
 
@@ -52,8 +52,8 @@ out <- cloglog_ordinal_bart(
   X = X_train,
   y = y_train,
   X_test = X_test,
-  num_gfr = 10,
-  num_burnin = 0,
+  num_gfr = 0,
+  num_burnin = 1000,
   num_mcmc = 1000,
   n_thin = 1
 )

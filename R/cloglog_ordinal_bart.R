@@ -4,8 +4,8 @@
 #' @param y A numeric vector of ordinal outcomes (positive integers starting from 1).
 #' @param X_test An optional numeric matrix of predictors (test data).
 #' @param n_trees Number of trees in the BART ensemble. Default: `50`.
-#' @param num_gfr Number of GFR samples to draw at the beginning of the sampler. Default: `10`.
-#' @param num_burnin Number of burn-in MCMC samples to discard. Default: `0`.
+#' @param num_gfr Number of GFR samples to draw at the beginning of the sampler. Default: `0`.
+#' @param num_burnin Number of burn-in MCMC samples to discard. Default: `1000`.
 #' @param num_mcmc Total number of MCMC samples to draw. Default: `500`.
 #' @param n_thin Thinning interval for MCMC samples. Default: `1`.
 #' @param alpha_gamma Shape parameter for the log-gamma prior on cutpoints. Default: `2.0`.
@@ -17,8 +17,8 @@
 #' @export
 cloglog_ordinal_bart <- function(X, y, X_test = NULL,
                                  n_trees = 50,
-                                 num_gfr = 10, 
-                                 num_burnin = 0, 
+                                 num_gfr = 0, 
+                                 num_burnin = 1000, 
                                  num_mcmc = 500,
                                  n_thin = 1,
                                  alpha_gamma = 2.0,
@@ -33,7 +33,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
   min_samples_in_leaf <- 5
   max_depth <- 10
   scale_leaf <- 2 / sqrt(n_trees)
-  cutpoint_grid_size <- 100       # Needed for stochtree:::sample_mcmc_one_iteration_cpp (for GFR), not used in MCMC BART
+  cutpoint_grid_size <- 100       # Needed for stochtree::sample_gfr_one_iteration_cpp, not used in MCMC BART
   
   # Fixed for identifiability (can be pass as argument later if desired)
   gamma_0 = 0.0  # First gamma cutpoint fixed at gamma_0 = 0
@@ -128,7 +128,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
 
   # Convert the log-scale parameters into cumulative exponentiated parameters.
   # This is done under the hood in a C++ function for efficiency.
-  ordinal_sampler_update_cumsum_exp_cpp(ordinal_sampler, dataX$data_ptr)
+  stochtree:::ordinal_sampler_update_cumsum_exp_cpp(ordinal_sampler, dataX$data_ptr)
   
   # Initialize forest predictions to zero (slot 1)
   for (i in 1:n_samples) {
@@ -188,7 +188,7 @@ cloglog_ordinal_bart <- function(X, y, X_test = NULL,
     )
     
     # 4. Update cumulative sum of exp(gamma) values
-    ordinal_sampler_update_cumsum_exp_cpp(ordinal_sampler, dataX$data_ptr)
+    stochtree:::ordinal_sampler_update_cumsum_exp_cpp(ordinal_sampler, dataX$data_ptr)
     
     if (keep_sample) {
       forest_pred_train[, sample_counter] <- active_forest$predict(dataX)
