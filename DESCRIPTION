@@ -1,0 +1,40 @@
+Package: stochtree
+Title: Stochastic Tree Ensembles (XBART and BART) for Supervised Learning and Causal Inference
+Version: 0.1.1
+Authors@R: 
+  c(
+    person("Drew", "Herren", email = "drewherrenopensource@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0003-4109-6611")), 
+    person("Richard", "Hahn", role = "aut"),
+    person("Jared", "Murray", role = "aut"),
+    person("Carlos", "Carvalho", role = "aut"),
+    person("Jingyu", "He", role = "aut"),
+    person("Pedro", "Lima", role = "ctb"),
+    person("stochtree", "contributors", role = c("cph")),
+    person("Eigen", "contributors", role = c("cph"), comment = "C++ source uses the Eigen library for matrix operations, see inst/COPYRIGHTS"),
+    person("xgboost", "contributors", role = c("cph"), comment = "C++ tree code and related operations include or are inspired by code from the xgboost library, see inst/COPYRIGHTS"),
+    person("treelite", "contributors", role = c("cph"), comment = "C++ tree code and related operations include or are inspired by code from the treelite library, see inst/COPYRIGHTS"),
+    person("Microsoft", "Corporation", role = c("cph"), comment = "C++ I/O and various project structure code include or are inspired by code from the LightGBM library, which is a copyright of Microsoft, see inst/COPYRIGHTS"),
+    person("Niels", "Lohmann", role = c("cph"), comment = "C++ source uses the JSON for Modern C++ library for JSON operations, see inst/COPYRIGHTS"),
+    person("Daniel", "Lemire", role = c("cph"), comment = "C++ source uses the fast_double_parser library internally, see inst/COPYRIGHTS"),
+    person("Victor", "Zverovich", role = c("cph"), comment = "C++ source uses the fmt library internally, see inst/COPYRIGHTS")
+  )
+Copyright: Copyright details for stochtree's C++ dependencies, which are vendored along with the core stochtree source code, are detailed in inst/COPYRIGHTS
+Description: Flexible stochastic tree ensemble software. 
+    Robust implementations of Bayesian Additive Regression Trees (BART) 
+    Chipman, George, McCulloch (2010) <doi:10.1214/09-AOAS285> 
+    for supervised learning and Bayesian Causal Forests (BCF) 
+    Hahn, Murray, Carvalho (2020) <doi:10.1214/19-BA1195> 
+    for causal inference. Enables model serialization and parallel sampling 
+    and provides a low-level interface for custom stochastic forest samplers.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+LinkingTo: 
+    cpp11, BH
+SystemRequirements: C++17
+Imports: 
+    R6,
+    stats
+URL: https://stochtree.ai/, https://github.com/StochasticTree/stochtree
+BugReports: https://github.com/StochasticTree/stochtree/issues
