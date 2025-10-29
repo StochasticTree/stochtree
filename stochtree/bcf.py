@@ -208,7 +208,7 @@ class BCFModel:
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the variance forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
             * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 
-        rfx_params : dict, optional
+        random_effects_params : dict, optional
             Dictionary of random effects parameters, each of which has a default value processed internally, so this argument is optional.
 
             * `model_spec`: Specification of the random effects model. Options are "custom", "intercept_only", and "intercept_plus_treatment". If "custom" is specified, then a user-provided basis must be passed through `rfx_basis_train`. If "intercept_only" is specified, a random effects basis of all ones will be dispatched internally at sampling and prediction time. If "intercept_plus_treatment" is specified, a random effects basis that combines an "intercept" basis of all ones with the treatment variable (`Z_train`) will be dispatched internally at sampling and prediction time. Default: "custom". If either "intercept_only" or "intercept_plus_treatment" is specified, `rfx_basis_train` and `rfx_basis_test` (if provided) will be ignored.
@@ -2504,13 +2504,13 @@ class BCFModel:
                 raise ValueError(
                     "rfx_group_ids must be provided if rfx_basis is provided"
                 )
-        if rfx_basis is not None:
-            if rfx_basis.ndim == 1:
-                rfx_basis = np.expand_dims(rfx_basis, 1)
-            if rfx_basis.shape[0] != X.shape[0]:
-                raise ValueError("X and rfx_basis must have the same number of rows")
-            if rfx_basis.shape[1] != self.num_rfx_basis:
-                raise ValueError("rfx_basis must have the same number of columns as the random effects basis used to sample this model")
+            if rfx_basis is not None:
+                if rfx_basis.ndim == 1:
+                    rfx_basis = np.expand_dims(rfx_basis, 1)
+                if rfx_basis.shape[0] != X.shape[0]:
+                    raise ValueError("X and rfx_basis must have the same number of rows")
+                if rfx_basis.shape[1] != self.num_rfx_basis:
+                    raise ValueError("rfx_basis must have the same number of columns as the random effects basis used to sample this model")
 
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
@@ -2524,12 +2524,23 @@ class BCFModel:
             rfx_samples_raw = self.rfx_container.extract_parameter_samples()
             rfx_beta_draws = rfx_samples_raw['beta_samples'] * self.y_std
 
-            # Construct a matrix with the appropriate group random effects arranged for each observation
-            rfx_predictions_raw = np.empty(shape=(X.shape[0], rfx_beta_draws.shape[0], rfx_beta_draws.shape[2]))
-            for i in range(X.shape[0]):
-                rfx_predictions_raw[i, :, :] = rfx_beta_draws[
-                    :, rfx_group_ids[i], :
-                ]
+            # Construct an array with the appropriate group random effects arranged for each observation
+            if rfx_beta_draws.ndim == 3:
+                rfx_predictions_raw = np.empty(shape=(X.shape[0], rfx_beta_draws.shape[0], rfx_beta_draws.shape[2]))
+                for i in range(X.shape[0]):
+                    rfx_predictions_raw[i, :, :] = rfx_beta_draws[
+                        :, rfx_group_ids[i], :
+                    ]
+            elif rfx_beta_draws.ndim == 2:
+                rfx_predictions_raw = np.empty(shape=(X.shape[0], 1, rfx_beta_draws.shape[1]))
+                for i in range(X.shape[0]):
+                    rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
+                        rfx_group_ids[i], :
+                    ]
+            else:
+                raise ValueError(
+                    "Unexpected number of dimensions in extracted random effects samples"
+                )
         
         # Add raw RFX predictions to mu and tau if warranted by the RFX model spec
         if predict_mu_forest or predict_mu_forest_intermediate:

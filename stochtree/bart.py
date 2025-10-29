@@ -85,7 +85,7 @@ class BARTModel:
         general_params: Optional[Dict[str, Any]] = None,
         mean_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
-        rfx_params: Optional[Dict[str, Any]] = None,
+        random_effects_params: Optional[Dict[str, Any]] = None,
         previous_model_json: Optional[str] = None,
         previous_model_warmstart_sample_num: Optional[int] = None,
     ) -> None:
@@ -170,9 +170,10 @@ class BARTModel:
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the variance forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
             * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 
-        rfx_params : dict, optional
+        random_effects_params : dict, optional
             Dictionary of random effects parameters, each of which has a default value processed internally, so this argument is optional.
 
+            * `model_spec`: Specification of the random effects model. Options are "custom" and "intercept_only". If "custom" is specified, then a user-provided basis must be passed through `rfx_basis_train`. If "intercept_only" is specified, a random effects basis of all ones will be dispatched internally at sampling and prediction time. If "intercept_plus_treatment" is specified, a random effects basis that combines an "intercept" basis of all ones with the treatment variable (`Z_train`) will be dispatched internally at sampling and prediction time. Default: "custom". If "intercept_only" is specified, `rfx_basis_train` and `rfx_basis_test` (if provided) will be ignored.
             * `working_parameter_prior_mean`: Prior mean for the random effects "working parameter". Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
             * `group_parameter_prior_mean`: Prior mean for the random effects "group parameters." Default: `None`. Must be a 1D numpy array whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
             * `working_parameter_prior_cov`: Prior covariance matrix for the random effects "working parameter." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
@@ -251,6 +252,7 @@ class BARTModel:
 
         # Update random effects parameters
         rfx_params_default = {
+            "model_spec": "custom",
             "working_parameter_prior_mean": None,
             "group_parameter_prior_mean": None,
             "working_parameter_prior_cov": None,
@@ -258,7 +260,7 @@ class BARTModel:
             "variance_prior_shape": 1.0,
             "variance_prior_scale": 1.0,
         }
-        rfx_params_updated = _preprocess_params(rfx_params_default, rfx_params)
+        rfx_params_updated = _preprocess_params(rfx_params_default, random_effects_params)
 
         ### Unpack all parameter values
         # 1. General parameters
@@ -312,6 +314,7 @@ class BARTModel:
         ]
 
         # 4. Random effects parameters
+        self.rfx_model_spec = rfx_params_updated["model_spec"]
         rfx_working_parameter_prior_mean = rfx_params_updated[
             "working_parameter_prior_mean"
         ]
@@ -324,6 +327,12 @@ class BARTModel:
         rfx_group_parameter_prior_cov = rfx_params_updated["group_parameter_prior_cov"]
         rfx_variance_prior_shape = rfx_params_updated["variance_prior_shape"]
         rfx_variance_prior_scale = rfx_params_updated["variance_prior_scale"]
+
+        # Check random effects specification
+        if not isinstance(self.rfx_model_spec, str):
+            raise ValueError("rfx_model_spec must be a string")
+        if self.rfx_model_spec not in ["custom", "intercept_only"]:
+            raise ValueError("type must either be 'custom' or 'intercept_only'")
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -980,24 +989,35 @@ class BARTModel:
                         "All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train"
                     )
 
-        # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided
-        has_basis_rfx = False
+        # Handle the rfx basis matrices
+        self.has_rfx_basis = False
+        self.num_rfx_basis = 0
         if self.has_rfx:
-            if rfx_basis_train is None:
-                rfx_basis_train = np.ones((rfx_group_ids_train.shape[0], 1))
-            else:
-                has_basis_rfx = True
+            if self.rfx_model_spec == "custom":
+                if rfx_basis_train is None:
+                    raise ValueError(
+                        "rfx_basis_train must be provided when rfx_model_spec = 'custom'"
+                    )
+            elif self.rfx_model_spec == "intercept_only":
+                if rfx_basis_train is None:
+                    rfx_basis_train = np.ones((rfx_group_ids_train.shape[0], 1))
+            self.has_rfx_basis = True
+            self.num_rfx_basis = rfx_basis_train.shape[1]
             num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
             num_rfx_components = rfx_basis_train.shape[1]
-            # TODO warn if num_rfx_groups is 1
+            if num_rfx_groups == 1:
+                warnings.warn(
+                    "Only one group was provided for random effect sampling, so the random effects model is likely overkill"
+                )
         if has_rfx_test:
-            if rfx_basis_test is None:
-                if has_basis_rfx:
+            if self.rfx_model_spec == "custom":
+                if rfx_basis_test is None:
                     raise ValueError(
-                        "Random effects basis provided for training set, must also be provided for the test set"
+                        "rfx_basis_test must be provided when rfx_model_spec = 'custom' and a test set is provided"
                     )
-                rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
-
+            elif self.rfx_model_spec == "intercept_only":
+                if rfx_basis_test is None:
+                    rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
         # Set up random effects structures
         if self.has_rfx:
             # Prior parameters
@@ -1676,6 +1696,8 @@ class BARTModel:
         predict_mean = type == "mean"
 
         # Handle prediction terms
+        rfx_model_spec = self.rfx_model_spec
+        rfx_intercept = rfx_model_spec == "intercept_only"
         if not isinstance(terms, str) and not isinstance(terms, list):
             raise ValueError("type must be a string or list of strings")
         num_terms = 1 if isinstance(terms, str) else len(terms)
@@ -1801,12 +1823,51 @@ class BARTModel:
             )
             mean_forest_predictions = mean_pred_raw * self.y_std + self.y_bar
 
+        # Random effects data checks
+        if has_rfx:
+            if rfx_group_ids is None:
+                raise ValueError(
+                    "rfx_group_ids must be provided if rfx_basis is provided"
+                )
+        if rfx_basis is not None:
+            if rfx_basis.ndim == 1:
+                rfx_basis = np.expand_dims(rfx_basis, 1)
+            if rfx_basis.shape[0] != covariates.shape[0]:
+                raise ValueError("X and rfx_basis must have the same number of rows")
+            if rfx_basis.shape[1] != self.num_rfx_basis:
+                raise ValueError("rfx_basis must have the same number of columns as the random effects basis used to sample this model")
+        
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
-            rfx_predictions = (
-                self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
-            )
+            if rfx_basis is not None:
+                rfx_predictions = (
+                    self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+                )
+            else:
+                # Sanity check -- this branch should only occur if rfx_model_spec == "intercept_only"
+                if not rfx_intercept:
+                    raise ValueError(
+                        "rfx_basis must be provided for random effects models with random slopes"
+                    )
+                
+                # Extract the raw RFX samples and scale by train set outcome standard deviation
+                rfx_samples_raw = self.rfx_container.extract_parameter_samples()
+                rfx_beta_draws = rfx_samples_raw['beta_samples'] * self.y_std
 
+                # Construct an array with the appropriate group random effects arranged for each observation
+                n_train = covariates.shape[0]
+                if rfx_beta_draws.ndim != 2:
+                    raise ValueError(
+                        "BART models fit with random intercept models should only yield 2 dimensional random effect sample matrices"
+                    )
+                else:
+                    rfx_predictions_raw = np.empty(shape=(n_train, 1, rfx_beta_draws.shape[1]))
+                    for i in range(n_train):
+                        rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
+                            rfx_group_ids[i], :
+                        ]
+                rfx_predictions = np.squeeze(rfx_predictions_raw[:, 0, :])
+                
         # Combine into y hat predictions
         if probability_scale:
             if predict_y_hat and has_mean_forest and has_rfx:
