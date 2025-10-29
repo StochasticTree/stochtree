@@ -139,6 +139,7 @@ file(
   src/io.cpp
   src/json11.cpp
   src/leaf_model.cpp
+  src/ordinal_sampler.cpp
   src/partition_tracker.cpp
   src/random_effects.cpp
   src/tree.cpp

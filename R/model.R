@@ -378,7 +378,6 @@ createForestModel <- function(
     ))
 }
 
-
 #' Draw `sample_size` samples from `population_vector` without replacement, weighted by `sampling_probabilities`
 #'
 #' @param population_vector Vector from which to draw samples.

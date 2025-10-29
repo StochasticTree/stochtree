@@ -205,6 +205,97 @@ class Dataset:
             `True` if the dataset has variance weights, `False` otherwise
         """
         return self.dataset_cpp.HasVarianceWeights()
+    
+    def has_auxiliary_dimension(self, dim_idx: int) -> bool:
+        """
+        Whether or not a dataset has an auxiliary dimension
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension to check
+
+        Returns
+        -------
+        bool
+            `True` if the dataset has the specified auxiliary dimension, `False` otherwise
+        """
+        return self.dataset_cpp.HasAuxiliaryDimension(dim_idx)
+    
+    def add_auxiliary_dimension(self, dim_size: int) -> None:
+        """
+        Add an auxiliary dimension to a dataset
+
+        Parameters
+        ----------
+        dim_size : int
+            Size of the auxiliary dimension to add
+        """
+        self.dataset_cpp.AddAuxiliaryDimension(dim_size)
+
+    def get_auxiliary_data_value(self, dim_idx: int, element_idx: int) -> float:
+        """
+        Get a value from an auxiliary dimension
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension
+        element_idx : int
+            Index of the element within the auxiliary dimension
+
+        Returns
+        -------
+        float
+            Value at the specified index in the auxiliary dimension
+        """
+        return self.dataset_cpp.GetAuxiliaryDataValue(dim_idx, element_idx)
+    
+    def set_auxiliary_data_value(self, dim_idx: int, element_idx: int, value: float) -> None:
+        """
+        Set a value in an auxiliary dimension
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension
+        element_idx : int
+            Index of the element within the auxiliary dimension
+        value : float
+            Value to set at the specified index in the auxiliary dimension
+        """
+        self.dataset_cpp.SetAuxiliaryDataValue(dim_idx, element_idx, value)
+    
+    def get_auxiliary_data_array(self, dim_idx: int) -> np.array:
+        """
+        Get an auxiliary dimension as a numpy array
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension
+
+        Returns
+        -------
+        np.array
+            Numpy array of the specified auxiliary dimension
+        """
+        return self.dataset_cpp.GetAuxiliaryDataArray(dim_idx)
+    
+    def store_auxiliary_data_array_matrix(self, output_matrix: np.array, dim_idx: int, matrix_col_idx: int) -> None:
+        """
+        Store an auxiliary dimension into a specified column of a numpy matrix
+
+        Parameters
+        ----------
+        output_matrix : np.array
+            Numpy array to store the auxiliary dimension into
+        dim_idx : int
+            Index of the auxiliary dimension
+        matrix_col_idx : int
+            Column index in the output matrix to store the auxiliary dimension
+        """
+        self.dataset_cpp.StoreAuxiliaryDataArrayMatrix(output_matrix, dim_idx, matrix_col_idx)
 
 
 class Residual:

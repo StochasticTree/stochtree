@@ -29,6 +29,12 @@ weights are optional.
 \item \href{#method-ForestDataset-get_variance_weights}{\code{ForestDataset$get_variance_weights()}}
 \item \href{#method-ForestDataset-has_basis}{\code{ForestDataset$has_basis()}}
 \item \href{#method-ForestDataset-has_variance_weights}{\code{ForestDataset$has_variance_weights()}}
+\item \href{#method-ForestDataset-has_auxiliary_dimension}{\code{ForestDataset$has_auxiliary_dimension()}}
+\item \href{#method-ForestDataset-add_auxiliary_dimension}{\code{ForestDataset$add_auxiliary_dimension()}}
+\item \href{#method-ForestDataset-get_auxiliary_data_value}{\code{ForestDataset$get_auxiliary_data_value()}}
+\item \href{#method-ForestDataset-set_auxiliary_data_value}{\code{ForestDataset$set_auxiliary_data_value()}}
+\item \href{#method-ForestDataset-get_auxiliary_data_vector}{\code{ForestDataset$get_auxiliary_data_vector()}}
+\item \href{#method-ForestDataset-store_auxiliary_data_vector_matrix}{\code{ForestDataset$store_auxiliary_data_vector_matrix()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -193,6 +199,140 @@ Whether or not a dataset has variance weights
 
 \subsection{Returns}{
 True if variance weights are loaded, false otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-has_auxiliary_dimension"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-has_auxiliary_dimension}{}}}
+\subsection{Method \code{has_auxiliary_dimension()}}{
+Whether or not a dataset has auxiliary data stored at the dimension indicated
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$has_auxiliary_dimension(dim_idx)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_idx}}{Dimension of auxiliary data}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+True if auxiliary data has been allocated for \code{dim_idx} False otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-add_auxiliary_dimension"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-add_auxiliary_dimension}{}}}
+\subsection{Method \code{add_auxiliary_dimension()}}{
+Initialize a new dimension / lane of auxiliary data and allocate data in its place
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$add_auxiliary_dimension(dim_size)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_size}}{Size of the new vector of data to allocate}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_auxiliary_data_value"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_auxiliary_data_value}{}}}
+\subsection{Method \code{get_auxiliary_data_value()}}{
+Retrieve auxiliary data value
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_auxiliary_data_value(dim_idx, element_idx)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_idx}}{Dimension from which data value to be retrieved}
+
+\item{\code{element_idx}}{Element to retrieve from dimension \code{dim_idx}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Floating point value stored in the requested auxiliary data space
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-set_auxiliary_data_value"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-set_auxiliary_data_value}{}}}
+\subsection{Method \code{set_auxiliary_data_value()}}{
+Set auxiliary data value
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$set_auxiliary_data_value(dim_idx, element_idx, value)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_idx}}{Dimension in which data value to be set}
+
+\item{\code{element_idx}}{Element to set within dimension \code{dim_idx}}
+
+\item{\code{value}}{Data value to set at auxiliary data dimension \code{dim_idx} and element \code{element_idx}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_auxiliary_data_vector"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_auxiliary_data_vector}{}}}
+\subsection{Method \code{get_auxiliary_data_vector()}}{
+Retrieve entire auxiliary data vector
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_auxiliary_data_vector(dim_idx)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_idx}}{Dimension to retrieve}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Vector of all of the auxiliary data stored at dimension \code{dim_idx}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-store_auxiliary_data_vector_matrix"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-store_auxiliary_data_vector_matrix}{}}}
+\subsection{Method \code{store_auxiliary_data_vector_matrix()}}{
+Retrieve auxiliary data vector and place it into a column of the supplied matrix
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$store_auxiliary_data_vector_matrix(
+  output_matrix,
+  dim_idx,
+  matrix_col_idx
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{output_matrix}}{Matrix to be overwritten}
+
+\item{\code{dim_idx}}{Auxiliary data dimension to retrieve}
+
+\item{\code{matrix_col_idx}}{Matrix column in which to copy auxiliary data}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Vector of all of the auxiliary data stored at dimension \code{dim_idx}
 }
 }
 }
