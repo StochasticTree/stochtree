@@ -1,6 +1,7 @@
 from .bart import BARTModel
 from .bcf import BCFModel
 from .calibration import calibrate_global_error_variance
+from .cloglog_ordinal_bart import CloglogOrdinalBARTModel
 from .config import ForestModelConfig, GlobalModelConfig
 from .data import Dataset, Residual
 from .forest import Forest, ForestContainer
@@ -39,6 +40,7 @@ from .utils import (
 __all__ = [
     "BARTModel",
     "BCFModel",
+    "CloglogOrdinalBARTModel",
     "Dataset",
     "Residual",
     "ForestContainer",

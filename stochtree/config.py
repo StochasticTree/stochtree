@@ -44,7 +44,7 @@ class ForestModelConfig:
     max_depth : int, optional
         Maximum depth of any tree in the ensemble in the model. Setting to `-1` does not enforce any depth limits on trees. Default: `-1`.
     leaf_model_type : int, optional
-        Integer specifying the leaf model type (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression). Default: `0`.
+        Integer specifying the leaf model type (0 = constant leaf, 1 = univariate leaf regression, 2 = multivariate leaf regression, 3 = log linear variance, 4 = cloglog ordinal regression). Default: `0`.
     leaf_model_scale : float or np.ndarray, optional
         Scale parameter used in Gaussian leaf models (can either be a scalar or a q x q matrix, where q is the dimensionality of the basis and is only >1 when `leaf_model_int = 2`). Calibrated internally as `1/num_trees`, propagated along diagonal if needed for multivariate leaf models.
     variance_forest_shape : int, optional
@@ -110,9 +110,9 @@ class ForestModelConfig:
         if leaf_model_type is None:
             leaf_model_type = 0
         if not _check_is_int(leaf_model_type):
-            raise ValueError("`leaf_model_type` must be an integer between 0 and 3")
-        elif leaf_model_type < 0 or leaf_model_type > 3:
-            raise ValueError("`leaf_model_type` must be an integer between 0 and 3")
+            raise ValueError("`leaf_model_type` must be an integer between 0 and 4")
+        elif leaf_model_type < 0 or leaf_model_type > 4:
+            raise ValueError("`leaf_model_type` must be an integer between 0 and 4")
         if not _check_is_int(leaf_dimension):
             raise ValueError("`leaf_dimension` must be an integer greater than 0")
         elif leaf_dimension <= 0:

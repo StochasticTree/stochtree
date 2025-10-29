@@ -31,6 +31,8 @@ for (j in 1:n_categories) {
       (1 - exp(-exp(gamma_true[j] + true_lambda_function)))
   }
 }
+apply(true_probs, 2, mean)
+summary(true_lambda_function)
 
 # Generate ordinal outcomes
 y <- sapply(1:nrow(X), function(i) sample(1:n_categories, 1, prob = true_probs[i, ]))
