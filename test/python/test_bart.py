@@ -1123,6 +1123,7 @@ class TestBART:
 
         # Specify scalar rfx parameters
         rfx_params = {
+            "model_spec": "custom",
             "working_parameter_prior_mean": 1.,
             "group_parameter_prior_mean": 1.,
             "working_parameter_prior_cov": 1.,
@@ -1144,11 +1145,12 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            rfx_params=rfx_params,
+            random_effects_params=rfx_params,
         )
 
         # Specify all relevant rfx parameters as vectors
         rfx_params = {
+            "model_spec": "custom",
             "working_parameter_prior_mean": np.repeat(1., num_rfx_basis),
             "group_parameter_prior_mean": np.repeat(1., num_rfx_basis),
             "working_parameter_prior_cov": np.identity(num_rfx_basis),
@@ -1170,5 +1172,32 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            rfx_params=rfx_params,
+            random_effects_params=rfx_params,
         )
+
+        # Fit a simpler intercept-only RFX model
+        rfx_params = {
+            "model_spec": "intercept_only"
+        }
+        bart_model_4 = BARTModel()
+        bart_model_4.sample(
+            X_train=X_train,
+            y_train=y_train,
+            leaf_basis_train=basis_train,
+            rfx_group_ids_train=group_labels_train,
+            X_test=X_test,
+            leaf_basis_test=basis_test,
+            rfx_group_ids_test=group_labels_test,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            random_effects_params=rfx_params,
+        )
+        preds = bart_model_4.predict(
+            covariates=X_test,
+            basis=basis_test,
+            rfx_group_ids=group_labels_test,
+            type="posterior",
+            terms="rfx"
+        )
+        assert preds.shape == (n_test, num_mcmc)

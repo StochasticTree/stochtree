@@ -2386,6 +2386,8 @@ class BARTModel:
         bart_json.add_boolean("include_mean_forest", self.include_mean_forest)
         bart_json.add_boolean("include_variance_forest", self.include_variance_forest)
         bart_json.add_boolean("has_rfx", self.has_rfx)
+        bart_json.add_boolean("has_rfx_basis", self.has_rfx_basis)
+        bart_json.add_scalar("num_rfx_basis", self.num_rfx_basis)
         bart_json.add_integer("num_gfr", self.num_gfr)
         bart_json.add_integer("num_burnin", self.num_burnin)
         bart_json.add_integer("num_mcmc", self.num_mcmc)
@@ -2393,6 +2395,7 @@ class BARTModel:
         bart_json.add_integer("num_basis", self.num_basis)
         bart_json.add_boolean("requires_basis", self.has_basis)
         bart_json.add_boolean("probit_outcome_model", self.probit_outcome_model)
+        bart_json.add_string("rfx_model_spec", self.rfx_model_spec)
 
         # Add parameter samples
         if self.sample_sigma2_global:
@@ -2427,6 +2430,8 @@ class BARTModel:
         self.include_mean_forest = bart_json.get_boolean("include_mean_forest")
         self.include_variance_forest = bart_json.get_boolean("include_variance_forest")
         self.has_rfx = bart_json.get_boolean("has_rfx")
+        self.has_rfx_basis = bart_json.get_boolean("has_rfx_basis")
+        self.num_rfx_basis = bart_json.get_scalar("num_rfx_basis")
         if self.include_mean_forest:
             # TODO: don't just make this a placeholder that we overwrite
             self.forest_container_mean = ForestContainer(0, 0, False, False)
@@ -2465,6 +2470,7 @@ class BARTModel:
         self.num_basis = bart_json.get_integer("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
         self.probit_outcome_model = bart_json.get_boolean("probit_outcome_model")
+        self.rfx_model_spec = bart_json.get_string("rfx_model_spec")
 
         # Unpack parameter samples
         if self.sample_sigma2_global:
@@ -2550,6 +2556,8 @@ class BARTModel:
 
         # Unpack random effects
         self.has_rfx = json_object_default.get_boolean("has_rfx")
+        self.has_rfx_basis = json_object_default.get_boolean("has_rfx_basis")
+        self.num_rfx_basis = json_object_default.get_scalar("num_rfx_basis")
         if self.has_rfx:
             self.rfx_container = RandomEffectsContainer()
             for i in range(len(json_object_list)):
@@ -2574,6 +2582,9 @@ class BARTModel:
         self.has_basis = json_object_default.get_boolean("requires_basis")
         self.probit_outcome_model = json_object_default.get_boolean(
             "probit_outcome_model"
+        )
+        self.rfx_model_spec = json_object_default.get_string(
+            "rfx_model_spec"
         )
 
         # Unpack number of samples
