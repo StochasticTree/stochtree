@@ -317,7 +317,9 @@ class BCFModel:
             "variance_prior_shape": 1.0,
             "variance_prior_scale": 1.0,
         }
-        rfx_params_updated = _preprocess_params(rfx_params_default, random_effects_params)
+        rfx_params_updated = _preprocess_params(
+            rfx_params_default, random_effects_params
+        )
 
         ### Unpack all parameter values
         # 1. General parameters
@@ -413,8 +415,14 @@ class BCFModel:
         # Check random effects specification
         if not isinstance(self.rfx_model_spec, str):
             raise ValueError("rfx_model_spec must be a string")
-        if self.rfx_model_spec not in ["custom", "intercept_only", "intercept_plus_treatment"]:
-            raise ValueError("type must either be 'custom', 'intercept_only', 'intercept_plus_treatment'")
+        if self.rfx_model_spec not in [
+            "custom",
+            "intercept_only",
+            "intercept_plus_treatment",
+        ]:
+            raise ValueError(
+                "type must either be 'custom', 'intercept_only', 'intercept_plus_treatment'"
+            )
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -2295,7 +2303,7 @@ class BCFModel:
     ) -> Union[dict[str, np.array], np.array]:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.
-        When random effects are present, they are either included in yhat additively if `rfx_model_spec == "custom"`. They are included in mu_x if `rfx_model_spec == "intercept_only"` or 
+        When random effects are present, they are either included in yhat additively if `rfx_model_spec == "custom"`. They are included in mu_x if `rfx_model_spec == "intercept_only"` or
         partially included in mu_x and partially included in tau_x `rfx_model_spec == "intercept_plus_treatment"`.
 
         Parameters
@@ -2508,9 +2516,13 @@ class BCFModel:
                 if rfx_basis.ndim == 1:
                     rfx_basis = np.expand_dims(rfx_basis, 1)
                 if rfx_basis.shape[0] != X.shape[0]:
-                    raise ValueError("X and rfx_basis must have the same number of rows")
+                    raise ValueError(
+                        "X and rfx_basis must have the same number of rows"
+                    )
                 if rfx_basis.shape[1] != self.num_rfx_basis:
-                    raise ValueError("rfx_basis must have the same number of columns as the random effects basis used to sample this model")
+                    raise ValueError(
+                        "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
+                    )
 
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
@@ -2522,26 +2534,28 @@ class BCFModel:
         if predict_rfx_raw:
             # Extract the raw RFX samples and scale by train set outcome standard deviation
             rfx_samples_raw = self.rfx_container.extract_parameter_samples()
-            rfx_beta_draws = rfx_samples_raw['beta_samples'] * self.y_std
+            rfx_beta_draws = rfx_samples_raw["beta_samples"] * self.y_std
 
             # Construct an array with the appropriate group random effects arranged for each observation
             if rfx_beta_draws.ndim == 3:
-                rfx_predictions_raw = np.empty(shape=(X.shape[0], rfx_beta_draws.shape[0], rfx_beta_draws.shape[2]))
+                rfx_predictions_raw = np.empty(
+                    shape=(X.shape[0], rfx_beta_draws.shape[0], rfx_beta_draws.shape[2])
+                )
                 for i in range(X.shape[0]):
                     rfx_predictions_raw[i, :, :] = rfx_beta_draws[
                         :, rfx_group_ids[i], :
                     ]
             elif rfx_beta_draws.ndim == 2:
-                rfx_predictions_raw = np.empty(shape=(X.shape[0], 1, rfx_beta_draws.shape[1]))
+                rfx_predictions_raw = np.empty(
+                    shape=(X.shape[0], 1, rfx_beta_draws.shape[1])
+                )
                 for i in range(X.shape[0]):
-                    rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
-                        rfx_group_ids[i], :
-                    ]
+                    rfx_predictions_raw[i, 0, :] = rfx_beta_draws[rfx_group_ids[i], :]
             else:
                 raise ValueError(
                     "Unexpected number of dimensions in extracted random effects samples"
                 )
-        
+
         # Add raw RFX predictions to mu and tau if warranted by the RFX model spec
         if predict_mu_forest or predict_mu_forest_intermediate:
             if rfx_intercept and predict_rfx_raw:
@@ -2553,7 +2567,6 @@ class BCFModel:
                 tau_x = tau_x_forest + np.squeeze(rfx_predictions_raw[:, 1:, :])
             else:
                 tau_x = tau_x_forest
-        
 
         # Combine into y hat predictions
         needs_mean_term_preds = (
@@ -3308,7 +3321,9 @@ class BCFModel:
         self.has_rfx = json_object_default.get_boolean("has_rfx")
         self.has_rfx_basis = json_object_default.get_boolean("has_rfx_basis")
         self.num_rfx_basis = json_object_default.get_scalar("num_rfx_basis")
-        self.multivariate_treatment = json_object_default.get_boolean("multivariate_treatment")
+        self.multivariate_treatment = json_object_default.get_boolean(
+            "multivariate_treatment"
+        )
         if self.has_rfx:
             self.rfx_container = RandomEffectsContainer()
             for i in range(len(json_object_list)):
@@ -3344,9 +3359,7 @@ class BCFModel:
         self.probit_outcome_model = json_object_default.get_boolean(
             "probit_outcome_model"
         )
-        self.rfx_model_spec = json_object_default.get_string(
-            "rfx_model_spec"
-        )
+        self.rfx_model_spec = json_object_default.get_string("rfx_model_spec")
 
         # Unpack number of samples
         for i in range(len(json_object_list)):

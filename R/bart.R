@@ -1971,9 +1971,7 @@ predict.bartmodel <- function(
   if ((predict_rfx) && (is.null(rfx_basis)) && (!rfx_intercept)) {
     stop("Random effects basis (rfx_basis) must be provided for this model")
   }
-  if (
-    (object$model_params$num_rfx_basis > 0) && (!rfx_intercept)
-  ) {
+  if ((object$model_params$num_rfx_basis > 0) && (!rfx_intercept)) {
     if (ncol(rfx_basis) != object$model_params$num_rfx_basis) {
       stop(
         "Random effects basis has a different dimension than the basis used to train this model"
@@ -2020,7 +2018,7 @@ predict.bartmodel <- function(
       }
     }
   }
-  
+
   # Create prediction dataset
   if (!is.null(leaf_basis)) {
     prediction_dataset <- createForestDataset(covariates, leaf_basis)
@@ -2072,7 +2070,9 @@ predict.bartmodel <- function(
     } else {
       # Sanity check -- this branch should only occur if rfx_model_spec == "intercept_only"
       if (!rfx_intercept) {
-        stop("rfx_basis must be provided for random effects models with random slopes")
+        stop(
+          "rfx_basis must be provided for random effects models with random slopes"
+        )
       }
 
       # Extract the raw RFX samples and scale by train set outcome standard deviation
@@ -2093,7 +2093,7 @@ predict.bartmodel <- function(
           rfx_beta_draws[, rfx_group_ids[i], ]
       }
 
-      # Intercept-only model, so the random effect prediction is simply the 
+      # Intercept-only model, so the random effect prediction is simply the
       # value of the respective group's intercept coefficient for each observation
       rfx_predictions = rfx_predictions_raw[, 1, ]
     }

@@ -260,7 +260,9 @@ class BARTModel:
             "variance_prior_shape": 1.0,
             "variance_prior_scale": 1.0,
         }
-        rfx_params_updated = _preprocess_params(rfx_params_default, random_effects_params)
+        rfx_params_updated = _preprocess_params(
+            rfx_params_default, random_effects_params
+        )
 
         ### Unpack all parameter values
         # 1. General parameters
@@ -1459,7 +1461,9 @@ class BARTModel:
                                 forest_dataset_train
                             )
                             if self.has_rfx:
-                                rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                                rfx_pred = rfx_model.predict(
+                                    rfx_dataset_train, rfx_tracker
+                                )
                                 outcome_pred = outcome_pred + rfx_pred
                             mu0 = outcome_pred[y_train[:, 0] == 0]
                             mu1 = outcome_pred[y_train[:, 0] == 1]
@@ -1835,8 +1839,10 @@ class BARTModel:
             if rfx_basis.shape[0] != covariates.shape[0]:
                 raise ValueError("X and rfx_basis must have the same number of rows")
             if rfx_basis.shape[1] != self.num_rfx_basis:
-                raise ValueError("rfx_basis must have the same number of columns as the random effects basis used to sample this model")
-        
+                raise ValueError(
+                    "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
+                )
+
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
             if rfx_basis is not None:
@@ -1849,10 +1855,10 @@ class BARTModel:
                     raise ValueError(
                         "rfx_basis must be provided for random effects models with random slopes"
                     )
-                
+
                 # Extract the raw RFX samples and scale by train set outcome standard deviation
                 rfx_samples_raw = self.rfx_container.extract_parameter_samples()
-                rfx_beta_draws = rfx_samples_raw['beta_samples'] * self.y_std
+                rfx_beta_draws = rfx_samples_raw["beta_samples"] * self.y_std
 
                 # Construct an array with the appropriate group random effects arranged for each observation
                 n_train = covariates.shape[0]
@@ -1861,13 +1867,15 @@ class BARTModel:
                         "BART models fit with random intercept models should only yield 2 dimensional random effect sample matrices"
                     )
                 else:
-                    rfx_predictions_raw = np.empty(shape=(n_train, 1, rfx_beta_draws.shape[1]))
+                    rfx_predictions_raw = np.empty(
+                        shape=(n_train, 1, rfx_beta_draws.shape[1])
+                    )
                     for i in range(n_train):
                         rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
                             rfx_group_ids[i], :
                         ]
                 rfx_predictions = np.squeeze(rfx_predictions_raw[:, 0, :])
-                
+
         # Combine into y hat predictions
         if probability_scale:
             if predict_y_hat and has_mean_forest and has_rfx:
@@ -2583,9 +2591,7 @@ class BARTModel:
         self.probit_outcome_model = json_object_default.get_boolean(
             "probit_outcome_model"
         )
-        self.rfx_model_spec = json_object_default.get_string(
-            "rfx_model_spec"
-        )
+        self.rfx_model_spec = json_object_default.get_string("rfx_model_spec")
 
         # Unpack number of samples
         for i in range(len(json_object_list)):
