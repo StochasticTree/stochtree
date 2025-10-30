@@ -22,7 +22,7 @@ types. Matrices will be passed through assuming all columns are numeric.
 }
 \examples{
 cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
-metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, 
+metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0,
                  num_numeric_vars = 3, numeric_vars = c("x1", "x2", "x3"))
 X_preprocessed <- preprocessPredictionData(cov_df, metadata)
 }

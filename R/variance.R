@@ -19,19 +19,19 @@
 #' b <- 1.0
 #' sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome, forest_dataset, rng, a, b)
 sampleGlobalErrorVarianceOneIteration <- function(
-    residual,
-    dataset,
-    rng,
+  residual,
+  dataset,
+  rng,
+  a,
+  b
+) {
+  return(sample_sigma2_one_iteration_cpp(
+    residual$data_ptr,
+    dataset$data_ptr,
+    rng$rng_ptr,
     a,
     b
-) {
-    return(sample_sigma2_one_iteration_cpp(
-        residual$data_ptr,
-        dataset$data_ptr,
-        rng$rng_ptr,
-        a,
-        b
-    ))
+  ))
 }
 
 #' Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)
@@ -54,5 +54,5 @@ sampleGlobalErrorVarianceOneIteration <- function(
 #' b <- 1.0
 #' tau <- sampleLeafVarianceOneIteration(active_forest, rng, a, b)
 sampleLeafVarianceOneIteration <- function(forest, rng, a, b) {
-    return(sample_tau_one_iteration_cpp(forest$forest_ptr, rng$rng_ptr, a, b))
+  return(sample_tau_one_iteration_cpp(forest$forest_ptr, rng$rng_ptr, a, b))
 }
