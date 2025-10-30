@@ -240,7 +240,7 @@ and sigma (group-independent prior variance for each component of xi).
 
 \subsection{Returns}{
 List of arrays. The alpha array has dimension (\code{num_components}, \code{num_samples}) and is simply a vector if \code{num_components = 1}.
-The xi and beta arrays have dimension (\code{num_components}, \code{num_groups}, \code{num_samples}) and is simply a matrix if \code{num_components = 1}.
+The xi and beta arrays have dimension (\code{num_components}, \code{num_groups}, \code{num_samples}) and are simply matrices if \code{num_components = 1}.
 The sigma array has dimension (\code{num_components}, \code{num_samples}) and is simply a vector if \code{num_components = 1}.
 }
 }

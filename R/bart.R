@@ -79,6 +79,7 @@
 #'
 #' @param random_effects_params (Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
+#'   - `model_spec` Specification of the random effects model. Options are "custom" and "intercept_only". If "custom" is specified, then a user-provided basis must be passed through `rfx_basis_train`. If "intercept_only" is specified, a random effects basis of all ones will be dispatched internally at sampling and prediction time. If "intercept_plus_treatment" is specified, a random effects basis that combines an "intercept" basis of all ones with the treatment variable (`Z_train`) will be dispatched internally at sampling and prediction time. Default: "custom". If "intercept_only" is specified, `rfx_basis_train` and `rfx_basis_test` (if provided) will be ignored.
 #'   - `working_parameter_prior_mean` Prior mean for the random effects "working parameter". Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
 #'   - `group_parameters_prior_mean` Prior mean for the random effects "group parameters." Default: `NULL`. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
 #'   - `working_parameter_prior_cov` Prior covariance matrix for the random effects "working parameter." Default: `NULL`. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
@@ -198,6 +199,7 @@ bart <- function(
 
   # Update rfx parameters
   rfx_params_default <- list(
+    model_spec = "custom",
     working_parameter_prior_mean = NULL,
     group_parameter_prior_mean = NULL,
     working_parameter_prior_cov = NULL,
@@ -257,6 +259,7 @@ bart <- function(
   num_features_subsample_variance <- variance_forest_params_updated$num_features_subsample
 
   # 4. RFX parameters
+  rfx_model_spec <- rfx_params_updated$model_spec
   rfx_working_parameter_prior_mean <- rfx_params_updated$working_parameter_prior_mean
   rfx_group_parameter_prior_mean <- rfx_params_updated$group_parameter_prior_mean
   rfx_working_parameter_prior_cov <- rfx_params_updated$working_parameter_prior_cov
@@ -614,35 +617,43 @@ bart <- function(
     }
   }
 
-  # Fill in rfx basis as a vector of 1s (random intercept) if a basis not provided
+  # Handle the rfx basis matrices
   has_basis_rfx <- FALSE
   num_basis_rfx <- 0
   if (has_rfx) {
-    if (is.null(rfx_basis_train)) {
+    if (rfx_model_spec == "custom") {
+      if (is.null(rfx_basis_train)) {
+        stop(
+          "A user-provided basis (`rfx_basis_train`) must be provided when the random effects model spec is 'custom'"
+        )
+      }
+      has_basis_rfx <- TRUE
+      num_basis_rfx <- ncol(rfx_basis_train)
+    } else if (rfx_model_spec == "intercept_only") {
       rfx_basis_train <- matrix(
         rep(1, nrow(X_train)),
         nrow = nrow(X_train),
         ncol = 1
       )
-    } else {
       has_basis_rfx <- TRUE
-      num_basis_rfx <- ncol(rfx_basis_train)
+      num_basis_rfx <- 1
     }
     num_rfx_groups <- length(unique(rfx_group_ids_train))
     num_rfx_components <- ncol(rfx_basis_train)
     if (num_rfx_groups == 1) {
       warning(
-        "Only one group was provided for random effect sampling, so the 'redundant parameterization' is likely overkill"
+        "Only one group was provided for random effect sampling, so the random effects model is likely overkill"
       )
     }
   }
   if (has_rfx_test) {
-    if (is.null(rfx_basis_test)) {
-      if (has_basis_rfx) {
+    if (rfx_model_spec == "custom") {
+      if (is.null(rfx_basis_test)) {
         stop(
-          "Random effects basis provided for training set, must also be provided for the test set"
+          "A user-provided basis (`rfx_basis_test`) must be provided when the random effects model spec is 'custom'"
         )
       }
+    } else if (rfx_model_spec == "intercept_only") {
       rfx_basis_test <- matrix(
         rep(1, nrow(X_test)),
         nrow = nrow(X_test),
@@ -1744,7 +1755,8 @@ bart <- function(
     "sample_sigma2_leaf" = sample_sigma2_leaf,
     "include_mean_forest" = include_mean_forest,
     "include_variance_forest" = include_variance_forest,
-    "probit_outcome_model" = probit_outcome_model
+    "probit_outcome_model" = probit_outcome_model,
+    "rfx_model_spec" = rfx_model_spec
   )
   result <- list(
     "model_params" = model_params,
@@ -1878,6 +1890,8 @@ predict.bartmodel <- function(
   predict_mean <- type == "mean"
 
   # Handle prediction terms
+  rfx_model_spec <- object$model_params$rfx_model_spec
+  rfx_intercept <- rfx_model_spec == "intercept_only"
   if (!is.character(terms)) {
     stop("type must be a string or character vector")
   }
@@ -1954,16 +1968,17 @@ predict.bartmodel <- function(
       "Random effect group labels (rfx_group_ids) must be provided for this model"
     )
   }
-  if ((predict_rfx) && (is.null(rfx_basis))) {
+  if ((predict_rfx) && (is.null(rfx_basis)) && (!rfx_intercept)) {
     stop("Random effects basis (rfx_basis) must be provided for this model")
   }
   if (
-    (object$model_params$num_rfx_basis > 0) &&
-      (ncol(rfx_basis) != object$model_params$num_rfx_basis)
+    (object$model_params$num_rfx_basis > 0) && (!rfx_intercept)
   ) {
-    stop(
-      "Random effects basis has a different dimension than the basis used to train this model"
-    )
+    if (ncol(rfx_basis) != object$model_params$num_rfx_basis) {
+      stop(
+        "Random effects basis has a different dimension than the basis used to train this model"
+      )
+    }
   }
 
   # Preprocess covariates
@@ -1986,11 +2001,26 @@ predict.bartmodel <- function(
     }
   }
 
-  # Produce basis for the "intercept-only" random effects case
-  if ((predict_rfx) && (is.null(rfx_basis))) {
-    rfx_basis <- matrix(rep(1, nrow(covariates)), ncol = 1)
+  # Handle RFX model specification
+  if (has_rfx) {
+    if (object$model_params$rfx_model_spec == "custom") {
+      if (is.null(rfx_basis)) {
+        stop(
+          "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+        )
+      }
+    } else if (object$model_params$rfx_model_spec == "intercept_only") {
+      # Only construct a basis if user-provided basis missing
+      if (is.null(rfx_basis)) {
+        rfx_basis <- matrix(
+          rep(1, nrow(covariates)),
+          nrow = nrow(covariates),
+          ncol = 1
+        )
+      }
+    }
   }
-
+  
   # Create prediction dataset
   if (!is.null(leaf_basis)) {
     prediction_dataset <- createForestDataset(covariates, leaf_basis)
@@ -2033,11 +2063,40 @@ predict.bartmodel <- function(
 
   # Compute rfx predictions (if needed)
   if (predict_rfx || predict_rfx_intermediate) {
-    rfx_predictions <- object$rfx_samples$predict(
-      rfx_group_ids,
-      rfx_basis
-    ) *
-      y_std
+    if (!is.null(rfx_basis)) {
+      rfx_predictions <- object$rfx_samples$predict(
+        rfx_group_ids,
+        rfx_basis
+      ) *
+        y_std
+    } else {
+      # Sanity check -- this branch should only occur if rfx_model_spec == "intercept_only"
+      if (!rfx_intercept) {
+        stop("rfx_basis must be provided for random effects models with random slopes")
+      }
+
+      # Extract the raw RFX samples and scale by train set outcome standard deviation
+      rfx_param_list <- object$rfx_samples$extract_parameter_samples()
+      rfx_beta_draws <- rfx_param_list$beta_samples * y_std
+
+      # Construct a matrix with the appropriate group random effects arranged for each observation
+      rfx_predictions_raw <- array(
+        NA,
+        dim = c(
+          nrow(X),
+          ncol(rfx_basis),
+          object$model_params$num_samples
+        )
+      )
+      for (i in 1:nrow(X)) {
+        rfx_predictions_raw[i, , ] <-
+          rfx_beta_draws[, rfx_group_ids[i], ]
+      }
+
+      # Intercept-only model, so the random effect prediction is simply the 
+      # value of the respective group's intercept coefficient for each observation
+      rfx_predictions = rfx_predictions_raw[, 1, ]
+    }
   }
 
   # Combine into y hat predictions
@@ -2310,6 +2369,10 @@ saveBARTModelToJson <- function(object) {
     "probit_outcome_model",
     object$model_params$probit_outcome_model
   )
+  jsonobj$add_string(
+    "rfx_model_spec",
+    object$model_params$rfx_model_spec
+  )
   if (object$model_params$sample_sigma2_global) {
     jsonobj$add_vector(
       "sigma2_global_samples",
@@ -2553,6 +2616,9 @@ createBARTModelFromJson <- function(json_object) {
   )
   model_params[["probit_outcome_model"]] <- json_object$get_boolean(
     "probit_outcome_model"
+  )
+  model_params[["rfx_model_spec"]] <- json_object$get_string(
+    "rfx_model_spec"
   )
 
   output[["model_params"]] <- model_params
@@ -2825,6 +2891,9 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
     "probit_outcome_model"
   )
+  model_params[["rfx_model_spec"]] <- json_object_default$get_string(
+    "rfx_model_spec"
+  )
   model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
   model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
 
@@ -3065,6 +3134,9 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
   )
   model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
     "probit_outcome_model"
+  )
+  model_params[["rfx_model_spec"]] <- json_object_default$get_string(
+    "rfx_model_spec"
   )
 
   # Combine values that are sample-specific

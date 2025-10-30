@@ -561,4 +561,27 @@ test_that("Random Effects BART", {
       random_effects_params = rfx_param_list
     )
   )
+
+  # Specify simpler intercept-only RFX model
+  rfx_param_list <- list(
+    model_spec = "intercept_only"
+  )
+  mean_forest_param_list <- list(sample_sigma2_leaf = FALSE)
+  expect_no_error({
+    bart_model <- bart(
+      X_train = X_train,
+      y_train = y_train,
+      X_test = X_test,
+      leaf_basis_train = W_train,
+      leaf_basis_test = W_test,
+      rfx_group_ids_train = rfx_group_ids_train,
+      rfx_group_ids_test = rfx_group_ids_test,
+      num_gfr = 0,
+      num_burnin = 10,
+      num_mcmc = 10,
+      mean_forest_params = mean_forest_param_list,
+      random_effects_params = rfx_param_list
+    )
+    preds <- predict(bart_model, covariates = X_test, leaf_basis = W_test, rfx_group_ids = rfx_group_ids_test, type = "posterior", terms = "rfx")
+  })
 })

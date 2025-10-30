@@ -30,7 +30,7 @@
 We do not currently support (but plan to in the near future), test set evaluation for group labels
 that were not in the training set.}
 
-\item{rfx_basis}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
+\item{rfx_basis}{(Optional) Test set basis for "random-slope" regression in additive random effects model. If the model was sampled with a random effects \code{model_spec} of "intercept_only" or "intercept_plus_treatment", this is optional, but if it is provided, it will be used.}
 
 \item{type}{(Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BCF model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".}
 
