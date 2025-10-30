@@ -1418,6 +1418,64 @@ class RandomEffectsContainerCpp {
   int NumGroups() {
     return rfx_container_->NumGroups();
   }
+  py::array_t<double> GetBeta() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    int num_groups = rfx_container_->NumGroups();
+    std::vector<double> beta_raw = rfx_container_->GetBeta();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_groups, num_samples}));
+    auto accessor = result.mutable_unchecked<3>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_groups; j++) {
+        for (int k = 0; k < num_samples; k++) {
+          accessor(i,j,k) = beta_raw[k*num_groups*num_components + j*num_components + i];
+        }
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetXi() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    int num_groups = rfx_container_->NumGroups();
+    std::vector<double> xi_raw = rfx_container_->GetXi();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_groups, num_samples}));
+    auto accessor = result.mutable_unchecked<3>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_groups; j++) {
+        for (int k = 0; k < num_samples; k++) {
+          accessor(i,j,k) = xi_raw[k*num_groups*num_components + j*num_components + i];
+        }
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetAlpha() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    std::vector<double> alpha_raw = rfx_container_->GetAlpha();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_samples}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_samples; j++) {
+        accessor(i,j) = alpha_raw[j*num_components + i];
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetSigma() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    std::vector<double> sigma_raw = rfx_container_->GetSigma();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_samples}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_samples; j++) {
+        accessor(i,j) = sigma_raw[j*num_components + i];
+      }
+    }
+    return result;
+  }
   void DeleteSample(int sample_num) {
     rfx_container_->DeleteSample(sample_num);
   }
@@ -2294,6 +2352,10 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("NumSamples", &RandomEffectsContainerCpp::NumSamples)
     .def("NumComponents", &RandomEffectsContainerCpp::NumComponents)
     .def("NumGroups", &RandomEffectsContainerCpp::NumGroups)
+    .def("GetBeta", &RandomEffectsContainerCpp::GetBeta)
+    .def("GetXi", &RandomEffectsContainerCpp::GetXi)
+    .def("GetAlpha", &RandomEffectsContainerCpp::GetAlpha)
+    .def("GetSigma", &RandomEffectsContainerCpp::GetSigma)
     .def("DeleteSample", &RandomEffectsContainerCpp::DeleteSample)
     .def("Predict", &RandomEffectsContainerCpp::Predict)
     .def("SaveToJsonFile", &RandomEffectsContainerCpp::SaveToJsonFile)

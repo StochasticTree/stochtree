@@ -30,10 +30,10 @@ max_depth <- 10
 feature_types <- as.integer(rep(0, p))
 X <- matrix(runif(n*p), ncol = p)
 forest_dataset <- createForestDataset(X)
-forest_model_config <- createForestModelConfig(feature_types=feature_types, 
-                                               num_trees=num_trees, num_features=p, 
-                                               num_observations=n, alpha=alpha, beta=beta, 
-                                               min_samples_leaf=min_samples_leaf, 
+forest_model_config <- createForestModelConfig(feature_types=feature_types,
+                                               num_trees=num_trees, num_features=p,
+                                               num_observations=n, alpha=alpha, beta=beta,
+                                               min_samples_leaf=min_samples_leaf,
                                                max_depth=max_depth, leaf_model_type=1)
 global_model_config <- createGlobalModelConfig(global_error_variance=1.0)
 forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)

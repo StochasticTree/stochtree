@@ -1,0 +1,181 @@
+# Demo of contrast computation function for BART
+
+# Load libraries
+from stochtree import BARTModel
+from sklearn.model_selection import train_test_split
+import numpy as np
+
+# Generate data
+n = 500
+p = 5
+rng = np.random.default_rng(1234)
+X = rng.uniform(low=0.0, high=1.0, size=(n, p))
+W = rng.normal(loc=0.0, scale=1.0, size=(n, 1))
+f_XW = np.where(
+    ((0 <= X[:, 0]) & (X[:, 0] < 0.25)),
+    -7.5 * W[:, 0],
+    np.where(
+        ((0.25 <= X[:, 0]) & (X[:, 0] < 0.5)),
+        -2.5 * W[:, 0],
+        np.where(
+            ((0.5 <= X[:, 0]) & (X[:, 0] < 0.75)),
+            2.5 * W[:, 0],
+            7.5 * W[:, 0],
+        ),
+    ),
+)
+E_Y = f_XW
+snr = 2
+y = E_Y + rng.normal(loc=0.0, scale=1.0, size=(n,)) * (np.std(E_Y) / snr)
+
+# Train-test split
+test_set_pct = 0.2
+train_inds, test_inds = train_test_split(
+    np.arange(n), test_size=test_set_pct, random_state=1234
+)
+X_train = X[train_inds, :]
+X_test = X[test_inds, :]
+W_train = W[train_inds, :]
+W_test = W[test_inds, :]
+y_train = y[train_inds]
+y_test = y[test_inds]
+n_test = len(test_inds)
+n_train = len(train_inds)
+
+# Fit BART model
+bart_model = BARTModel()
+bart_model.sample(
+    X_train=X_train,
+    leaf_basis_train=W_train,
+    y_train=y_train,
+    num_gfr=10,
+    num_burnin=0,
+    num_mcmc=1000,
+)
+
+# Compute contrast posterior
+contrast_posterior_test = bart_model.compute_contrast(
+    covariates_0=X_test,
+    covariates_1=X_test,
+    basis_0=np.zeros((n_test, 1)),
+    basis_1=np.ones((n_test, 1)),
+    type="posterior",
+    scale="linear",
+)
+
+# Compute the same quantity via two predict calls
+y_hat_posterior_test_0 = bart_model.predict(
+    covariates=X_test,
+    basis=np.zeros((n_test, 1)),
+    type="posterior",
+    terms="y_hat",
+    scale="linear",
+)
+y_hat_posterior_test_1 = bart_model.predict(
+    covariates=X_test,
+    basis=np.ones((n_test, 1)),
+    type="posterior",
+    terms="y_hat",
+    scale="linear",
+)
+contrast_posterior_test_comparison = y_hat_posterior_test_1 - y_hat_posterior_test_0
+
+# Compare results
+contrast_diff = contrast_posterior_test_comparison - contrast_posterior_test
+np.allclose(contrast_diff, 0, atol=0.001)
+
+# Generate data for a BART model with random effects
+X = rng.uniform(low=0.0, high=1.0, size=(n, p))
+W = rng.normal(loc=0.0, scale=1.0, size=(n, 1))
+f_XW = np.where(
+    ((0 <= X[:, 0]) & (X[:, 0] < 0.25)),
+    -7.5 * W[:, 0],
+    np.where(
+        ((0.25 <= X[:, 0]) & (X[:, 0] < 0.5)),
+        -2.5 * W[:, 0],
+        np.where(
+            ((0.5 <= X[:, 0]) & (X[:, 0] < 0.75)),
+            2.5 * W[:, 0],
+            7.5 * W[:, 0],
+        ),
+    ),
+)
+num_rfx_groups = 3
+group_labels = rng.choice(num_rfx_groups, size=n)
+basis = np.empty((n, 2))
+basis[:, 0] = 1.0
+basis[:, 1] = rng.uniform(0, 1, (n,))
+rfx_coefs = np.array([[-2, -2], [0, 0], [2, 2]])
+rfx_term = np.sum(rfx_coefs[group_labels, :] * basis, axis=1)
+E_Y = f_XW + rfx_term
+snr = 2
+y = E_Y + rng.normal(loc=0.0, scale=1.0, size=(n,)) * (np.std(E_Y) / snr)
+
+# Train-test split
+train_inds, test_inds = train_test_split(
+    np.arange(n), test_size=test_set_pct, random_state=1234
+)
+X_train = X[train_inds, :]
+X_test = X[test_inds, :]
+W_train = W[train_inds, :]
+W_test = W[test_inds, :]
+y_train = y[train_inds]
+y_test = y[test_inds]
+group_ids_train = group_labels[train_inds]
+group_ids_test = group_labels[test_inds]
+rfx_basis_train = basis[train_inds, :]
+rfx_basis_test = basis[test_inds, :]
+n_test = len(test_inds)
+n_train = len(train_inds)
+
+# Fit BART model
+bart_model = BARTModel()
+bart_model.sample(
+    X_train=X_train,
+    leaf_basis_train=W_train,
+    y_train=y_train,
+    rfx_group_ids_train=group_ids_train,
+    rfx_basis_train=rfx_basis_train,
+    num_gfr=10,
+    num_burnin=0,
+    num_mcmc=1000,
+)
+
+# Compute contrast posterior
+contrast_posterior_test = bart_model.compute_contrast(
+    covariates_0=X_test,
+    covariates_1=X_test,
+    basis_0=np.zeros((n_test, 1)),
+    basis_1=np.ones((n_test, 1)),
+    rfx_group_ids_0=group_ids_test,
+    rfx_group_ids_1=group_ids_test,
+    rfx_basis_0=rfx_basis_test,
+    rfx_basis_1=rfx_basis_test,
+    type="posterior",
+    scale="linear",
+)
+
+# Compute the same quantity via two predict calls
+y_hat_posterior_test_0 = bart_model.predict(
+    covariates=X_test,
+    basis=np.zeros((n_test, 1)),
+    rfx_group_ids=group_ids_test,
+    rfx_basis=rfx_basis_test,
+    type="posterior",
+    terms="y_hat",
+    scale="linear",
+)
+y_hat_posterior_test_1 = bart_model.predict(
+    covariates=X_test,
+    basis=np.ones((n_test, 1)),
+    rfx_group_ids=group_ids_test,
+    rfx_basis=rfx_basis_test,
+    type="posterior",
+    terms="y_hat",
+    scale="linear",
+)
+contrast_posterior_test_comparison = y_hat_posterior_test_1 - y_hat_posterior_test_0
+
+# Compare results
+contrast_diff = contrast_posterior_test_comparison - contrast_posterior_test
+np.allclose(contrast_diff, 0, atol=0.001)

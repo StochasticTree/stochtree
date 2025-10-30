@@ -22,25 +22,25 @@
 #' sigma2hat <- mean(resid(lm(y~X))^2)
 #' mean(var(y)/rgamma(100000, nu, rate = nu*lambda) < sigma2hat)
 calibrateInverseGammaErrorVariance <- function(
-    y,
-    X,
-    W = NULL,
-    nu = 3,
-    quant = 0.9,
-    standardize = TRUE
+  y,
+  X,
+  W = NULL,
+  nu = 3,
+  quant = 0.9,
+  standardize = TRUE
 ) {
-    # Compute regression basis
-    if (!is.null(W)) {
-        basis <- cbind(X, W)
-    } else {
-        basis <- X
-    }
-    # Standardize outcome if requested
-    if (standardize) {
-        y <- (y - mean(y)) / sd(y)
-    }
-    # Compute the "regression-based" overestimate of sigma^2
-    sigma2hat <- mean(resid(lm(y ~ basis))^2)
-    # Calibrate lambda based on the implied quantile of sigma2hat
-    return((sigma2hat * qgamma(1 - quant, nu)) / nu)
+  # Compute regression basis
+  if (!is.null(W)) {
+    basis <- cbind(X, W)
+  } else {
+    basis <- X
+  }
+  # Standardize outcome if requested
+  if (standardize) {
+    y <- (y - mean(y)) / sd(y)
+  }
+  # Compute the "regression-based" overestimate of sigma^2
+  sigma2hat <- mean(resid(lm(y ~ basis))^2)
+  # Calibrate lambda based on the implied quantile of sigma2hat
+  return((sigma2hat * qgamma(1 - quant, nu)) / nu)
 }

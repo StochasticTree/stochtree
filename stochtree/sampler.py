@@ -151,7 +151,7 @@ class ForestSampler:
             )
         if self.forest_sampler_cpp.GetMaxDepth() != forest_config.get_max_depth():
             self.forest_sampler_cpp.SetMaxDepth(forest_config.get_max_depth())
-        
+
         # Unpack sweep update indices (initializing empty numpy array if None)
         sweep_update_indices = forest_config.get_sweep_update_indices()
         if sweep_update_indices is None:
@@ -176,7 +176,7 @@ class ForestSampler:
             forest_config.get_num_features_subsample(),
             keep_forest,
             gfr,
-            num_threads, 
+            num_threads,
         )
 
     def prepare_for_sampler(
@@ -270,7 +270,7 @@ class ForestSampler:
         self.forest_sampler_cpp.PropagateBasisUpdate(
             dataset.dataset_cpp, residual.residual_cpp, forest.forest_cpp
         )
-    
+
     def get_cached_forest_predictions(self) -> np.array:
         """
         Extract an internally-cached prediction of a forest on the training dataset in a sampler.

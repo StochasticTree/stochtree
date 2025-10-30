@@ -24,7 +24,8 @@ bcf(
   general_params = list(),
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
-  variance_forest_params = list()
+  variance_forest_params = list(),
+  random_effects_params = list()
 )
 }
 \arguments{
@@ -91,12 +92,6 @@ that were not in the training set.}
 \item \code{num_chains} How many independent MCMC chains should be sampled. If \code{num_mcmc = 0}, this is ignored. If \code{num_gfr = 0}, then each chain is run from root for \code{num_mcmc * keep_every + num_burnin} iterations, with \code{num_mcmc} samples retained. If \code{num_gfr > 0}, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that \code{num_gfr >= num_chains}. Default: \code{1}.
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
 \item \code{probit_outcome_model} Whether or not the outcome should be modeled as explicitly binary via a probit link. If \code{TRUE}, \code{y} must only contain the values \code{0} and \code{1}. Default: \code{FALSE}.
-\item \code{rfx_working_parameter_prior_mean} Prior mean for the random effects "working parameter". Default: \code{NULL}. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
-\item \code{rfx_group_parameters_prior_mean} Prior mean for the random effects "group parameters." Default: \code{NULL}. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
-\item \code{rfx_working_parameter_prior_cov} Prior covariance matrix for the random effects "working parameter." Default: \code{NULL}. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
-\item \code{rfx_group_parameter_prior_cov} Prior covariance matrix for the random effects "group parameters." Default: \code{NULL}. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
-\item \code{rfx_variance_prior_shape} Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
-\item \code{rfx_variance_prior_scale} Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 \item \code{num_threads} Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to \code{1}, otherwise to the maximum number of available threads.
 }}
 
@@ -150,6 +145,17 @@ that were not in the training set.}
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
 \item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 }}
+
+\item{random_effects_params}{(Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
+\itemize{
+\item \code{model_spec} Specification of the random effects model. Options are "custom", "intercept_only", and "intercept_plus_treatment". If "custom" is specified, then a user-provided basis must be passed through \code{rfx_basis_train}. If "intercept_only" is specified, a random effects basis of all ones will be dispatched internally at sampling and prediction time. If "intercept_plus_treatment" is specified, a random effects basis that combines an "intercept" basis of all ones with the treatment variable (\code{Z_train}) will be dispatched internally at sampling and prediction time. Default: "custom". If either "intercept_only" or "intercept_plus_treatment" is specified, \code{rfx_basis_train} and \code{rfx_basis_test} (if provided) will be ignored.
+\item \code{working_parameter_prior_mean} Prior mean for the random effects "working parameter". Default: \code{NULL}. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+\item \code{group_parameters_prior_mean} Prior mean for the random effects "group parameters." Default: \code{NULL}. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+\item \code{working_parameter_prior_cov} Prior covariance matrix for the random effects "working parameter." Default: \code{NULL}. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+\item \code{group_parameter_prior_cov} Prior covariance matrix for the random effects "group parameters." Default: \code{NULL}. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+\item \code{variance_prior_shape} Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
+\item \code{variance_prior_scale} Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
+}}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
@@ -162,21 +168,21 @@ n <- 500
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
 mu_x <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
 )
 pi_x <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
 )
 tau_x <- (
-    ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
-    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
-    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+    ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
+    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
+    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
 )
 Z <- rbinom(n, 1, pi_x)
@@ -199,8 +205,8 @@ mu_test <- mu_x[test_inds]
 mu_train <- mu_x[train_inds]
 tau_test <- tau_x[test_inds]
 tau_train <- tau_x[train_inds]
-bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-                 propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
-                 propensity_test = pi_test, num_gfr = 10, 
+bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
+                 propensity_train = pi_train, X_test = X_test, Z_test = Z_test,
+                 propensity_test = pi_test, num_gfr = 10,
                  num_burnin = 0, num_mcmc = 10)
 }
