@@ -9,6 +9,9 @@ reference:
   contents:
   - bart
   - predict.bartmodel
+  - compute_bart_posterior_interval
+  - compute_contrast_bart_model
+  - sample_bart_posterior_predictive
 
 - title: Causal inference
   desc: >
@@ -16,6 +19,9 @@ reference:
   contents:
   - bcf
   - predict.bcfmodel
+  - compute_bcf_posterior_interval
+  - compute_contrast_bcf_model
+  - sample_bcf_posterior_predictive
 
 - title: Low-level functionality
 
