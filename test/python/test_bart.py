@@ -84,7 +84,7 @@ class TestBART:
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(covariates=X_train)
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -192,7 +192,7 @@ class TestBART:
         bart_preds_combined = bart_model_3.predict(
             covariates=X_train, basis=basis_train
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -300,7 +300,7 @@ class TestBART:
         bart_preds_combined = bart_model_3.predict(
             covariates=X_train, basis=basis_train
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -411,7 +411,10 @@ class TestBART:
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(covariates=X_train)
-        y_hat_train_combined, sigma2_x_train_combined = bart_preds_combined['y_hat'], bart_preds_combined['variance_forest_predictions']
+        y_hat_train_combined, sigma2_x_train_combined = (
+            bart_preds_combined["y_hat"],
+            bart_preds_combined["variance_forest_predictions"],
+        )
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         assert sigma2_x_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
@@ -424,7 +427,8 @@ class TestBART:
             sigma2_x_train_combined[:, 0:num_mcmc], bart_model.sigma2_x_train
         )
         np.testing.assert_allclose(
-            sigma2_x_train_combined[:, num_mcmc : (2 * num_mcmc)], bart_model_2.sigma2_x_train
+            sigma2_x_train_combined[:, num_mcmc : (2 * num_mcmc)],
+            bart_model_2.sigma2_x_train,
         )
         np.testing.assert_allclose(
             bart_model_3.global_var_samples[0:num_mcmc], bart_model.global_var_samples
@@ -543,7 +547,7 @@ class TestBART:
         bart_preds_combined = bart_model_3.predict(
             covariates=X_train, basis=basis_train
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -668,7 +672,7 @@ class TestBART:
         bart_preds_combined = bart_model_3.predict(
             covariates=X_train, basis=basis_train
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -825,7 +829,7 @@ class TestBART:
             rfx_group_ids=group_labels_train,
             rfx_basis=rfx_basis_train,
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -999,7 +1003,7 @@ class TestBART:
             rfx_group_ids=group_labels_train,
             rfx_basis=rfx_basis_train,
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -1059,7 +1063,7 @@ class TestBART:
         # Define the group rfx function
         def rfx_term(group_labels, basis):
             return np.where(
-                group_labels == 0, -5 + 1. * basis[:,1], 5 - 1. * basis[:,1]
+                group_labels == 0, -5 + 1.0 * basis[:, 1], 5 - 1.0 * basis[:, 1]
             )
 
         # Define the conditional standard deviation function
@@ -1124,12 +1128,12 @@ class TestBART:
         # Specify scalar rfx parameters
         rfx_params = {
             "model_spec": "custom",
-            "working_parameter_prior_mean": 1.,
-            "group_parameter_prior_mean": 1.,
-            "working_parameter_prior_cov": 1.,
-            "group_parameter_prior_cov": 1.,
+            "working_parameter_prior_mean": 1.0,
+            "group_parameter_prior_mean": 1.0,
+            "working_parameter_prior_cov": 1.0,
+            "group_parameter_prior_cov": 1.0,
             "variance_prior_shape": 1,
-            "variance_prior_scale": 1
+            "variance_prior_scale": 1,
         }
         bart_model_2 = BARTModel()
         bart_model_2.sample(
@@ -1151,12 +1155,12 @@ class TestBART:
         # Specify all relevant rfx parameters as vectors
         rfx_params = {
             "model_spec": "custom",
-            "working_parameter_prior_mean": np.repeat(1., num_rfx_basis),
-            "group_parameter_prior_mean": np.repeat(1., num_rfx_basis),
+            "working_parameter_prior_mean": np.repeat(1.0, num_rfx_basis),
+            "group_parameter_prior_mean": np.repeat(1.0, num_rfx_basis),
             "working_parameter_prior_cov": np.identity(num_rfx_basis),
             "group_parameter_prior_cov": np.identity(num_rfx_basis),
             "variance_prior_shape": 1,
-            "variance_prior_scale": 1
+            "variance_prior_scale": 1,
         }
         bart_model_3 = BARTModel()
         bart_model_3.sample(
@@ -1176,9 +1180,7 @@ class TestBART:
         )
 
         # Fit a simpler intercept-only RFX model
-        rfx_params = {
-            "model_spec": "intercept_only"
-        }
+        rfx_params = {"model_spec": "intercept_only"}
         bart_model_4 = BARTModel()
         bart_model_4.sample(
             X_train=X_train,
@@ -1198,6 +1200,6 @@ class TestBART:
             basis=basis_test,
             rfx_group_ids=group_labels_test,
             type="posterior",
-            terms="rfx"
+            terms="rfx",
         )
         assert preds.shape == (n_test, num_mcmc)

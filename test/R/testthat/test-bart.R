@@ -582,6 +582,13 @@ test_that("Random Effects BART", {
       mean_forest_params = mean_forest_param_list,
       random_effects_params = rfx_param_list
     )
-    preds <- predict(bart_model, covariates = X_test, leaf_basis = W_test, rfx_group_ids = rfx_group_ids_test, type = "posterior", terms = "rfx")
+    preds <- predict(
+      bart_model,
+      covariates = X_test,
+      leaf_basis = W_test,
+      rfx_group_ids = rfx_group_ids_test,
+      type = "posterior",
+      terms = "rfx"
+    )
   })
 })
