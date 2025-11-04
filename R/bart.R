@@ -397,7 +397,7 @@ bart <- function(
           "keep_vars_mean includes some variable names that are not in X_train"
         )
       }
-      variable_subset_mu <- unname(which(
+      variable_subset_mean <- unname(which(
         names(X_train) %in% keep_vars_mean
       ))
     } else {
@@ -409,7 +409,7 @@ bart <- function(
       if (any(keep_vars_mean < 0)) {
         stop("keep_vars_mean includes some negative variable indices")
       }
-      variable_subset_mu <- keep_vars_mean
+      variable_subset_mean <- keep_vars_mean
     }
   } else if ((is.null(keep_vars_mean)) && (!is.null(drop_vars_mean))) {
     if (is.character(drop_vars_mean)) {
