@@ -34,8 +34,8 @@
 #'   - `sigma2_global_init` Starting value of global error variance parameter. Calibrated internally as `1.0*var((y_train-mean(y_train))/sd(y_train))` if not set.
 #'   - `sigma2_global_shape` Shape parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
 #'   - `sigma2_global_scale` Scale parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
-#'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/ncol(X_train)`. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in `X_train` and then set `propensity_covariate` to `'none'` adjust `keep_vars` accordingly for the `mu` or `tau` forests.
-#'   - `propensity_covariate` Whether to include the propensity score as a covariate in either or both of the forests. Enter `"none"` for neither, `"mu"` for the prognostic forest, `"tau"` for the treatment forest, and `"both"` for both forests. If this is not `"none"` and a propensity score is not provided, it will be estimated from (`X_train`, `Z_train`) using `stochtree::bart()`. Default: `"mu"`.
+#'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/ncol(X_train)`. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in `X_train` and then set `propensity_covariate` to `'none'` adjust `keep_vars` accordingly for the `prognostic` or `treatment_effect` forests.
+#'   - `propensity_covariate` Whether to include the propensity score as a covariate in either or both of the forests. Enter `"none"` for neither, `"prognostic"` for the prognostic forest, `"treatment_effect"` for the treatment forest, and `"both"` for both forests. If this is not `"none"` and a propensity score is not provided, it will be estimated from (`X_train`, `Z_train`) using `stochtree::bart()`. Default: `"mu"`.
 #'   - `adaptive_coding` Whether or not to use an "adaptive coding" scheme in which a binary treatment variable is not coded manually as (0,1) or (-1,1) but learned via parameters `b_0` and `b_1` that attach to the outcome model `[b_0 (1-Z) + b_1 Z] tau(X)`. This is ignored when Z is not binary. Default: `TRUE`.
 #'   - `control_coding_init` Initial value of the "control" group coding parameter. This is ignored when Z is not binary. Default: `-0.5`.
 #'   - `treated_coding_init` Initial value of the "treatment" group coding parameter. This is ignored when Z is not binary. Default: `0.5`.
@@ -188,7 +188,7 @@ bcf <- function(
     sigma2_global_shape = 0,
     sigma2_global_scale = 0,
     variable_weights = NULL,
-    propensity_covariate = "mu",
+    propensity_covariate = "prognostic",
     adaptive_coding = TRUE,
     control_coding_init = -0.5,
     treated_coding_init = 0.5,
@@ -898,9 +898,12 @@ bcf <- function(
   }
 
   # Check if propensity_covariate is one of the required inputs
-  if (!(propensity_covariate %in% c("mu", "tau", "both", "none"))) {
+  if (
+    !(propensity_covariate %in%
+      c("prognostic", "treatment_effect", "both", "none"))
+  ) {
     stop(
-      "propensity_covariate must equal one of 'none', 'mu', 'tau', or 'both'"
+      "propensity_covariate must equal one of 'none', 'prognostic', 'treatment_effect', or 'both'"
     )
   }
 
@@ -951,7 +954,7 @@ bcf <- function(
       rep(0, ncol(propensity_train))
     ))
     X_train <- cbind(X_train, propensity_train)
-    if (propensity_covariate == "mu") {
+    if (propensity_covariate == "prognostic") {
       variable_weights_mu <- c(
         variable_weights_mu,
         rep(1. / num_cov_orig, ncol(propensity_train))
@@ -966,7 +969,7 @@ bcf <- function(
           rep(0, ncol(propensity_train))
         )
       }
-    } else if (propensity_covariate == "tau") {
+    } else if (propensity_covariate == "treatment_effect") {
       variable_weights_mu <- c(
         variable_weights_mu,
         rep(0, ncol(propensity_train))
