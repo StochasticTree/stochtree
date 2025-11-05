@@ -143,9 +143,9 @@ class BCFModel:
             * `sigma2_global_init` (`float`): Starting value of global variance parameter. Set internally to the outcome variance (standardized if `standardize = True`) if not set here.
             * `sigma2_global_shape` (`float`): Shape parameter in the `IG(sigma2_global_shape, b_glsigma2_global_scaleobal)` global error variance model. Defaults to `0`.
             * `sigma2_global_scale` (`float`): Scale parameter in the `IG(sigma2_global_shape, b_glsigma2_global_scaleobal)` global error variance model. Defaults to `0`.
-            * `variable_weights` (`np.array`): Numeric weights reflecting the relative probability of splitting on each variable in each of the forests. Does not need to sum to 1 but cannot be negative. Defaults to `np.repeat(1/X_train.shape[1], X_train.shape[1])` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/X_train.shape[1]`. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in `X_train` and then set `propensity_covariate` to `'none'` and adjust `keep_vars` accordingly for the mu or tau forests.
-            * `propensity_covariate` (`str`): Whether to include the propensity score as a covariate in either or both of the forests. Enter `"none"` for neither, `"mu"` for the prognostic forest, `"tau"` for the treatment forest, and `"both"` for both forests.
-                If this is not `"none"` and a propensity score is not provided, it will be estimated from (`X_train`, `Z_train`) using `BARTModel`. Defaults to `"mu"`.
+            * `variable_weights` (`np.array`): Numeric weights reflecting the relative probability of splitting on each variable in each of the forests. Does not need to sum to 1 but cannot be negative. Defaults to `np.repeat(1/X_train.shape[1], X_train.shape[1])` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/X_train.shape[1]`. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in `X_train` and then set `propensity_covariate` to `'none'` and adjust `keep_vars` accordingly for the `prognostic` or `treatment_effect` forests.
+            * `propensity_covariate` (`str`): Whether to include the propensity score as a covariate in either or both of the forests. Enter `"none"` for neither, `"prognostic"` for the prognostic forest, `"treatment_effect"` for the treatment forest, and `"both"` for both forests.
+                If this is not `"none"` and a propensity score is not provided, it will be estimated from (`X_train`, `Z_train`) using `BARTModel`. Defaults to `"prognostic"`.
             * `adaptive_coding` (`bool`): Whether or not to use an "adaptive coding" scheme in which a binary treatment variable is not coded manually as (0,1) or (-1,1) but learned via
                 parameters `b_0` and `b_1` that attach to the outcome model `[b_0 (1-Z) + b_1 Z] tau(X)`. This is ignored when Z is not binary. Defaults to True.
             * `control_coding_init` (`float`): Initial value of the "control" group coding parameter. This is ignored when `Z` is not binary. Default: `-0.5`.
@@ -233,7 +233,7 @@ class BCFModel:
             "sigma2_global_shape": 0,
             "sigma2_global_scale": 0,
             "variable_weights": None,
-            "propensity_covariate": "mu",
+            "propensity_covariate": "prognostic",
             "adaptive_coding": True,
             "control_coding_init": -0.5,
             "treated_coding_init": 0.5,
@@ -789,9 +789,9 @@ class BCFModel:
             if not isinstance(sample_sigma2_leaf_tau, bool):
                 raise ValueError("sample_sigma2_leaf_tau must be a bool")
         if propensity_covariate is not None:
-            if propensity_covariate not in ["mu", "tau", "both", "none"]:
+            if propensity_covariate not in ["prognostic", "treatment_effect", "both", "none"]:
                 raise ValueError(
-                    "propensity_covariate must be one of 'mu', 'tau', 'both', or 'none'"
+                    "propensity_covariate must be one of 'prognostic', 'treatment_effect', 'both', or 'none'"
                 )
         if b_0 is not None:
             b_0 = check_scalar(
@@ -1509,9 +1509,9 @@ class BCFModel:
         ] = 0
 
         # Update covariates to include propensities if requested
-        if propensity_covariate not in ["none", "mu", "tau", "both"]:
+        if propensity_covariate not in ["none", "prognostic", "treatment_effect", "both"]:
             raise ValueError(
-                "propensity_covariate must equal one of 'none', 'mu', 'tau', or 'both'"
+                "propensity_covariate must equal one of 'none', 'prognostic', 'treatment_effect', or 'both'"
             )
         if propensity_covariate != "none":
             feature_types = np.append(
@@ -1520,14 +1520,14 @@ class BCFModel:
             X_train_processed = np.c_[X_train_processed, pi_train]
             if self.has_test:
                 X_test_processed = np.c_[X_test_processed, pi_test]
-            if propensity_covariate == "mu":
+            if propensity_covariate == "prognostic":
                 variable_weights_mu = np.append(
                     variable_weights_mu, np.repeat(1 / num_cov_orig, pi_train.shape[1])
                 )
                 variable_weights_tau = np.append(
                     variable_weights_tau, np.repeat(0.0, pi_train.shape[1])
                 )
-            elif propensity_covariate == "tau":
+            elif propensity_covariate == "treatment_effect":
                 variable_weights_mu = np.append(
                     variable_weights_mu, np.repeat(0.0, pi_train.shape[1])
                 )
