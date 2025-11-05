@@ -26,9 +26,23 @@ covariate_df <- df[, !(colnames(df) %in% c("schoolid", "Z", "Y"))]
 # Compute the true CATE function (defined in the paper)
 tau_x <- true_tau_fn(df)
 
+# Convert X1 and X2 to ordered categorical, mapping to integers
+x1_unique_key <- sort(unique(covariate_df$X1))
+x2_unique_key <- sort(unique(covariate_df$X2))
+x1_raw <- covariate_df$X1
+x2_raw <- covariate_df$X2
+x1_int <- match(covariate_df$X1, x1_unique_key)
+x2_int <- match(covariate_df$X2, x2_unique_key)
+covariate_df$X1 <- as.integer(x1_int)
+covariate_df$X2 <- as.integer(x2_int)
+raw_columns <- list(
+  X1 = x1_raw,
+  X2 = x2_raw
+)
+
 # Encode categorical data to enable proper stochtree preprocessing
 unordered_categorical_cols <- c("C1", "XC")
-ordered_categorical_cols <- c("S3", "C2", "C3")
+ordered_categorical_cols <- c("S3", "C2", "C3", "X1", "X2")
 for (col in unordered_categorical_cols) {
   covariate_df[, col] <- factor(covariate_df[, col], ordered = F)
 }
@@ -102,9 +116,152 @@ xbart_surrogate_model <- stochtree::bart(
   # ),
   mean_forest_params = list(
     # sample_sigma2_leaf = F,
-    keep_vars = c("X1", "X2", "X3", "X4", "C1")
+    # keep_vars = c("X1", "X2")
+    # keep_vars = c("X1")
+    keep_vars = c("X1")
   )
 )
 print(xbart_surrogate_model)
 plot(rowMeans(xbart_surrogate_model$y_hat_train), yhat_surrogate)
 abline(0, 1)
+
+# Build flexible additive surrogate model in each of the features we wish to inspeect
+
+# Additive XBART model for each covariate in the summary
+additive_summary_columns <- c("X1", "X2")
+xbart_list <- list()
+for (col in additive_summary_columns) {
+  xbart_list[[col]] <- stochtree::bart(
+    X_train = covariate_df[, col, drop = FALSE],
+    y_train = yhat_surrogate,
+    num_gfr = 5,
+    num_burnin = 0,
+    num_mcmc = 0,
+    mean_forest_params = list(
+      num_trees = 1,
+      alpha = 0.1,
+      beta = 3,
+      min_samples_leaf = 1000,
+      keep_vars = c(col)
+    )
+  )
+}
+
+# Data frame used for summary evaluation
+eval_df <- covariate_df
+
+# Extract bases for each feature in the XBART model
+n_train <- nrow(covariate_df)
+n_test <- nrow(eval_df)
+default_model <- xbart_list[[additive_summary_columns[1]]]
+num_trees <- default_model$mean_forests$num_trees()
+forest_ind <- default_model$model_params$num_samples - 1
+basis_list <- list()
+for (col in additive_summary_columns) {
+  leaf_mat_train <- computeForestLeafIndices(
+    xbart_list[[col]],
+    covariates = covariate_df[, col, drop = FALSE],
+    forest_type = "mean",
+    forest_inds = forest_ind
+  )
+  leaf_mat_test <- computeForestLeafIndices(
+    xbart_list[[col]],
+    covariates = eval_df[, col, drop = FALSE],
+    forest_type = "mean",
+    forest_inds = forest_ind
+  )
+  xbart_basis_train <- Matrix::sparseMatrix(
+    i = rep(1:n_train, num_trees),
+    j = leaf_mat_train + 1,
+    x = 1
+  )
+  xbart_basis_test <- Matrix::sparseMatrix(
+    i = rep(1:n_train, num_trees),
+    j = leaf_mat_test + 1,
+    x = 1
+  )
+  basis_list[[col]] <- list(
+    train_basis = xbart_basis_train,
+    test_basis = xbart_basis_test
+  )
+}
+
+# Use the bases for a projection of each posterior sample
+alpha_reg <- 1.0 / 10000.0
+posterior_projection_list = list()
+for (col in additive_summary_columns) {
+  X_train <- basis_list[[col]]$train_basis
+  X_test <- basis_list[[col]]$test_basis
+  XtX_train <- crossprod(X_train)
+  regularizer <- diag(alpha_reg, ncol(X_train))
+  XtX_train_inv <- solve(XtX_train + regularizer)
+  contrast_est <- X_test %*% tcrossprod(XtX_train_inv, X_train)
+  posterior_projection_list[[col]] <- matrix(
+    0,
+    nrow = n_test,
+    ncol = ncol(tau_hat_posterior)
+  )
+  for (i in 1:ncol(tau_hat_posterior)) {
+    if (i %% 100 == 0) {
+      cat(
+        "Projecting model",
+        i,
+        "of",
+        ncol(tau_hat_posterior),
+        "for column",
+        col,
+        "\n"
+      )
+    }
+    posterior_projection_list[[col]][, i] <- as.numeric(
+      contrast_est %*% tau_hat_posterior[, i]
+    )
+  }
+}
+
+# Compute median fit with an interval
+interval_lb_fits <- list()
+interval_ub_fits <- list()
+median_fits <- list()
+for (col in additive_summary_columns) {
+  interval_lb_fits[[col]] <- apply(
+    posterior_projection_list[[col]],
+    1,
+    function(x) quantile(x, probs = 0.025)
+  )
+  interval_ub_fits[[col]] <- apply(
+    posterior_projection_list[[col]],
+    1,
+    function(x) quantile(x, probs = 0.975)
+  )
+  median_fits[[col]] <- apply(posterior_projection_list[[col]], 1, function(x) {
+    median(x)
+  })
+}
+
+# Plot results
+par(mfrow = c(1, 2))
+for (col in additive_summary_columns) {
+  x_raw <- raw_columns[[col]]
+  plot_bounds <- c(min(interval_lb_fits[[col]]), max(interval_ub_fits[[col]]))
+  sort_inds <- order(x_raw)
+  plot(
+    x_raw[sort_inds],
+    median_fits[[col]][sort_inds],
+    ylim = plot_bounds,
+    type = "l",
+    xlab = col,
+    ylab = "CATE Projection"
+  )
+  lines(
+    x_raw[sort_inds],
+    interval_lb_fits[[col]][sort_inds],
+    ylim = plot_bounds
+  )
+  lines(
+    x_raw[sort_inds],
+    interval_ub_fits[[col]][sort_inds],
+    ylim = plot_bounds
+  )
+}
+par(mfrow = c(1, 1))
