@@ -832,7 +832,7 @@ posterior_predictive_heuristic_multiplier <- function(
 #'
 #' This function computes posterior credible intervals for specified terms from a fitted BCF model. It supports intervals for prognostic forests, CATE forests, variance forests, random effects, and overall mean outcome predictions.
 #' @param model_object A fitted BCF model object of class `bcfmodel`.
-#' @param terms A character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"cate"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`.
+#' @param terms A character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Note that `"mu"` is only different from `"prognostic_function"` if random effects are included with a model spec of `"intercept_only"` or `"intercept_plus_treatment"` and `"tau"` is only different from `"cate"` if random effects are included with a model spec of `"intercept_plus_treatment"`.
 #' @param level A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95% credible interval).
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
 #' @param covariates (Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).
@@ -895,6 +895,29 @@ compute_bcf_posterior_interval <- function(
   }
 
   # Check that all the necessary inputs were provided for interval computation
+  for (term in terms) {
+    if (
+      !(term %in%
+        c(
+          "prognostic_function",
+          "mu",
+          "cate",
+          "tau",
+          "variance_forest",
+          "rfx",
+          "y_hat",
+          "all"
+        ))
+    ) {
+      stop(
+        paste0(
+          "Term '",
+          term,
+          "' was requested. Valid terms are 'prognostic_function', 'mu', 'cate', 'tau', 'variance_forest', 'rfx', 'y_hat', and 'all'."
+        )
+      )
+    }
+  }
   needs_covariates_intermediate <- ((("y_hat" %in% terms) ||
     ("all" %in% terms)))
   needs_covariates <- (("prognostic_function" %in% terms) ||
@@ -975,16 +998,22 @@ compute_bcf_posterior_interval <- function(
         "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
       )
     }
-    if (is.null(rfx_basis)) {
-      stop(
-        "'rfx_basis' must be provided in order to compute the requested intervals"
-      )
+
+    if (model_object$model_params$rfx_model_spec == "custom") {
+      if (is.null(rfx_basis)) {
+        stop(
+          "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+        )
+      }
     }
-    if (!is.matrix(rfx_basis)) {
-      stop("'rfx_basis' must be a matrix")
-    }
-    if (nrow(rfx_basis) != nrow(covariates)) {
-      stop("'rfx_basis' must have the same number of rows as 'covariates'")
+
+    if (!is.null(rfx_basis)) {
+      if (!is.matrix(rfx_basis)) {
+        stop("'rfx_basis' must be a matrix")
+      }
+      if (nrow(rfx_basis) != nrow(covariates)) {
+        stop("'rfx_basis' must have the same number of rows as 'covariates'")
+      }
     }
   }
 
@@ -1006,11 +1035,15 @@ compute_bcf_posterior_interval <- function(
   if (has_multiple_terms) {
     result <- list()
     for (term_name in names(predictions)) {
-      result[[term_name]] <- summarize_interval(
-        predictions[[term_name]],
-        sample_dim = 2,
-        level = level
-      )
+      if (!is.null(predictions[[term_name]])) {
+        result[[term_name]] <- summarize_interval(
+          predictions[[term_name]],
+          sample_dim = 2,
+          level = level
+        )
+      } else {
+        result[[term_name]] <- NULL
+      }
     }
     return(result)
   } else {
@@ -1161,11 +1194,15 @@ compute_bart_posterior_interval <- function(
   if (has_multiple_terms) {
     result <- list()
     for (term_name in names(predictions)) {
-      result[[term_name]] <- summarize_interval(
-        predictions[[term_name]],
-        sample_dim = 2,
-        level = level
-      )
+      if (!is.null(predictions[[term_name]])) {
+        result[[term_name]] <- summarize_interval(
+          predictions[[term_name]],
+          sample_dim = 2,
+          level = level
+        )
+      } else {
+        result[[term_name]] <- NULL
+      }
     }
     return(result)
   } else {
@@ -1253,7 +1290,11 @@ bart_model_has_term <- function(model_object, term) {
 bcf_model_has_term <- function(model_object, term) {
   if (term == "prognostic_function") {
     return(TRUE)
+  } else if (term == "mu") {
+    return(TRUE)
   } else if (term == "cate") {
+    return(TRUE)
+  } else if (term == "tau") {
     return(TRUE)
   } else if (term == "variance_forest") {
     return(model_object$model_params$include_variance_forest)
@@ -1280,7 +1321,9 @@ validate_bart_term <- function(term) {
 validate_bcf_term <- function(term) {
   model_terms <- c(
     "prognostic_function",
+    "mu",
     "cate",
+    "tau",
     "variance_forest",
     "rfx",
     "y_hat",
@@ -1288,7 +1331,7 @@ validate_bcf_term <- function(term) {
   )
   if (!(term %in% model_terms)) {
     stop(
-      "'term' must be one of 'prognostic_function', 'cate', 'variance_forest', 'rfx', 'y_hat', or 'all' for bcfmodel objects"
+      "'term' must be one of 'prognostic_function', 'mu', 'cate', 'tau', 'variance_forest', 'rfx', 'y_hat', or 'all' for bcfmodel objects"
     )
   }
 }
