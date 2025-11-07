@@ -223,3 +223,100 @@ mu_hat_test = bcf_model.predict(
 
 # Compare to prognostic function returned from the larger prediction
 np.allclose(mu_hat_test, bcf_preds["mu_hat"], atol=1e-4)
+
+# Compute intervals for all of the model terms
+posterior_intervals_test = bcf_model.compute_posterior_interval(
+  terms="all",
+  scale="linear",
+  level=0.95,
+  covariates=X_test,
+  treatment=Z_test,
+  propensity=pi_test,
+  rfx_group_ids=rfx_group_ids_test,
+)
+
+# Compute intervals for just the prognostic term
+prog_intervals_test = bcf_model.compute_posterior_interval(
+  terms="prognostic_function",
+  scale="linear",
+  level=0.95,
+  covariates=X_test,
+  treatment=Z_test,
+  propensity=pi_test,
+  rfx_group_ids=rfx_group_ids_test
+)
+
+# Compute intervals for just the CATE term
+cate_intervals_test = bcf_model.compute_posterior_interval(
+  terms="cate",
+  scale="linear",
+  level=0.95,
+  covariates=X_test,
+  treatment=Z_test,
+  propensity=pi_test,
+  rfx_group_ids=rfx_group_ids_test
+)
+
+# Check that they match the corresponding terms from the full interval list
+(np.allclose(
+  posterior_intervals_test['prognostic_function']['lower'],
+  prog_intervals_test['lower'], 
+  atol=1e-4
+) and 
+np.allclose(
+  posterior_intervals_test['prognostic_function']['upper'],
+  prog_intervals_test['upper'], 
+  atol=1e-4
+) and 
+np.allclose(
+  posterior_intervals_test['cate']['lower'],
+  cate_intervals_test['lower'], 
+  atol=1e-4
+) and 
+np.allclose(
+  posterior_intervals_test['cate']['upper'],
+  cate_intervals_test['upper'], 
+  atol=1e-4
+))
+
+# Check that the prog and CATE intervals are different from the mu and tau intervals
+mu_intervals_test = bcf_model.compute_posterior_interval(
+  terms="mu",
+  scale="linear",
+  level=0.95,
+  covariates=X_test,
+  treatment=Z_test,
+  propensity=pi_test,
+  rfx_group_ids=rfx_group_ids_test
+)
+tau_intervals_test = bcf_model.compute_posterior_interval(
+  terms="tau",
+  scale="linear",
+  level=0.95,
+  covariates=X_test,
+  treatment=Z_test,
+  propensity=pi_test,
+  rfx_group_ids=rfx_group_ids_test
+)
+
+(not (np.allclose(
+  mu_intervals_test['lower'],
+  prog_intervals_test['lower'], 
+  atol=1e-4
+)) and 
+not (np.allclose(
+  mu_intervals_test['upper'],
+  prog_intervals_test['upper'], 
+  atol=1e-4
+)) and 
+not (np.allclose(
+  tau_intervals_test['lower'],
+  cate_intervals_test['lower'], 
+  atol=1e-4
+)) and 
+not (np.allclose(
+  tau_intervals_test['upper'],
+  cate_intervals_test['upper'], 
+  atol=1e-4
+))
+)

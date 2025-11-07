@@ -2358,7 +2358,7 @@ class BCFModel:
         mu_prog_separate = rfx_intercept
         tau_cate_separate = rfx_intercept_plus_treatment
         if not isinstance(terms, str) and not isinstance(terms, list):
-            raise ValueError("type must be a string or list of strings")
+            raise ValueError("'terms' must be a string or list of strings")
         for term in terms:
             if term not in [
                 "y_hat",
@@ -2856,7 +2856,7 @@ class BCFModel:
         Parameters
         ----------
         terms : str, optional
-            Character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"cate"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Defaults to `"all"`.
+            Character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Defaults to `"all"`. Note that `"mu"` is only different from `"prognostic_function"` if random effects are included with a model spec of `"intercept_only"` or `"intercept_plus_treatment"` and `"tau"` is only different from `"cate"` if random effects are included with a model spec of `"intercept_plus_treatment"`.
         scale : str, optional
             Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
         level : float, optional
@@ -2880,6 +2880,10 @@ class BCFModel:
         # Check the provided model object and requested term
         if not self.is_sampled():
             raise ValueError("Model has not yet been sampled")
+        if not isinstance(terms, str) and not isinstance(terms, list):
+            raise ValueError("terms must be a string or list of strings")
+        if isinstance(terms, str):
+            terms = [terms]
         for term in terms:
             if not self.has_term(term):
                 warnings.warn(
@@ -2897,7 +2901,21 @@ class BCFModel:
                 "scale cannot be 'probability' for models not fit with a probit outcome model"
             )
 
-        # Check that all the necessary inputs were provided for interval computation
+        # Handle prediction terms
+        for term in terms:
+            if term not in [
+                "y_hat",
+                "prognostic_function",
+                "mu",
+                "cate",
+                "tau",
+                "rfx",
+                "variance_forest",
+                "all",
+            ]:
+                raise ValueError(
+                    f"term '{term}' was requested. Valid terms are 'y_hat', 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', and 'all'"
+                )
         needs_covariates_intermediate = ("y_hat" in terms) or ("all" in terms)
         needs_covariates = (
             ("prognostic_function" in terms)
@@ -2957,16 +2975,18 @@ class BCFModel:
                 raise ValueError(
                     "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
                 )
-            if rfx_basis is None:
-                raise ValueError(
-                    "'rfx_basis' must be provided in order to compute the requested intervals"
-                )
-            if not isinstance(rfx_basis, np.ndarray):
-                raise ValueError("'rfx_basis' must be a numpy array")
-            if rfx_basis.shape[0] != covariates.shape[0]:
-                raise ValueError(
-                    "'rfx_basis' must have the same number of rows as 'covariates'"
-                )
+            if self.rfx_model_spec == "custom":
+                if rfx_basis is None:
+                    raise ValueError(
+                        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+                    )
+            if rfx_basis is not None:
+                if not isinstance(rfx_basis, np.ndarray):
+                    raise ValueError("'rfx_basis' must be a numpy array")
+                if rfx_basis.shape[0] != covariates.shape[0]:
+                    raise ValueError(
+                        "'rfx_basis' must have the same number of rows as 'covariates'"
+                    )
 
         # Compute posterior matrices for the requested model terms
         predictions = self.predict(
@@ -3511,7 +3531,7 @@ class BCFModel:
         Parameters
         ----------
         term : str
-            Character string specifying the model term to check for. Options for BCF models are `"prognostic_function"`, `"cate"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`.
+            Character string specifying the model term to check for. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`.
 
         Returns
         -------
@@ -3520,7 +3540,11 @@ class BCFModel:
         """
         if term == "prognostic_function":
             return True
+        if term == "mu":
+            return True
         if term == "cate":
+            return True
+        if term == "tau":
             return True
         elif term == "variance_forest":
             return self.include_variance_forest
