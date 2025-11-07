@@ -2646,7 +2646,7 @@ bcf <- function(
 #' that were not in the training set.
 #' @param rfx_basis (Optional) Test set basis for "random-slope" regression in additive random effects model. If the model was sampled with a random effects `model_spec` of "intercept_only" or "intercept_plus_treatment", this is optional, but if it is provided, it will be used.
 #' @param type (Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BCF model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
-#' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "cate", "rfx", "variance_forest", or "all". If a model doesn't have random effects or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
+#' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "mu", "cate", "tau", "rfx", "variance_forest", or "all". If a model doesn't have random effects or variance forest predictions, but one of those terms is request, the request will simply be ignored. If a model has random effects fit with either "intercept_only" or "intercept_plus_treatment" model_spec, then "prognostic_function" refers to the predictions of the prognostic forest plus the random intercept and "cate" refers to the predictions of the treatment effect forest plus the random slope on the treatment variable. For these models, the forest predictions alone can be requested via "mu" (prognostic forest) and "tau" (treatment effect forest). In all other cases, "mu" will return exactly the same result as "prognostic_function" and "tau" will return exactly the same result as "cate". If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
 #' @param ... (Optional) Other prediction parameters.
 #'
@@ -2738,10 +2738,33 @@ predict.bcfmodel <- function(
   # Handle prediction terms
   rfx_model_spec = object$model_params$rfx_model_spec
   rfx_intercept_only <- rfx_model_spec == "intercept_only"
-  rfx_intercept_plus_treatment <- (rfx_model_spec == "intercept_plus_treatment")
+  rfx_intercept_plus_treatment <- rfx_model_spec == "intercept_plus_treatment"
   rfx_intercept <- rfx_intercept_only || rfx_intercept_plus_treatment
+  mu_prog_separate <- ifelse(rfx_intercept, TRUE, FALSE)
+  tau_cate_separate <- ifelse(rfx_intercept_plus_treatment, TRUE, FALSE)
   if (!is.character(terms)) {
     stop("type must be a string or character vector")
+  }
+  for (term in terms) {
+    if (
+      !(term %in%
+        c(
+          "y_hat",
+          "prognostic_function",
+          "mu",
+          "cate",
+          "tau",
+          "rfx",
+          "variance_forest",
+          "all"
+        ))
+    ) {
+      stop(paste0(
+        "Term '",
+        term,
+        "' was requested. Valid terms are 'y_hat', 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', and 'all'."
+      ))
+    }
   }
   num_terms <- length(terms)
   has_mu_forest <- T
@@ -2751,10 +2774,14 @@ predict.bcfmodel <- function(
   has_y_hat <- T
   predict_y_hat <- (((has_y_hat) && ("y_hat" %in% terms)) ||
     ((has_y_hat) && ("all" %in% terms)))
-  predict_mu_forest <- (((has_mu_forest) &&
+  predict_mu_forest <- (((has_mu_forest) && ("all" %in% terms)) ||
+    ((has_mu_forest) && ("mu" %in% terms)))
+  predict_tau_forest <- (((has_tau_forest) && ("tau" %in% terms)) ||
+    ((has_tau_forest) && ("all" %in% terms)))
+  predict_prog_function <- (((has_mu_forest) &&
     ("prognostic_function" %in% terms)) ||
     ((has_mu_forest) && ("all" %in% terms)))
-  predict_tau_forest <- (((has_tau_forest) && ("cate" %in% terms)) ||
+  predict_cate_function <- (((has_tau_forest) && ("cate" %in% terms)) ||
     ((has_tau_forest) && ("all" %in% terms)))
   predict_rfx <- (((has_rfx) && ("rfx" %in% terms)) ||
     ((has_rfx) && ("all" %in% terms)))
@@ -2764,7 +2791,9 @@ predict.bcfmodel <- function(
   predict_count <- sum(c(
     predict_y_hat,
     predict_mu_forest,
+    predict_prog_function,
     predict_tau_forest,
+    predict_cate_function,
     predict_rfx,
     predict_variance_forest
   ))
@@ -2777,10 +2806,13 @@ predict.bcfmodel <- function(
     return(NULL)
   }
   predict_rfx_intermediate <- (predict_y_hat && has_rfx)
-  predict_rfx_raw <- ((predict_mu_forest && has_rfx && rfx_intercept) ||
-    (predict_tau_forest && has_rfx && rfx_intercept_plus_treatment))
-  predict_mu_forest_intermediate <- (predict_y_hat && has_mu_forest)
-  predict_tau_forest_intermediate <- (predict_y_hat && has_tau_forest)
+  predict_rfx_raw <- ((predict_prog_function && has_rfx && rfx_intercept) ||
+    (predict_cate_function && has_rfx && rfx_intercept_plus_treatment))
+  predict_mu_forest_intermediate <- ((predict_y_hat || predict_prog_function) &&
+    has_mu_forest)
+  predict_tau_forest_intermediate <- ((predict_y_hat ||
+    predict_cate_function) &&
+    has_tau_forest)
 
   # Make sure covariates are matrix or data frame
   if ((!is.data.frame(X)) && (!is.matrix(X))) {
@@ -2983,19 +3015,19 @@ predict.bcfmodel <- function(
   }
 
   # Add raw RFX predictions to mu and tau if warranted by the RFX model spec
-  if (predict_mu_forest || predict_mu_forest_intermediate) {
-    if (rfx_intercept && predict_rfx_raw) {
-      mu_hat_final <- mu_hat_forest + rfx_predictions_raw[, 1, ]
+  if (predict_prog_function) {
+    if (mu_prog_separate) {
+      prognostic_function <- mu_hat_forest + rfx_predictions_raw[, 1, ]
     } else {
-      mu_hat_final <- mu_hat_forest
+      prognostic_function <- mu_hat_forest
     }
   }
-  if (predict_tau_forest || predict_tau_forest_intermediate) {
-    if (rfx_intercept_plus_treatment && predict_rfx_raw) {
-      tau_hat_final <- (tau_hat_forest +
+  if (predict_cate_function) {
+    if (tau_cate_separate) {
+      cate <- (tau_hat_forest +
         rfx_predictions_raw[, 2:ncol(rfx_basis), ])
     } else {
-      tau_hat_final <- tau_hat_forest
+      cate <- tau_hat_forest
     }
   }
 
@@ -3003,6 +3035,8 @@ predict.bcfmodel <- function(
   needs_mean_term_preds <- predict_y_hat ||
     predict_mu_forest ||
     predict_tau_forest ||
+    predict_prog_function ||
+    predict_cate_function ||
     predict_rfx
   if (needs_mean_term_preds) {
     if (probability_scale) {
@@ -3019,10 +3053,16 @@ predict.bcfmodel <- function(
         }
       }
       if (predict_mu_forest) {
-        mu_hat <- pnorm(mu_hat_final)
+        mu_hat <- pnorm(mu_hat_forest)
       }
       if (predict_tau_forest) {
-        tau_hat <- pnorm(tau_hat_final)
+        tau_hat <- pnorm(tau_hat_forest)
+      }
+      if (predict_prog_function) {
+        prognostic_function <- pnorm(prognostic_function)
+      }
+      if (predict_cate_function) {
+        cate <- pnorm(cate)
       }
     } else {
       if (has_rfx) {
@@ -3035,10 +3075,16 @@ predict.bcfmodel <- function(
         }
       }
       if (predict_mu_forest) {
-        mu_hat <- mu_hat_final
+        mu_hat <- mu_hat_forest
       }
       if (predict_tau_forest) {
-        tau_hat <- tau_hat_final
+        tau_hat <- tau_hat_forest
+      }
+      if (predict_prog_function) {
+        prognostic_function <- prognostic_function
+      }
+      if (predict_cate_function) {
+        cate <- cate
       }
     }
   }
@@ -3053,6 +3099,16 @@ predict.bcfmodel <- function(
         tau_hat <- apply(tau_hat, c(1, 2), mean)
       } else {
         tau_hat <- rowMeans(tau_hat)
+      }
+    }
+    if (predict_prog_function) {
+      prognostic_function <- rowMeans(prognostic_function)
+    }
+    if (predict_cate_function) {
+      if (object$model_params$multivariate_treatment) {
+        cate <- apply(cate, c(1, 2), mean)
+      } else {
+        cate <- rowMeans(cate)
       }
     }
     if (predict_rfx) {
@@ -3071,6 +3127,10 @@ predict.bcfmodel <- function(
       return(mu_hat)
     } else if (predict_tau_forest) {
       return(tau_hat)
+    } else if (predict_prog_function) {
+      return(prognostic_function)
+    } else if (predict_cate_function) {
+      return(cate)
     } else if (predict_rfx) {
       return(rfx_predictions)
     } else if (predict_variance_forest) {
@@ -3092,6 +3152,16 @@ predict.bcfmodel <- function(
       result[["tau_hat"]] = tau_hat
     } else {
       result[["tau_hat"]] <- NULL
+    }
+    if (predict_prog_function) {
+      result[["prognostic_function"]] = prognostic_function
+    } else {
+      result[["prognostic_function"]] <- NULL
+    }
+    if (predict_cate_function) {
+      result[["cate"]] = cate
+    } else {
+      result[["cate"]] <- NULL
     }
     if (predict_rfx) {
       result[["rfx_predictions"]] = rfx_predictions
