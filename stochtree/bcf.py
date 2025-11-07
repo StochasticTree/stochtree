@@ -2877,18 +2877,9 @@ class BCFModel:
         dict
             A dict containing the lower and upper bounds of the credible interval for the specified term. If multiple terms are requested, a dict with intervals for each term is returned.
         """
-        # Check the provided model object and requested term
+        # Check the provided model object
         if not self.is_sampled():
             raise ValueError("Model has not yet been sampled")
-        if not isinstance(terms, str) and not isinstance(terms, list):
-            raise ValueError("terms must be a string or list of strings")
-        if isinstance(terms, str):
-            terms = [terms]
-        for term in terms:
-            if not self.has_term(term):
-                warnings.warn(
-                    f"Term {term} was not sampled in this model and its intervals will not be returned."
-                )
 
         # Handle mean function scale
         if not isinstance(scale, str):
@@ -2910,6 +2901,10 @@ class BCFModel:
                     )
 
         # Handle prediction terms
+        if not isinstance(terms, str) and not isinstance(terms, list):
+            raise ValueError("terms must be a string or list of strings")
+        if isinstance(terms, str):
+            terms = [terms]
         for term in terms:
             if term not in [
                 "y_hat",
