@@ -2901,6 +2901,14 @@ class BCFModel:
                 "scale cannot be 'probability' for models not fit with a probit outcome model"
             )
 
+        # Warn users about CATE / prognostic function when rfx_model_spec is "custom"
+        if self.has_rfx:
+            if self.rfx_model_spec == "custom":
+                if "prognostic_function" in terms or "cate" in terms:
+                    warnings.warn(
+                        "This BCF model was fit with a custom random effects model specification (i.e. a user-provided basis). As a result, 'prognostic_function' and 'cate' refer only to the prognostic ('mu') and treatment effect 'tau' forests, respectively, and do not include any random effects contributions. If your user-provided random effects basis includes a random intercept or a random slope on the treatment variable, you will need to compute the prognostic or CATE functions manually by predicting 'y_hat' for different covariate and rfx_basis values."
+                    )
+
         # Handle prediction terms
         for term in terms:
             if term not in [

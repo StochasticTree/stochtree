@@ -2735,6 +2735,22 @@ predict.bcfmodel <- function(
   }
   predict_mean <- type == "mean"
 
+  # Warn users about CATE / prognostic function when rfx_model_spec is "custom"
+  if (object$model_params$has_rfx) {
+    if (object$model_params$rfx_model_spec == "custom") {
+      if (("prognostic_function" %in% terms) || ("cate" %in% terms)) {
+        warning(paste0(
+          "This BCF model was fit with a custom random effects model specification (i.e. a user-provided basis). ",
+          "As a result, 'prognostic_function' and 'cate' refer only to the prognostic ('mu') ",
+          "and treatment effect 'tau' forests, respectively, and do not include any random ",
+          "effects contributions. If your user-provided random effects basis includes a random intercept or a ",
+          "random slope on the treatment variable, you will need to compute the prognostic or CATE functions manually by predicting ",
+          "'yhat' for different covariate and rfx_basis values."
+        ))
+      }
+    }
+  }
+
   # Handle prediction terms
   rfx_model_spec = object$model_params$rfx_model_spec
   rfx_intercept_only <- rfx_model_spec == "intercept_only"
