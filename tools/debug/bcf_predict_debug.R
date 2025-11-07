@@ -354,3 +354,119 @@ tau_hat_test <- predict(
 
 # Compare to prognostic function returned from the larger prediction
 all(abs(tau_hat_test - posterior_preds_test$tau_hat) < 0.0001)
+
+# Compute intervals for all of the model terms
+posterior_intervals_test <- compute_bcf_posterior_interval(
+  model_object = bcf_model,
+  scale = "linear",
+  terms = "all",
+  covariates = X_test,
+  treatment = Z_test,
+  propensity = pi_test,
+  rfx_group_ids = rfx_group_ids_test,
+  level = 0.95
+)
+
+# Compute intervals for just the prognostic term
+prog_intervals_test <- compute_bcf_posterior_interval(
+  model_object = bcf_model,
+  scale = "linear",
+  terms = "prognostic_function",
+  covariates = X_test,
+  treatment = Z_test,
+  propensity = pi_test,
+  rfx_group_ids = rfx_group_ids_test,
+  level = 0.95
+)
+
+# Compute intervals for just the CATE term
+cate_intervals_test <- compute_bcf_posterior_interval(
+  model_object = bcf_model,
+  scale = "linear",
+  terms = "cate",
+  covariates = X_test,
+  treatment = Z_test,
+  propensity = pi_test,
+  rfx_group_ids = rfx_group_ids_test,
+  level = 0.95
+)
+
+# Check that they match the corresponding terms from the full interval list
+all(
+  abs(
+    posterior_intervals_test$prognostic_function$lower -
+      prog_intervals_test$lower
+  ) <
+    0.0001
+)
+all(
+  abs(
+    posterior_intervals_test$prognostic_function$upper -
+      prog_intervals_test$upper
+  ) <
+    0.0001
+)
+all(
+  abs(
+    posterior_intervals_test$cate$lower -
+      cate_intervals_test$lower
+  ) <
+    0.0001
+)
+all(
+  abs(
+    posterior_intervals_test$cate$upper -
+      cate_intervals_test$upper
+  ) <
+    0.0001
+)
+
+# Check that the prog and CATE intervals are different from the mu and tau intervals
+mu_intervals_test <- compute_bcf_posterior_interval(
+  model_object = bcf_model,
+  scale = "linear",
+  terms = "mu",
+  covariates = X_test,
+  treatment = Z_test,
+  propensity = pi_test,
+  rfx_group_ids = rfx_group_ids_test,
+  level = 0.95
+)
+tau_intervals_test <- compute_bcf_posterior_interval(
+  model_object = bcf_model,
+  scale = "linear",
+  terms = "tau",
+  covariates = X_test,
+  treatment = Z_test,
+  propensity = pi_test,
+  rfx_group_ids = rfx_group_ids_test,
+  level = 0.95
+)
+all(
+  abs(
+    mu_intervals_test$lower -
+      prog_intervals_test$lower
+  ) >
+    0.0001
+)
+all(
+  abs(
+    mu_intervals_test$upper -
+      prog_intervals_test$upper
+  ) >
+    0.0001
+)
+all(
+  abs(
+    tau_intervals_test$lower -
+      cate_intervals_test$lower
+  ) >
+    0.0001
+)
+all(
+  abs(
+    tau_intervals_test$upper -
+      cate_intervals_test$upper
+  ) >
+    0.0001
+)
