@@ -1700,6 +1700,21 @@ class BARTModel:
         predict_mean = type == "mean"
 
         # Handle prediction terms
+        if not isinstance(terms, str) and not isinstance(terms, list):
+            raise ValueError("terms must be a string or list of strings")
+        if isinstance(terms, str):
+            terms = [terms]
+        for term in terms:
+            if term not in [
+                "y_hat",
+                "mean_forest",
+                "rfx",
+                "variance_forest",
+                "all",
+            ]:
+                raise ValueError(
+                    f"term '{term}' was requested. Valid terms are 'y_hat', 'mean_forest', 'rfx', 'variance_forest', and 'all'"
+                )
         rfx_model_spec = self.rfx_model_spec
         rfx_intercept = rfx_model_spec == "intercept_only"
         if not isinstance(terms, str) and not isinstance(terms, list):
@@ -2116,14 +2131,9 @@ class BARTModel:
         dict
             A dict containing the lower and upper bounds of the credible interval for the specified term. If multiple terms are requested, a dict with intervals for each term is returned.
         """
-        # Check the provided model object and requested terms
+        # Check the provided model object
         if not self.is_sampled():
             raise ValueError("Model has not yet been sampled")
-        for term in terms:
-            if not self.has_term(term):
-                warnings.warn(
-                    f"Term {term} was not sampled in this model and its intervals will not be returned."
-                )
 
         # Handle mean function scale
         if not isinstance(scale, str):
@@ -2136,7 +2146,22 @@ class BARTModel:
                 "scale cannot be 'probability' for models not fit with a probit outcome model"
             )
 
-        # Check that all the necessary inputs were provided for interval computation
+        # Handle prediction terms
+        if not isinstance(terms, str) and not isinstance(terms, list):
+            raise ValueError("terms must be a string or list of strings")
+        if isinstance(terms, str):
+            terms = [terms]
+        for term in terms:
+            if term not in [
+                "y_hat",
+                "mean_forest",
+                "rfx",
+                "variance_forest",
+                "all",
+            ]:
+                raise ValueError(
+                    f"term '{term}' was requested. Valid terms are 'y_hat', 'mean_forest', 'rfx', 'variance_forest', and 'all'"
+                )
         needs_covariates_intermediate = (
             ("y_hat" in terms) or ("all" in terms)
         ) and self.include_mean_forest

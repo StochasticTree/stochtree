@@ -2321,7 +2321,7 @@ class BCFModel:
         type : str, optional
             Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
         terms : str, optional
-            Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "cate", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
+            Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "mu", "cate", "tau", "rfx", "variance_forest", or "all". If a model has random effects fit with either "intercept_only" or "intercept_plus_treatment" model_spec, then "prognostic_function" refers to the predictions of the prognostic forest plus the random intercept and "cate" refers to the predictions of the treatment effect forest plus the random slope on the treatment variable. For these models, the forest predictions alone can be requested via "mu" (prognostic forest) and "tau" (treatment effect forest). In all other cases, "mu" will return exactly the same result as "prognostic_function" and "tau" will return exactly the same result as "cate". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
         scale : str, optional
             Scale on which to return predictions. Options are "linear" (the default), which returns predictions on the original outcome scale, and "probit", which returns predictions on the probit (latent) scale. Only applicable for models fit with `probit_outcome_model=True`.
 
@@ -2349,12 +2349,30 @@ class BCFModel:
         predict_mean = type == "mean"
 
         # Handle prediction terms
+        if isinstance(terms, str):
+            terms = [terms]
         rfx_model_spec = self.rfx_model_spec
         rfx_intercept_only = rfx_model_spec == "intercept_only"
         rfx_intercept_plus_treatment = rfx_model_spec == "intercept_plus_treatment"
         rfx_intercept = rfx_intercept_only or rfx_intercept_plus_treatment
+        mu_prog_separate = rfx_intercept
+        tau_cate_separate = rfx_intercept_plus_treatment
         if not isinstance(terms, str) and not isinstance(terms, list):
-            raise ValueError("type must be a string or list of strings")
+            raise ValueError("'terms' must be a string or list of strings")
+        for term in terms:
+            if term not in [
+                "y_hat",
+                "prognostic_function",
+                "mu",
+                "cate",
+                "tau",
+                "rfx",
+                "variance_forest",
+                "all",
+            ]:
+                raise ValueError(
+                    f"term '{term}' was requested. Valid terms are 'y_hat', 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', and 'all'"
+                )
         num_terms = 1 if isinstance(terms, str) else len(terms)
         has_mu_forest = True
         has_tau_forest = True
@@ -2364,10 +2382,16 @@ class BCFModel:
         predict_y_hat = (has_y_hat and ("y_hat" in terms)) or (
             has_y_hat and ("all" in terms)
         )
-        predict_mu_forest = (has_mu_forest and ("prognostic_function" in terms)) or (
+        predict_mu_forest = (has_mu_forest and ("mu" in terms)) or (
             has_mu_forest and ("all" in terms)
         )
-        predict_tau_forest = (has_tau_forest and ("cate" in terms)) or (
+        predict_tau_forest = (has_tau_forest and ("tau" in terms)) or (
+            has_tau_forest and ("all" in terms)
+        )
+        predict_prog_function = (has_mu_forest and ("prognostic_function" in terms)) or (
+            has_mu_forest and ("all" in terms)
+        )
+        predict_cate_function = (has_tau_forest and ("cate" in terms)) or (
             has_tau_forest and ("all" in terms)
         )
         predict_rfx = (has_rfx and ("rfx" in terms)) or (has_rfx and ("all" in terms))
@@ -2377,7 +2401,9 @@ class BCFModel:
         predict_count = (
             predict_y_hat
             + predict_mu_forest
+            + predict_prog_function
             + predict_tau_forest
+            + predict_cate_function
             + predict_rfx
             + predict_variance_forest
         )
@@ -2388,11 +2414,11 @@ class BCFModel:
             )
             return None
         predict_rfx_intermediate = predict_y_hat and has_rfx
-        predict_rfx_raw = (predict_mu_forest and has_rfx and rfx_intercept) or (
-            predict_tau_forest and has_rfx and rfx_intercept_plus_treatment
+        predict_rfx_raw = (predict_prog_function and has_rfx and rfx_intercept) or (
+            predict_cate_function and has_rfx and rfx_intercept_plus_treatment
         )
-        predict_mu_forest_intermediate = predict_y_hat and has_mu_forest
-        predict_tau_forest_intermediate = predict_y_hat and has_tau_forest
+        predict_mu_forest_intermediate = (predict_y_hat or predict_prog_function) and has_mu_forest
+        predict_tau_forest_intermediate = (predict_y_hat or predict_cate_function) and has_tau_forest
 
         if not self.is_sampled():
             msg = (
@@ -2512,17 +2538,29 @@ class BCFModel:
                 raise ValueError(
                     "rfx_group_ids must be provided if rfx_basis is provided"
                 )
-            if rfx_basis is not None:
-                if rfx_basis.ndim == 1:
-                    rfx_basis = np.expand_dims(rfx_basis, 1)
-                if rfx_basis.shape[0] != X.shape[0]:
+            
+            if self.rfx_model_spec == "custom":
+                if rfx_basis is None:
                     raise ValueError(
-                        "X and rfx_basis must have the same number of rows"
+                        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
                     )
-                if rfx_basis.shape[1] != self.num_rfx_basis:
-                    raise ValueError(
-                        "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
-                    )
+            elif self.rfx_model_spec == "intercept_only":
+                if rfx_basis is None:
+                    rfx_basis = np.ones(shape=(X.shape[0], 1))
+            elif self.rfx_model_spec == "intercept_plus_treatment":
+                if rfx_basis is None:
+                    rfx_basis = np.concatenate((np.ones(shape=(X.shape[0], 1)), Z), axis=1)
+
+            if rfx_basis.ndim == 1:
+                rfx_basis = np.expand_dims(rfx_basis, 1)
+            if rfx_basis.shape[0] != X.shape[0]:
+                raise ValueError(
+                    "X and rfx_basis must have the same number of rows"
+                )
+            if rfx_basis.shape[1] != self.num_rfx_basis:
+                raise ValueError(
+                    "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
+                )
 
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
@@ -2557,20 +2595,20 @@ class BCFModel:
                 )
 
         # Add raw RFX predictions to mu and tau if warranted by the RFX model spec
-        if predict_mu_forest or predict_mu_forest_intermediate:
-            if rfx_intercept and predict_rfx_raw:
-                mu_x = mu_x_forest + np.squeeze(rfx_predictions_raw[:, 0, :])
+        if predict_prog_function:
+            if mu_prog_separate:
+                prognostic_function = mu_x_forest + np.squeeze(rfx_predictions_raw[:, 0, :])
             else:
-                mu_x = mu_x_forest
-        if predict_tau_forest or predict_tau_forest_intermediate:
-            if rfx_intercept_plus_treatment and predict_rfx_raw:
-                tau_x = tau_x_forest + np.squeeze(rfx_predictions_raw[:, 1:, :])
+                prognostic_function = mu_x_forest
+        if predict_cate_function:
+            if tau_cate_separate:
+                cate = tau_x_forest + np.squeeze(rfx_predictions_raw[:, 1:, :])
             else:
-                tau_x = tau_x_forest
+                cate = tau_x_forest
 
         # Combine into y hat predictions
         needs_mean_term_preds = (
-            predict_y_hat or predict_mu_forest or predict_tau_forest or predict_rfx
+            predict_y_hat or predict_mu_forest or predict_prog_function or predict_tau_forest or predict_cate_function or predict_rfx
         )
         if needs_mean_term_preds:
             if probability_scale:
@@ -2583,9 +2621,13 @@ class BCFModel:
                     if predict_y_hat:
                         y_hat = norm.cdf(mu_x_forest + treatment_term)
                 if predict_mu_forest:
-                    mu_x = norm.cdf(mu_x)
+                    mu_x = norm.cdf(mu_x_forest)
                 if predict_tau_forest:
-                    tau_x = norm.cdf(tau_x)
+                    tau_x = norm.cdf(tau_x_forest)
+                if predict_prog_function:
+                    prognostic_function = norm.cdf(prognostic_function)
+                if predict_cate_function:
+                    cate = norm.cdf(cate)
             else:
                 if has_rfx:
                     if predict_y_hat:
@@ -2594,9 +2636,13 @@ class BCFModel:
                     if predict_y_hat:
                         y_hat = mu_x_forest + treatment_term
                 if predict_mu_forest:
-                    mu_x = mu_x
+                    mu_x = mu_x_forest
                 if predict_tau_forest:
-                    tau_x = tau_x
+                    tau_x = tau_x_forest
+                if predict_prog_function:
+                    prognostic_function = prognostic_function
+                if predict_cate_function:
+                    cate = cate
 
         # Collapse to posterior mean predictions if requested
         if predict_mean:
@@ -2607,6 +2653,13 @@ class BCFModel:
                     tau_x = np.mean(tau_x, axis=2)
                 else:
                     tau_x = np.mean(tau_x, axis=1)
+            if predict_prog_function:
+                prognostic_function = np.mean(prognostic_function, axis=1)
+            if predict_cate_function:
+                if Z.shape[1] > 1:
+                    cate = np.mean(cate, axis=2)
+                else:
+                    cate = np.mean(cate, axis=1)
             if predict_rfx:
                 rfx_preds = np.mean(rfx_preds, axis=1)
             if predict_y_hat:
@@ -2617,8 +2670,12 @@ class BCFModel:
                 return y_hat
             elif predict_mu_forest:
                 return mu_x
+            elif predict_prog_function:
+                return prognostic_function
             elif predict_tau_forest:
                 return tau_x
+            elif predict_cate_function:
+                return cate
             elif predict_rfx:
                 return rfx_preds
             elif predict_variance_forest:
@@ -2637,6 +2694,14 @@ class BCFModel:
                 result["tau_hat"] = tau_x
             else:
                 result["tau_hat"] = None
+            if predict_prog_function:
+                result["prognostic_function"] = prognostic_function
+            else:
+                result["prognostic_function"] = None
+            if predict_cate_function:
+                result["cate"] = cate
+            else:
+                result["cate"] = None
             if predict_rfx:
                 result["rfx_predictions"] = rfx_preds
             else:
@@ -2791,7 +2856,7 @@ class BCFModel:
         Parameters
         ----------
         terms : str, optional
-            Character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"cate"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Defaults to `"all"`.
+            Character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Defaults to `"all"`. Note that `"mu"` is only different from `"prognostic_function"` if random effects are included with a model spec of `"intercept_only"` or `"intercept_plus_treatment"` and `"tau"` is only different from `"cate"` if random effects are included with a model spec of `"intercept_plus_treatment"`.
         scale : str, optional
             Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
         level : float, optional
@@ -2812,14 +2877,9 @@ class BCFModel:
         dict
             A dict containing the lower and upper bounds of the credible interval for the specified term. If multiple terms are requested, a dict with intervals for each term is returned.
         """
-        # Check the provided model object and requested term
+        # Check the provided model object
         if not self.is_sampled():
             raise ValueError("Model has not yet been sampled")
-        for term in terms:
-            if not self.has_term(term):
-                warnings.warn(
-                    f"Term {term} was not sampled in this model and its intervals will not be returned."
-                )
 
         # Handle mean function scale
         if not isinstance(scale, str):
@@ -2832,7 +2892,33 @@ class BCFModel:
                 "scale cannot be 'probability' for models not fit with a probit outcome model"
             )
 
-        # Check that all the necessary inputs were provided for interval computation
+        # Warn users about CATE / prognostic function when rfx_model_spec is "custom"
+        if self.has_rfx:
+            if self.rfx_model_spec == "custom":
+                if "prognostic_function" in terms or "cate" in terms:
+                    warnings.warn(
+                        "This BCF model was fit with a custom random effects model specification (i.e. a user-provided basis). As a result, 'prognostic_function' and 'cate' refer only to the prognostic ('mu') and treatment effect 'tau' forests, respectively, and do not include any random effects contributions. If your user-provided random effects basis includes a random intercept or a random slope on the treatment variable, you will need to compute the prognostic or CATE functions manually by predicting 'y_hat' for different covariate and rfx_basis values."
+                    )
+
+        # Handle prediction terms
+        if not isinstance(terms, str) and not isinstance(terms, list):
+            raise ValueError("terms must be a string or list of strings")
+        if isinstance(terms, str):
+            terms = [terms]
+        for term in terms:
+            if term not in [
+                "y_hat",
+                "prognostic_function",
+                "mu",
+                "cate",
+                "tau",
+                "rfx",
+                "variance_forest",
+                "all",
+            ]:
+                raise ValueError(
+                    f"term '{term}' was requested. Valid terms are 'y_hat', 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', and 'all'"
+                )
         needs_covariates_intermediate = ("y_hat" in terms) or ("all" in terms)
         needs_covariates = (
             ("prognostic_function" in terms)
@@ -2892,16 +2978,18 @@ class BCFModel:
                 raise ValueError(
                     "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
                 )
-            if rfx_basis is None:
-                raise ValueError(
-                    "'rfx_basis' must be provided in order to compute the requested intervals"
-                )
-            if not isinstance(rfx_basis, np.ndarray):
-                raise ValueError("'rfx_basis' must be a numpy array")
-            if rfx_basis.shape[0] != covariates.shape[0]:
-                raise ValueError(
-                    "'rfx_basis' must have the same number of rows as 'covariates'"
-                )
+            if self.rfx_model_spec == "custom":
+                if rfx_basis is None:
+                    raise ValueError(
+                        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+                    )
+            if rfx_basis is not None:
+                if not isinstance(rfx_basis, np.ndarray):
+                    raise ValueError("'rfx_basis' must be a numpy array")
+                if rfx_basis.shape[0] != covariates.shape[0]:
+                    raise ValueError(
+                        "'rfx_basis' must have the same number of rows as 'covariates'"
+                    )
 
         # Compute posterior matrices for the requested model terms
         predictions = self.predict(
@@ -3446,7 +3534,7 @@ class BCFModel:
         Parameters
         ----------
         term : str
-            Character string specifying the model term to check for. Options for BCF models are `"prognostic_function"`, `"cate"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`.
+            Character string specifying the model term to check for. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`.
 
         Returns
         -------
@@ -3455,7 +3543,11 @@ class BCFModel:
         """
         if term == "prognostic_function":
             return True
+        if term == "mu":
+            return True
         if term == "cate":
+            return True
+        if term == "tau":
             return True
         elif term == "variance_forest":
             return self.include_variance_forest
