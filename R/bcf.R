@@ -912,26 +912,23 @@ bcf <- function(
   if ((is.null(propensity_train)) && (propensity_covariate != "none")) {
     internal_propensity_model <- TRUE
     # Estimate using the last of several iterations of GFR BART
-    num_burnin <- 10
-    num_total <- 50
+    num_gfr_propensity <- 10
+    num_burnin_propensity <- 0
+    num_mcmc_propensity <- 10
     bart_model_propensity <- bart(
       X_train = X_train,
       y_train = as.numeric(Z_train),
       X_test = X_test_raw,
-      num_gfr = num_total,
-      num_burnin = 0,
-      num_mcmc = 0
+      num_gfr = num_gfr_propensity,
+      num_burnin = num_burnin_propensity,
+      num_mcmc = num_mcmc_propensity
     )
-    propensity_train <- rowMeans(bart_model_propensity$y_hat_train[,
-      (num_burnin + 1):num_total
-    ])
+    propensity_train <- rowMeans(bart_model_propensity$y_hat_train)
     if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
       propensity_train <- as.matrix(propensity_train)
     }
     if (has_test) {
-      propensity_test <- rowMeans(bart_model_propensity$y_hat_test[,
-        (num_burnin + 1):num_total
-      ])
+      propensity_test <- rowMeans(bart_model_propensity$y_hat_test)
       if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
         propensity_test <- as.matrix(propensity_test)
       }
