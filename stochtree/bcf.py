@@ -1169,13 +1169,17 @@ class BCFModel:
                 )
             else:
                 self.bart_propensity_model = BARTModel()
+                num_gfr_propensity = 10
+                num_burnin_propensity = 0
+                num_mcmc_propensity = 10
                 if self.has_test:
                     self.bart_propensity_model.sample(
                         X_train=X_train_processed,
                         y_train=Z_train,
                         X_test=X_test_processed,
-                        num_gfr=10,
-                        num_mcmc=10,
+                        num_gfr=num_gfr_propensity,
+                        num_burnin=num_burnin_propensity,
+                        num_mcmc=num_mcmc_propensity
                     )
                     pi_train = np.mean(
                         self.bart_propensity_model.y_hat_train, axis=1, keepdims=True
@@ -1187,8 +1191,9 @@ class BCFModel:
                     self.bart_propensity_model.sample(
                         X_train=X_train_processed,
                         y_train=Z_train,
-                        num_gfr=10,
-                        num_mcmc=10,
+                        num_gfr=num_gfr_propensity,
+                        num_burnin=num_burnin_propensity,
+                        num_mcmc=num_mcmc_propensity
                     )
                     pi_train = np.mean(
                         self.bart_propensity_model.y_hat_train, axis=1, keepdims=True
