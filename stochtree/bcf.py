@@ -1656,7 +1656,6 @@ class BCFModel:
         if sample_sigma2_leaf_tau:
             self.leaf_scale_tau_samples = np.empty(self.num_samples, dtype=np.float64)
         muhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
-        tauhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
         if self.include_variance_forest:
             sigma2_x_train_raw = np.empty(
                 (self.n_train, self.num_samples), dtype=np.float64
@@ -2442,7 +2441,6 @@ class BCFModel:
                 raise ValueError(
                     f"term '{term}' was requested. Valid terms are 'y_hat', 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', and 'all'"
                 )
-        num_terms = 1 if isinstance(terms, str) else len(terms)
         has_mu_forest = True
         has_tau_forest = True
         has_variance_forest = self.include_variance_forest

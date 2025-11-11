@@ -334,13 +334,19 @@ def _expand_dims_2d_diag(
         )
     return output
 
-def _posterior_predictive_heuristic_multiplier(num_samples: int, num_observations: int) -> int:
+
+def _posterior_predictive_heuristic_multiplier(
+    num_samples: int, num_observations: int
+) -> int:
     if num_samples >= 1000:
         return 1
     else:
         return math.ceil(1000 / num_samples)
 
-def _summarize_interval(array: np.ndarray, sample_dim: int = 2, level: float = 0.95) -> dict:
+
+def _summarize_interval(
+    array: np.ndarray, sample_dim: int = 2, level: float = 0.95
+) -> dict:
     # Check that the array is numeric and at least 2 dimensional
     if not isinstance(array, np.ndarray):
         raise ValueError("`array` must be a numpy array")
@@ -348,7 +354,11 @@ def _summarize_interval(array: np.ndarray, sample_dim: int = 2, level: float = 0
         raise ValueError("`array` must be a numeric numpy array")
     if not len(array.shape) >= 2:
         raise ValueError("`array` must be at least a 2-dimensional numpy array")
-    if not _check_is_int(sample_dim) or (sample_dim < 0) or (sample_dim >= len(array.shape)):
+    if (
+        not _check_is_int(sample_dim)
+        or (sample_dim < 0)
+        or (sample_dim >= len(array.shape))
+    ):
         raise ValueError(
             "`sample_dim` must be an integer between 0 and the number of dimensions of `array` - 1"
         )

@@ -339,9 +339,9 @@ class CovariatePreprocessor:
         self._onehot_feature_index = np.array(
             [-1 for i in range(self._num_original_features)], dtype=int
         )
-        self._original_feature_types = np.array(
-            ["float" for i in range(self._num_original_features)]
-        )
+        self._original_feature_types = np.array([
+            "float" for i in range(self._num_original_features)
+        ])
 
         # Check whether the array is numeric
         cov_dtype = covariates.dtype
@@ -443,9 +443,9 @@ class CovariatePreprocessor:
             raise ValueError(
                 "Attempting to call transform from a CovariateTransformer that was fit on a dataset with different dimensionality"
             )
-        self._original_feature_indices = np.array(
-            [i for i in range(covariates.shape[1])]
-        )
+        self._original_feature_indices = np.array([
+            i for i in range(covariates.shape[1])
+        ])
         return covariates
 
     def _transform(self, covariates: Union[pd.DataFrame, np.array]) -> np.array:
