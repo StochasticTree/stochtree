@@ -19,7 +19,9 @@ y = f_X + eps
 
 # Train test split
 test_set_pct = 0.2
-train_inds, test_inds = train_test_split(np.arange(n), test_size=test_set_pct, random_state=1234)
+train_inds, test_inds = train_test_split(
+    np.arange(n), test_size=test_set_pct, random_state=1234
+)
 n_test = len(test_inds)
 n_train = len(train_inds)
 X_test = X[test_inds, :]
@@ -31,30 +33,34 @@ E_y_train = f_X[train_inds]
 
 # Attempt to fit a GFR-only predictive model
 xbart_model = BARTModel()
-xbart_model.sample(X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=0)
+xbart_model.sample(
+    X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=0
+)
 
 # Inspect the model fit
 y_hat_test = xbart_model.predict(X_test, type="mean", terms="y_hat")
 plt.scatter(y_hat_test, y_test)
-plt.axline((0, 0), slope=1, color="red", linestyle='dashed', linewidth=1.5)
+plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
 plt.xlabel("Predicted Outcome Mean")
 plt.ylabel("True Outcome")
-plt.xlim(np.min(y_hat_test)*0.9, np.max(y_hat_test)*1.1)
+plt.xlim(np.min(y_hat_test) * 0.9, np.max(y_hat_test) * 1.1)
 plt.ylim(np.min(y), np.max(y))
 plt.show()
 
 # Not great! Let's add a few MCMC samples and see how it shakes out
 bart_model = BARTModel()
-bart_model.sample(X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=10)
+bart_model.sample(
+    X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=10
+)
 
 # Inspect the model fit
 y_hat_test = bart_model.predict(X_test, type="mean", terms="y_hat")
 plt.clf()
 plt.scatter(y_hat_test, y_test)
-plt.axline((0, 0), slope=1, color="red", linestyle='dashed', linewidth=1.5)
+plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
 plt.xlabel("Predicted Outcome Mean")
 plt.ylabel("True Outcome")
-plt.xlim(np.min(y_hat_test)*0.9, np.max(y_hat_test)*1.1)
+plt.xlim(np.min(y_hat_test) * 0.9, np.max(y_hat_test) * 1.1)
 plt.ylim(np.min(y), np.max(y))
 plt.show()
 
@@ -70,7 +76,9 @@ eps = rng.normal(0, 1, n)
 y = f_X + eps
 
 # Train test split
-train_inds, test_inds = train_test_split(np.arange(n), test_size=test_set_pct, random_state=1234)
+train_inds, test_inds = train_test_split(
+    np.arange(n), test_size=test_set_pct, random_state=1234
+)
 n_test = len(test_inds)
 n_train = len(train_inds)
 X_test = X[test_inds, :]
@@ -82,31 +90,35 @@ E_y_train = f_X[train_inds]
 
 # Attempt to fit a GFR-only predictive model
 xbart_model = BARTModel()
-xbart_model.sample(X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=0)
+xbart_model.sample(
+    X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=0
+)
 
 # Inspect the model fit
 y_hat_test = xbart_model.predict(X_test, type="mean", terms="y_hat")
 plt.clf()
 plt.scatter(y_hat_test, y_test)
-plt.axline((0, 0), slope=1, color="red", linestyle='dashed', linewidth=1.5)
+plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
 plt.xlabel("Predicted Outcome Mean")
 plt.ylabel("True Outcome")
-plt.xlim(np.min(y_hat_test)*0.9, np.max(y_hat_test)*1.1)
+plt.xlim(np.min(y_hat_test) * 0.9, np.max(y_hat_test) * 1.1)
 plt.ylim(np.min(y), np.max(y))
 plt.show()
 
 # Also not great! Let's add a few MCMC samples and see how it shakes out
 bart_model = BARTModel()
-bart_model.sample(X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=10)
+bart_model.sample(
+    X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=10
+)
 
 # Inspect the model fit
 y_hat_test = bart_model.predict(X_test, type="mean", terms="y_hat")
 plt.clf()
 plt.scatter(y_hat_test, y_test)
-plt.axline((0, 0), slope=1, color="red", linestyle='dashed', linewidth=1.5)
+plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
 plt.xlabel("Predicted Outcome Mean")
 plt.ylabel("True Outcome")
-plt.xlim(np.min(y_hat_test)*0.9, np.max(y_hat_test)*1.1)
+plt.xlim(np.min(y_hat_test) * 0.9, np.max(y_hat_test) * 1.1)
 plt.ylim(np.min(y), np.max(y))
 plt.show()
 
@@ -126,7 +138,9 @@ eps = rng.normal(0, 1, n)
 y = E_Y_XZ + eps
 
 # Train test split
-train_inds, test_inds = train_test_split(np.arange(n), test_size=test_set_pct, random_state=1234)
+train_inds, test_inds = train_test_split(
+    np.arange(n), test_size=test_set_pct, random_state=1234
+)
 n_test = len(test_inds)
 n_train = len(train_inds)
 X_test = X[test_inds, :]
@@ -140,31 +154,51 @@ propensity_train = pi_X[train_inds]
 
 # Attempt to fit a GFR-only BCF model
 xbcf_model = BCFModel()
-xbcf_model.sample(X_train=X_train, Z_train=Z_train, pi_train = propensity_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=0)
+xbcf_model.sample(
+    X_train=X_train,
+    Z_train=Z_train,
+    pi_train=propensity_train,
+    y_train=y_train,
+    num_gfr=10,
+    num_burnin=0,
+    num_mcmc=0,
+)
 
 # Inspect the model fit
-y_hat_test = xbcf_model.predict(X=X_test, Z=Z_test, propensity=propensity_test, type="mean", terms="y_hat")
+y_hat_test = xbcf_model.predict(
+    X=X_test, Z=Z_test, propensity=propensity_test, type="mean", terms="y_hat"
+)
 plt.clf()
 plt.scatter(y_hat_test, y_test)
-plt.axline((0, 0), slope=1, color="red", linestyle='dashed', linewidth=1.5)
+plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
 plt.xlabel("Predicted Outcome Mean")
 plt.ylabel("True Outcome")
-plt.xlim(np.min(y_hat_test)*0.9, np.max(y_hat_test)*1.1)
+plt.xlim(np.min(y_hat_test) * 0.9, np.max(y_hat_test) * 1.1)
 plt.ylim(np.min(y), np.max(y))
 plt.show()
 
 # Not great! Let's add a few MCMC samples and see how it shakes out
 bcf_model = BCFModel()
-bcf_model.sample(X_train=X_train, Z_train=Z_train, pi_train = propensity_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=10)
+bcf_model.sample(
+    X_train=X_train,
+    Z_train=Z_train,
+    pi_train=propensity_train,
+    y_train=y_train,
+    num_gfr=10,
+    num_burnin=0,
+    num_mcmc=10,
+)
 
 # Inspect the model fit
-y_hat_test = bcf_model.predict(X=X_test, Z=Z_test, propensity=propensity_test, type="mean", terms="y_hat")
+y_hat_test = bcf_model.predict(
+    X=X_test, Z=Z_test, propensity=propensity_test, type="mean", terms="y_hat"
+)
 plt.clf()
 plt.scatter(y_hat_test, y_test)
-plt.axline((0, 0), slope=1, color="red", linestyle='dashed', linewidth=1.5)
+plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
 plt.xlabel("Predicted Outcome Mean")
 plt.ylabel("True Outcome")
-plt.xlim(np.min(y_hat_test)*0.9, np.max(y_hat_test)*1.1)
+plt.xlim(np.min(y_hat_test) * 0.9, np.max(y_hat_test) * 1.1)
 plt.ylim(np.min(y), np.max(y))
 plt.show()
 
@@ -184,7 +218,9 @@ eps = rng.normal(0, 1, n)
 y = E_Y_XZ + eps
 
 # Train test split
-train_inds, test_inds = train_test_split(np.arange(n), test_size=test_set_pct, random_state=1234)
+train_inds, test_inds = train_test_split(
+    np.arange(n), test_size=test_set_pct, random_state=1234
+)
 n_test = len(test_inds)
 n_train = len(train_inds)
 X_test = X[test_inds, :]
@@ -198,30 +234,50 @@ propensity_train = pi_X[train_inds]
 
 # Attempt to fit a GFR-only predictive model
 xbcf_model = BCFModel()
-xbcf_model.sample(X_train=X_train, Z_train=Z_train, pi_train = propensity_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=0)
+xbcf_model.sample(
+    X_train=X_train,
+    Z_train=Z_train,
+    pi_train=propensity_train,
+    y_train=y_train,
+    num_gfr=10,
+    num_burnin=0,
+    num_mcmc=0,
+)
 
 # Inspect the model fit
-y_hat_test = xbcf_model.predict(X=X_test, Z=Z_test, propensity=propensity_test, type="mean", terms="y_hat")
+y_hat_test = xbcf_model.predict(
+    X=X_test, Z=Z_test, propensity=propensity_test, type="mean", terms="y_hat"
+)
 plt.clf()
 plt.scatter(y_hat_test, y_test)
-plt.axline((0, 0), slope=1, color="red", linestyle='dashed', linewidth=1.5)
+plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
 plt.xlabel("Predicted Outcome Mean")
 plt.ylabel("True Outcome")
-plt.xlim(np.min(y_hat_test)*0.9, np.max(y_hat_test)*1.1)
+plt.xlim(np.min(y_hat_test) * 0.9, np.max(y_hat_test) * 1.1)
 plt.ylim(np.min(y), np.max(y))
 plt.show()
 
 # Not great! Let's add a few MCMC samples and see how it shakes out
 bcf_model = BCFModel()
-bcf_model.sample(X_train=X_train, Z_train=Z_train, pi_train = propensity_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=10)
+bcf_model.sample(
+    X_train=X_train,
+    Z_train=Z_train,
+    pi_train=propensity_train,
+    y_train=y_train,
+    num_gfr=10,
+    num_burnin=0,
+    num_mcmc=10,
+)
 
 # Inspect the model fit
-y_hat_test = bcf_model.predict(X=X_test, Z=Z_test, propensity=propensity_test, type="mean", terms="y_hat")
+y_hat_test = bcf_model.predict(
+    X=X_test, Z=Z_test, propensity=propensity_test, type="mean", terms="y_hat"
+)
 plt.clf()
 plt.scatter(y_hat_test, y_test)
-plt.axline((0, 0), slope=1, color="red", linestyle='dashed', linewidth=1.5)
+plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
 plt.xlabel("Predicted Outcome Mean")
 plt.ylabel("True Outcome")
-plt.xlim(np.min(y_hat_test)*0.9, np.max(y_hat_test)*1.1)
+plt.xlim(np.min(y_hat_test) * 0.9, np.max(y_hat_test) * 1.1)
 plt.ylim(np.min(y), np.max(y))
 plt.show()
