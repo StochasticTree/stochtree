@@ -367,20 +367,20 @@ class RandomEffectsContainer:
         return self.rfx_container_cpp.Predict(
             rfx_dataset.rfx_dataset_cpp, self.rfx_label_mapper_cpp
         )
-    
+
     def extract_parameter_samples(self) -> dict[str, np.ndarray]:
         """
-        Extract the random effects parameters sampled. With the "redundant parameterization" of Gelman et al (2008), 
-        this includes four parameters: alpha (the "working parameter" shared across every group), xi 
-        (the "group parameter" sampled separately for each group), beta (the product of alpha and xi, 
-        which corresponds to the overall group-level random effects), and sigma (group-independent prior 
+        Extract the random effects parameters sampled. With the "redundant parameterization" of Gelman et al (2008),
+        this includes four parameters: alpha (the "working parameter" shared across every group), xi
+        (the "group parameter" sampled separately for each group), beta (the product of alpha and xi,
+        which corresponds to the overall group-level random effects), and sigma (group-independent prior
         variance for each component of xi).
 
         Returns
         -------
         dict[str, np.ndarray]
-            dict of arrays. The alpha array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`. 
-            The xi and beta arrays have dimension (`num_components`, `num_groups`, `num_samples`) and are simply matrices if `num_components = 1`. 
+            dict of arrays. The alpha array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`.
+            The xi and beta arrays have dimension (`num_components`, `num_groups`, `num_samples`) and are simply matrices if `num_components = 1`.
             The sigma array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`.
         """
         # num_samples = self.rfx_container_cpp.NumSamples()
@@ -391,10 +391,10 @@ class RandomEffectsContainer:
         alpha_samples = np.squeeze(self.rfx_container_cpp.GetAlpha())
         sigma_samples = np.squeeze(self.rfx_container_cpp.GetSigma())
         output = {
-            "beta_samples": beta_samples, 
+            "beta_samples": beta_samples,
             "xi_samples": xi_samples,
             "alpha_samples": alpha_samples,
-            "sigma_samples": sigma_samples
+            "sigma_samples": sigma_samples,
         }
         return output
 

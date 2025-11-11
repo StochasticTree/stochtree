@@ -765,19 +765,8 @@ class BARTModel:
                     )
             previous_bart_model = BARTModel()
             previous_bart_model.from_json(previous_model_json)
-            previous_y_bar = previous_bart_model.y_bar
             previous_y_scale = previous_bart_model.y_std
             previous_model_num_samples = previous_bart_model.num_samples
-            if previous_bart_model.include_mean_forest:
-                previous_forest_samples_mean = previous_bart_model.forest_container_mean
-            else:
-                previous_forest_samples_mean = None
-            if previous_bart_model.include_variance_forest:
-                previous_forest_samples_variance = (
-                    previous_bart_model.forest_container_variance
-                )
-            else:
-                previous_forest_samples_variance = None
             if previous_bart_model.sample_sigma2_global:
                 previous_global_var_samples = previous_bart_model.global_var_samples / (
                     previous_y_scale * previous_y_scale
@@ -788,22 +777,14 @@ class BARTModel:
                 previous_leaf_var_samples = previous_bart_model.leaf_scale_samples
             else:
                 previous_leaf_var_samples = None
-            if previous_bart_model.has_rfx:
-                previous_rfx_samples = previous_bart_model.rfx_container
-            else:
-                previous_rfx_samples = None
             if previous_model_warmstart_sample_num + 1 > previous_model_num_samples:
                 raise ValueError(
                     "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
                 )
         else:
-            previous_y_bar = None
             previous_y_scale = None
             previous_global_var_samples = None
             previous_leaf_var_samples = None
-            previous_rfx_samples = None
-            previous_forest_samples_mean = None
-            previous_forest_samples_variance = None
             previous_model_num_samples = 0
 
         # Update variable weights if the covariates have been resized (by e.g. one-hot encoding)
@@ -1772,7 +1753,6 @@ class BARTModel:
         rfx_intercept = rfx_model_spec == "intercept_only"
         if not isinstance(terms, str) and not isinstance(terms, list):
             raise ValueError("type must be a string or list of strings")
-        num_terms = 1 if isinstance(terms, str) else len(terms)
         has_mean_forest = self.include_mean_forest
         has_variance_forest = self.include_variance_forest
         has_rfx = self.has_rfx
