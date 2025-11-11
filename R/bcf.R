@@ -548,7 +548,7 @@ bcf <- function(
         paste0(
           "Covariate(s) ",
           paste(covs_warning_2, collapse = ", "),
-          " have fewer than 15 unique values. ",
+          " have fewer than 20 unique values. ",
           "This might present some issues with the grow-from-root (GFR) algorithm. ",
           "Consider running with `num_mcmc > 0` and `num_burnin > 0` to improve your model's performance."
         )

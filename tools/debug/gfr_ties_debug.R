@@ -156,7 +156,7 @@ propensity_train <- pi_x[train_inds]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
 
-# Attempt to fit a GFR-only predictive model
+# Attempt to fit a GFR-only BCF model
 xbcf_model <- bcf(
   X_train = X_train,
   Z_train = Z_train,
@@ -202,7 +202,7 @@ y_hat_test <- predict(
 plot(y_hat_test, y_test)
 abline(0, 1)
 
-# Generate covariates that are essentially categorical, but real-valued
+# Generate covariates that are zero-inflated
 X <- matrix(NA_real_, n, p)
 for (i in 1:p) {
   p_zero <- runif(1, 0.1, 0.9)
@@ -232,7 +232,7 @@ propensity_train <- pi_x[train_inds]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
 
-# Attempt to fit a GFR-only predictive model
+# Attempt to fit a GFR-only BCF model
 xbcf_model <- bcf(
   X_train = X_train,
   Z_train = Z_train,
