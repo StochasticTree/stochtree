@@ -1,5 +1,6 @@
 import warnings
 from typing import Any, Dict, Optional, Union
+from math import floor
 
 import numpy as np
 import pandas as pd
@@ -552,6 +553,59 @@ class BCFModel:
             if X_test.shape[0] != pi_test.shape[0]:
                 raise ValueError("X_test and pi_test must have the same number of rows")
 
+        # Raise a warning if the data have ties and only GFR is being run
+        if (num_gfr > 0) and (num_burnin == 0) and (num_mcmc == 0):
+            num_values, num_cov_orig = X_train.shape
+            max_grid_size = floor(num_values / cutpoint_grid_size)
+            covs_warning_1 = []
+            covs_warning_2 = []
+            covs_warning_3 = []
+            for i in range(num_cov_orig):
+                # Determine the number of unique covariate values and a name for the covariate
+                if isinstance(X_train, np.ndarray):
+                    x_j_hist = np.unique_counts(X_train[:, i]).counts
+                    cov_name = f"X{i + 1}"
+                else:
+                    x_j_hist = (X_train.iloc[:, i]).value_counts()
+                    cov_name = X_train.columns[i]
+
+                # Check for a small relative number of unique values
+                num_unique_values = len(x_j_hist)
+                unique_full_ratio = num_unique_values / num_values
+                if unique_full_ratio < 0.2:
+                    covs_warning_1.append(cov_name)
+
+                # Check for a small absolute number of unique values
+                if num_values > 100:
+                    if num_unique_values < 20:
+                        covs_warning_2.append(cov_name)
+
+                # Check for a large number of duplicates of any individual value
+                if np.any(x_j_hist > 2 * max_grid_size):
+                    covs_warning_3.append(cov_name)
+
+            if covs_warning_1:
+                warnings.warn(
+                    f"Covariate(s) {', '.join(covs_warning_1)} have a ratio of unique to overall observations of less than 0.2. "
+                    "This might present some issues with the grow-from-root (GFR) algorithm. "
+                    "Consider running with `num_mcmc > 0` and `num_burnin > 0` to improve your model's performance."
+                )
+
+            if covs_warning_2:
+                warnings.warn(
+                    f"Covariate(s) {', '.join(covs_warning_2)} have fewer than 20 unique values. "
+                    "This might present some issues with the grow-from-root (GFR) algorithm. "
+                    "Consider running with `num_mcmc > 0` and `num_burnin > 0` to improve your model's performance."
+                )
+
+            if covs_warning_3:
+                warnings.warn(
+                    f"Covariates {', '.join(covs_warning_3)} have some observed values with more than "
+                    f"{2 * max_grid_size} repeated observations. "
+                    "This might present some issues with the grow-from-root (GFR) algorithm. "
+                    "Consider running with `num_mcmc > 0` and `num_burnin > 0` to improve your model's performance."
+                )
+
         # Prognostic model details
         leaf_dimension_mu = 1
         leaf_model_mu = 0
@@ -789,7 +843,12 @@ class BCFModel:
             if not isinstance(sample_sigma2_leaf_tau, bool):
                 raise ValueError("sample_sigma2_leaf_tau must be a bool")
         if propensity_covariate is not None:
-            if propensity_covariate not in ["prognostic", "treatment_effect", "both", "none"]:
+            if propensity_covariate not in [
+                "prognostic",
+                "treatment_effect",
+                "both",
+                "none",
+            ]:
                 raise ValueError(
                     "propensity_covariate must be one of 'prognostic', 'treatment_effect', 'both', or 'none'"
                 )
@@ -1179,7 +1238,7 @@ class BCFModel:
                         X_test=X_test_processed,
                         num_gfr=num_gfr_propensity,
                         num_burnin=num_burnin_propensity,
-                        num_mcmc=num_mcmc_propensity
+                        num_mcmc=num_mcmc_propensity,
                     )
                     pi_train = np.mean(
                         self.bart_propensity_model.y_hat_train, axis=1, keepdims=True
@@ -1193,7 +1252,7 @@ class BCFModel:
                         y_train=Z_train,
                         num_gfr=num_gfr_propensity,
                         num_burnin=num_burnin_propensity,
-                        num_mcmc=num_mcmc_propensity
+                        num_mcmc=num_mcmc_propensity,
                     )
                     pi_train = np.mean(
                         self.bart_propensity_model.y_hat_train, axis=1, keepdims=True
@@ -1514,7 +1573,12 @@ class BCFModel:
         ] = 0
 
         # Update covariates to include propensities if requested
-        if propensity_covariate not in ["none", "prognostic", "treatment_effect", "both"]:
+        if propensity_covariate not in [
+            "none",
+            "prognostic",
+            "treatment_effect",
+            "both",
+        ]:
             raise ValueError(
                 "propensity_covariate must equal one of 'none', 'prognostic', 'treatment_effect', or 'both'"
             )
@@ -2393,9 +2457,9 @@ class BCFModel:
         predict_tau_forest = (has_tau_forest and ("tau" in terms)) or (
             has_tau_forest and ("all" in terms)
         )
-        predict_prog_function = (has_mu_forest and ("prognostic_function" in terms)) or (
-            has_mu_forest and ("all" in terms)
-        )
+        predict_prog_function = (
+            has_mu_forest and ("prognostic_function" in terms)
+        ) or (has_mu_forest and ("all" in terms))
         predict_cate_function = (has_tau_forest and ("cate" in terms)) or (
             has_tau_forest and ("all" in terms)
         )
@@ -2422,8 +2486,12 @@ class BCFModel:
         predict_rfx_raw = (predict_prog_function and has_rfx and rfx_intercept) or (
             predict_cate_function and has_rfx and rfx_intercept_plus_treatment
         )
-        predict_mu_forest_intermediate = (predict_y_hat or predict_prog_function) and has_mu_forest
-        predict_tau_forest_intermediate = (predict_y_hat or predict_cate_function) and has_tau_forest
+        predict_mu_forest_intermediate = (
+            predict_y_hat or predict_prog_function
+        ) and has_mu_forest
+        predict_tau_forest_intermediate = (
+            predict_y_hat or predict_cate_function
+        ) and has_tau_forest
 
         if not self.is_sampled():
             msg = (
@@ -2543,7 +2611,7 @@ class BCFModel:
                 raise ValueError(
                     "rfx_group_ids must be provided if rfx_basis is provided"
                 )
-            
+
             if self.rfx_model_spec == "custom":
                 if rfx_basis is None:
                     raise ValueError(
@@ -2554,14 +2622,14 @@ class BCFModel:
                     rfx_basis = np.ones(shape=(X.shape[0], 1))
             elif self.rfx_model_spec == "intercept_plus_treatment":
                 if rfx_basis is None:
-                    rfx_basis = np.concatenate((np.ones(shape=(X.shape[0], 1)), Z), axis=1)
+                    rfx_basis = np.concatenate(
+                        (np.ones(shape=(X.shape[0], 1)), Z), axis=1
+                    )
 
             if rfx_basis.ndim == 1:
                 rfx_basis = np.expand_dims(rfx_basis, 1)
             if rfx_basis.shape[0] != X.shape[0]:
-                raise ValueError(
-                    "X and rfx_basis must have the same number of rows"
-                )
+                raise ValueError("X and rfx_basis must have the same number of rows")
             if rfx_basis.shape[1] != self.num_rfx_basis:
                 raise ValueError(
                     "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
@@ -2602,7 +2670,9 @@ class BCFModel:
         # Add raw RFX predictions to mu and tau if warranted by the RFX model spec
         if predict_prog_function:
             if mu_prog_separate:
-                prognostic_function = mu_x_forest + np.squeeze(rfx_predictions_raw[:, 0, :])
+                prognostic_function = mu_x_forest + np.squeeze(
+                    rfx_predictions_raw[:, 0, :]
+                )
             else:
                 prognostic_function = mu_x_forest
         if predict_cate_function:
@@ -2613,7 +2683,12 @@ class BCFModel:
 
         # Combine into y hat predictions
         needs_mean_term_preds = (
-            predict_y_hat or predict_mu_forest or predict_prog_function or predict_tau_forest or predict_cate_function or predict_rfx
+            predict_y_hat
+            or predict_mu_forest
+            or predict_prog_function
+            or predict_tau_forest
+            or predict_cate_function
+            or predict_rfx
         )
         if needs_mean_term_preds:
             if probability_scale:
@@ -3472,9 +3547,10 @@ class BCFModel:
                     global_var_samples = json_object_list[i].get_numeric_vector(
                         "sigma2_global_samples", "parameters"
                     )
-                    self.global_var_samples = np.concatenate(
-                        (self.global_var_samples, global_var_samples)
-                    )
+                    self.global_var_samples = np.concatenate((
+                        self.global_var_samples,
+                        global_var_samples,
+                    ))
 
         if self.sample_sigma2_leaf_mu:
             for i in range(len(json_object_list)):
@@ -3486,9 +3562,10 @@ class BCFModel:
                     leaf_scale_mu_samples = json_object_list[i].get_numeric_vector(
                         "sigma2_leaf_mu_samples", "parameters"
                     )
-                    self.leaf_scale_mu_samples = np.concatenate(
-                        (self.leaf_scale_mu_samples, leaf_scale_mu_samples)
-                    )
+                    self.leaf_scale_mu_samples = np.concatenate((
+                        self.leaf_scale_mu_samples,
+                        leaf_scale_mu_samples,
+                    ))
 
         if self.sample_sigma2_leaf_tau:
             for i in range(len(json_object_list)):
@@ -3500,9 +3577,10 @@ class BCFModel:
                     sample_sigma2_leaf_tau = json_object_list[i].get_numeric_vector(
                         "sigma2_leaf_tau_samples", "parameters"
                     )
-                    self.sample_sigma2_leaf_tau = np.concatenate(
-                        (self.sample_sigma2_leaf_tau, sample_sigma2_leaf_tau)
-                    )
+                    self.sample_sigma2_leaf_tau = np.concatenate((
+                        self.sample_sigma2_leaf_tau,
+                        sample_sigma2_leaf_tau,
+                    ))
 
         # Unpack internal propensity model
         if self.internal_propensity_model:

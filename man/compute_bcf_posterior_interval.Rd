@@ -19,7 +19,7 @@ compute_bcf_posterior_interval(
 \arguments{
 \item{model_object}{A fitted BCF model object of class \code{bcfmodel}.}
 
-\item{terms}{A character string specifying the model term(s) for which to compute intervals. Options for BCF models are \code{"prognostic_function"}, \code{"cate"}, \code{"variance_forest"}, \code{"rfx"}, or \code{"y_hat"}.}
+\item{terms}{A character string specifying the model term(s) for which to compute intervals. Options for BCF models are \code{"prognostic_function"}, \code{"mu"}, \code{"cate"}, \code{"tau"}, \code{"variance_forest"}, \code{"rfx"}, or \code{"y_hat"}. Note that \code{"mu"} is only different from \code{"prognostic_function"} if random effects are included with a model spec of \code{"intercept_only"} or \code{"intercept_plus_treatment"} and \code{"tau"} is only different from \code{"cate"} if random effects are included with a model spec of \code{"intercept_plus_treatment"}.}
 
 \item{level}{A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95\% credible interval).}
 

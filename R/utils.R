@@ -1084,3 +1084,33 @@ expand_dims_2d_diag <- function(input, output_size) {
   }
   return(output)
 }
+
+
+gfr_tie_checks <- function(covariates) {
+  num_vars <- ncol(covariates)
+  for (j in 1:num_vars) {
+    x_j <- covariates[, j]
+    if (has_few_unique_values(x_j)) {
+      warning_message <- paste0(
+        "Covariate column ",
+        j,
+        " has relatively few unique values. ",
+        "This may lead to tied values when sampling split points in BART/BCF, ",
+        "which can cause errors during model fitting. ",
+        "Consider adding small amounts of noise to this variable to break ties."
+      )
+      warning(warning_message)
+    }
+  }
+}
+
+
+has_few_unique_values <- function(
+  x,
+  count_threshold = 15
+) {
+  x_unique <- unique(x)
+  num_unique_values <- length(unique_values)
+  unique_to_total_count_ratio <- num_unique_values / length(x)
+  return(num_unique_values <= threshold)
+}

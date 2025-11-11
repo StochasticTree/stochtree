@@ -1,5 +1,5 @@
 import warnings
-from math import log
+from math import log, floor
 from numbers import Integral
 from typing import Any, Dict, Optional, Union
 
@@ -450,6 +450,59 @@ class BARTModel:
             if X_test.shape[0] != leaf_basis_test.shape[0]:
                 raise ValueError(
                     "X_test and leaf_basis_test must have the same number of rows"
+                )
+
+        # Raise a warning if the data have ties and only GFR is being run
+        if (num_gfr > 0) and (num_burnin == 0) and (num_mcmc == 0):
+            num_values, num_cov_orig = X_train.shape
+            max_grid_size = floor(num_values / cutpoint_grid_size)
+            covs_warning_1 = []
+            covs_warning_2 = []
+            covs_warning_3 = []
+            for i in range(num_cov_orig):
+                # Determine the number of unique covariate values and a name for the covariate
+                if isinstance(X_train, np.ndarray):
+                    x_j_hist = np.unique_counts(X_train[:, i]).counts
+                    cov_name = f"X{i + 1}"
+                else:
+                    x_j_hist = (X_train.iloc[:, i]).value_counts()
+                    cov_name = X_train.columns[i]
+
+                # Check for a small relative number of unique values
+                num_unique_values = len(x_j_hist)
+                unique_full_ratio = num_unique_values / num_values
+                if unique_full_ratio < 0.2:
+                    covs_warning_1.append(cov_name)
+
+                # Check for a small absolute number of unique values
+                if num_values > 100:
+                    if num_unique_values < 20:
+                        covs_warning_2.append(cov_name)
+
+                # Check for a large number of duplicates of any individual value
+                if np.any(x_j_hist > 2 * max_grid_size):
+                    covs_warning_3.append(cov_name)
+
+            if covs_warning_1:
+                warnings.warn(
+                    f"Covariate(s) {', '.join(covs_warning_1)} have a ratio of unique to overall observations of less than 0.2. "
+                    "This might present some issues with the grow-from-root (GFR) algorithm. "
+                    "Consider running with `num_mcmc > 0` and `num_burnin > 0` to improve your model's performance."
+                )
+
+            if covs_warning_2:
+                warnings.warn(
+                    f"Covariate(s) {', '.join(covs_warning_2)} have fewer than 20 unique values. "
+                    "This might present some issues with the grow-from-root (GFR) algorithm. "
+                    "Consider running with `num_mcmc > 0` and `num_burnin > 0` to improve your model's performance."
+                )
+
+            if covs_warning_3:
+                warnings.warn(
+                    f"Covariates {', '.join(covs_warning_3)} have some observed values with more than "
+                    f"{2 * max_grid_size} repeated observations. "
+                    "This might present some issues with the grow-from-root (GFR) algorithm. "
+                    "Consider running with `num_mcmc > 0` and `num_burnin > 0` to improve your model's performance."
                 )
 
         # Variable weight preprocessing (and initialization if necessary)
@@ -943,9 +996,9 @@ class BARTModel:
                         )
                 else:
                     if sigma2_leaf is None:
-                        current_leaf_scale = np.array(
-                            [[np.squeeze(np.var(resid_train)) / num_trees_mean]]
-                        )
+                        current_leaf_scale = np.array([
+                            [np.squeeze(np.var(resid_train)) / num_trees_mean]
+                        ])
                     elif isinstance(sigma2_leaf, float):
                         current_leaf_scale = np.array([[sigma2_leaf]])
                     elif isinstance(sigma2_leaf, np.ndarray):
@@ -2636,9 +2689,10 @@ class BARTModel:
                     global_var_samples = json_object_list[i].get_numeric_vector(
                         "sigma2_global_samples", "parameters"
                     )
-                    self.global_var_samples = np.concatenate(
-                        (self.global_var_samples, global_var_samples)
-                    )
+                    self.global_var_samples = np.concatenate((
+                        self.global_var_samples,
+                        global_var_samples,
+                    ))
 
         if self.sample_sigma2_leaf:
             for i in range(len(json_object_list)):
@@ -2650,9 +2704,10 @@ class BARTModel:
                     leaf_scale_samples = json_object_list[i].get_numeric_vector(
                         "sigma2_leaf_samples", "parameters"
                     )
-                    self.leaf_scale_samples = np.concatenate(
-                        (self.leaf_scale_samples, leaf_scale_samples)
-                    )
+                    self.leaf_scale_samples = np.concatenate((
+                        self.leaf_scale_samples,
+                        leaf_scale_samples,
+                    ))
 
         # Unpack covariate preprocessor
         covariate_preprocessor_string = json_object_default.get_string(
