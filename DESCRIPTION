@@ -43,7 +43,9 @@ Suggests:
     MASS,
     mvtnorm,
     rmarkdown,
-    tgp
+    tgp, 
+    coda, 
+    bayesplot
 VignetteBuilder: knitr
 SystemRequirements: C++17
 Imports: 
