@@ -119,7 +119,7 @@ bart_model <- stochtree::bart(
 )
 ```
 
-Now we have a `BARTModel` object with `num_chains * num_mcmc` samples
+Now we have a `bartmodel` object with `num_chains * num_mcmc` samples
 stored internally. These samples are arranged sequentially, with the
 first `num_mcmc` samples corresponding to chain 1, the next `num_mcmc`
 samples to chain 2, etc...
@@ -618,14 +618,14 @@ y_train <- y[train_inds]
 
 ## Sampling Multiple Chains Sequentially
 
-As with the BART demo, we run 4 independent chains with 5000
+As with the supervised learning (BART) demo, we run 4 independent chains with 5000
 MCMC iterations, each of which is initialized by a different
 "grow-from-root" sample (the last 4 of 5 GFR samples) and 
 burned in for 2000 iterations after warm-start.
 
 ```{r}
 num_chains <- 4
-num_gfr <- 0
+num_gfr <- 5
 num_burnin <- 2000
 num_mcmc <- 5000
 ```
