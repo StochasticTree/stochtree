@@ -105,7 +105,7 @@ num_burnin <- 2000
 num_mcmc <- 5000
 ```
 
-Run the sampler, storing the resulting BART objects in a list
+Run the sampler
 
 ```{r}
 bart_model <- stochtree::bart(
@@ -630,7 +630,7 @@ num_burnin <- 2000
 num_mcmc <- 5000
 ```
 
-Run the sampler, storing the resulting BART objects in a list
+Run the sampler
 
 ```{r}
 general_params <- list(

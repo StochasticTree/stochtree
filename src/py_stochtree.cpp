@@ -1526,6 +1526,8 @@ class RandomEffectsTrackerCpp {
   StochTree::RandomEffectsTracker* GetTracker() {
     return rfx_tracker_.get();
   }
+  void Reset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual);
+  void RootReset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual);
 
  private:
   std::unique_ptr<StochTree::RandomEffectsTracker> rfx_tracker_;
@@ -1629,6 +1631,9 @@ class RandomEffectsModelCpp {
   }
   void SetVariancePriorScale(double scale) {
     rfx_model_->SetVariancePriorScale(scale);
+  }
+  void Reset(RandomEffectsContainerCpp& rfx_container, int sample_num) {
+    rfx_model_->ResetFromSample(*rfx_container.GetRandomEffectsContainer(), sample_num);
   }
 
  private:
@@ -2144,6 +2149,14 @@ void RandomEffectsModelCpp::SampleRandomEffects(RandomEffectsDatasetCpp& rfx_dat
   if (keep_sample) rfx_container.AddSample(*this);
 }
 
+void RandomEffectsTrackerCpp::Reset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual) {
+  rfx_tracker_->ResetFromSample(*rfx_model.GetModel(), *rfx_dataset.GetDataset(), *residual.GetData());
+}
+
+void RandomEffectsTrackerCpp::RootReset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual) {
+  rfx_tracker_->RootReset(*rfx_model.GetModel(), *rfx_dataset.GetDataset(), *residual.GetData());
+}
+
 PYBIND11_MODULE(stochtree_cpp, m) {
   m.def("cppComputeForestContainerLeafIndices", &cppComputeForestContainerLeafIndices, "Compute leaf indices of the forests in a forest container");
   m.def("cppComputeForestMaxLeafIndex", &cppComputeForestMaxLeafIndex, "Compute max leaf index of a forest in a forest container");
@@ -2369,7 +2382,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<RandomEffectsTrackerCpp>(m, "RandomEffectsTrackerCpp")
     .def(py::init<py::array_t<int>>())
     .def("GetUniqueGroupIds", &RandomEffectsTrackerCpp::GetUniqueGroupIds)
-    .def("GetTracker", &RandomEffectsTrackerCpp::GetTracker);
+    .def("GetTracker", &RandomEffectsTrackerCpp::GetTracker)
+    .def("Reset", &RandomEffectsTrackerCpp::Reset)
+    .def("RootReset", &RandomEffectsTrackerCpp::RootReset);
 
   py::class_<RandomEffectsLabelMapperCpp>(m, "RandomEffectsLabelMapperCpp")
     .def(py::init<>())
@@ -2391,7 +2406,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("SetWorkingParameterCovariance", &RandomEffectsModelCpp::SetWorkingParameterCovariance)
     .def("SetGroupParameterCovariance", &RandomEffectsModelCpp::SetGroupParameterCovariance)
     .def("SetVariancePriorShape", &RandomEffectsModelCpp::SetVariancePriorShape)
-    .def("SetVariancePriorScale", &RandomEffectsModelCpp::SetVariancePriorScale);
+    .def("SetVariancePriorScale", &RandomEffectsModelCpp::SetVariancePriorScale)
+    .def("Reset", &RandomEffectsModelCpp::Reset);
 
   py::class_<GlobalVarianceModelCpp>(m, "GlobalVarianceModelCpp")
     .def(py::init<>())

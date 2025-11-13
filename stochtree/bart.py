@@ -134,7 +134,7 @@ class BARTModel:
             * `keep_burnin` (`bool`): Whether or not "burnin" samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
-            * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
+            * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see the multi chain vignettes.
             * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
             * `num_threads`: Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 
@@ -1385,6 +1385,7 @@ class BARTModel:
             for chain_num in range(num_chains):
                 if num_gfr > 0:
                     forest_ind = num_gfr - chain_num - 1
+                    # Reset mean forest
                     if self.include_mean_forest:
                         active_forest_mean.reset(self.forest_container_mean, forest_ind)
                         forest_sampler_mean.reconstitute_from_forest(
@@ -1393,6 +1394,16 @@ class BARTModel:
                             residual_train,
                             True,
                         )
+                        # Reset leaf scale
+                        if sample_sigma2_leaf:
+                                leaf_scale_double = self.leaf_scale_samples[
+                                    forest_ind
+                                ]
+                                current_leaf_scale[0, 0] = leaf_scale_double
+                                forest_model_config_mean.update_leaf_model_scale(
+                                    leaf_scale_double
+                                )
+                    # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset(
                             self.forest_container_variance, forest_ind
@@ -1403,9 +1414,16 @@ class BARTModel:
                             residual_train,
                             False,
                         )
+                    # Reset global error scale
                     if sample_sigma2_global:
                         current_sigma2 = self.global_var_samples[forest_ind]
+                        global_model_config.update_global_error_variance(current_sigma2)
+                    # Reset random effects
+                    if self.has_rfx:
+                        rfx_model.reset(self.rfx_container, forest_ind, sigma_alpha_init)
+                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
                 elif has_prev_model:
+                    # Reset mean forest
                     if self.include_mean_forest:
                         active_forest_mean.reset(
                             previous_bart_model.forest_container_mean,
@@ -1417,6 +1435,7 @@ class BARTModel:
                             residual_train,
                             True,
                         )
+                        # Reset leaf scale
                         if sample_sigma2_leaf and previous_leaf_var_samples is not None:
                             leaf_scale_double = previous_leaf_var_samples[
                                 previous_model_warmstart_sample_num
@@ -1425,6 +1444,7 @@ class BARTModel:
                             forest_model_config_mean.update_leaf_model_scale(
                                 leaf_scale_double
                             )
+                    # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset(
                             previous_bart_model.forest_container_variance,
@@ -1436,14 +1456,18 @@ class BARTModel:
                             residual_train,
                             True,
                         )
-                    # if self.has_rfx:
-                    #     pass
+                    # Reset global error scale
                     if self.sample_sigma2_global:
                         current_sigma2 = previous_global_var_samples[
                             previous_model_warmstart_sample_num
                         ]
                         global_model_config.update_global_error_variance(current_sigma2)
+                    # Reset random effects
+                    if self.has_rfx:
+                        rfx_model.reset(previous_bart_model.rfx_container, forest_ind, sigma_alpha_init)
+                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, previous_bart_model.rfx_container)
                 else:
+                    # Reset mean forest
                     if self.include_mean_forest:
                         active_forest_mean.reset_root()
                         if init_val_mean.shape[0] == 1:
@@ -1460,10 +1484,17 @@ class BARTModel:
                             residual_train,
                             True,
                         )
+                        # Reset mean forest leaf scale
+                        if sample_sigma2_leaf and previous_leaf_var_samples is not None:
+                            current_leaf_scale[0, 0] = sigma2_leaf
+                            forest_model_config_mean.update_leaf_model_scale(
+                                current_leaf_scale
+                            )
+                    # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset_root()
                         active_forest_variance.set_root_leaves(
-                            log(variance_forest_leaf_init) / num_trees_mean
+                            log(variance_forest_leaf_init) / num_trees_variance
                         )
                         forest_sampler_variance.reconstitute_from_forest(
                             active_forest_variance,
@@ -1471,7 +1502,15 @@ class BARTModel:
                             residual_train,
                             False,
                         )
-
+                    # Reset global error scale
+                    if self.sample_sigma2_global:
+                        current_sigma2 = sigma2_init
+                        global_model_config.update_global_error_variance(current_sigma2)
+                    # Reset random effects terms
+                    if self.has_rfx:
+                        rfx_model.root_reset(alpha_init, xi_init, sigma_alpha_init, sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+                        rfx_tracker.root_reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                # Sample MCMC and burnin for each chain
                 for i in range(self.num_gfr, num_temp_samples):
                     is_mcmc = i + 1 > num_gfr + num_burnin
                     if is_mcmc:
