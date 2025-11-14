@@ -2,12 +2,12 @@
 library(stochtree)
 
 # Simulation parameters
-n <- 500
-p <- 5
+n <- 250
+p <- 50
 n_sim <- 100
 test_set_pct <- 0.2
 
-# Simulation container
+# Simulation containers
 rmses_cached <- rep(NA_real_, n_sim)
 rmses_pred <- rep(NA_real_, n_sim)
 
