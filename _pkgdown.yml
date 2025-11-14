@@ -1,6 +1,7 @@
 url: https://stochtree.ai/
 template:
   bootstrap: 5
+llm-docs: false
 
 reference:
 - title: Supervised learning
