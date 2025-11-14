@@ -28,7 +28,7 @@
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
 #' @param previous_model_json (Optional) JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: `NULL`.
-#' @param previous_model_warmstart_sample_num (Optional) Sample number from `previous_model_json` that will be used to warmstart this BART sampler. One-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 1`). Default: `NULL`.
+#' @param previous_model_warmstart_sample_num (Optional) Sample number from `previous_model_json` that will be used to warmstart this BART sampler. One-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 1`). Default: `NULL`.  If `num_chains` in the `general_params` list is > 1, then each successive chain will be initialized from a different sample, counting backwards from `previous_model_warmstart_sample_num`. That is, if `previous_model_warmstart_sample_num = 10` and `num_chains = 4`, then chain 1 will be initialized from sample 10, chain 2 from sample 9, chain 3 from sample 8, and chain 4 from sample 7. If `previous_model_json` is provided but `previous_model_warmstart_sample_num` is NULL, the last sample in the previous model will be used to initialize the first chain, counting backwards as noted before. If more chains are requested than there are samples in `previous_model_json`, a warning will be raised and only the last sample will be used.
 #' @param general_params (Optional) A list of general (non-forest-specific) model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
 #'   - `cutpoint_grid_size` Maximum size of the "grid" of potential cutpoints to consider in the GFR algorithm. Default: `100`.
@@ -42,7 +42,7 @@
 #'   - `keep_burnin` Whether or not "burnin" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_gfr` Whether or not "grow-from-root" samples should be included in the stored samples of forests and other parameters. Default `FALSE`. Ignored if `num_mcmc = 0`.
 #'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
-#'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`.
+#'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see the multi chain vignettes \code{vignette("Multiple-Chains", package = "stochtree")}.
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'   - `probit_outcome_model` Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
 #'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
@@ -293,10 +293,36 @@ bart <- function(
 
   # Check if previous model JSON is provided and parse it if so
   has_prev_model <- !is.null(previous_model_json)
+  has_prev_model_index <- !is.null(previous_model_warmstart_sample_num)
   if (has_prev_model) {
     previous_bart_model <- createBARTModelFromJsonString(
       previous_model_json
     )
+    prev_num_samples <- previous_bart_model$model_params$num_samples
+    if (!has_prev_model_index) {
+      previous_model_warmstart_sample_num <- prev_num_samples
+      warning(
+        "`previous_model_warmstart_sample_num` was not provided alongside `previous_model_json`, so it will be set to the number of samples available in `previous_model_json`"
+      )
+    } else {
+      if (previous_model_warmstart_sample_num < 1) {
+        stop(
+          "`previous_model_warmstart_sample_num` must be a positive integer"
+        )
+      }
+      if (previous_model_warmstart_sample_num > prev_num_samples) {
+        stop(
+          "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
+        )
+      }
+    }
+    previous_model_decrement <- T
+    if (num_chains > previous_model_warmstart_sample_num) {
+      warning(
+        "The number of chains being sampled exceeds the number of previous model samples available from the requested position in `previous_model_json`. All chains will be initialized from the same sample."
+      )
+      previous_model_decrement <- F
+    }
     previous_y_bar <- previous_bart_model$model_params$outcome_mean
     previous_y_scale <- previous_bart_model$model_params$outcome_scale
     if (previous_bart_model$model_params$include_mean_forest) {
@@ -1375,11 +1401,16 @@ bart <- function(
           )
         }
       } else if (has_prev_model) {
+        warmstart_index <- ifelse(
+          previous_model_decrement,
+          previous_model_warmstart_sample_num - chain_num + 1,
+          previous_model_warmstart_sample_num
+        )
         if (include_mean_forest) {
           resetActiveForest(
             active_forest_mean,
             previous_forest_samples_mean,
-            previous_model_warmstart_sample_num - 1
+            warmstart_index - 1
           )
           resetForestModel(
             forest_model_mean,
@@ -1393,7 +1424,7 @@ bart <- function(
               (!is.null(previous_leaf_var_samples))
           ) {
             leaf_scale_double <- previous_leaf_var_samples[
-              previous_model_warmstart_sample_num
+              warmstart_index
             ]
             current_leaf_scale <- as.matrix(leaf_scale_double)
             forest_model_config_mean$update_leaf_model_scale(
@@ -1405,7 +1436,7 @@ bart <- function(
           resetActiveForest(
             active_forest_variance,
             previous_forest_samples_variance,
-            previous_model_warmstart_sample_num - 1
+            warmstart_index - 1
           )
           resetForestModel(
             forest_model_variance,
@@ -1439,7 +1470,7 @@ bart <- function(
             resetRandomEffectsModel(
               rfx_model,
               previous_rfx_samples,
-              previous_model_warmstart_sample_num - 1,
+              warmstart_index - 1,
               sigma_alpha_init
             )
             resetRandomEffectsTracker(
@@ -1454,7 +1485,7 @@ bart <- function(
         if (sample_sigma2_global) {
           if (!is.null(previous_global_var_samples)) {
             current_sigma2 <- previous_global_var_samples[
-              previous_model_warmstart_sample_num
+              warmstart_index
             ]
             global_model_config$update_global_error_variance(
               current_sigma2
