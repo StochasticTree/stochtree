@@ -3061,8 +3061,10 @@ predict.bcfmodel <- function(
         t(tau_hat_raw) * (object$b_1_samples - object$b_0_samples)
       ) *
         y_std
-      control_adj <- t(t(tau_hat_raw) * object$b_0_samples) * y_std
-      mu_hat_forest <- mu_hat_forest + control_adj
+      if (predict_mu_forest || predict_mu_forest_intermediate) {
+        control_adj <- t(t(tau_hat_raw) * object$b_0_samples) * y_std
+        mu_hat_forest <- mu_hat_forest + control_adj
+      }
     } else {
       tau_hat_forest <- object$forests_tau$predict_raw(forest_dataset_pred) *
         y_std
