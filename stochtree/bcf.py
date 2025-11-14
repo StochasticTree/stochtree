@@ -226,7 +226,7 @@ class BCFModel:
         previous_model_json : str, optional
             JSON string containing a previous BCF model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Defaults to `None`.
         previous_model_warmstart_sample_num : int, optional
-            Sample number from `previous_model_json` that will be used to warmstart this BART sampler. Zero-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 0`). Defaults to `None`.
+            Sample number from `previous_model_json` that will be used to warmstart this BART sampler. Zero-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 0`). Defaults to `None`. If `num_chains` in the `general_params` list is > 1, then each successive chain will be initialized from a different sample, counting backwards from `previous_model_warmstart_sample_num`. That is, if `previous_model_warmstart_sample_num = 10` and `num_chains = 4`, then chain 1 will be initialized from sample 10, chain 2 from sample 9, chain 3 from sample 8, and chain 4 from sample 7. If `previous_model_json` is provided but `previous_model_warmstart_sample_num` is NULL, the last sample in the previous model will be used to initialize the first chain, counting backwards as noted before. If more chains are requested than there are samples in `previous_model_json`, a warning will be raised and only the last sample will be used.
 
         Returns
         -------
@@ -462,6 +462,7 @@ class BCFModel:
 
         # Check if previous model JSON is provided and parse it if so
         has_prev_model = previous_model_json is not None
+        has_prev_model_index = previous_model_warmstart_sample_num is not None
         if has_prev_model:
             if num_gfr > 0:
                 if num_mcmc == 0:
@@ -474,6 +475,27 @@ class BCFModel:
                     )
             previous_bcf_model = BCFModel()
             previous_bcf_model.from_json(previous_model_json)
+            prev_num_samples = previous_bcf_model.num_samples
+            if not has_prev_model_index:
+                previous_model_warmstart_sample_num = prev_num_samples
+                warnings.warn(
+                    "`previous_model_warmstart_sample_num` was not provided alongside `previous_model_json`, so it will be set to the number of samples available in `previous_model_json`"
+                )
+            else:
+                if previous_model_warmstart_sample_num < 0:
+                    raise ValueError(
+                        "`previous_model_warmstart_sample_num` must be a nonnegative integer"
+                    )
+                if previous_model_warmstart_sample_num >= prev_num_samples:
+                    raise ValueError(
+                        "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
+                    )
+            previous_model_decrement = True
+            if num_chains > previous_model_warmstart_sample_num + 1:
+                warnings.warn(
+                    "The number of chains being sampled exceeds the number of previous model samples available from the requested position in `previous_model_json`. All chains will be initialized from the same sample."
+                )
+                previous_model_decrement = False
             previous_y_scale = previous_bcf_model.y_std
             previous_model_num_samples = previous_bcf_model.num_samples
             if previous_bcf_model.sample_sigma2_global:
@@ -2171,8 +2193,9 @@ class BCFModel:
                         rfx_model.reset(self.rfx_container, forest_ind, sigma_alpha_init)
                         rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
                 elif has_prev_model:
+                    warmstart_index = previous_model_warmstart_sample_num - chain_num if previous_model_decrement else previous_model_warmstart_sample_num
                     # Reset prognostic forest
-                    active_forest_mu.reset(previous_bcf_model.forest_container_mu, previous_model_warmstart_sample_num)
+                    active_forest_mu.reset(previous_bcf_model.forest_container_mu, warmstart_index)
                     forest_sampler_mu.reconstitute_from_forest(
                         active_forest_mu,
                         forest_dataset_train,
@@ -2191,7 +2214,7 @@ class BCFModel:
                     if self.include_variance_forest:
                         active_forest_variance.reset(
                             previous_bcf_model.forest_container_variance,
-                            previous_model_warmstart_sample_num,
+                            warmstart_index,
                         )
                         forest_sampler_variance.reconstitute_from_forest(
                             active_forest_variance,
@@ -2202,13 +2225,13 @@ class BCFModel:
                     # Reset global error scale
                     if self.sample_sigma2_global:
                         current_sigma2 = previous_global_var_samples[
-                            previous_model_warmstart_sample_num
+                            warmstart_index
                         ]
                         global_model_config.update_global_error_variance(current_sigma2)
                     # Reset mu forest leaf scale
                     if sample_sigma2_leaf_mu and previous_leaf_var_mu_samples is not None:
                         leaf_scale_double_mu = previous_leaf_var_mu_samples[
-                            previous_model_warmstart_sample_num
+                            warmstart_index
                         ]
                         current_leaf_scale_mu[0, 0] = leaf_scale_double_mu
                         forest_model_config_mu.update_leaf_model_scale(
@@ -2217,7 +2240,7 @@ class BCFModel:
                     # Reset mu forest leaf scale
                     if sample_sigma2_leaf_tau and previous_leaf_var_tau_samples is not None:
                         leaf_scale_double_tau = previous_leaf_var_tau_samples[
-                            previous_model_warmstart_sample_num
+                            warmstart_index
                         ]
                         current_leaf_scale_tau[0, 0] = leaf_scale_double_tau
                         forest_model_config_tau.update_leaf_model_scale(
@@ -2226,9 +2249,9 @@ class BCFModel:
                     # Reset adaptive coding parameters
                     if self.adaptive_coding:
                         if previous_b0_samples is not None:
-                            current_b_0 = previous_b0_samples[previous_model_warmstart_sample_num]
+                            current_b_0 = previous_b0_samples[warmstart_index]
                         if previous_b1_samples is not None:
-                            current_b_1 = previous_b1_samples[previous_model_warmstart_sample_num]
+                            current_b_1 = previous_b1_samples[warmstart_index]
                         tau_basis_train = (
                             1 - np.squeeze(Z_train)
                         ) * current_b_0 + np.squeeze(Z_train) * current_b_1
@@ -2243,7 +2266,7 @@ class BCFModel:
                         )
                     # Reset random effects terms
                     if self.has_rfx:
-                        rfx_model.reset(previous_bcf_model.rfx_container, forest_ind, sigma_alpha_init)
+                        rfx_model.reset(previous_bcf_model.rfx_container, warmstart_index, sigma_alpha_init)
                         rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, previous_bcf_model.rfx_container)
                 else:
                     # Reset prognostic forest
