@@ -2474,6 +2474,8 @@ bcf <- function(
     )
     tau_hat_train <- t(t(tau_hat_train_raw) * (b_1_samples - b_0_samples)) *
       y_std_train
+    control_adj_train <- t(t(tau_hat_train_raw) * b_0_samples) * y_std_train
+    mu_hat_train <- mu_hat_train + control_adj_train
   } else {
     tau_hat_train <- forest_samples_tau$predict_raw(forest_dataset_train) *
       y_std_train
@@ -2508,6 +2510,8 @@ bcf <- function(
         t(tau_hat_test_raw) * (b_1_samples - b_0_samples)
       ) *
         y_std_train
+      control_adj_test <- t(t(tau_hat_test_raw) * b_0_samples) * y_std_train
+      mu_hat_test <- mu_hat_test + control_adj_test
     } else {
       tau_hat_test <- forest_samples_tau$predict_raw(
         forest_dataset_test
@@ -2849,10 +2853,11 @@ predict.bcfmodel <- function(
           "all"
         ))
     ) {
-      stop(paste0(
+      warning(paste0(
         "Term '",
         term,
-        "' was requested. Valid terms are 'y_hat', 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', and 'all'."
+        "' was requested. Valid terms are 'y_hat', 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', and 'all'.",
+        " This term will be ignored and prediction will only proceed if other requested terms are available in the model."
       ))
     }
   }
@@ -3056,6 +3061,8 @@ predict.bcfmodel <- function(
         t(tau_hat_raw) * (object$b_1_samples - object$b_0_samples)
       ) *
         y_std
+      control_adj <- t(t(tau_hat_raw) * object$b_0_samples) * y_std
+      mu_hat_forest <- mu_hat_forest + control_adj
     } else {
       tau_hat_forest <- object$forests_tau$predict_raw(forest_dataset_pred) *
         y_std
