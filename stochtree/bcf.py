@@ -2604,12 +2604,13 @@ class BCFModel:
                 adaptive_coding_weights = np.expand_dims(
                     self.b1_samples - self.b0_samples, axis=(0, 2)
                 )
-                b0_weights = np.expand_dims(
-                    self.b0_samples, axis=(0, 2)
-                )
-                control_adj = tau_raw * b0_weights * self.y_std
+                if predict_mu_forest or predict_mu_forest_intermediate:
+                    b0_weights = np.expand_dims(
+                        self.b0_samples, axis=(0, 2)
+                    )
+                    control_adj = tau_raw * b0_weights * self.y_std
+                    mu_x_forest = mu_x_forest + np.squeeze(control_adj)
                 tau_raw = tau_raw * adaptive_coding_weights
-                mu_x_forest = mu_x_forest + np.squeeze(control_adj)
             tau_x_forest = np.squeeze(tau_raw * self.y_std)
             if Z.shape[1] > 1:
                 treatment_term = np.multiply(
