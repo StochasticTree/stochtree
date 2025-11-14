@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 from stochtree_cpp import (
     RandomEffectsContainerCpp,
@@ -246,6 +247,26 @@ class RandomEffectsTracker:
 
     def __init__(self, group_indices: np.ndarray) -> None:
         self.rfx_tracker_cpp = RandomEffectsTrackerCpp(group_indices)
+    
+    def reset(self, rfx_model, rfx_dataset, residual, rfx_container) -> None:
+        """
+        Reset the random effects tracker to an existing parameter state
+        """
+        self.rfx_tracker_cpp.Reset(
+            rfx_model.rfx_model_cpp,
+            rfx_dataset.rfx_dataset_cpp,
+            residual.residual_cpp
+        )
+    
+    def root_reset(self, rfx_model, rfx_dataset, residual, rfx_container) -> None:
+        """
+        Reset the random effects tracker to its initial state
+        """
+        self.rfx_tracker_cpp.RootReset(
+            rfx_model.rfx_model_cpp,
+            rfx_dataset.rfx_dataset_cpp,
+            residual.residual_cpp
+        )
 
 
 class RandomEffectsContainer:
@@ -622,3 +643,37 @@ class RandomEffectsModel:
         if scale <= 0:
             raise ValueError("scale must a positive scalar")
         self.rfx_model_cpp.SetVariancePriorScale(scale)
+    
+    def reset(self, rfx_container: RandomEffectsContainer, sample_num: int, sigma_alpha_init: np.array) -> None:
+        """
+        Reset the random effects model to a previous sample state.
+        """
+        if not isinstance(sigma_alpha_init, np.ndarray):
+            raise ValueError("sigma_alpha_init must be a numpy array")
+        if sigma_alpha_init.ndim != 2:
+            raise ValueError(
+                "sigma_alpha_init must be a 2d square numpy array with as many rows / columns as bases in the random effects model"
+            )
+        if sigma_alpha_init.shape[0] != sigma_alpha_init.shape[1]:
+            raise ValueError(
+                "sigma_alpha_init must be a 2d square numpy array with as many rows / columns as bases in the random effects model"
+            )
+        if sigma_alpha_init.shape[0] != self.num_components:
+            raise ValueError(
+                "sigma_alpha_init must be a 2d square numpy array with as many rows / columns as bases in the random effects model"
+            )
+        self.rfx_model_cpp.Reset(
+            rfx_container.rfx_container_cpp, sample_num
+        )
+        self.set_working_parameter_covariance(sigma_alpha_init)
+    
+    def root_reset(self, alpha_init: np.array, xi_init: np.array, sigma_alpha_init: np.array, sigma_xi_init: np.array, sigma_xi_shape: float, sigma_xi_scale: float) -> None:
+        """
+        Reset the random effects model to its initial state.
+        """
+        self.set_working_parameter(alpha_init)
+        self.set_group_parameters(xi_init)
+        self.set_working_parameter_cov(sigma_alpha_init)
+        self.set_group_parameter_cov(sigma_xi_init)
+        self.set_variance_prior_shape(sigma_xi_shape)
+        self.set_variance_prior_scale(sigma_xi_scale)

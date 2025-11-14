@@ -134,7 +134,7 @@ class BARTModel:
             * `keep_burnin` (`bool`): Whether or not "burnin" samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
-            * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
+            * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see the multi chain vignettes.
             * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
             * `num_threads`: Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 
@@ -184,7 +184,7 @@ class BARTModel:
         previous_model_json : str, optional
             JSON string containing a previous BART model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Defaults to `None`.
         previous_model_warmstart_sample_num : int, optional
-            Sample number from `previous_model_json` that will be used to warmstart this BART sampler. Zero-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 0`). Defaults to `None`.
+            Sample number from `previous_model_json` that will be used to warmstart this BART sampler. Zero-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 0`). Defaults to `None`. If `num_chains` in the `general_params` list is > 1, then each successive chain will be initialized from a different sample, counting backwards from `previous_model_warmstart_sample_num`. That is, if `previous_model_warmstart_sample_num = 10` and `num_chains = 4`, then chain 1 will be initialized from sample 10, chain 2 from sample 9, chain 3 from sample 8, and chain 4 from sample 7. If `previous_model_json` is provided but `previous_model_warmstart_sample_num` is NULL, the last sample in the previous model will be used to initialize the first chain, counting backwards as noted before. If more chains are requested than there are samples in `previous_model_json`, a warning will be raised and only the last sample will be used.
 
         Returns
         -------
@@ -753,6 +753,7 @@ class BARTModel:
 
         # Check if previous model JSON is provided and parse it if so
         has_prev_model = previous_model_json is not None
+        has_prev_model_index = previous_model_warmstart_sample_num is not None
         if has_prev_model:
             if num_gfr > 0:
                 if num_mcmc == 0:
@@ -765,6 +766,27 @@ class BARTModel:
                     )
             previous_bart_model = BARTModel()
             previous_bart_model.from_json(previous_model_json)
+            prev_num_samples = previous_bart_model.num_samples
+            if not has_prev_model_index:
+                previous_model_warmstart_sample_num = prev_num_samples
+                warnings.warn(
+                    "`previous_model_warmstart_sample_num` was not provided alongside `previous_model_json`, so it will be set to the number of samples available in `previous_model_json`"
+                )
+            else:
+                if previous_model_warmstart_sample_num < 0:
+                    raise ValueError(
+                        "`previous_model_warmstart_sample_num` must be a nonnegative integer"
+                    )
+                if previous_model_warmstart_sample_num >= prev_num_samples:
+                    raise ValueError(
+                        "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
+                    )
+            previous_model_decrement = True
+            if num_chains > previous_model_warmstart_sample_num + 1:
+                warnings.warn(
+                    "The number of chains being sampled exceeds the number of previous model samples available from the requested position in `previous_model_json`. All chains will be initialized from the same sample."
+                )
+                previous_model_decrement = False
             previous_y_scale = previous_bart_model.y_std
             previous_model_num_samples = previous_bart_model.num_samples
             if previous_bart_model.sample_sigma2_global:
@@ -1385,6 +1407,7 @@ class BARTModel:
             for chain_num in range(num_chains):
                 if num_gfr > 0:
                     forest_ind = num_gfr - chain_num - 1
+                    # Reset mean forest
                     if self.include_mean_forest:
                         active_forest_mean.reset(self.forest_container_mean, forest_ind)
                         forest_sampler_mean.reconstitute_from_forest(
@@ -1393,6 +1416,16 @@ class BARTModel:
                             residual_train,
                             True,
                         )
+                        # Reset leaf scale
+                        if sample_sigma2_leaf:
+                                leaf_scale_double = self.leaf_scale_samples[
+                                    forest_ind
+                                ]
+                                current_leaf_scale[0, 0] = leaf_scale_double
+                                forest_model_config_mean.update_leaf_model_scale(
+                                    leaf_scale_double
+                                )
+                    # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset(
                             self.forest_container_variance, forest_ind
@@ -1403,13 +1436,21 @@ class BARTModel:
                             residual_train,
                             False,
                         )
+                    # Reset global error scale
                     if sample_sigma2_global:
                         current_sigma2 = self.global_var_samples[forest_ind]
+                        global_model_config.update_global_error_variance(current_sigma2)
+                    # Reset random effects
+                    if self.has_rfx:
+                        rfx_model.reset(self.rfx_container, forest_ind, sigma_alpha_init)
+                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
                 elif has_prev_model:
+                    warmstart_index = previous_model_warmstart_sample_num - chain_num if previous_model_decrement else previous_model_warmstart_sample_num
+                    # Reset mean forest
                     if self.include_mean_forest:
                         active_forest_mean.reset(
                             previous_bart_model.forest_container_mean,
-                            previous_model_warmstart_sample_num,
+                            warmstart_index,
                         )
                         forest_sampler_mean.reconstitute_from_forest(
                             active_forest_mean,
@@ -1417,18 +1458,20 @@ class BARTModel:
                             residual_train,
                             True,
                         )
+                        # Reset leaf scale
                         if sample_sigma2_leaf and previous_leaf_var_samples is not None:
                             leaf_scale_double = previous_leaf_var_samples[
-                                previous_model_warmstart_sample_num
+                                warmstart_index
                             ]
                             current_leaf_scale[0, 0] = leaf_scale_double
                             forest_model_config_mean.update_leaf_model_scale(
                                 leaf_scale_double
                             )
+                    # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset(
                             previous_bart_model.forest_container_variance,
-                            previous_model_warmstart_sample_num,
+                            warmstart_index,
                         )
                         forest_sampler_variance.reconstitute_from_forest(
                             active_forest_variance,
@@ -1436,14 +1479,18 @@ class BARTModel:
                             residual_train,
                             True,
                         )
-                    # if self.has_rfx:
-                    #     pass
+                    # Reset global error scale
                     if self.sample_sigma2_global:
                         current_sigma2 = previous_global_var_samples[
-                            previous_model_warmstart_sample_num
+                            warmstart_index
                         ]
                         global_model_config.update_global_error_variance(current_sigma2)
+                    # Reset random effects
+                    if self.has_rfx:
+                        rfx_model.reset(previous_bart_model.rfx_container, warmstart_index, sigma_alpha_init)
+                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, previous_bart_model.rfx_container)
                 else:
+                    # Reset mean forest
                     if self.include_mean_forest:
                         active_forest_mean.reset_root()
                         if init_val_mean.shape[0] == 1:
@@ -1460,10 +1507,17 @@ class BARTModel:
                             residual_train,
                             True,
                         )
+                        # Reset mean forest leaf scale
+                        if sample_sigma2_leaf and previous_leaf_var_samples is not None:
+                            current_leaf_scale[0, 0] = sigma2_leaf
+                            forest_model_config_mean.update_leaf_model_scale(
+                                current_leaf_scale
+                            )
+                    # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset_root()
                         active_forest_variance.set_root_leaves(
-                            log(variance_forest_leaf_init) / num_trees_mean
+                            log(variance_forest_leaf_init) / num_trees_variance
                         )
                         forest_sampler_variance.reconstitute_from_forest(
                             active_forest_variance,
@@ -1471,7 +1525,15 @@ class BARTModel:
                             residual_train,
                             False,
                         )
-
+                    # Reset global error scale
+                    if self.sample_sigma2_global:
+                        current_sigma2 = sigma2_init
+                        global_model_config.update_global_error_variance(current_sigma2)
+                    # Reset random effects terms
+                    if self.has_rfx:
+                        rfx_model.root_reset(alpha_init, xi_init, sigma_alpha_init, sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+                        rfx_tracker.root_reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                # Sample MCMC and burnin for each chain
                 for i in range(self.num_gfr, num_temp_samples):
                     is_mcmc = i + 1 > num_gfr + num_burnin
                     if is_mcmc:

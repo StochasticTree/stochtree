@@ -1,6 +1,7 @@
 import warnings
+from numbers import Integral
 from typing import Any, Dict, Optional, Union
-from math import floor
+from math import floor, log
 
 import numpy as np
 import pandas as pd
@@ -99,6 +100,8 @@ class BCFModel:
         treatment_effect_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
         random_effects_params: Optional[Dict[str, Any]] = None,
+        previous_model_json: Optional[str] = None,
+        previous_model_warmstart_sample_num: Optional[int] = None,
     ) -> None:
         """Runs a BCF sampler on provided training set. Outcome predictions and estimates of the prognostic and treatment effect functions
         will be cached for the training set and (if provided) the test set.
@@ -155,7 +158,7 @@ class BCFModel:
             * `keep_burnin` (`bool`): Whether or not "burnin" samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
-            * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`.
+            * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BCF models, see the multi chain vignettes.
             * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
             * `num_threads`: Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 
@@ -219,6 +222,11 @@ class BCFModel:
             * `group_parameter_prior_cov`: Prior covariance matrix for the random effects "group parameters." Default: `None`. Must be a square numpy matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
             * `variance_prior_shape`: Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
             * `variance_prior_scale`: Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
+        
+        previous_model_json : str, optional
+            JSON string containing a previous BCF model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Defaults to `None`.
+        previous_model_warmstart_sample_num : int, optional
+            Sample number from `previous_model_json` that will be used to warmstart this BART sampler. Zero-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 0`). Defaults to `None`. If `num_chains` in the `general_params` list is > 1, then each successive chain will be initialized from a different sample, counting backwards from `previous_model_warmstart_sample_num`. That is, if `previous_model_warmstart_sample_num = 10` and `num_chains = 4`, then chain 1 will be initialized from sample 10, chain 2 from sample 9, chain 3 from sample 8, and chain 4 from sample 7. If `previous_model_json` is provided but `previous_model_warmstart_sample_num` is NULL, the last sample in the previous model will be used to initialize the first chain, counting backwards as noted before. If more chains are requested than there are samples in `previous_model_json`, a warning will be raised and only the last sample will be used.
 
         Returns
         -------
@@ -428,6 +436,17 @@ class BCFModel:
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
             keep_gfr = True
+        
+        # Check that num_chains >= 1
+        if not isinstance(num_chains, Integral) or num_chains < 1:
+            raise ValueError("num_chains must be an integer greater than 0")
+
+        # Check if there are enough GFR samples to seed num_chains samplers
+        if num_gfr > 0:
+            if num_chains > num_gfr:
+                raise ValueError(
+                    "num_chains > num_gfr, meaning we do not have enough GFR samples to seed num_chains distinct MCMC chains"
+                )
 
         # Variable weight preprocessing (and initialization if necessary)
         if variable_weights is None:
@@ -440,6 +459,77 @@ class BCFModel:
         variable_weights_mu = variable_weights
         variable_weights_tau = variable_weights
         variable_weights_variance = variable_weights
+
+        # Check if previous model JSON is provided and parse it if so
+        has_prev_model = previous_model_json is not None
+        has_prev_model_index = previous_model_warmstart_sample_num is not None
+        if has_prev_model:
+            if num_gfr > 0:
+                if num_mcmc == 0:
+                    raise ValueError(
+                        "A previous model is being used to initialize this sampler, so `num_mcmc` must be greater than zero"
+                    )
+                else:
+                    warnings.warn(
+                        "A previous model is being used to initialize this sampler, so num_gfr will be ignored and the MCMC sampler will be run from the previous samples"
+                    )
+            previous_bcf_model = BCFModel()
+            previous_bcf_model.from_json(previous_model_json)
+            prev_num_samples = previous_bcf_model.num_samples
+            if not has_prev_model_index:
+                previous_model_warmstart_sample_num = prev_num_samples
+                warnings.warn(
+                    "`previous_model_warmstart_sample_num` was not provided alongside `previous_model_json`, so it will be set to the number of samples available in `previous_model_json`"
+                )
+            else:
+                if previous_model_warmstart_sample_num < 0:
+                    raise ValueError(
+                        "`previous_model_warmstart_sample_num` must be a nonnegative integer"
+                    )
+                if previous_model_warmstart_sample_num >= prev_num_samples:
+                    raise ValueError(
+                        "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
+                    )
+            previous_model_decrement = True
+            if num_chains > previous_model_warmstart_sample_num + 1:
+                warnings.warn(
+                    "The number of chains being sampled exceeds the number of previous model samples available from the requested position in `previous_model_json`. All chains will be initialized from the same sample."
+                )
+                previous_model_decrement = False
+            previous_y_scale = previous_bcf_model.y_std
+            previous_model_num_samples = previous_bcf_model.num_samples
+            if previous_bcf_model.sample_sigma2_global:
+                previous_global_var_samples = previous_bcf_model.global_var_samples / (
+                    previous_y_scale * previous_y_scale
+                )
+            else:
+                previous_global_var_samples = None
+            if previous_bcf_model.sample_sigma2_leaf_mu:
+                previous_leaf_var_mu_samples = previous_bcf_model.leaf_scale_mu_samples
+            else:
+                previous_leaf_var_mu_samples = None
+            if previous_bcf_model.sample_sigma2_leaf_tau:
+                previous_leaf_var_tau_samples = previous_bcf_model.leaf_scale_tau_samples
+            else:
+                previous_leaf_var_tau_samples = None
+            if previous_bcf_model.adaptive_coding:
+                previous_b0_samples = previous_bcf_model.b0_samples
+                previous_b1_samples = previous_bcf_model.b1_samples
+            else:
+                previous_b0_samples = None
+                previous_b1_samples = None
+            if previous_model_warmstart_sample_num + 1 > previous_model_num_samples:
+                raise ValueError(
+                    "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
+                )
+        else:
+            previous_y_scale = None
+            previous_global_var_samples = None
+            previous_leaf_var_mu_samples = None
+            previous_leaf_var_tau_samples = None
+            previous_model_num_samples = 0
+            previous_b0_samples = None
+            previous_b1_samples = None
 
         # Determine whether conditional variance model will be fit
         self.include_variance_forest = True if num_trees_variance > 0 else False
@@ -1636,9 +1726,8 @@ class BCFModel:
         self.num_gfr = num_gfr
         self.num_burnin = num_burnin
         self.num_mcmc = num_mcmc
-        num_actual_mcmc_iter = num_mcmc * keep_every
-        num_temp_samples = num_gfr + num_burnin + num_actual_mcmc_iter
-        num_retained_samples = num_mcmc
+        num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
+        num_retained_samples = num_mcmc * num_chains
         # Delete GFR samples from these containers after the fact if desired
         # if keep_gfr:
         #     num_retained_samples += num_gfr
@@ -2025,211 +2114,447 @@ class BCFModel:
 
         # Run MCMC
         if num_burnin + num_mcmc > 0:
-            for i in range(num_gfr, num_temp_samples):
-                is_mcmc = i + 1 > num_gfr + num_burnin
-                if is_mcmc:
-                    mcmc_counter = i - num_gfr - num_burnin + 1
-                    if mcmc_counter % keep_every == 0:
-                        keep_sample = True
-                    else:
-                        keep_sample = False
+            for chain_num in range(num_chains):
+                if num_gfr > 0:
+                    forest_ind = num_gfr - chain_num - 1
+                    # Reset prognostic forest
+                    active_forest_mu.reset(self.forest_container_mu, forest_ind)
+                    forest_sampler_mu.reconstitute_from_forest(
+                        active_forest_mu,
+                        forest_dataset_train,
+                        residual_train,
+                        True,
+                    )
+                    # Reset CATE forest
+                    active_forest_tau.reset(self.forest_container_tau, forest_ind)
+                    forest_sampler_tau.reconstitute_from_forest(
+                        active_forest_tau,
+                        forest_dataset_train,
+                        residual_train,
+                        True,
+                    )
+                    # Reset variance forest
+                    if self.include_variance_forest:
+                        active_forest_variance.reset(
+                            self.forest_container_variance, forest_ind
+                        )
+                        forest_sampler_variance.reconstitute_from_forest(
+                            active_forest_variance,
+                            forest_dataset_train,
+                            residual_train,
+                            False,
+                        )
+                    # Reset global error scale
+                    if sample_sigma2_global:
+                        current_sigma2 = self.global_var_samples[forest_ind]
+                        global_model_config.update_global_error_variance(current_sigma2)
+                    # Reset mu forest leaf scale
+                    if sample_sigma2_leaf_mu:
+                            leaf_scale_double_mu = self.leaf_scale_mu_samples[
+                                forest_ind
+                            ]
+                            current_leaf_scale_mu[0, 0] = leaf_scale_double_mu
+                            forest_model_config_mu.update_leaf_model_scale(
+                                current_leaf_scale_mu
+                            )
+                    # Reset tau forest leaf scale
+                    if sample_sigma2_leaf_tau:
+                            leaf_scale_double_tau = self.leaf_scale_tau_samples[
+                                forest_ind
+                            ]
+                            current_leaf_scale_tau[0, 0] = leaf_scale_double_tau
+                            forest_model_config_tau.update_leaf_model_scale(
+                                current_leaf_scale_tau
+                            )
+                    # Reset adaptive coding parameters
+                    if self.adaptive_coding:
+                        if self.b0_samples is not None:
+                            current_b_0 = self.b0_samples[forest_ind]
+                        else:
+                            current_b_0 = b_0
+                        if self.b1_samples is not None:
+                            current_b_1 = self.b1_samples[forest_ind]
+                        else:
+                            current_b_1 = b_1
+                        tau_basis_train = (
+                            1 - np.squeeze(Z_train)
+                        ) * current_b_0 + np.squeeze(Z_train) * current_b_1
+                        forest_dataset_train.update_basis(tau_basis_train)
+                        if self.has_test:
+                            tau_basis_test = (
+                                1 - np.squeeze(Z_test)
+                            ) * current_b_0 + np.squeeze(Z_test) * current_b_1
+                            forest_dataset_test.update_basis(tau_basis_test)
+                        forest_sampler_tau.propagate_basis_update(
+                            forest_dataset_train, residual_train, active_forest_tau
+                        )
+                    # Reset random effects terms
+                    if self.has_rfx:
+                        rfx_model.reset(self.rfx_container, forest_ind, sigma_alpha_init)
+                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                elif has_prev_model:
+                    warmstart_index = previous_model_warmstart_sample_num - chain_num if previous_model_decrement else previous_model_warmstart_sample_num
+                    # Reset prognostic forest
+                    active_forest_mu.reset(previous_bcf_model.forest_container_mu, warmstart_index)
+                    forest_sampler_mu.reconstitute_from_forest(
+                        active_forest_mu,
+                        forest_dataset_train,
+                        residual_train,
+                        True,
+                    )
+                    # Reset CATE forest
+                    active_forest_tau.reset(previous_bcf_model.forest_container_tau, warmstart_index)
+                    forest_sampler_tau.reconstitute_from_forest(
+                        active_forest_tau,
+                        forest_dataset_train,
+                        residual_train,
+                        True,
+                    )
+                    # Reset variance forest
+                    if self.include_variance_forest:
+                        active_forest_variance.reset(
+                            previous_bcf_model.forest_container_variance,
+                            warmstart_index,
+                        )
+                        forest_sampler_variance.reconstitute_from_forest(
+                            active_forest_variance,
+                            forest_dataset_train,
+                            residual_train,
+                            True,
+                        )
+                    # Reset global error scale
+                    if self.sample_sigma2_global:
+                        current_sigma2 = previous_global_var_samples[
+                            warmstart_index
+                        ]
+                        global_model_config.update_global_error_variance(current_sigma2)
+                    # Reset mu forest leaf scale
+                    if sample_sigma2_leaf_mu and previous_leaf_var_mu_samples is not None:
+                        leaf_scale_double_mu = previous_leaf_var_mu_samples[
+                            warmstart_index
+                        ]
+                        current_leaf_scale_mu[0, 0] = leaf_scale_double_mu
+                        forest_model_config_mu.update_leaf_model_scale(
+                            current_leaf_scale_mu
+                        )
+                    # Reset mu forest leaf scale
+                    if sample_sigma2_leaf_tau and previous_leaf_var_tau_samples is not None:
+                        leaf_scale_double_tau = previous_leaf_var_tau_samples[
+                            warmstart_index
+                        ]
+                        current_leaf_scale_tau[0, 0] = leaf_scale_double_tau
+                        forest_model_config_tau.update_leaf_model_scale(
+                            current_leaf_scale_tau
+                        )
+                    # Reset adaptive coding parameters
+                    if self.adaptive_coding:
+                        if previous_b0_samples is not None:
+                            current_b_0 = previous_b0_samples[warmstart_index]
+                        if previous_b1_samples is not None:
+                            current_b_1 = previous_b1_samples[warmstart_index]
+                        tau_basis_train = (
+                            1 - np.squeeze(Z_train)
+                        ) * current_b_0 + np.squeeze(Z_train) * current_b_1
+                        forest_dataset_train.update_basis(tau_basis_train)
+                        if self.has_test:
+                            tau_basis_test = (
+                                1 - np.squeeze(Z_test)
+                            ) * current_b_0 + np.squeeze(Z_test) * current_b_1
+                            forest_dataset_test.update_basis(tau_basis_test)
+                        forest_sampler_tau.propagate_basis_update(
+                            forest_dataset_train, residual_train, active_forest_tau
+                        )
+                    # Reset random effects terms
+                    if self.has_rfx:
+                        rfx_model.reset(previous_bcf_model.rfx_container, warmstart_index, sigma_alpha_init)
+                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, previous_bcf_model.rfx_container)
                 else:
-                    if keep_burnin:
-                        keep_sample = True
+                    # Reset prognostic forest
+                    active_forest_mu.reset_root()
+                    if init_mu.shape[0] == 1:
+                        active_forest_mu.set_root_leaves(
+                            init_mu[0] / num_trees_mu
+                        )
                     else:
-                        keep_sample = False
-                if keep_sample:
-                    sample_counter += 1
-
-                if self.probit_outcome_model:
-                    # Sample latent probit variable z | -
-                    forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
-                    forest_pred_tau = active_forest_tau.predict(forest_dataset_train)
-                    outcome_pred = forest_pred_mu + forest_pred_tau
+                        active_forest_mu.set_root_leaves(
+                            init_mu / num_trees_mu
+                        )
+                    forest_sampler_mu.reconstitute_from_forest(
+                        active_forest_mu,
+                        forest_dataset_train,
+                        residual_train,
+                        True,
+                    )
+                    # Reset CATE forest
+                    active_forest_tau.reset_root()
+                    if init_tau.shape[0] == 1:
+                        active_forest_tau.set_root_leaves(
+                            init_tau[0] / num_trees_tau
+                        )
+                    else:
+                        active_forest_tau.set_root_leaves(
+                            init_tau / num_trees_tau
+                        )
+                    forest_sampler_tau.reconstitute_from_forest(
+                        active_forest_tau,
+                        forest_dataset_train,
+                        residual_train,
+                        True,
+                    )
+                    # Reset variance forest
+                    if self.include_variance_forest:
+                        active_forest_variance.reset_root()
+                        active_forest_variance.set_root_leaves(
+                            log(variance_forest_leaf_init) / num_trees_variance
+                        )
+                        forest_sampler_variance.reconstitute_from_forest(
+                            active_forest_variance,
+                            forest_dataset_train,
+                            residual_train,
+                            False,
+                        )
+                    # Reset global error scale
+                    if self.sample_sigma2_global:
+                        current_sigma2 = sigma2_init
+                        global_model_config.update_global_error_variance(current_sigma2)
+                    # Reset mu forest leaf scale
+                    if sample_sigma2_leaf_mu and previous_leaf_var_mu_samples is not None:
+                        current_leaf_scale_mu[0, 0] = sigma2_leaf_mu
+                        forest_model_config_mu.update_leaf_model_scale(
+                            current_leaf_scale_mu
+                        )
+                    # Reset mu forest leaf scale
+                    if sample_sigma2_leaf_tau and previous_leaf_var_tau_samples is not None:
+                        current_leaf_scale_tau[0, 0] = sigma2_leaf_tau
+                        forest_model_config_tau.update_leaf_model_scale(
+                            current_leaf_scale_tau
+                        )
+                    # Reset adaptive coding parameters
+                    if self.adaptive_coding:
+                        current_b_0 = b_0
+                        current_b_1 = b_1
+                        tau_basis_train = (
+                            1 - np.squeeze(Z_train)
+                        ) * current_b_0 + np.squeeze(Z_train) * current_b_1
+                        forest_dataset_train.update_basis(tau_basis_train)
+                        if self.has_test:
+                            tau_basis_test = (
+                                1 - np.squeeze(Z_test)
+                            ) * current_b_0 + np.squeeze(Z_test) * current_b_1
+                            forest_dataset_test.update_basis(tau_basis_test)
+                        forest_sampler_tau.propagate_basis_update(
+                            forest_dataset_train, residual_train, active_forest_tau
+                        )
+                    # Reset random effects terms
                     if self.has_rfx:
-                        rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
-                        outcome_pred = outcome_pred + rfx_pred
-                    mu0 = outcome_pred[y_train[:, 0] == 0]
-                    mu1 = outcome_pred[y_train[:, 0] == 1]
-                    n0 = np.sum(y_train[:, 0] == 0)
-                    n1 = np.sum(y_train[:, 0] == 1)
-                    u0 = self.rng.uniform(
-                        low=0.0,
-                        high=norm.cdf(0 - mu0),
-                        size=n0,
-                    )
-                    u1 = self.rng.uniform(
-                        low=norm.cdf(0 - mu1),
-                        high=1.0,
-                        size=n1,
-                    )
-                    resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
-                    resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
-
-                    # Update outcome
-                    new_outcome = np.squeeze(resid_train) - outcome_pred
-                    residual_train.update_data(new_outcome)
-
-                # Sample the prognostic forest
-                forest_sampler_mu.sample_one_iteration(
-                    self.forest_container_mu,
-                    active_forest_mu,
-                    forest_dataset_train,
-                    residual_train,
-                    cpp_rng,
-                    global_model_config,
-                    forest_model_config_mu,
-                    keep_sample,
-                    False,
-                    num_threads,
-                )
-
-                # Cache train set predictions since they are already computed during sampling
-                if keep_sample:
-                    muhat_train_raw[:, sample_counter] = (
-                        forest_sampler_mu.get_cached_forest_predictions()
-                    )
-
-                # Sample variance parameters (if requested)
-                if self.sample_sigma2_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(
-                        residual_train, cpp_rng, a_global, b_global
-                    )
-                    global_model_config.update_global_error_variance(current_sigma2)
-                if self.sample_sigma2_leaf_mu:
-                    current_leaf_scale_mu[0, 0] = (
-                        leaf_var_model_mu.sample_one_iteration(
-                            active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu
-                        )
-                    )
-                    forest_model_config_mu.update_leaf_model_scale(
-                        current_leaf_scale_mu
-                    )
+                        rfx_model.root_reset(alpha_init, xi_init, sigma_alpha_init, sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+                        rfx_tracker.root_reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                # Sample MCMC and burnin for each chain
+                for i in range(num_gfr, num_temp_samples):
+                    is_mcmc = i + 1 > num_gfr + num_burnin
+                    if is_mcmc:
+                        mcmc_counter = i - num_gfr - num_burnin + 1
+                        if mcmc_counter % keep_every == 0:
+                            keep_sample = True
+                        else:
+                            keep_sample = False
+                    else:
+                        if keep_burnin:
+                            keep_sample = True
+                        else:
+                            keep_sample = False
                     if keep_sample:
-                        self.leaf_scale_mu_samples[sample_counter] = (
-                            current_leaf_scale_mu[0, 0]
+                        sample_counter += 1
+
+                    if self.probit_outcome_model:
+                        # Sample latent probit variable z | -
+                        forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
+                        forest_pred_tau = active_forest_tau.predict(forest_dataset_train)
+                        outcome_pred = forest_pred_mu + forest_pred_tau
+                        if self.has_rfx:
+                            rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                            outcome_pred = outcome_pred + rfx_pred
+                        mu0 = outcome_pred[y_train[:, 0] == 0]
+                        mu1 = outcome_pred[y_train[:, 0] == 1]
+                        n0 = np.sum(y_train[:, 0] == 0)
+                        n1 = np.sum(y_train[:, 0] == 1)
+                        u0 = self.rng.uniform(
+                            low=0.0,
+                            high=norm.cdf(0 - mu0),
+                            size=n0,
                         )
-
-                # Sample the treatment forest
-                forest_sampler_tau.sample_one_iteration(
-                    self.forest_container_tau,
-                    active_forest_tau,
-                    forest_dataset_train,
-                    residual_train,
-                    cpp_rng,
-                    global_model_config,
-                    forest_model_config_tau,
-                    keep_sample,
-                    False,
-                    num_threads,
-                )
-
-                # Cannot cache train set predictions for tau because the cached predictions in the
-                # tracking data structures are pre-multiplied by the basis (treatment)
-                # ...
-
-                # Sample coding parameters (if requested)
-                if self.adaptive_coding:
-                    mu_x = active_forest_mu.predict_raw(forest_dataset_train)
-                    tau_x = np.squeeze(
-                        active_forest_tau.predict_raw(forest_dataset_train)
-                    )
-                    partial_resid_train = np.squeeze(resid_train - mu_x)
-                    if self.has_rfx:
-                        rfx_pred = np.squeeze(
-                            rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                        u1 = self.rng.uniform(
+                            low=norm.cdf(0 - mu1),
+                            high=1.0,
+                            size=n1,
                         )
-                        partial_resid_train = partial_resid_train - rfx_pred
-                    s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
-                    s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
-                    s_ty0 = np.sum(
-                        tau_x * partial_resid_train * (np.squeeze(Z_train) == 0)
-                    )
-                    s_ty1 = np.sum(
-                        tau_x * partial_resid_train * (np.squeeze(Z_train) == 1)
-                    )
-                    current_b_0 = self.rng.normal(
-                        loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
-                        scale=np.sqrt(current_sigma2 / (s_tt0 + 2 * current_sigma2)),
-                        size=1,
-                    )[0]
-                    current_b_1 = self.rng.normal(
-                        loc=(s_ty1 / (s_tt1 + 2 * current_sigma2)),
-                        scale=np.sqrt(current_sigma2 / (s_tt1 + 2 * current_sigma2)),
-                        size=1,
-                    )[0]
-                    tau_basis_train = (
-                        1 - np.squeeze(Z_train)
-                    ) * current_b_0 + np.squeeze(Z_train) * current_b_1
-                    forest_dataset_train.update_basis(tau_basis_train)
-                    if self.has_test:
-                        tau_basis_test = (
-                            1 - np.squeeze(Z_test)
-                        ) * current_b_0 + np.squeeze(Z_test) * current_b_1
-                        forest_dataset_test.update_basis(tau_basis_test)
-                    if keep_sample:
-                        self.b0_samples[sample_counter] = current_b_0
-                        self.b1_samples[sample_counter] = current_b_1
+                        resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
+                        resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
-                    # Update residual to reflect adjusted basis
-                    forest_sampler_tau.propagate_basis_update(
-                        forest_dataset_train, residual_train, active_forest_tau
-                    )
+                        # Update outcome
+                        new_outcome = np.squeeze(resid_train) - outcome_pred
+                        residual_train.update_data(new_outcome)
 
-                # Sample the variance forest
-                if self.include_variance_forest:
-                    forest_sampler_variance.sample_one_iteration(
-                        self.forest_container_variance,
-                        active_forest_variance,
+                    # Sample the prognostic forest
+                    forest_sampler_mu.sample_one_iteration(
+                        self.forest_container_mu,
+                        active_forest_mu,
                         forest_dataset_train,
                         residual_train,
                         cpp_rng,
                         global_model_config,
-                        forest_model_config_variance,
+                        forest_model_config_mu,
                         keep_sample,
-                        True,
+                        False,
                         num_threads,
                     )
 
                     # Cache train set predictions since they are already computed during sampling
                     if keep_sample:
-                        sigma2_x_train_raw[:, sample_counter] = (
-                            forest_sampler_variance.get_cached_forest_predictions()
+                        muhat_train_raw[:, sample_counter] = (
+                            forest_sampler_mu.get_cached_forest_predictions()
                         )
 
-                # Sample variance parameters (if requested)
-                if self.sample_sigma2_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(
-                        residual_train, cpp_rng, a_global, b_global
-                    )
-                    global_model_config.update_global_error_variance(current_sigma2)
-                    if keep_sample:
-                        self.global_var_samples[sample_counter] = current_sigma2
-                if self.sample_sigma2_leaf_tau:
-                    current_leaf_scale_tau[0, 0] = (
-                        leaf_var_model_tau.sample_one_iteration(
-                            active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau
+                    # Sample variance parameters (if requested)
+                    if self.sample_sigma2_global:
+                        current_sigma2 = global_var_model.sample_one_iteration(
+                            residual_train, cpp_rng, a_global, b_global
                         )
-                    )
-                    forest_model_config_tau.update_leaf_model_scale(
-                        current_leaf_scale_tau
-                    )
-                    if keep_sample:
-                        self.leaf_scale_tau_samples[sample_counter] = (
-                            current_leaf_scale_tau[0, 0]
+                        global_model_config.update_global_error_variance(current_sigma2)
+                    if self.sample_sigma2_leaf_mu:
+                        current_leaf_scale_mu[0, 0] = (
+                            leaf_var_model_mu.sample_one_iteration(
+                                active_forest_mu, cpp_rng, a_leaf_mu, b_leaf_mu
+                            )
                         )
+                        forest_model_config_mu.update_leaf_model_scale(
+                            current_leaf_scale_mu
+                        )
+                        if keep_sample:
+                            self.leaf_scale_mu_samples[sample_counter] = (
+                                current_leaf_scale_mu[0, 0]
+                            )
 
-                # Sample random effects
-                if self.has_rfx:
-                    rfx_model.sample(
-                        rfx_dataset_train,
+                    # Sample the treatment forest
+                    forest_sampler_tau.sample_one_iteration(
+                        self.forest_container_tau,
+                        active_forest_tau,
+                        forest_dataset_train,
                         residual_train,
-                        rfx_tracker,
-                        self.rfx_container,
-                        keep_sample,
-                        current_sigma2,
                         cpp_rng,
+                        global_model_config,
+                        forest_model_config_tau,
+                        keep_sample,
+                        False,
+                        num_threads,
                     )
+
+                    # Cannot cache train set predictions for tau because the cached predictions in the
+                    # tracking data structures are pre-multiplied by the basis (treatment)
+                    # ...
+
+                    # Sample coding parameters (if requested)
+                    if self.adaptive_coding:
+                        mu_x = active_forest_mu.predict_raw(forest_dataset_train)
+                        tau_x = np.squeeze(
+                            active_forest_tau.predict_raw(forest_dataset_train)
+                        )
+                        partial_resid_train = np.squeeze(resid_train - mu_x)
+                        if self.has_rfx:
+                            rfx_pred = np.squeeze(
+                                rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                            )
+                            partial_resid_train = partial_resid_train - rfx_pred
+                        s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
+                        s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
+                        s_ty0 = np.sum(
+                            tau_x * partial_resid_train * (np.squeeze(Z_train) == 0)
+                        )
+                        s_ty1 = np.sum(
+                            tau_x * partial_resid_train * (np.squeeze(Z_train) == 1)
+                        )
+                        current_b_0 = self.rng.normal(
+                            loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
+                            scale=np.sqrt(current_sigma2 / (s_tt0 + 2 * current_sigma2)),
+                            size=1,
+                        )[0]
+                        current_b_1 = self.rng.normal(
+                            loc=(s_ty1 / (s_tt1 + 2 * current_sigma2)),
+                            scale=np.sqrt(current_sigma2 / (s_tt1 + 2 * current_sigma2)),
+                            size=1,
+                        )[0]
+                        tau_basis_train = (
+                            1 - np.squeeze(Z_train)
+                        ) * current_b_0 + np.squeeze(Z_train) * current_b_1
+                        forest_dataset_train.update_basis(tau_basis_train)
+                        if self.has_test:
+                            tau_basis_test = (
+                                1 - np.squeeze(Z_test)
+                            ) * current_b_0 + np.squeeze(Z_test) * current_b_1
+                            forest_dataset_test.update_basis(tau_basis_test)
+                        if keep_sample:
+                            self.b0_samples[sample_counter] = current_b_0
+                            self.b1_samples[sample_counter] = current_b_1
+
+                        # Update residual to reflect adjusted basis
+                        forest_sampler_tau.propagate_basis_update(
+                            forest_dataset_train, residual_train, active_forest_tau
+                        )
+
+                    # Sample the variance forest
+                    if self.include_variance_forest:
+                        forest_sampler_variance.sample_one_iteration(
+                            self.forest_container_variance,
+                            active_forest_variance,
+                            forest_dataset_train,
+                            residual_train,
+                            cpp_rng,
+                            global_model_config,
+                            forest_model_config_variance,
+                            keep_sample,
+                            True,
+                            num_threads,
+                        )
+
+                        # Cache train set predictions since they are already computed during sampling
+                        if keep_sample:
+                            sigma2_x_train_raw[:, sample_counter] = (
+                                forest_sampler_variance.get_cached_forest_predictions()
+                            )
+
+                    # Sample variance parameters (if requested)
+                    if self.sample_sigma2_global:
+                        current_sigma2 = global_var_model.sample_one_iteration(
+                            residual_train, cpp_rng, a_global, b_global
+                        )
+                        global_model_config.update_global_error_variance(current_sigma2)
+                        if keep_sample:
+                            self.global_var_samples[sample_counter] = current_sigma2
+                    if self.sample_sigma2_leaf_tau:
+                        current_leaf_scale_tau[0, 0] = (
+                            leaf_var_model_tau.sample_one_iteration(
+                                active_forest_tau, cpp_rng, a_leaf_tau, b_leaf_tau
+                            )
+                        )
+                        forest_model_config_tau.update_leaf_model_scale(
+                            current_leaf_scale_tau
+                        )
+                        if keep_sample:
+                            self.leaf_scale_tau_samples[sample_counter] = (
+                                current_leaf_scale_tau[0, 0]
+                            )
+
+                    # Sample random effects
+                    if self.has_rfx:
+                        rfx_model.sample(
+                            rfx_dataset_train,
+                            residual_train,
+                            rfx_tracker,
+                            self.rfx_container,
+                            keep_sample,
+                            current_sigma2,
+                            cpp_rng,
+                        )
 
         # Mark the model as sampled
         self.sampled = True
