@@ -264,3 +264,37 @@ class Residual:
         """
         n = new_vector.size
         self.residual_cpp.ReplaceData(new_vector, n)
+    
+    def add_vector(self, update_vector: np.array) -> None:
+        """
+        Update the current state of the outcome (i.e. partial residual) data by adding each element of `update_vector`
+
+        Parameters
+        ----------
+        update_vector : np.array
+            Univariate numpy array of values to add to the current residual.
+        """
+        if not isinstance(update_vector, np.ndarray):
+            raise ValueError("update_vector must be a numpy array.")
+        update_vector_ = np.squeeze(update_vector)
+        if not update_vector_.ndim == 1:
+            raise ValueError("update_vector must be a 1-dimensional numpy array.")
+        n = update_vector_.size
+        self.residual_cpp.AddToData(update_vector_, n)
+    
+    def subtract_vector(self, update_vector: np.array) -> None:
+        """
+        Update the current state of the outcome (i.e. partial residual) data by subtracting each element of `update_vector`
+
+        Parameters
+        ----------
+        update_vector : np.array
+            Univariate numpy array of values to subtracted from the current residual.
+        """
+        if not isinstance(update_vector, np.ndarray):
+            raise ValueError("update_vector must be a numpy array.")
+        update_vector_ = np.squeeze(update_vector)
+        if not update_vector_.ndim == 1:
+            raise ValueError("update_vector must be a 1-dimensional numpy array.")
+        n = update_vector_.size
+        self.residual_cpp.SubtractFromData(update_vector_, n)

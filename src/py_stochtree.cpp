@@ -182,6 +182,20 @@ class ResidualCpp {
     residual_->OverwriteData(data_ptr, num_row);
   }
 
+  void AddToData(py::array_t<double> update_vector, data_size_t num_row) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(update_vector.mutable_data());
+    // Add to data in residual_
+    residual_->AddToData(data_ptr, num_row);
+  }
+
+  void SubtractFromData(py::array_t<double> update_vector, data_size_t num_row) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(update_vector.mutable_data());
+    // Subtract from data in residual_
+    residual_->SubtractFromData(data_ptr, num_row);
+  }
+
  private:
   std::unique_ptr<StochTree::ColumnVector> residual_;
 };
@@ -2224,7 +2238,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<ResidualCpp>(m, "ResidualCpp")
     .def(py::init<py::array_t<double>,data_size_t>())
     .def("GetResidualArray", &ResidualCpp::GetResidualArray)
-    .def("ReplaceData", &ResidualCpp::ReplaceData);
+    .def("ReplaceData", &ResidualCpp::ReplaceData)
+    .def("AddToData", &ResidualCpp::AddToData)
+    .def("SubtractFromData", &ResidualCpp::SubtractFromData);
 
   py::class_<RngCpp>(m, "RngCpp")
     .def(py::init<int>());
