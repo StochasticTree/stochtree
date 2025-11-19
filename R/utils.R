@@ -20,7 +20,10 @@ preprocessParams <- function(default_params, user_params = NULL) {
   return(default_params)
 }
 
-#' Preprocess covariates. DataFrames will be preprocessed based on their column
+#' Preprocess covariates for use in a `ForestDataset` at train time.
+#'
+#' Preprocess covariates for use in a `ForestDataset` at train time.
+#' DataFrames will be preprocessed based on their column
 #' types. Matrices will be passed through assuming all columns are numeric.
 #'
 #' @param input_data Covariates, provided as either a dataframe or a matrix
@@ -50,7 +53,10 @@ preprocessTrainData <- function(input_data) {
   return(output)
 }
 
-#' Preprocess covariates. DataFrames will be preprocessed based on their column
+#' Preprocess covariates for use in a `ForestDataset` at prediction time.
+#'
+#' Preprocess covariates for use in a `ForestDataset` at prediction time.
+#' DataFrames will be preprocessed based on their column
 #' types. Matrices will be passed through assuming all columns are numeric.
 #'
 #' @param input_data Covariates, provided as either a dataframe or a matrix
@@ -1008,6 +1014,8 @@ expand_dims_1d <- function(input, output_size) {
   return(output)
 }
 
+#' Ensures that input is propagated appropriately to a matrix of dimension `output_rows` x `output_cols`.
+#'
 #' Ensures that input is propagated appropriately to a matrix of dimension `output_rows` x `output_cols`.
 #' Handles the following cases:
 #'  1. `input` is a scalar: output is simply a (`output_rows`, `output_cols`) matrix with `input` repeated for each element

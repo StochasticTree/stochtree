@@ -2,13 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{compute_contrast_bart_model}
 \alias{compute_contrast_bart_model}
-\title{Compute a contrast using a BART model by making two sets of outcome predictions and taking their difference.
-This function provides the flexibility to compute any contrast of interest by specifying covariates, leaf basis, and random effects
-bases / IDs for both sides of a two term contrast. For simplicity, we refer to the subtrahend of the contrast as the "control" or
-\code{Y0} term and the minuend of the contrast as the \code{Y1} term, though the requested contrast need not match the "control vs treatment"
-terminology of a classic two-treatment causal inference problem. We mirror the function calls and terminology of the \code{predict.bartmodel}
-function, labeling each prediction data term with a \code{1} to denote its contribution to the treatment prediction of a contrast and
-\code{0} to denote inclusion in the control prediction.}
+\title{Compute a contrast between two outcome prediction specifications for a BART model}
 \usage{
 compute_contrast_bart_model(
   object,
@@ -55,6 +49,15 @@ for group labels that were not in the training set. Must be a vector.}
 Contrast matrix or vector, depending on whether type = "mean" or "posterior".
 }
 \description{
+Compute a contrast using a BART model by making two sets of outcome predictions and taking their difference.
+This function provides the flexibility to compute any contrast of interest by specifying covariates, leaf basis, and random effects
+bases / IDs for both sides of a two term contrast. For simplicity, we refer to the subtrahend of the contrast as the "control" or
+\code{Y0} term and the minuend of the contrast as the \code{Y1} term, though the requested contrast need not match the "control vs treatment"
+terminology of a classic two-treatment causal inference problem. We mirror the function calls and terminology of the \code{predict.bartmodel}
+function, labeling each prediction data term with a \code{1} to denote its contribution to the treatment prediction of a contrast and
+\code{0} to denote inclusion in the control prediction.
+}
+\details{
 Only valid when there is either a mean forest or a random effects term in the BART model.
 }
 \examples{
