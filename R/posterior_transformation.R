@@ -1,3 +1,5 @@
+#' Compute a contrast between two outcome prediction specifications for a BCF model
+#'
 #' Compute a contrast using a BCF model by making two sets of outcome predictions and taking their difference.
 #' For simple BCF models with binary treatment, this will yield the same prediction as requesting `terms = "cate"`
 #' in the `predict.bcfmodel` function. For more general models, such as models with continuous / multivariate treatments or
@@ -245,6 +247,8 @@ compute_contrast_bcf_model <- function(
   }
 }
 
+#' Compute a contrast between two outcome prediction specifications for a BART model
+#'
 #' Compute a contrast using a BART model by making two sets of outcome predictions and taking their difference.
 #' This function provides the flexibility to compute any contrast of interest by specifying covariates, leaf basis, and random effects
 #' bases / IDs for both sides of a two term contrast. For simplicity, we refer to the subtrahend of the contrast as the "control" or
@@ -830,7 +834,8 @@ posterior_predictive_heuristic_multiplier <- function(
 
 #' Compute posterior credible intervals for BCF model terms
 #'
-#' This function computes posterior credible intervals for specified terms from a fitted BCF model. It supports intervals for prognostic forests, CATE forests, variance forests, random effects, and overall mean outcome predictions.
+#' Compute posterior credible intervals for specified terms from a fitted BCF model. Supports intervals for prognostic forests, CATE forests, variance forests, random effects, and overall mean outcome predictions.
+#'
 #' @param model_object A fitted BCF model object of class `bcfmodel`.
 #' @param terms A character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Note that `"mu"` is only different from `"prognostic_function"` if random effects are included with a model spec of `"intercept_only"` or `"intercept_plus_treatment"` and `"tau"` is only different from `"cate"` if random effects are included with a model spec of `"intercept_plus_treatment"`.
 #' @param level A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95% credible interval).
@@ -1055,7 +1060,10 @@ compute_bcf_posterior_interval <- function(
   }
 }
 
-#' Compute posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.
+#' Compute posterior credible intervals for specified terms from a fitted BART model.
+#'
+#' Compute posterior credible intervals for specified terms from a fitted BART model. Supports intervals for mean functions, variance functions, random effects, and overall outcome predictions.
+#'
 #' @param model_object A fitted BART or BCF model object of class `bartmodel`.
 #' @param terms A character string specifying the model term(s) for which to compute intervals. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`.
 #' @param level A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95% credible interval).

@@ -2,15 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{expand_dims_2d}
 \alias{expand_dims_2d}
-\title{Ensures that input is propagated appropriately to a matrix of dimension \code{output_rows} x \code{output_cols}.
-Handles the following cases:
-\enumerate{
-\item \code{input} is a scalar: output is simply a (\code{output_rows}, \code{output_cols}) matrix with \code{input} repeated for each element
-\item \code{input} is a vector of length \code{output_rows}: output is a (\code{output_rows}, \code{output_cols}) array with \code{input} broadcast across each of \code{output_cols} columns
-\item \code{input} is a vector of length \code{output_cols}: output is a (\code{output_rows}, \code{output_cols}) array with \code{input} broadcast across each of \code{output_rows} rows
-\item \code{input} is a matrix of dimension (\code{output_rows}, \code{output_cols}): input is passed through as-is
-All other cases throw an error.
-}}
+\title{Ensures that input is propagated appropriately to a matrix of dimension \code{output_rows} x \code{output_cols}.}
 \usage{
 expand_dims_2d(input, output_rows, output_cols)
 }
