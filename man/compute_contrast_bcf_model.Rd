@@ -2,16 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{compute_contrast_bcf_model}
 \alias{compute_contrast_bcf_model}
-\title{Compute a contrast using a BCF model by making two sets of outcome predictions and taking their difference.
-For simple BCF models with binary treatment, this will yield the same prediction as requesting \code{terms = "cate"}
-in the \code{predict.bcfmodel} function. For more general models, such as models with continuous / multivariate treatments or
-an additive random effects term with a coefficient on the treatment, this function provides the flexibility to compute a
-any contrast of interest by specifying covariates, treatment, and random effects bases and IDs for both sides of a two term
-contrast. For simplicity, we refer to the subtrahend of the contrast as the "control" or \code{Y0} term and the minuend of the
-contrast as the \code{Y1} term, though the requested contrast need not match the "control vs treatment" terminology of a classic
-two-arm experiment. We mirror the function calls and terminology of the \code{predict.bcfmodel} function, labeling each prediction
-data term with a \code{1} to denote its contribution to the treatment prediction of a contrast and \code{0} to denote inclusion in the
-control prediction.}
+\title{Compute a contrast between two outcome prediction specifications for a BCF model}
 \usage{
 compute_contrast_bcf_model(
   object,

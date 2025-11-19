@@ -2,14 +2,17 @@
 % Please edit documentation in R/random_effects.R
 \name{RandomEffectSamples}
 \alias{RandomEffectSamples}
-\title{Class that wraps the "persistent" aspects of a C++ random effects model
-(draws of the parameters and a map from the original label indices to the
-0-indexed label numbers used to place group samples in memory (i.e. the
-first label is stored in column 0 of the sample matrix, the second label
-is store in column 1 of the sample matrix, etc...))}
+\title{Class that wraps the "persistent" aspects of a C++ random effects model.}
 \description{
 Coordinates various C++ random effects classes and persists those
 needed for prediction / serialization
+}
+\details{
+Class that wraps the "persistent" aspects of a C++ random effects model, including
+draws of the parameters and a map from the original label indices to the
+0-indexed label numbers used to place group samples in memory (i.e. the
+first label is stored in column 0 of the sample matrix, the second label
+is store in column 1 of the sample matrix, etc...)
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
