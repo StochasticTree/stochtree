@@ -221,12 +221,12 @@ class TestPredict:
         )
 
         # Check that the default predict method returns a dictionary
-        pred = bart_model.predict(covariates=X_test)
+        pred = bart_model.predict(X=X_test)
         y_hat_posterior_test = pred["y_hat"]
         assert y_hat_posterior_test.shape == (20, 10)
 
         # Check that the pre-aggregated predictions match with those computed by np.mean
-        pred_mean = bart_model.predict(covariates=X_test, type="mean")
+        pred_mean = bart_model.predict(X=X_test, type="mean")
         y_hat_mean_test = pred_mean["y_hat"]
         np.testing.assert_almost_equal(
             y_hat_mean_test, np.mean(y_hat_posterior_test, axis=1)
@@ -245,14 +245,14 @@ class TestPredict:
         )
 
         # Check that the default predict method returns a dictionary
-        pred = het_bart_model.predict(covariates=X_test)
+        pred = het_bart_model.predict(X=X_test)
         y_hat_posterior_test = pred["y_hat"]
         sigma2_hat_posterior_test = pred["variance_forest_predictions"]
         assert y_hat_posterior_test.shape == (20, 10)
         assert sigma2_hat_posterior_test.shape == (20, 10)
 
         # Check that the pre-aggregated predictions match with those computed by np.mean
-        pred_mean = het_bart_model.predict(covariates=X_test, type="mean")
+        pred_mean = het_bart_model.predict(X=X_test, type="mean")
         y_hat_mean_test = pred_mean["y_hat"]
         sigma2_hat_mean_test = pred_mean["variance_forest_predictions"]
         np.testing.assert_almost_equal(
@@ -265,10 +265,10 @@ class TestPredict:
         # Check that the "single-term" pre-aggregated predictions
         # match those computed by pre-aggregated predictions returned in a dictionary
         y_hat_mean_test_single_term = het_bart_model.predict(
-            covariates=X_test, type="mean", terms="y_hat"
+            X=X_test, type="mean", terms="y_hat"
         )
         sigma2_hat_mean_test_single_term = het_bart_model.predict(
-            covariates=X_test, type="mean", terms="variance_forest"
+            X=X_test, type="mean", terms="variance_forest"
         )
         np.testing.assert_almost_equal(y_hat_mean_test, y_hat_mean_test_single_term)
         np.testing.assert_almost_equal(
@@ -279,7 +279,6 @@ class TestPredict:
         # Generate data and test/train split
         rng = np.random.default_rng(1234)
         n = 100
-        g = lambda x: np.where(x[:, 4] == 1, 2, np.where(x[:, 4] == 2, -1, -4))
         x1 = rng.normal(size=n)
         x2 = rng.normal(size=n)
         x3 = rng.normal(size=n)
@@ -332,10 +331,10 @@ class TestPredict:
             X_train=X_train,
             Z_train=Z_train,
             y_train=y_train,
-            pi_train=pi_x_train,
+            propensity_train=pi_x_train,
             X_test=X_test,
             Z_test=Z_test,
-            pi_test=pi_x_test,
+            propensity_test=pi_x_test,
             num_gfr=10,
             num_burnin=0,
             num_mcmc=10,
@@ -372,10 +371,10 @@ class TestPredict:
             X_train=X_train,
             Z_train=Z_train,
             y_train=y_train,
-            pi_train=pi_x_train,
+            propensity_train=pi_x_train,
             X_test=X_test,
             Z_test=Z_test,
-            pi_test=pi_x_test,
+            propensity_test=pi_x_test,
             num_gfr=10,
             num_burnin=0,
             num_mcmc=10,

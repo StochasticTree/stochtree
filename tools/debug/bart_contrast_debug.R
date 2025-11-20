@@ -45,8 +45,8 @@ bart_model <- bart(
 # Compute contrast posterior
 contrast_posterior_test <- compute_contrast_bart_model(
   bart_model,
-  covariates_0 = X_test,
-  covariates_1 = X_test,
+  X_0 = X_test,
+  X_1 = X_test,
   leaf_basis_0 = matrix(0, nrow = n_test, ncol = 1),
   leaf_basis_1 = matrix(1, nrow = n_test, ncol = 1),
   type = "posterior",
@@ -56,7 +56,7 @@ contrast_posterior_test <- compute_contrast_bart_model(
 # Compute the same quantity via two predict calls
 y_hat_posterior_test_0 <- predict(
   bart_model,
-  covariates = X_test,
+  X = X_test,
   leaf_basis = matrix(0, nrow = n_test, ncol = 1),
   type = "posterior",
   term = "y_hat",
@@ -64,7 +64,7 @@ y_hat_posterior_test_0 <- predict(
 )
 y_hat_posterior_test_1 <- predict(
   bart_model,
-  covariates = X_test,
+  X = X_test,
   leaf_basis = matrix(1, nrow = n_test, ncol = 1),
   type = "posterior",
   term = "y_hat",
@@ -128,8 +128,8 @@ bart_model <- bart(
 # Compute contrast posterior
 contrast_posterior_test <- compute_contrast_bart_model(
   bart_model,
-  covariates_0 = X_test,
-  covariates_1 = X_test,
+  X_0 = X_test,
+  X_1 = X_test,
   leaf_basis_0 = matrix(0, nrow = n_test, ncol = 1),
   leaf_basis_1 = matrix(1, nrow = n_test, ncol = 1),
   rfx_group_ids_0 = group_ids_test,
@@ -143,7 +143,7 @@ contrast_posterior_test <- compute_contrast_bart_model(
 # Compute the same quantity via two predict calls
 y_hat_posterior_test_0 <- predict(
   bart_model,
-  covariates = X_test,
+  X = X_test,
   leaf_basis = matrix(0, nrow = n_test, ncol = 1),
   rfx_group_ids = group_ids_test,
   rfx_basis = rfx_basis_test,
@@ -153,7 +153,7 @@ y_hat_posterior_test_0 <- predict(
 )
 y_hat_posterior_test_1 <- predict(
   bart_model,
-  covariates = X_test,
+  X = X_test,
   leaf_basis = matrix(1, nrow = n_test, ncol = 1),
   rfx_group_ids = group_ids_test,
   rfx_basis = rfx_basis_test,

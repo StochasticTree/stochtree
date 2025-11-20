@@ -260,8 +260,8 @@ compute_contrast_bcf_model <- function(
 #' Only valid when there is either a mean forest or a random effects term in the BART model.
 #'
 #' @param object Object of type `bart` containing draws of a regression forest and associated sampling outputs.
-#' @param covariates_0 Covariates used for prediction in the "control" case. Must be a matrix or dataframe.
-#' @param covariates_1 Covariates used for prediction in the "treatment" case. Must be a matrix or dataframe.
+#' @param X_0 Covariates used for prediction in the "control" case. Must be a matrix or dataframe.
+#' @param X_1 Covariates used for prediction in the "treatment" case. Must be a matrix or dataframe.
 #' @param leaf_basis_0 (Optional) Bases used for prediction in the "control" case (by e.g. dot product with leaf values). Default: `NULL`.
 #' @param leaf_basis_1 (Optional) Bases used for prediction in the "treatment" case (by e.g. dot product with leaf values). Default: `NULL`.
 #' @param rfx_group_ids_0 (Optional) Test set group labels used for prediction from an additive random effects
@@ -306,8 +306,8 @@ compute_contrast_bcf_model <- function(
 #'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' contrast_test <- compute_contrast_bart_model(
 #'     bart_model,
-#'     covariates_0 = X_test,
-#'     covariates_1 = X_test,
+#'     X_0 = X_test,
+#'     X_1 = X_test,
 #'     leaf_basis_0 = matrix(0, nrow = n_test, ncol = 1),
 #'     leaf_basis_1 = matrix(1, nrow = n_test, ncol = 1),
 #'     type = "posterior",
@@ -315,8 +315,8 @@ compute_contrast_bcf_model <- function(
 #' )
 compute_contrast_bart_model <- function(
   object,
-  covariates_0,
-  covariates_1,
+  X_0,
+  X_1,
   leaf_basis_0 = NULL,
   leaf_basis_1 = NULL,
   rfx_group_ids_0 = NULL,
@@ -360,11 +360,11 @@ compute_contrast_bart_model <- function(
   }
 
   # Check that covariates are matrix or data frame
-  if ((!is.data.frame(covariates_0)) && (!is.matrix(covariates_0))) {
-    stop("covariates_0 must be a matrix or dataframe")
+  if ((!is.data.frame(X_0)) && (!is.matrix(X_0))) {
+    stop("X_0 must be a matrix or dataframe")
   }
-  if ((!is.data.frame(covariates_1)) && (!is.matrix(covariates_1))) {
-    stop("covariates_1 must be a matrix or dataframe")
+  if ((!is.data.frame(X_1)) && (!is.matrix(X_1))) {
+    stop("X_1 must be a matrix or dataframe")
   }
 
   # Convert all input data to matrices if not already converted
@@ -388,20 +388,20 @@ compute_contrast_bart_model <- function(
   ) {
     stop("leaf_basis_0 and leaf_basis_1 must be provided for this model")
   }
-  if ((!is.null(leaf_basis_0)) && (nrow(covariates_0) != nrow(leaf_basis_0))) {
-    stop("covariates_0 and leaf_basis_0 must have the same number of rows")
+  if ((!is.null(leaf_basis_0)) && (nrow(X_0) != nrow(leaf_basis_0))) {
+    stop("X_0 and leaf_basis_0 must have the same number of rows")
   }
-  if ((!is.null(leaf_basis_1)) && (nrow(covariates_1) != nrow(leaf_basis_1))) {
-    stop("covariates_1 and leaf_basis_1 must have the same number of rows")
+  if ((!is.null(leaf_basis_1)) && (nrow(X_1) != nrow(leaf_basis_1))) {
+    stop("X_1 and leaf_basis_1 must have the same number of rows")
   }
-  if (object$model_params$num_covariates != ncol(covariates_0)) {
+  if (object$model_params$num_covariates != ncol(X_0)) {
     stop(
-      "covariates_0 must contain the same number of columns as the BART model's training dataset"
+      "X_0 must contain the same number of columns as the BART model's training dataset"
     )
   }
-  if (object$model_params$num_covariates != ncol(covariates_1)) {
+  if (object$model_params$num_covariates != ncol(X_1)) {
     stop(
-      "covariates_1 must contain the same number of columns as the BART model's training dataset"
+      "X_1 must contain the same number of columns as the BART model's training dataset"
     )
   }
   if ((has_rfx) && (is.null(rfx_group_ids_0) || is.null(rfx_group_ids_1))) {
@@ -427,7 +427,7 @@ compute_contrast_bart_model <- function(
   # Predict for the control arm
   control_preds <- predict(
     object = object,
-    covariates = covariates_0,
+    X = X_0,
     leaf_basis = leaf_basis_0,
     rfx_group_ids = rfx_group_ids_0,
     rfx_basis = rfx_basis_0,
@@ -439,7 +439,7 @@ compute_contrast_bart_model <- function(
   # Predict for the treatment arm
   treatment_preds <- predict(
     object = object,
-    covariates = covariates_1,
+    X = X_1,
     leaf_basis = leaf_basis_1,
     rfx_group_ids = rfx_group_ids_1,
     rfx_basis = rfx_basis_1,
@@ -465,8 +465,8 @@ compute_contrast_bart_model <- function(
 #' Sample from the posterior predictive distribution for outcomes modeled by BCF
 #'
 #' @param model_object A fitted BCF model object of class `bcfmodel`.
-#' @param covariates A matrix or data frame of covariates.
-#' @param treatment A vector or matrix of treatment assignments.
+#' @param X A matrix or data frame of covariates.
+#' @param Z A vector or matrix of treatment assignments.
 #' @param propensity (Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.
 #' @param rfx_group_ids (Optional) A vector of group IDs for random effects model. Required if the BCF model includes random effects.
 #' @param rfx_basis (Optional) A matrix of bases for random effects model. Required if the BCF model includes random effects.
@@ -484,13 +484,13 @@ compute_contrast_bart_model <- function(
 #' y <- 2 * X[,2] + 0.5 * X[,2] * Z + rnorm(n)
 #' bcf_model <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_X)
 #' ppd_samples <- sample_bcf_posterior_predictive(
-#'   model_object = bcf_model, covariates = X,
-#'   treatment = Z, propensity = pi_X
+#'   model_object = bcf_model, X = X,
+#'   Z = Z, propensity = pi_X
 #' )
 sample_bcf_posterior_predictive <- function(
   model_object,
-  covariates = NULL,
-  treatment = NULL,
+  X = NULL,
+  Z = NULL,
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
@@ -505,33 +505,33 @@ sample_bcf_posterior_predictive <- function(
   # Check that all the necessary inputs were provided for interval computation
   needs_covariates <- TRUE
   if (needs_covariates) {
-    if (is.null(covariates)) {
+    if (is.null(X)) {
       stop(
-        "'covariates' must be provided in order to compute the requested intervals"
+        "'X' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(covariates) && !is.data.frame(covariates)) {
-      stop("'covariates' must be a matrix or data frame")
+    if (!is.matrix(X) && !is.data.frame(X)) {
+      stop("'X' must be a matrix or data frame")
     }
   }
   needs_treatment <- needs_covariates
   if (needs_treatment) {
-    if (is.null(treatment)) {
+    if (is.null(Z)) {
       stop(
-        "'treatment' must be provided in order to compute the requested intervals"
+        "'Z' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(treatment) && !is.numeric(treatment)) {
-      stop("'treatment' must be a numeric vector or matrix")
+    if (!is.matrix(Z) && !is.numeric(Z)) {
+      stop("'Z' must be a numeric vector or matrix")
     }
-    if (is.matrix(treatment)) {
-      if (nrow(treatment) != nrow(covariates)) {
-        stop("'treatment' must have the same number of rows as 'covariates'")
+    if (is.matrix(Z)) {
+      if (nrow(Z) != nrow(X)) {
+        stop("'Z' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(treatment) != nrow(covariates)) {
+      if (length(Z) != nrow(X)) {
         stop(
-          "'treatment' must have the same number of elements as 'covariates'"
+          "'Z' must have the same number of elements as 'X'"
         )
       }
     }
@@ -551,13 +551,13 @@ sample_bcf_posterior_predictive <- function(
       stop("'propensity' must be a numeric vector or matrix")
     }
     if (is.matrix(propensity)) {
-      if (nrow(propensity) != nrow(covariates)) {
-        stop("'propensity' must have the same number of rows as 'covariates'")
+      if (nrow(propensity) != nrow(X)) {
+        stop("'propensity' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(propensity) != nrow(covariates)) {
+      if (length(propensity) != nrow(X)) {
         stop(
-          "'propensity' must have the same number of elements as 'covariates'"
+          "'propensity' must have the same number of elements as 'X'"
         )
       }
     }
@@ -569,9 +569,9 @@ sample_bcf_posterior_predictive <- function(
         "'rfx_group_ids' must be provided in order to compute the requested intervals"
       )
     }
-    if (length(rfx_group_ids) != nrow(covariates)) {
+    if (length(rfx_group_ids) != nrow(X)) {
       stop(
-        "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+        "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
     if (is.null(rfx_basis)) {
@@ -582,16 +582,16 @@ sample_bcf_posterior_predictive <- function(
     if (!is.matrix(rfx_basis)) {
       stop("'rfx_basis' must be a matrix")
     }
-    if (nrow(rfx_basis) != nrow(covariates)) {
-      stop("'rfx_basis' must have the same number of rows as 'covariates'")
+    if (nrow(rfx_basis) != nrow(X)) {
+      stop("'rfx_basis' must have the same number of rows as 'X'")
     }
   }
 
   # Compute posterior samples
   bcf_preds <- predict(
     model_object,
-    X = covariates,
-    Z = treatment,
+    X = X,
+    Z = Z,
     propensity = propensity,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
@@ -605,7 +605,7 @@ sample_bcf_posterior_predictive <- function(
   has_variance_forest <- model_object$model_params$include_variance_forest
   samples_global_variance <- model_object$model_params$sample_sigma2_global
   num_posterior_draws <- model_object$model_params$num_samples
-  num_observations <- nrow(covariates)
+  num_observations <- nrow(X)
   ppd_mean <- bcf_preds$y_hat
   if (has_variance_forest) {
     ppd_variance <- bcf_preds$variance_forest_predictions
@@ -659,8 +659,8 @@ sample_bcf_posterior_predictive <- function(
 #' Sample from the posterior predictive distribution for outcomes modeled by BART
 #'
 #' @param model_object A fitted BART model object of class `bartmodel`.
-#' @param covariates A matrix or data frame of covariates. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).
-#' @param basis A matrix of bases for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
+#' @param X A matrix or data frame of covariates. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).
+#' @param leaf_basis A matrix of bases for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
 #' @param rfx_group_ids A vector of group IDs for random effects model. Required if the BART model includes random effects.
 #' @param rfx_basis A matrix of bases for random effects model. Required if the BART model includes random effects.
 #' @param num_draws_per_sample The number of posterior predictive samples to draw for each posterior sample. Defaults to a heuristic based on the number of samples in a BART model (i.e. if the BART model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure intervals are based on at least 1000 posterior predictive draws).
@@ -675,12 +675,12 @@ sample_bcf_posterior_predictive <- function(
 #' y <- 2 * X[,1] + rnorm(n)
 #' bart_model <- bart(y_train = y, X_train = X)
 #' ppd_samples <- sample_bart_posterior_predictive(
-#'   model_object = bart_model, covariates = X
+#'   model_object = bart_model, X = X
 #' )
 sample_bart_posterior_predictive <- function(
   model_object,
-  covariates = NULL,
-  basis = NULL,
+  X = NULL,
+  leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
   num_draws_per_sample = NULL
@@ -694,32 +694,32 @@ sample_bart_posterior_predictive <- function(
   # Check that all the necessary inputs were provided for interval computation
   needs_covariates <- model_object$model_params$include_mean_forest
   if (needs_covariates) {
-    if (is.null(covariates)) {
+    if (is.null(X)) {
       stop(
-        "'covariates' must be provided in order to compute the requested intervals"
+        "'X' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(covariates) && !is.data.frame(covariates)) {
-      stop("'covariates' must be a matrix or data frame")
+    if (!is.matrix(X) && !is.data.frame(X)) {
+      stop("'X' must be a matrix or data frame")
     }
   }
   needs_basis <- needs_covariates && model_object$model_params$has_basis
   if (needs_basis) {
-    if (is.null(basis)) {
+    if (is.null(leaf_basis)) {
       stop(
-        "'basis' must be provided in order to compute the requested intervals"
+        "'leaf_basis' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(basis)) {
-      stop("'basis' must be a matrix")
+    if (!is.matrix(leaf_basis)) {
+      stop("'leaf_basis' must be a matrix")
     }
-    if (is.matrix(basis)) {
-      if (nrow(basis) != nrow(covariates)) {
-        stop("'basis' must have the same number of rows as 'covariates'")
+    if (is.matrix(leaf_basis)) {
+      if (nrow(leaf_basis) != nrow(X)) {
+        stop("'leaf_basis' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(basis) != nrow(covariates)) {
-        stop("'basis' must have the same number of elements as 'covariates'")
+      if (length(leaf_basis) != nrow(X)) {
+        stop("'leaf_basis' must have the same number of elements as 'X'")
       }
     }
   }
@@ -730,9 +730,9 @@ sample_bart_posterior_predictive <- function(
         "'rfx_group_ids' must be provided in order to compute the requested intervals"
       )
     }
-    if (length(rfx_group_ids) != nrow(covariates)) {
+    if (length(rfx_group_ids) != nrow(X)) {
       stop(
-        "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+        "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
     if (is.null(rfx_basis)) {
@@ -743,16 +743,16 @@ sample_bart_posterior_predictive <- function(
     if (!is.matrix(rfx_basis)) {
       stop("'rfx_basis' must be a matrix")
     }
-    if (nrow(rfx_basis) != nrow(covariates)) {
-      stop("'rfx_basis' must have the same number of rows as 'covariates'")
+    if (nrow(rfx_basis) != nrow(X)) {
+      stop("'rfx_basis' must have the same number of rows as 'X'")
     }
   }
 
   # Compute posterior samples
   bart_preds <- predict(
     model_object,
-    covariates = covariates,
-    leaf_basis = basis,
+    X = X,
+    leaf_basis = leaf_basis,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
     type = "posterior",
@@ -766,7 +766,7 @@ sample_bart_posterior_predictive <- function(
   has_variance_forest <- model_object$model_params$include_variance_forest
   samples_global_variance <- model_object$model_params$sample_sigma2_global
   num_posterior_draws <- model_object$model_params$num_samples
-  num_observations <- nrow(covariates)
+  num_observations <- nrow(X)
   if (has_mean_term) {
     ppd_mean <- bart_preds$y_hat
   } else {
@@ -840,8 +840,8 @@ posterior_predictive_heuristic_multiplier <- function(
 #' @param terms A character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Note that `"mu"` is only different from `"prognostic_function"` if random effects are included with a model spec of `"intercept_only"` or `"intercept_plus_treatment"` and `"tau"` is only different from `"cate"` if random effects are included with a model spec of `"intercept_plus_treatment"`.
 #' @param level A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95% credible interval).
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
-#' @param covariates (Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).
-#' @param treatment (Optional) A vector or matrix of treatment assignments. Required if the requested term is `"y_hat"` (overall predictions).
+#' @param X (Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).
+#' @param Z (Optional) A vector or matrix of treatment assignments. Required if the requested term is `"y_hat"` (overall predictions).
 #' @param propensity (Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.
 #' @param rfx_group_ids An optional vector of group IDs for random effects. Required if the requested term includes random effects.
 #' @param rfx_basis An optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
@@ -863,8 +863,8 @@ posterior_predictive_heuristic_multiplier <- function(
 #' intervals <- compute_bcf_posterior_interval(
 #'  model_object = bcf_model,
 #'  terms = c("prognostic_function", "cate"),
-#'  covariates = X,
-#'  treatment = Z,
+#'  X = X,
+#'  Z = Z,
 #'  propensity = pi_X,
 #'  level = 0.90
 #' )
@@ -873,8 +873,8 @@ compute_bcf_posterior_interval <- function(
   terms,
   level = 0.95,
   scale = "linear",
-  covariates = NULL,
-  treatment = NULL,
+  X = NULL,
+  Z = NULL,
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL
@@ -930,33 +930,33 @@ compute_bcf_posterior_interval <- function(
     ("variance_forest" %in% terms) ||
     (needs_covariates_intermediate))
   if (needs_covariates) {
-    if (is.null(covariates)) {
+    if (is.null(X)) {
       stop(
-        "'covariates' must be provided in order to compute the requested intervals"
+        "'X' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(covariates) && !is.data.frame(covariates)) {
-      stop("'covariates' must be a matrix or data frame")
+    if (!is.matrix(X) && !is.data.frame(X)) {
+      stop("'X' must be a matrix or data frame")
     }
   }
   needs_treatment <- needs_covariates
   if (needs_treatment) {
-    if (is.null(treatment)) {
+    if (is.null(Z)) {
       stop(
-        "'treatment' must be provided in order to compute the requested intervals"
+        "'Z' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(treatment) && !is.numeric(treatment)) {
-      stop("'treatment' must be a numeric vector or matrix")
+    if (!is.matrix(Z) && !is.numeric(Z)) {
+      stop("'Z' must be a numeric vector or matrix")
     }
-    if (is.matrix(treatment)) {
-      if (nrow(treatment) != nrow(covariates)) {
-        stop("'treatment' must have the same number of rows as 'covariates'")
+    if (is.matrix(Z)) {
+      if (nrow(Z) != nrow(X)) {
+        stop("'Z' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(treatment) != nrow(covariates)) {
+      if (length(Z) != nrow(X)) {
         stop(
-          "'treatment' must have the same number of elements as 'covariates'"
+          "'Z' must have the same number of elements as 'X'"
         )
       }
     }
@@ -976,13 +976,13 @@ compute_bcf_posterior_interval <- function(
       stop("'propensity' must be a numeric vector or matrix")
     }
     if (is.matrix(propensity)) {
-      if (nrow(propensity) != nrow(covariates)) {
-        stop("'propensity' must have the same number of rows as 'covariates'")
+      if (nrow(propensity) != nrow(X)) {
+        stop("'propensity' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(propensity) != nrow(covariates)) {
+      if (length(propensity) != nrow(X)) {
         stop(
-          "'propensity' must have the same number of elements as 'covariates'"
+          "'propensity' must have the same number of elements as 'X'"
         )
       }
     }
@@ -998,9 +998,9 @@ compute_bcf_posterior_interval <- function(
         "'rfx_group_ids' must be provided in order to compute the requested intervals"
       )
     }
-    if (length(rfx_group_ids) != nrow(covariates)) {
+    if (length(rfx_group_ids) != nrow(X)) {
       stop(
-        "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+        "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
 
@@ -1016,8 +1016,8 @@ compute_bcf_posterior_interval <- function(
       if (!is.matrix(rfx_basis)) {
         stop("'rfx_basis' must be a matrix")
       }
-      if (nrow(rfx_basis) != nrow(covariates)) {
-        stop("'rfx_basis' must have the same number of rows as 'covariates'")
+      if (nrow(rfx_basis) != nrow(X)) {
+        stop("'rfx_basis' must have the same number of rows as 'X'")
       }
     }
   }
@@ -1025,8 +1025,8 @@ compute_bcf_posterior_interval <- function(
   # Compute posterior matrices for the requested model terms
   predictions <- predict(
     model_object,
-    X = covariates,
-    Z = treatment,
+    X = X,
+    Z = Z,
     propensity = propensity,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
@@ -1068,8 +1068,8 @@ compute_bcf_posterior_interval <- function(
 #' @param terms A character string specifying the model term(s) for which to compute intervals. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`.
 #' @param level A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95% credible interval).
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
-#' @param covariates A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).
-#' @param basis An optional matrix of basis function evaluations for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
+#' @param X A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).
+#' @param leaf_basis An optional matrix of basis function evaluations for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
 #' @param rfx_group_ids An optional vector of group IDs for random effects. Required if the requested term includes random effects.
 #' @param rfx_basis An optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
 #'
@@ -1085,7 +1085,7 @@ compute_bcf_posterior_interval <- function(
 #' intervals <- compute_bart_posterior_interval(
 #'  model_object = bart_model,
 #'  terms = c("mean_forest", "y_hat"),
-#'  covariates = X,
+#'  X = X,
 #'  level = 0.90
 #' )
 #' @export
@@ -1094,8 +1094,8 @@ compute_bart_posterior_interval <- function(
   terms,
   level = 0.95,
   scale = "linear",
-  covariates = NULL,
-  basis = NULL,
+  X = NULL,
+  leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL
 ) {
@@ -1127,32 +1127,32 @@ compute_bart_posterior_interval <- function(
     ("variance_forest" %in% terms) ||
     (needs_covariates_intermediate))
   if (needs_covariates) {
-    if (is.null(covariates)) {
+    if (is.null(X)) {
       stop(
-        "'covariates' must be provided in order to compute the requested intervals"
+        "'X' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(covariates) && !is.data.frame(covariates)) {
-      stop("'covariates' must be a matrix or data frame")
+    if (!is.matrix(X) && !is.data.frame(X)) {
+      stop("'X' must be a matrix or data frame")
     }
   }
   needs_basis <- needs_covariates && model_object$model_params$has_basis
   if (needs_basis) {
-    if (is.null(basis)) {
+    if (is.null(leaf_basis)) {
       stop(
-        "'basis' must be provided in order to compute the requested intervals"
+        "'leaf_basis' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(basis)) {
-      stop("'basis' must be a matrix")
+    if (!is.matrix(leaf_basis)) {
+      stop("'leaf_basis' must be a matrix")
     }
-    if (is.matrix(basis)) {
-      if (nrow(basis) != nrow(covariates)) {
-        stop("'basis' must have the same number of rows as 'covariates'")
+    if (is.matrix(leaf_basis)) {
+      if (nrow(leaf_basis) != nrow(X)) {
+        stop("'leaf_basis' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(basis) != nrow(covariates)) {
-        stop("'basis' must have the same number of elements as 'covariates'")
+      if (length(leaf_basis) != nrow(X)) {
+        stop("'leaf_basis' must have the same number of elements as 'X'")
       }
     }
   }
@@ -1167,9 +1167,9 @@ compute_bart_posterior_interval <- function(
         "'rfx_group_ids' must be provided in order to compute the requested intervals"
       )
     }
-    if (length(rfx_group_ids) != nrow(covariates)) {
+    if (length(rfx_group_ids) != nrow(X)) {
       stop(
-        "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+        "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
     if (is.null(rfx_basis)) {
@@ -1180,16 +1180,16 @@ compute_bart_posterior_interval <- function(
     if (!is.matrix(rfx_basis)) {
       stop("'rfx_basis' must be a matrix")
     }
-    if (nrow(rfx_basis) != nrow(covariates)) {
-      stop("'rfx_basis' must have the same number of rows as 'covariates'")
+    if (nrow(rfx_basis) != nrow(X)) {
+      stop("'rfx_basis' must have the same number of rows as 'X'")
     }
   }
 
   # Compute posterior matrices for the requested model terms
   predictions <- predict(
     model_object,
-    covariates = covariates,
-    leaf_basis = basis,
+    X = X,
+    leaf_basis = leaf_basis,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
     type = "posterior",

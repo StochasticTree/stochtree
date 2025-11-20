@@ -6,8 +6,8 @@
 \usage{
 sample_bcf_posterior_predictive(
   model_object,
-  covariates = NULL,
-  treatment = NULL,
+  X = NULL,
+  Z = NULL,
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
@@ -17,9 +17,9 @@ sample_bcf_posterior_predictive(
 \arguments{
 \item{model_object}{A fitted BCF model object of class \code{bcfmodel}.}
 
-\item{covariates}{A matrix or data frame of covariates.}
+\item{X}{A matrix or data frame of covariates.}
 
-\item{treatment}{A vector or matrix of treatment assignments.}
+\item{Z}{A vector or matrix of treatment assignments.}
 
 \item{propensity}{(Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.}
 
@@ -44,7 +44,7 @@ Z <- rbinom(n, 1, pi_X)
 y <- 2 * X[,2] + 0.5 * X[,2] * Z + rnorm(n)
 bcf_model <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_X)
 ppd_samples <- sample_bcf_posterior_predictive(
-  model_object = bcf_model, covariates = X,
-  treatment = Z, propensity = pi_X
+  model_object = bcf_model, X = X,
+  Z = Z, propensity = pi_X
 )
 }

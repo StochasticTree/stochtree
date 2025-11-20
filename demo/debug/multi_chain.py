@@ -3,7 +3,6 @@
 # Load necessary libraries
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import arviz as az
 from sklearn.model_selection import train_test_split
 
@@ -89,8 +88,8 @@ bart_model.sample(
 
 # Analyze model predictions collectively across all chains
 y_hat_test = bart_model.predict(
-  covariates = X_test,
-  basis = basis_test,
+  X = X_test,
+  leaf_basis = basis_test,
   type = "mean", 
   terms = "y_hat"
 )

@@ -60,13 +60,13 @@ bart_orig.sample(X_train=X, y_train=y, leaf_basis_train=W, rfx_group_ids_train=g
                   rfx_basis_train=basis, num_gfr=10, num_mcmc=10)
 
 # Extract predictions from the sampler
-bart_preds_orig = bart_orig.predict(X, W, group_labels, basis)
+bart_preds_orig = bart_orig.predict(X=X, leaf_basis=W, rfx_group_ids=group_labels, rfx_basis=basis)
 y_hat_orig = bart_preds_orig['y_hat']
 
 # "Round-trip" the model to JSON string and back and check that the predictions agree
 bart_json_string = bart_orig.to_json()
 bart_reloaded = BARTModel()
 bart_reloaded.from_json(bart_json_string)
-bart_preds_reloaded = bart_reloaded.predict(X, W, group_labels, basis)
+bart_preds_reloaded = bart_reloaded.predict(X=X, leaf_basis=W, rfx_group_ids=group_labels, rfx_basis=basis)
 y_hat_reloaded = bart_preds_reloaded['y_hat']
 np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)

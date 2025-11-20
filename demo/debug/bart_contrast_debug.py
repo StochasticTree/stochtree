@@ -55,25 +55,25 @@ bart_model.sample(
 
 # Compute contrast posterior
 contrast_posterior_test = bart_model.compute_contrast(
-    covariates_0=X_test,
-    covariates_1=X_test,
-    basis_0=np.zeros((n_test, 1)),
-    basis_1=np.ones((n_test, 1)),
+    X_0=X_test,
+    X_1=X_test,
+    leaf_basis_0=np.zeros((n_test, 1)),
+    leaf_basis_1=np.ones((n_test, 1)),
     type="posterior",
     scale="linear",
 )
 
 # Compute the same quantity via two predict calls
 y_hat_posterior_test_0 = bart_model.predict(
-    covariates=X_test,
-    basis=np.zeros((n_test, 1)),
+    X=X_test,
+    leaf_basis=np.zeros((n_test, 1)),
     type="posterior",
     terms="y_hat",
     scale="linear",
 )
 y_hat_posterior_test_1 = bart_model.predict(
-    covariates=X_test,
-    basis=np.ones((n_test, 1)),
+    X=X_test,
+    leaf_basis=np.ones((n_test, 1)),
     type="posterior",
     terms="y_hat",
     scale="linear",
@@ -143,10 +143,10 @@ bart_model.sample(
 
 # Compute contrast posterior
 contrast_posterior_test = bart_model.compute_contrast(
-    covariates_0=X_test,
-    covariates_1=X_test,
-    basis_0=np.zeros((n_test, 1)),
-    basis_1=np.ones((n_test, 1)),
+    X_0=X_test,
+    X_1=X_test,
+    leaf_basis_0=np.zeros((n_test, 1)),
+    leaf_basis_1=np.ones((n_test, 1)),
     rfx_group_ids_0=group_ids_test,
     rfx_group_ids_1=group_ids_test,
     rfx_basis_0=rfx_basis_test,
@@ -157,8 +157,8 @@ contrast_posterior_test = bart_model.compute_contrast(
 
 # Compute the same quantity via two predict calls
 y_hat_posterior_test_0 = bart_model.predict(
-    covariates=X_test,
-    basis=np.zeros((n_test, 1)),
+    X=X_test,
+    leaf_basis=np.zeros((n_test, 1)),
     rfx_group_ids=group_ids_test,
     rfx_basis=rfx_basis_test,
     type="posterior",
@@ -166,8 +166,8 @@ y_hat_posterior_test_0 = bart_model.predict(
     scale="linear",
 )
 y_hat_posterior_test_1 = bart_model.predict(
-    covariates=X_test,
-    basis=np.ones((n_test, 1)),
+    X=X_test,
+    leaf_basis=np.ones((n_test, 1)),
     rfx_group_ids=group_ids_test,
     rfx_basis=rfx_basis_test,
     type="posterior",

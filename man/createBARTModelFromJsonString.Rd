@@ -42,5 +42,5 @@ bart_model <- bart(X_train = X_train, y_train = y_train,
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 bart_json <- saveBARTModelToJsonString(bart_model)
 bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
-y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X_train)$y_hat)
+y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X=X_train)$y_hat)
 }

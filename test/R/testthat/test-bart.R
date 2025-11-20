@@ -320,6 +320,19 @@ test_that("Warmstart BART", {
       num_burnin = 10,
       num_mcmc = 10,
       previous_model_json = bart_model_json_string,
+      previous_model_warmstart_sample_num = 10,
+      general_params = general_param_list
+    )
+  )
+  expect_warning(
+    bart_model <- bart(
+      X_train = X_train,
+      y_train = y_train,
+      X_test = X_test,
+      num_gfr = 0,
+      num_burnin = 10,
+      num_mcmc = 10,
+      previous_model_json = bart_model_json_string,
       previous_model_warmstart_sample_num = 1,
       general_params = general_param_list
     )
@@ -388,6 +401,23 @@ test_that("Warmstart BART", {
       num_burnin = 10,
       num_mcmc = 10,
       previous_model_json = bart_model_json_string,
+      previous_model_warmstart_sample_num = 10,
+      general_params = general_param_list
+    )
+  )
+  expect_warning(
+    bart_model <- bart(
+      X_train = X_train,
+      y_train = y_train,
+      X_test = X_test,
+      rfx_group_ids_train = rfx_group_ids_train,
+      rfx_group_ids_test = rfx_group_ids_test,
+      rfx_basis_train = rfx_basis_train,
+      rfx_basis_test = rfx_basis_test,
+      num_gfr = 0,
+      num_burnin = 10,
+      num_mcmc = 10,
+      previous_model_json = bart_model_json_string,
       previous_model_warmstart_sample_num = 1,
       general_params = general_param_list
     )
@@ -433,7 +463,7 @@ test_that("BART Predictions", {
   )
 
   # Check that cached predictions agree with results of predict() function
-  train_preds <- predict(bart_model, covariates = X_train)
+  train_preds <- predict(bart_model, X = X_train)
   train_preds_mean_cached <- bart_model$y_hat_train
   train_preds_mean_recomputed <- train_preds$mean_forest_predictions
   train_preds_variance_cached <- bart_model$sigma2_x_hat_train
@@ -584,7 +614,7 @@ test_that("Random Effects BART", {
     )
     preds <- predict(
       bart_model,
-      covariates = X_test,
+      X = X_test,
       leaf_basis = W_test,
       rfx_group_ids = rfx_group_ids_test,
       type = "posterior",

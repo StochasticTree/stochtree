@@ -66,7 +66,7 @@ propensity_model <- stochtree::bart(
 )
 propensity <- predict(
   propensity_model,
-  covariates = covariate_df,
+  X = covariate_df,
   type = "mean",
   terms = "y_hat"
 )

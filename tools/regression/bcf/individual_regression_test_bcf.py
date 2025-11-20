@@ -337,7 +337,7 @@ def main():
             X_train=covariates_train,
             Z_train=treatment_train,
             y_train=outcome_train,
-            pi_train=propensity_train,
+            propensity_train=propensity_train,
             rfx_group_ids_train=rfx_group_ids_train,
             rfx_basis_train=rfx_basis_train,
             num_gfr=num_gfr,

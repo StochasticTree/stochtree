@@ -38,7 +38,7 @@ xbart_model <- bart(
 # Inspect the model fit
 y_hat_test <- predict(
   xbart_model,
-  covariates = X_test,
+  X = X_test,
   type = "mean",
   terms = "y_hat"
 )
@@ -57,7 +57,7 @@ bart_model <- bart(
 # Inspect the model fit
 y_hat_test <- predict(
   bart_model,
-  covariates = X_test,
+  X = X_test,
   type = "mean",
   terms = "y_hat"
 )
@@ -100,7 +100,7 @@ xbart_model <- bart(
 # Inspect the model fit
 y_hat_test <- predict(
   xbart_model,
-  covariates = X_test,
+  X = X_test,
   type = "mean",
   terms = "y_hat"
 )
@@ -119,7 +119,7 @@ bart_model <- bart(
 # Inspect the model fit
 y_hat_test <- predict(
   bart_model,
-  covariates = X_test,
+  X = X_test,
   type = "mean",
   terms = "y_hat"
 )

@@ -38,16 +38,16 @@ bart_model <- bart(
 )
 
 # Check several predict approaches
-y_hat_posterior_test <- predict(bart_model, X_test)$y_hat
+y_hat_posterior_test <- predict(bart_model, X = X_test)$y_hat
 y_hat_mean_test <- predict(
   bart_model,
-  X_test,
+  X = X_test,
   type = "mean",
   terms = c("y_hat")
 )
 y_hat_test <- predict(
   bart_model,
-  X_test,
+  X = X_test,
   type = "mean",
   terms = c("rfx", "variance")
 )
@@ -56,7 +56,7 @@ y_hat_intervals <- compute_bart_posterior_interval(
   model_object = bart_model,
   transform = function(x) x,
   terms = c("y_hat", "mean_forest"),
-  covariates = X_test,
+  X = X_test,
   level = 0.95
 )
 
@@ -67,7 +67,7 @@ y_hat_intervals <- compute_bart_posterior_interval(
 
 pred_intervals <- sample_bart_posterior_predictive(
   model_object = bart_model,
-  covariates = X_test,
+  X = X_test,
   level = 0.95
 )
 
@@ -117,18 +117,18 @@ bart_model <- bart(
 # Predict on latent scale
 y_hat_post <- predict(
   object = bart_model,
+  X = X_test,
   type = "posterior",
   terms = c("y_hat"),
-  covariates = X_test,
   scale = "linear"
 )
 
 # Predict on probability scale
 y_hat_post_prob <- predict(
   object = bart_model,
+  X = X_test,
   type = "posterior",
   terms = c("y_hat"),
-  covariates = X_test,
   scale = "probability"
 )
 
@@ -137,7 +137,7 @@ y_hat_intervals <- compute_bart_posterior_interval(
   model_object = bart_model,
   scale = "linear",
   terms = c("y_hat"),
-  covariates = X_test,
+  X = X_test,
   level = 0.95
 )
 
@@ -146,7 +146,7 @@ y_hat_prob_intervals <- compute_bart_posterior_interval(
   model_object = bart_model,
   scale = "probability",
   terms = c("y_hat"),
-  covariates = X_test,
+  X = X_test,
   level = 0.95
 )
 
@@ -169,7 +169,7 @@ lines(y_hat_prob_intervals$upper[sort_inds])
 # Draw from posterior predictive for covariates in the test set
 ppd_samples <- sample_bart_posterior_predictive(
   model_object = bart_model,
-  covariates = X_test,
+  X = X_test,
   num_draws = 10
 )
 

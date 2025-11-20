@@ -46,11 +46,11 @@ bart_model.sample(
 )
 
 # # Check several predict approaches
-bart_preds = bart_model.predict(covariates=X_test)
-y_hat_posterior_test = bart_model.predict(covariates=X_test)["y_hat"]
-y_hat_mean_test = bart_model.predict(covariates=X_test, type="mean", terms=["y_hat"])
+bart_preds = bart_model.predict(X=X_test)
+y_hat_posterior_test = bart_model.predict(X=X_test)["y_hat"]
+y_hat_mean_test = bart_model.predict(X=X_test, type="mean", terms=["y_hat"])
 y_hat_test = bart_model.predict(
-    covariates=X_test, type="mean", terms=["rfx", "variance"]
+    X=X_test, type="mean", terms=["rfx", "variance"]
 )
 
 # Plot predicted versus actual
@@ -63,7 +63,7 @@ plt.show()
 
 # Compute posterior interval
 intervals = bart_model.compute_posterior_interval(
-    terms="all", scale="linear", level=0.95, covariates=X_test
+    terms="all", scale="linear", level=0.95, X=X_test
 )
 
 # Check coverage
@@ -75,7 +75,7 @@ print(f"Coverage of 95% posterior interval for f(X): {mean_coverage:.3f}")
 
 # Sample from the posterior predictive distribution
 bart_ppd_samples = bart_model.sample_posterior_predictive(
-    covariates=X_test, num_draws_per_sample=10
+    X=X_test, num_draws_per_sample=10
 )
 
 # Plot PPD mean vs actual

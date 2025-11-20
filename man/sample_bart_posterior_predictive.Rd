@@ -6,8 +6,8 @@
 \usage{
 sample_bart_posterior_predictive(
   model_object,
-  covariates = NULL,
-  basis = NULL,
+  X = NULL,
+  leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
   num_draws_per_sample = NULL
@@ -16,9 +16,9 @@ sample_bart_posterior_predictive(
 \arguments{
 \item{model_object}{A fitted BART model object of class \code{bartmodel}.}
 
-\item{covariates}{A matrix or data frame of covariates. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).}
+\item{X}{A matrix or data frame of covariates. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).}
 
-\item{basis}{A matrix of bases for mean forest models with regression defined in the leaves. Required for "leaf regression" models.}
+\item{leaf_basis}{A matrix of bases for mean forest models with regression defined in the leaves. Required for "leaf regression" models.}
 
 \item{rfx_group_ids}{A vector of group IDs for random effects model. Required if the BART model includes random effects.}
 
@@ -39,6 +39,6 @@ X <- matrix(rnorm(n * p), nrow = n, ncol = p)
 y <- 2 * X[,1] + rnorm(n)
 bart_model <- bart(y_train = y, X_train = X)
 ppd_samples <- sample_bart_posterior_predictive(
-  model_object = bart_model, covariates = X
+  model_object = bart_model, X = X
 )
 }

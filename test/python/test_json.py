@@ -454,7 +454,7 @@ class TestJson:
         # Run BCF
         bcf_orig = BCFModel()
         bcf_orig.sample(
-            X_train=X, Z_train=Z, y_train=y, pi_train=pi_X, num_gfr=10, num_mcmc=10
+            X_train=X, Z_train=Z, y_train=y, propensity_train=pi_X, num_gfr=10, num_mcmc=10
         )
 
         # Extract predictions from the sampler
@@ -529,7 +529,7 @@ class TestJson:
             X_train=X,
             Z_train=Z,
             y_train=y,
-            pi_train=pi_X,
+            propensity_train=pi_X,
             rfx_group_ids_train=group_labels,
             rfx_basis_train=basis,
             num_gfr=10,
