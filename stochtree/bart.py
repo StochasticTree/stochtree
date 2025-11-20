@@ -2193,25 +2193,19 @@ class BARTModel:
 
     def compute_posterior_interval(
         self,
-        terms: Union[list[str], str] = "all",
-        level: float = 0.95,
-        scale: str = "linear",
         X: np.array = None,
         leaf_basis: np.array = None,
         rfx_group_ids: np.array = None,
         rfx_basis: np.array = None,
+        terms: Union[list[str], str] = "all",
+        level: float = 0.95,
+        scale: str = "linear",
     ) -> dict:
         """
         Compute posterior credible intervals for specified terms from a fitted BART model. It supports intervals for mean functions, variance functions, random effects, and overall predictions.
 
         Parameters
         ----------
-        terms : str, optional
-            Character string specifying the model term(s) for which to compute intervals. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`. Defaults to `"all"`.
-        scale : str, optional
-            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
-        level : float, optional
-            A numeric value between 0 and 1 specifying the credible interval level. Defaults to 0.95 for a 95% credible interval.
         X : np.array, optional
             Optional array or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).
         leaf_basis : np.array, optional
@@ -2220,6 +2214,12 @@ class BARTModel:
             Optional vector of group IDs for random effects. Required if the requested term includes random effects.
         rfx_basis : np.array, optional
             Optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
+        terms : str, optional
+            Character string specifying the model term(s) for which to compute intervals. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`. Defaults to `"all"`.
+        scale : str, optional
+            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
+        level : float, optional
+            A numeric value between 0 and 1 specifying the credible interval level. Defaults to 0.95 for a 95% credible interval.
 
         Returns
         -------
