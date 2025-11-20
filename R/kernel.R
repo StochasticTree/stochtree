@@ -129,7 +129,7 @@ computeForestLeafIndices <- function(
         propensity <- rowMeans(
           predict(
             model_object$bart_propensity_model,
-            covariates
+            X = covariates
           )$y_hat
         )
       }

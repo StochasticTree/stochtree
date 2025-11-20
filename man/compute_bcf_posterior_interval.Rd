@@ -9,8 +9,8 @@ compute_bcf_posterior_interval(
   terms,
   level = 0.95,
   scale = "linear",
-  covariates = NULL,
-  treatment = NULL,
+  X = NULL,
+  Z = NULL,
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL
@@ -25,9 +25,9 @@ compute_bcf_posterior_interval(
 
 \item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
 
-\item{covariates}{(Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).}
+\item{X}{(Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).}
 
-\item{treatment}{(Optional) A vector or matrix of treatment assignments. Required if the requested term is \code{"y_hat"} (overall predictions).}
+\item{Z}{(Optional) A vector or matrix of treatment assignments. Required if the requested term is \code{"y_hat"} (overall predictions).}
 
 \item{propensity}{(Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.}
 
@@ -55,8 +55,8 @@ bcf_model <- bcf(X_train = X, Z_train = Z, y_train = y,
 intervals <- compute_bcf_posterior_interval(
  model_object = bcf_model,
  terms = c("prognostic_function", "cate"),
- covariates = X,
- treatment = Z,
+ X = X,
+ Z = Z,
  propensity = pi_X,
  level = 0.90
 )

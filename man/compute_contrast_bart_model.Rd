@@ -6,8 +6,8 @@
 \usage{
 compute_contrast_bart_model(
   object,
-  covariates_0,
-  covariates_1,
+  X_0,
+  X_1,
   leaf_basis_0 = NULL,
   leaf_basis_1 = NULL,
   rfx_group_ids_0 = NULL,
@@ -21,9 +21,9 @@ compute_contrast_bart_model(
 \arguments{
 \item{object}{Object of type \code{bart} containing draws of a regression forest and associated sampling outputs.}
 
-\item{covariates_0}{Covariates used for prediction in the "control" case. Must be a matrix or dataframe.}
+\item{X_0}{Covariates used for prediction in the "control" case. Must be a matrix or dataframe.}
 
-\item{covariates_1}{Covariates used for prediction in the "treatment" case. Must be a matrix or dataframe.}
+\item{X_1}{Covariates used for prediction in the "treatment" case. Must be a matrix or dataframe.}
 
 \item{leaf_basis_0}{(Optional) Bases used for prediction in the "control" case (by e.g. dot product with leaf values). Default: \code{NULL}.}
 
@@ -88,8 +88,8 @@ bart_model <- bart(X_train = X_train, leaf_basis_train = W_train, y_train = y_tr
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 contrast_test <- compute_contrast_bart_model(
     bart_model,
-    covariates_0 = X_test,
-    covariates_1 = X_test,
+    X_0 = X_test,
+    X_1 = X_test,
     leaf_basis_0 = matrix(0, nrow = n_test, ncol = 1),
     leaf_basis_1 = matrix(1, nrow = n_test, ncol = 1),
     type = "posterior",
