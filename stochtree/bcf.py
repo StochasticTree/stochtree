@@ -95,13 +95,13 @@ class BCFModel:
         num_gfr: int = 5,
         num_burnin: int = 0,
         num_mcmc: int = 100,
+        previous_model_json: Optional[str] = None,
+        previous_model_warmstart_sample_num: Optional[int] = None,
         general_params: Optional[Dict[str, Any]] = None,
         prognostic_forest_params: Optional[Dict[str, Any]] = None,
         treatment_effect_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
         random_effects_params: Optional[Dict[str, Any]] = None,
-        previous_model_json: Optional[str] = None,
-        previous_model_warmstart_sample_num: Optional[int] = None,
     ) -> None:
         """Runs a BCF sampler on provided training set. Outcome predictions and estimates of the prognostic and treatment effect functions
         will be cached for the training set and (if provided) the test set.
@@ -3261,8 +3261,8 @@ class BCFModel:
     def compute_posterior_interval(
         self,
         terms: Union[list[str], str] = "all",
-        scale: str = "linear",
         level: float = 0.95,
+        scale: str = "linear",
         covariates: np.array = None,
         treatment: np.array = None,
         propensity: np.array = None,

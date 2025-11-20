@@ -82,12 +82,12 @@ class BARTModel:
         num_gfr: int = 5,
         num_burnin: int = 0,
         num_mcmc: int = 100,
+        previous_model_json: Optional[str] = None,
+        previous_model_warmstart_sample_num: Optional[int] = None,
         general_params: Optional[Dict[str, Any]] = None,
         mean_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
         random_effects_params: Optional[Dict[str, Any]] = None,
-        previous_model_json: Optional[str] = None,
-        previous_model_warmstart_sample_num: Optional[int] = None,
     ) -> None:
         """Runs a BART sampler on provided training set. Predictions will be cached for the training set and (if provided) the test set.
         Does not require a leaf regression basis.
@@ -2194,8 +2194,8 @@ class BARTModel:
     def compute_posterior_interval(
         self,
         terms: Union[list[str], str] = "all",
-        scale: str = "linear",
         level: float = 0.95,
+        scale: str = "linear",
         covariates: np.array = None,
         basis: np.array = None,
         rfx_group_ids: np.array = None,
