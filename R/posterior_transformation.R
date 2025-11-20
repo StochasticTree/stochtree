@@ -465,8 +465,8 @@ compute_contrast_bart_model <- function(
 #' Sample from the posterior predictive distribution for outcomes modeled by BCF
 #'
 #' @param model_object A fitted BCF model object of class `bcfmodel`.
-#' @param covariates A matrix or data frame of covariates.
-#' @param treatment A vector or matrix of treatment assignments.
+#' @param X A matrix or data frame of covariates.
+#' @param Z A vector or matrix of treatment assignments.
 #' @param propensity (Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.
 #' @param rfx_group_ids (Optional) A vector of group IDs for random effects model. Required if the BCF model includes random effects.
 #' @param rfx_basis (Optional) A matrix of bases for random effects model. Required if the BCF model includes random effects.
@@ -484,13 +484,13 @@ compute_contrast_bart_model <- function(
 #' y <- 2 * X[,2] + 0.5 * X[,2] * Z + rnorm(n)
 #' bcf_model <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_X)
 #' ppd_samples <- sample_bcf_posterior_predictive(
-#'   model_object = bcf_model, covariates = X,
-#'   treatment = Z, propensity = pi_X
+#'   model_object = bcf_model, X = X,
+#'   Z = Z, propensity = pi_X
 #' )
 sample_bcf_posterior_predictive <- function(
   model_object,
-  covariates = NULL,
-  treatment = NULL,
+  X = NULL,
+  Z = NULL,
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
@@ -505,33 +505,33 @@ sample_bcf_posterior_predictive <- function(
   # Check that all the necessary inputs were provided for interval computation
   needs_covariates <- TRUE
   if (needs_covariates) {
-    if (is.null(covariates)) {
+    if (is.null(X)) {
       stop(
-        "'covariates' must be provided in order to compute the requested intervals"
+        "'X' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(covariates) && !is.data.frame(covariates)) {
-      stop("'covariates' must be a matrix or data frame")
+    if (!is.matrix(X) && !is.data.frame(X)) {
+      stop("'X' must be a matrix or data frame")
     }
   }
   needs_treatment <- needs_covariates
   if (needs_treatment) {
-    if (is.null(treatment)) {
+    if (is.null(Z)) {
       stop(
-        "'treatment' must be provided in order to compute the requested intervals"
+        "'Z' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(treatment) && !is.numeric(treatment)) {
-      stop("'treatment' must be a numeric vector or matrix")
+    if (!is.matrix(Z) && !is.numeric(Z)) {
+      stop("'Z' must be a numeric vector or matrix")
     }
-    if (is.matrix(treatment)) {
-      if (nrow(treatment) != nrow(covariates)) {
-        stop("'treatment' must have the same number of rows as 'covariates'")
+    if (is.matrix(Z)) {
+      if (nrow(Z) != nrow(X)) {
+        stop("'Z' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(treatment) != nrow(covariates)) {
+      if (length(Z) != nrow(X)) {
         stop(
-          "'treatment' must have the same number of elements as 'covariates'"
+          "'Z' must have the same number of elements as 'X'"
         )
       }
     }
@@ -551,13 +551,13 @@ sample_bcf_posterior_predictive <- function(
       stop("'propensity' must be a numeric vector or matrix")
     }
     if (is.matrix(propensity)) {
-      if (nrow(propensity) != nrow(covariates)) {
-        stop("'propensity' must have the same number of rows as 'covariates'")
+      if (nrow(propensity) != nrow(X)) {
+        stop("'propensity' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(propensity) != nrow(covariates)) {
+      if (length(propensity) != nrow(X)) {
         stop(
-          "'propensity' must have the same number of elements as 'covariates'"
+          "'propensity' must have the same number of elements as 'X'"
         )
       }
     }
@@ -569,9 +569,9 @@ sample_bcf_posterior_predictive <- function(
         "'rfx_group_ids' must be provided in order to compute the requested intervals"
       )
     }
-    if (length(rfx_group_ids) != nrow(covariates)) {
+    if (length(rfx_group_ids) != nrow(X)) {
       stop(
-        "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+        "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
     if (is.null(rfx_basis)) {
@@ -582,16 +582,16 @@ sample_bcf_posterior_predictive <- function(
     if (!is.matrix(rfx_basis)) {
       stop("'rfx_basis' must be a matrix")
     }
-    if (nrow(rfx_basis) != nrow(covariates)) {
-      stop("'rfx_basis' must have the same number of rows as 'covariates'")
+    if (nrow(rfx_basis) != nrow(X)) {
+      stop("'rfx_basis' must have the same number of rows as 'X'")
     }
   }
 
   # Compute posterior samples
   bcf_preds <- predict(
     model_object,
-    X = covariates,
-    Z = treatment,
+    X = X,
+    Z = Z,
     propensity = propensity,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
@@ -605,7 +605,7 @@ sample_bcf_posterior_predictive <- function(
   has_variance_forest <- model_object$model_params$include_variance_forest
   samples_global_variance <- model_object$model_params$sample_sigma2_global
   num_posterior_draws <- model_object$model_params$num_samples
-  num_observations <- nrow(covariates)
+  num_observations <- nrow(X)
   ppd_mean <- bcf_preds$y_hat
   if (has_variance_forest) {
     ppd_variance <- bcf_preds$variance_forest_predictions
@@ -840,8 +840,8 @@ posterior_predictive_heuristic_multiplier <- function(
 #' @param terms A character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Note that `"mu"` is only different from `"prognostic_function"` if random effects are included with a model spec of `"intercept_only"` or `"intercept_plus_treatment"` and `"tau"` is only different from `"cate"` if random effects are included with a model spec of `"intercept_plus_treatment"`.
 #' @param level A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95% credible interval).
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
-#' @param covariates (Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).
-#' @param treatment (Optional) A vector or matrix of treatment assignments. Required if the requested term is `"y_hat"` (overall predictions).
+#' @param X (Optional) A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, CATE forest, variance forest, or overall predictions).
+#' @param Z (Optional) A vector or matrix of treatment assignments. Required if the requested term is `"y_hat"` (overall predictions).
 #' @param propensity (Optional) A vector or matrix of propensity scores. Required if the underlying model depends on user-provided propensities.
 #' @param rfx_group_ids An optional vector of group IDs for random effects. Required if the requested term includes random effects.
 #' @param rfx_basis An optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
@@ -863,8 +863,8 @@ posterior_predictive_heuristic_multiplier <- function(
 #' intervals <- compute_bcf_posterior_interval(
 #'  model_object = bcf_model,
 #'  terms = c("prognostic_function", "cate"),
-#'  covariates = X,
-#'  treatment = Z,
+#'  X = X,
+#'  Z = Z,
 #'  propensity = pi_X,
 #'  level = 0.90
 #' )
@@ -873,8 +873,8 @@ compute_bcf_posterior_interval <- function(
   terms,
   level = 0.95,
   scale = "linear",
-  covariates = NULL,
-  treatment = NULL,
+  X = NULL,
+  Z = NULL,
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL
@@ -930,33 +930,33 @@ compute_bcf_posterior_interval <- function(
     ("variance_forest" %in% terms) ||
     (needs_covariates_intermediate))
   if (needs_covariates) {
-    if (is.null(covariates)) {
+    if (is.null(X)) {
       stop(
-        "'covariates' must be provided in order to compute the requested intervals"
+        "'X' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(covariates) && !is.data.frame(covariates)) {
-      stop("'covariates' must be a matrix or data frame")
+    if (!is.matrix(X) && !is.data.frame(X)) {
+      stop("'X' must be a matrix or data frame")
     }
   }
   needs_treatment <- needs_covariates
   if (needs_treatment) {
-    if (is.null(treatment)) {
+    if (is.null(Z)) {
       stop(
-        "'treatment' must be provided in order to compute the requested intervals"
+        "'Z' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(treatment) && !is.numeric(treatment)) {
-      stop("'treatment' must be a numeric vector or matrix")
+    if (!is.matrix(Z) && !is.numeric(Z)) {
+      stop("'Z' must be a numeric vector or matrix")
     }
-    if (is.matrix(treatment)) {
-      if (nrow(treatment) != nrow(covariates)) {
-        stop("'treatment' must have the same number of rows as 'covariates'")
+    if (is.matrix(Z)) {
+      if (nrow(Z) != nrow(X)) {
+        stop("'Z' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(treatment) != nrow(covariates)) {
+      if (length(Z) != nrow(X)) {
         stop(
-          "'treatment' must have the same number of elements as 'covariates'"
+          "'Z' must have the same number of elements as 'X'"
         )
       }
     }
@@ -976,13 +976,13 @@ compute_bcf_posterior_interval <- function(
       stop("'propensity' must be a numeric vector or matrix")
     }
     if (is.matrix(propensity)) {
-      if (nrow(propensity) != nrow(covariates)) {
-        stop("'propensity' must have the same number of rows as 'covariates'")
+      if (nrow(propensity) != nrow(X)) {
+        stop("'propensity' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(propensity) != nrow(covariates)) {
+      if (length(propensity) != nrow(X)) {
         stop(
-          "'propensity' must have the same number of elements as 'covariates'"
+          "'propensity' must have the same number of elements as 'X'"
         )
       }
     }
@@ -998,9 +998,9 @@ compute_bcf_posterior_interval <- function(
         "'rfx_group_ids' must be provided in order to compute the requested intervals"
       )
     }
-    if (length(rfx_group_ids) != nrow(covariates)) {
+    if (length(rfx_group_ids) != nrow(X)) {
       stop(
-        "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+        "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
 
@@ -1016,8 +1016,8 @@ compute_bcf_posterior_interval <- function(
       if (!is.matrix(rfx_basis)) {
         stop("'rfx_basis' must be a matrix")
       }
-      if (nrow(rfx_basis) != nrow(covariates)) {
-        stop("'rfx_basis' must have the same number of rows as 'covariates'")
+      if (nrow(rfx_basis) != nrow(X)) {
+        stop("'rfx_basis' must have the same number of rows as 'X'")
       }
     }
   }
@@ -1025,8 +1025,8 @@ compute_bcf_posterior_interval <- function(
   # Compute posterior matrices for the requested model terms
   predictions <- predict(
     model_object,
-    X = covariates,
-    Z = treatment,
+    X = X,
+    Z = Z,
     propensity = propensity,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,

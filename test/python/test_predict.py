@@ -279,7 +279,6 @@ class TestPredict:
         # Generate data and test/train split
         rng = np.random.default_rng(1234)
         n = 100
-        g = lambda x: np.where(x[:, 4] == 1, 2, np.where(x[:, 4] == 2, -1, -4))
         x1 = rng.normal(size=n)
         x2 = rng.normal(size=n)
         x3 = rng.normal(size=n)

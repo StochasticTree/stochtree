@@ -3,7 +3,6 @@
 # Load necessary libraries
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import arviz as az
 from sklearn.model_selection import train_test_split
 

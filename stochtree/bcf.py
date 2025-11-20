@@ -3263,8 +3263,8 @@ class BCFModel:
         terms: Union[list[str], str] = "all",
         level: float = 0.95,
         scale: str = "linear",
-        covariates: np.array = None,
-        treatment: np.array = None,
+        X: np.array = None,
+        Z: np.array = None,
         propensity: np.array = None,
         rfx_group_ids: np.array = None,
         rfx_basis: np.array = None,
@@ -3280,9 +3280,9 @@ class BCFModel:
             Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
         level : float, optional
             A numeric value between 0 and 1 specifying the credible interval level. Defaults to 0.95 for a 95% credible interval.
-        covariates : np.array, optional
+        X : np.array, optional
             Optional array or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., prognostic forest, treatment effect forest, variance forest, or overall predictions).
-        treatment : np.array, optional
+        Z : np.array, optional
             Optional array of treatment assignments. Required if the requested term is `"y_hat"` (overall predictions).
         propensity : np.array, optional
             Optional array of propensity scores. Required if the underlying model depends on user-provided propensities.
@@ -3346,25 +3346,25 @@ class BCFModel:
             or needs_covariates_intermediate
         )
         if needs_covariates:
-            if covariates is None:
+            if X is None:
                 raise ValueError(
-                    "'covariates' must be provided in order to compute the requested intervals"
+                    "'X' must be provided in order to compute the requested intervals"
                 )
-            if not isinstance(covariates, np.ndarray) and not isinstance(
-                covariates, pd.DataFrame
+            if not isinstance(X, np.ndarray) and not isinstance(
+                X, pd.DataFrame
             ):
-                raise ValueError("'covariates' must be a matrix or data frame")
+                raise ValueError("'X' must be a matrix or data frame")
         needs_treatment = needs_covariates
         if needs_treatment:
-            if treatment is None:
+            if Z is None:
                 raise ValueError(
-                    "'treatment' must be provided in order to compute the requested intervals"
+                    "'Z' must be provided in order to compute the requested intervals"
                 )
-            if not isinstance(treatment, np.ndarray):
-                raise ValueError("'treatment' must be a numpy array")
-            if treatment.shape[0] != covariates.shape[0]:
+            if not isinstance(Z, np.ndarray):
+                raise ValueError("'Z' must be a numpy array")
+            if Z.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'treatment' must have the same number of rows as 'covariates'"
+                    "'Z' must have the same number of rows as 'X'"
                 )
         uses_propensity = self.propensity_covariate != "none"
         internal_propensity_model = self.internal_propensity_model
@@ -3378,9 +3378,9 @@ class BCFModel:
                 )
             if not isinstance(propensity, np.ndarray):
                 raise ValueError("'propensity' must be a numpy array")
-            if propensity.shape[0] != covariates.shape[0]:
+            if propensity.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'propensity' must have the same number of rows as 'covariates'"
+                    "'propensity' must have the same number of rows as 'X'"
                 )
         needs_rfx_data_intermediate = (
             ("y_hat" in terms) or ("all" in terms)
@@ -3393,9 +3393,9 @@ class BCFModel:
                 )
             if not isinstance(rfx_group_ids, np.ndarray):
                 raise ValueError("'rfx_group_ids' must be a numpy array")
-            if rfx_group_ids.shape[0] != covariates.shape[0]:
+            if rfx_group_ids.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+                    "'rfx_group_ids' must have the same length as the number of rows in 'X'"
                 )
             if self.rfx_model_spec == "custom":
                 if rfx_basis is None:
@@ -3405,15 +3405,15 @@ class BCFModel:
             if rfx_basis is not None:
                 if not isinstance(rfx_basis, np.ndarray):
                     raise ValueError("'rfx_basis' must be a numpy array")
-                if rfx_basis.shape[0] != covariates.shape[0]:
+                if rfx_basis.shape[0] != X.shape[0]:
                     raise ValueError(
-                        "'rfx_basis' must have the same number of rows as 'covariates'"
+                        "'rfx_basis' must have the same number of rows as 'X'"
                     )
 
         # Compute posterior matrices for the requested model terms
         predictions = self.predict(
-            X=covariates,
-            Z=treatment,
+            X=X,
+            Z=Z,
             propensity=propensity,
             rfx_group_ids=rfx_group_ids,
             rfx_basis=rfx_basis,
@@ -3437,8 +3437,8 @@ class BCFModel:
 
     def sample_posterior_predictive(
         self,
-        covariates: np.array,
-        treatment: np.array,
+        X: np.array,
+        Z: np.array,
         propensity: np.array = None,
         rfx_group_ids: np.array = None,
         rfx_basis: np.array = None,
@@ -3449,9 +3449,9 @@ class BCFModel:
 
         Parameters
         ----------
-        covariates : np.array
+        X : np.array
             An array or data frame of covariates.
-        treatment : np.array
+        Z : np.array
             An array of treatment assignments.
         propensity : np.array, optional
             Optional array of propensity scores. Required if the underlying model depends on user-provided propensities.
@@ -3477,25 +3477,25 @@ class BCFModel:
         # Check that all the necessary inputs were provided for interval computation
         needs_covariates = True
         if needs_covariates:
-            if covariates is None:
+            if X is None:
                 raise ValueError(
-                    "'covariates' must be provided in order to compute the requested intervals"
+                    "'X' must be provided in order to compute the requested intervals"
                 )
-            if not isinstance(covariates, np.ndarray) and not isinstance(
-                covariates, pd.DataFrame
+            if not isinstance(X, np.ndarray) and not isinstance(
+                X, pd.DataFrame
             ):
-                raise ValueError("'covariates' must be a matrix or data frame")
+                raise ValueError("'X' must be a matrix or data frame")
         needs_treatment = needs_covariates
         if needs_treatment:
-            if treatment is None:
+            if Z is None:
                 raise ValueError(
-                    "'treatment' must be provided in order to compute the requested intervals"
+                    "'Z' must be provided in order to compute the requested intervals"
                 )
-            if not isinstance(treatment, np.ndarray):
-                raise ValueError("'treatment' must be a numpy array")
-            if treatment.shape[0] != covariates.shape[0]:
+            if not isinstance(Z, np.ndarray):
+                raise ValueError("'Z' must be a numpy array")
+            if Z.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'treatment' must have the same number of rows as 'covariates'"
+                    "'Z' must have the same number of rows as 'X'"
                 )
         uses_propensity = self.propensity_covariate != "none"
         internal_propensity_model = self.internal_propensity_model
@@ -3509,9 +3509,9 @@ class BCFModel:
                 )
             if not isinstance(propensity, np.ndarray):
                 raise ValueError("'propensity' must be a numpy array")
-            if propensity.shape[0] != covariates.shape[0]:
+            if propensity.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'propensity' must have the same number of rows as 'covariates'"
+                    "'propensity' must have the same number of rows as 'X'"
                 )
         needs_rfx_data = self.has_rfx
         if needs_rfx_data:
@@ -3521,9 +3521,9 @@ class BCFModel:
                 )
             if not isinstance(rfx_group_ids, np.ndarray):
                 raise ValueError("'rfx_group_ids' must be a numpy array")
-            if rfx_group_ids.shape[0] != covariates.shape[0]:
+            if rfx_group_ids.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+                    "'rfx_group_ids' must have the same length as the number of rows in 'X'"
                 )
             if rfx_basis is None:
                 raise ValueError(
@@ -3531,15 +3531,15 @@ class BCFModel:
                 )
             if not isinstance(rfx_basis, np.ndarray):
                 raise ValueError("'rfx_basis' must be a numpy array")
-            if rfx_basis.shape[0] != covariates.shape[0]:
+            if rfx_basis.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'rfx_basis' must have the same number of rows as 'covariates'"
+                    "'rfx_basis' must have the same number of rows as 'X'"
                 )
 
         # Compute posterior predictive samples
         bcf_preds = self.predict(
-            X=covariates,
-            Z=treatment,
+            X=X,
+            Z=Z,
             propensity=propensity,
             rfx_group_ids=rfx_group_ids,
             rfx_basis=rfx_basis,
@@ -3552,7 +3552,7 @@ class BCFModel:
         has_variance_forest = self.include_variance_forest
         samples_global_variance = self.sample_sigma2_global
         num_posterior_draws = self.num_samples
-        num_observations = covariates.shape[0]
+        num_observations = X.shape[0]
         ppd_mean = bcf_preds["y_hat"]
         if has_variance_forest:
             ppd_variance = bcf_preds["variance_forest_predictions"]

@@ -63,7 +63,7 @@ plt.show()
 
 # Compute posterior interval
 intervals = bart_model.compute_posterior_interval(
-    terms="all", scale="linear", level=0.95, covariates=X_test
+    terms="all", scale="linear", level=0.95, X=X_test
 )
 
 # Check coverage
@@ -75,7 +75,7 @@ print(f"Coverage of 95% posterior interval for f(X): {mean_coverage:.3f}")
 
 # Sample from the posterior predictive distribution
 bart_ppd_samples = bart_model.sample_posterior_predictive(
-    covariates=X_test, num_draws_per_sample=10
+    X=X_test, num_draws_per_sample=10
 )
 
 # Plot PPD mean vs actual

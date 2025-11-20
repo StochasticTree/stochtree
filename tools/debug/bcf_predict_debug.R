@@ -78,8 +78,8 @@ y_hat_intervals <- compute_bcf_posterior_interval(
   model_object = bcf_model,
   scale = "linear",
   terms = c("all"),
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   level = 0.95
 )
@@ -94,8 +94,8 @@ y_hat_intervals <- compute_bcf_posterior_interval(
 quantiles <- c(0.05, 0.95)
 ppd_samples <- sample_bcf_posterior_predictive(
   model_object = bcf_model,
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   num_draws = 1
 )
@@ -179,8 +179,8 @@ y_hat_intervals <- compute_bcf_posterior_interval(
   model_object = bcf_model,
   scale = "linear",
   terms = c("y_hat"),
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   level = 0.95
 )
@@ -190,8 +190,8 @@ y_hat_prob_intervals <- compute_bcf_posterior_interval(
   model_object = bcf_model,
   scale = "probability",
   terms = c("y_hat"),
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   level = 0.95
 )
@@ -215,8 +215,8 @@ lines(y_hat_prob_intervals$upper[sort_inds])
 # Draw from posterior predictive for covariates / treatment values in the test set
 ppd_samples <- sample_bcf_posterior_predictive(
   model_object = bcf_model,
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   num_draws = 10
 )
@@ -360,8 +360,8 @@ posterior_intervals_test <- compute_bcf_posterior_interval(
   model_object = bcf_model,
   scale = "linear",
   terms = "all",
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   rfx_group_ids = rfx_group_ids_test,
   level = 0.95
@@ -372,8 +372,8 @@ prog_intervals_test <- compute_bcf_posterior_interval(
   model_object = bcf_model,
   scale = "linear",
   terms = "prognostic_function",
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   rfx_group_ids = rfx_group_ids_test,
   level = 0.95
@@ -384,8 +384,8 @@ cate_intervals_test <- compute_bcf_posterior_interval(
   model_object = bcf_model,
   scale = "linear",
   terms = "cate",
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   rfx_group_ids = rfx_group_ids_test,
   level = 0.95
@@ -426,8 +426,8 @@ mu_intervals_test <- compute_bcf_posterior_interval(
   model_object = bcf_model,
   scale = "linear",
   terms = "mu",
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   rfx_group_ids = rfx_group_ids_test,
   level = 0.95
@@ -436,8 +436,8 @@ tau_intervals_test <- compute_bcf_posterior_interval(
   model_object = bcf_model,
   scale = "linear",
   terms = "tau",
-  covariates = X_test,
-  treatment = Z_test,
+  X = X_test,
+  Z = Z_test,
   propensity = pi_test,
   rfx_group_ids = rfx_group_ids_test,
   level = 0.95

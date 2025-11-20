@@ -90,8 +90,8 @@ intervals = bcf_model.compute_posterior_interval(
     terms="all",
     scale="linear",
     level=0.95,
-    covariates=X_test,
-    treatment=Z_test,
+    X=X_test,
+    Z=Z_test,
     propensity=pi_test,
 )
 
@@ -118,7 +118,7 @@ print(f"Coverage of 95% posterior interval for mu(X): {mu_coverage:.3f}")
 
 # Sample from the posterior predictive distribution
 bcf_ppd_samples = bcf_model.sample_posterior_predictive(
-    covariates=X_test, treatment=Z_test, propensity=pi_test, num_draws_per_sample=10
+    X=X_test, Z=Z_test, propensity=pi_test, num_draws_per_sample=10
 )
 
 # Plot PPD mean vs actual
@@ -229,8 +229,8 @@ posterior_intervals_test = bcf_model.compute_posterior_interval(
   terms="all",
   scale="linear",
   level=0.95,
-  covariates=X_test,
-  treatment=Z_test,
+  X=X_test,
+  Z=Z_test,
   propensity=pi_test,
   rfx_group_ids=rfx_group_ids_test,
 )
@@ -240,8 +240,8 @@ prog_intervals_test = bcf_model.compute_posterior_interval(
   terms="prognostic_function",
   scale="linear",
   level=0.95,
-  covariates=X_test,
-  treatment=Z_test,
+  X=X_test,
+  Z=Z_test,
   propensity=pi_test,
   rfx_group_ids=rfx_group_ids_test
 )
@@ -251,8 +251,8 @@ cate_intervals_test = bcf_model.compute_posterior_interval(
   terms="cate",
   scale="linear",
   level=0.95,
-  covariates=X_test,
-  treatment=Z_test,
+  X=X_test,
+  Z=Z_test,
   propensity=pi_test,
   rfx_group_ids=rfx_group_ids_test
 )
@@ -284,8 +284,8 @@ mu_intervals_test = bcf_model.compute_posterior_interval(
   terms="mu",
   scale="linear",
   level=0.95,
-  covariates=X_test,
-  treatment=Z_test,
+  X=X_test,
+  Z=Z_test,
   propensity=pi_test,
   rfx_group_ids=rfx_group_ids_test
 )
@@ -293,8 +293,8 @@ tau_intervals_test = bcf_model.compute_posterior_interval(
   terms="tau",
   scale="linear",
   level=0.95,
-  covariates=X_test,
-  treatment=Z_test,
+  X=X_test,
+  Z=Z_test,
   propensity=pi_test,
   rfx_group_ids=rfx_group_ids_test
 )
