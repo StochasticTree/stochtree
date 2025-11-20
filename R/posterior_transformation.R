@@ -260,8 +260,8 @@ compute_contrast_bcf_model <- function(
 #' Only valid when there is either a mean forest or a random effects term in the BART model.
 #'
 #' @param object Object of type `bart` containing draws of a regression forest and associated sampling outputs.
-#' @param covariates_0 Covariates used for prediction in the "control" case. Must be a matrix or dataframe.
-#' @param covariates_1 Covariates used for prediction in the "treatment" case. Must be a matrix or dataframe.
+#' @param X_0 Covariates used for prediction in the "control" case. Must be a matrix or dataframe.
+#' @param X_1 Covariates used for prediction in the "treatment" case. Must be a matrix or dataframe.
 #' @param leaf_basis_0 (Optional) Bases used for prediction in the "control" case (by e.g. dot product with leaf values). Default: `NULL`.
 #' @param leaf_basis_1 (Optional) Bases used for prediction in the "treatment" case (by e.g. dot product with leaf values). Default: `NULL`.
 #' @param rfx_group_ids_0 (Optional) Test set group labels used for prediction from an additive random effects
@@ -306,8 +306,8 @@ compute_contrast_bcf_model <- function(
 #'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 #' contrast_test <- compute_contrast_bart_model(
 #'     bart_model,
-#'     covariates_0 = X_test,
-#'     covariates_1 = X_test,
+#'     X_0 = X_test,
+#'     X_1 = X_test,
 #'     leaf_basis_0 = matrix(0, nrow = n_test, ncol = 1),
 #'     leaf_basis_1 = matrix(1, nrow = n_test, ncol = 1),
 #'     type = "posterior",
@@ -315,8 +315,8 @@ compute_contrast_bcf_model <- function(
 #' )
 compute_contrast_bart_model <- function(
   object,
-  covariates_0,
-  covariates_1,
+  X_0,
+  X_1,
   leaf_basis_0 = NULL,
   leaf_basis_1 = NULL,
   rfx_group_ids_0 = NULL,
@@ -360,11 +360,11 @@ compute_contrast_bart_model <- function(
   }
 
   # Check that covariates are matrix or data frame
-  if ((!is.data.frame(covariates_0)) && (!is.matrix(covariates_0))) {
-    stop("covariates_0 must be a matrix or dataframe")
+  if ((!is.data.frame(X_0)) && (!is.matrix(X_0))) {
+    stop("X_0 must be a matrix or dataframe")
   }
-  if ((!is.data.frame(covariates_1)) && (!is.matrix(covariates_1))) {
-    stop("covariates_1 must be a matrix or dataframe")
+  if ((!is.data.frame(X_1)) && (!is.matrix(X_1))) {
+    stop("X_1 must be a matrix or dataframe")
   }
 
   # Convert all input data to matrices if not already converted
@@ -388,20 +388,20 @@ compute_contrast_bart_model <- function(
   ) {
     stop("leaf_basis_0 and leaf_basis_1 must be provided for this model")
   }
-  if ((!is.null(leaf_basis_0)) && (nrow(covariates_0) != nrow(leaf_basis_0))) {
-    stop("covariates_0 and leaf_basis_0 must have the same number of rows")
+  if ((!is.null(leaf_basis_0)) && (nrow(X_0) != nrow(leaf_basis_0))) {
+    stop("X_0 and leaf_basis_0 must have the same number of rows")
   }
-  if ((!is.null(leaf_basis_1)) && (nrow(covariates_1) != nrow(leaf_basis_1))) {
-    stop("covariates_1 and leaf_basis_1 must have the same number of rows")
+  if ((!is.null(leaf_basis_1)) && (nrow(X_1) != nrow(leaf_basis_1))) {
+    stop("X_1 and leaf_basis_1 must have the same number of rows")
   }
-  if (object$model_params$num_covariates != ncol(covariates_0)) {
+  if (object$model_params$num_covariates != ncol(X_0)) {
     stop(
-      "covariates_0 must contain the same number of columns as the BART model's training dataset"
+      "X_0 must contain the same number of columns as the BART model's training dataset"
     )
   }
-  if (object$model_params$num_covariates != ncol(covariates_1)) {
+  if (object$model_params$num_covariates != ncol(X_1)) {
     stop(
-      "covariates_1 must contain the same number of columns as the BART model's training dataset"
+      "X_1 must contain the same number of columns as the BART model's training dataset"
     )
   }
   if ((has_rfx) && (is.null(rfx_group_ids_0) || is.null(rfx_group_ids_1))) {
@@ -427,7 +427,7 @@ compute_contrast_bart_model <- function(
   # Predict for the control arm
   control_preds <- predict(
     object = object,
-    covariates = covariates_0,
+    X = X_0,
     leaf_basis = leaf_basis_0,
     rfx_group_ids = rfx_group_ids_0,
     rfx_basis = rfx_basis_0,
@@ -439,7 +439,7 @@ compute_contrast_bart_model <- function(
   # Predict for the treatment arm
   treatment_preds <- predict(
     object = object,
-    covariates = covariates_1,
+    X = X_1,
     leaf_basis = leaf_basis_1,
     rfx_group_ids = rfx_group_ids_1,
     rfx_basis = rfx_basis_1,

@@ -45,8 +45,8 @@ bart_model <- bart(
 # Compute contrast posterior
 contrast_posterior_test <- compute_contrast_bart_model(
   bart_model,
-  covariates_0 = X_test,
-  covariates_1 = X_test,
+  X_0 = X_test,
+  X_1 = X_test,
   leaf_basis_0 = matrix(0, nrow = n_test, ncol = 1),
   leaf_basis_1 = matrix(1, nrow = n_test, ncol = 1),
   type = "posterior",
@@ -128,8 +128,8 @@ bart_model <- bart(
 # Compute contrast posterior
 contrast_posterior_test <- compute_contrast_bart_model(
   bart_model,
-  covariates_0 = X_test,
-  covariates_1 = X_test,
+  X_0 = X_test,
+  X_1 = X_test,
   leaf_basis_0 = matrix(0, nrow = n_test, ncol = 1),
   leaf_basis_1 = matrix(1, nrow = n_test, ncol = 1),
   rfx_group_ids_0 = group_ids_test,
