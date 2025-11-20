@@ -932,16 +932,15 @@ class BCFModel:
         if sample_sigma2_leaf_tau is not None:
             if not isinstance(sample_sigma2_leaf_tau, bool):
                 raise ValueError("sample_sigma2_leaf_tau must be a bool")
-        if propensity_covariate is not None:
-            if propensity_covariate not in [
-                "prognostic",
-                "treatment_effect",
-                "both",
-                "none",
-            ]:
-                raise ValueError(
-                    "propensity_covariate must be one of 'prognostic', 'treatment_effect', 'both', or 'none'"
-                )
+        if propensity_covariate not in [
+            "prognostic",
+            "treatment_effect",
+            "both",
+            "none",
+        ]:
+            raise ValueError(
+                "propensity_covariate must be one of 'prognostic', 'treatment_effect', 'both', or 'none'"
+            )
         if b_0 is not None:
             b_0 = check_scalar(
                 x=b_0,
@@ -1663,15 +1662,6 @@ class BCFModel:
         ] = 0
 
         # Update covariates to include propensities if requested
-        if propensity_covariate not in [
-            "none",
-            "prognostic",
-            "treatment_effect",
-            "both",
-        ]:
-            raise ValueError(
-                "propensity_covariate must equal one of 'none', 'prognostic', 'treatment_effect', or 'both'"
-            )
         if propensity_covariate != "none":
             feature_types = np.append(
                 feature_types, np.repeat(0, propensity_train.shape[1])
@@ -1700,9 +1690,10 @@ class BCFModel:
                 variable_weights_tau = np.append(
                     variable_weights_tau, np.repeat(1 / num_cov_orig, propensity_train.shape[1])
                 )
-        variable_weights_variance = np.append(
-            variable_weights_variance, np.repeat(0.0, propensity_train.shape[1])
-        )
+            # For now, propensities are not included in the variance forest
+            variable_weights_variance = np.append(
+                variable_weights_variance, np.repeat(0.0, propensity_train.shape[1])
+            )
 
         # Renormalize variable weights
         variable_weights_mu = variable_weights_mu / np.sum(variable_weights_mu)
