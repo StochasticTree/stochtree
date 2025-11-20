@@ -51,11 +51,11 @@ for i in range(n_sim):
     bcf_model.sample(
         X_train=X_train,
         Z_train=Z_train,
-        pi_train=pi_train,
+        propensity_train=pi_train,
         y_train=y_train,
         X_test=X_test,
         Z_test=Z_test,
-        pi_test=pi_test,
+        propensity_test=pi_test,
     )
 
     # Predict out of sample

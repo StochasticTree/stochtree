@@ -101,8 +101,8 @@ treatment_effect_forest_params = {
 
 # Run the sampler
 bcf_model = BCFModel()
-bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, pi_train=pi_train, 
-                 X_test=X_test, Z_test=Z_test, pi_test=pi_test, num_gfr=num_gfr, 
+bcf_model.sample(X_train=X_train, Z_train=Z_train, y_train=y_train, propensity_train=pi_train, 
+                 X_test=X_test, Z_test=Z_test, propensity_test=pi_test, num_gfr=num_gfr, 
                  num_burnin=num_burnin, num_mcmc=num_mcmc, general_params=general_params, 
                  prognostic_forest_params=prognostic_forest_params, 
                  treatment_effect_forest_params=treatment_effect_forest_params)

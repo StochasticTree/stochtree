@@ -157,7 +157,7 @@ xbcf_model = BCFModel()
 xbcf_model.sample(
     X_train=X_train,
     Z_train=Z_train,
-    pi_train=propensity_train,
+    propensity_train=propensity_train,
     y_train=y_train,
     num_gfr=10,
     num_burnin=0,
@@ -182,7 +182,7 @@ bcf_model = BCFModel()
 bcf_model.sample(
     X_train=X_train,
     Z_train=Z_train,
-    pi_train=propensity_train,
+    propensity_train=propensity_train,
     y_train=y_train,
     num_gfr=10,
     num_burnin=0,
@@ -237,7 +237,7 @@ xbcf_model = BCFModel()
 xbcf_model.sample(
     X_train=X_train,
     Z_train=Z_train,
-    pi_train=propensity_train,
+    propensity_train=propensity_train,
     y_train=y_train,
     num_gfr=10,
     num_burnin=0,
@@ -262,7 +262,7 @@ bcf_model = BCFModel()
 bcf_model.sample(
     X_train=X_train,
     Z_train=Z_train,
-    pi_train=propensity_train,
+    propensity_train=propensity_train,
     y_train=y_train,
     num_gfr=10,
     num_burnin=0,

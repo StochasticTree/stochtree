@@ -45,7 +45,7 @@ bcf_model = BCFModel()
 bcf_model.sample(
     X_train=X_train,
     Z_train=Z_train,
-    pi_train=pi_train,
+    propensity_train=pi_train,
     y_train=y_train,
     num_gfr=10,
     num_burnin=0,
@@ -182,7 +182,7 @@ bcf_model = BCFModel()
 bcf_model.sample(
     X_train=X_train,
     Z_train=Z_train,
-    pi_train=pi_train,
+    propensity_train=pi_train,
     y_train=y_train,
     rfx_group_ids_train=rfx_group_ids_train,
     num_gfr=10,

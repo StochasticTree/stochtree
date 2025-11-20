@@ -84,12 +84,12 @@ class BCFModel:
         X_train: Union[pd.DataFrame, np.array],
         Z_train: np.array,
         y_train: np.array,
-        pi_train: np.array = None,
+        propensity_train: np.array = None,
         rfx_group_ids_train: np.array = None,
         rfx_basis_train: np.array = None,
         X_test: Union[pd.DataFrame, np.array] = None,
         Z_test: np.array = None,
-        pi_test: np.array = None,
+        propensity_test: np.array = None,
         rfx_group_ids_test: np.array = None,
         rfx_basis_test: np.array = None,
         num_gfr: int = 5,
@@ -114,7 +114,7 @@ class BCFModel:
             Array of (continuous or binary; univariate or multivariate) treatment assignments.
         y_train : np.array
             Outcome to be modeled by the ensemble.
-        pi_train : np.array
+        propensity_train : np.array
             Optional vector of propensity scores. If not provided, this will be estimated from the data.
         rfx_group_ids_train : np.array, optional
             Optional group labels used for an additive random effects model.
@@ -125,7 +125,7 @@ class BCFModel:
         Z_test : np.array, optional
             Optional test set of (continuous or binary) treatment assignments.
             Must be provided if `X_test` is provided.
-        pi_test : np.array, optional
+        propensity_test : np.array, optional
             Optional test set vector of propensity scores. If not provided (but `X_test` and `Z_test` are), this will be estimated from the data.
         rfx_group_ids_test : np.array, optional
             Optional test set group labels used for an additive random effects model. We do not currently support (but plan to in the near future),
@@ -541,9 +541,9 @@ class BCFModel:
             raise ValueError("X_train must be a pandas dataframe or numpy array")
         if not isinstance(Z_train, np.ndarray):
             raise ValueError("Z_train must be a numpy array")
-        if pi_train is not None:
-            if not isinstance(pi_train, np.ndarray):
-                raise ValueError("pi_train must be a numpy array")
+        if propensity_train is not None:
+            if not isinstance(propensity_train, np.ndarray):
+                raise ValueError("propensity_train must be a numpy array")
         if not isinstance(y_train, np.ndarray):
             raise ValueError("y_train must be a numpy array")
         if X_test is not None:
@@ -554,9 +554,9 @@ class BCFModel:
         if Z_test is not None:
             if not isinstance(Z_test, np.ndarray):
                 raise ValueError("Z_test must be a numpy array")
-        if pi_test is not None:
-            if not isinstance(pi_test, np.ndarray):
-                raise ValueError("pi_test must be a numpy array")
+        if propensity_test is not None:
+            if not isinstance(propensity_test, np.ndarray):
+                raise ValueError("propensity_test must be a numpy array")
         if rfx_group_ids_train is not None:
             if not isinstance(rfx_group_ids_train, np.ndarray):
                 raise ValueError("rfx_group_ids_train must be a numpy array")
@@ -585,9 +585,9 @@ class BCFModel:
         if Z_train is not None:
             if Z_train.ndim == 1:
                 Z_train = np.expand_dims(Z_train, 1)
-        if pi_train is not None:
-            if pi_train.ndim == 1:
-                pi_train = np.expand_dims(pi_train, 1)
+        if propensity_train is not None:
+            if propensity_train.ndim == 1:
+                propensity_train = np.expand_dims(propensity_train, 1)
         if y_train.ndim == 1:
             y_train = np.expand_dims(y_train, 1)
         if X_test is not None:
@@ -597,9 +597,9 @@ class BCFModel:
         if Z_test is not None:
             if Z_test.ndim == 1:
                 Z_test = np.expand_dims(Z_test, 1)
-        if pi_test is not None:
-            if pi_test.ndim == 1:
-                pi_test = np.expand_dims(pi_test, 1)
+        if propensity_test is not None:
+            if propensity_test.ndim == 1:
+                propensity_test = np.expand_dims(propensity_test, 1)
         if rfx_group_ids_train is not None:
             if rfx_group_ids_train.ndim != 1:
                 rfx_group_ids_train = np.squeeze(rfx_group_ids_train)
@@ -631,17 +631,17 @@ class BCFModel:
             raise ValueError("X_train and Z_train must have the same number of rows")
         if y_train.shape[0] != X_train.shape[0]:
             raise ValueError("X_train and y_train must have the same number of rows")
-        if pi_train is not None:
-            if pi_train.shape[0] != X_train.shape[0]:
+        if propensity_train is not None:
+            if propensity_train.shape[0] != X_train.shape[0]:
                 raise ValueError(
-                    "X_train and pi_train must have the same number of rows"
+                    "X_train and propensity_train must have the same number of rows"
                 )
         if X_test is not None and Z_test is not None:
             if X_test.shape[0] != Z_test.shape[0]:
                 raise ValueError("X_test and Z_test must have the same number of rows")
-        if X_test is not None and pi_test is not None:
-            if X_test.shape[0] != pi_test.shape[0]:
-                raise ValueError("X_test and pi_test must have the same number of rows")
+        if X_test is not None and propensity_test is not None:
+            if X_test.shape[0] != propensity_test.shape[0]:
+                raise ValueError("X_test and propensity_test must have the same number of rows")
 
         # Raise a warning if the data have ties and only GFR is being run
         if (num_gfr > 0) and (num_burnin == 0) and (num_mcmc == 0):
@@ -1311,10 +1311,10 @@ class BCFModel:
             sample_sigma2_leaf_tau = False
 
         # Check if user has provided propensities that are needed in the model
-        if pi_train is None and propensity_covariate != "none":
+        if propensity_train is None and propensity_covariate != "none":
             if self.multivariate_treatment:
                 raise ValueError(
-                    "Propensities must be provided (via pi_train and / or pi_test parameters) or omitted by setting propensity_covariate = 'none' for multivariate treatments"
+                    "Propensities must be provided (via propensity_train and / or propensity_test parameters) or omitted by setting propensity_covariate = 'none' for multivariate treatments"
                 )
             else:
                 self.bart_propensity_model = BARTModel()
@@ -1330,10 +1330,10 @@ class BCFModel:
                         num_burnin=num_burnin_propensity,
                         num_mcmc=num_mcmc_propensity,
                     )
-                    pi_train = np.mean(
+                    propensity_train = np.mean(
                         self.bart_propensity_model.y_hat_train, axis=1, keepdims=True
                     )
-                    pi_test = np.mean(
+                    propensity_test = np.mean(
                         self.bart_propensity_model.y_hat_test, axis=1, keepdims=True
                     )
                 else:
@@ -1344,7 +1344,7 @@ class BCFModel:
                         num_burnin=num_burnin_propensity,
                         num_mcmc=num_mcmc_propensity,
                     )
-                    pi_train = np.mean(
+                    propensity_train = np.mean(
                         self.bart_propensity_model.y_hat_train, axis=1, keepdims=True
                     )
                 self.internal_propensity_model = True
@@ -1674,34 +1674,34 @@ class BCFModel:
             )
         if propensity_covariate != "none":
             feature_types = np.append(
-                feature_types, np.repeat(0, pi_train.shape[1])
+                feature_types, np.repeat(0, propensity_train.shape[1])
             ).astype("int")
-            X_train_processed = np.c_[X_train_processed, pi_train]
+            X_train_processed = np.c_[X_train_processed, propensity_train]
             if self.has_test:
-                X_test_processed = np.c_[X_test_processed, pi_test]
+                X_test_processed = np.c_[X_test_processed, propensity_test]
             if propensity_covariate == "prognostic":
                 variable_weights_mu = np.append(
-                    variable_weights_mu, np.repeat(1 / num_cov_orig, pi_train.shape[1])
+                    variable_weights_mu, np.repeat(1 / num_cov_orig, propensity_train.shape[1])
                 )
                 variable_weights_tau = np.append(
-                    variable_weights_tau, np.repeat(0.0, pi_train.shape[1])
+                    variable_weights_tau, np.repeat(0.0, propensity_train.shape[1])
                 )
             elif propensity_covariate == "treatment_effect":
                 variable_weights_mu = np.append(
-                    variable_weights_mu, np.repeat(0.0, pi_train.shape[1])
+                    variable_weights_mu, np.repeat(0.0, propensity_train.shape[1])
                 )
                 variable_weights_tau = np.append(
-                    variable_weights_tau, np.repeat(1 / num_cov_orig, pi_train.shape[1])
+                    variable_weights_tau, np.repeat(1 / num_cov_orig, propensity_train.shape[1])
                 )
             elif propensity_covariate == "both":
                 variable_weights_mu = np.append(
-                    variable_weights_mu, np.repeat(1 / num_cov_orig, pi_train.shape[1])
+                    variable_weights_mu, np.repeat(1 / num_cov_orig, propensity_train.shape[1])
                 )
                 variable_weights_tau = np.append(
-                    variable_weights_tau, np.repeat(1 / num_cov_orig, pi_train.shape[1])
+                    variable_weights_tau, np.repeat(1 / num_cov_orig, propensity_train.shape[1])
                 )
         variable_weights_variance = np.append(
-            variable_weights_variance, np.repeat(0.0, pi_train.shape[1])
+            variable_weights_variance, np.repeat(0.0, propensity_train.shape[1])
         )
 
         # Renormalize variable weights
