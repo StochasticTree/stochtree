@@ -1,4 +1,4 @@
-# stochtree 0.1.2
+# stochtree 0.2.0
 
 ## New Features
 
@@ -17,14 +17,24 @@
 
 * Fixed indexing bug in cleanup of grow-from-root (GFR) samples in BART and BCF models
 * Avoid using covariate preprocessor in `computeForestLeafIndices` function when a `ForestSamples` object is provided (rather than a `bartmodel` or `bcfmodel` object)
+* Correctly compute feature-specific split counts in R and Python ([#220](https://github.com/StochasticTree/stochtree/issues/220))
+* Avoid override of user-specified `num_burnin` parameter in BCF models with an internal propensity score ([#222](https://github.com/StochasticTree/stochtree/issues/222))
+* Outcome predictions correctly incorporate adaptive coding of untreated observations in BCF with binary treatment ([#231](https://github.com/StochasticTree/stochtree/issues/231))
+
+## Documentation Improvements
+
+* Clarify structure / layout of samples when users request multiple chains in BART and BCF models ([#220](https://github.com/StochasticTree/stochtree/issues/220))
 
 ## Other Changes
 
-* Standardized naming conventions for out of sample data in prediction and posterior computation routines (we raise warnings when data are passed through `y`, `X`, `Z`, etc... arguments)
-    * Covariates / features are always referred to as "covariates" rather than "X"
-    * Treatment is referred to as "treatment" rather than "Z"
-    * Propensity scores are referred to as "propensity" rather than "pi_X"
-    * Outcomes are referred to as "outcome" rather than "Y"
+* Standardized naming conventions for data elements of BART and BCF models across R and Python interfaces
+    * Covariates / features are always referred to as "`X`"
+    * Treatment is always referred to as "`Z`"
+    * Propensity scores are referred to as "`propensity`" (rather than "`pi`")
+    * Outcomes are referred to as "`y`"
+    * Basis vectors for leaf-wise regression models in forest terms are referred to as "`leaf_basis`"
+    * Group labels for additive random effects models are referred to as "`rfx_group_ids`"
+    * Basis vectors for additive random effects models are referred to as "`rfx_basis`"
 
 # stochtree 0.1.1
 
