@@ -216,12 +216,12 @@ test_that("BART predictions with pre-summarization", {
   )
 
   # Check that the default predict method returns a list
-  pred <- predict(bart_model, X_test)
+  pred <- predict(bart_model, X = X_test)
   y_hat_posterior_test <- pred$y_hat
   expect_equal(dim(y_hat_posterior_test), c(20, 10))
 
   # Check that the pre-aggregated predictions match with those computed by rowMeans
-  pred_mean <- predict(bart_model, X_test, type = "mean")
+  pred_mean <- predict(bart_model, X = X_test, type = "mean")
   y_hat_mean_test <- pred_mean$y_hat
   expect_equal(y_hat_mean_test, rowMeans(y_hat_posterior_test))
 
@@ -229,7 +229,7 @@ test_that("BART predictions with pre-summarization", {
   expect_warning({
     pred_mean <- predict(
       bart_model,
-      X_test,
+      X = X_test,
       type = "mean",
       terms = c("rfx", "variance_forest")
     )
@@ -248,7 +248,7 @@ test_that("BART predictions with pre-summarization", {
   )
 
   # Check that the default predict method returns a list
-  pred <- predict(het_bart_model, X_test)
+  pred <- predict(het_bart_model, X = X_test)
   y_hat_posterior_test <- pred$y_hat
   sigma2_hat_posterior_test <- pred$variance_forest_predictions
 
@@ -257,7 +257,7 @@ test_that("BART predictions with pre-summarization", {
   expect_equal(dim(sigma2_hat_posterior_test), c(20, 10))
 
   # Check that the pre-aggregated predictions match with those computed by rowMeans
-  pred_mean <- predict(het_bart_model, X_test, type = "mean")
+  pred_mean <- predict(het_bart_model, X = X_test, type = "mean")
   y_hat_mean_test <- pred_mean$y_hat
   sigma2_hat_mean_test <- pred_mean$variance_forest_predictions
 
@@ -269,13 +269,13 @@ test_that("BART predictions with pre-summarization", {
   # match those computed by pre-aggregated predictions returned in a list
   y_hat_mean_test_single_term <- predict(
     het_bart_model,
-    X_test,
+    X = X_test,
     type = "mean",
     terms = "y_hat"
   )
   sigma2_hat_mean_test_single_term <- predict(
     het_bart_model,
-    X_test,
+    X = X_test,
     type = "mean",
     terms = "variance_forest"
   )

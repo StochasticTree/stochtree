@@ -66,5 +66,5 @@ y_test <- y[test_inds]
 y_train <- y[train_inds]
 bart_model <- bart(X_train = X_train, y_train = y_train,
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-y_hat_test <- predict(bart_model, X_test)$y_hat
+y_hat_test <- predict(bart_model, X=X_test)$y_hat
 }

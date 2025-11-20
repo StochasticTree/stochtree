@@ -38,16 +38,16 @@ bart_model <- bart(
 )
 
 # Check several predict approaches
-y_hat_posterior_test <- predict(bart_model, X_test)$y_hat
+y_hat_posterior_test <- predict(bart_model, X = X_test)$y_hat
 y_hat_mean_test <- predict(
   bart_model,
-  X_test,
+  X = X_test,
   type = "mean",
   terms = c("y_hat")
 )
 y_hat_test <- predict(
   bart_model,
-  X_test,
+  X = X_test,
   type = "mean",
   terms = c("rfx", "variance")
 )
@@ -117,18 +117,18 @@ bart_model <- bart(
 # Predict on latent scale
 y_hat_post <- predict(
   object = bart_model,
+  X = X_test,
   type = "posterior",
   terms = c("y_hat"),
-  X = X_test,
   scale = "linear"
 )
 
 # Predict on probability scale
 y_hat_post_prob <- predict(
   object = bart_model,
+  X = X_test,
   type = "posterior",
   terms = c("y_hat"),
-  X = X_test,
   scale = "probability"
 )
 

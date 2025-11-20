@@ -34,7 +34,7 @@ test_that("BART Serialization", {
     num_mcmc = 10,
     general_params = general_param_list
   )
-  y_hat_orig <- rowMeans(predict(bart_model, X_test)$y_hat)
+  y_hat_orig <- rowMeans(predict(bart_model, X = X_test)$y_hat)
 
   # Save to JSON
   bart_json_string <- saveBARTModelToJsonString(bart_model)
@@ -43,7 +43,7 @@ test_that("BART Serialization", {
   bart_model_roundtrip <- createBARTModelFromJsonString(bart_json_string)
 
   # Predict from the roundtrip BART model
-  y_hat_reloaded <- rowMeans(predict(bart_model_roundtrip, X_test)$y_hat)
+  y_hat_reloaded <- rowMeans(predict(bart_model_roundtrip, X = X_test)$y_hat)
 
   # Assertion
   expect_equal(y_hat_orig, y_hat_reloaded)

@@ -584,7 +584,7 @@ test_that("Random Effects BART", {
     )
     preds <- predict(
       bart_model,
-      covariates = X_test,
+      X = X_test,
       leaf_basis = W_test,
       rfx_group_ids = rfx_group_ids_test,
       type = "posterior",
