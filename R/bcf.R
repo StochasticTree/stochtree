@@ -522,7 +522,11 @@ bcf <- function(
   # Raise a warning if the data have ties and only GFR is being run
   if ((num_gfr > 0) && (num_mcmc == 0) && (num_burnin == 0)) {
     num_values <- nrow(X_train)
-    max_grid_size <- floor(num_values / cutpoint_grid_size)
+    max_grid_size <- ifelse(
+      num_values > cutpoint_grid_size,
+      floor(num_values / cutpoint_grid_size),
+      1
+    )
     covs_warning_1 <- NULL
     covs_warning_2 <- NULL
     covs_warning_3 <- NULL

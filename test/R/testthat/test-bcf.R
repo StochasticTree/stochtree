@@ -387,6 +387,23 @@ test_that("Warmstart BCF", {
       num_burnin = 10,
       num_mcmc = 10,
       previous_model_json = bcf_model_json_string,
+      previous_model_warmstart_sample_num = 10,
+      general_params = general_param_list
+    )
+  )
+  expect_warning(
+    bcf_model <- bcf(
+      X_train = X_train,
+      y_train = y_train,
+      Z_train = Z_train,
+      propensity_train = pi_train,
+      X_test = X_test,
+      Z_test = Z_test,
+      propensity_test = pi_test,
+      num_gfr = 0,
+      num_burnin = 10,
+      num_mcmc = 10,
+      previous_model_json = bcf_model_json_string,
       previous_model_warmstart_sample_num = 1,
       general_params = general_param_list
     )
@@ -482,7 +499,7 @@ test_that("Warmstart BCF", {
       num_burnin = 10,
       num_mcmc = 10,
       previous_model_json = bcf_model_json_string,
-      previous_model_warmstart_sample_num = 1,
+      previous_model_warmstart_sample_num = 10,
       general_params = general_param_list
     )
   )
