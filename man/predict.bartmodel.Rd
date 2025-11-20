@@ -6,7 +6,7 @@
 \usage{
 \method{predict}{bartmodel}(
   object,
-  covariates,
+  X,
   leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
@@ -19,7 +19,7 @@
 \arguments{
 \item{object}{Object of type \code{bart} containing draws of a regression forest and associated sampling outputs.}
 
-\item{covariates}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
+\item{X}{Covariates used to determine tree leaf predictions for each observation. Must be passed as a matrix or dataframe.}
 
 \item{leaf_basis}{(Optional) Bases used for prediction (by e.g. dot product with leaf values). Default: \code{NULL}.}
 

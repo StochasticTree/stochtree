@@ -119,7 +119,7 @@ y_hat_post <- predict(
   object = bart_model,
   type = "posterior",
   terms = c("y_hat"),
-  covariates = X_test,
+  X = X_test,
   scale = "linear"
 )
 
@@ -128,7 +128,7 @@ y_hat_post_prob <- predict(
   object = bart_model,
   type = "posterior",
   terms = c("y_hat"),
-  covariates = X_test,
+  X = X_test,
   scale = "probability"
 )
 

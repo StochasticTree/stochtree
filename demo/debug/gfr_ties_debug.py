@@ -38,7 +38,7 @@ xbart_model.sample(
 )
 
 # Inspect the model fit
-y_hat_test = xbart_model.predict(X_test, type="mean", terms="y_hat")
+y_hat_test = xbart_model.predict(X=X_test, type="mean", terms="y_hat")
 plt.scatter(y_hat_test, y_test)
 plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
 plt.xlabel("Predicted Outcome Mean")
@@ -54,7 +54,7 @@ bart_model.sample(
 )
 
 # Inspect the model fit
-y_hat_test = bart_model.predict(X_test, type="mean", terms="y_hat")
+y_hat_test = bart_model.predict(X=X_test, type="mean", terms="y_hat")
 plt.clf()
 plt.scatter(y_hat_test, y_test)
 plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
@@ -95,7 +95,7 @@ xbart_model.sample(
 )
 
 # Inspect the model fit
-y_hat_test = xbart_model.predict(X_test, type="mean", terms="y_hat")
+y_hat_test = xbart_model.predict(X=X_test, type="mean", terms="y_hat")
 plt.clf()
 plt.scatter(y_hat_test, y_test)
 plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)
@@ -112,7 +112,7 @@ bart_model.sample(
 )
 
 # Inspect the model fit
-y_hat_test = bart_model.predict(X_test, type="mean", terms="y_hat")
+y_hat_test = bart_model.predict(X=X_test, type="mean", terms="y_hat")
 plt.clf()
 plt.scatter(y_hat_test, y_test)
 plt.axline((0, 0), slope=1, color="red", linestyle="dashed", linewidth=1.5)

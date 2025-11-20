@@ -118,14 +118,14 @@ bart_model_4.sample(
 )
 
 # Inspect the model outputs
-bart_preds_2 = bart_model_2.predict(X_test, basis_test)
+bart_preds_2 = bart_model_2.predict(X=X_test, basis_test)
 y_hat_mcmc_2 = bart_preds_2['y_hat']
 y_avg_mcmc_2 = np.squeeze(y_hat_mcmc_2).mean(axis=1, keepdims=True)
 y_avg_mcmc_2 = np.squeeze(y_hat_mcmc_2).mean(axis=1, keepdims=True)
-bart_preds_3 = bart_model_3.predict(X_test, basis_test)
+bart_preds_3 = bart_model_3.predict(X=X_test, basis_test)
 y_hat_mcmc_3 = bart_preds_3['y_hat']
 y_avg_mcmc_3 = np.squeeze(y_hat_mcmc_3).mean(axis=1, keepdims=True)
-bart_preds_4 = bart_model_4.predict(X_test, basis_test)
+bart_preds_4 = bart_model_4.predict(X=X_test, basis_test)
 y_hat_mcmc_4 = bart_preds_4['y_hat']
 y_avg_mcmc_4 = np.squeeze(y_hat_mcmc_4).mean(axis=1, keepdims=True)
 y_df = pd.DataFrame(

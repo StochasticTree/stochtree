@@ -129,7 +129,7 @@ predictions.
 ```{r}
 y_hat_test <- predict(
   bart_model,
-  covariates = X_test,
+  X = X_test,
   leaf_basis = leaf_basis_test,
   type = "mean",
   terms = "y_hat"
@@ -217,7 +217,7 @@ abs_test_set_resid <- abs(y_test - y_hat_test)
 top5_resids <- order(abs_test_set_resid, decreasing = T)[1:5]
 y_hat_test_posterior <- predict(
   bart_model,
-  covariates = X_test[top5_resids, ],
+  X = X_test[top5_resids, ],
   leaf_basis = leaf_basis_test[top5_resids],
   type = "posterior",
   terms = "y_hat"
@@ -345,7 +345,7 @@ predictions.
 ```{r}
 y_hat_test <- predict(
   bart_model,
-  covariates = X_test,
+  X = X_test,
   leaf_basis = leaf_basis_test,
   type = "mean",
   terms = "y_hat"
@@ -433,7 +433,7 @@ abs_test_set_resid <- abs(y_test - y_hat_test)
 top5_resids <- order(abs_test_set_resid, decreasing = T)[1:5]
 y_hat_test_posterior <- predict(
   bart_model,
-  covariates = X_test[top5_resids, ],
+  X = X_test[top5_resids, ],
   leaf_basis = leaf_basis_test[top5_resids],
   type = "posterior",
   terms = "y_hat"

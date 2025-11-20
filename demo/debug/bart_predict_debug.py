@@ -46,11 +46,11 @@ bart_model.sample(
 )
 
 # # Check several predict approaches
-bart_preds = bart_model.predict(covariates=X_test)
-y_hat_posterior_test = bart_model.predict(covariates=X_test)["y_hat"]
-y_hat_mean_test = bart_model.predict(covariates=X_test, type="mean", terms=["y_hat"])
+bart_preds = bart_model.predict(X=X_test)
+y_hat_posterior_test = bart_model.predict(X=X_test)["y_hat"]
+y_hat_mean_test = bart_model.predict(X=X_test, type="mean", terms=["y_hat"])
 y_hat_test = bart_model.predict(
-    covariates=X_test, type="mean", terms=["rfx", "variance"]
+    X=X_test, type="mean", terms=["rfx", "variance"]
 )
 
 # Plot predicted versus actual

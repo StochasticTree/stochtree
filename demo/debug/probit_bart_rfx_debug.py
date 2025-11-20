@@ -86,8 +86,8 @@ contrast_posterior_test = bart_model.compute_contrast(
 
 # Compute the same quantity via two predict calls
 y_hat_posterior_test_0 = bart_model.predict(
-    covariates=X_test,
-    basis=np.zeros((n_test, 1)),
+    X=X_test,
+    leaf_basis=np.zeros((n_test, 1)),
     rfx_group_ids=group_ids_test,
     rfx_basis=rfx_basis_test,
     type="posterior",
@@ -95,8 +95,8 @@ y_hat_posterior_test_0 = bart_model.predict(
     scale="linear",
 )
 y_hat_posterior_test_1 = bart_model.predict(
-    covariates=X_test,
-    basis=np.ones((n_test, 1)),
+    X=X_test,
+    leaf_basis=np.ones((n_test, 1)),
     rfx_group_ids=group_ids_test,
     rfx_basis=rfx_basis_test,
     type="posterior",
@@ -111,8 +111,8 @@ np.allclose(contrast_diff, 0, atol=0.001)
 
 # Plot predicted versus actual outcome
 Z_hat_test = bart_model.predict(
-    covariates=X_test,
-    basis=W_test,
+    X=X_test,
+    leaf_basis=W_test,
     rfx_group_ids=group_ids_test,
     rfx_basis=rfx_basis_test,
     type="mean",

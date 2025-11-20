@@ -89,8 +89,8 @@ bart_model.sample(
 
 # Analyze model predictions collectively across all chains
 y_hat_test = bart_model.predict(
-  covariates = X_test,
-  basis = basis_test,
+  X = X_test,
+  leaf_basis = basis_test,
   type = "mean", 
   terms = "y_hat"
 )
