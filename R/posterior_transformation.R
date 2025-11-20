@@ -1127,7 +1127,7 @@ compute_bart_posterior_interval <- function(
     ("variance_forest" %in% terms) ||
     (needs_covariates_intermediate))
   if (needs_covariates) {
-    if (is.null(covariates)) {
+    if (is.null(X)) {
       stop(
         "'X' must be provided in order to compute the requested intervals"
       )
