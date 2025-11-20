@@ -751,7 +751,7 @@ sample_bart_posterior_predictive <- function(
   # Compute posterior samples
   bart_preds <- predict(
     model_object,
-    covariates = covariates,
+    X = covariates,
     leaf_basis = basis,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
@@ -1188,7 +1188,7 @@ compute_bart_posterior_interval <- function(
   # Compute posterior matrices for the requested model terms
   predictions <- predict(
     model_object,
-    covariates = covariates,
+    X = covariates,
     leaf_basis = basis,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,

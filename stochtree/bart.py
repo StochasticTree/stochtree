@@ -2046,10 +2046,10 @@ class BARTModel:
 
     def compute_contrast(
         self,
-        covariates_0: Union[np.array, pd.DataFrame],
-        covariates_1: Union[np.array, pd.DataFrame],
-        basis_0: np.array = None,
-        basis_1: np.array = None,
+        X_0: Union[np.array, pd.DataFrame],
+        X_1: Union[np.array, pd.DataFrame],
+        leaf_basis_0: np.array = None,
+        leaf_basis_1: np.array = None,
         rfx_group_ids_0: np.array = None,
         rfx_group_ids_1: np.array = None,
         rfx_basis_0: np.array = None,
@@ -2068,13 +2068,13 @@ class BARTModel:
 
         Parameters
         ----------
-        covariates_0 : np.array or pd.DataFrame
+        X_0 : np.array or pd.DataFrame
             Covariates used for prediction in the "control" case. Must be a numpy array or dataframe.
-        covariates_1 : np.array or pd.DataFrame
+        X_1 : np.array or pd.DataFrame
             Covariates used for prediction in the "treatment" case. Must be a numpy array or dataframe.
-        basis_0 : np.array, optional
+        leaf_basis_0 : np.array, optional
             Bases used for prediction in the "control" case (by e.g. dot product with leaf values).
-        basis_1 : np.array, optional
+        leaf_basis_1 : np.array, optional
             Bases used for prediction in the "treatment" case (by e.g. dot product with leaf values).
         rfx_group_ids_0 : np.array, optional
             Test set group labels used for prediction from an additive random effects model in the "control" case.
@@ -2135,33 +2135,33 @@ class BARTModel:
             raise NotSampledError(msg)
 
         # Data checks
-        if not isinstance(covariates_0, pd.DataFrame) and not isinstance(
-            covariates_0, np.ndarray
+        if not isinstance(X_0, pd.DataFrame) and not isinstance(
+            X_0, np.ndarray
         ):
-            raise ValueError("covariates_0 must be a pandas dataframe or numpy array")
-        if not isinstance(covariates_1, pd.DataFrame) and not isinstance(
-            covariates_1, np.ndarray
+            raise ValueError("X_0 must be a pandas dataframe or numpy array")
+        if not isinstance(X_1, pd.DataFrame) and not isinstance(
+            X_1, np.ndarray
         ):
-            raise ValueError("covariates_1 must be a pandas dataframe or numpy array")
-        if basis_0 is not None:
-            if not isinstance(basis_0, np.ndarray):
-                raise ValueError("basis_0 must be a numpy array")
-            if basis_0.shape[0] != covariates_0.shape[0]:
+            raise ValueError("X_1 must be a pandas dataframe or numpy array")
+        if leaf_basis_0 is not None:
+            if not isinstance(leaf_basis_0, np.ndarray):
+                raise ValueError("leaf_basis_0 must be a numpy array")
+            if leaf_basis_0.shape[0] != X_0.shape[0]:
                 raise ValueError(
-                    "covariates_0 and basis_0 must have the same number of rows"
+                    "X_0 and leaf_basis_0 must have the same number of rows"
                 )
-        if basis_1 is not None:
-            if not isinstance(basis_1, np.ndarray):
-                raise ValueError("basis_1 must be a numpy array")
-            if basis_1.shape[0] != covariates_1.shape[0]:
+        if leaf_basis_1 is not None:
+            if not isinstance(leaf_basis_1, np.ndarray):
+                raise ValueError("leaf_basis_1 must be a numpy array")
+            if leaf_basis_1.shape[0] != X_1.shape[0]:
                 raise ValueError(
-                    "covariates_1 and basis_1 must have the same number of rows"
+                    "X_1 and leaf_basis_1 must have the same number of rows"
                 )
 
         # Predict for the control arm
         control_preds = self.predict(
-            covariates=covariates_0,
-            basis=basis_0,
+            X=X_0,
+            leaf_basis=leaf_basis_0,
             rfx_group_ids=rfx_group_ids_0,
             rfx_basis=rfx_basis_0,
             type="posterior",
@@ -2171,8 +2171,8 @@ class BARTModel:
 
         # Predict for the treatment arm
         treatment_preds = self.predict(
-            covariates=covariates_1,
-            basis=basis_1,
+            X=X_1,
+            leaf_basis=leaf_basis_1,
             rfx_group_ids=rfx_group_ids_1,
             rfx_basis=rfx_basis_1,
             type="posterior",
