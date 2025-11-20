@@ -67,7 +67,7 @@ y_hat_intervals <- compute_bart_posterior_interval(
 
 pred_intervals <- sample_bart_posterior_predictive(
   model_object = bart_model,
-  covariates = X_test,
+  X = X_test,
   level = 0.95
 )
 
@@ -169,7 +169,7 @@ lines(y_hat_prob_intervals$upper[sort_inds])
 # Draw from posterior predictive for covariates in the test set
 ppd_samples <- sample_bart_posterior_predictive(
   model_object = bart_model,
-  covariates = X_test,
+  X = X_test,
   num_draws = 10
 )
 

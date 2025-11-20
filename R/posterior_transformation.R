@@ -659,8 +659,8 @@ sample_bcf_posterior_predictive <- function(
 #' Sample from the posterior predictive distribution for outcomes modeled by BART
 #'
 #' @param model_object A fitted BART model object of class `bartmodel`.
-#' @param covariates A matrix or data frame of covariates. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).
-#' @param basis A matrix of bases for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
+#' @param X A matrix or data frame of covariates. Required if the BART model depends on covariates (e.g., contains a mean or variance forest).
+#' @param leaf_basis A matrix of bases for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
 #' @param rfx_group_ids A vector of group IDs for random effects model. Required if the BART model includes random effects.
 #' @param rfx_basis A matrix of bases for random effects model. Required if the BART model includes random effects.
 #' @param num_draws_per_sample The number of posterior predictive samples to draw for each posterior sample. Defaults to a heuristic based on the number of samples in a BART model (i.e. if the BART model has >1000 draws, we use 1 draw from the likelihood per sample, otherwise we upsample to ensure intervals are based on at least 1000 posterior predictive draws).
@@ -675,12 +675,12 @@ sample_bcf_posterior_predictive <- function(
 #' y <- 2 * X[,1] + rnorm(n)
 #' bart_model <- bart(y_train = y, X_train = X)
 #' ppd_samples <- sample_bart_posterior_predictive(
-#'   model_object = bart_model, covariates = X
+#'   model_object = bart_model, X = X
 #' )
 sample_bart_posterior_predictive <- function(
   model_object,
-  covariates = NULL,
-  basis = NULL,
+  X = NULL,
+  leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
   num_draws_per_sample = NULL
@@ -694,32 +694,32 @@ sample_bart_posterior_predictive <- function(
   # Check that all the necessary inputs were provided for interval computation
   needs_covariates <- model_object$model_params$include_mean_forest
   if (needs_covariates) {
-    if (is.null(covariates)) {
+    if (is.null(X)) {
       stop(
-        "'covariates' must be provided in order to compute the requested intervals"
+        "'X' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(covariates) && !is.data.frame(covariates)) {
-      stop("'covariates' must be a matrix or data frame")
+    if (!is.matrix(X) && !is.data.frame(X)) {
+      stop("'X' must be a matrix or data frame")
     }
   }
   needs_basis <- needs_covariates && model_object$model_params$has_basis
   if (needs_basis) {
-    if (is.null(basis)) {
+    if (is.null(leaf_basis)) {
       stop(
-        "'basis' must be provided in order to compute the requested intervals"
+        "'leaf_basis' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(basis)) {
-      stop("'basis' must be a matrix")
+    if (!is.matrix(leaf_basis)) {
+      stop("'leaf_basis' must be a matrix")
     }
-    if (is.matrix(basis)) {
-      if (nrow(basis) != nrow(covariates)) {
-        stop("'basis' must have the same number of rows as 'covariates'")
+    if (is.matrix(leaf_basis)) {
+      if (nrow(leaf_basis) != nrow(X)) {
+        stop("'leaf_basis' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(basis) != nrow(covariates)) {
-        stop("'basis' must have the same number of elements as 'covariates'")
+      if (length(leaf_basis) != nrow(X)) {
+        stop("'leaf_basis' must have the same number of elements as 'X'")
       }
     }
   }
@@ -730,9 +730,9 @@ sample_bart_posterior_predictive <- function(
         "'rfx_group_ids' must be provided in order to compute the requested intervals"
       )
     }
-    if (length(rfx_group_ids) != nrow(covariates)) {
+    if (length(rfx_group_ids) != nrow(X)) {
       stop(
-        "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+        "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
     if (is.null(rfx_basis)) {
@@ -743,16 +743,16 @@ sample_bart_posterior_predictive <- function(
     if (!is.matrix(rfx_basis)) {
       stop("'rfx_basis' must be a matrix")
     }
-    if (nrow(rfx_basis) != nrow(covariates)) {
-      stop("'rfx_basis' must have the same number of rows as 'covariates'")
+    if (nrow(rfx_basis) != nrow(X)) {
+      stop("'rfx_basis' must have the same number of rows as 'X'")
     }
   }
 
   # Compute posterior samples
   bart_preds <- predict(
     model_object,
-    X = covariates,
-    leaf_basis = basis,
+    X = X,
+    leaf_basis = leaf_basis,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
     type = "posterior",
@@ -766,7 +766,7 @@ sample_bart_posterior_predictive <- function(
   has_variance_forest <- model_object$model_params$include_variance_forest
   samples_global_variance <- model_object$model_params$sample_sigma2_global
   num_posterior_draws <- model_object$model_params$num_samples
-  num_observations <- nrow(covariates)
+  num_observations <- nrow(X)
   if (has_mean_term) {
     ppd_mean <- bart_preds$y_hat
   } else {
