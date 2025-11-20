@@ -9,8 +9,8 @@ compute_bart_posterior_interval(
   terms,
   level = 0.95,
   scale = "linear",
-  covariates = NULL,
-  basis = NULL,
+  X = NULL,
+  leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL
 )
@@ -24,9 +24,9 @@ compute_bart_posterior_interval(
 
 \item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
 
-\item{covariates}{A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).}
+\item{X}{A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).}
 
-\item{basis}{An optional matrix of basis function evaluations for mean forest models with regression defined in the leaves. Required for "leaf regression" models.}
+\item{leaf_basis}{An optional matrix of basis function evaluations for mean forest models with regression defined in the leaves. Required for "leaf regression" models.}
 
 \item{rfx_group_ids}{An optional vector of group IDs for random effects. Required if the requested term includes random effects.}
 
@@ -47,7 +47,7 @@ bart_model <- bart(y_train = y, X_train = X)
 intervals <- compute_bart_posterior_interval(
  model_object = bart_model,
  terms = c("mean_forest", "y_hat"),
- covariates = X,
+ X = X,
  level = 0.90
 )
 }

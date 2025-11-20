@@ -2196,8 +2196,8 @@ class BARTModel:
         terms: Union[list[str], str] = "all",
         level: float = 0.95,
         scale: str = "linear",
-        covariates: np.array = None,
-        basis: np.array = None,
+        X: np.array = None,
+        leaf_basis: np.array = None,
         rfx_group_ids: np.array = None,
         rfx_basis: np.array = None,
     ) -> dict:
@@ -2212,9 +2212,9 @@ class BARTModel:
             Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
         level : float, optional
             A numeric value between 0 and 1 specifying the credible interval level. Defaults to 0.95 for a 95% credible interval.
-        covariates : np.array, optional
+        X : np.array, optional
             Optional array or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).
-        basis : np.array, optional
+        leaf_basis : np.array, optional
             Optional array of basis function evaluations for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
         rfx_group_ids : np.array, optional
             Optional vector of group IDs for random effects. Required if the requested term includes random effects.
@@ -2266,25 +2266,25 @@ class BARTModel:
             or needs_covariates_intermediate
         )
         if needs_covariates:
-            if covariates is None:
+            if X is None:
                 raise ValueError(
-                    "'covariates' must be provided in order to compute the requested intervals"
+                    "'X' must be provided in order to compute the requested intervals"
                 )
-            if not isinstance(covariates, np.ndarray) and not isinstance(
-                covariates, pd.DataFrame
+            if not isinstance(X, np.ndarray) and not isinstance(
+                X, pd.DataFrame
             ):
-                raise ValueError("'covariates' must be a matrix or data frame")
+                raise ValueError("'X' must be a matrix or data frame")
         needs_basis = needs_covariates and self.has_basis
         if needs_basis:
-            if basis is None:
+            if leaf_basis is None:
                 raise ValueError(
-                    "'basis' must be provided in order to compute the requested intervals"
+                    "'leaf_basis' must be provided in order to compute the requested intervals"
                 )
-            if not isinstance(basis, np.ndarray):
-                raise ValueError("'basis' must be a numpy array")
-            if basis.shape[0] != covariates.shape[0]:
+            if not isinstance(leaf_basis, np.ndarray):
+                raise ValueError("'leaf_basis' must be a numpy array")
+            if leaf_basis.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'basis' must have the same number of rows as 'covariates'"
+                    "'leaf_basis' must have the same number of rows as 'X'"
                 )
         needs_rfx_data_intermediate = (
             ("y_hat" in terms) or ("all" in terms)
@@ -2297,9 +2297,9 @@ class BARTModel:
                 )
             if not isinstance(rfx_group_ids, np.ndarray):
                 raise ValueError("'rfx_group_ids' must be a numpy array")
-            if rfx_group_ids.shape[0] != covariates.shape[0]:
+            if rfx_group_ids.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+                    "'rfx_group_ids' must have the same length as the number of rows in 'X'"
                 )
             if rfx_basis is None:
                 raise ValueError(
@@ -2307,15 +2307,15 @@ class BARTModel:
                 )
             if not isinstance(rfx_basis, np.ndarray):
                 raise ValueError("'rfx_basis' must be a numpy array")
-            if rfx_basis.shape[0] != covariates.shape[0]:
+            if rfx_basis.shape[0] != X.shape[0]:
                 raise ValueError(
-                    "'rfx_basis' must have the same number of rows as 'covariates'"
+                    "'rfx_basis' must have the same number of rows as 'X'"
                 )
 
         # Compute posterior matrices for the requested model terms
         predictions = self.predict(
-            covariates=covariates,
-            basis=basis,
+            X=X,
+            leaf_basis=leaf_basis,
             rfx_group_ids=rfx_group_ids,
             rfx_basis=rfx_basis,
             type="posterior",

@@ -1068,8 +1068,8 @@ compute_bcf_posterior_interval <- function(
 #' @param terms A character string specifying the model term(s) for which to compute intervals. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`.
 #' @param level A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95% credible interval).
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
-#' @param covariates A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).
-#' @param basis An optional matrix of basis function evaluations for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
+#' @param X A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).
+#' @param leaf_basis An optional matrix of basis function evaluations for mean forest models with regression defined in the leaves. Required for "leaf regression" models.
 #' @param rfx_group_ids An optional vector of group IDs for random effects. Required if the requested term includes random effects.
 #' @param rfx_basis An optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
 #'
@@ -1085,7 +1085,7 @@ compute_bcf_posterior_interval <- function(
 #' intervals <- compute_bart_posterior_interval(
 #'  model_object = bart_model,
 #'  terms = c("mean_forest", "y_hat"),
-#'  covariates = X,
+#'  X = X,
 #'  level = 0.90
 #' )
 #' @export
@@ -1094,8 +1094,8 @@ compute_bart_posterior_interval <- function(
   terms,
   level = 0.95,
   scale = "linear",
-  covariates = NULL,
-  basis = NULL,
+  X = NULL,
+  leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL
 ) {
@@ -1129,30 +1129,30 @@ compute_bart_posterior_interval <- function(
   if (needs_covariates) {
     if (is.null(covariates)) {
       stop(
-        "'covariates' must be provided in order to compute the requested intervals"
+        "'X' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(covariates) && !is.data.frame(covariates)) {
-      stop("'covariates' must be a matrix or data frame")
+    if (!is.matrix(X) && !is.data.frame(X)) {
+      stop("'X' must be a matrix or data frame")
     }
   }
   needs_basis <- needs_covariates && model_object$model_params$has_basis
   if (needs_basis) {
-    if (is.null(basis)) {
+    if (is.null(leaf_basis)) {
       stop(
-        "'basis' must be provided in order to compute the requested intervals"
+        "'leaf_basis' must be provided in order to compute the requested intervals"
       )
     }
-    if (!is.matrix(basis)) {
-      stop("'basis' must be a matrix")
+    if (!is.matrix(leaf_basis)) {
+      stop("'leaf_basis' must be a matrix")
     }
-    if (is.matrix(basis)) {
-      if (nrow(basis) != nrow(covariates)) {
-        stop("'basis' must have the same number of rows as 'covariates'")
+    if (is.matrix(leaf_basis)) {
+      if (nrow(leaf_basis) != nrow(X)) {
+        stop("'leaf_basis' must have the same number of rows as 'X'")
       }
     } else {
-      if (length(basis) != nrow(covariates)) {
-        stop("'basis' must have the same number of elements as 'covariates'")
+      if (length(leaf_basis) != nrow(X)) {
+        stop("'leaf_basis' must have the same number of elements as 'X'")
       }
     }
   }
@@ -1167,9 +1167,9 @@ compute_bart_posterior_interval <- function(
         "'rfx_group_ids' must be provided in order to compute the requested intervals"
       )
     }
-    if (length(rfx_group_ids) != nrow(covariates)) {
+    if (length(rfx_group_ids) != nrow(X)) {
       stop(
-        "'rfx_group_ids' must have the same length as the number of rows in 'covariates'"
+        "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
     if (is.null(rfx_basis)) {
@@ -1180,16 +1180,16 @@ compute_bart_posterior_interval <- function(
     if (!is.matrix(rfx_basis)) {
       stop("'rfx_basis' must be a matrix")
     }
-    if (nrow(rfx_basis) != nrow(covariates)) {
-      stop("'rfx_basis' must have the same number of rows as 'covariates'")
+    if (nrow(rfx_basis) != nrow(X)) {
+      stop("'rfx_basis' must have the same number of rows as 'X'")
     }
   }
 
   # Compute posterior matrices for the requested model terms
   predictions <- predict(
     model_object,
-    X = covariates,
-    leaf_basis = basis,
+    X = X,
+    leaf_basis = leaf_basis,
     rfx_group_ids = rfx_group_ids,
     rfx_basis = rfx_basis,
     type = "posterior",

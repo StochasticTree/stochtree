@@ -56,7 +56,7 @@ y_hat_intervals <- compute_bart_posterior_interval(
   model_object = bart_model,
   transform = function(x) x,
   terms = c("y_hat", "mean_forest"),
-  covariates = X_test,
+  X = X_test,
   level = 0.95
 )
 
@@ -137,7 +137,7 @@ y_hat_intervals <- compute_bart_posterior_interval(
   model_object = bart_model,
   scale = "linear",
   terms = c("y_hat"),
-  covariates = X_test,
+  X = X_test,
   level = 0.95
 )
 
@@ -146,7 +146,7 @@ y_hat_prob_intervals <- compute_bart_posterior_interval(
   model_object = bart_model,
   scale = "probability",
   terms = c("y_hat"),
-  covariates = X_test,
+  X = X_test,
   level = 0.95
 )
 
