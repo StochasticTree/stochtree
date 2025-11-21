@@ -47,14 +47,12 @@ OPENMP_CXXFLAGS=""
 if test `uname -s` = "Linux"
 then
     OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CXXFLAGS)"
-    OPENMP_AVAILABILITY_FLAGS='-DSTOCHTREE_OPENMP_AVAILABLE'
 fi
 
 if test `uname -s` = "Darwin"
 then
     OPENMP_CXXFLAGS='-Xclang -fopenmp'
     OPENMP_LIB='-lomp'
-    OPENMP_AVAILABILITY_FLAGS='-DSTOCHTREE_OPENMP_AVAILABLE'
 
     # libomp 15.0+ from brew is keg-only (i.e. not symlinked into the standard paths search by the linker),
     # so need to search in other locations.
@@ -104,7 +102,6 @@ then
     if test "${ac_pkg_openmp}" = no; then
         OPENMP_CXXFLAGS=''
         OPENMP_LIB=''
-        OPENMP_AVAILABILITY_FLAGS=''
         echo '***********************************************************************************************'
         echo ' OpenMP is unavailable on this macOS system. stochtree code will run single-threaded as a result.'
         echo ' To use all CPU cores for training jobs, you should install OpenMP by running'
@@ -117,7 +114,6 @@ fi
 # substitute variables from this script into Makevars.in
 AC_SUBST(OPENMP_CXXFLAGS)
 AC_SUBST(OPENMP_LIB)
-AC_SUBST(OPENMP_AVAILABILITY_FLAGS)
 AC_SUBST(STOCHTREE_CPPFLAGS)
 AC_CONFIG_FILES([src/Makevars])
 
