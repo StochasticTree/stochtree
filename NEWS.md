@@ -35,6 +35,7 @@
     * Basis vectors for leaf-wise regression models in forest terms are referred to as "`leaf_basis`"
     * Group labels for additive random effects models are referred to as "`rfx_group_ids`"
     * Basis vectors for additive random effects models are referred to as "`rfx_basis`"
+* Run-time checks for variables that are treated as continuous but have many "ties" (which presents issues with the current GFR algorithm) when only GFR samples are requested ([#243](https://github.com/StochasticTree/stochtree/pull/243))
 
 # stochtree 0.1.1
 
