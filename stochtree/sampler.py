@@ -103,6 +103,7 @@ class ForestSampler:
         forest_config: ForestModelConfig,
         keep_forest: bool,
         gfr: bool,
+        num_threads: int = -1,
     ) -> None:
         """
         Sample one iteration of a forest using the specified model and tree sampling algorithm
@@ -127,6 +128,8 @@ class ForestSampler:
             Whether or not the resulting forest should be retained in `forest_container` or discarded (due to burnin or thinning for example)
         gfr : bool
             Whether or not the "grow-from-root" (GFR) sampler is run (if this is `True` and `leaf_model_int=0` this is equivalent to XBART, if this is `FALSE` and `leaf_model_int=0` this is equivalent to the original BART)
+        num_threads : int
+            Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's system, this will default to `1`, otherwise to the maximum number of available threads.
         """
         # Ensure forest has been initialized
         if forest.is_empty():
@@ -149,6 +152,11 @@ class ForestSampler:
         if self.forest_sampler_cpp.GetMaxDepth() != forest_config.get_max_depth():
             self.forest_sampler_cpp.SetMaxDepth(forest_config.get_max_depth())
 
+        # Unpack sweep update indices (initializing empty numpy array if None)
+        sweep_update_indices = forest_config.get_sweep_update_indices()
+        if sweep_update_indices is None:
+            sweep_update_indices = np.arange(forest_config.get_num_trees(), dtype=int)
+
         # Run the sampler
         self.forest_sampler_cpp.SampleOneIteration(
             forest_container.forest_container_cpp,
@@ -157,6 +165,7 @@ class ForestSampler:
             residual.residual_cpp,
             rng.rng_cpp,
             forest_config.get_feature_types(),
+            sweep_update_indices,
             forest_config.get_cutpoint_grid_size(),
             forest_config.get_leaf_model_scale(),
             forest_config.get_variable_weights(),
@@ -164,8 +173,10 @@ class ForestSampler:
             forest_config.get_variance_forest_scale(),
             global_config.get_global_error_variance(),
             forest_config.get_leaf_model_type(),
+            forest_config.get_num_features_subsample(),
             keep_forest,
             gfr,
+            num_threads,
         )
 
     def prepare_for_sampler(
@@ -259,6 +270,17 @@ class ForestSampler:
         self.forest_sampler_cpp.PropagateBasisUpdate(
             dataset.dataset_cpp, residual.residual_cpp, forest.forest_cpp
         )
+
+    def get_cached_forest_predictions(self) -> np.array:
+        """
+        Extract an internally-cached prediction of a forest on the training dataset in a sampler.
+
+        Returns
+        ----------
+        np.array
+            Numpy 1D array with as many elements as observations in the training dataset
+        """
+        return self.forest_sampler_cpp.GetCachedForestPredictions()
 
     def update_alpha(self, alpha: float) -> None:
         """

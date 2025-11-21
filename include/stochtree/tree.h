@@ -13,9 +13,6 @@
 #include <Eigen/Dense>
 
 #include <cstdint>
-#include <map>
-#include <optional>
-#include <set>
 #include <stack>
 #include <string>
 
@@ -199,6 +196,40 @@ class Tree {
       CollapseToLeaf(this->RightChild(nid), value_vector);
     }
     this->ChangeToLeaf(nid, value_vector);
+  }
+
+  /*!
+   * \brief Add a constant value to every leaf of a tree. If leaves are multi-dimensional, `constant_value` will be added to every dimension of the leaves.
+   * 
+   * \param constant_value Value that will be added to every leaf of a tree
+   */
+  void AddValueToLeaves(double constant_value) {
+    if (output_dimension_ == 1) {
+      for (int j = 0; j < leaf_value_.size(); j++) {
+        leaf_value_[j] += constant_value;
+      }
+    } else {
+      for (int j = 0; j < leaf_vector_.size(); j++) {
+        leaf_vector_[j] += constant_value;
+      }
+    }
+  }
+
+  /*!
+   * \brief Multiply every leaf of a tree by a constant value. If leaves are multi-dimensional, `constant_value` will be multiplied through every dimension of the leaves.
+   * 
+   * \param constant_multiple Value that will be multiplied by every leaf of a tree
+   */
+  void MultiplyLeavesByValue(double constant_multiple) {
+    if (output_dimension_ == 1) {
+      for (int j = 0; j < leaf_value_.size(); j++) {
+        leaf_value_[j] *= constant_multiple;
+      }
+    } else {
+      for (int j = 0; j < leaf_vector_.size(); j++) {
+        leaf_vector_[j] *= constant_multiple;
+      }
+    }
   }
 
   /*!

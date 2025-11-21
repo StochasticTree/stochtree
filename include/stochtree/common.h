@@ -8,22 +8,18 @@
 #include <stochtree/log.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <functional>
 #include <iomanip>
 #include <iterator>
 #include <limits>
-#include <map>
 #include <memory>
 #include <sstream>
 #include <string>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 

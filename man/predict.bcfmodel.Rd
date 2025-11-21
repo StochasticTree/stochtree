@@ -11,6 +11,9 @@
   propensity = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
+  type = "posterior",
+  terms = "all",
+  scale = "linear",
   ...
 )
 }
@@ -27,12 +30,18 @@
 We do not currently support (but plan to in the near future), test set evaluation for group labels
 that were not in the training set.}
 
-\item{rfx_basis}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
+\item{rfx_basis}{(Optional) Test set basis for "random-slope" regression in additive random effects model. If the model was sampled with a random effects \code{model_spec} of "intercept_only" or "intercept_plus_treatment", this is optional, but if it is provided, it will be used.}
+
+\item{type}{(Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BCF model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".}
+
+\item{terms}{(Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "mu", "cate", "tau", "rfx", "variance_forest", or "all". If a model doesn't have random effects or variance forest predictions, but one of those terms is request, the request will simply be ignored. If a model has random effects fit with either "intercept_only" or "intercept_plus_treatment" model_spec, then "prognostic_function" refers to the predictions of the prognostic forest plus the random intercept and "cate" refers to the predictions of the treatment effect forest plus the random slope on the treatment variable. For these models, the forest predictions alone can be requested via "mu" (prognostic forest) and "tau" (treatment effect forest). In all other cases, "mu" will return exactly the same result as "prognostic_function" and "tau" will return exactly the same result as "cate". If none of the requested terms are present in a model, this function will return \code{NULL} along with a warning. Default: "all".}
+
+\item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
 
 \item{...}{(Optional) Other prediction parameters.}
 }
 \value{
-List of 3-5 \code{nrow(X)} by \code{object$num_samples} matrices: prognostic function estimates, treatment effect estimates, (optionally) random effects predictions, (optionally) variance forest predictions, and outcome predictions.
+List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
 }
 \description{
 Predict from a sampled BCF model on new data
@@ -42,21 +51,21 @@ n <- 500
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
 mu_x <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
 )
 pi_x <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
 )
 tau_x <- (
-    ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
-    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
-    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+    ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
+    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
+    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
 )
 Z <- rbinom(n, 1, pi_x)
@@ -79,8 +88,8 @@ mu_test <- mu_x[test_inds]
 mu_train <- mu_x[train_inds]
 tau_test <- tau_x[test_inds]
 tau_train <- tau_x[train_inds]
-bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-                 propensity_train = pi_train, num_gfr = 10, 
+bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
+                 propensity_train = pi_train, num_gfr = 10,
                  num_burnin = 0, num_mcmc = 10)
 preds <- predict(bcf_model, X_test, Z_test, pi_test)
 }

@@ -6,6 +6,7 @@
 \usage{
 createForestModelConfig(
   feature_types = NULL,
+  sweep_update_indices = NULL,
   num_trees = NULL,
   num_features = NULL,
   num_observations = NULL,
@@ -19,11 +20,14 @@ createForestModelConfig(
   leaf_model_scale = NULL,
   variance_forest_shape = 1,
   variance_forest_scale = 1,
-  cutpoint_grid_size = 100
+  cutpoint_grid_size = 100,
+  num_features_subsample = NULL
 )
 }
 \arguments{
 \item{feature_types}{Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
+
+\item{sweep_update_indices}{Vector of (0-indexed) indices of trees to update in a sweep}
 
 \item{num_trees}{Number of trees in the forest being sampled}
 
@@ -52,6 +56,8 @@ createForestModelConfig(
 \item{variance_forest_scale}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
 
 \item{cutpoint_grid_size}{Number of unique cutpoints to consider (default: \code{100})}
+
+\item{num_features_subsample}{Number of features to subsample for the GFR algorithm}
 }
 \value{
 ForestModelConfig object

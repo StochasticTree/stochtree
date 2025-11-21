@@ -1,6 +1,8 @@
 # Build options
-option(USE_DEBUG "Set to ON for Debug mode" OFF)
+option(USE_DEBUG "Build with debug symbols and without optimization" OFF)
 option(USE_SANITIZER "Use santizer flags" OFF)
+option(USE_OPENMP "Use openMP" ON)
+option(USE_HOMEBREW_FALLBACK "(macOS-only) also look in 'brew --prefix' for libraries (e.g. OpenMP)" ON)
 option(BUILD_TEST "Build C++ tests with Google Test" OFF)
 option(BUILD_DEBUG_TARGETS "Build Standalone C++ Programs for Debugging" ON)
 option(BUILD_PYTHON "Build Shared Library for Python Package" OFF)
@@ -9,8 +11,8 @@ option(BUILD_PYTHON "Build Shared Library for Python Package" OFF)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Default to CMake 3.16
-cmake_minimum_required(VERSION 3.16)
+# Default to CMake 3.20
+cmake_minimum_required(VERSION 3.20)
 
 # Define the project
 project(stochtree LANGUAGES C CXX)
@@ -34,6 +36,13 @@ if(USE_DEBUG)
     add_definitions(-DDEBUG)
 endif()
 
+# Linker flags (empty by default, updated if using openmp)
+set(
+  STOCHTREE_LINK_FLAGS
+  ""
+)
+
+# Unix / MinGW compiler flags
 if(UNIX OR MINGW OR CYGWIN)
   set(
     CMAKE_CXX_FLAGS
@@ -42,11 +51,12 @@ if(UNIX OR MINGW OR CYGWIN)
   if(USE_DEBUG)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0")
   else()
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O3")
   endif()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas -Wno-unused-private-field")
 endif()
 
+# MSVC compiler flags
 if(MSVC)
     set(
       variables
@@ -72,6 +82,33 @@ else()
     endif()
 endif()
 
+# OpenMP
+if(USE_OPENMP)
+  add_definitions(-DSTOCHTREE_OPENMP_AVAILABLE)
+  if(APPLE)
+    find_package(OpenMP)
+    if(NOT OpenMP_FOUND)
+      if(USE_HOMEBREW_FALLBACK)
+        execute_process(COMMAND brew --prefix libomp
+                        OUTPUT_VARIABLE HOMEBREW_LIBOMP_PREFIX
+                        OUTPUT_STRIP_TRAILING_WHITESPACE)
+        set(OpenMP_C_FLAGS "-Xclang -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
+        set(OpenMP_CXX_FLAGS "-Xclang -fopenmp -I${HOMEBREW_LIBOMP_PREFIX}/include")
+        set(OpenMP_C_INCLUDE_DIR "")
+        set(OpenMP_CXX_INCLUDE_DIR "")
+        set(OpenMP_C_LIB_NAMES libomp)
+        set(OpenMP_CXX_LIB_NAMES libomp)
+        set(OpenMP_libomp_LIBRARY ${HOMEBREW_LIBOMP_PREFIX}/lib/libomp.dylib)
+      endif()
+      find_package(OpenMP REQUIRED)
+    endif()
+  else()
+    find_package(OpenMP REQUIRED)
+  endif()
+  # Update flags with openmp 
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+
 # Header file directory
 set(StochTree_HEADER_DIR ${PROJECT_SOURCE_DIR}/include)
 
@@ -80,6 +117,8 @@ set(BOOSTMATH_HEADER_DIR ${PROJECT_SOURCE_DIR}/deps/boost_math/include)
 
 # Eigen header file directory
 set(EIGEN_HEADER_DIR ${PROJECT_SOURCE_DIR}/deps/eigen)
+add_definitions(-DEIGEN_MPL2_ONLY)
+add_definitions(-DEIGEN_DONT_PARALLELIZE)
 
 # fast_double_parser header file directory
 set(FAST_DOUBLE_PARSER_HEADER_DIR ${PROJECT_SOURCE_DIR}/deps/fast_double_parser/include)
@@ -109,10 +148,11 @@ file(
 add_library(stochtree_objs OBJECT ${SOURCES})
 
 # Include the headers in the source library
-target_include_directories(stochtree_objs PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
-
-if(APPLE)
-  set(CMAKE_SHARED_LIBRARY_SUFFIX ".so")
+if(USE_OPENMP)
+  target_include_directories(stochtree_objs PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+  target_link_libraries(stochtree_objs PRIVATE ${OpenMP_libomp_LIBRARY})
+else()
+  target_include_directories(stochtree_objs PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
 endif()
 
 # Python shared library
@@ -122,8 +162,13 @@ if (BUILD_PYTHON)
   pybind11_add_module(stochtree_cpp src/py_stochtree.cpp)
 
   # Link to C++ source and headers
-  target_include_directories(stochtree_cpp PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
-  target_link_libraries(stochtree_cpp PRIVATE stochtree_objs)
+  if(USE_OPENMP)
+    target_include_directories(stochtree_cpp PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+    target_link_libraries(stochtree_cpp PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
+  else()
+    target_include_directories(stochtree_cpp PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+    target_link_libraries(stochtree_cpp PRIVATE stochtree_objs)
+  endif()
 
   # EXAMPLE_VERSION_INFO is defined by setup.py and passed into the C++ code as a
   # define (VERSION_INFO) here.
@@ -154,8 +199,13 @@ if(BUILD_TEST)
   file(GLOB CPP_TEST_SOURCES test/cpp/*.cpp)
   add_executable(teststochtree ${CPP_TEST_SOURCES})
   set(STOCHTREE_TEST_HEADER_DIR ${PROJECT_SOURCE_DIR}/test/cpp)
-  target_include_directories(teststochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${STOCHTREE_TEST_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
-  target_link_libraries(teststochtree PRIVATE stochtree_objs GTest::gtest_main)
+  if(USE_OPENMP)
+    target_include_directories(teststochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${STOCHTREE_TEST_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+    target_link_libraries(teststochtree PRIVATE stochtree_objs GTest::gtest_main ${OpenMP_libomp_LIBRARY})
+  else()
+    target_include_directories(teststochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${STOCHTREE_TEST_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+    target_link_libraries(teststochtree PRIVATE stochtree_objs GTest::gtest_main)
+  endif()
   gtest_discover_tests(teststochtree)
 endif()
 
@@ -164,7 +214,12 @@ if(BUILD_DEBUG_TARGETS)
   # Build test suite
   add_executable(debugstochtree debug/api_debug.cpp)
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug)
-  target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
-  target_link_libraries(debugstochtree PRIVATE stochtree_objs)
+  if(USE_OPENMP)
+    target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+    target_link_libraries(debugstochtree PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
+  else()
+    target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+    target_link_libraries(debugstochtree PRIVATE stochtree_objs)
+  endif()
 endif()
 

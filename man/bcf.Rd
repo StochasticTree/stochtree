@@ -24,7 +24,8 @@ bcf(
   general_params = list(),
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
-  variance_forest_params = list()
+  variance_forest_params = list(),
+  random_effects_params = list()
 )
 }
 \arguments{
@@ -68,7 +69,7 @@ that were not in the training set.}
 
 \item{previous_model_json}{(Optional) JSON string containing a previous BCF model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: \code{NULL}.}
 
-\item{previous_model_warmstart_sample_num}{(Optional) Sample number from \code{previous_model_json} that will be used to warmstart this BCF sampler. One-indexed (so that the first sample is used for warm-start by setting \code{previous_model_warmstart_sample_num = 1}). Default: \code{NULL}.}
+\item{previous_model_warmstart_sample_num}{(Optional) Sample number from \code{previous_model_json} that will be used to warmstart this BCF sampler. One-indexed (so that the first sample is used for warm-start by setting \code{previous_model_warmstart_sample_num = 1}). Default: \code{NULL}. If \code{num_chains} in the \code{general_params} list is > 1, then each successive chain will be initialized from a different sample, counting backwards from \code{previous_model_warmstart_sample_num}. That is, if \code{previous_model_warmstart_sample_num = 10} and \code{num_chains = 4}, then chain 1 will be initialized from sample 10, chain 2 from sample 9, chain 3 from sample 8, and chain 4 from sample 7. If \code{previous_model_json} is provided but \code{previous_model_warmstart_sample_num} is NULL, the last sample in the previous model will be used to initialize the first chain, counting backwards as noted before. If more chains are requested than there are samples in \code{previous_model_json}, a warning will be raised and only the last sample will be used.}
 
 \item{general_params}{(Optional) A list of general (non-forest-specific) model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
@@ -78,8 +79,8 @@ that were not in the training set.}
 \item \code{sigma2_global_init} Starting value of global error variance parameter. Calibrated internally as \code{1.0*var((y_train-mean(y_train))/sd(y_train))} if not set.
 \item \code{sigma2_global_shape} Shape parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
 \item \code{sigma2_global_scale} Scale parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
-\item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to \code{1/ncol(X_train)}. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in \code{X_train} and then set \code{propensity_covariate} to \code{'none'} adjust \code{keep_vars} accordingly for the \code{mu} or \code{tau} forests.
-\item \code{propensity_covariate} Whether to include the propensity score as a covariate in either or both of the forests. Enter \code{"none"} for neither, \code{"mu"} for the prognostic forest, \code{"tau"} for the treatment forest, and \code{"both"} for both forests. If this is not \code{"none"} and a propensity score is not provided, it will be estimated from (\code{X_train}, \code{Z_train}) using \code{stochtree::bart()}. Default: \code{"mu"}.
+\item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to \code{1/ncol(X_train)}. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in \code{X_train} and then set \code{propensity_covariate} to \code{'none'} adjust \code{keep_vars} accordingly for the \code{prognostic} or \code{treatment_effect} forests.
+\item \code{propensity_covariate} Whether to include the propensity score as a covariate in either or both of the forests. Enter \code{"none"} for neither, \code{"prognostic"} for the prognostic forest, \code{"treatment_effect"} for the treatment forest, and \code{"both"} for both forests. If this is not \code{"none"} and a propensity score is not provided, it will be estimated from (\code{X_train}, \code{Z_train}) using \code{stochtree::bart()}. Default: \code{"mu"}.
 \item \code{adaptive_coding} Whether or not to use an "adaptive coding" scheme in which a binary treatment variable is not coded manually as (0,1) or (-1,1) but learned via parameters \code{b_0} and \code{b_1} that attach to the outcome model \verb{[b_0 (1-Z) + b_1 Z] tau(X)}. This is ignored when Z is not binary. Default: \code{TRUE}.
 \item \code{control_coding_init} Initial value of the "control" group coding parameter. This is ignored when Z is not binary. Default: \code{-0.5}.
 \item \code{treated_coding_init} Initial value of the "treatment" group coding parameter. This is ignored when Z is not binary. Default: \code{0.5}.
@@ -88,8 +89,10 @@ that were not in the training set.}
 \item \code{keep_burnin} Whether or not "burnin" samples should be included in the stored samples of forests and other parameters. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
 \item \code{keep_gfr} Whether or not "grow-from-root" samples should be included in the stored samples of forests and other parameters. Default \code{FALSE}. Ignored if \code{num_mcmc = 0}.
 \item \code{keep_every} How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default \code{1}. Setting \code{keep_every <- k} for some \code{k > 1} will "thin" the MCMC samples by retaining every \code{k}-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
-\item \code{num_chains} How many independent MCMC chains should be sampled. If \code{num_mcmc = 0}, this is ignored. If \code{num_gfr = 0}, then each chain is run from root for \code{num_mcmc * keep_every + num_burnin} iterations, with \code{num_mcmc} samples retained. If \code{num_gfr > 0}, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that \code{num_gfr >= num_chains}. Default: \code{1}.
+\item \code{num_chains} How many independent MCMC chains should be sampled. If \code{num_mcmc = 0}, this is ignored. If \code{num_gfr = 0}, then each chain is run from root for \code{num_mcmc * keep_every + num_burnin} iterations, with \code{num_mcmc} samples retained. If \code{num_gfr > 0}, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that \code{num_gfr >= num_chains}. Default: \code{1}. Note that if \code{num_chains > 1}, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BCF models, see \href{https://stochtree.ai/R_docs/pkgdown/articles/MultiChain.html}{the multi chain vignette}.
 \item \code{verbose} Whether or not to print progress during the sampling loops. Default: \code{FALSE}.
+\item \code{probit_outcome_model} Whether or not the outcome should be modeled as explicitly binary via a probit link. If \code{TRUE}, \code{y} must only contain the values \code{0} and \code{1}. Default: \code{FALSE}.
+\item \code{num_threads} Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to \code{1}, otherwise to the maximum number of available threads.
 }}
 
 \item{prognostic_forest_params}{(Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -106,6 +109,7 @@ that were not in the training set.}
 \item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 }}
 
 \item{treatment_effect_forest_params}{(Optional) A list of treatment effect forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -120,8 +124,10 @@ that were not in the training set.}
 \item \code{sigma2_leaf_init} Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees} if not set here.
 \item \code{sigma2_leaf_shape} Shape parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Default: \code{3}.
 \item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
+\item \code{delta_max} Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in \code{general_params}. Must be > 0 and < 1. Default: \code{0.9}. Ignored if \code{sigma2_leaf_init} is set directly, as this parameter is used to calibrate \code{sigma2_leaf_init}.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
 }}
 
 \item{variance_forest_params}{(Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -137,6 +143,18 @@ that were not in the training set.}
 \item \code{var_forest_prior_scale} Scale parameter in the \code{IG(var_forest_prior_shape, var_forest_prior_scale)} conditional error variance model (which is only sampled if \code{num_trees > 0}). Calibrated internally as \code{num_trees / 1.5^2} if not set.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
+\item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+}}
+
+\item{random_effects_params}{(Optional) A list of random effects model parameters, each of which has a default value processed internally, so this argument list is optional.
+\itemize{
+\item \code{model_spec} Specification of the random effects model. Options are "custom", "intercept_only", and "intercept_plus_treatment". If "custom" is specified, then a user-provided basis must be passed through \code{rfx_basis_train}. If "intercept_only" is specified, a random effects basis of all ones will be dispatched internally at sampling and prediction time. If "intercept_plus_treatment" is specified, a random effects basis that combines an "intercept" basis of all ones with the treatment variable (\code{Z_train}) will be dispatched internally at sampling and prediction time. Default: "custom". If either "intercept_only" or "intercept_plus_treatment" is specified, \code{rfx_basis_train} and \code{rfx_basis_test} (if provided) will be ignored.
+\item \code{working_parameter_prior_mean} Prior mean for the random effects "working parameter". Default: \code{NULL}. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+\item \code{group_parameters_prior_mean} Prior mean for the random effects "group parameters." Default: \code{NULL}. Must be a vector whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a vector.
+\item \code{working_parameter_prior_cov} Prior covariance matrix for the random effects "working parameter." Default: \code{NULL}. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+\item \code{group_parameter_prior_cov} Prior covariance matrix for the random effects "group parameters." Default: \code{NULL}. Must be a square matrix whose dimension matches the number of random effects bases, or a scalar value that will be expanded to a diagonal matrix.
+\item \code{variance_prior_shape} Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
+\item \code{variance_prior_scale} Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 }}
 }
 \value{
@@ -150,21 +168,21 @@ n <- 500
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
 mu_x <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
 )
 pi_x <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
 )
 tau_x <- (
-    ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) + 
-    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) + 
-    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) + 
+    ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
+    ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
+    ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
 )
 Z <- rbinom(n, 1, pi_x)
@@ -187,8 +205,8 @@ mu_test <- mu_x[test_inds]
 mu_train <- mu_x[train_inds]
 tau_test <- tau_x[test_inds]
 tau_train <- tau_x[train_inds]
-bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train, 
-                 propensity_train = pi_train, X_test = X_test, Z_test = Z_test, 
-                 propensity_test = pi_test, num_gfr = 10, 
+bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
+                 propensity_train = pi_train, X_test = X_test, Z_test = Z_test,
+                 propensity_test = pi_test, num_gfr = 10,
                  num_burnin = 0, num_mcmc = 10)
 }

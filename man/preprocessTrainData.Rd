@@ -2,8 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{preprocessTrainData}
 \alias{preprocessTrainData}
-\title{Preprocess covariates. DataFrames will be preprocessed based on their column
-types. Matrices will be passed through assuming all columns are numeric.}
+\title{Preprocess covariates for use in a \code{ForestDataset} at train time.}
 \usage{
 preprocessTrainData(input_data)
 }
@@ -16,7 +15,8 @@ of variable, unique categories associated with categorical variables, and the
 vector of feature types needed for calls to BART and BCF.
 }
 \description{
-Preprocess covariates. DataFrames will be preprocessed based on their column
+Preprocess covariates for use in a \code{ForestDataset} at train time.
+DataFrames will be preprocessed based on their column
 types. Matrices will be passed through assuming all columns are numeric.
 }
 \examples{

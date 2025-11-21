@@ -9,6 +9,9 @@ from stochtree.utils import (
     _check_matrix_square,
     _standardize_array_to_list,
     _standardize_array_to_np,
+    _expand_dims_1d,
+    _expand_dims_2d,
+    _expand_dims_2d_diag,
 )
 
 
@@ -87,9 +90,11 @@ class TestUtils:
         array_np3 = np.array([8.2, 4.5, 3.8])
         array_np4 = np.array([[8.2, 4.5, 3.8]])
         nonconforming_array_np1 = np.array([[8.2, 4.5, 3.8], [1.6, 3.4, 7.6]])
-        nonconforming_array_np2 = np.array(
-            [[8.2, 4.5, 3.8], [1.6, 3.4, 7.6], [1.6, 3.4, 7.6]]
-        )
+        nonconforming_array_np2 = np.array([
+            [8.2, 4.5, 3.8],
+            [1.6, 3.4, 7.6],
+            [1.6, 3.4, 7.6],
+        ])
         non_array_1 = 100000000
         non_array_2 = "a"
 
@@ -114,3 +119,117 @@ class TestUtils:
             _ = _standardize_array_to_np(non_array_2)
             _ = _standardize_array_to_np(nonconforming_array_np1)
             _ = _standardize_array_to_np(nonconforming_array_np2)
+
+    def test_array_conversion(self):
+        scalar_1 = 1.5
+        scalar_2 = -2.5
+        scalar_3 = 4
+        array_1d_1 = np.array([1.6, 3.4, 7.6, 8.7])
+        array_1d_2 = np.array([2.5, 3.1, 5.6])
+        array_1d_3 = np.array([2.5])
+        array_2d_1 = np.array([
+            [2.5, 1.2, 4.3, 7.4],
+            [1.7, 2.9, 3.6, 9.1],
+            [7.2, 4.5, 6.7, 1.4],
+        ])
+        array_2d_2 = np.array([[2.5, 1.2, 4.3, 7.4], [1.7, 2.9, 3.6, 9.1]])
+        array_square_1 = np.array([[2.5, 1.2], [1.7, 2.9]])
+        array_square_2 = np.array([[2.5, 0.0], [0.0, 2.9]])
+        array_square_3 = np.array([[2.5, 0.0, 0.0], [0.0, 2.9, 0.0], [0.0, 0.0, 5.6]])
+        with pytest.raises(ValueError):
+            _ = _expand_dims_1d(array_1d_1, 5)
+            _ = _expand_dims_1d(array_1d_2, 4)
+            _ = _expand_dims_1d(array_1d_3, 3)
+            _ = _expand_dims_2d(array_2d_1, 2, 4)
+            _ = _expand_dims_2d(array_2d_2, 3, 4)
+            _ = _expand_dims_2d_diag(array_square_1, 4)
+            _ = _expand_dims_2d_diag(array_square_2, 3)
+            _ = _expand_dims_2d_diag(array_square_3, 2)
+
+        np.testing.assert_array_equal(
+            np.array([scalar_1, scalar_1, scalar_1]), _expand_dims_1d(scalar_1, 3)
+        )
+        np.testing.assert_array_equal(
+            np.array([scalar_2, scalar_2, scalar_2, scalar_2]),
+            _expand_dims_1d(scalar_2, 4),
+        )
+        np.testing.assert_array_equal(
+            np.array([scalar_3, scalar_3]), _expand_dims_1d(scalar_3, 2)
+        )
+        np.testing.assert_array_equal(
+            np.array([array_1d_3[0], array_1d_3[0], array_1d_3[0]]),
+            _expand_dims_1d(array_1d_3, 3),
+        )
+
+        np.testing.assert_array_equal(
+            np.array([[scalar_1, scalar_1, scalar_1], [scalar_1, scalar_1, scalar_1]]),
+            _expand_dims_2d(scalar_1, 2, 3),
+        )
+        np.testing.assert_array_equal(
+            np.array([
+                [scalar_2, scalar_2, scalar_2, scalar_2],
+                [scalar_2, scalar_2, scalar_2, scalar_2],
+            ]),
+            _expand_dims_2d(scalar_2, 2, 4),
+        )
+        np.testing.assert_array_equal(
+            np.array([
+                [scalar_3, scalar_3],
+                [scalar_3, scalar_3],
+                [scalar_3, scalar_3],
+            ]),
+            _expand_dims_2d(scalar_3, 3, 2),
+        )
+        np.testing.assert_array_equal(
+            np.array([
+                [array_1d_3[0], array_1d_3[0]],
+                [array_1d_3[0], array_1d_3[0]],
+                [array_1d_3[0], array_1d_3[0]],
+            ]),
+            _expand_dims_2d(array_1d_3, 3, 2),
+        )
+        np.testing.assert_array_equal(
+            np.vstack((array_1d_1, array_1d_1)), _expand_dims_2d(array_1d_1, 2, 4)
+        )
+        np.testing.assert_array_equal(
+            np.vstack((array_1d_2, array_1d_2, array_1d_2)),
+            _expand_dims_2d(array_1d_2, 3, 3),
+        )
+        np.testing.assert_array_equal(
+            np.column_stack((array_1d_2, array_1d_2, array_1d_2, array_1d_2)),
+            _expand_dims_2d(array_1d_2, 3, 4),
+        )
+        np.testing.assert_array_equal(
+            np.column_stack((array_1d_3, array_1d_3, array_1d_3, array_1d_3)),
+            _expand_dims_2d(array_1d_3, 1, 4),
+        )
+        np.testing.assert_array_equal(
+            np.vstack((array_1d_3, array_1d_3, array_1d_3, array_1d_3)),
+            _expand_dims_2d(array_1d_3, 4, 1),
+        )
+
+        np.testing.assert_array_equal(
+            np.array([
+                [scalar_1, 0.0, 0.0],
+                [0.0, scalar_1, 0.0],
+                [0.0, 0.0, scalar_1],
+            ]),
+            _expand_dims_2d_diag(scalar_1, 3),
+        )
+        np.testing.assert_array_equal(
+            np.array([[scalar_2, 0.0], [0.0, scalar_2]]),
+            _expand_dims_2d_diag(scalar_2, 2),
+        )
+        np.testing.assert_array_equal(
+            np.array([
+                [scalar_3, 0.0, 0.0, 0.0],
+                [0.0, scalar_3, 0.0, 0.0],
+                [0.0, 0.0, scalar_3, 0.0],
+                [0.0, 0.0, 0.0, scalar_3],
+            ]),
+            _expand_dims_2d_diag(scalar_3, 4),
+        )
+        np.testing.assert_array_equal(
+            np.array([[array_1d_3[0], 0.0], [0.0, array_1d_3[0]]]),
+            _expand_dims_2d_diag(array_1d_3, 2),
+        )

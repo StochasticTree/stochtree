@@ -10,6 +10,9 @@
   leaf_basis = NULL,
   rfx_group_ids = NULL,
   rfx_basis = NULL,
+  type = "posterior",
+  terms = "all",
+  scale = "linear",
   ...
 )
 }
@@ -26,11 +29,16 @@ that were not in the training set.}
 
 \item{rfx_basis}{(Optional) Test set basis for "random-slope" regression in additive random effects model.}
 
+\item{type}{(Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".}
+
+\item{terms}{(Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return \code{NULL} along with a warning. Default: "all".}
+
+\item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
+
 \item{...}{(Optional) Other prediction parameters.}
 }
 \value{
-List of prediction matrices. If model does not have random effects, the list has one element -- the predictions from the forest.
-If the model does have random effects, the list has three elements -- forest predictions, random effects predictions, and their sum (\code{y_hat}).
+List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
 }
 \description{
 Predict from a sampled BART model on new data
@@ -40,9 +48,9 @@ n <- 100
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
 f_XW <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
 )
 noise_sd <- 1
@@ -56,7 +64,7 @@ X_test <- X[test_inds,]
 X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
-bart_model <- bart(X_train = X_train, y_train = y_train, 
+bart_model <- bart(X_train = X_train, y_train = y_train,
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-y_hat_test <- predict(bart_model, X_test)$y_hat
+y_hat_test <- predict(bart_model, X=X_test)$y_hat
 }

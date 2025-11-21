@@ -1,6 +1,7 @@
-url: https://stochastictree.github.io/stochtree-r/
+url: https://stochtree.ai/
 template:
   bootstrap: 5
+llm-docs: false
 
 reference:
 - title: Supervised learning
@@ -9,6 +10,9 @@ reference:
   contents:
   - bart
   - predict.bartmodel
+  - compute_bart_posterior_interval
+  - compute_contrast_bart_model
+  - sample_bart_posterior_predictive
 
 - title: Causal inference
   desc: >
@@ -16,6 +20,9 @@ reference:
   contents:
   - bcf
   - predict.bcfmodel
+  - compute_bcf_posterior_interval
+  - compute_contrast_bcf_model
+  - sample_bcf_posterior_predictive
 
 - title: Low-level functionality
 
@@ -111,6 +118,15 @@ reference:
   - resetRandomEffectsTracker
   - rootResetRandomEffectsModel
   - rootResetRandomEffectsTracker
+
+- subtitle: Utilities
+  desc: >
+    Miscellaneous "utility" classes and functions
+  contents:
+  - sample_without_replacement
+  - expand_dims_1d
+  - expand_dims_2d
+  - expand_dims_2d_diag
 
 - title: Package info
   desc: >

@@ -28,13 +28,10 @@
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/log.h>
+#include <stochtree/openmp_utils.h>
 #include <stochtree/tree.h>
 
-#include <cmath>
 #include <numeric>
-#include <random>
-#include <set>
-#include <string>
 #include <vector>
 
 namespace StochTree {
@@ -68,7 +65,7 @@ class ForestTracker {
   void UpdateSampleTrackers(TreeEnsemble& forest, ForestDataset& dataset);
   void UpdateSampleTrackersResidual(TreeEnsemble& forest, ForestDataset& dataset, ColumnVector& residual, bool is_mean_model);
   void ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num);
-  void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
+  void AddSplit(Eigen::MatrixXd& covariates, TreeSplit& split, int32_t split_feature, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false, int num_threads = -1);
   void RemoveSplit(Eigen::MatrixXd& covariates, Tree* tree, int32_t tree_id, int32_t split_node_id, int32_t left_node_id, int32_t right_node_id, bool keep_sorted = false);
   double GetSamplePrediction(data_size_t sample_id);
   double GetTreeSamplePrediction(data_size_t sample_id, int tree_id);
@@ -91,6 +88,10 @@ class ForestTracker {
   SampleNodeMapper* GetSampleNodeMapper() {return sample_node_mapper_.get();}
   UnsortedNodeSampleTracker* GetUnsortedNodeSampleTracker() {return unsorted_node_sample_tracker_.get();}
   SortedNodeSampleTracker* GetSortedNodeSampleTracker() {return sorted_node_sample_tracker_.get();}
+  int GetNumObservations() {return num_observations_;}
+  int GetNumTrees() {return num_trees_;}
+  int GetNumFeatures() {return num_features_;}
+  bool Initialized() {return initialized_;}
 
  private:
   /*! \brief Mapper from observations to predicted values summed over every tree in a forest */
@@ -430,7 +431,7 @@ class UnsortedNodeSampleTracker {
   /*! \brief Number of trees */
   int NumTrees() { return num_trees_; }
 
-  /*! \brief Number of trees */
+  /*! \brief Return a pointer to the feature partition tracking tree i */
   FeatureUnsortedPartition* GetFeaturePartition(int i) { return feature_partitions_[i].get(); }
 
  private:
@@ -611,24 +612,24 @@ class SortedNodeSampleTracker {
   }
 
   /*! \brief Partition a node based on a new split rule */
-  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, TreeSplit& split) {
-    for (int i = 0; i < num_features_; i++) {
+  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, TreeSplit& split, int num_threads = -1) {
+    StochTree::ParallelFor(0, num_features_, num_threads, [&](int i) {
       feature_partitions_[i]->SplitFeature(covariates, node_id, feature_split, split);
-    }
+    });
   }
 
   /*! \brief Partition a node based on a new split rule */
-  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, double split_value) {
-    for (int i = 0; i < num_features_; i++) {
+  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, double split_value, int num_threads = -1) {
+    StochTree::ParallelFor(0, num_features_, num_threads, [&](int i) {
       feature_partitions_[i]->SplitFeatureNumeric(covariates, node_id, feature_split, split_value);
-    }
+    });
   }
 
   /*! \brief Partition a node based on a new split rule */
-  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, std::vector<std::uint32_t> const& category_list) {
-    for (int i = 0; i < num_features_; i++) {
+  void PartitionNode(Eigen::MatrixXd& covariates, int node_id, int feature_split, std::vector<std::uint32_t> const& category_list, int num_threads = -1) {
+    StochTree::ParallelFor(0, num_features_, num_threads, [&](int i) {
       feature_partitions_[i]->SplitFeatureCategorical(covariates, node_id, feature_split, category_list);
-    }
+    });
   }
 
   /*! \brief First index of data points contained in node_id */

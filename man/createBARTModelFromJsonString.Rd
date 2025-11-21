@@ -22,9 +22,9 @@ n <- 100
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
 f_XW <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) + 
+    ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
 )
 noise_sd <- 1
@@ -38,9 +38,9 @@ X_test <- X[test_inds,]
 X_train <- X[train_inds,]
 y_test <- y[test_inds]
 y_train <- y[train_inds]
-bart_model <- bart(X_train = X_train, y_train = y_train, 
+bart_model <- bart(X_train = X_train, y_train = y_train,
                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
 bart_json <- saveBARTModelToJsonString(bart_model)
 bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
-y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X_train)$y_hat)
+y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X=X_train)$y_hat)
 }

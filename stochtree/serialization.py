@@ -62,7 +62,9 @@ class JSONSerializer:
             Samples of a random effects model
         """
         _ = self.json_cpp.AddRandomEffectsContainer(rfx_container.rfx_container_cpp)
-        _ = self.json_cpp.AddRandomEffectsLabelMapper(rfx_container.rfx_label_mapper_cpp)
+        _ = self.json_cpp.AddRandomEffectsLabelMapper(
+            rfx_container.rfx_label_mapper_cpp
+        )
         _ = self.json_cpp.AddRandomEffectsGroupIDs(rfx_container.rfx_group_ids)
         self.json_cpp.IncrementRandomEffectsCount()
         self.num_rfx += 1

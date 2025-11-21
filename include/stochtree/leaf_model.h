@@ -13,12 +13,12 @@
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
 #include <stochtree/normal_sampler.h>
+#include <stochtree/openmp_utils.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/prior.h>
 #include <stochtree/tree.h>
 
 #include <random>
-#include <tuple>
 #include <variant>
 
 namespace StochTree {
@@ -397,6 +397,16 @@ class GaussianConstantSuffStat {
     sum_yw = 0.0;
   }
   /*!
+   * \brief Increment the value of each sufficient statistic by the values provided by `suff_stat`
+   * 
+   * \param suff_stat Sufficient statistic to be added to the current sufficient statistics
+   */
+  void AddSuffStatInplace(GaussianConstantSuffStat& suff_stat) {
+    n += suff_stat.n;
+    sum_w += suff_stat.sum_w;
+    sum_yw += suff_stat.sum_yw;
+  }
+  /*!
    * \brief Set the value of each sufficient statistic to the sum of the values provided by `lhs` and `rhs`
    * 
    * \param lhs First sufficient statistic ("left hand side")
@@ -551,6 +561,16 @@ class GaussianUnivariateRegressionSuffStat {
     sum_yxw = 0.0;
   }
   /*!
+   * \brief Increment the value of each sufficient statistic by the values provided by `suff_stat`
+   * 
+   * \param suff_stat Sufficient statistic to be added to the current sufficient statistics
+   */
+  void AddSuffStatInplace(GaussianUnivariateRegressionSuffStat& suff_stat) {
+    n += suff_stat.n;
+    sum_xxw += suff_stat.sum_xxw;
+    sum_yxw += suff_stat.sum_yxw;
+  }
+  /*!
    * \brief Set the value of each sufficient statistic to the sum of the values provided by `lhs` and `rhs`
    * 
    * \param lhs First sufficient statistic ("left hand side")
@@ -696,6 +716,16 @@ class GaussianMultivariateRegressionSuffStat {
     ytWX = Eigen::MatrixXd::Zero(1, p);
   }
   /*!
+   * \brief Increment the value of each sufficient statistic by the values provided by `suff_stat`
+   * 
+   * \param suff_stat Sufficient statistic to be added to the current sufficient statistics
+   */
+  void AddSuffStatInplace(GaussianMultivariateRegressionSuffStat& suff_stat) {
+    n += suff_stat.n;
+    XtWX += suff_stat.XtWX;
+    ytWX += suff_stat.ytWX;
+  }
+  /*!
    * \brief Set the value of each sufficient statistic to the sum of the values provided by `lhs` and `rhs`
    * 
    * \param lhs First sufficient statistic ("left hand side")
@@ -828,6 +858,15 @@ class LogLinearVarianceSuffStat {
   void ResetSuffStat() {
     n = 0;
     weighted_sum_ei = 0.0;
+  }
+  /*!
+   * \brief Increment the value of each sufficient statistic by the values provided by `suff_stat`
+   * 
+   * \param suff_stat Sufficient statistic to be added to the current sufficient statistics
+   */
+  void AddSuffStatInplace(LogLinearVarianceSuffStat& suff_stat) {
+    n += suff_stat.n;
+    weighted_sum_ei += suff_stat.weighted_sum_ei;
   }
   /*!
    * \brief Set the value of each sufficient statistic to the sum of the values provided by `lhs` and `rhs`
@@ -1005,22 +1044,73 @@ static inline LeafModelVariant leafModelFactory(ModelType model_type, double tau
   }
 }
 
-template<typename SuffStatType>
-static inline void AccumulateSuffStatProposed(SuffStatType& node_suff_stat, SuffStatType& left_suff_stat, SuffStatType& right_suff_stat, ForestDataset& dataset, ForestTracker& tracker, 
-                                ColumnVector& residual, double global_variance, TreeSplit& split, int tree_num, int leaf_num, int split_feature) {
-  // Acquire iterators
-  auto node_begin_iter = tracker.UnsortedNodeBeginIterator(tree_num, leaf_num);
-  auto node_end_iter = tracker.UnsortedNodeEndIterator(tree_num, leaf_num);
+template<typename SuffStatType, typename... SuffStatConstructorArgs>
+static inline void AccumulateSuffStatProposed(
+  SuffStatType& node_suff_stat, SuffStatType& left_suff_stat, SuffStatType& right_suff_stat, ForestDataset& dataset, ForestTracker& tracker, 
+  ColumnVector& residual, double global_variance, TreeSplit& split, int tree_num, int leaf_num, int split_feature, int num_threads, 
+  SuffStatConstructorArgs&... suff_stat_args
+) {
+  // Determine the position of the node's indices in the forest tracking data structure
+  int node_begin_index = tracker.UnsortedNodeBegin(tree_num, leaf_num);
+  int node_end_index = tracker.UnsortedNodeEnd(tree_num, leaf_num);
 
-  // Accumulate sufficient statistics
-  for (auto i = node_begin_iter; i != node_end_iter; i++) {
-    auto idx = *i;
-    double feature_value = dataset.CovariateValue(idx, split_feature);
-    node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
-    if (split.SplitTrue(feature_value)) {
-      left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
-    } else {
-      right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, idx, tree_num);
+  // Extract pointer to the feature partition for tree_num
+  UnsortedNodeSampleTracker* unsorted_node_sample_tracker = tracker.GetUnsortedNodeSampleTracker();
+  FeatureUnsortedPartition* feature_partition = unsorted_node_sample_tracker->GetFeaturePartition(tree_num);
+
+  // Determine the number of threads to use
+  int chunk_size = (node_end_index - node_begin_index) / num_threads;
+  if (chunk_size < 100) {
+    num_threads = 1;
+    chunk_size = node_end_index - node_begin_index;
+  }
+
+  if (num_threads > 1) {
+    // Split the work into num_threads chunks
+    std::vector<std::pair<int, int>> thread_ranges(num_threads);
+    std::vector<SuffStatType> thread_suff_stats_node;
+    std::vector<SuffStatType> thread_suff_stats_left;
+    std::vector<SuffStatType> thread_suff_stats_right;
+    for (int i = 0; i < num_threads; i++) {
+      thread_ranges[i] = std::make_pair(node_begin_index + i * chunk_size, 
+                                        node_begin_index + (i + 1) * chunk_size);
+      thread_suff_stats_node.emplace_back(suff_stat_args...);
+      thread_suff_stats_left.emplace_back(suff_stat_args...);
+      thread_suff_stats_right.emplace_back(suff_stat_args...);
+    }
+    
+    // Accumulate sufficient statistics
+    StochTree::ParallelFor(0, num_threads, num_threads, [&](int i) {
+      int start_idx = thread_ranges[i].first;
+      int end_idx = thread_ranges[i].second;
+      for (int idx = start_idx; idx < end_idx; idx++) {
+        int obs_num = feature_partition->indices_[idx];
+        double feature_value = dataset.CovariateValue(obs_num, split_feature);
+        thread_suff_stats_node[i].IncrementSuffStat(dataset, residual.GetData(), tracker, obs_num, tree_num);
+        if (split.SplitTrue(feature_value)) {
+          thread_suff_stats_left[i].IncrementSuffStat(dataset, residual.GetData(), tracker, obs_num, tree_num);
+        } else {
+          thread_suff_stats_right[i].IncrementSuffStat(dataset, residual.GetData(), tracker, obs_num, tree_num);
+        }
+      }
+    });
+
+    // Combine the thread-local sufficient statistics
+    for (int i = 0; i < num_threads; i++) {
+      node_suff_stat.AddSuffStatInplace(thread_suff_stats_node[i]);
+      left_suff_stat.AddSuffStatInplace(thread_suff_stats_left[i]);
+      right_suff_stat.AddSuffStatInplace(thread_suff_stats_right[i]);
+    }
+  } else {
+    for (int idx = node_begin_index; idx < node_end_index; idx++) {
+      int obs_num = feature_partition->indices_[idx];
+      double feature_value = dataset.CovariateValue(obs_num, split_feature);
+      node_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, obs_num, tree_num);
+      if (split.SplitTrue(feature_value)) {
+        left_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, obs_num, tree_num);
+      } else {
+        right_suff_stat.IncrementSuffStat(dataset, residual.GetData(), tracker, obs_num, tree_num);
+      }
     }
   }
 }

@@ -9,7 +9,7 @@ loadVectorJson(json_object, json_vector_label, subfolder_name = NULL)
 \arguments{
 \item{json_object}{Object of class \code{CppJson}}
 
-\item{json_vector_label}{Label referring to a particular vector (i.e. "sigma2_samples") in the overall json hierarchy}
+\item{json_vector_label}{Label referring to a particular vector (i.e. "sigma2_global_samples") in the overall json hierarchy}
 
 \item{subfolder_name}{(Optional) Name of the subfolder / hierarchy under which vector sits}
 }

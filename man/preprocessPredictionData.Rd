@@ -2,8 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{preprocessPredictionData}
 \alias{preprocessPredictionData}
-\title{Preprocess covariates. DataFrames will be preprocessed based on their column
-types. Matrices will be passed through assuming all columns are numeric.}
+\title{Preprocess covariates for use in a \code{ForestDataset} at prediction time.}
 \usage{
 preprocessPredictionData(input_data, metadata)
 }
@@ -17,12 +16,13 @@ categories for categorical variables}
 Preprocessed data with categorical variables appropriately handled
 }
 \description{
-Preprocess covariates. DataFrames will be preprocessed based on their column
+Preprocess covariates for use in a \code{ForestDataset} at prediction time.
+DataFrames will be preprocessed based on their column
 types. Matrices will be passed through assuming all columns are numeric.
 }
 \examples{
 cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
-metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0, 
+metadata <- list(num_ordered_cat_vars = 0, num_unordered_cat_vars = 0,
                  num_numeric_vars = 3, numeric_vars = c("x1", "x2", "x3"))
 X_preprocessed <- preprocessPredictionData(cov_df, metadata)
 }

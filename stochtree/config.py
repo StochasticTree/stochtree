@@ -29,6 +29,8 @@ class ForestModelConfig:
         Number of observations in training dataset
     feature_types : np.array or list, optional
         Vector of integer-coded feature types (where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
+    sweep_update_indices : np.array or list, optional
+        Vector of (0-indexed) indices of trees to update in a sweep
     variable_weights : np.array or list, optional
         Vector specifying sampling probability for all p covariates in ForestDataset
     leaf_dimension : int, optional
@@ -50,7 +52,9 @@ class ForestModelConfig:
     variance_forest_scale : int, optional
         Scale parameter for IG leaf models (applicable when `leaf_model_type = 3`). Default: `1`.
     cutpoint_grid_size : int, optional
-        Number of unique cutpoints to consider (default: `100`)
+        Number of unique cutpoints to consider (default: `100`).
+    num_features_subsample : int, optional
+        Number of features to subsample for the GFR algorithm (default: `None`).
     """
 
     def __init__(
@@ -59,6 +63,7 @@ class ForestModelConfig:
         num_features=None,
         num_observations=None,
         feature_types=None,
+        sweep_update_indices=None,
         variable_weights=None,
         leaf_dimension=1,
         alpha=0.95,
@@ -70,6 +75,7 @@ class ForestModelConfig:
         variance_forest_shape=1.0,
         variance_forest_scale=1.0,
         cutpoint_grid_size=100,
+        num_features_subsample=None,
     ) -> None:
         # Preprocess inputs and run some error checks
         if feature_types is None:
@@ -113,7 +119,9 @@ class ForestModelConfig:
             raise ValueError("`leaf_dimension` must be an integer greater than 0")
         if leaf_model_scale is None:
             diag_value = 1.0 / num_trees
-            leaf_model_scale_array = np.zeros((leaf_dimension, leaf_dimension), dtype=float)
+            leaf_model_scale_array = np.zeros(
+                (leaf_dimension, leaf_dimension), dtype=float
+            )
             np.fill_diagonal(leaf_model_scale_array, diag_value)
         else:
             if isinstance(leaf_model_scale, np.ndarray):
@@ -135,6 +143,40 @@ class ForestModelConfig:
                 raise ValueError(
                     "`leaf_model_scale` must be a scalar value or a 2d numpy array with matching dimensions"
                 )
+        if sweep_update_indices is not None:
+            sweep_update_indices = _standardize_array_to_np(sweep_update_indices)
+            if np.min(sweep_update_indices) < 0:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+            if np.max(sweep_update_indices) >= num_trees:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+        self.sweep_update_indices = sweep_update_indices
+
+        if sweep_update_indices is not None:
+            sweep_update_indices = _standardize_array_to_np(sweep_update_indices)
+            if np.min(sweep_update_indices) < 0:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+            if np.max(sweep_update_indices) >= num_trees:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+
+        if num_features_subsample is None:
+            num_features_subsample = num_features
+        if num_features_subsample > num_features:
+            raise ValueError(
+                "`num_features_subsample` cannot be larger than `num_features`",
+            )
+        if num_features_subsample <= 0:
+            raise ValueError(
+                "`num_features_subsample` must be at least 1",
+            )
+        self.num_features_subsample = num_features_subsample
 
         # Set internal config values
         self.num_trees = num_trees
@@ -157,7 +199,7 @@ class ForestModelConfig:
 
         Parameters
         ----------
-        feature_types : list of np.ndarray
+        feature_types : list or np.ndarray
             Vector of integer-coded feature types (where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
 
         Returns
@@ -168,6 +210,31 @@ class ForestModelConfig:
         if self.num_features != len(feature_types):
             raise ValueError("`feature_types` must have `num_features` total elements")
         self.feature_types = feature_types
+
+    def update_sweep_indices(self, sweep_update_indices) -> None:
+        """
+        Update feature types
+
+        Parameters
+        ----------
+        sweep_update_indices : list or np.ndarray
+            Vector of (0-indexed) indices of trees to update in a sweep
+
+        Returns
+        -------
+        self
+        """
+        if sweep_update_indices is not None:
+            sweep_update_indices = _standardize_array_to_np(sweep_update_indices)
+            if np.min(sweep_update_indices) < 0:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+            if np.max(sweep_update_indices) >= self.num_trees:
+                raise ValueError(
+                    "sweep_update_indices must be a list / np.array of indices >= 0 and < num_trees",
+                )
+        self.sweep_update_indices = sweep_update_indices
 
     def update_variable_weights(
         self, variable_weights: Union[list, np.ndarray]
@@ -333,6 +400,29 @@ class ForestModelConfig:
         """
         self.cutpoint_grid_size = cutpoint_grid_size
 
+    def update_num_features_subsample(self, num_features_subsample: int) -> None:
+        """
+        Update number of features to subsample for the GFR algorithm.
+
+        Parameters
+        ----------
+        num_features_subsample : int
+            Number of features to subsample for the GFR algorithm.
+
+        Returns
+        -------
+        self
+        """
+        if num_features_subsample > self.num_features:
+            raise ValueError(
+                "`num_features_subsample` cannot be larger than `num_features`",
+            )
+        if num_features_subsample <= 0:
+            raise ValueError(
+                "`num_features_subsample` must be at least 1",
+            )
+        self.num_features_subsample = num_features_subsample
+
     def get_feature_types(self) -> np.ndarray:
         """
         Query feature types (integer-coded so that 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
@@ -343,6 +433,17 @@ class ForestModelConfig:
             Array of integer-coded feature types
         """
         return self.feature_types
+
+    def get_sweep_update_indices(self) -> Union[np.ndarray, None]:
+        """
+        Query vector of (0-indexed) indices of trees to update in a sweep
+
+        Returns
+        -------
+        sweep_update_indices : np.ndarray or None
+            Vector of (0-indexed) indices of trees to update in a sweep, or `None`
+        """
+        return self.sweep_update_indices
 
     def get_variable_weights(self) -> np.ndarray:
         """
@@ -486,6 +587,17 @@ class ForestModelConfig:
             Maximum number of unique cutpoints considered in a grow-from-root split
         """
         return self.cutpoint_grid_size
+
+    def get_num_features_subsample(self) -> int:
+        """
+        Query number of features to subsample for the GFR algorithm
+
+        Returns
+        -------
+        num_features_subsample : int
+            Number of features to subsample for the GFR algorithm
+        """
+        return self.num_features_subsample
 
 
 class GlobalModelConfig:

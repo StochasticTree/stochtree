@@ -1,0 +1,98 @@
+on:
+  workflow_dispatch:
+
+name: Running stochtree on benchmark datasets
+
+jobs:
+  stochtree_r:
+    name: stochtree-r-bart-regression-test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout stochtree repo
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Setup pandoc
+        uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      
+      - name: Create a properly formatted version of the stochtree R package in a subfolder
+        run: |
+          Rscript cran-bootstrap.R 0 0 1
+
+      - name: Setup R dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::decor, local::stochtree_cran
+      
+      - name: Create output directory for R regression test results
+        run: |
+          mkdir -p tools/regression/bart/stochtree_bart_r_results
+          mkdir -p tools/regression/bcf/stochtree_bcf_r_results
+
+      - name: Run the R regression test benchmark suite
+        run: |
+          Rscript tools/regression/bart/regression_test_dispatch_bart.R
+          Rscript tools/regression/bcf/regression_test_dispatch_bcf.R
+
+      - name: Collate and analyze R regression test results
+        run: |
+          Rscript tools/regression/bart/regression_test_analysis_bart.R
+          Rscript tools/regression/bcf/regression_test_analysis_bcf.R
+      
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+    
+      - name: Install Package with Relevant Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install .
+
+      - name: Create output directory for python regression test results
+        run: |
+          mkdir -p tools/regression/bart/stochtree_bart_python_results
+          mkdir -p tools/regression/bcf/stochtree_bcf_python_results
+
+      - name: Run the python regression test benchmark suite
+        run: |
+          python tools/regression/bart/regression_test_dispatch_bart.py
+          python tools/regression/bcf/regression_test_dispatch_bcf.py
+
+      - name: Collate and analyze python regression test results
+        run: |
+          python tools/regression/bart/regression_test_analysis_bart.py
+          python tools/regression/bcf/regression_test_analysis_bcf.py
+
+      - name: Store R BART benchmark test results as an artifact of the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: stochtree-r-bart-summary
+          path: tools/regression/bart/stochtree_bart_r_results/stochtree_bart_r_summary.csv
+
+      - name: Store R BCF benchmark test results as an artifact of the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: stochtree-r-bcf-summary
+          path: tools/regression/bcf/stochtree_bcf_r_results/stochtree_bcf_r_summary.csv
+
+      - name: Store python BART benchmark test results as an artifact of the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: stochtree-python-bart-summary
+          path: tools/regression/bart/stochtree_bart_python_results/stochtree_bart_python_summary.csv
+
+      - name: Store python BCF benchmark test results as an artifact of the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: stochtree-python-bcf-summary
+          path: tools/regression/bcf/stochtree_bcf_python_results/stochtree_bcf_python_summary.csv

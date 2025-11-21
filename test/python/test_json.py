@@ -14,7 +14,7 @@ from stochtree import (
     JSONSerializer,
     Residual,
     ForestModelConfig,
-    GlobalModelConfig
+    GlobalModelConfig,
 )
 
 
@@ -41,17 +41,15 @@ class TestJson:
         assert b == json_test.get_string_vector("b")
 
     def test_preprocessor(self):
-        df = pd.DataFrame(
-            {
-                "x1": [1.5, 2.7, 3.6, 4.4, 5.3, 6.1],
-                "x2": pd.Categorical(
-                    ["a", "b", "c", "a", "b", "c"],
-                    ordered=False,
-                    categories=["c", "b", "a"],
-                ),
-                "x3": [1.2, 5.4, 9.3, 10.4, 3.6, 4.4],
-            }
-        )
+        df = pd.DataFrame({
+            "x1": [1.5, 2.7, 3.6, 4.4, 5.3, 6.1],
+            "x2": pd.Categorical(
+                ["a", "b", "c", "a", "b", "c"],
+                ordered=False,
+                categories=["c", "b", "a"],
+            ),
+            "x3": [1.2, 5.4, 9.3, 10.4, 3.6, 4.4],
+        })
         cov_transformer = CovariatePreprocessor()
         df_transformed_orig = cov_transformer.fit_transform(df)
         cov_transformer_json = cov_transformer.to_json()
@@ -60,27 +58,25 @@ class TestJson:
         df_transformed_reloaded = cov_transformer_reloaded.transform(df)
         np.testing.assert_array_equal(df_transformed_orig, df_transformed_reloaded)
 
-        df_2 = pd.DataFrame(
-            {
-                "x1": [1.5, 2.7, 3.6, 4.4, 5.3, 6.1],
-                "x2": pd.Categorical(
-                    ["a", "b", "c", "a", "b", "c"],
-                    ordered=False,
-                    categories=["c", "b", "a"],
-                ),
-                "x3": pd.Categorical(
-                    ["a", "c", "d", "b", "d", "b"],
-                    ordered=False,
-                    categories=["c", "b", "a", "d"],
-                ),
-                "x4": pd.Categorical(
-                    ["a", "b", "f", "f", "c", "a"],
-                    ordered=True,
-                    categories=["c", "b", "a", "f"],
-                ),
-                "x5": [1.2, 5.4, 9.3, 10.4, 3.6, 4.4],
-            }
-        )
+        df_2 = pd.DataFrame({
+            "x1": [1.5, 2.7, 3.6, 4.4, 5.3, 6.1],
+            "x2": pd.Categorical(
+                ["a", "b", "c", "a", "b", "c"],
+                ordered=False,
+                categories=["c", "b", "a"],
+            ),
+            "x3": pd.Categorical(
+                ["a", "c", "d", "b", "d", "b"],
+                ordered=False,
+                categories=["c", "b", "a", "d"],
+            ),
+            "x4": pd.Categorical(
+                ["a", "b", "f", "f", "c", "a"],
+                ordered=True,
+                categories=["c", "b", "a", "f"],
+            ),
+            "x5": [1.2, 5.4, 9.3, 10.4, 3.6, 4.4],
+        })
         cov_transformer_2 = CovariatePreprocessor()
         df_transformed_orig_2 = cov_transformer_2.fit_transform(df_2)
         cov_transformer_json_2 = cov_transformer_2.to_json()
@@ -89,9 +85,14 @@ class TestJson:
         df_transformed_reloaded_2 = cov_transformer_reloaded_2.transform(df_2)
         np.testing.assert_array_equal(df_transformed_orig_2, df_transformed_reloaded_2)
 
-        np_3 = np.array(
-            [[1.5, 1.2], [2.7, 5.4], [3.6, 9.3], [4.4, 10.4], [5.3, 3.6], [6.1, 4.4]]
-        )
+        np_3 = np.array([
+            [1.5, 1.2],
+            [2.7, 5.4],
+            [3.6, 9.3],
+            [4.4, 10.4],
+            [5.3, 3.6],
+            [6.1, 4.4],
+        ])
         cov_transformer_3 = CovariatePreprocessor()
         df_transformed_orig_3 = cov_transformer_3.fit_transform(np_3)
         cov_transformer_json_3 = cov_transformer_3.to_json()
@@ -130,7 +131,8 @@ class TestJson:
         forest_preds_y_mcmc_cached = bart_model.y_hat_train
 
         # Extract original predictions
-        forest_preds_y_mcmc_retrieved = bart_model.predict(X)
+        bart_preds = bart_model.predict(X)
+        forest_preds_y_mcmc_retrieved = bart_preds["y_hat"]
 
         # Roundtrip to / from JSON
         json_test = JSONSerializer()
@@ -212,7 +214,7 @@ class TestJson:
         residual = Residual(resid)
 
         # Forest samplers and temporary tracking data structures
-        leaf_model_type = 0 if p_W == 0 else 1 + 1*(p_W > 1)
+        leaf_model_type = 0 if p_W == 0 else 1 + 1 * (p_W > 1)
         forest_config = ForestModelConfig(
             num_trees=num_trees,
             num_features=p_X,
@@ -230,9 +232,7 @@ class TestJson:
         global_config = GlobalModelConfig(global_error_variance=global_variance_init)
         forest_container = ForestContainer(num_trees, W.shape[1], False, False)
         active_forest = Forest(num_trees, W.shape[1], False, False)
-        forest_sampler = ForestSampler(
-            dataset, global_config, forest_config
-        )
+        forest_sampler = ForestSampler(dataset, global_config, forest_config)
         cpp_rng = RNG(random_seed)
         global_var_model = GlobalVarianceModel()
 
@@ -240,9 +240,10 @@ class TestJson:
         num_warmstart = 10
         num_mcmc = 100
         num_samples = num_warmstart + num_mcmc
-        global_var_samples = np.concatenate(
-            (np.array([global_variance_init]), np.repeat(0, num_samples))
-        )
+        global_var_samples = np.concatenate((
+            np.array([global_variance_init]),
+            np.repeat(0, num_samples),
+        ))
         if p_W > 0:
             init_val = np.repeat(0.0, W.shape[1])
         else:
@@ -263,8 +264,8 @@ class TestJson:
                 dataset,
                 residual,
                 cpp_rng,
-                global_config, 
-                forest_config, 
+                global_config,
+                forest_config,
                 True,
                 True,
             )
@@ -280,8 +281,8 @@ class TestJson:
                 dataset,
                 residual,
                 cpp_rng,
-                global_config, 
-                forest_config, 
+                global_config,
+                forest_config,
                 True,
                 True,
             )
@@ -333,16 +334,20 @@ class TestJson:
 
         # Run BART
         bart_orig = BARTModel()
-        bart_orig.sample(X_train=X, y_train=y, leaf_basis_train=W, num_gfr=10, num_mcmc=10)
+        bart_orig.sample(
+            X_train=X, y_train=y, leaf_basis_train=W, num_gfr=10, num_mcmc=10
+        )
 
         # Extract predictions from the sampler
-        y_hat_orig = bart_orig.predict(X, W)
+        bart_preds_orig = bart_orig.predict(X, W)
+        y_hat_orig = bart_preds_orig["y_hat"]
 
         # "Round-trip" the model to JSON string and back and check that the predictions agree
         bart_json_string = bart_orig.to_json()
         bart_reloaded = BARTModel()
         bart_reloaded.from_json(bart_json_string)
-        y_hat_reloaded = bart_reloaded.predict(X, W)
+        bart_preds_reloaded = bart_reloaded.predict(X, W)
+        y_hat_reloaded = bart_preds_reloaded["y_hat"]
         np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)
 
     def test_bart_rfx_string(self):
@@ -404,17 +409,26 @@ class TestJson:
 
         # Run BART
         bart_orig = BARTModel()
-        bart_orig.sample(X_train=X, y_train=y, leaf_basis_train=W, rfx_group_ids_train=group_labels, 
-                         rfx_basis_train=basis, num_gfr=10, num_mcmc=10)
+        bart_orig.sample(
+            X_train=X,
+            y_train=y,
+            leaf_basis_train=W,
+            rfx_group_ids_train=group_labels,
+            rfx_basis_train=basis,
+            num_gfr=10,
+            num_mcmc=10,
+        )
 
         # Extract predictions from the sampler
-        y_hat_orig = bart_orig.predict(X, W, group_labels, basis)
+        bart_preds_orig = bart_orig.predict(X, W, group_labels, basis)
+        y_hat_orig = bart_preds_orig["y_hat"]
 
         # "Round-trip" the model to JSON string and back and check that the predictions agree
         bart_json_string = bart_orig.to_json()
         bart_reloaded = BARTModel()
         bart_reloaded.from_json(bart_json_string)
-        y_hat_reloaded = bart_reloaded.predict(X, W, group_labels, basis)
+        bart_preds_reloaded = bart_reloaded.predict(X, W, group_labels, basis)
+        y_hat_reloaded = bart_preds_reloaded["y_hat"]
         np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)
 
     def test_bcf_string(self):
@@ -440,18 +454,26 @@ class TestJson:
         # Run BCF
         bcf_orig = BCFModel()
         bcf_orig.sample(
-            X_train=X, Z_train=Z, y_train=y, pi_train=pi_X, num_gfr=10, num_mcmc=10
+            X_train=X, Z_train=Z, y_train=y, propensity_train=pi_X, num_gfr=10, num_mcmc=10
         )
 
         # Extract predictions from the sampler
-        mu_hat_orig, tau_hat_orig, y_hat_orig = bcf_orig.predict(X, Z, pi_X)
+        bcf_preds_orig = bcf_orig.predict(X, Z, pi_X)
+        mu_hat_orig, tau_hat_orig, y_hat_orig = (
+            bcf_preds_orig["mu_hat"],
+            bcf_preds_orig["tau_hat"],
+            bcf_preds_orig["y_hat"],
+        )
 
         # "Round-trip" the model to JSON string and back and check that the predictions agree
         bcf_json_string = bcf_orig.to_json()
         bcf_reloaded = BCFModel()
         bcf_reloaded.from_json(bcf_json_string)
-        mu_hat_reloaded, tau_hat_reloaded, y_hat_reloaded = bcf_reloaded.predict(
-            X, Z, pi_X
+        bcf_preds_reloaded = bcf_reloaded.predict(X, Z, pi_X)
+        mu_hat_reloaded, tau_hat_reloaded, y_hat_reloaded = (
+            bcf_preds_reloaded["mu_hat"],
+            bcf_preds_reloaded["tau_hat"],
+            bcf_preds_reloaded["y_hat"],
         )
         np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)
         np.testing.assert_almost_equal(tau_hat_orig, tau_hat_reloaded)
@@ -504,18 +526,35 @@ class TestJson:
         # Run BCF
         bcf_orig = BCFModel()
         bcf_orig.sample(
-            X_train=X, Z_train=Z, y_train=y, pi_train=pi_X, rfx_group_ids_train=group_labels, rfx_basis_train=basis, num_gfr=10, num_mcmc=10
+            X_train=X,
+            Z_train=Z,
+            y_train=y,
+            propensity_train=pi_X,
+            rfx_group_ids_train=group_labels,
+            rfx_basis_train=basis,
+            num_gfr=10,
+            num_mcmc=10,
         )
 
         # Extract predictions from the sampler
-        mu_hat_orig, tau_hat_orig, rfx_hat_orig, y_hat_orig = bcf_orig.predict(X, Z, pi_X, group_labels, basis)
+        bcf_preds_orig = bcf_orig.predict(X, Z, pi_X, group_labels, basis)
+        mu_hat_orig, tau_hat_orig, rfx_hat_orig, y_hat_orig = (
+            bcf_preds_orig["mu_hat"],
+            bcf_preds_orig["tau_hat"],
+            bcf_preds_orig["rfx_predictions"],
+            bcf_preds_orig["y_hat"],
+        )
 
         # "Round-trip" the model to JSON string and back and check that the predictions agree
         bcf_json_string = bcf_orig.to_json()
         bcf_reloaded = BCFModel()
         bcf_reloaded.from_json(bcf_json_string)
-        mu_hat_reloaded, tau_hat_reloaded, rfx_hat_reloaded, y_hat_reloaded = bcf_reloaded.predict(
-            X, Z, pi_X, group_labels, basis
+        bcf_preds_reloaded = bcf_reloaded.predict(X, Z, pi_X, group_labels, basis)
+        mu_hat_reloaded, tau_hat_reloaded, rfx_hat_reloaded, y_hat_reloaded = (
+            bcf_preds_reloaded["mu_hat"],
+            bcf_preds_reloaded["tau_hat"],
+            bcf_preds_reloaded["rfx_predictions"],
+            bcf_preds_reloaded["y_hat"],
         )
         np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)
         np.testing.assert_almost_equal(tau_hat_orig, tau_hat_reloaded)
@@ -547,14 +586,22 @@ class TestJson:
         bcf_orig.sample(X_train=X, Z_train=Z, y_train=y, num_gfr=10, num_mcmc=10)
 
         # Extract predictions from the sampler
-        mu_hat_orig, tau_hat_orig, y_hat_orig = bcf_orig.predict(X, Z, pi_X)
+        bcf_preds_orig = bcf_orig.predict(X, Z, pi_X)
+        mu_hat_orig, tau_hat_orig, y_hat_orig = (
+            bcf_preds_orig["mu_hat"],
+            bcf_preds_orig["tau_hat"],
+            bcf_preds_orig["y_hat"],
+        )
 
         # "Round-trip" the model to JSON string and back and check that the predictions agree
         bcf_json_string = bcf_orig.to_json()
         bcf_reloaded = BCFModel()
         bcf_reloaded.from_json(bcf_json_string)
-        mu_hat_reloaded, tau_hat_reloaded, y_hat_reloaded = bcf_reloaded.predict(
-            X, Z, pi_X
+        bcf_preds_reloaded = bcf_reloaded.predict(X, Z, pi_X)
+        mu_hat_reloaded, tau_hat_reloaded, y_hat_reloaded = (
+            bcf_preds_reloaded["mu_hat"],
+            bcf_preds_reloaded["tau_hat"],
+            bcf_preds_reloaded["y_hat"],
         )
         np.testing.assert_almost_equal(y_hat_orig, y_hat_reloaded)
         np.testing.assert_almost_equal(tau_hat_orig, tau_hat_reloaded)

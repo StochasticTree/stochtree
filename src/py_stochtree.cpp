@@ -12,7 +12,6 @@
 #include <stochtree/variance_model.h>
 #include <functional>
 #include <memory>
-#include <string>
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
@@ -66,6 +65,56 @@ class ForestDatasetCpp {
     
     // Load covariates
     dataset_->AddVarianceWeights(data_ptr, num_row);
+  }
+
+  void UpdateVarianceWeights(py::array_t<double> weight_vector, data_size_t num_row, bool exponentiate) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(weight_vector.mutable_data());
+    
+    // Load covariates
+    dataset_->UpdateVarWeights(data_ptr, num_row, exponentiate);
+  }
+
+  py::array_t<double> GetCovariates() {
+    // Initialize n x p numpy array to store the covariates
+    data_size_t n = dataset_->NumObservations();
+    int num_covariates = dataset_->NumCovariates();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, num_covariates}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (size_t i = 0; i < n; i++) {
+      for (int j = 0; j < num_covariates; j++) {
+        accessor(i,j) = dataset_->CovariateValue(i,j);
+      }
+    }
+
+    return result;
+  }
+
+  py::array_t<double> GetBasis() {
+    // Initialize n x k numpy array to store the basis
+    data_size_t n = dataset_->NumObservations();
+    int num_basis = dataset_->NumBasis();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, num_basis}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (size_t i = 0; i < n; i++) {
+      for (int j = 0; j < num_basis; j++) {
+        accessor(i,j) = dataset_->BasisValue(i,j);
+      }
+    }
+
+    return result;
+  }
+
+  py::array_t<double> GetVarianceWeights() {
+    // Initialize n x 1 numpy array to store the variance weights
+    data_size_t n = dataset_->NumObservations();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < n; i++) {
+      accessor(i) = dataset_->VarWeightValue(i);
+    }
+
+    return result;
   }
 
   data_size_t NumRows() {
@@ -133,6 +182,20 @@ class ResidualCpp {
     residual_->OverwriteData(data_ptr, num_row);
   }
 
+  void AddToData(py::array_t<double> update_vector, data_size_t num_row) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(update_vector.mutable_data());
+    // Add to data in residual_
+    residual_->AddToData(data_ptr, num_row);
+  }
+
+  void SubtractFromData(py::array_t<double> update_vector, data_size_t num_row) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(update_vector.mutable_data());
+    // Subtract from data in residual_
+    residual_->SubtractFromData(data_ptr, num_row);
+  }
+
  private:
   std::unique_ptr<StochTree::ColumnVector> residual_;
 };
@@ -172,6 +235,21 @@ class ForestContainerCpp {
     is_exponentiated_ = is_exponentiated;
   }
   ~ForestContainerCpp() {}
+
+  void CombineForests(py::array_t<int> forest_inds) {
+    int num_forests = forest_inds.size();
+    for (int j = 1; j < num_forests; j++) {
+      forest_samples_->MergeForests(forest_inds.at(0), forest_inds.at(j));
+    }
+  }
+
+  void AddToForest(int forest_index, double constant_value) {
+    forest_samples_->AddToForest(forest_index, constant_value);
+  }
+
+  void MultiplyForest(int forest_index, double constant_multiple) {
+    forest_samples_->MultiplyForest(forest_index, constant_multiple);
+  }
 
   int OutputDimension() {
     return forest_samples_->OutputDimension();
@@ -437,7 +515,8 @@ class ForestContainerCpp {
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     std::vector<int32_t> split_nodes = tree->GetInternalNodes();
     for (int i = 0; i < split_nodes.size(); i++) {
-        auto split_feature = split_nodes.at(i);
+        auto node_id = split_nodes.at(i);
+        auto split_feature = tree->SplitIndex(node_id);
         accessor(split_feature)++;
     }
     return result;
@@ -661,6 +740,20 @@ class ForestCpp {
     is_exponentiated_ = is_exponentiated;
   }
   ~ForestCpp() {}
+
+  StochTree::TreeEnsemble* GetForestPtr() {return forest_.get();}
+
+  void MergeForest(ForestCpp& outbound_forest) {
+    forest_->MergeForest(*outbound_forest.GetForestPtr());
+  }
+
+  void AddConstant(double constant_value) {
+    forest_->AddValueToLeaves(constant_value);
+  }
+
+  void MultiplyConstant(double constant_multiple) {
+    forest_->MultiplyLeavesByValue(constant_multiple);
+  }
 
   int OutputDimension() {
     return forest_->OutputDimension();
@@ -997,9 +1090,9 @@ class ForestSamplerCpp {
   }
 
   void SampleOneIteration(ForestContainerCpp& forest_samples, ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng, 
-                          py::array_t<int> feature_types, int cutpoint_grid_size, py::array_t<double> leaf_model_scale_input, 
+                          py::array_t<int> feature_types, py::array_t<int> sweep_update_indices, int cutpoint_grid_size, py::array_t<double> leaf_model_scale_input, 
                           py::array_t<double> variable_weights, double a_forest, double b_forest, double global_variance, 
-                          int leaf_model_int, bool keep_forest = true, bool gfr = true) {
+                          int leaf_model_int, int num_features_subsample, bool keep_forest = true, bool gfr = true, int num_threads = -1) {
     // Refactoring completely out of the Python interface.
     // Intention to refactor out of the C++ interface in the future.
     bool pre_initialized = true;
@@ -1008,6 +1101,15 @@ class ForestSamplerCpp {
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
     for (int i = 0; i < feature_types.size(); i++) {
       feature_types_[i] = static_cast<StochTree::FeatureType>(feature_types.at(i));
+    }
+    
+    // Unpack sweep indices
+    std::vector<int> sweep_update_indices_;
+    if (sweep_update_indices.size() > 0) {
+        sweep_update_indices_.resize(sweep_update_indices.size());
+        for (int i = 0; i < sweep_update_indices.size(); i++) {
+            sweep_update_indices_[i] = sweep_update_indices.at(i);
+        }
     }
 
     // Convert leaf model type to enum
@@ -1052,23 +1154,23 @@ class ForestSamplerCpp {
     std::mt19937* rng_ptr = rng.GetRng();
     if (gfr) {
       if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
-        StochTree::GFRSampleOneIter<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianConstantLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true);
+        StochTree::GFRSampleOneIter<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianConstantLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true, num_features_subsample, num_threads);
       } else if (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) {
-        StochTree::GFRSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianUnivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true);
+        StochTree::GFRSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianUnivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true, num_features_subsample, num_threads);
       } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
-        StochTree::GFRSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true, num_basis);
+        StochTree::GFRSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true, num_features_subsample, num_threads, num_basis);
       } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
-        StochTree::GFRSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, false);
+        StochTree::GFRSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, false, num_features_subsample, num_threads);
       }
     } else {
       if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
-        StochTree::MCMCSampleOneIter<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianConstantLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, keep_forest, pre_initialized, true);
+        StochTree::MCMCSampleOneIter<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianConstantLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, keep_forest, pre_initialized, true, num_threads);
       } else if (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) {
-        StochTree::MCMCSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianUnivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, keep_forest, pre_initialized, true);
+        StochTree::MCMCSampleOneIter<StochTree::GaussianUnivariateRegressionLeafModel, StochTree::GaussianUnivariateRegressionSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianUnivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, keep_forest, pre_initialized, true, num_threads);
       } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
-        StochTree::MCMCSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, keep_forest, pre_initialized, true, num_basis);
+        StochTree::MCMCSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, keep_forest, pre_initialized, true, num_threads, num_basis);
       } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
-        StochTree::MCMCSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, global_variance, keep_forest, pre_initialized, false);
+        StochTree::MCMCSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, keep_forest, pre_initialized, false, num_threads);
       }
     }
   }
@@ -1126,6 +1228,16 @@ class ForestSamplerCpp {
         std::vector<double> initial_preds(n, init_val);
         forest_data_ptr->AddVarianceWeights(initial_preds.data(), n);
     }
+  }
+
+  py::array_t<double> GetCachedForestPredictions() {
+    int n_train = tracker_->GetNumObservations();
+    auto output = py::array_t<double>(py::detail::any_container<py::ssize_t>({n_train}));
+    auto accessor = output.mutable_unchecked<1>();
+    for (size_t i = 0; i < n_train; i++) {
+      accessor(i) = tracker_->GetSamplePrediction(i);
+    }
+    return output;
   }
 
   void PropagateBasisUpdate(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestCpp& forest) {
@@ -1242,6 +1354,52 @@ class RandomEffectsDatasetCpp {
     double* weight_data_ptr = static_cast<double*>(weights.mutable_data());
     rfx_dataset_->AddVarianceWeights(weight_data_ptr, num_row);
   }
+  void UpdateBasis(py::array_t<double> basis, data_size_t num_row, int num_col, bool row_major) {
+    double* basis_data_ptr = static_cast<double*>(basis.mutable_data());
+    rfx_dataset_->UpdateBasis(basis_data_ptr, num_row, num_col, row_major);
+  }
+  void UpdateVarianceWeights(py::array_t<double> weights, data_size_t num_row, bool exponentiate) {
+    double* weight_data_ptr = static_cast<double*>(weights.mutable_data());
+    rfx_dataset_->UpdateVarWeights(weight_data_ptr, num_row, exponentiate);
+  }
+  void UpdateGroupLabels(py::array_t<int> group_labels, data_size_t num_row) {
+    std::vector<int> group_labels_vec(num_row);
+    auto accessor = group_labels.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < num_row; i++) {
+      group_labels_vec[i] = accessor(i);
+    }
+    rfx_dataset_->UpdateGroupLabels(group_labels_vec, num_row);
+  }
+  py::array_t<double> GetBasis() {
+    int num_row = rfx_dataset_->NumObservations();
+    int num_col = rfx_dataset_->NumBases();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_row, num_col}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (py::ssize_t i = 0; i < num_row; i++) {
+      for (int j = 0; j < num_col; j++) {
+        accessor(i,j) = rfx_dataset_->BasisValue(i,j);
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetVarianceWeights() {
+    int num_row = rfx_dataset_->NumObservations();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_row}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < num_row; i++) {
+      accessor(i) = rfx_dataset_->VarWeightValue(i);
+    }
+    return result;
+  }
+  py::array_t<int> GetGroupLabels() {
+    int num_row = rfx_dataset_->NumObservations();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_row}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < num_row; i++) {
+      accessor(i) = rfx_dataset_->GroupId(i);
+    }
+    return result;
+  }
   bool HasGroupLabels() {return rfx_dataset_->HasGroupLabels();}
   bool HasBasis() {return rfx_dataset_->HasBasis();}
   bool HasVarianceWeights() {return rfx_dataset_->HasVarWeights();}
@@ -1273,6 +1431,64 @@ class RandomEffectsContainerCpp {
   }
   int NumGroups() {
     return rfx_container_->NumGroups();
+  }
+  py::array_t<double> GetBeta() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    int num_groups = rfx_container_->NumGroups();
+    std::vector<double> beta_raw = rfx_container_->GetBeta();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_groups, num_samples}));
+    auto accessor = result.mutable_unchecked<3>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_groups; j++) {
+        for (int k = 0; k < num_samples; k++) {
+          accessor(i,j,k) = beta_raw[k*num_groups*num_components + j*num_components + i];
+        }
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetXi() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    int num_groups = rfx_container_->NumGroups();
+    std::vector<double> xi_raw = rfx_container_->GetXi();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_groups, num_samples}));
+    auto accessor = result.mutable_unchecked<3>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_groups; j++) {
+        for (int k = 0; k < num_samples; k++) {
+          accessor(i,j,k) = xi_raw[k*num_groups*num_components + j*num_components + i];
+        }
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetAlpha() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    std::vector<double> alpha_raw = rfx_container_->GetAlpha();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_samples}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_samples; j++) {
+        accessor(i,j) = alpha_raw[j*num_components + i];
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetSigma() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    std::vector<double> sigma_raw = rfx_container_->GetSigma();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_samples}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_samples; j++) {
+        accessor(i,j) = sigma_raw[j*num_components + i];
+      }
+    }
+    return result;
   }
   void DeleteSample(int sample_num) {
     rfx_container_->DeleteSample(sample_num);
@@ -1324,6 +1540,8 @@ class RandomEffectsTrackerCpp {
   StochTree::RandomEffectsTracker* GetTracker() {
     return rfx_tracker_.get();
   }
+  void Reset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual);
+  void RootReset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual);
 
  private:
   std::unique_ptr<StochTree::RandomEffectsTracker> rfx_tracker_;
@@ -1427,6 +1645,9 @@ class RandomEffectsModelCpp {
   }
   void SetVariancePriorScale(double scale) {
     rfx_model_->SetVariancePriorScale(scale);
+  }
+  void Reset(RandomEffectsContainerCpp& rfx_container, int sample_num) {
+    rfx_model_->ResetFromSample(*rfx_container.GetRandomEffectsContainer(), sample_num);
   }
 
  private:
@@ -1942,6 +2163,14 @@ void RandomEffectsModelCpp::SampleRandomEffects(RandomEffectsDatasetCpp& rfx_dat
   if (keep_sample) rfx_container.AddSample(*this);
 }
 
+void RandomEffectsTrackerCpp::Reset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual) {
+  rfx_tracker_->ResetFromSample(*rfx_model.GetModel(), *rfx_dataset.GetDataset(), *residual.GetData());
+}
+
+void RandomEffectsTrackerCpp::RootReset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual) {
+  rfx_tracker_->RootReset(*rfx_model.GetModel(), *rfx_dataset.GetDataset(), *residual.GetData());
+}
+
 PYBIND11_MODULE(stochtree_cpp, m) {
   m.def("cppComputeForestContainerLeafIndices", &cppComputeForestContainerLeafIndices, "Compute leaf indices of the forests in a forest container");
   m.def("cppComputeForestMaxLeafIndex", &cppComputeForestMaxLeafIndex, "Compute max leaf index of a forest in a forest container");
@@ -1996,22 +2225,31 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("AddBasis", &ForestDatasetCpp::AddBasis)
     .def("UpdateBasis", &ForestDatasetCpp::UpdateBasis)
     .def("AddVarianceWeights", &ForestDatasetCpp::AddVarianceWeights)
+    .def("UpdateVarianceWeights", &ForestDatasetCpp::UpdateVarianceWeights)
     .def("NumRows", &ForestDatasetCpp::NumRows)
     .def("NumCovariates", &ForestDatasetCpp::NumCovariates)
     .def("NumBasis", &ForestDatasetCpp::NumBasis)
+    .def("GetCovariates", &ForestDatasetCpp::GetCovariates)
+    .def("GetBasis", &ForestDatasetCpp::GetBasis)
+    .def("GetVarianceWeights", &ForestDatasetCpp::GetVarianceWeights)
     .def("HasBasis", &ForestDatasetCpp::HasBasis)
     .def("HasVarianceWeights", &ForestDatasetCpp::HasVarianceWeights);
 
   py::class_<ResidualCpp>(m, "ResidualCpp")
     .def(py::init<py::array_t<double>,data_size_t>())
     .def("GetResidualArray", &ResidualCpp::GetResidualArray)
-    .def("ReplaceData", &ResidualCpp::ReplaceData);
+    .def("ReplaceData", &ResidualCpp::ReplaceData)
+    .def("AddToData", &ResidualCpp::AddToData)
+    .def("SubtractFromData", &ResidualCpp::SubtractFromData);
 
   py::class_<RngCpp>(m, "RngCpp")
     .def(py::init<int>());
-
+  
   py::class_<ForestContainerCpp>(m, "ForestContainerCpp")
     .def(py::init<int,int,bool,bool>())
+    .def("CombineForests", &ForestContainerCpp::CombineForests)
+    .def("AddToForest", &ForestContainerCpp::AddToForest)
+    .def("MultiplyForest", &ForestContainerCpp::MultiplyForest)
     .def("OutputDimension", &ForestContainerCpp::OutputDimension)
     .def("NumTrees", &ForestContainerCpp::NumTrees)
     .def("NumSamples", &ForestContainerCpp::NumSamples)
@@ -2059,6 +2297,10 @@ PYBIND11_MODULE(stochtree_cpp, m) {
 
   py::class_<ForestCpp>(m, "ForestCpp")
     .def(py::init<int,int,bool,bool>())
+    .def("GetForestPtr", &ForestCpp::GetForestPtr)
+    .def("MergeForest", &ForestCpp::MergeForest)
+    .def("AddConstant", &ForestCpp::AddConstant)
+    .def("MultiplyConstant", &ForestCpp::MultiplyConstant)
     .def("OutputDimension", &ForestCpp::OutputDimension)
     .def("NumTrees", &ForestCpp::NumTrees)
     .def("NumLeavesForest", &ForestCpp::NumLeavesForest)
@@ -2096,12 +2338,13 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("NumSplitNodes", &ForestCpp::NumSplitNodes)
     .def("Nodes", &ForestCpp::Nodes)
     .def("Leaves", &ForestCpp::Leaves);
-
+  
   py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
     .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
     .def("ReconstituteTrackerFromForest", &ForestSamplerCpp::ReconstituteTrackerFromForest)
     .def("SampleOneIteration", &ForestSamplerCpp::SampleOneIteration)
     .def("InitializeForestModel", &ForestSamplerCpp::InitializeForestModel)
+    .def("GetCachedForestPredictions", &ForestSamplerCpp::GetCachedForestPredictions)
     .def("PropagateBasisUpdate", &ForestSamplerCpp::PropagateBasisUpdate)
     .def("PropagateResidualUpdate", &ForestSamplerCpp::PropagateResidualUpdate)
     .def("UpdateAlpha", &ForestSamplerCpp::UpdateAlpha)
@@ -2121,6 +2364,12 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("AddGroupLabels", &RandomEffectsDatasetCpp::AddGroupLabels)
       .def("AddBasis", &RandomEffectsDatasetCpp::AddBasis)
       .def("AddVarianceWeights", &RandomEffectsDatasetCpp::AddVarianceWeights)
+      .def("UpdateGroupLabels", &RandomEffectsDatasetCpp::UpdateGroupLabels)
+      .def("UpdateBasis", &RandomEffectsDatasetCpp::UpdateBasis)
+      .def("UpdateVarianceWeights", &RandomEffectsDatasetCpp::UpdateVarianceWeights)
+      .def("GetGroupLabels", &RandomEffectsDatasetCpp::GetGroupLabels)
+      .def("GetBasis", &RandomEffectsDatasetCpp::GetBasis)
+      .def("GetVarianceWeights", &RandomEffectsDatasetCpp::GetVarianceWeights)
       .def("HasGroupLabels", &RandomEffectsDatasetCpp::HasGroupLabels)
       .def("HasBasis", &RandomEffectsDatasetCpp::HasBasis)
       .def("HasVarianceWeights", &RandomEffectsDatasetCpp::HasVarianceWeights);
@@ -2132,6 +2381,10 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("NumSamples", &RandomEffectsContainerCpp::NumSamples)
     .def("NumComponents", &RandomEffectsContainerCpp::NumComponents)
     .def("NumGroups", &RandomEffectsContainerCpp::NumGroups)
+    .def("GetBeta", &RandomEffectsContainerCpp::GetBeta)
+    .def("GetXi", &RandomEffectsContainerCpp::GetXi)
+    .def("GetAlpha", &RandomEffectsContainerCpp::GetAlpha)
+    .def("GetSigma", &RandomEffectsContainerCpp::GetSigma)
     .def("DeleteSample", &RandomEffectsContainerCpp::DeleteSample)
     .def("Predict", &RandomEffectsContainerCpp::Predict)
     .def("SaveToJsonFile", &RandomEffectsContainerCpp::SaveToJsonFile)
@@ -2145,7 +2398,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<RandomEffectsTrackerCpp>(m, "RandomEffectsTrackerCpp")
     .def(py::init<py::array_t<int>>())
     .def("GetUniqueGroupIds", &RandomEffectsTrackerCpp::GetUniqueGroupIds)
-    .def("GetTracker", &RandomEffectsTrackerCpp::GetTracker);
+    .def("GetTracker", &RandomEffectsTrackerCpp::GetTracker)
+    .def("Reset", &RandomEffectsTrackerCpp::Reset)
+    .def("RootReset", &RandomEffectsTrackerCpp::RootReset);
 
   py::class_<RandomEffectsLabelMapperCpp>(m, "RandomEffectsLabelMapperCpp")
     .def(py::init<>())
@@ -2167,7 +2422,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("SetWorkingParameterCovariance", &RandomEffectsModelCpp::SetWorkingParameterCovariance)
     .def("SetGroupParameterCovariance", &RandomEffectsModelCpp::SetGroupParameterCovariance)
     .def("SetVariancePriorShape", &RandomEffectsModelCpp::SetVariancePriorShape)
-    .def("SetVariancePriorScale", &RandomEffectsModelCpp::SetVariancePriorScale);
+    .def("SetVariancePriorScale", &RandomEffectsModelCpp::SetVariancePriorScale)
+    .def("Reset", &RandomEffectsModelCpp::Reset);
 
   py::class_<GlobalVarianceModelCpp>(m, "GlobalVarianceModelCpp")
     .def(py::init<>())

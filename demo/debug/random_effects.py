@@ -75,7 +75,8 @@ cpp_rng = RNG()
 rfx_model.sample(rfx_dataset, outcome, rfx_tracker, rfx_container, True, 1.0, cpp_rng)
 
 # Inspect the samples
-rfx_preds = rfx_container.predict(group_labels, basis) * y_std + y_bar
+bart_preds = rfx_container.predict(group_labels, basis)
+rfx_preds = bart_preds['y_hat'] * y_std + y_bar
 rfx_comparison_df = pd.DataFrame(
     np.concatenate((rfx_preds, np.expand_dims(rfx_term, axis=1)), axis=1),
     columns=["Predicted", "Actual"],

@@ -7,6 +7,8 @@ for a forest model in the "low-level" stochtree interface}
 \value{
 Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
 
+Vector of (0-indexed) indices of trees to update in a sweep
+
 Vector specifying sampling probability for all p covariates in ForestDataset
 
 Number of trees in a forest
@@ -32,6 +34,8 @@ Shape parameter for IG leaf models
 Scale parameter for IG leaf models
 
 Number of unique cutpoints to consider
+
+Number of features to subsample for the GFR algorithm
 }
 \description{
 The "low-level" stochtree interface enables a high degreee of sampler
@@ -45,6 +49,8 @@ forest model they wish to run.
 \if{html}{\out{<div class="r6-fields">}}
 \describe{
 \item{\code{feature_types}}{Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
+
+\item{\code{sweep_update_indices}}{Vector of trees to update in a sweep}
 
 \item{\code{num_trees}}{Number of trees in the forest being sampled}
 
@@ -72,7 +78,9 @@ forest model they wish to run.
 
 \item{\code{variance_forest_scale}}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3})}
 
-\item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider
+\item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider}
+
+\item{\code{num_features_subsample}}{Number of features to subsample for the GFR algorithm
 Create a new ForestModelConfig object.}
 }
 \if{html}{\out{</div>}}
@@ -82,6 +90,7 @@ Create a new ForestModelConfig object.}
 \itemize{
 \item \href{#method-ForestModelConfig-new}{\code{ForestModelConfig$new()}}
 \item \href{#method-ForestModelConfig-update_feature_types}{\code{ForestModelConfig$update_feature_types()}}
+\item \href{#method-ForestModelConfig-update_sweep_indices}{\code{ForestModelConfig$update_sweep_indices()}}
 \item \href{#method-ForestModelConfig-update_variable_weights}{\code{ForestModelConfig$update_variable_weights()}}
 \item \href{#method-ForestModelConfig-update_alpha}{\code{ForestModelConfig$update_alpha()}}
 \item \href{#method-ForestModelConfig-update_beta}{\code{ForestModelConfig$update_beta()}}
@@ -91,7 +100,9 @@ Create a new ForestModelConfig object.}
 \item \href{#method-ForestModelConfig-update_variance_forest_shape}{\code{ForestModelConfig$update_variance_forest_shape()}}
 \item \href{#method-ForestModelConfig-update_variance_forest_scale}{\code{ForestModelConfig$update_variance_forest_scale()}}
 \item \href{#method-ForestModelConfig-update_cutpoint_grid_size}{\code{ForestModelConfig$update_cutpoint_grid_size()}}
+\item \href{#method-ForestModelConfig-update_num_features_subsample}{\code{ForestModelConfig$update_num_features_subsample()}}
 \item \href{#method-ForestModelConfig-get_feature_types}{\code{ForestModelConfig$get_feature_types()}}
+\item \href{#method-ForestModelConfig-get_sweep_indices}{\code{ForestModelConfig$get_sweep_indices()}}
 \item \href{#method-ForestModelConfig-get_variable_weights}{\code{ForestModelConfig$get_variable_weights()}}
 \item \href{#method-ForestModelConfig-get_num_trees}{\code{ForestModelConfig$get_num_trees()}}
 \item \href{#method-ForestModelConfig-get_num_features}{\code{ForestModelConfig$get_num_features()}}
@@ -105,6 +116,7 @@ Create a new ForestModelConfig object.}
 \item \href{#method-ForestModelConfig-get_variance_forest_shape}{\code{ForestModelConfig$get_variance_forest_shape()}}
 \item \href{#method-ForestModelConfig-get_variance_forest_scale}{\code{ForestModelConfig$get_variance_forest_scale()}}
 \item \href{#method-ForestModelConfig-get_cutpoint_grid_size}{\code{ForestModelConfig$get_cutpoint_grid_size()}}
+\item \href{#method-ForestModelConfig-get_num_features_subsample}{\code{ForestModelConfig$get_num_features_subsample()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -114,6 +126,7 @@ Create a new ForestModelConfig object.}
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$new(
   feature_types = NULL,
+  sweep_update_indices = NULL,
   num_trees = NULL,
   num_features = NULL,
   num_observations = NULL,
@@ -127,7 +140,8 @@ Create a new ForestModelConfig object.}
   leaf_model_scale = NULL,
   variance_forest_shape = 1,
   variance_forest_scale = 1,
-  cutpoint_grid_size = 100
+  cutpoint_grid_size = 100,
+  num_features_subsample = NULL
 )}\if{html}{\out{</div>}}
 }
 
@@ -135,6 +149,8 @@ Create a new ForestModelConfig object.}
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{feature_types}}{Vector of integer-coded feature types (where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
+
+\item{\code{sweep_update_indices}}{Vector of (0-indexed) indices of trees to update in a sweep}
 
 \item{\code{num_trees}}{Number of trees in the forest being sampled}
 
@@ -163,6 +179,8 @@ Create a new ForestModelConfig object.}
 \item{\code{variance_forest_scale}}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
 
 \item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider (default: \code{100})}
+
+\item{\code{num_features_subsample}}{Number of features to subsample for the GFR algorithm}
 }
 \if{html}{\out{</div>}}
 }
@@ -183,6 +201,23 @@ Update feature types
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{feature_types}}{Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-update_sweep_indices"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-update_sweep_indices}{}}}
+\subsection{Method \code{update_sweep_indices()}}{
+Update sweep update indices
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$update_sweep_indices(sweep_update_indices)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{sweep_update_indices}}{Vector of (0-indexed) indices of trees to update in a sweep}
 }
 \if{html}{\out{</div>}}
 }
@@ -341,12 +376,39 @@ Update number of unique cutpoints to consider
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-update_num_features_subsample"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-update_num_features_subsample}{}}}
+\subsection{Method \code{update_num_features_subsample()}}{
+Update number of features to subsample for the GFR algorithm
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$update_num_features_subsample(num_features_subsample)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{num_features_subsample}}{Number of features to subsample for the GFR algorithm}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ForestModelConfig-get_feature_types"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestModelConfig-get_feature_types}{}}}
 \subsection{Method \code{get_feature_types()}}{
 Query feature types for this ForestModelConfig object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_feature_types()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-get_sweep_indices"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_sweep_indices}{}}}
+\subsection{Method \code{get_sweep_indices()}}{
+Query sweep update indices for this ForestModelConfig object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_sweep_indices()}\if{html}{\out{</div>}}
 }
 
 }
@@ -477,6 +539,16 @@ Query scale parameter for IG leaf models for this ForestModelConfig object
 Query number of unique cutpoints to consider for this ForestModelConfig object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_cutpoint_grid_size()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-get_num_features_subsample"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_num_features_subsample}{}}}
+\subsection{Method \code{get_num_features_subsample()}}{
+Query number of features to subsample for the GFR algorithm
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_num_features_subsample()}\if{html}{\out{</div>}}
 }
 
 }

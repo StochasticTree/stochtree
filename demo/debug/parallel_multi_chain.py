@@ -145,7 +145,8 @@ if __name__ == "__main__":
     )
 
     # Inspect the model outputs
-    y_hat_mcmc = combined_bart.predict(X_test, basis_test)
+    bart_preds = combined_bart.predict(X=X_test, leaf_basis=basis_test)
+    y_hat_mcmc = bart_preds['y_hat']
     y_avg_mcmc = np.squeeze(y_hat_mcmc).mean(axis=1, keepdims=True)
     y_df = pd.DataFrame(
         np.concatenate((y_avg_mcmc, np.expand_dims(y_test, axis=1)), axis=1),
