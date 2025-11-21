@@ -468,10 +468,7 @@ bart <- function(
 
         # Check for binary variables
         if (num_unique_values == 2) {
-          already_flagged <- (num_values > 100) && (num_unique_values < 20)
-          if (!already_flagged) {
-            covs_warning_4 <- c(covs_warning_4, cov_name)
-          }
+          covs_warning_4 <- c(covs_warning_4, cov_name)
         }
       }
     }
