@@ -456,32 +456,45 @@ class BARTModel:
         if (num_gfr > 0) and (num_burnin == 0) and (num_mcmc == 0):
             num_values, num_cov_orig = X_train.shape
             max_grid_size = floor(num_values / cutpoint_grid_size)
+            x_is_df = isinstance(X_train, pd.DataFrame)
             covs_warning_1 = []
             covs_warning_2 = []
             covs_warning_3 = []
+            covs_warning_4 = []
             for i in range(num_cov_orig):
-                # Determine the number of unique covariate values and a name for the covariate
-                if isinstance(X_train, np.ndarray):
-                    x_j_hist = np.unique_counts(X_train[:, i]).counts
-                    cov_name = f"X{i + 1}"
-                else:
-                    x_j_hist = (X_train.iloc[:, i]).value_counts()
-                    cov_name = X_train.columns[i]
+                # Skip check for variables that are treated as categorical
+                x_numeric = True
+                if x_is_df:
+                    if isinstance(X_train.iloc[:,i].dtype, pd.CategoricalDtype):
+                        x_numeric = False
+                
+                if x_numeric:
+                    # Determine the number of unique covariate values and a name for the covariate
+                    if isinstance(X_train, np.ndarray):
+                        x_j_hist = np.unique_counts(X_train[:, i]).counts
+                        cov_name = f"X{i + 1}"
+                    else:
+                        x_j_hist = (X_train.iloc[:, i]).value_counts()
+                        cov_name = X_train.columns[i]
 
-                # Check for a small relative number of unique values
-                num_unique_values = len(x_j_hist)
-                unique_full_ratio = num_unique_values / num_values
-                if unique_full_ratio < 0.2:
-                    covs_warning_1.append(cov_name)
+                    # Check for a small relative number of unique values
+                    num_unique_values = len(x_j_hist)
+                    unique_full_ratio = num_unique_values / num_values
+                    if unique_full_ratio < 0.2:
+                        covs_warning_1.append(cov_name)
 
-                # Check for a small absolute number of unique values
-                if num_values > 100:
-                    if num_unique_values < 20:
-                        covs_warning_2.append(cov_name)
+                    # Check for a small absolute number of unique values
+                    if num_values > 100:
+                        if num_unique_values < 20:
+                            covs_warning_2.append(cov_name)
 
-                # Check for a large number of duplicates of any individual value
-                if np.any(x_j_hist > 2 * max_grid_size):
-                    covs_warning_3.append(cov_name)
+                    # Check for a large number of duplicates of any individual value
+                    if np.any(x_j_hist > 2 * max_grid_size):
+                        covs_warning_3.append(cov_name)
+
+                    # Check for binary variables
+                    if num_unique_values == 2:
+                        covs_warning_4.append(cov_name)
 
             if covs_warning_1:
                 warnings.warn(
@@ -503,6 +516,13 @@ class BARTModel:
                     f"{2 * max_grid_size} repeated observations. "
                     "This might present some issues with the grow-from-root (GFR) algorithm. "
                     "Consider running with `num_mcmc > 0` and `num_burnin > 0` to improve your model's performance."
+                )
+
+            if covs_warning_4:
+                warnings.warn(
+                    f"Covariates {', '.join(covs_warning_4)}  appear to be binary but are currently treated by stochtree as continuous. "
+                    "This might present some issues with the grow-from-root (GFR) algorithm. "
+                    "Consider converting binary variables to ordered categorical (i.e. `pd.Categorical(..., ordered = True)`."
                 )
 
         # Variable weight preprocessing (and initialization if necessary)

@@ -194,6 +194,19 @@ class TestBCF:
         # Check treatment effect prediction method
         tau_hat = bcf_model.predict(X=X_test, Z=Z_test, terms="cate")
 
+        # Check that we can run BCF without propensities
+        bcf_model = BCFModel()
+        general_params = {"propensity_covariate": "none"}
+        bcf_model.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            general_params=general_params,
+        )
+
     def test_continuous_univariate_bcf(self):
         # RNG
         random_seed = 101
