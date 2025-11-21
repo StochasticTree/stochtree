@@ -767,6 +767,40 @@ bcf <- function(
     X_test <- preprocessPredictionData(X_test, X_train_metadata)
   }
 
+  # Check that outcome, treatment, and propensity are numeric before running
+  # further checks / transformations
+  if (!is.numeric(y_train)) {
+    stop("y_train must be numeric")
+  }
+  if (!is.numeric(Z_train)) {
+    stop("Z_train must be numeric")
+  }
+  if (!is.null(Z_test)) {
+    if (!is.numeric(Z_test)) {
+      stop("Z_test must be numeric")
+    }
+  }
+  if (!is.null(propensity_train)) {
+    if (!is.numeric(propensity_train)) {
+      stop("propensity_train must be numeric")
+    }
+  }
+  if (!is.null(propensity_test)) {
+    if (!is.numeric(propensity_test)) {
+      stop("propensity_test must be numeric")
+    }
+  }
+  if (!is.null(rfx_basis_train)) {
+    if (!is.numeric(rfx_basis_train)) {
+      stop("rfx_basis_train must be numeric")
+    }
+  }
+  if (!is.null(rfx_basis_test)) {
+    if (!is.numeric(rfx_basis_test)) {
+      stop("rfx_basis_test must be numeric")
+    }
+  }
+
   # Convert all input data to matrices if not already converted
   Z_col <- ifelse(is.null(dim(Z_train)), 1, ncol(Z_train))
   Z_train <- matrix(as.numeric(Z_train), ncol = Z_col)
