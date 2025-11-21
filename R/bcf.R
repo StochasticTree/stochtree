@@ -786,6 +786,19 @@ bcf <- function(
     rfx_basis_test <- as.matrix(rfx_basis_test)
   }
 
+  # Convert y_train to a vector
+  if (is.matrix(y_train)) {
+    if (ncol(y_train) > 1) {
+      stop("y_train must either be a numeric vector of a one-column matrix")
+    } else {
+      y_train <- as.numeric(y_train)
+    }
+  } else {
+    if (!is.numeric(y_train)) {
+      stop("y_train must either be a numeric vector of a one-column matrix")
+    }
+  }
+
   # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
   has_rfx <- FALSE
   has_rfx_test <- FALSE
@@ -806,17 +819,6 @@ bcf <- function(
       rfx_group_ids_test <- as.integer(group_ids_factor_test)
       has_rfx_test <- TRUE
     }
-  }
-
-  # Check that outcome and treatment are numeric
-  if (!is.numeric(y_train)) {
-    stop("y_train must be numeric")
-  }
-  if (!is.numeric(Z_train)) {
-    stop("Z_train must be numeric")
-  }
-  if (!is.null(Z_test)) {
-    if (!is.numeric(Z_test)) stop("Z_test must be numeric")
   }
 
   # Data consistency checks
