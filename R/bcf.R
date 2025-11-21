@@ -527,37 +527,57 @@ bcf <- function(
       floor(num_values / cutpoint_grid_size),
       1
     )
+    x_is_df <- is.data.frame(X_train)
     covs_warning_1 <- NULL
     covs_warning_2 <- NULL
     covs_warning_3 <- NULL
+    covs_warning_4 <- NULL
     for (i in 1:num_cov_orig) {
-      # Determine the number of unique values
-      num_unique_values <- length(unique(X_train[, i]))
-
-      # Determine a "name" for the covariate
-      cov_name <- ifelse(
-        is.null(colnames(X_train)),
-        paste0("X", i),
-        colnames(X_train)[i]
-      )
-
-      # Check for a small relative number of unique values
-      unique_full_ratio <- num_unique_values / num_values
-      if (unique_full_ratio < 0.2) {
-        covs_warning_1 <- c(covs_warning_1, cov_name)
-      }
-
-      # Check for a small absolute number of unique values
-      if (num_values > 100) {
-        if (num_unique_values < 20) {
-          covs_warning_2 <- c(covs_warning_2, cov_name)
+      # Skip check for variables that are treated as categorical
+      x_numeric <- T
+      if (x_is_df) {
+        if (is.factor(X_train[, i])) {
+          x_numeric <- F
         }
       }
 
-      # Check for a large number of duplicates of any individual value
-      x_j_hist <- table(X_train[, i])
-      if (any(x_j_hist > 2 * max_grid_size)) {
-        covs_warning_3 <- c(covs_warning_3, cov_name)
+      if (x_numeric) {
+        # Determine the number of unique values
+        num_unique_values <- length(unique(X_train[, i]))
+
+        # Determine a "name" for the covariate
+        cov_name <- ifelse(
+          is.null(colnames(X_train)),
+          paste0("X", i),
+          colnames(X_train)[i]
+        )
+
+        # Check for a small relative number of unique values
+        unique_full_ratio <- num_unique_values / num_values
+        if (unique_full_ratio < 0.2) {
+          covs_warning_1 <- c(covs_warning_1, cov_name)
+        }
+
+        # Check for a small absolute number of unique values
+        if (num_values > 100) {
+          if (num_unique_values < 20) {
+            covs_warning_2 <- c(covs_warning_2, cov_name)
+          }
+        }
+
+        # Check for a large number of duplicates of any individual value
+        x_j_hist <- table(X_train[, i])
+        if (any(x_j_hist > 2 * max_grid_size)) {
+          covs_warning_3 <- c(covs_warning_3, cov_name)
+        }
+
+        # Check for binary variables
+        if (num_unique_values == 2) {
+          already_flagged <- (num_values > 100) && (num_unique_values < 20)
+          if (!already_flagged) {
+            covs_warning_4 <- c(covs_warning_4, cov_name)
+          }
+        }
       }
     }
 
@@ -595,6 +615,18 @@ bcf <- function(
           " repeated observations. ",
           "This might present some issues with the grow-from-root (GFR) algorithm. ",
           "Consider running with `num_mcmc > 0` and `num_burnin > 0` to improve your model's performance."
+        )
+      )
+    }
+
+    if (!is.null(covs_warning_4)) {
+      warning(
+        paste0(
+          "Covariates ",
+          paste(covs_warning_4, collapse = ", "),
+          " appear to be binary but are currently treated by stochtree as continuous. ",
+          "This might present some issues with the grow-from-root (GFR) algorithm. ",
+          "Consider converting binary variables to ordered factor (i.e. `factor(..., ordered = T)`."
         )
       )
     }
