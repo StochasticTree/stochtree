@@ -84,7 +84,6 @@ endif()
 
 # OpenMP
 if(USE_OPENMP)
-  add_definitions(-DSTOCHTREE_OPENMP_AVAILABLE)
   if(APPLE)
     find_package(OpenMP)
     if(NOT OpenMP_FOUND)
