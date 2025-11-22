@@ -6,7 +6,7 @@
 
 namespace StochTree {
 
-#ifdef STOCHTREE_OPENMP_AVAILABLE
+#ifdef _OPENMP
 
 #include <omp.h>
 #define STOCHTREE_HAS_OPENMP 1
@@ -40,7 +40,6 @@ inline void set_num_threads(int num_threads) {
 #else
 #define STOCHTREE_HAS_OPENMP 0
 
-// Fallback implementations when OpenMP is not available
 inline int get_max_threads() {return 1;}
 
 inline int get_thread_num() {return 0;}
