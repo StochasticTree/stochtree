@@ -8,7 +8,7 @@ recursive-include include *.hpp
 # Vendor package source files (excluding R-specific)
 recursive-include src *.cpp
 recursive-include src *.h
-exclude src/R_data.cpp src/R_random_effects.cpp
+exclude src/cpp11.cpp src/forest.cpp src/kernel.cpp src/R_data.cpp src/R_random_effects.cpp src/sampler.cpp src/serialization.cpp src/stochtree_types.h
 
 # Remove the CRAN extensionless LICENSE file
 exclude LICENSE
