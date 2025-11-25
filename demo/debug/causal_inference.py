@@ -63,7 +63,7 @@ tau_test = np.squeeze(test_df.loc[:,["tau"]].to_numpy())
 
 # Run BCF
 bcf_model = BCFModel()
-bcf_model.sample(X_train, Z_train, y_train, pi_train, X_test, Z_test, pi_test, num_gfr=10, num_mcmc=1000)
+bcf_model.sample(X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, X_test = X_test, Z_test = Z_test, propensity_test = pi_test, num_gfr=10, num_mcmc=1000)
 
 # Inspect the MCMC (BART) samples
 forest_preds_y_mcmc = bcf_model.y_hat_test
