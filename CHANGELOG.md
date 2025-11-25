@@ -1,5 +1,17 @@
 # Changelog
 
+# stochtree (development version)
+
+## New Features
+
+## Computational Improvements
+
+## Bug Fixes
+
+## Documentation Improvements
+
+## Other Changes
+
 # stochtree 0.2.0
 
 ## New Features
