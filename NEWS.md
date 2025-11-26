@@ -6,6 +6,8 @@
 
 ## Bug Fixes
 
+* Predict random effects correctly in R for univariate random effects models ([#248](https://github.com/StochasticTree/stochtree/pull/248))
+
 ## Documentation Improvements
 
 ## Other Changes
