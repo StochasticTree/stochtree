@@ -275,6 +275,45 @@ class TestPredict:
             sigma2_hat_mean_test, sigma2_hat_mean_test_single_term
         )
 
+        # Generate data with random effects
+        rfx_group_ids = rng.choice(3, size=n)
+        rfx_basis = np.ones((n, 1))
+        rfx_coefs = np.array([-2.0, 0.0, 2.0])
+        rfx_term = rfx_coefs[rfx_group_ids]
+        noise_sd = 1
+        y = f_XW + rfx_term + rng.normal(0, noise_sd, size=n)
+        test_set_pct = 0.2
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=test_set_pct, random_state=1234
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        rfx_group_ids_train = rfx_group_ids[train_inds]
+        rfx_group_ids_test = rfx_group_ids[test_inds]
+        rfx_basis_train = rfx_basis[train_inds,:]
+        rfx_basis_test = rfx_basis[test_inds,:]
+        y_train = y[train_inds]
+        y_test = y[test_inds]
+
+        # Fit a BART model with random intercepts
+        rfx_params = {"model_spec": "intercept_only"}
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train, y_train=y_train, rfx_group_ids_train=rfx_group_ids_train, random_effects_params=rfx_params, num_gfr=10, num_burnin=0, num_mcmc=10
+        )
+
+        # Check that the default predict method returns a dictionary
+        pred = bart_model.predict(X=X_test, rfx_group_ids=rfx_group_ids_test)
+        y_hat_posterior_test = pred["y_hat"]
+        assert y_hat_posterior_test.shape == (20, 10)
+
+        # Check that the pre-aggregated predictions match with those computed by np.mean
+        pred_mean = bart_model.predict(X=X_test, rfx_group_ids=rfx_group_ids_test, type="mean")
+        y_hat_mean_test = pred_mean["y_hat"]
+        np.testing.assert_almost_equal(
+            y_hat_mean_test, np.mean(y_hat_posterior_test, axis=1)
+        )
+
     def test_bcf_prediction(self):
         # Generate data and test/train split
         rng = np.random.default_rng(1234)
@@ -417,3 +456,72 @@ class TestPredict:
         np.testing.assert_almost_equal(
             sigma2_hat_mean_test, sigma2_hat_mean_test_single_term
         )
+    
+        # Generate data with random effects
+        rfx_group_ids = rng.choice(3, size=n)
+        rfx_basis = np.concatenate((np.ones((n, 1)), np.expand_dims(Z, 1)), axis=1)
+        rfx_coefs = np.array([[-2.0, -0.5], [0.0, 0.0], [2.0, 0.5]])
+        rfx_term = np.multiply(rfx_coefs[rfx_group_ids,:], rfx_basis).sum(axis=1)
+        E_XZ = mu_x + tau_x * Z + rfx_term
+        snr = 2
+        y = E_XZ + rng.normal(loc=0.0, scale=np.std(E_XZ) / snr, size=(n,))
+        test_set_pct = 0.2
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=test_set_pct, random_state=1234
+        )
+        X_train = X.iloc[train_inds, :]
+        X_test = X.iloc[test_inds, :]
+        Z_train = Z[train_inds]
+        Z_test = Z[test_inds]
+        pi_x_train = pi_x[train_inds]
+        pi_x_test = pi_x[test_inds]
+        rfx_group_ids_train = rfx_group_ids[train_inds]
+        rfx_group_ids_test = rfx_group_ids[test_inds]
+        rfx_basis_train = rfx_basis[train_inds,:]
+        rfx_basis_test = rfx_basis[test_inds,:]
+        y_train = y[train_inds]
+        y_test = y[test_inds]
+
+        # Fit a "classic" BCF model
+        rfx_params = {"model_spec": "intercept_only"}
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            propensity_train=pi_x_train,
+            rfx_group_ids_train=rfx_group_ids_train,
+            X_test=X_test,
+            Z_test=Z_test,
+            propensity_test=pi_x_test,
+            rfx_group_ids_test=rfx_group_ids_test,
+            random_effects_params=rfx_params,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=10,
+        )
+
+        # Check that the default predict method returns a dictionary
+        pred = bcf_model.predict(X=X_test, Z=Z_test, propensity=pi_x_test, rfx_group_ids=rfx_group_ids_test)
+        y_hat_posterior_test = pred["y_hat"]
+        assert y_hat_posterior_test.shape == (20, 10)
+
+        # Check that the pre-aggregated predictions match with those computed by np.mean
+        pred_mean = bcf_model.predict(
+            X=X_test, Z=Z_test, propensity=pi_x_test, rfx_group_ids=rfx_group_ids_test, type="mean"
+        )
+        y_hat_mean_test = pred_mean["y_hat"]
+        np.testing.assert_almost_equal(
+            y_hat_mean_test, np.mean(y_hat_posterior_test, axis=1)
+        )
+
+        # Check that we warn and return None when requesting terms that weren't fit
+        with pytest.warns(UserWarning):
+            pred_mean = bcf_model.predict(
+                X=X_test,
+                Z=Z_test,
+                propensity=pi_x_test, 
+                rfx_group_ids=rfx_group_ids_test,
+                type="mean",
+                terms=["variance_forest"],
+            )
