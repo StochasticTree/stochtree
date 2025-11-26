@@ -2219,6 +2219,11 @@ predict.bartmodel <- function(
       rfx_param_list <- object$rfx_samples$extract_parameter_samples()
       rfx_beta_draws <- rfx_param_list$beta_samples * y_std
 
+      # Promote to an array with consistent dimensions when there's one rfx term
+      if (length(dim(rfx_beta_draws)) == 2) {
+        dim(rfx_beta_draws) <- c(1, dim(rfx_beta_draws))
+      }
+
       # Construct a matrix with the appropriate group random effects arranged for each observation
       rfx_predictions_raw <- array(
         NA,
