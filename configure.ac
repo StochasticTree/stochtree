@@ -3,7 +3,7 @@
 # https://github.com/microsoft/LightGBM/blob/master/R-package/configure.ac
 
 AC_PREREQ(2.69)
-AC_INIT([stochtree], [0.2.0.9000], [], [stochtree], [])
+AC_INIT([stochtree], [0.2.1], [], [stochtree], [])
 # Note: consider making version number dynamic as in 
 # https://github.com/microsoft/LightGBM/blob/195c26fc7b00eb0fec252dfe841e2e66d6833954/build-cran-package.sh
 
