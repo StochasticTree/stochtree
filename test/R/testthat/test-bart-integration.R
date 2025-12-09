@@ -1,5 +1,6 @@
 run_bart_factorial <- function(
-  bart_data,
+  bart_data_train,
+  bart_data_test,
   leaf_reg = "none",
   variance_forest = FALSE,
   random_effects = "none",
@@ -8,32 +9,26 @@ run_bart_factorial <- function(
   outcome_type = "continuous",
   num_chains = 1
 ) {
-  if ((leaf_reg == "multivariate") && (sampling_leaf_scale)) {
-    stop(
-      "Leaf error scale cannot be stochastic for multivariate leaf regression"
-    )
-  }
-
-  # Unpack BART data
-  y <- bart_data[["y"]]
-  X <- bart_data[["X"]]
+  # Unpack BART training data
+  y <- bart_data_train[["y"]]
+  X <- bart_data_train[["X"]]
   if (leaf_reg != "none") {
-    leaf_basis <- bart_data[["leaf_basis"]]
+    leaf_basis <- bart_data_train[["leaf_basis"]]
   } else {
     leaf_basis <- NULL
   }
   if (random_effects != "none") {
-    rfx_group_ids <- bart_data[["rfx_group_ids"]]
+    rfx_group_ids <- bart_data_train[["rfx_group_ids"]]
   } else {
     rfx_group_ids <- NULL
   }
   if (random_effects == "custom") {
-    rfx_basis <- bart_data[["rfx_basis"]]
+    rfx_basis <- bart_data_train[["rfx_basis"]]
   } else {
     rfx_basis <- NULL
   }
 
-  # Run and return the bart model
+  # Set BART model parameters
   general_params <- list(
     num_chains = num_chains,
     sample_sigma2_global = sampling_global_error_scale,
@@ -46,14 +41,11 @@ run_bart_factorial <- function(
     num_trees = ifelse(variance_forest, 20, 0)
   )
   rfx_params <- list(
-    model_spec = ifelse(random_effects == "none", "custom", random_effects)
+    model_spec = ifelse(random_effects == "custom", "custom", random_effects)
   )
-  # cat("X = ", X)
-  # cat("y = ", y)
-  # cat("leaf_basis = ", leaf_basis)
-  # cat("rfx_group_ids = ", rfx_group_ids)
-  # cat("rfx_basis = ", rfx_basis)
-  return(stochtree::bart(
+
+  # Sample BART model
+  bart_model <- stochtree::bart(
     X_train = X,
     y_train = y,
     leaf_basis_train = leaf_basis,
@@ -63,7 +55,70 @@ run_bart_factorial <- function(
     mean_forest_params = mean_forest_params,
     variance_forest_params = variance_forest_params,
     random_effects_params = rfx_params
-  ))
+  )
+
+  # Unpack test set data
+  y_test <- bart_data_test[["y"]]
+  X_test <- bart_data_test[["X"]]
+  if (leaf_reg != "none") {
+    leaf_basis_test <- bart_data_test[["leaf_basis"]]
+  } else {
+    leaf_basis_test <- NULL
+  }
+  if (random_effects != "none") {
+    rfx_group_ids_test <- bart_data_test[["rfx_group_ids"]]
+  } else {
+    rfx_group_ids_test <- NULL
+  }
+  if (random_effects == "custom") {
+    rfx_basis_test <- bart_data_test[["rfx_basis"]]
+  } else {
+    rfx_basis_test <- NULL
+  }
+
+  # Predict on test set
+  mean_preds <- predict(
+    bart_model,
+    X = X_test,
+    leaf_basis = leaf_basis_test,
+    rfx_group_ids = rfx_group_ids_test,
+    rfx_basis = rfx_basis_test,
+    type = "mean",
+    terms = "all",
+    scale = ifelse(outcome_type == "binary", "probability", "linear")
+  )
+  posterior_preds <- predict(
+    bart_model,
+    X = X_test,
+    leaf_basis = leaf_basis_test,
+    rfx_group_ids = rfx_group_ids_test,
+    rfx_basis = rfx_basis_test,
+    type = "posterior",
+    terms = "all",
+    scale = ifelse(outcome_type == "binary", "probability", "linear")
+  )
+
+  # Compute intervals
+  posterior_interval <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "all",
+    level = 0.95,
+    scale = ifelse(outcome_type == "binary", "probability", "linear"),
+    X = X_test,
+    leaf_basis = leaf_basis_test,
+    rfx_group_ids = rfx_group_ids_test,
+    rfx_basis = rfx_basis_test
+  )
+
+  # Sample posterior predictive
+  posterior_predictive_draws <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    leaf_basis = leaf_basis_test,
+    rfx_group_ids = rfx_group_ids_test,
+    rfx_basis = rfx_basis_test,
+    num_draws_per_sample = 5
+  )
 }
 
 test_that("Quick check of interactions between components of BART functionality", {
@@ -101,7 +156,7 @@ test_that("Quick check of interactions between components of BART functionality"
   )
   mean_term <- sin(X[, 1]) * rowSums(leaf_basis * leaf_coefs)
   rfx_term <- rowSums(rfx_coefs[group_ids, ] * rfx_basis)
-  E_y <- sin(X[, 1]) + rfx_term
+  E_y <- mean_term + rfx_term
   E_y <- E_y - mean(E_y)
   epsilon <- rnorm(n, 0, 1)
   y_continuous <- E_y + epsilon
@@ -145,53 +200,99 @@ test_that("Quick check of interactions between components of BART functionality"
     stringsAsFactors = FALSE
   )
   for (i in 1:nrow(model_options_df)) {
-    error_cond_1 <- (model_options_df$sampling_leaf_scale[i]) &&
-      (model_options_df$leaf_reg[i] == "multivariate")
-    error_cond_2 <- (model_options_df$variance_forest[i]) &&
+    error_cond <- (model_options_df$variance_forest[i]) &&
       (model_options_df$outcome_type[i] == "binary")
-    error_cond <- error_cond_1 || error_cond_2
     warning_cond_1 <- (model_options_df$sampling_leaf_scale[i]) &&
       (model_options_df$leaf_reg[i] == "multivariate")
+    warning_message_1 <- "Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled in this model."
     warning_cond_2 <- (model_options_df$sampling_global_error_scale[i]) &&
       (model_options_df$outcome_type[i] == "binary")
+    warning_message_2 <- "Global error variance will not be sampled with a probit link as it is fixed at 1"
     warning_cond <- warning_cond_1 || warning_cond_2
     if (error_cond && warning_cond) {
-      test_fun <- function(x) expect_error(expect_warning(x))
+      if (warning_cond_1 && warning_cond_2) {
+        test_fun <- function(x) {
+          expect_error(
+            expect_warning(
+              expect_warning(x, warning_message_1),
+              warning_message_2
+            )
+          )
+        }
+      } else if (warning_cond_1) {
+        test_fun <- function(x) {
+          expect_error(
+            expect_warning(x, warning_message_1)
+          )
+        }
+      } else {
+        test_fun <- function(x) {
+          expect_error(
+            expect_warning(x, warning_message_2)
+          )
+        }
+      }
     } else if (error_cond && !warning_cond) {
       test_fun <- expect_error
     } else if (!error_cond && warning_cond) {
-      test_fun <- expect_warning
+      if (warning_cond_1 && warning_cond_2) {
+        test_fun <- function(x) {
+          expect_warning(
+            expect_warning(x, warning_message_1),
+            warning_message_2
+          )
+        }
+      } else if (warning_cond_1) {
+        test_fun <- function(x) {
+          expect_warning(x, warning_message_1)
+        }
+      } else {
+        test_fun <- function(x) {
+          expect_warning(x, warning_message_2)
+        }
+      }
     } else {
       test_fun <- expect_no_error
     }
     test_fun({
-      bart_data <- list(X = X_train)
+      bart_data_train <- list(X = X_train)
+      bart_data_test <- list(X = X_test)
       if (model_options_df$outcome_type[i] == "continuous") {
-        bart_data[["y"]] <- y_continuous_train
+        bart_data_train[["y"]] <- y_continuous_train
+        bart_data_test[["y"]] <- y_continuous_test
       } else {
-        bart_data[["y"]] <- y_binary_train
+        bart_data_train[["y"]] <- y_binary_train
+        bart_data_test[["y"]] <- y_binary_test
       }
       if (model_options_df$leaf_reg[i] != "none") {
         if (model_options_df$leaf_reg[i] == "univariate") {
-          bart_data[["leaf_basis"]] <- leaf_basis_train[, 1]
+          bart_data_train[["leaf_basis"]] <- leaf_basis_train[, 1, drop = FALSE]
+          bart_data_test[["leaf_basis"]] <- leaf_basis_test[, 1, drop = FALSE]
         } else {
-          bart_data[["leaf_basis"]] <- leaf_basis_train
+          bart_data_train[["leaf_basis"]] <- leaf_basis_train
+          bart_data_test[["leaf_basis"]] <- leaf_basis_test
         }
       } else {
-        bart_data[["leaf_basis"]] <- NULL
+        bart_data_train[["leaf_basis"]] <- NULL
+        bart_data_test[["leaf_basis"]] <- NULL
       }
       if (model_options_df$random_effects[i] != "none") {
-        bart_data[["rfx_group_ids"]] <- group_ids_train
+        bart_data_train[["rfx_group_ids"]] <- group_ids_train
+        bart_data_test[["rfx_group_ids"]] <- group_ids_test
       } else {
-        bart_data[["rfx_group_ids"]] <- NULL
+        bart_data_train[["rfx_group_ids"]] <- NULL
+        bart_data_test[["rfx_group_ids"]] <- NULL
       }
       if (model_options_df$random_effects[i] == "custom") {
-        bart_data[["rfx_basis"]] <- rfx_basis_train
+        bart_data_train[["rfx_basis"]] <- rfx_basis_train
+        bart_data_test[["rfx_basis"]] <- rfx_basis_test
       } else {
-        bart_data[["rfx_basis"]] <- NULL
+        bart_data_train[["rfx_basis"]] <- NULL
+        bart_data_test[["rfx_basis"]] <- NULL
       }
       run_bart_factorial(
-        bart_data = bart_data,
+        bart_data_train = bart_data_train,
+        bart_data_test = bart_data_test,
         leaf_reg = model_options_df$leaf_reg[i],
         variance_forest = model_options_df$variance_forest[i],
         random_effects = model_options_df$random_effects[i],
