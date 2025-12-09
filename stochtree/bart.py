@@ -70,15 +70,15 @@ class BARTModel:
 
     def sample(
         self,
-        X_train: Union[np.array, pd.DataFrame],
-        y_train: np.array,
-        leaf_basis_train: np.array = None,
-        rfx_group_ids_train: np.array = None,
-        rfx_basis_train: np.array = None,
-        X_test: Union[np.array, pd.DataFrame] = None,
-        leaf_basis_test: np.array = None,
-        rfx_group_ids_test: np.array = None,
-        rfx_basis_test: np.array = None,
+        X_train: Union[np.ndarray, pd.DataFrame],
+        y_train: np.ndarray,
+        leaf_basis_train: Optional[np.ndarray] = None,
+        rfx_group_ids_train: Optional[np.ndarray] = None,
+        rfx_basis_train: Optional[np.ndarray] = None,
+        X_test: Optional[Union[np.ndarray, pd.DataFrame]] = None,
+        leaf_basis_test: Optional[np.ndarray] = None,
+        rfx_group_ids_test: Optional[np.ndarray] = None,
+        rfx_basis_test: Optional[np.ndarray] = None,
         num_gfr: int = 5,
         num_burnin: int = 0,
         num_mcmc: int = 100,
@@ -859,6 +859,13 @@ class BARTModel:
         if num_features_subsample_variance is None:
             num_features_subsample_variance = X_train.shape[1]
 
+        # Runtime check for multivariate leaf regression
+        if sample_sigma2_leaf and self.num_basis > 1:
+            warnings.warn(
+                "Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled in this model."
+            )
+            sample_sigma2_leaf = False
+
         # Preliminary runtime checks for probit link
         if not self.include_mean_forest:
             self.probit_outcome_model = False
@@ -872,15 +879,15 @@ class BARTModel:
                 raise ValueError(
                     "You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1"
                 )
-            if self.include_variance_forest:
-                raise ValueError(
-                    "We do not support heteroskedasticity with a probit link"
-                )
             if sample_sigma2_global:
                 warnings.warn(
                     "Global error variance will not be sampled with a probit link as it is fixed at 1"
                 )
                 sample_sigma2_global = False
+            if self.include_variance_forest:
+                raise ValueError(
+                    "We do not support heteroskedasticity with a probit link"
+                )
 
         # Handle standardization, prior calibration, and initialization of forest
         # differently for binary and continuous outcomes
@@ -1217,7 +1224,7 @@ class BARTModel:
         else:
             leaf_model_mean_forest = 2
             leaf_dimension_mean = self.num_basis
-
+            
         # Sampling data structures
         global_model_config = GlobalModelConfig(global_error_variance=current_sigma2)
         if self.include_mean_forest:
@@ -1900,6 +1907,9 @@ class BARTModel:
         if leaf_basis is not None:
             if leaf_basis.ndim == 1:
                 leaf_basis = np.expand_dims(leaf_basis, 1)
+        if rfx_basis is not None:
+            if rfx_basis.ndim == 1:
+                rfx_basis = np.expand_dims(rfx_basis, 1)
 
         # Covariate preprocessing
         if not self._covariate_preprocessor._check_is_fitted():
@@ -1958,21 +1968,18 @@ class BARTModel:
             mean_forest_predictions = mean_pred_raw * self.y_std + self.y_bar
 
         # Random effects data checks
-        if has_rfx:
-            if rfx_group_ids is None:
-                raise ValueError(
-                    "rfx_group_ids must be provided if rfx_basis is provided"
-                )
-        if rfx_basis is not None:
-            if rfx_basis.ndim == 1:
-                rfx_basis = np.expand_dims(rfx_basis, 1)
-            if rfx_basis.shape[0] != X.shape[0]:
-                raise ValueError("X and rfx_basis must have the same number of rows")
+        if predict_rfx and rfx_group_ids is None:
+            raise ValueError(
+                "Random effect group labels (rfx_group_ids) must be provided for this model"
+            )
+        if predict_rfx and rfx_basis is None and not rfx_intercept:
+            raise ValueError("Random effects basis (rfx_basis) must be provided for this model")
+        if self.num_rfx_basis > 0 and not rfx_intercept:
             if rfx_basis.shape[1] != self.num_rfx_basis:
                 raise ValueError(
-                    "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
+                    "Random effects basis has a different dimension than the basis used to train this model"
                 )
-
+        
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
             if rfx_basis is not None:
@@ -1983,7 +1990,7 @@ class BARTModel:
                 # Sanity check -- this branch should only occur if rfx_model_spec == "intercept_only"
                 if not rfx_intercept:
                     raise ValueError(
-                        "rfx_basis must be provided for random effects models with random slopes"
+                        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
                     )
 
                 # Extract the raw RFX samples and scale by train set outcome standard deviation
@@ -2321,16 +2328,17 @@ class BARTModel:
                 raise ValueError(
                     "'rfx_group_ids' must have the same length as the number of rows in 'X'"
                 )
-            if rfx_basis is None:
-                raise ValueError(
-                    "'rfx_basis' must be provided in order to compute the requested intervals"
-                )
-            if not isinstance(rfx_basis, np.ndarray):
-                raise ValueError("'rfx_basis' must be a numpy array")
-            if rfx_basis.shape[0] != X.shape[0]:
-                raise ValueError(
-                    "'rfx_basis' must have the same number of rows as 'X'"
-                )
+            if self.rfx_model_spec == "custom":
+                if rfx_basis is None:
+                    raise ValueError(
+                        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+                    )
+                if not isinstance(rfx_basis, np.ndarray):
+                    raise ValueError("'rfx_basis' must be a numpy array")
+                if rfx_basis.shape[0] != X.shape[0]:
+                    raise ValueError(
+                        "'rfx_basis' must have the same number of rows as 'X'"
+                    )
 
         # Compute posterior matrices for the requested model terms
         predictions = self.predict(
@@ -2427,16 +2435,17 @@ class BARTModel:
                 raise ValueError(
                     "'rfx_group_ids' must have the same length as the number of rows in 'X'"
                 )
-            if rfx_basis is None:
-                raise ValueError(
-                    "'rfx_basis' must be provided in order to compute the requested intervals"
-                )
-            if not isinstance(rfx_basis, np.ndarray):
-                raise ValueError("'rfx_basis' must be a numpy array")
-            if rfx_basis.shape[0] != X.shape[0]:
-                raise ValueError(
-                    "'rfx_basis' must have the same number of rows as 'X'"
-                )
+            if self.rfx_model_spec == "custom":
+                if rfx_basis is None:
+                    raise ValueError(
+                        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+                    )
+                if not isinstance(rfx_basis, np.ndarray):
+                    raise ValueError("'rfx_basis' must be a numpy array")
+                if rfx_basis.shape[0] != X.shape[0]:
+                    raise ValueError(
+                        "'rfx_basis' must have the same number of rows as 'X'"
+                    )
 
         # Compute posterior predictive samples
         bart_preds = self.predict(

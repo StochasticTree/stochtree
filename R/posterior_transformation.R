@@ -409,19 +409,31 @@ compute_contrast_bart_model <- function(
       "rfx_group_ids_0 and rfx_group_ids_1 must be provided for this model"
     )
   }
-  if ((has_rfx) && (is.null(rfx_basis_0) || is.null(rfx_basis_1))) {
-    stop(
-      "rfx_basis_0 and rfx_basis_1 must be provided for this model"
-    )
-  }
-  if (
-    (object$model_params$num_rfx_basis > 0) &&
-      ((ncol(rfx_basis_0) != object$model_params$num_rfx_basis) ||
-        (ncol(rfx_basis_1) != object$model_params$num_rfx_basis))
-  ) {
-    stop(
-      "rfx_basis_0 and / or rfx_basis_1 have a different dimension than the basis used to train this model"
-    )
+  if (has_rfx) {
+    if (object$model_params$rfx_model_spec == "custom") {
+      if ((is.null(rfx_basis_0) || is.null(rfx_basis_1))) {
+        stop(
+          "A user-provided basis (`rfx_basis_0` and `rfx_basis_1`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+        )
+      }
+      if (!is.matrix(rfx_basis_0) || !is.matrix(rfx_basis_1)) {
+        stop("'rfx_basis_0' and 'rfx_basis_1' must be matrices")
+      }
+      if ((nrow(rfx_basis_0) != nrow(X)) || (nrow(rfx_basis_1) != nrow(X))) {
+        stop(
+          "'rfx_basis_0' and 'rfx_basis_1' must have the same number of rows as 'X'"
+        )
+      }
+      if (
+        (object$model_params$num_rfx_basis > 0) &&
+          ((ncol(rfx_basis_0) != object$model_params$num_rfx_basis) ||
+            (ncol(rfx_basis_1) != object$model_params$num_rfx_basis))
+      ) {
+        stop(
+          "rfx_basis_0 and / or rfx_basis_1 have a different dimension than the basis used to train this model"
+        )
+      }
+    }
   }
 
   # Predict for the control arm
@@ -735,16 +747,18 @@ sample_bart_posterior_predictive <- function(
         "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
-    if (is.null(rfx_basis)) {
-      stop(
-        "'rfx_basis' must be provided in order to compute the requested intervals"
-      )
-    }
-    if (!is.matrix(rfx_basis)) {
-      stop("'rfx_basis' must be a matrix")
-    }
-    if (nrow(rfx_basis) != nrow(X)) {
-      stop("'rfx_basis' must have the same number of rows as 'X'")
+    if (model_object$model_params$rfx_model_spec == "custom") {
+      if (is.null(rfx_basis)) {
+        stop(
+          "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+        )
+      }
+      if (!is.matrix(rfx_basis)) {
+        stop("'rfx_basis' must be a matrix")
+      }
+      if (nrow(rfx_basis) != nrow(X)) {
+        stop("'rfx_basis' must have the same number of rows as 'X'")
+      }
     }
   }
 
@@ -1172,16 +1186,18 @@ compute_bart_posterior_interval <- function(
         "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
-    if (is.null(rfx_basis)) {
-      stop(
-        "'rfx_basis' must be provided in order to compute the requested intervals"
-      )
-    }
-    if (!is.matrix(rfx_basis)) {
-      stop("'rfx_basis' must be a matrix")
-    }
-    if (nrow(rfx_basis) != nrow(X)) {
-      stop("'rfx_basis' must have the same number of rows as 'X'")
+    if (model_object$model_params$rfx_model_spec == "custom") {
+      if (is.null(rfx_basis)) {
+        stop(
+          "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+        )
+      }
+      if (!is.matrix(rfx_basis)) {
+        stop("'rfx_basis' must be a matrix")
+      }
+      if (nrow(rfx_basis) != nrow(X)) {
+        stop("'rfx_basis' must have the same number of rows as 'X'")
+      }
     }
   }
 
