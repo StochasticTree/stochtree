@@ -888,6 +888,14 @@ class BARTModel:
                 raise ValueError(
                     "We do not support heteroskedasticity with a probit link"
                 )
+        
+        # Runtime checks for variance forest
+        if self.include_variance_forest:
+            if sample_sigma2_global:
+                warnings.warn(
+                    "Sampling global error variance not yet supported for models with variance forests, so the global error variance parameter will not be sampled in this model."
+                )
+                sample_sigma2_global = False
 
         # Handle standardization, prior calibration, and initialization of forest
         # differently for binary and continuous outcomes
@@ -2333,6 +2341,7 @@ class BARTModel:
                     raise ValueError(
                         "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
                     )
+            if rfx_basis is not None:
                 if not isinstance(rfx_basis, np.ndarray):
                     raise ValueError("'rfx_basis' must be a numpy array")
                 if rfx_basis.shape[0] != X.shape[0]:
@@ -2440,6 +2449,7 @@ class BARTModel:
                     raise ValueError(
                         "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
                     )
+            if rfx_basis is not None:
                 if not isinstance(rfx_basis, np.ndarray):
                     raise ValueError("'rfx_basis' must be a numpy array")
                 if rfx_basis.shape[0] != X.shape[0]:

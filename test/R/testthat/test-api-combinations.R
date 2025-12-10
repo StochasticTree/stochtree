@@ -308,7 +308,8 @@ construct_chained_expectation_bcf <- function(
   warning_cond_2,
   warning_cond_3,
   warning_cond_4,
-  warning_cond_5
+  warning_cond_5,
+  warning_cond_6
 ) {
   # Build the chain from innermost to outermost
   function_text <- "x"
@@ -343,6 +344,13 @@ construct_chained_expectation_bcf <- function(
   if (warning_cond_5) {
     function_text <- paste0(
       "warning_fun_5(",
+      function_text,
+      ")"
+    )
+  }
+  if (warning_cond_6) {
+    function_text <- paste0(
+      "warning_fun_6(",
       function_text,
       ")"
     )
@@ -554,7 +562,7 @@ test_that("Quick check of interactions between components of BCF functionality",
   # 9. Adaptive coding: no, yes
   #
   # For each of the possible models this implies,
-  # we'd like to be sure that stochtree functions that operate on BART models
+  # we'd like to be sure that stochtree functions that operate on BCF models
   # will run without error. Since there are so many possible models implied by the
   # options above, this test is designed to be quick (small sample size, low dimensional data)
   # and we are only interested in ensuring no errors are triggered.
@@ -694,11 +702,21 @@ test_that("Quick check of interactions between components of BCF functionality",
         fixed = TRUE
       )
     }
+    warning_cond_6 <- (model_options_df$treatment_type[i] == "multivariate") &&
+      (model_options_df$random_effects[i] == "intercept_plus_treatment")
+    warning_fun_6 <- function(x) {
+      expect_warning(
+        x,
+        "Random effects `intercept_plus_treatment` specification is not currently implemented for multivariate treatments. This model will be fit under the `intercept_only` specification instead. Please provide a custom `rfx_basis_train` if you wish to have random slopes on multivariate treatment variables.",
+        fixed = TRUE
+      )
+    }
     warning_cond <- (warning_cond_1 ||
       warning_cond_2 ||
       warning_cond_3 ||
       warning_cond_4 ||
-      warning_cond_5)
+      warning_cond_5 ||
+      warning_cond_6)
 
     # Generate something like the below code but for all five warnings
     if (error_cond || warning_cond) {
@@ -708,7 +726,8 @@ test_that("Quick check of interactions between components of BCF functionality",
         warning_cond_2 = warning_cond_2,
         warning_cond_3 = warning_cond_3,
         warning_cond_4 = warning_cond_4,
-        warning_cond_5 = warning_cond_5
+        warning_cond_5 = warning_cond_5,
+        warning_cond_6 = warning_cond_6
       )
     } else {
       test_fun <- expect_no_error

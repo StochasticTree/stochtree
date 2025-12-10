@@ -942,21 +942,31 @@ bcf <- function(
       }
       has_basis_rfx <- TRUE
       num_basis_rfx <- ncol(rfx_basis_train)
-    } else if (rfx_model_spec == "intercept_only") {
-      rfx_basis_train <- matrix(
-        rep(1, nrow(X_train)),
-        nrow = nrow(X_train),
-        ncol = 1
-      )
-      has_basis_rfx <- TRUE
-      num_basis_rfx <- 1
     } else if (rfx_model_spec == "intercept_plus_treatment") {
-      rfx_basis_train <- cbind(
-        rep(1, nrow(X_train)),
-        Z_train
-      )
-      has_basis_rfx <- TRUE
-      num_basis_rfx <- 1 + ncol(Z_train)
+      if (has_multivariate_treatment) {
+        warning(
+          "Random effects `intercept_plus_treatment` specification is not currently implemented for multivariate treatments. This model will be fit under the `intercept_only` specification instead. Please provide a custom `rfx_basis_train` if you wish to have random slopes on multivariate treatment variables."
+        )
+        rfx_model_spec <- "intercept_only"
+      }
+    }
+    if (is.null(rfx_basis_train)) {
+      if (rfx_model_spec == "intercept_only") {
+        rfx_basis_train <- matrix(
+          rep(1, nrow(X_train)),
+          nrow = nrow(X_train),
+          ncol = 1
+        )
+        has_basis_rfx <- TRUE
+        num_basis_rfx <- 1
+      } else {
+        rfx_basis_train <- cbind(
+          rep(1, nrow(X_train)),
+          Z_train
+        )
+        has_basis_rfx <- TRUE
+        num_basis_rfx <- 1 + ncol(Z_train)
+      }
     }
     num_rfx_groups <- length(unique(rfx_group_ids_train))
     num_rfx_components <- ncol(rfx_basis_train)
