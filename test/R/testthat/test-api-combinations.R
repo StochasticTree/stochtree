@@ -370,7 +370,11 @@ construct_chained_expectation_bcf <- function(
 
 test_that("Quick check of interactions between components of BART functionality", {
   skip_on_cran()
-  skip_on_ci()
+  # Code from: https://github.com/r-lib/testthat/blob/main/R/skip.R
+  skip_if(
+    isTRUE(as.logical(Sys.getenv("RUN_SLOW_TESTS", "false"))),
+    "skipping slow tests"
+  )
 
   # Overall, we have seven components of a BART sampler which can be on / off or set to different levels:
   # 1. Leaf regression: none, univariate, multivariate
@@ -548,7 +552,11 @@ test_that("Quick check of interactions between components of BART functionality"
 
 test_that("Quick check of interactions between components of BCF functionality", {
   skip_on_cran()
-  skip_on_ci()
+  # Code from: https://github.com/r-lib/testthat/blob/main/R/skip.R
+  skip_if(
+    isTRUE(as.logical(Sys.getenv("RUN_SLOW_TESTS", "false"))),
+    "skipping slow tests"
+  )
 
   # Overall, we have nine components of a BCF sampler which can be on / off or set to different levels:
   # 1. treatment: binary, univariate continuous, multivariate
