@@ -897,14 +897,7 @@ bcf <- function(
   # Handle multivariate treatment
   has_multivariate_treatment <- ncol(Z_train) > 1
   if (has_multivariate_treatment) {
-    # Disable adaptive coding, internal propensity model, and
-    # leaf scale sampling if treatment is multivariate
-    if (adaptive_coding) {
-      warning(
-        "Adaptive coding is incompatible with multivariate treatment and will be ignored"
-      )
-      adaptive_coding <- FALSE
-    }
+    # Disable internal propensity model and leaf scale sampling if treatment is multivariate
     if (is.null(propensity_train)) {
       if (propensity_covariate != "none") {
         warning(
@@ -1021,15 +1014,21 @@ bcf <- function(
     y_train <- as.matrix(y_train)
   }
 
-  # Check whether treatment is binary (specifically 0-1 binary)
-  binary_treatment <- length(unique(Z_train)) == 2
-  if (binary_treatment) {
-    unique_treatments <- sort(unique(Z_train))
-    if (!(all(unique_treatments == c(0, 1)))) binary_treatment <- FALSE
+  # Check whether treatment is binary and univariate (specifically 0-1 binary)
+  binary_treatment <- FALSE
+  if (!has_multivariate_treatment) {
+    binary_treatment <- length(unique(Z_train)) == 2
+    if (binary_treatment) {
+      unique_treatments <- sort(unique(Z_train))
+      if (!(all(unique_treatments == c(0, 1)))) binary_treatment <- FALSE
+    }
   }
 
   # Adaptive coding will be ignored for continuous / ordered categorical treatments
   if ((!binary_treatment) && (adaptive_coding)) {
+    warning(
+      "Adaptive coding is only compatible with binary (univariate) treatment and, as a result, will be ignored in sampling this model"
+    )
     adaptive_coding <- FALSE
   }
 

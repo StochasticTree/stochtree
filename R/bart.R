@@ -835,6 +835,16 @@ bart <- function(
     }
   }
 
+  # Runtime checks for variance forest
+  if (include_variance_forest) {
+    if (sample_sigma2_global) {
+      warning(
+        "Global error variance will not be sampled with a heteroskedasticity forest"
+      )
+      sample_sigma2_global <- F
+    }
+  }
+
   # Handle standardization, prior calibration, and initialization of forest
   # differently for binary and continuous outcomes
   if (probit_outcome_model) {

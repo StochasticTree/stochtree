@@ -586,16 +586,22 @@ sample_bcf_posterior_predictive <- function(
         "'rfx_group_ids' must have the same length as the number of rows in 'X'"
       )
     }
-    if (is.null(rfx_basis)) {
-      stop(
-        "'rfx_basis' must be provided in order to compute the requested intervals"
-      )
+
+    if (model_object$model_params$rfx_model_spec == "custom") {
+      if (is.null(rfx_basis)) {
+        stop(
+          "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+        )
+      }
     }
-    if (!is.matrix(rfx_basis)) {
-      stop("'rfx_basis' must be a matrix")
-    }
-    if (nrow(rfx_basis) != nrow(X)) {
-      stop("'rfx_basis' must have the same number of rows as 'X'")
+
+    if (!is.null(rfx_basis)) {
+      if (!is.matrix(rfx_basis)) {
+        stop("'rfx_basis' must be a matrix")
+      }
+      if (nrow(rfx_basis) != nrow(X)) {
+        stop("'rfx_basis' must have the same number of rows as 'X'")
+      }
     }
   }
 
