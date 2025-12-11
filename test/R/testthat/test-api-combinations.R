@@ -372,7 +372,7 @@ test_that("Quick check of interactions between components of BART functionality"
   skip_on_cran()
   # Code from: https://github.com/r-lib/testthat/blob/main/R/skip.R
   skip_if(
-    isTRUE(as.logical(Sys.getenv("RUN_SLOW_TESTS", "false"))),
+    isFALSE(as.logical(Sys.getenv("RUN_SLOW_TESTS", "false"))),
     "skipping slow tests"
   )
 

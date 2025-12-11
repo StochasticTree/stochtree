@@ -233,16 +233,17 @@ class TestPredict:
         )
 
         # Fit a heteroskedastic BART model
-        var_params = {"num_trees": 20}
-        het_bart_model = BARTModel()
-        het_bart_model.sample(
-            X_train=X_train,
-            y_train=y_train,
-            num_gfr=10,
-            num_burnin=0,
-            num_mcmc=10,
-            variance_forest_params=var_params,
-        )
+        with pytest.warns(UserWarning):
+            var_params = {"num_trees": 20}
+            het_bart_model = BARTModel()
+            het_bart_model.sample(
+                X_train=X_train,
+                y_train=y_train,
+                num_gfr=10,
+                num_burnin=0,
+                num_mcmc=10,
+                variance_forest_params=var_params,
+            )
 
         # Check that the default predict method returns a dictionary
         pred = het_bart_model.predict(X=X_test)
@@ -404,21 +405,22 @@ class TestPredict:
             )
 
         # Fit a heteroskedastic BCF model
-        var_params = {"num_trees": 20}
-        het_bcf_model = BCFModel()
-        het_bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            propensity_train=pi_x_train,
-            X_test=X_test,
-            Z_test=Z_test,
-            propensity_test=pi_x_test,
-            num_gfr=10,
-            num_burnin=0,
-            num_mcmc=10,
-            variance_forest_params=var_params,
-        )
+        with pytest.warns(UserWarning):
+            var_params = {"num_trees": 20}
+            het_bcf_model = BCFModel()
+            het_bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                propensity_train=pi_x_train,
+                X_test=X_test,
+                Z_test=Z_test,
+                propensity_test=pi_x_test,
+                num_gfr=10,
+                num_burnin=0,
+                num_mcmc=10,
+                variance_forest_params=var_params,
+            )
 
         # Check that the default predict method returns a dictionary
         pred = het_bcf_model.predict(X=X_test, Z=Z_test, propensity=pi_x_test)
