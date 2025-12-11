@@ -4,7 +4,11 @@
 
 ## Bug Fixes
 
-* Predict random effects correctly in R for univariate random effects models ([#248](https://github.com/StochasticTree/stochtree/pull/248))
+* Fix prediction bug for univariate random effects models in R ([#248](https://github.com/StochasticTree/stochtree/pull/248))
+
+## Other Changes
+
+* Encode expectations about which combinations of BART / BCF features work together and ensure warning ([#250](https://github.com/StochasticTree/stochtree/pull/250))
 
 # stochtree 0.2.0
 
