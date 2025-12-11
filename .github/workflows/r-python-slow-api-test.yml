@@ -15,9 +15,9 @@ jobs:
     
     steps:
     - name: Prevent conversion of line endings on Windows
-        if: startsWith(matrix.os, 'windows')
-        shell: pwsh
-        run: git config --global core.autocrlf false
+      if: startsWith(matrix.os, 'windows')
+      shell: pwsh
+      run: git config --global core.autocrlf false
     
     - name: Checkout repository
       uses: actions/checkout@v4
