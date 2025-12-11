@@ -645,7 +645,7 @@ class TestBCF:
         assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
 
         # Run BCF with test set and without propensity score
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             bcf_model = BCFModel()
             variance_forest_params = {"num_trees": 0}
             bcf_model.sample(
@@ -661,7 +661,7 @@ class TestBCF:
             )
 
         # Run BCF without test set and without propensity score
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             bcf_model = BCFModel()
             variance_forest_params = {"num_trees": 0}
             bcf_model.sample(

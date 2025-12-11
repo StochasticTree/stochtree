@@ -1,0 +1,72 @@
+name: Unit Tests and Slow Running API Integration Tests for R and Python
+
+on:
+  workflow_dispatch:
+
+jobs:
+  testing:
+    name: test-slow-api-combinations
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+      - name: Prevent conversion of line endings on Windows
+          if: startsWith(matrix.os, 'windows')
+          shell: pwsh
+          run: git config --global core.autocrlf false
+      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+      
+      - name: Set up openmp (macos)
+        # Set up openMP on MacOS since it doesn't ship with the apple clang compiler suite
+        if: matrix.os == 'macos-latest'
+        run: | 
+          brew install libomp
+
+      - name: Install Package with Relevant Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install .
+
+      - name: Run Pytest with Slow Running API Tests Enabled
+        run: |
+          pytest --runslow test/python
+      
+      - name: Setup Pandoc for R
+        uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Setup R Package Dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::decor, any::rcmdcheck
+          needs: check
+
+      - name: Create a CRAN-ready version of the R package
+        run: |
+          Rscript cran-bootstrap.R 0 0 1
+      
+      - name: Run CRAN Checks with Slow Running API Tests Enabled
+        uses: r-lib/actions/check-r-package@v2
+        env:
+          RUN_SLOW_TESTS: true
+        with:
+          working-directory: 'stochtree_cran'

@@ -1320,25 +1320,38 @@ class BCFModel:
         self.p_x = X_train_processed.shape[1]
 
         # Check whether treatment is binary
-        self.binary_treatment = np.unique(Z_train).size == 2
+        self.binary_treatment = False
+        if not self.multivariate_treatment:
+            self.binary_treatment = np.unique(Z_train).size == 2
+            if self.binary_treatment:
+                unique_treatments = np.squeeze(np.unique(Z_train)).tolist()
+                if not all(i in [0,1] for i in unique_treatments):
+                    self.binary_treatment = False
 
         # Adaptive coding will be ignored for continuous / ordered categorical treatments
         self.adaptive_coding = adaptive_coding
         if adaptive_coding and not self.binary_treatment:
-            self.adaptive_coding = False
-        if adaptive_coding and self.multivariate_treatment:
+            warnings.warn(
+                "Adaptive coding is only compatible with binary (univariate) treatment and, as a result, will be ignored in sampling this model"
+            )
             self.adaptive_coding = False
 
         # Sampling sigma2_leaf_tau will be ignored for multivariate treatments
         if sample_sigma2_leaf_tau and self.multivariate_treatment:
+            warnings.warn(
+                "Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled for the treatment forest in this model."
+            )
             sample_sigma2_leaf_tau = False
 
         # Check if user has provided propensities that are needed in the model
         if propensity_train is None and propensity_covariate != "none":
+            # Disable internal propensity model if treatment is multivariate
             if self.multivariate_treatment:
-                raise ValueError(
-                    "Propensities must be provided (via propensity_train and / or propensity_test parameters) or omitted by setting propensity_covariate = 'none' for multivariate treatments"
+                warnings.warn(
+                    "No propensities were provided for the multivariate treatment; an internal propensity model will not be fitted to the multivariate treatment and propensity_covariate will be set to 'none'"
                 )
+                propensity_covariate = "none"
+                self.internal_propensity_model = True
             else:
                 self.bart_propensity_model = BARTModel()
                 num_gfr_propensity = 10
@@ -1373,6 +1386,64 @@ class BCFModel:
                 self.internal_propensity_model = True
         else:
             self.internal_propensity_model = False
+        
+                # Runtime checks on RFX group ids
+        self.has_rfx = False
+        has_rfx_test = False
+        if rfx_group_ids_train is not None:
+            self.has_rfx = True
+            if rfx_group_ids_test is not None:
+                has_rfx_test = True
+                if not np.all(np.isin(rfx_group_ids_test, rfx_group_ids_train)):
+                    raise ValueError(
+                        "All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train"
+                    )
+
+        # Handle the rfx basis matrices
+        self.has_rfx_basis = False
+        self.num_rfx_basis = 0
+        if self.has_rfx:
+            if self.rfx_model_spec == "custom":
+                if rfx_basis_train is None:
+                    raise ValueError(
+                        "rfx_basis_train must be provided when rfx_model_spec = 'custom'"
+                    )
+            elif self.rfx_model_spec == "intercept_plus_treatment":
+                if self.multivariate_treatment:
+                    warnings.warn(
+                        "Random effects `intercept_plus_treatment` specification is not currently implemented for multivariate treatments. This model will be fit under the `intercept_only` specification instead. Please provide a custom `rfx_basis_train` if you wish to have random slopes on multivariate treatment variables."
+                    )
+                    self.rfx_model_spec = "intercept_only"
+            if rfx_basis_train is None:
+                if self.rfx_model_spec == "intercept_only":
+                    rfx_basis_train = np.ones((rfx_group_ids_train.shape[0], 1))
+                else:
+                    rfx_basis_train = np.concatenate(
+                        (np.ones((rfx_group_ids_train.shape[0], 1)), Z_train), axis=1
+                    )
+
+            self.has_rfx_basis = True
+            self.num_rfx_basis = rfx_basis_train.shape[1]
+            num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
+            num_rfx_components = rfx_basis_train.shape[1]
+            if num_rfx_groups == 1:
+                warnings.warn(
+                    "Only one group was provided for random effect sampling, so the random effects model is likely overkill"
+                )
+        if has_rfx_test:
+            if self.rfx_model_spec == "custom":
+                if rfx_basis_test is None:
+                    raise ValueError(
+                        "rfx_basis_test must be provided when rfx_model_spec = 'custom' and a test set is provided"
+                    )
+            elif self.rfx_model_spec == "intercept_only":
+                if rfx_basis_test is None:
+                    rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
+            elif self.rfx_model_spec == "intercept_plus_treatment":
+                if rfx_basis_test is None:
+                    rfx_basis_test = np.concatenate(
+                        (np.ones((rfx_group_ids_test.shape[0], 1)), Z_test), axis=1
+                    )
 
         # Preliminary runtime checks for probit link
         if self.probit_outcome_model:
@@ -1385,13 +1456,21 @@ class BCFModel:
                 raise ValueError(
                     "You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1"
                 )
+            if sample_sigma2_global:
+                warnings.warn(
+                    "Global error variance will not be sampled with a probit link as it is fixed at 1"
+                )
+                sample_sigma2_global = False
             if self.include_variance_forest:
                 raise ValueError(
                     "We do not support heteroskedasticity with a probit link"
                 )
+        
+        # Runtime checks for variance forest
+        if self.include_variance_forest:
             if sample_sigma2_global:
                 warnings.warn(
-                    "Global error variance will not be sampled with a probit link as it is fixed at 1"
+                    "Sampling global error variance not yet supported for models with variance forests, so the global error variance parameter will not be sampled in this model."
                 )
                 sample_sigma2_global = False
 
@@ -1549,58 +1628,6 @@ class BCFModel:
                     a_forest = 1.0
                 if not b_forest:
                     b_forest = 1.0
-
-        # Runtime checks on RFX group ids
-        self.has_rfx = False
-        has_rfx_test = False
-        if rfx_group_ids_train is not None:
-            self.has_rfx = True
-            if rfx_group_ids_test is not None:
-                has_rfx_test = True
-                if not np.all(np.isin(rfx_group_ids_test, rfx_group_ids_train)):
-                    raise ValueError(
-                        "All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train"
-                    )
-
-        # Handle the rfx basis matrices
-        self.has_rfx_basis = False
-        self.num_rfx_basis = 0
-        if self.has_rfx:
-            if self.rfx_model_spec == "custom":
-                if rfx_basis_train is None:
-                    raise ValueError(
-                        "rfx_basis_train must be provided when rfx_model_spec = 'custom'"
-                    )
-            elif self.rfx_model_spec == "intercept_only":
-                if rfx_basis_train is None:
-                    rfx_basis_train = np.ones((rfx_group_ids_train.shape[0], 1))
-            elif self.rfx_model_spec == "intercept_plus_treatment":
-                if rfx_basis_train is None:
-                    rfx_basis_train = np.concatenate(
-                        (np.ones((rfx_group_ids_train.shape[0], 1)), Z_train), axis=1
-                    )
-            self.has_rfx_basis = True
-            self.num_rfx_basis = rfx_basis_train.shape[1]
-            num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
-            num_rfx_components = rfx_basis_train.shape[1]
-            if num_rfx_groups == 1:
-                warnings.warn(
-                    "Only one group was provided for random effect sampling, so the random effects model is likely overkill"
-                )
-        if has_rfx_test:
-            if self.rfx_model_spec == "custom":
-                if rfx_basis_test is None:
-                    raise ValueError(
-                        "rfx_basis_test must be provided when rfx_model_spec = 'custom' and a test set is provided"
-                    )
-            elif self.rfx_model_spec == "intercept_only":
-                if rfx_basis_test is None:
-                    rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
-            elif self.rfx_model_spec == "intercept_plus_treatment":
-                if rfx_basis_test is None:
-                    rfx_basis_test = np.concatenate(
-                        (np.ones((rfx_group_ids_test.shape[0], 1)), Z_test), axis=1
-                    )
 
         # Set up random effects structures
         if self.has_rfx:
@@ -3570,14 +3597,18 @@ class BCFModel:
                 raise ValueError(
                     "'rfx_group_ids' must have the same length as the number of rows in 'X'"
                 )
-            if rfx_basis is None:
-                raise ValueError(
-                    "'rfx_basis' must be provided in order to compute the requested intervals"
-                )
-            if not isinstance(rfx_basis, np.ndarray):
-                raise ValueError("'rfx_basis' must be a numpy array")
-            if rfx_basis.shape[0] != X.shape[0]:
-                raise ValueError("'rfx_basis' must have the same number of rows as 'X'")
+            if self.rfx_model_spec == "custom":
+                if rfx_basis is None:
+                    raise ValueError(
+                        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+                    )
+            if rfx_basis is not None:
+                if not isinstance(rfx_basis, np.ndarray):
+                    raise ValueError("'rfx_basis' must be a numpy array")
+                if rfx_basis.shape[0] != X.shape[0]:
+                    raise ValueError(
+                        "'rfx_basis' must have the same number of rows as 'X'"
+                    )
 
         # Compute posterior predictive samples
         bcf_preds = self.predict(
