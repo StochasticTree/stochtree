@@ -419,9 +419,11 @@ compute_contrast_bart_model <- function(
       if (!is.matrix(rfx_basis_0) || !is.matrix(rfx_basis_1)) {
         stop("'rfx_basis_0' and 'rfx_basis_1' must be matrices")
       }
-      if ((nrow(rfx_basis_0) != nrow(X)) || (nrow(rfx_basis_1) != nrow(X))) {
+      if (
+        (nrow(rfx_basis_0) != nrow(X_0)) || (nrow(rfx_basis_1) != nrow(X_1))
+      ) {
         stop(
-          "'rfx_basis_0' and 'rfx_basis_1' must have the same number of rows as 'X'"
+          "'rfx_basis_0' and 'rfx_basis_1' must have the same number of rows as 'X_0' and 'X_1'"
         )
       }
       if (
