@@ -3053,6 +3053,12 @@ class BCFModel:
                 raise ValueError(
                     "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
                 )
+            
+        # Convert rfx_group_ids to their corresponding array position indices in the random effects parameter sample arrays
+        if rfx_group_ids is not None:
+            rfx_group_id_indices = self.rfx_container.map_group_ids_to_array_indices(
+                rfx_group_ids
+            )
 
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
@@ -3073,14 +3079,14 @@ class BCFModel:
                 )
                 for i in range(X.shape[0]):
                     rfx_predictions_raw[i, :, :] = rfx_beta_draws[
-                        :, rfx_group_ids[i], :
+                        :, rfx_group_id_indices[i], :
                     ]
             elif rfx_beta_draws.ndim == 2:
                 rfx_predictions_raw = np.empty(
                     shape=(X.shape[0], 1, rfx_beta_draws.shape[1])
                 )
                 for i in range(X.shape[0]):
-                    rfx_predictions_raw[i, 0, :] = rfx_beta_draws[rfx_group_ids[i], :]
+                    rfx_predictions_raw[i, 0, :] = rfx_beta_draws[rfx_group_id_indices[i], :]
             else:
                 raise ValueError(
                     "Unexpected number of dimensions in extracted random effects samples"
