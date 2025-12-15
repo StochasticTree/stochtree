@@ -2134,17 +2134,15 @@ predict.bartmodel <- function(
   X <- preprocessPredictionData(X, train_set_metadata)
 
   # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
-  if (predict_rfx) {
-    if (!is.null(rfx_group_ids)) {
-      rfx_unique_group_ids <- object$rfx_unique_group_ids
-      group_ids_factor <- factor(rfx_group_ids, levels = rfx_unique_group_ids)
-      if (sum(is.na(group_ids_factor)) > 0) {
-        stop(
-          "All random effect group labels provided in rfx_group_ids must have been present in rfx_group_ids_train"
-        )
-      }
-      rfx_group_ids <- as.integer(group_ids_factor)
+  if (!is.null(rfx_group_ids)) {
+    rfx_unique_group_ids <- object$rfx_unique_group_ids
+    group_ids_factor <- factor(rfx_group_ids, levels = rfx_unique_group_ids)
+    if (sum(is.na(group_ids_factor)) > 0) {
+      stop(
+        "All random effect group labels provided in rfx_group_ids must have been present in rfx_group_ids_train"
+      )
     }
+    rfx_group_ids <- as.integer(group_ids_factor)
   }
 
   # Handle RFX model specification

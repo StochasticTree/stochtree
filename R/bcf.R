@@ -3040,7 +3040,6 @@ predict.bcfmodel <- function(
   X <- preprocessPredictionData(X, train_set_metadata)
 
   # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
-  has_rfx <- FALSE
   if (!is.null(rfx_group_ids)) {
     rfx_unique_group_ids <- object$rfx_unique_group_ids
     group_ids_factor <- factor(rfx_group_ids, levels = rfx_unique_group_ids)
@@ -3050,7 +3049,6 @@ predict.bcfmodel <- function(
       )
     }
     rfx_group_ids <- as.integer(group_ids_factor)
-    has_rfx <- TRUE
   }
 
   # Handle RFX model specification
