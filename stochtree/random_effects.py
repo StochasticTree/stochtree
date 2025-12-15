@@ -418,6 +418,38 @@ class RandomEffectsContainer:
             "sigma_samples": sigma_samples,
         }
         return output
+    
+    def map_group_id_to_array_index(self, group_id: int) -> int:
+        """
+        Map an integer-valued random effects group ID to its group's corresponding position in the arrays that store random effects parameter samples.
+
+        Parameters
+        ----------
+        group_id : int
+            Group identifier to be converted to an array position.
+
+        Returns
+        -------
+        int
+            The position of `group_id` in the parameter sample arrays underlying the random effects container.
+        """
+        return self.rfx_label_mapper_cpp.MapGroupIdToArrayIndex(group_id)
+    
+    def map_group_ids_to_array_indices(self, group_ids: np.ndarray) -> np.ndarray:
+        """
+        Map an array of integer-valued random effects group IDs to their groups' corresponding positions in the arrays that store random effects parameter samples.
+
+        Parameters
+        ----------
+        group_ids : np.ndarray
+            Array of group identifiers (integer-valued) to be converted to an array position.
+
+        Returns
+        -------
+        np.ndarray
+            Numpy array of the position of `group_id` in the parameter sample arrays underlying the random effects container.
+        """
+        return self.rfx_label_mapper_cpp.MapMultipleGroupIdsToArrayIndices(group_ids)
 
 
 class RandomEffectsModel:

@@ -1988,6 +1988,12 @@ class BARTModel:
                     "Random effects basis has a different dimension than the basis used to train this model"
                 )
         
+        # Convert rfx_group_ids to their corresponding array position indices in the random effects parameter sample arrays
+        if rfx_group_ids is not None:
+            rfx_group_id_indices = self.rfx_container.map_group_ids_to_array_indices(
+                rfx_group_ids
+            )
+        
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
             if rfx_basis is not None:
@@ -2017,7 +2023,7 @@ class BARTModel:
                     )
                     for i in range(n_train):
                         rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
-                            rfx_group_ids[i], :
+                            rfx_group_id_indices[i], :
                         ]
                 rfx_predictions = np.squeeze(rfx_predictions_raw[:, 0, :])
 

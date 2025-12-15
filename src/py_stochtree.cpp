@@ -1573,6 +1573,18 @@ class RandomEffectsLabelMapperCpp {
   StochTree::LabelMapper* GetLabelMapper() {
     return rfx_label_mapper_.get();
   }
+  int MapGroupIdToArrayIndex(int original_label) {
+    return rfx_label_mapper_->CategoryNumber(original_label);
+  }
+  py::array_t<int> MapMultipleGroupIdsToArrayIndices(py::array_t<int> original_labels) {
+    int output_size = original_labels.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({output_size}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < output_size; i++) {
+      accessor(i) = rfx_label_mapper_->CategoryNumber(original_labels.at(i));
+    }
+    return result;
+  }
 
  private:
   std::unique_ptr<StochTree::LabelMapper> rfx_label_mapper_;
@@ -2410,7 +2422,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("DumpJsonString", &RandomEffectsLabelMapperCpp::DumpJsonString)
     .def("LoadFromJsonString", &RandomEffectsLabelMapperCpp::LoadFromJsonString)
     .def("LoadFromJson", &RandomEffectsLabelMapperCpp::LoadFromJson)
-    .def("GetLabelMapper", &RandomEffectsLabelMapperCpp::GetLabelMapper);
+    .def("GetLabelMapper", &RandomEffectsLabelMapperCpp::GetLabelMapper)
+    .def("MapGroupIdToArrayIndex", &RandomEffectsLabelMapperCpp::MapGroupIdToArrayIndex)
+    .def("MapMultipleGroupIdsToArrayIndices", &RandomEffectsLabelMapperCpp::MapMultipleGroupIdsToArrayIndices);
 
   py::class_<RandomEffectsModelCpp>(m, "RandomEffectsModelCpp")
     .def(py::init<int, int>())
