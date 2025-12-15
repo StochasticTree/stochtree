@@ -1,10 +1,17 @@
 # Changelog
 
+# stochtree 0.2.1.9000
+
+## Bug Fixes
+
+* Fix prediction bug for R BART models with random effects with labels that aren't straightforward `1:num_groups` integers when only `y_hat` is requested ([#256](https://github.com/StochasticTree/stochtree/pull/256))
+
 # stochtree 0.2.1
 
 ## Bug Fixes
 
 * Fix prediction bug for univariate random effects models in R ([#248](https://github.com/StochasticTree/stochtree/pull/248))
+* Fix prediction bug for Python BART and BCF models with random effects with labels that aren't straightforward `0:(num_groups-1)` integers ([#256](https://github.com/StochasticTree/stochtree/pull/256))
 
 ## Other Changes
 
