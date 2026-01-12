@@ -13,6 +13,7 @@ cpp_docs/doxyoutput/xml
 cpp_docs/doxyoutput/latex
 stochtree_cran
 *.trace
+*.clangd
 
 ## R gitignore
 
