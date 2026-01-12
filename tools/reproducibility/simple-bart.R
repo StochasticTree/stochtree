@@ -1,4 +1,4 @@
-# Replication script:
+# Reproducibility check script:
 # Run BART on a simple dataset and compare results across platforms
 
 # Load libraries

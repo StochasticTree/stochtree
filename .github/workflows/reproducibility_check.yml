@@ -1,0 +1,41 @@
+on:
+  workflow_dispatch:
+
+name: Checking cross-platform reproducibility of stochtree
+
+jobs:
+  stochtree_r_reproducibility:
+    name: stochtree-r-reproducibility
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+      - name: Checkout stochtree repo
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Setup pandoc
+        uses: r-lib/actions/setup-pandoc@v2
+
+      - name: Setup R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      
+      - name: Create a properly formatted version of the stochtree R package in a subfolder
+        run: |
+          Rscript cran-bootstrap.R 0 0 1
+
+      - name: Setup R dependencies
+        uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::decor, local::stochtree_cran
+      
+      - name: Run R replication check script(s)
+        run: |
+          Rscript tools/reproducibility/bart/simple-bart.R
