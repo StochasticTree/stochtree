@@ -3,17 +3,19 @@ requires = [
     "setuptools>=42",
     "wheel",
     "ninja",
-    "cmake>=3.12",
-    "numpy",
-    "pandas",
-    "scipy",
-    "scikit-learn"
+    "cmake>=3.12"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "stochtree"
 version = "0.2.1-dev"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn"
+]
 dynamic = ["readme", "optional-dependencies", "license"]
 description = "Stochastic Tree Ensembles for Machine Learning and Causal Inference"
 requires-python = ">=3.8.0"
