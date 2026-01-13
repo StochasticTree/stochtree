@@ -20,7 +20,7 @@ y <- f_X + eps
 bart_model <- stochtree::bart(
   X_train = X,
   y_train = y,
-  general_params = list(random_seed = random_seed)
+  general_params = list(random_seed = random_seed, num_threads = 1)
 )
 
 # Obtain traceplot of global error scale
@@ -59,7 +59,7 @@ if (y_hat_mismatch) {
     )
   )
 } else {
-  cat("No mismatches found in the posterior mean")
+  cat("No mismatches found in the posterior mean\n")
 }
 if (global_error_scale_mismatch) {
   cat(

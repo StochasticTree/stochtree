@@ -31,7 +31,7 @@ double GaussianConstantLeafModel::PosteriorParameterVariance(GaussianConstantSuf
   return (tau_*global_variance) / (suff_stat.sum_w*tau_ + global_variance);
 }
 
-void GaussianConstantLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen) {
+void GaussianConstantLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, boost::random::mt19937& gen) {
   // Vector of leaf indices for tree
   std::vector<int32_t> tree_leaves = tree->GetLeaves();
   
@@ -95,7 +95,7 @@ double GaussianUnivariateRegressionLeafModel::PosteriorParameterVariance(Gaussia
   return (tau_*global_variance) / (suff_stat.sum_xxw*tau_ + global_variance);
 }
 
-void GaussianUnivariateRegressionLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen) {
+void GaussianUnivariateRegressionLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, boost::random::mt19937& gen) {
   // Vector of leaf indices for tree
   std::vector<int32_t> tree_leaves = tree->GetLeaves();
   
@@ -161,7 +161,7 @@ Eigen::MatrixXd GaussianMultivariateRegressionLeafModel::PosteriorParameterVaria
   return (Sigma_0_.inverse() + (suff_stat.XtWX/global_variance)).inverse();
 }
 
-void GaussianMultivariateRegressionLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen) {
+void GaussianMultivariateRegressionLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, boost::random::mt19937& gen) {
   // Vector of leaf indices for tree
   std::vector<int32_t> tree_leaves = tree->GetLeaves();
   
@@ -236,7 +236,7 @@ double LogLinearVarianceLeafModel::PosteriorParameterScale(LogLinearVarianceSuff
   return (b_ + (0.5 * suff_stat.weighted_sum_ei) / global_variance);
 }
 
-void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen) {
+void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, boost::random::mt19937& gen) {
   // Vector of leaf indices for tree
   std::vector<int32_t> tree_leaves = tree->GetLeaves();
   
@@ -259,7 +259,7 @@ void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, Fo
     node_rate = PosteriorParameterScale(node_suff_stat, global_variance);
     
     // Draw from IG(shape, scale) and set the leaf parameter with each draw
-    std::gamma_distribution<double> gamma_dist_(node_shape, 1.);
+    boost::random::gamma_distribution<double> gamma_dist_(node_shape, 1.);
     node_mu = -std::log(gamma_dist_(gen) / node_rate);
     // node_mu = std::log(gamma_sampler_.Sample(node_shape, node_rate, gen, true));
     tree->SetLeaf(leaf_id, node_mu);

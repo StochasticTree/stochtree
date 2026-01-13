@@ -1024,7 +1024,7 @@ bart <- function(
   }
   outcome_train <- createOutcome(resid_train)
 
-  # Random number generator (std::mt19937)
+  # Random number generator (boost::random::mt19937)
   if (is.null(random_seed)) {
     random_seed = sample(1:10000, 1, FALSE)
   }

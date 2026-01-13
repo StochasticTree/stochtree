@@ -6,8 +6,10 @@
 #define STOCHTREE_DISCRETE_SAMPLER_H_
 #include <algorithm>
 #include <numeric>
-#include <random>
 #include <vector>
+
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_real_distribution.hpp>
 
 namespace StochTree {
 
@@ -16,11 +18,11 @@ namespace StochTree {
  * https://github.com/numpy/numpy/blob/031f44252d613f4524ad181e3eb2ae2791e22187/numpy/random/_generator.pyx#L925
  */
 template <typename container_type, typename prob_type>
-void sample_without_replacement(container_type* output, prob_type* p, container_type* a, int population_size, int sample_size, std::mt19937& gen) {
+void sample_without_replacement(container_type* output, prob_type* p, container_type* a, int population_size, int sample_size, boost::random::mt19937& gen) {
   std::vector<prob_type> p_copy(population_size);
   std::memcpy(p_copy.data(), p, sizeof(prob_type) * population_size);
   std::vector<int> indices(sample_size);
-  std::uniform_real_distribution<> unif(0.0, 1.0);
+  boost::random::uniform_real_distribution<> unif(0.0, 1.0);
   std::vector<prob_type> unif_samples(sample_size);
   std::vector<prob_type> cdf(population_size);
   

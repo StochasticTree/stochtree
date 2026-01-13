@@ -94,7 +94,7 @@ void MultivariateRegressionRandomEffectsModel::ResetFromSample(RandomEffectsCont
   }
 
 void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& rfx_tracker, 
-                                                                   double global_variance, std::mt19937& gen) {
+                                                                   double global_variance, boost::random::mt19937& gen) {
   // Update partial residual to add back in the random effects
   AddCurrentPredictionToResidual(dataset, rfx_tracker, residual);
   
@@ -108,14 +108,14 @@ void MultivariateRegressionRandomEffectsModel::SampleRandomEffects(RandomEffects
 }
 
 void MultivariateRegressionRandomEffectsModel::SampleWorkingParameter(RandomEffectsDataset& dataset, ColumnVector& residual, 
-                                                                      RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
+                                                                      RandomEffectsTracker& rfx_tracker, double global_variance, boost::random::mt19937& gen) {
   Eigen::VectorXd posterior_mean = WorkingParameterMean(dataset, residual, rfx_tracker, global_variance);
   Eigen::MatrixXd posterior_covariance = WorkingParameterVariance(dataset, residual, rfx_tracker, global_variance);
   working_parameter_ = normal_sampler_.SampleEigen(posterior_mean, posterior_covariance, gen);
 }
 
 void MultivariateRegressionRandomEffectsModel::SampleGroupParameters(RandomEffectsDataset& dataset, ColumnVector& residual, 
-                                                                     RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
+                                                                     RandomEffectsTracker& rfx_tracker, double global_variance, boost::random::mt19937& gen) {
   int32_t num_groups = num_groups_;
   Eigen::VectorXd posterior_mean;
   Eigen::MatrixXd posterior_covariance;
@@ -128,7 +128,7 @@ void MultivariateRegressionRandomEffectsModel::SampleGroupParameters(RandomEffec
 }
 
 void MultivariateRegressionRandomEffectsModel::SampleVarianceComponents(RandomEffectsDataset& dataset, ColumnVector& residual, 
-                                                                        RandomEffectsTracker& rfx_tracker, double global_variance, std::mt19937& gen) {
+                                                                        RandomEffectsTracker& rfx_tracker, double global_variance, boost::random::mt19937& gen) {
   int32_t num_components = num_components_;
   double posterior_shape;
   double posterior_scale;

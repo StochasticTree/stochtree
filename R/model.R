@@ -9,7 +9,7 @@ CppRNG <- R6::R6Class(
   classname = "CppRNG",
   cloneable = FALSE,
   public = list(
-    #' @field rng_ptr External pointer to a C++ std::mt19937 class
+    #' @field rng_ptr External pointer to a C++ boost::random::mt19937 class
     rng_ptr = NULL,
 
     #' @description

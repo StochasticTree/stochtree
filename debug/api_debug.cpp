@@ -9,19 +9,21 @@
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <optional>
+#include <boost/random/discrete_distribution.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/normal_distribution.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
+#include <boost/random/uniform_real_distribution.hpp>
+#include <boost/nondet_random.hpp>
+
 #include <random>
 #include <string>
-#include <unordered_map>
-#include <variant>
+#include <string>
 #include <vector>
 
 namespace StochTree{
 
-void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
+void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, boost::random::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
   n = 1000;
   x_cols = 2;
@@ -44,8 +46,8 @@ void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
-  std::normal_distribution<double> normal_dist(0.,1.);
+  boost::random::uniform_real_distribution<double> uniform_dist{0.0,1.0};
+  boost::random::normal_distribution<double> normal_dist(0.,1.);
   
   // DGP parameters
   std::vector<double> betas{-10, -5, 5, 10};
@@ -122,7 +124,7 @@ void int_to_binary_vector(int32_t input, std::vector<int32_t>& output, int32_t o
   }
 }
 
-void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
+void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, boost::random::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
   int n1 = 50;
   x_cols = 10;
@@ -150,7 +152,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
 
   // Random number generation
-  std::normal_distribution<double> normal_dist(0., 1.);
+  boost::random::normal_distribution<double> normal_dist(0., 1.);
 
   // Generate a sequence of integers from 0 to num_cells - 1
   std::vector<int32_t> cell_run(num_cells);
@@ -194,7 +196,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   }
   std::vector<double> cell_weights(num_cells, 1./num_cells);
   std::vector<double> cell_indices_sparse(p1 - 1);
-  std::discrete_distribution cell_selector(cell_weights.begin(), cell_weights.end());
+  boost::random::discrete_distribution cell_selector(cell_weights.begin(), cell_weights.end());
   for (int i = 0; i < p1-1; i++) {
     cell_indices_sparse.at(i) = cell_selector(gen);
   }
@@ -239,7 +241,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   }
 }
 
-void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
+void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, boost::random::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
   n = 1000;
   x_cols = 2;
@@ -262,8 +264,8 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
-  std::normal_distribution<double> normal_dist(0.,1.);
+  boost::random::uniform_real_distribution<double> uniform_dist{0.0,1.0};
+  boost::random::normal_distribution<double> normal_dist(0.,1.);
   
   // DGP parameters
   std::vector<double> betas{-10, -5, 5, 10};
@@ -319,7 +321,7 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
   }
 }
 
-void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
+void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, boost::random::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
   n = 400;
   x_cols = 10;
@@ -342,8 +344,8 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
-  std::normal_distribution<double> normal_dist(0.,1.);
+  boost::random::uniform_real_distribution<double> uniform_dist{0.0,1.0};
+  boost::random::normal_distribution<double> normal_dist(0.,1.);
   
   // DGP parameters
   std::vector<double> betas{0.5, 1, 2, 3};
@@ -434,13 +436,13 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   }
 
   // Random number generation
-  std::mt19937 gen;
+  boost::random::mt19937 gen;
   if (random_seed == -1) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
+    boost::random::random_device rd;
+    boost::random::mt19937 gen(rd());
   }
   else {
-    std::mt19937 gen(random_seed);
+    boost::random::mt19937 gen(random_seed);
   }
 
   // Initialize dataset

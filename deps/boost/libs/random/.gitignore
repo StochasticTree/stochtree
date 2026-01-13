@@ -1,0 +1,14 @@
+/doc/html
+/doc/reference.xml
+/test/rng.saved
+
+# Cmake build options
+Makefile
+*.cmake
+CMakeFiles/**
+
+# Editor Options
+.vscode
+.idea
+
+.DS_Store

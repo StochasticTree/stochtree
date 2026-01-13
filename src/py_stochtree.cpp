@@ -13,6 +13,8 @@
 #include <functional>
 #include <memory>
 
+#include <boost/random/mersenne_twister.hpp>
+
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
@@ -204,20 +206,20 @@ class RngCpp {
  public:
   RngCpp(int random_seed = -1) {
     if (random_seed == -1) {
-      std::random_device rd;
-      rng_ = std::make_unique<std::mt19937>(rd());
+      boost::random::random_device rd;
+      rng_ = std::make_unique<boost::random::mt19937>(rd());
     } else {
-      rng_ = std::make_unique<std::mt19937>(random_seed);
+      rng_ = std::make_unique<boost::random::mt19937>(random_seed);
     }
   }
   ~RngCpp() {}
 
-  std::mt19937* GetRng() {
+  boost::random::mt19937* GetRng() {
     return rng_.get();
   }
 
  private:
-  std::unique_ptr<std::mt19937> rng_;
+  std::unique_ptr<boost::random::mt19937> rng_;
 };
 
 // Forward declarations
@@ -1151,7 +1153,7 @@ class ForestSamplerCpp {
     StochTree::ForestDataset* forest_data_ptr = dataset.GetDataset();
     StochTree::ColumnVector* residual_data_ptr = residual.GetData();
     int num_basis = forest_data_ptr->NumBasis();
-    std::mt19937* rng_ptr = rng.GetRng();
+    boost::random::mt19937* rng_ptr = rng.GetRng();
     if (gfr) {
       if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
         StochTree::GFRSampleOneIter<StochTree::GaussianConstantLeafModel, StochTree::GaussianConstantSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianConstantLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true, num_features_subsample, num_threads);
@@ -1298,7 +1300,7 @@ class GlobalVarianceModelCpp {
 
   double SampleOneIteration(ResidualCpp& residual, RngCpp& rng, double a, double b) {
     StochTree::ColumnVector* residual_ptr = residual.GetData();
-    std::mt19937* rng_ptr = rng.GetRng();
+    boost::random::mt19937* rng_ptr = rng.GetRng();
     return var_model_.SampleVarianceParameter(residual_ptr->GetData(), a, b, *rng_ptr);
   }  
 
@@ -1315,7 +1317,7 @@ class LeafVarianceModelCpp {
 
   double SampleOneIteration(ForestCpp& forest, RngCpp& rng, double a, double b) {
     StochTree::TreeEnsemble* forest_ptr = forest.GetEnsemble();
-    std::mt19937* rng_ptr = rng.GetRng();
+    boost::random::mt19937* rng_ptr = rng.GetRng();
     return var_model_.SampleVarianceParameter(forest_ptr, a, b, *rng_ptr);
   }
 

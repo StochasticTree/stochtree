@@ -20,9 +20,10 @@
 #include <fstream>
 #include <map>
 #include <memory>
-#include <random>
 #include <string>
 #include <vector>
+
+#include <boost/random/mersenne_twister.hpp>
 
 namespace StochTree {
 
@@ -142,10 +143,10 @@ class MultivariateRegressionRandomEffectsModel {
   void ResetFromSample(RandomEffectsContainer& rfx_container, int sample_num);
   
   /*! \brief Samplers */
-  void SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, std::mt19937& gen);
-  void SampleWorkingParameter(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, std::mt19937& gen);
-  void SampleGroupParameters(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, std::mt19937& gen);
-  void SampleVarianceComponents(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, std::mt19937& gen);
+  void SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, boost::random::mt19937& gen);
+  void SampleWorkingParameter(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, boost::random::mt19937& gen);
+  void SampleGroupParameters(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, boost::random::mt19937& gen);
+  void SampleVarianceComponents(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, boost::random::mt19937& gen);
 
   /*! \brief Setters */
   void SetWorkingParameter(Eigen::VectorXd& working_parameter) {

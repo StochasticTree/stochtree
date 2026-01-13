@@ -75,20 +75,19 @@ Simulate a simple partitioned linear model
 n <- 500
 p_X <- 10
 p_W <- 1
-X <- matrix(runif(n*p_X), ncol = p_X)
-W <- matrix(runif(n*p_W), ncol = p_W)
-f_XW <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-3*W[,1]) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-1*W[,1]) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (1*W[,1]) + 
-    ((0.75 <= X[,1]) & (1 > X[,1])) * (3*W[,1])
-)
+X <- matrix(runif(n * p_X), ncol = p_X)
+W <- matrix(runif(n * p_W), ncol = p_W)
+f_XW <- (((0 <= X[, 1]) & (0.25 > X[, 1])) *
+  (-3 * W[, 1]) +
+  ((0.25 <= X[, 1]) & (0.5 > X[, 1])) * (-1 * W[, 1]) +
+  ((0.5 <= X[, 1]) & (0.75 > X[, 1])) * (1 * W[, 1]) +
+  ((0.75 <= X[, 1]) & (1 > X[, 1])) * (3 * W[, 1]))
 y <- f_XW + rnorm(n, 0, 1)
 
 # Standardize outcome
 y_bar <- mean(y)
 y_std <- sd(y)
-resid <- (y-y_bar)/y_std
+resid <- (y - y_bar) / y_std
 ```
 
 ## Sampling
@@ -104,15 +103,19 @@ num_trees <- 100
 cutpoint_grid_size <- 100
 global_variance_init <- 1.
 current_sigma2 <- global_variance_init
-tau_init <- 1/num_trees
-leaf_prior_scale <- as.matrix(ifelse(p_W >= 1, diag(tau_init, p_W), diag(tau_init, 1)))
+tau_init <- 1 / num_trees
+leaf_prior_scale <- as.matrix(ifelse(
+  p_W >= 1,
+  diag(tau_init, p_W),
+  diag(tau_init, 1)
+))
 nu <- 4
 lambda <- 0.5
 a_leaf <- 2.
 b_leaf <- 0.5
 leaf_regression <- T
 feature_types <- as.integer(rep(0, p_X)) # 0 = numeric
-var_weights <- rep(1/p_X, p_X)
+var_weights <- rep(1 / p_X, p_X)
 ```
 
 Initialize R-level access to the C++ classes needed to sample our model
@@ -120,44 +123,70 @@ Initialize R-level access to the C++ classes needed to sample our model
 ```{r external_pointers}
 # Data
 if (leaf_regression) {
-    forest_dataset <- createForestDataset(X, W)
-    outcome_model_type <- 1
-    leaf_dimension <- p_W
+  forest_dataset <- createForestDataset(X, W)
+  outcome_model_type <- 1
+  leaf_dimension <- p_W
 } else {
-    forest_dataset <- createForestDataset(X)
-    outcome_model_type <- 0
-    leaf_dimension <- 1
+  forest_dataset <- createForestDataset(X)
+  outcome_model_type <- 0
+  leaf_dimension <- 1
 }
 outcome <- createOutcome(resid)
 
-# Random number generator (std::mt19937)
+# Random number generator (boost::random::mt19937)
 rng <- createCppRNG()
 
 # Sampling data structures
 forest_model_config <- createForestModelConfig(
-    feature_types = feature_types, num_trees = num_trees, num_features = p_X, 
-    num_observations = n, variable_weights = var_weights, leaf_dimension = leaf_dimension, 
-    alpha = alpha, beta = beta, min_samples_leaf = min_samples_leaf, max_depth = max_depth, 
-    leaf_model_type = outcome_model_type, leaf_model_scale = leaf_prior_scale, 
-    cutpoint_grid_size = cutpoint_grid_size
+  feature_types = feature_types,
+  num_trees = num_trees,
+  num_features = p_X,
+  num_observations = n,
+  variable_weights = var_weights,
+  leaf_dimension = leaf_dimension,
+  alpha = alpha,
+  beta = beta,
+  min_samples_leaf = min_samples_leaf,
+  max_depth = max_depth,
+  leaf_model_type = outcome_model_type,
+  leaf_model_scale = leaf_prior_scale,
+  cutpoint_grid_size = cutpoint_grid_size
 )
-global_model_config <- createGlobalModelConfig(global_error_variance = global_variance_init)
-forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
+global_model_config <- createGlobalModelConfig(
+  global_error_variance = global_variance_init
+)
+forest_model <- createForestModel(
+  forest_dataset,
+  forest_model_config,
+  global_model_config
+)
 
-# "Active forest" (which gets updated by the sample) and 
-# container of forest samples (which is written to when 
+# "Active forest" (which gets updated by the sample) and
+# container of forest samples (which is written to when
 # a sample is not discarded due to burn-in / thinning)
 if (leaf_regression) {
-    forest_samples <- createForestSamples(num_trees, 1, F)
-    active_forest <- createForest(num_trees, 1, F)
+  forest_samples <- createForestSamples(num_trees, 1, F)
+  active_forest <- createForest(num_trees, 1, F)
 } else {
-    forest_samples <- createForestSamples(num_trees, 1, T)
-    active_forest <- createForest(num_trees, 1, T)
+  forest_samples <- createForestSamples(num_trees, 1, T)
+  active_forest <- createForest(num_trees, 1, T)
 }
 
 # Initialize the leaves of each tree in the forest
-active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
-active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
+active_forest$prepare_for_sampler(
+  forest_dataset,
+  outcome,
+  forest_model,
+  outcome_model_type,
+  mean(resid)
+)
+active_forest$adjust_residual(
+  forest_dataset,
+  outcome,
+  forest_model,
+  ifelse(outcome_model_type == 1, T, F),
+  F
+)
 ```
 
 Prepare to run the sampler
@@ -174,25 +203,39 @@ Run the grow-from-root sampler to "warm-start" BART
 
 ```{r gfr}
 for (i in 1:num_warmstart) {
-    # Sample forest
-    forest_model$sample_one_iteration(
-        forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, global_model_config, keep_forest = T, gfr = T
-    )
-    
-    # Sample global variance parameter
-    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-        outcome, forest_dataset, rng, nu, lambda
-    )
-    global_var_samples[i+1] <- current_sigma2
-    global_model_config$update_global_error_variance(current_sigma2)
-    
-    # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
-        active_forest, rng, a_leaf, b_leaf
-    )
-    leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
-    forest_model_config$update_leaf_model_scale(leaf_prior_scale)
+  # Sample forest
+  forest_model$sample_one_iteration(
+    forest_dataset,
+    outcome,
+    forest_samples,
+    active_forest,
+    rng,
+    forest_model_config,
+    global_model_config,
+    keep_forest = T,
+    gfr = T
+  )
+
+  # Sample global variance parameter
+  current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+    outcome,
+    forest_dataset,
+    rng,
+    nu,
+    lambda
+  )
+  global_var_samples[i + 1] <- current_sigma2
+  global_model_config$update_global_error_variance(current_sigma2)
+
+  # Sample leaf node variance parameter and update `leaf_prior_scale`
+  leaf_scale_samples[i + 1] <- sampleLeafVarianceOneIteration(
+    active_forest,
+    rng,
+    a_leaf,
+    b_leaf
+  )
+  leaf_prior_scale[1, 1] <- leaf_scale_samples[i + 1]
+  forest_model_config$update_leaf_model_scale(leaf_prior_scale)
 }
 ```
 
@@ -200,26 +243,40 @@ Pick up from the last GFR forest (and associated global variance / leaf
 scale parameters) with an MCMC sampler
 
 ```{r mcmc}
-for (i in (num_warmstart+1):num_samples) {
-    # Sample forest
-    forest_model$sample_one_iteration(
-        forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, global_model_config, keep_forest = T, gfr = F
-    )
-    
-    # Sample global variance parameter
-    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-        outcome, forest_dataset, rng, nu, lambda
-    )
-    global_var_samples[i+1] <- current_sigma2
-    global_model_config$update_global_error_variance(current_sigma2)
-    
-    # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
-        active_forest, rng, a_leaf, b_leaf
-    )
-    leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
-    forest_model_config$update_leaf_model_scale(leaf_prior_scale)
+for (i in (num_warmstart + 1):num_samples) {
+  # Sample forest
+  forest_model$sample_one_iteration(
+    forest_dataset,
+    outcome,
+    forest_samples,
+    active_forest,
+    rng,
+    forest_model_config,
+    global_model_config,
+    keep_forest = T,
+    gfr = F
+  )
+
+  # Sample global variance parameter
+  current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+    outcome,
+    forest_dataset,
+    rng,
+    nu,
+    lambda
+  )
+  global_var_samples[i + 1] <- current_sigma2
+  global_model_config$update_global_error_variance(current_sigma2)
+
+  # Sample leaf node variance parameter and update `leaf_prior_scale`
+  leaf_scale_samples[i + 1] <- sampleLeafVarianceOneIteration(
+    active_forest,
+    rng,
+    a_leaf,
+    b_leaf
+  )
+  leaf_prior_scale[1, 1] <- leaf_scale_samples[i + 1]
+  forest_model_config$update_leaf_model_scale(leaf_prior_scale)
 }
 ```
 
@@ -227,10 +284,10 @@ Predict and rescale samples
 
 ```{r predict}
 # Forest predictions
-preds <- forest_samples$predict(forest_dataset)*y_std + y_bar
+preds <- forest_samples$predict(forest_dataset) * y_std + y_bar
 
 # Global error variance
-sigma_samples <- sqrt(global_var_samples)*y_std
+sigma_samples <- sqrt(global_var_samples) * y_std
 ```
 
 ## Results
@@ -238,19 +295,31 @@ sigma_samples <- sqrt(global_var_samples)*y_std
 Inspect the initial samples obtained via "grow-from-root" (@he2023stochastic)
 
 ```{r xbart_plot}
-plot(sigma_samples[1:num_warmstart], ylab="sigma")
-plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(sigma_samples[1:num_warmstart], ylab = "sigma")
+plot(
+  rowMeans(preds[, 1:num_warmstart]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 Inspect the BART samples obtained after "warm-starting"
 
 ```{r warm_start_plot}
-plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma")
-plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(sigma_samples[(num_warmstart + 1):num_samples], ylab = "sigma")
+plot(
+  rowMeans(preds[, (num_warmstart + 1):num_samples]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 # Demo 2: Supervised Learning with Additive Random Effects
@@ -266,24 +335,23 @@ Simulate a partitioned linear model with a simple additive group random effect s
 n <- 500
 p_X <- 10
 p_W <- 1
-X <- matrix(runif(n*p_X), ncol = p_X)
-W <- matrix(runif(n*p_W), ncol = p_W)
-group_ids <- rep(c(1,2), n %/% 2)
+X <- matrix(runif(n * p_X), ncol = p_X)
+W <- matrix(runif(n * p_W), ncol = p_W)
+group_ids <- rep(c(1, 2), n %/% 2)
 rfx_coefs <- c(-5, 5)
 rfx_basis <- rep(1, n)
-f_XW <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-3*W[,1]) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-1*W[,1]) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (1*W[,1]) + 
-    ((0.75 <= X[,1]) & (1 > X[,1])) * (3*W[,1])
-)
+f_XW <- (((0 <= X[, 1]) & (0.25 > X[, 1])) *
+  (-3 * W[, 1]) +
+  ((0.25 <= X[, 1]) & (0.5 > X[, 1])) * (-1 * W[, 1]) +
+  ((0.5 <= X[, 1]) & (0.75 > X[, 1])) * (1 * W[, 1]) +
+  ((0.75 <= X[, 1]) & (1 > X[, 1])) * (3 * W[, 1]))
 rfx_term <- rfx_coefs[group_ids] * rfx_basis
 y <- f_XW + rfx_term + rnorm(n, 0, 1)
 
 # Standardize outcome
 y_bar <- mean(y)
 y_std <- sd(y)
-resid <- (y-y_bar)/y_std
+resid <- (y - y_bar) / y_std
 ```
 
 ## Sampling
@@ -299,24 +367,28 @@ num_trees <- 100
 cutpoint_grid_size = 100
 global_variance_init <- 1.
 current_sigma2 <- global_variance_init
-tau_init <- 1/num_trees
-leaf_prior_scale <- as.matrix(ifelse(p_W >= 1, diag(tau_init, p_W), diag(tau_init, 1)))
+tau_init <- 1 / num_trees
+leaf_prior_scale <- as.matrix(ifelse(
+  p_W >= 1,
+  diag(tau_init, p_W),
+  diag(tau_init, 1)
+))
 nu <- 4
 lambda <- 0.5
 a_leaf <- 2.
 b_leaf <- 0.5
 leaf_regression <- T
 feature_types <- as.integer(rep(0, p_X)) # 0 = numeric
-var_weights <- rep(1/p_X, p_X)
+var_weights <- rep(1 / p_X, p_X)
 ```
 
 Set some parameters that inform the random effects samplers
 
 ```{r}
 alpha_init <- c(1)
-xi_init <- matrix(c(1,1),1,2)
-sigma_alpha_init <- matrix(c(1),1,1)
-sigma_xi_init <- matrix(c(1),1,1)
+xi_init <- matrix(c(1, 1), 1, 2)
+sigma_alpha_init <- matrix(c(1), 1, 1)
+sigma_xi_init <- matrix(c(1), 1, 1)
 sigma_xi_shape <- 1
 sigma_xi_scale <- 1
 ```
@@ -326,42 +398,68 @@ Initialize R-level access to the C++ classes needed to sample our model
 ```{r}
 # Data
 if (leaf_regression) {
-    forest_dataset <- createForestDataset(X, W)
-    outcome_model_type <- 1
+  forest_dataset <- createForestDataset(X, W)
+  outcome_model_type <- 1
 } else {
-    forest_dataset <- createForestDataset(X)
-    outcome_model_type <- 0
+  forest_dataset <- createForestDataset(X)
+  outcome_model_type <- 0
 }
 outcome <- createOutcome(resid)
 
-# Random number generator (std::mt19937)
+# Random number generator (boost::random::mt19937)
 rng <- createCppRNG()
 
 # Sampling data structures
 forest_model_config <- createForestModelConfig(
-    feature_types = feature_types, num_trees = num_trees, num_features = p_X, 
-    num_observations = n, variable_weights = var_weights, leaf_dimension = leaf_dimension, 
-    alpha = alpha, beta = beta, min_samples_leaf = min_samples_leaf, max_depth = max_depth, 
-    leaf_model_type = outcome_model_type, leaf_model_scale = leaf_prior_scale, 
-    cutpoint_grid_size = cutpoint_grid_size
+  feature_types = feature_types,
+  num_trees = num_trees,
+  num_features = p_X,
+  num_observations = n,
+  variable_weights = var_weights,
+  leaf_dimension = leaf_dimension,
+  alpha = alpha,
+  beta = beta,
+  min_samples_leaf = min_samples_leaf,
+  max_depth = max_depth,
+  leaf_model_type = outcome_model_type,
+  leaf_model_scale = leaf_prior_scale,
+  cutpoint_grid_size = cutpoint_grid_size
 )
-global_model_config <- createGlobalModelConfig(global_error_variance = global_variance_init)
-forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
+global_model_config <- createGlobalModelConfig(
+  global_error_variance = global_variance_init
+)
+forest_model <- createForestModel(
+  forest_dataset,
+  forest_model_config,
+  global_model_config
+)
 
-# "Active forest" (which gets updated by the sample) and 
-# container of forest samples (which is written to when 
+# "Active forest" (which gets updated by the sample) and
+# container of forest samples (which is written to when
 # a sample is not discarded due to burn-in / thinning)
 if (leaf_regression) {
-    forest_samples <- createForestSamples(num_trees, 1, F)
-    active_forest <- createForest(num_trees, 1, F)
+  forest_samples <- createForestSamples(num_trees, 1, F)
+  active_forest <- createForest(num_trees, 1, F)
 } else {
-    forest_samples <- createForestSamples(num_trees, 1, T)
-    active_forest <- createForest(num_trees, 1, T)
+  forest_samples <- createForestSamples(num_trees, 1, T)
+  active_forest <- createForest(num_trees, 1, T)
 }
 
 # Initialize the leaves of each tree in the forest
-active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
-active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
+active_forest$prepare_for_sampler(
+  forest_dataset,
+  outcome,
+  forest_model,
+  outcome_model_type,
+  mean(resid)
+)
+active_forest$adjust_residual(
+  forest_dataset,
+  outcome,
+  forest_model,
+  ifelse(outcome_model_type == 1, T, F),
+  F
+)
 
 # Random effects dataset
 rfx_basis <- as.matrix(rfx_basis)
@@ -385,7 +483,11 @@ rfx_model$set_variance_prior_shape(sigma_xi_shape)
 rfx_model$set_variance_prior_scale(sigma_xi_scale)
 
 # Random effect samples
-rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+rfx_samples <- createRandomEffectSamples(
+  num_components,
+  num_groups,
+  rfx_tracker
+)
 ```
 
 Prepare to run the sampler
@@ -402,29 +504,50 @@ Run the grow-from-root sampler to "warm-start" BART
 
 ```{r}
 for (i in 1:num_warmstart) {
-    # Sample forest
-    forest_model$sample_one_iteration(
-        forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, global_model_config, keep_forest = T, gfr = T
-    )
-    
-    # Sample global variance parameter
-    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-        outcome, forest_dataset, rng, nu, lambda
-    )
-    global_var_samples[i+1] <- current_sigma2
-    global_model_config$update_global_error_variance(current_sigma2)
-    
-    # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
-        active_forest, rng, a_leaf, b_leaf
-    )
-    leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
-    forest_model_config$update_leaf_model_scale(leaf_prior_scale)
-    
-    # Sample random effects model
-    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, 
-                                   TRUE, current_sigma2, rng)
+  # Sample forest
+  forest_model$sample_one_iteration(
+    forest_dataset,
+    outcome,
+    forest_samples,
+    active_forest,
+    rng,
+    forest_model_config,
+    global_model_config,
+    keep_forest = T,
+    gfr = T
+  )
+
+  # Sample global variance parameter
+  current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+    outcome,
+    forest_dataset,
+    rng,
+    nu,
+    lambda
+  )
+  global_var_samples[i + 1] <- current_sigma2
+  global_model_config$update_global_error_variance(current_sigma2)
+
+  # Sample leaf node variance parameter and update `leaf_prior_scale`
+  leaf_scale_samples[i + 1] <- sampleLeafVarianceOneIteration(
+    active_forest,
+    rng,
+    a_leaf,
+    b_leaf
+  )
+  leaf_prior_scale[1, 1] <- leaf_scale_samples[i + 1]
+  forest_model_config$update_leaf_model_scale(leaf_prior_scale)
+
+  # Sample random effects model
+  rfx_model$sample_random_effect(
+    rfx_dataset,
+    outcome,
+    rfx_tracker,
+    rfx_samples,
+    TRUE,
+    current_sigma2,
+    rng
+  )
 }
 ```
 
@@ -432,30 +555,51 @@ Pick up from the last GFR forest (and associated global variance / leaf
 scale parameters) with an MCMC sampler
 
 ```{r}
-for (i in (num_warmstart+1):num_samples) {
-    # Sample forest
-    forest_model$sample_one_iteration(
-        forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, global_model_config, keep_forest = T, gfr = F
-    )
-    
-    # Sample global variance parameter
-    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-        outcome, forest_dataset, rng, nu, lambda
-    )
-    global_var_samples[i+1] <- current_sigma2
-    global_model_config$update_global_error_variance(current_sigma2)
-    
-    # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
-        active_forest, rng, a_leaf, b_leaf
-    )
-    leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
-    forest_model_config$update_leaf_model_scale(leaf_prior_scale)
-    
-    # Sample random effects model
-    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, 
-                                   TRUE, current_sigma2, rng)
+for (i in (num_warmstart + 1):num_samples) {
+  # Sample forest
+  forest_model$sample_one_iteration(
+    forest_dataset,
+    outcome,
+    forest_samples,
+    active_forest,
+    rng,
+    forest_model_config,
+    global_model_config,
+    keep_forest = T,
+    gfr = F
+  )
+
+  # Sample global variance parameter
+  current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+    outcome,
+    forest_dataset,
+    rng,
+    nu,
+    lambda
+  )
+  global_var_samples[i + 1] <- current_sigma2
+  global_model_config$update_global_error_variance(current_sigma2)
+
+  # Sample leaf node variance parameter and update `leaf_prior_scale`
+  leaf_scale_samples[i + 1] <- sampleLeafVarianceOneIteration(
+    active_forest,
+    rng,
+    a_leaf,
+    b_leaf
+  )
+  leaf_prior_scale[1, 1] <- leaf_scale_samples[i + 1]
+  forest_model_config$update_leaf_model_scale(leaf_prior_scale)
+
+  # Sample random effects model
+  rfx_model$sample_random_effect(
+    rfx_dataset,
+    outcome,
+    rfx_tracker,
+    rfx_samples,
+    TRUE,
+    current_sigma2,
+    rng
+  )
 }
 ```
 
@@ -463,16 +607,16 @@ Predict and rescale samples
 
 ```{r}
 # Forest predictions
-forest_preds <- forest_samples$predict(forest_dataset)*y_std + y_bar
+forest_preds <- forest_samples$predict(forest_dataset) * y_std + y_bar
 
 # Random effects predictions
-rfx_preds <- rfx_samples$predict(group_ids, rfx_basis)*y_std
+rfx_preds <- rfx_samples$predict(group_ids, rfx_basis) * y_std
 
 # Overall predictions
 preds <- forest_preds + rfx_preds
 
 # Global error variance
-sigma_samples <- sqrt(global_var_samples)*y_std
+sigma_samples <- sqrt(global_var_samples) * y_std
 ```
 
 ## Results
@@ -480,27 +624,45 @@ sigma_samples <- sqrt(global_var_samples)*y_std
 Inspect the initial samples obtained via grow-from-root and an additive random effects model
 
 ```{r}
-plot(sigma_samples[1:num_warmstart], ylab="sigma")
-plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(sigma_samples[1:num_warmstart], ylab = "sigma")
+plot(
+  rowMeans(preds[, 1:num_warmstart]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 Inspect the BART samples obtained after "warm-starting" plus an additive random effects model
 
 ```{r}
-plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma")
-plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(sigma_samples[(num_warmstart + 1):num_samples], ylab = "sigma")
+plot(
+  rowMeans(preds[, (num_warmstart + 1):num_samples]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 Now inspect the samples from the BART forest alone (without considering the random effect predictions)
 
 ```{r}
-plot(rowMeans(forest_preds[,(num_warmstart+1):num_samples]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(
+  rowMeans(forest_preds[, (num_warmstart + 1):num_samples]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 # Demo 3: Supervised Learning with Additive Multi-Component Random Effects
@@ -516,24 +678,23 @@ Simulate a partitioned linear model with a simple additive group random effect s
 n <- 500
 p_X <- 10
 p_W <- 1
-X <- matrix(runif(n*p_X), ncol = p_X)
-W <- matrix(runif(n*p_W), ncol = p_W)
-group_ids <- rep(c(1,2), n %/% 2)
-rfx_coefs <- matrix(c(-5, -3, 5, 3), nrow=2, byrow=TRUE)
+X <- matrix(runif(n * p_X), ncol = p_X)
+W <- matrix(runif(n * p_W), ncol = p_W)
+group_ids <- rep(c(1, 2), n %/% 2)
+rfx_coefs <- matrix(c(-5, -3, 5, 3), nrow = 2, byrow = TRUE)
 rfx_basis <- cbind(1, runif(n, -1, 1))
-f_XW <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-3*W[,1]) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-1*W[,1]) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (1*W[,1]) + 
-    ((0.75 <= X[,1]) & (1 > X[,1])) * (3*W[,1])
-)
-rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
+f_XW <- (((0 <= X[, 1]) & (0.25 > X[, 1])) *
+  (-3 * W[, 1]) +
+  ((0.25 <= X[, 1]) & (0.5 > X[, 1])) * (-1 * W[, 1]) +
+  ((0.5 <= X[, 1]) & (0.75 > X[, 1])) * (1 * W[, 1]) +
+  ((0.75 <= X[, 1]) & (1 > X[, 1])) * (3 * W[, 1]))
+rfx_term <- rowSums(rfx_coefs[group_ids, ] * rfx_basis)
 y <- f_XW + rfx_term + rnorm(n, 0, 1)
 
 # Standardize outcome
 y_bar <- mean(y)
 y_std <- sd(y)
-resid <- (y-y_bar)/y_std
+resid <- (y - y_bar) / y_std
 ```
 
 ## Sampling
@@ -549,24 +710,28 @@ num_trees <- 100
 cutpoint_grid_size = 100
 global_variance_init <- 1.
 current_sigma2 <- global_variance_init
-tau_init <- 1/num_trees
-leaf_prior_scale <- as.matrix(ifelse(p_W >= 1, diag(tau_init, p_W), diag(tau_init, 1)))
+tau_init <- 1 / num_trees
+leaf_prior_scale <- as.matrix(ifelse(
+  p_W >= 1,
+  diag(tau_init, p_W),
+  diag(tau_init, 1)
+))
 nu <- 4
 lambda <- 0.5
 a_leaf <- 2.
 b_leaf <- 0.5
 leaf_regression <- T
 feature_types <- as.integer(rep(0, p_X)) # 0 = numeric
-var_weights <- rep(1/p_X, p_X)
+var_weights <- rep(1 / p_X, p_X)
 ```
 
 Set some parameters that inform the random effects samplers
 
 ```{r}
-alpha_init <- c(1,0)
-xi_init <- matrix(c(1,0,1,0),2,2)
-sigma_alpha_init <- diag(1,2,2)
-sigma_xi_init <- diag(1,2,2)
+alpha_init <- c(1, 0)
+xi_init <- matrix(c(1, 0, 1, 0), 2, 2)
+sigma_alpha_init <- diag(1, 2, 2)
+sigma_xi_init <- diag(1, 2, 2)
 sigma_xi_shape <- 1
 sigma_xi_scale <- 1
 ```
@@ -576,42 +741,68 @@ Initialize R-level access to the C++ classes needed to sample our model
 ```{r}
 # Data
 if (leaf_regression) {
-    forest_dataset <- createForestDataset(X, W)
-    outcome_model_type <- 1
+  forest_dataset <- createForestDataset(X, W)
+  outcome_model_type <- 1
 } else {
-    forest_dataset <- createForestDataset(X)
-    outcome_model_type <- 0
+  forest_dataset <- createForestDataset(X)
+  outcome_model_type <- 0
 }
 outcome <- createOutcome(resid)
 
-# Random number generator (std::mt19937)
+# Random number generator (boost::random::mt19937)
 rng <- createCppRNG()
 
 # Sampling data structures
 forest_model_config <- createForestModelConfig(
-    feature_types = feature_types, num_trees = num_trees, num_features = p_X, 
-    num_observations = n, variable_weights = var_weights, leaf_dimension = leaf_dimension, 
-    alpha = alpha, beta = beta, min_samples_leaf = min_samples_leaf, max_depth = max_depth, 
-    leaf_model_type = outcome_model_type, leaf_model_scale = leaf_prior_scale, 
-    cutpoint_grid_size = cutpoint_grid_size
+  feature_types = feature_types,
+  num_trees = num_trees,
+  num_features = p_X,
+  num_observations = n,
+  variable_weights = var_weights,
+  leaf_dimension = leaf_dimension,
+  alpha = alpha,
+  beta = beta,
+  min_samples_leaf = min_samples_leaf,
+  max_depth = max_depth,
+  leaf_model_type = outcome_model_type,
+  leaf_model_scale = leaf_prior_scale,
+  cutpoint_grid_size = cutpoint_grid_size
 )
-global_model_config <- createGlobalModelConfig(global_error_variance = global_variance_init)
-forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
+global_model_config <- createGlobalModelConfig(
+  global_error_variance = global_variance_init
+)
+forest_model <- createForestModel(
+  forest_dataset,
+  forest_model_config,
+  global_model_config
+)
 
-# "Active forest" (which gets updated by the sample) and 
-# container of forest samples (which is written to when 
+# "Active forest" (which gets updated by the sample) and
+# container of forest samples (which is written to when
 # a sample is not discarded due to burn-in / thinning)
 if (leaf_regression) {
-    forest_samples <- createForestSamples(num_trees, 1, F)
-    active_forest <- createForest(num_trees, 1, F)
+  forest_samples <- createForestSamples(num_trees, 1, F)
+  active_forest <- createForest(num_trees, 1, F)
 } else {
-    forest_samples <- createForestSamples(num_trees, 1, T)
-    active_forest <- createForest(num_trees, 1, T)
+  forest_samples <- createForestSamples(num_trees, 1, T)
+  active_forest <- createForest(num_trees, 1, T)
 }
 
 # Initialize the leaves of each tree in the forest
-active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
-active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
+active_forest$prepare_for_sampler(
+  forest_dataset,
+  outcome,
+  forest_model,
+  outcome_model_type,
+  mean(resid)
+)
+active_forest$adjust_residual(
+  forest_dataset,
+  outcome,
+  forest_model,
+  ifelse(outcome_model_type == 1, T, F),
+  F
+)
 
 # Random effects dataset
 rfx_basis <- as.matrix(rfx_basis)
@@ -635,7 +826,11 @@ rfx_model$set_variance_prior_shape(sigma_xi_shape)
 rfx_model$set_variance_prior_scale(sigma_xi_scale)
 
 # Random effect samples
-rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+rfx_samples <- createRandomEffectSamples(
+  num_components,
+  num_groups,
+  rfx_tracker
+)
 ```
 
 Prepare to run the sampler
@@ -652,29 +847,50 @@ Run the grow-from-root sampler to "warm-start" BART
 
 ```{r}
 for (i in 1:num_warmstart) {
-    # Sample forest
-    forest_model$sample_one_iteration(
-        forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, global_model_config, keep_forest = T, gfr = T
-    )
-    
-    # Sample global variance parameter
-    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-        outcome, forest_dataset, rng, nu, lambda
-    )
-    global_var_samples[i+1] <- current_sigma2
-    global_model_config$update_global_error_variance(current_sigma2)
-    
-    # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
-        active_forest, rng, a_leaf, b_leaf
-    )
-    leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
-    forest_model_config$update_leaf_model_scale(leaf_prior_scale)
-    
-    # Sample random effects model
-    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, 
-                                   TRUE, global_var_samples[i+1], rng)
+  # Sample forest
+  forest_model$sample_one_iteration(
+    forest_dataset,
+    outcome,
+    forest_samples,
+    active_forest,
+    rng,
+    forest_model_config,
+    global_model_config,
+    keep_forest = T,
+    gfr = T
+  )
+
+  # Sample global variance parameter
+  current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+    outcome,
+    forest_dataset,
+    rng,
+    nu,
+    lambda
+  )
+  global_var_samples[i + 1] <- current_sigma2
+  global_model_config$update_global_error_variance(current_sigma2)
+
+  # Sample leaf node variance parameter and update `leaf_prior_scale`
+  leaf_scale_samples[i + 1] <- sampleLeafVarianceOneIteration(
+    active_forest,
+    rng,
+    a_leaf,
+    b_leaf
+  )
+  leaf_prior_scale[1, 1] <- leaf_scale_samples[i + 1]
+  forest_model_config$update_leaf_model_scale(leaf_prior_scale)
+
+  # Sample random effects model
+  rfx_model$sample_random_effect(
+    rfx_dataset,
+    outcome,
+    rfx_tracker,
+    rfx_samples,
+    TRUE,
+    global_var_samples[i + 1],
+    rng
+  )
 }
 ```
 
@@ -682,30 +898,51 @@ Pick up from the last GFR forest (and associated global variance / leaf
 scale parameters) with an MCMC sampler
 
 ```{r}
-for (i in (num_warmstart+1):num_samples) {
-    # Sample forest
-    forest_model$sample_one_iteration(
-        forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, global_model_config, keep_forest = T, gfr = F
-    )
-    
-    # Sample global variance parameter
-    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-        outcome, forest_dataset, rng, nu, lambda
-    )
-    global_var_samples[i+1] <- current_sigma2
-    global_model_config$update_global_error_variance(current_sigma2)
-    
-    # Sample leaf node variance parameter and update `leaf_prior_scale`
-    leaf_scale_samples[i+1] <- sampleLeafVarianceOneIteration(
-        active_forest, rng, a_leaf, b_leaf
-    )
-    leaf_prior_scale[1,1] <- leaf_scale_samples[i+1]
-    forest_model_config$update_leaf_model_scale(leaf_prior_scale)
-    
-    # Sample random effects model
-    rfx_model$sample_random_effect(rfx_dataset, outcome, rfx_tracker, rfx_samples, 
-                                   TRUE, global_var_samples[i+1], rng)
+for (i in (num_warmstart + 1):num_samples) {
+  # Sample forest
+  forest_model$sample_one_iteration(
+    forest_dataset,
+    outcome,
+    forest_samples,
+    active_forest,
+    rng,
+    forest_model_config,
+    global_model_config,
+    keep_forest = T,
+    gfr = F
+  )
+
+  # Sample global variance parameter
+  current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+    outcome,
+    forest_dataset,
+    rng,
+    nu,
+    lambda
+  )
+  global_var_samples[i + 1] <- current_sigma2
+  global_model_config$update_global_error_variance(current_sigma2)
+
+  # Sample leaf node variance parameter and update `leaf_prior_scale`
+  leaf_scale_samples[i + 1] <- sampleLeafVarianceOneIteration(
+    active_forest,
+    rng,
+    a_leaf,
+    b_leaf
+  )
+  leaf_prior_scale[1, 1] <- leaf_scale_samples[i + 1]
+  forest_model_config$update_leaf_model_scale(leaf_prior_scale)
+
+  # Sample random effects model
+  rfx_model$sample_random_effect(
+    rfx_dataset,
+    outcome,
+    rfx_tracker,
+    rfx_samples,
+    TRUE,
+    global_var_samples[i + 1],
+    rng
+  )
 }
 ```
 
@@ -713,16 +950,16 @@ Predict and rescale samples
 
 ```{r}
 # Forest predictions
-forest_preds <- forest_samples$predict(forest_dataset)*y_std + y_bar
+forest_preds <- forest_samples$predict(forest_dataset) * y_std + y_bar
 
 # Random effects predictions
-rfx_preds <- rfx_samples$predict(group_ids, rfx_basis)*y_std
+rfx_preds <- rfx_samples$predict(group_ids, rfx_basis) * y_std
 
 # Overall predictions
 preds <- forest_preds + rfx_preds
 
 # Global error variance
-sigma_samples <- sqrt(global_var_samples)*y_std
+sigma_samples <- sqrt(global_var_samples) * y_std
 ```
 
 ## Results
@@ -730,27 +967,45 @@ sigma_samples <- sqrt(global_var_samples)*y_std
 Inspect the initial samples obtained via grow-from-root and an additive random effects model
 
 ```{r}
-plot(sigma_samples[1:num_warmstart], ylab="sigma")
-plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(sigma_samples[1:num_warmstart], ylab = "sigma")
+plot(
+  rowMeans(preds[, 1:num_warmstart]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 Inspect the BART samples obtained after "warm-starting" plus an additive random effects model
 
 ```{r}
-plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma")
-plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(sigma_samples[(num_warmstart + 1):num_samples], ylab = "sigma")
+plot(
+  rowMeans(preds[, (num_warmstart + 1):num_samples]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 Now inspect the samples from the BART forest alone (without considering the random effect predictions)
 
 ```{r}
-plot(rowMeans(forest_preds[,(num_warmstart+1):num_samples]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(
+  rowMeans(forest_preds[, (num_warmstart + 1):num_samples]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 # Demo 4: Supervised Learning with Additive Linear Model
@@ -777,22 +1032,21 @@ Simulate a partitioned linear model with a simple additive group random effect s
 n <- 500
 p_X <- 10
 p_W <- 1
-X <- matrix(runif(n*p_X), ncol = p_X)
-W <- matrix(runif(n*p_W), ncol = p_W)
+X <- matrix(runif(n * p_X), ncol = p_X)
+W <- matrix(runif(n * p_W), ncol = p_W)
 beta_W <- c(5)
-f_XW <- (
-    ((0 <= X[,1]) & (0.25 > X[,1])) * (-3) + 
-    ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-1) + 
-    ((0.5 <= X[,1]) & (0.75 > X[,1])) * (1) + 
-    ((0.75 <= X[,1]) & (1 > X[,1])) * (3)
-)
+f_XW <- (((0 <= X[, 1]) & (0.25 > X[, 1])) *
+  (-3) +
+  ((0.25 <= X[, 1]) & (0.5 > X[, 1])) * (-1) +
+  ((0.5 <= X[, 1]) & (0.75 > X[, 1])) * (1) +
+  ((0.75 <= X[, 1]) & (1 > X[, 1])) * (3))
 lm_term <- W %*% beta_W
 y <- lm_term + f_XW + rnorm(n, 0, 1)
 
 # Standardize outcome
 y_bar <- mean(y)
 y_std <- sd(y)
-resid <- (y-y_bar)/y_std
+resid <- (y - y_bar) / y_std
 ```
 
 ## Sampling
@@ -808,15 +1062,19 @@ num_trees <- 100
 cutpoint_grid_size = 100
 global_variance_init <- 1.
 current_sigma2 <- global_variance_init
-tau_init <- 1/num_trees
-leaf_prior_scale <- as.matrix(ifelse(p_W >= 1, diag(tau_init, p_W), diag(tau_init, 1)))
+tau_init <- 1 / num_trees
+leaf_prior_scale <- as.matrix(ifelse(
+  p_W >= 1,
+  diag(tau_init, p_W),
+  diag(tau_init, 1)
+))
 nu <- 4
 lambda <- 0.5
 a_leaf <- 2.
 b_leaf <- 0.5
 leaf_regression <- F
 feature_types <- as.integer(rep(0, p_X)) # 0 = numeric
-var_weights <- rep(1/p_X, p_X)
+var_weights <- rep(1 / p_X, p_X)
 beta_tau <- 20
 ```
 
@@ -825,42 +1083,68 @@ Initialize R-level access to the C++ classes needed to sample our model
 ```{r}
 # Data
 if (leaf_regression) {
-    forest_dataset <- createForestDataset(X, W)
-    outcome_model_type <- 1
+  forest_dataset <- createForestDataset(X, W)
+  outcome_model_type <- 1
 } else {
-    forest_dataset <- createForestDataset(X)
-    outcome_model_type <- 0
+  forest_dataset <- createForestDataset(X)
+  outcome_model_type <- 0
 }
 outcome <- createOutcome(resid)
 
-# Random number generator (std::mt19937)
+# Random number generator (boost::random::mt19937)
 rng <- createCppRNG()
 
 # Sampling data structures
 forest_model_config <- createForestModelConfig(
-    feature_types = feature_types, num_trees = num_trees, num_features = p_X, 
-    num_observations = n, variable_weights = var_weights, leaf_dimension = leaf_dimension, 
-    alpha = alpha, beta = beta, min_samples_leaf = min_samples_leaf, max_depth = max_depth, 
-    leaf_model_type = outcome_model_type, leaf_model_scale = leaf_prior_scale, 
-    cutpoint_grid_size = cutpoint_grid_size
+  feature_types = feature_types,
+  num_trees = num_trees,
+  num_features = p_X,
+  num_observations = n,
+  variable_weights = var_weights,
+  leaf_dimension = leaf_dimension,
+  alpha = alpha,
+  beta = beta,
+  min_samples_leaf = min_samples_leaf,
+  max_depth = max_depth,
+  leaf_model_type = outcome_model_type,
+  leaf_model_scale = leaf_prior_scale,
+  cutpoint_grid_size = cutpoint_grid_size
 )
-global_model_config <- createGlobalModelConfig(global_error_variance = global_variance_init)
-forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)
+global_model_config <- createGlobalModelConfig(
+  global_error_variance = global_variance_init
+)
+forest_model <- createForestModel(
+  forest_dataset,
+  forest_model_config,
+  global_model_config
+)
 
-# "Active forest" (which gets updated by the sample) and 
-# container of forest samples (which is written to when 
+# "Active forest" (which gets updated by the sample) and
+# container of forest samples (which is written to when
 # a sample is not discarded due to burn-in / thinning)
 if (leaf_regression) {
-    forest_samples <- createForestSamples(num_trees, 1, F)
-    active_forest <- createForest(num_trees, 1, F)
+  forest_samples <- createForestSamples(num_trees, 1, F)
+  active_forest <- createForest(num_trees, 1, F)
 } else {
-    forest_samples <- createForestSamples(num_trees, 1, T)
-    active_forest <- createForest(num_trees, 1, T)
+  forest_samples <- createForestSamples(num_trees, 1, T)
+  active_forest <- createForest(num_trees, 1, T)
 }
 
 # Initialize the leaves of each tree in the forest
-active_forest$prepare_for_sampler(forest_dataset, outcome, forest_model, outcome_model_type, mean(resid))
-active_forest$adjust_residual(forest_dataset, outcome, forest_model, ifelse(outcome_model_type==1, T, F), F)
+active_forest$prepare_for_sampler(
+  forest_dataset,
+  outcome,
+  forest_model,
+  outcome_model_type,
+  mean(resid)
+)
+active_forest$adjust_residual(
+  forest_dataset,
+  outcome,
+  forest_model,
+  ifelse(outcome_model_type == 1, T, F),
+  F
+)
 ```
 
 Prepare to run the sampler
@@ -879,37 +1163,52 @@ Run the grow-from-root sampler to "warm-start" BART
 
 ```{r}
 for (i in 1:num_warmstart) {
-    # Initialize vectors needed for posterior sampling
-    if (i == 1) {
-        beta_hat <- beta_init
-        yhat_forest <- rep(0, n)
-        partial_res <- resid - yhat_forest
-    } else {
-        yhat_forest <- forest_samples$predict_raw_single_forest(forest_dataset, (i-1)-1)
-        partial_res <- resid - yhat_forest
-        outcome$add_vector(W %*% beta_hat)
-    }
-    # Sample beta from bayesian linear model with gaussian prior
-    sigma2 <- global_var_samples[i]
-    beta_posterior_mean <- sum(partial_res*W[,1])/(sigma2 + sum(W[,1]*W[,1]))
-    beta_posterior_var <- (sigma2*beta_tau)/(sigma2 + sum(W[,1]*W[,1]))
-    beta_hat <- rnorm(1, beta_posterior_mean, sqrt(beta_posterior_var))
-    beta_samples[i+1] <- beta_hat
-    # Update partial residual before sampling forest
-    outcome$subtract_vector(W %*% beta_hat)
-    
-    # Sample forest
-    forest_model$sample_one_iteration(
-        forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, global_model_config, keep_forest = T, gfr = T
+  # Initialize vectors needed for posterior sampling
+  if (i == 1) {
+    beta_hat <- beta_init
+    yhat_forest <- rep(0, n)
+    partial_res <- resid - yhat_forest
+  } else {
+    yhat_forest <- forest_samples$predict_raw_single_forest(
+      forest_dataset,
+      (i - 1) - 1
     )
-    
-    # Sample global variance parameter
-    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-        outcome, forest_dataset, rng, nu, lambda
-    )
-    global_var_samples[i+1] <- current_sigma2
-    global_model_config$update_global_error_variance(current_sigma2)
+    partial_res <- resid - yhat_forest
+    outcome$add_vector(W %*% beta_hat)
+  }
+  # Sample beta from bayesian linear model with gaussian prior
+  sigma2 <- global_var_samples[i]
+  beta_posterior_mean <- sum(partial_res * W[, 1]) /
+    (sigma2 + sum(W[, 1] * W[, 1]))
+  beta_posterior_var <- (sigma2 * beta_tau) / (sigma2 + sum(W[, 1] * W[, 1]))
+  beta_hat <- rnorm(1, beta_posterior_mean, sqrt(beta_posterior_var))
+  beta_samples[i + 1] <- beta_hat
+  # Update partial residual before sampling forest
+  outcome$subtract_vector(W %*% beta_hat)
+
+  # Sample forest
+  forest_model$sample_one_iteration(
+    forest_dataset,
+    outcome,
+    forest_samples,
+    active_forest,
+    rng,
+    forest_model_config,
+    global_model_config,
+    keep_forest = T,
+    gfr = T
+  )
+
+  # Sample global variance parameter
+  current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+    outcome,
+    forest_dataset,
+    rng,
+    nu,
+    lambda
+  )
+  global_var_samples[i + 1] <- current_sigma2
+  global_model_config$update_global_error_variance(current_sigma2)
 }
 ```
 
@@ -917,38 +1216,53 @@ Pick up from the last GFR forest (and associated global variance / leaf
 scale parameters) with an MCMC sampler
 
 ```{r}
-for (i in (num_warmstart+1):num_samples) {
-    # Initialize vectors needed for posterior sampling
-    if (i == 1) {
-        beta_hat <- beta_init
-        yhat_forest <- rep(0, n)
-        partial_res <- resid - yhat_forest
-    } else {
-        yhat_forest <- forest_samples$predict_raw_single_forest(forest_dataset, (i-1)-1)
-        partial_res <- resid - yhat_forest
-        outcome$add_vector(W %*% beta_hat)
-    }
-    # Sample beta from bayesian linear model with gaussian prior
-    sigma2 <- global_var_samples[i]
-    beta_posterior_mean <- sum(partial_res*W[,1])/(sigma2 + sum(W[,1]*W[,1]))
-    beta_posterior_var <- (sigma2*beta_tau)/(sigma2 + sum(W[,1]*W[,1]))
-    beta_hat <- rnorm(1, beta_posterior_mean, sqrt(beta_posterior_var))
-    beta_samples[i+1] <- beta_hat
-    # Update partial residual before sampling forest
-    outcome$subtract_vector(W %*% beta_hat)
-    
-    # Sample forest
-    forest_model$sample_one_iteration(
-        forest_dataset, outcome, forest_samples, active_forest, rng, 
-        forest_model_config, global_model_config, keep_forest = T, gfr = F
+for (i in (num_warmstart + 1):num_samples) {
+  # Initialize vectors needed for posterior sampling
+  if (i == 1) {
+    beta_hat <- beta_init
+    yhat_forest <- rep(0, n)
+    partial_res <- resid - yhat_forest
+  } else {
+    yhat_forest <- forest_samples$predict_raw_single_forest(
+      forest_dataset,
+      (i - 1) - 1
     )
-    
-    # Sample global variance parameter
-    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-        outcome, forest_dataset, rng, nu, lambda
-    )
-    global_var_samples[i+1] <- current_sigma2
-    global_model_config$update_global_error_variance(current_sigma2)
+    partial_res <- resid - yhat_forest
+    outcome$add_vector(W %*% beta_hat)
+  }
+  # Sample beta from bayesian linear model with gaussian prior
+  sigma2 <- global_var_samples[i]
+  beta_posterior_mean <- sum(partial_res * W[, 1]) /
+    (sigma2 + sum(W[, 1] * W[, 1]))
+  beta_posterior_var <- (sigma2 * beta_tau) / (sigma2 + sum(W[, 1] * W[, 1]))
+  beta_hat <- rnorm(1, beta_posterior_mean, sqrt(beta_posterior_var))
+  beta_samples[i + 1] <- beta_hat
+  # Update partial residual before sampling forest
+  outcome$subtract_vector(W %*% beta_hat)
+
+  # Sample forest
+  forest_model$sample_one_iteration(
+    forest_dataset,
+    outcome,
+    forest_samples,
+    active_forest,
+    rng,
+    forest_model_config,
+    global_model_config,
+    keep_forest = T,
+    gfr = F
+  )
+
+  # Sample global variance parameter
+  current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+    outcome,
+    forest_dataset,
+    rng,
+    nu,
+    lambda
+  )
+  global_var_samples[i + 1] <- current_sigma2
+  global_model_config$update_global_error_variance(current_sigma2)
 }
 ```
 
@@ -956,19 +1270,20 @@ Predict and rescale samples
 
 ```{r}
 # Linear model predictions
-lm_preds <- (sapply(1:num_samples, function(x) W[,1]*beta_samples[x+1]))*y_std
+lm_preds <- (sapply(1:num_samples, function(x) W[, 1] * beta_samples[x + 1])) *
+  y_std
 
 # Forest predictions
-forest_preds <- forest_samples$predict(forest_dataset)*y_std + y_bar
+forest_preds <- forest_samples$predict(forest_dataset) * y_std + y_bar
 
 # Overall predictions
 preds <- forest_preds + lm_preds
 
 # Global error variance
-sigma_samples <- sqrt(global_var_samples)*y_std
+sigma_samples <- sqrt(global_var_samples) * y_std
 
 # Regression parameter
-beta_samples <- beta_samples*y_std
+beta_samples <- beta_samples * y_std
 ```
 
 ## Results
@@ -976,29 +1291,47 @@ beta_samples <- beta_samples*y_std
 Inspect the initial samples obtained via grow-from-root and an additive random effects model
 
 ```{r}
-plot(sigma_samples[1:num_warmstart], ylab="sigma")
-plot(beta_samples[1:num_warmstart], ylab="beta")
-plot(rowMeans(preds[,1:num_warmstart]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(sigma_samples[1:num_warmstart], ylab = "sigma")
+plot(beta_samples[1:num_warmstart], ylab = "beta")
+plot(
+  rowMeans(preds[, 1:num_warmstart]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 Inspect the BART samples obtained after "warm-starting" plus an additive random effects model
 
 ```{r}
-plot(sigma_samples[(num_warmstart+1):num_samples], ylab="sigma")
-plot(beta_samples[(num_warmstart+1):num_samples], ylab="beta")
-plot(rowMeans(preds[,(num_warmstart+1):num_samples]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(sigma_samples[(num_warmstart + 1):num_samples], ylab = "sigma")
+plot(beta_samples[(num_warmstart + 1):num_samples], ylab = "beta")
+plot(
+  rowMeans(preds[, (num_warmstart + 1):num_samples]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 Now inspect the samples from the BART forest alone (without considering the additive linear model predictions)
 
 ```{r}
-plot(rowMeans(forest_preds[,(num_warmstart+1):num_samples]), y, pch=16, 
-     cex=0.75, xlab = "pred", ylab = "actual")
-abline(0,1,col="red",lty=2,lwd=2.5)
+plot(
+  rowMeans(forest_preds[, (num_warmstart + 1):num_samples]),
+  y,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
 ```
 
 # Demo 5: Causal Inference
@@ -1086,27 +1419,37 @@ n <- 500
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
-x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-X <- cbind(x1,x2,x3,x4,x5)
+x4 <- as.numeric(rbinom(n, 1, 0.5))
+x5 <- as.numeric(sample(1:3, n, replace = TRUE))
+X <- cbind(x1, x2, x3, x4, x5)
 p <- ncol(X)
-g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,4))}
-mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-tau1 <- function(x) {rep(3,nrow(x))}
-tau2 <- function(x) {1+2*x[,2]*x[,4]}
+g <- function(x) {
+  ifelse(x[, 5] == 1, 2, ifelse(x[, 5] == 2, -1, 4))
+}
+mu1 <- function(x) {
+  1 + g(x) + x[, 1] * x[, 3]
+}
+mu2 <- function(x) {
+  1 + g(x) + 6 * abs(x[, 3] - 1)
+}
+tau1 <- function(x) {
+  rep(3, nrow(x))
+}
+tau2 <- function(x) {
+  1 + 2 * x[, 2] * x[, 4]
+}
 mu_x <- mu1(X)
 tau_x <- tau2(X)
-pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-Z <- rbinom(n,1,pi_x)
-E_XZ <- mu_x + Z*tau_x
+pi_x <- 0.8 * pnorm((3 * mu_x / sd(mu_x)) - 0.5 * X[, 1]) + 0.05 + runif(n) / 10
+Z <- rbinom(n, 1, pi_x)
+E_XZ <- mu_x + Z * tau_x
 snr <- 4
-y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
+y <- E_XZ + rnorm(n, 0, 1) * (sd(E_XZ) / snr)
 
 # Standardize outcome
 y_bar <- mean(y)
 y_std <- sd(y)
-resid <- (y-y_bar)/y_std
+resid <- (y - y_bar) / y_std
 ```
 
 ## Sampling
@@ -1121,12 +1464,12 @@ min_samples_leaf_mu <- 5
 max_depth_mu <- 10
 num_trees_mu <- 250
 cutpoint_grid_size_mu = 100
-tau_init_mu = 1/num_trees_mu
+tau_init_mu = 1 / num_trees_mu
 leaf_prior_scale_mu = matrix(c(tau_init_mu), ncol = 1)
 a_leaf_mu <- 3.
-b_leaf_mu <- var(resid)/(num_trees_mu)
+b_leaf_mu <- var(resid) / (num_trees_mu)
 leaf_regression_mu <- F
-sigma_leaf_mu <- var(resid)/(num_trees_mu)
+sigma_leaf_mu <- var(resid) / (num_trees_mu)
 current_leaf_scale_mu <- as.matrix(sigma_leaf_mu)
 
 # Tau forest
@@ -1137,17 +1480,17 @@ max_depth_tau <- 10
 num_trees_tau <- 50
 cutpoint_grid_size_tau = 100
 a_leaf_tau <- 3.
-b_leaf_tau <- var(resid)/(2*num_trees_tau)
+b_leaf_tau <- var(resid) / (2 * num_trees_tau)
 leaf_regression_tau <- T
-sigma_leaf_tau <- var(resid)/(2*num_trees_tau)
+sigma_leaf_tau <- var(resid) / (2 * num_trees_tau)
 current_leaf_scale_tau <- as.matrix(sigma_leaf_tau)
 
 # Common parameters
 nu <- 3
-sigma2hat <- (sigma(lm(resid~X)))^2
+sigma2hat <- (sigma(lm(resid ~ X)))^2
 quantile_cutoff <- 0.9
 if (is.null(lambda)) {
-    lambda <- (sigma2hat*qgamma(1-quantile_cutoff,nu))/nu
+  lambda <- (sigma2hat * qgamma(1 - quantile_cutoff, nu)) / nu
 }
 sigma2 <- sigma2hat
 current_sigma2 <- sigma2
@@ -1173,7 +1516,7 @@ b_0 <- -0.5
 b_1 <- 0.5
 current_b_0 <- b_0
 current_b_1 <- b_1
-tau_basis <- (1-Z)*current_b_0 + Z*current_b_1
+tau_basis <- (1 - Z) * current_b_0 + Z * current_b_1
 ```
 
 Initialize R-level access to the C++ classes needed to sample our model
@@ -1182,35 +1525,62 @@ Initialize R-level access to the C++ classes needed to sample our model
 # Data
 X_mu <- cbind(X, pi_x)
 X_tau <- X
-feature_types <- c(0,0,0,1,1)
-feature_types_mu <- as.integer(c(feature_types,0))
+feature_types <- c(0, 0, 0, 1, 1)
+feature_types_mu <- as.integer(c(feature_types, 0))
 feature_types_tau <- as.integer(feature_types)
-variable_weights_mu = rep(1/ncol(X_mu), ncol(X_mu))
-variable_weights_tau = rep(1/ncol(X_tau), ncol(X_tau))
+variable_weights_mu = rep(1 / ncol(X_mu), ncol(X_mu))
+variable_weights_tau = rep(1 / ncol(X_tau), ncol(X_tau))
 forest_dataset_mu <- createForestDataset(X_mu)
 forest_dataset_tau <- createForestDataset(X_tau, tau_basis)
 outcome <- createOutcome(resid)
 
-# Random number generator (std::mt19937)
+# Random number generator (boost::random::mt19937)
 rng <- createCppRNG()
 
 # Sampling data structures
-global_model_config <- createGlobalModelConfig(global_error_variance = current_sigma2)
+global_model_config <- createGlobalModelConfig(
+  global_error_variance = current_sigma2
+)
 forest_model_config_mu <- createForestModelConfig(
-    feature_types = feature_types_mu, num_trees = num_trees_mu, num_features = ncol(X_mu), 
-    num_observations = nrow(X_mu), variable_weights = variable_weights_mu, leaf_dimension = 1, 
-    alpha = alpha_mu, beta = beta_mu, min_samples_leaf = min_samples_leaf_mu, max_depth = max_depth_mu, 
-    leaf_model_type = 0, leaf_model_scale = current_leaf_scale_mu, cutpoint_grid_size = cutpoint_grid_size
+  feature_types = feature_types_mu,
+  num_trees = num_trees_mu,
+  num_features = ncol(X_mu),
+  num_observations = nrow(X_mu),
+  variable_weights = variable_weights_mu,
+  leaf_dimension = 1,
+  alpha = alpha_mu,
+  beta = beta_mu,
+  min_samples_leaf = min_samples_leaf_mu,
+  max_depth = max_depth_mu,
+  leaf_model_type = 0,
+  leaf_model_scale = current_leaf_scale_mu,
+  cutpoint_grid_size = cutpoint_grid_size
 )
-forest_model_mu <- createForestModel(forest_dataset_mu, forest_model_config_mu, global_model_config)
+forest_model_mu <- createForestModel(
+  forest_dataset_mu,
+  forest_model_config_mu,
+  global_model_config
+)
 forest_model_config_tau <- createForestModelConfig(
-    feature_types = feature_types_tau, num_trees = num_trees_tau, num_features = ncol(X_tau), 
-    num_observations = nrow(X_tau), variable_weights = variable_weights_tau, leaf_dimension = 1, 
-    alpha = alpha_tau, beta = beta_tau, min_samples_leaf = min_samples_leaf_tau, max_depth = max_depth_tau, 
-    leaf_model_type = 1, leaf_model_scale = current_leaf_scale_tau, 
-    cutpoint_grid_size = cutpoint_grid_size
+  feature_types = feature_types_tau,
+  num_trees = num_trees_tau,
+  num_features = ncol(X_tau),
+  num_observations = nrow(X_tau),
+  variable_weights = variable_weights_tau,
+  leaf_dimension = 1,
+  alpha = alpha_tau,
+  beta = beta_tau,
+  min_samples_leaf = min_samples_leaf_tau,
+  max_depth = max_depth_tau,
+  leaf_model_type = 1,
+  leaf_model_scale = current_leaf_scale_tau,
+  cutpoint_grid_size = cutpoint_grid_size
 )
-forest_model_tau <- createForestModel(forest_dataset_tau, forest_model_config_tau, global_model_config)
+forest_model_tau <- createForestModel(
+  forest_dataset_tau,
+  forest_model_config_tau,
+  global_model_config
+)
 
 # Container of forest samples
 forest_samples_mu <- createForestSamples(num_trees_mu, 1, T)
@@ -1219,63 +1589,119 @@ forest_samples_tau <- createForestSamples(num_trees_tau, 1, F)
 active_forest_tau <- createForest(num_trees_tau, 1, F)
 
 # Initialize the leaves of each tree in the prognostic forest
-active_forest_mu$prepare_for_sampler(forest_dataset_mu, outcome, forest_model_mu, 0, mean(resid))
-active_forest_mu$adjust_residual(forest_dataset_mu, outcome, forest_model_mu, F, F)
+active_forest_mu$prepare_for_sampler(
+  forest_dataset_mu,
+  outcome,
+  forest_model_mu,
+  0,
+  mean(resid)
+)
+active_forest_mu$adjust_residual(
+  forest_dataset_mu,
+  outcome,
+  forest_model_mu,
+  F,
+  F
+)
 
 # Initialize the leaves of each tree in the treatment effect forest
-active_forest_tau$prepare_for_sampler(forest_dataset_tau, outcome, forest_model_tau, 1, 0.)
-active_forest_tau$adjust_residual(forest_dataset_tau, outcome, forest_model_tau, T, F)
+active_forest_tau$prepare_for_sampler(
+  forest_dataset_tau,
+  outcome,
+  forest_model_tau,
+  1,
+  0.
+)
+active_forest_tau$adjust_residual(
+  forest_dataset_tau,
+  outcome,
+  forest_model_tau,
+  T,
+  F
+)
 ```
 
 Run the grow-from-root sampler to "warm-start" BART, also updating the adaptive coding parameter $b_0$ and $b_1$
 
 ```{r bcf_gfr}
-if (num_gfr > 0){
-    for (i in 1:num_gfr) {
-        # Sample the prognostic forest
-        forest_model_mu$sample_one_iteration(
-            forest_dataset_mu, outcome, forest_samples_mu, active_forest_mu, rng, 
-            forest_model_config_mu, global_model_config, keep_forest = T, gfr = T
-        )
-        
-        # Sample variance parameters (if requested)
-        current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-            outcome, forest_dataset_mu, rng, nu, lambda
-        )
-        global_var_samples[i] <- current_sigma2
-        global_model_config$update_global_error_variance(current_sigma2)
+if (num_gfr > 0) {
+  for (i in 1:num_gfr) {
+    # Sample the prognostic forest
+    forest_model_mu$sample_one_iteration(
+      forest_dataset_mu,
+      outcome,
+      forest_samples_mu,
+      active_forest_mu,
+      rng,
+      forest_model_config_mu,
+      global_model_config,
+      keep_forest = T,
+      gfr = T
+    )
 
-        # Sample the treatment forest
-        forest_model_tau$sample_one_iteration(
-            forest_dataset_tau, outcome, forest_samples_tau, active_forest_tau, rng, 
-            forest_model_config_tau, global_model_config, keep_forest = T, gfr = T
-        )
-        
-        # Sample adaptive coding parameters
-        mu_x_raw <- active_forest_mu$predict_raw(forest_dataset_mu)
-        tau_x_raw <- active_forest_tau$predict_raw(forest_dataset_tau)
-        s_tt0 <- sum(tau_x_raw*tau_x_raw*(Z==0))
-        s_tt1 <- sum(tau_x_raw*tau_x_raw*(Z==1))
-        partial_resid_mu <- resid - mu_x_raw
-        s_ty0 <- sum(tau_x_raw*partial_resid_mu*(Z==0))
-        s_ty1 <- sum(tau_x_raw*partial_resid_mu*(Z==1))
-        current_b_0 <- rnorm(1, (s_ty0/(s_tt0 + 2*current_sigma2)), 
-                             sqrt(current_sigma2/(s_tt0 + 2*current_sigma2)))
-        current_b_1 <- rnorm(1, (s_ty1/(s_tt1 + 2*current_sigma2)), 
-                             sqrt(current_sigma2/(s_tt1 + 2*current_sigma2)))
-        tau_basis <- (1-Z)*current_b_0 + Z*current_b_1
-        forest_dataset_tau$update_basis(tau_basis)
-        forest_model_tau$propagate_basis_update(forest_dataset_tau, outcome, active_forest_tau)
-        b_0_samples[i] <- current_b_0
-        b_1_samples[i] <- current_b_1
-        
-        # Sample variance parameters (if requested)
-        current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-            outcome, forest_dataset_tau, rng, nu, lambda
-        )
-        global_var_samples[i] <- current_sigma2
-        global_model_config$update_global_error_variance(current_sigma2)
-    }
+    # Sample variance parameters (if requested)
+    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+      outcome,
+      forest_dataset_mu,
+      rng,
+      nu,
+      lambda
+    )
+    global_var_samples[i] <- current_sigma2
+    global_model_config$update_global_error_variance(current_sigma2)
+
+    # Sample the treatment forest
+    forest_model_tau$sample_one_iteration(
+      forest_dataset_tau,
+      outcome,
+      forest_samples_tau,
+      active_forest_tau,
+      rng,
+      forest_model_config_tau,
+      global_model_config,
+      keep_forest = T,
+      gfr = T
+    )
+
+    # Sample adaptive coding parameters
+    mu_x_raw <- active_forest_mu$predict_raw(forest_dataset_mu)
+    tau_x_raw <- active_forest_tau$predict_raw(forest_dataset_tau)
+    s_tt0 <- sum(tau_x_raw * tau_x_raw * (Z == 0))
+    s_tt1 <- sum(tau_x_raw * tau_x_raw * (Z == 1))
+    partial_resid_mu <- resid - mu_x_raw
+    s_ty0 <- sum(tau_x_raw * partial_resid_mu * (Z == 0))
+    s_ty1 <- sum(tau_x_raw * partial_resid_mu * (Z == 1))
+    current_b_0 <- rnorm(
+      1,
+      (s_ty0 / (s_tt0 + 2 * current_sigma2)),
+      sqrt(current_sigma2 / (s_tt0 + 2 * current_sigma2))
+    )
+    current_b_1 <- rnorm(
+      1,
+      (s_ty1 / (s_tt1 + 2 * current_sigma2)),
+      sqrt(current_sigma2 / (s_tt1 + 2 * current_sigma2))
+    )
+    tau_basis <- (1 - Z) * current_b_0 + Z * current_b_1
+    forest_dataset_tau$update_basis(tau_basis)
+    forest_model_tau$propagate_basis_update(
+      forest_dataset_tau,
+      outcome,
+      active_forest_tau
+    )
+    b_0_samples[i] <- current_b_0
+    b_1_samples[i] <- current_b_1
+
+    # Sample variance parameters (if requested)
+    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+      outcome,
+      forest_dataset_tau,
+      rng,
+      nu,
+      lambda
+    )
+    global_var_samples[i] <- current_sigma2
+    global_model_config$update_global_error_variance(current_sigma2)
+  }
 }
 ```
 
@@ -1283,51 +1709,83 @@ Pick up from the last GFR forest (and associated global variance / leaf scale pa
 
 ```{r bcf_mcmc}
 if (num_burnin + num_mcmc > 0) {
-    for (i in (num_gfr+1):num_samples) {
-        # Sample the prognostic forest
-        forest_model_mu$sample_one_iteration(
-            forest_dataset_mu, outcome, forest_samples_mu, active_forest_mu, rng, 
-            forest_model_config_mu, global_model_config, keep_forest = T, gfr = F
-        )
-        
-        # Sample variance parameters (if requested)
-        current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-            outcome, forest_dataset_mu, rng, nu, lambda
-        )
-        global_var_samples[i] <- current_sigma2
-        global_model_config$update_global_error_variance(current_sigma2)
+  for (i in (num_gfr + 1):num_samples) {
+    # Sample the prognostic forest
+    forest_model_mu$sample_one_iteration(
+      forest_dataset_mu,
+      outcome,
+      forest_samples_mu,
+      active_forest_mu,
+      rng,
+      forest_model_config_mu,
+      global_model_config,
+      keep_forest = T,
+      gfr = F
+    )
 
-        # Sample the treatment forest
-        forest_model_tau$sample_one_iteration(
-            forest_dataset_tau, outcome, forest_samples_tau, active_forest_tau, rng, 
-            forest_model_config_tau, global_model_config, keep_forest = T, gfr = F
-        )
-        
-        # Sample adaptive coding parameters
-        mu_x_raw <- active_forest_mu$predict_raw(forest_dataset_mu)
-        tau_x_raw <- active_forest_tau$predict_raw(forest_dataset_tau)
-        s_tt0 <- sum(tau_x_raw*tau_x_raw*(Z==0))
-        s_tt1 <- sum(tau_x_raw*tau_x_raw*(Z==1))
-        partial_resid_mu <- resid - mu_x_raw
-        s_ty0 <- sum(tau_x_raw*partial_resid_mu*(Z==0))
-        s_ty1 <- sum(tau_x_raw*partial_resid_mu*(Z==1))
-        current_b_0 <- rnorm(1, (s_ty0/(s_tt0 + 2*current_sigma2)), 
-                             sqrt(current_sigma2/(s_tt0 + 2*current_sigma2)))
-        current_b_1 <- rnorm(1, (s_ty1/(s_tt1 + 2*current_sigma2)), 
-                             sqrt(current_sigma2/(s_tt1 + 2*current_sigma2)))
-        tau_basis <- (1-Z)*current_b_0 + Z*current_b_1
-        forest_dataset_tau$update_basis(tau_basis)
-        forest_model_tau$propagate_basis_update(forest_dataset_tau, outcome, active_forest_tau)
-        b_0_samples[i] <- current_b_0
-        b_1_samples[i] <- current_b_1
-        
-        # Sample variance parameters (if requested)
-        current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
-            outcome, forest_dataset_tau, rng, nu, lambda
-        )
-        global_var_samples[i] <- current_sigma2
-        global_model_config$update_global_error_variance(current_sigma2)
-    }
+    # Sample variance parameters (if requested)
+    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+      outcome,
+      forest_dataset_mu,
+      rng,
+      nu,
+      lambda
+    )
+    global_var_samples[i] <- current_sigma2
+    global_model_config$update_global_error_variance(current_sigma2)
+
+    # Sample the treatment forest
+    forest_model_tau$sample_one_iteration(
+      forest_dataset_tau,
+      outcome,
+      forest_samples_tau,
+      active_forest_tau,
+      rng,
+      forest_model_config_tau,
+      global_model_config,
+      keep_forest = T,
+      gfr = F
+    )
+
+    # Sample adaptive coding parameters
+    mu_x_raw <- active_forest_mu$predict_raw(forest_dataset_mu)
+    tau_x_raw <- active_forest_tau$predict_raw(forest_dataset_tau)
+    s_tt0 <- sum(tau_x_raw * tau_x_raw * (Z == 0))
+    s_tt1 <- sum(tau_x_raw * tau_x_raw * (Z == 1))
+    partial_resid_mu <- resid - mu_x_raw
+    s_ty0 <- sum(tau_x_raw * partial_resid_mu * (Z == 0))
+    s_ty1 <- sum(tau_x_raw * partial_resid_mu * (Z == 1))
+    current_b_0 <- rnorm(
+      1,
+      (s_ty0 / (s_tt0 + 2 * current_sigma2)),
+      sqrt(current_sigma2 / (s_tt0 + 2 * current_sigma2))
+    )
+    current_b_1 <- rnorm(
+      1,
+      (s_ty1 / (s_tt1 + 2 * current_sigma2)),
+      sqrt(current_sigma2 / (s_tt1 + 2 * current_sigma2))
+    )
+    tau_basis <- (1 - Z) * current_b_0 + Z * current_b_1
+    forest_dataset_tau$update_basis(tau_basis)
+    forest_model_tau$propagate_basis_update(
+      forest_dataset_tau,
+      outcome,
+      active_forest_tau
+    )
+    b_0_samples[i] <- current_b_0
+    b_1_samples[i] <- current_b_1
+
+    # Sample variance parameters (if requested)
+    current_sigma2 <- sampleGlobalErrorVarianceOneIteration(
+      outcome,
+      forest_dataset_tau,
+      rng,
+      nu,
+      lambda
+    )
+    global_var_samples[i] <- current_sigma2
+    global_model_config$update_global_error_variance(current_sigma2)
+  }
 }
 ```
 
@@ -1335,13 +1793,13 @@ Predict and rescale samples
 
 ```{r bcf_prediction}
 # Forest predictions
-mu_hat <- forest_samples_mu$predict(forest_dataset_mu)*y_std + y_bar
+mu_hat <- forest_samples_mu$predict(forest_dataset_mu) * y_std + y_bar
 tau_hat_raw <- forest_samples_tau$predict_raw(forest_dataset_tau)
-tau_hat <- t(t(tau_hat_raw) * (b_1_samples - b_0_samples))*y_std
+tau_hat <- t(t(tau_hat_raw) * (b_1_samples - b_0_samples)) * y_std
 y_hat <- mu_hat + tau_hat * as.numeric(Z)
 
 # Global error variance
-sigma2_global_samples <- global_var_samples*(y_std^2)
+sigma2_global_samples <- global_var_samples * (y_std^2)
 ```
 
 ## Results
@@ -1349,36 +1807,76 @@ sigma2_global_samples <- global_var_samples*(y_std^2)
 Inspect the XBART results
 
 ```{r bcf_xbcf_plot}
-plot(sigma2_global_samples[1:num_gfr], ylab="sigma^2")
-plot(rowMeans(mu_hat[,1:num_gfr]), mu_x, pch=16, cex=0.75, 
-     xlab = "pred", ylab = "actual", main = "prognostic term")
-abline(0,1,col="red",lty=2,lwd=2.5)
-plot(rowMeans(tau_hat[,1:num_gfr]), tau_x, pch=16, cex=0.75, 
-     xlab = "pred", ylab = "actual", main = "treatment effect term")
-abline(0,1,col="red",lty=2,lwd=2.5)
-mean((rowMeans(tau_hat[,1:num_gfr]) - tau_x)^2)
+plot(sigma2_global_samples[1:num_gfr], ylab = "sigma^2")
+plot(
+  rowMeans(mu_hat[, 1:num_gfr]),
+  mu_x,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual",
+  main = "prognostic term"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
+plot(
+  rowMeans(tau_hat[, 1:num_gfr]),
+  tau_x,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual",
+  main = "treatment effect term"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
+mean((rowMeans(tau_hat[, 1:num_gfr]) - tau_x)^2)
 ```
 
 Inspect the warm start BART results
 
 ```{r bcf_warm_start_plot}
-plot(sigma2_global_samples[(num_gfr+1):num_samples], ylab="sigma^2")
-plot(rowMeans(mu_hat[,(num_gfr+1):num_samples]), mu_x, pch=16, cex=0.75, 
-     xlab = "pred", ylab = "actual", main = "prognostic term")
-abline(0,1,col="red",lty=2,lwd=2.5)
-plot(rowMeans(tau_hat[,(num_gfr+1):num_samples]), tau_x, pch=16, cex=0.75, 
-     xlab = "pred", ylab = "actual", main = "treatment effect term")
-abline(0,1,col="red",lty=2,lwd=2.5)
-mean((rowMeans(tau_hat[,(num_gfr+1):num_samples]) - tau_x)^2)
+plot(sigma2_global_samples[(num_gfr + 1):num_samples], ylab = "sigma^2")
+plot(
+  rowMeans(mu_hat[, (num_gfr + 1):num_samples]),
+  mu_x,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual",
+  main = "prognostic term"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
+plot(
+  rowMeans(tau_hat[, (num_gfr + 1):num_samples]),
+  tau_x,
+  pch = 16,
+  cex = 0.75,
+  xlab = "pred",
+  ylab = "actual",
+  main = "treatment effect term"
+)
+abline(0, 1, col = "red", lty = 2, lwd = 2.5)
+mean((rowMeans(tau_hat[, (num_gfr + 1):num_samples]) - tau_x)^2)
 ```
 
 Inspect the "adaptive coding" parameters $b_0$ and $b_1$.
 
 ```{r adaptive_coding}
-plot(b_0_samples, col = "blue", ylab = "Coding parameter draws", 
-     ylim = c(min(min(b_0_samples), min(b_1_samples)), max(max(b_0_samples), max(b_1_samples))))
+plot(
+  b_0_samples,
+  col = "blue",
+  ylab = "Coding parameter draws",
+  ylim = c(
+    min(min(b_0_samples), min(b_1_samples)),
+    max(max(b_0_samples), max(b_1_samples))
+  )
+)
 points(b_1_samples, col = "orange")
-legend("topleft", legend = c("b_0", "b_1"), col = c("blue", "orange"), pch = c(1,1))
+legend(
+  "topleft",
+  legend = c("b_0", "b_1"),
+  col = c("blue", "orange"),
+  pch = c(1, 1)
+)
 ```
 
 # References
