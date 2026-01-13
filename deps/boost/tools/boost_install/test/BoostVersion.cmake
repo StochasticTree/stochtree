@@ -1,0 +1,1 @@
+set(BOOST_VERSION 1.88.0)
