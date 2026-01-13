@@ -9,19 +9,17 @@
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <optional>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/nondet_random.hpp>
+
 #include <random>
 #include <string>
-#include <unordered_map>
-#include <variant>
+#include <string>
 #include <vector>
 
 namespace StochTree{
 
-void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
+void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, boost::random::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
   n = 1000;
   x_cols = 2;
@@ -122,7 +120,7 @@ void int_to_binary_vector(int32_t input, std::vector<int32_t>& output, int32_t o
   }
 }
 
-void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
+void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, boost::random::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
   int n1 = 50;
   x_cols = 10;
@@ -239,7 +237,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   }
 }
 
-void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
+void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, boost::random::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
   n = 1000;
   x_cols = 2;
@@ -319,7 +317,7 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
   }
 }
 
-void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, std::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
+void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, std::vector<double>& outcome, std::vector<double>& rfx_basis, std::vector<int32_t>& rfx_groups, std::vector<FeatureType>& feature_types, boost::random::mt19937& gen, int& n, int& x_cols, int& omega_cols, int& y_cols, int& rfx_basis_cols, int& num_rfx_groups, bool rfx_included, int random_seed = -1) {
   // Data dimensions
   n = 400;
   x_cols = 10;
@@ -434,13 +432,17 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   }
 
   // Random number generation
+  boost::random::mt19937 data_gen;
   std::mt19937 gen;
   if (random_seed == -1) {
     std::random_device rd;
     std::mt19937 gen(rd());
+    boost::random::random_device boost_rd;
+    boost::random::mt19937 data_gen(boost_rd);
   }
   else {
     std::mt19937 gen(random_seed);
+    boost::random::mt19937 data_gen(random_seed);
   }
 
   // Initialize dataset
@@ -473,24 +475,24 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
   bool is_leaf_constant;
   if (!data_from_file) {
     if (dgp_num == 0) {
-      GenerateDGP1(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+      GenerateDGP1(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, data_gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
       dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
       dataset.AddBasis(basis_raw.data(), n, omega_cols, row_major);
       output_dimension = 1;
       is_leaf_constant = false;
     } else if (dgp_num == 1) {
-      GenerateDGP2(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+      GenerateDGP2(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, data_gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
       dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
       output_dimension = 1;
       is_leaf_constant = true;
     } else if (dgp_num == 2) {
-      GenerateDGP3(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+      GenerateDGP3(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, data_gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
       dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
       dataset.AddBasis(basis_raw.data(), n, omega_cols, row_major);
       output_dimension = omega_cols;
       is_leaf_constant = false;
     } else if (dgp_num == 3) {
-      GenerateDGP4(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
+      GenerateDGP4(covariates_raw, basis_raw, outcome_raw, rfx_basis_raw, rfx_groups, feature_types, data_gen, n, x_cols, omega_cols, y_cols, rfx_basis_cols, num_rfx_groups, rfx_included, random_seed);
       dataset.AddCovariates(covariates_raw.data(), n, x_cols, row_major);
       output_dimension = 1;
       is_leaf_constant = true;
