@@ -38,4 +38,4 @@ jobs:
       
       - name: Run R replication check script(s)
         run: |
-          Rscript tools/reproducibility/bart/simple-bart.R
+          Rscript tools/reproducibility/simple-bart.R
