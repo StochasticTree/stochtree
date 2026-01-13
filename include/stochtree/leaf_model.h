@@ -18,8 +18,11 @@
 #include <stochtree/prior.h>
 #include <stochtree/tree.h>
 
-#include <random>
 #include <variant>
+
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/normal_distribution.hpp>
+#include <boost/random/gamma_distribution.hpp>
 
 namespace StochTree {
 
@@ -502,7 +505,7 @@ class GaussianConstantLeafModel {
    * \param global_variance Value of the global error variance parameter
    * \param gen C++ random number generator
    */
-  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
+  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, boost::random::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   /*!
    * \brief Set a new value for the leaf node scale parameter
@@ -661,7 +664,7 @@ class GaussianUnivariateRegressionLeafModel {
    * \param global_variance Value of the global error variance parameter
    * \param gen C++ random number generator
    */
-  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
+  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, boost::random::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetScale(double tau) {tau_ = tau;}
   inline bool RequiresBasis() {return true;}
@@ -821,7 +824,7 @@ class GaussianMultivariateRegressionLeafModel {
    * \param global_variance Value of the global error variance parameter
    * \param gen C++ random number generator
    */
-  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
+  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, boost::random::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetScale(Eigen::MatrixXd& Sigma_0) {Sigma_0_ = Sigma_0;}
   inline bool RequiresBasis() {return true;}
@@ -958,7 +961,7 @@ class LogLinearVarianceLeafModel {
    * \param global_variance Value of the global error variance parameter
    * \param gen C++ random number generator
    */
-  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen);
+  void SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, boost::random::mt19937& gen);
   void SetEnsembleRootPredictedValue(ForestDataset& dataset, TreeEnsemble* ensemble, double root_pred_value);
   void SetPriorShape(double a) {a_ = a;}
   void SetPriorRate(double b) {b_ = b;}

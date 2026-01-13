@@ -4,28 +4,29 @@
 
 #include <Eigen/Dense>
 #include <stochtree/log.h>
-#include <random>
 #include <vector>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/normal_distribution.hpp>
 
 namespace StochTree {
 
 class UnivariateNormalSampler {
  public:
-  UnivariateNormalSampler() {std_normal_dist_ = std::normal_distribution<double>(0.,1.);}
+  UnivariateNormalSampler() {std_normal_dist_ = boost::random::normal_distribution<double>(0.,1.);}
   ~UnivariateNormalSampler() {}
-  double Sample(double mean, double variance, std::mt19937& gen) {
+  double Sample(double mean, double variance, boost::random::mt19937& gen) {
     return mean + std::sqrt(variance) * std_normal_dist_(gen);
   }
  private:
   /*! \brief Standard normal distribution */
-  std::normal_distribution<double> std_normal_dist_;
+  boost::random::normal_distribution<double> std_normal_dist_;
 };
 
 class MultivariateNormalSampler {
  public:
-  MultivariateNormalSampler() {std_normal_dist_ = std::normal_distribution<double>(0.,1.);}
+  MultivariateNormalSampler() {std_normal_dist_ = boost::random::normal_distribution<double>(0.,1.);}
   ~MultivariateNormalSampler() {}
-  std::vector<double> Sample(Eigen::VectorXd& mean, Eigen::MatrixXd& covariance, std::mt19937& gen) {
+  std::vector<double> Sample(Eigen::VectorXd& mean, Eigen::MatrixXd& covariance, boost::random::mt19937& gen) {
     // Dimension extraction and checks
     int mean_cols = mean.size();
     int cov_rows = covariance.rows();
@@ -50,7 +51,7 @@ class MultivariateNormalSampler {
     }
     return result;
   }
-  Eigen::VectorXd SampleEigen(Eigen::VectorXd& mean, Eigen::MatrixXd& covariance, std::mt19937& gen) {
+  Eigen::VectorXd SampleEigen(Eigen::VectorXd& mean, Eigen::MatrixXd& covariance, boost::random::mt19937& gen) {
     // Dimension extraction and checks
     int mean_cols = mean.size();
     int cov_rows = covariance.rows();
@@ -72,7 +73,7 @@ class MultivariateNormalSampler {
   }
  private:
   /*! \brief Standard normal distribution */
-  std::normal_distribution<double> std_normal_dist_;
+  boost::random::normal_distribution<double> std_normal_dist_;
 };
 
 } // namespace StochTree

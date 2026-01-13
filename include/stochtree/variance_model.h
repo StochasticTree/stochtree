@@ -12,7 +12,7 @@
 #include <stochtree/ig_sampler.h>
 #include <stochtree/meta.h>
 
-#include <random>
+#include <boost/random/mersenne_twister.hpp>
 
 namespace StochTree {
 
@@ -45,12 +45,12 @@ class GlobalHomoskedasticVarianceModel {
     }
     return b + (0.5 * sum_sq_resid);
   }
-  double SampleVarianceParameter(Eigen::VectorXd& residuals, double a, double b, std::mt19937& gen) {
+  double SampleVarianceParameter(Eigen::VectorXd& residuals, double a, double b, boost::random::mt19937& gen) {
     double ig_shape = PosteriorShape(residuals, a, b);
     double ig_scale = PosteriorScale(residuals, a, b);
     return ig_sampler_.Sample(ig_shape, ig_scale, gen);
   }
-  double SampleVarianceParameter(Eigen::VectorXd& residuals, Eigen::VectorXd& weights, double a, double b, std::mt19937& gen) {
+  double SampleVarianceParameter(Eigen::VectorXd& residuals, Eigen::VectorXd& weights, double a, double b, boost::random::mt19937& gen) {
     double ig_shape = PosteriorShape(residuals, weights, a, b);
     double ig_scale = PosteriorScale(residuals, weights, a, b);
     return ig_sampler_.Sample(ig_shape, ig_scale, gen);
@@ -72,7 +72,7 @@ class LeafNodeHomoskedasticVarianceModel {
     double mu_sq = ensemble->SumLeafSquared();
     return (b/2.0) + (mu_sq/2.0);
   }
-  double SampleVarianceParameter(TreeEnsemble* ensemble, double a, double b, std::mt19937& gen) {
+  double SampleVarianceParameter(TreeEnsemble* ensemble, double a, double b, boost::random::mt19937& gen) {
     double ig_shape = PosteriorShape(ensemble, a, b);
     double ig_scale = PosteriorScale(ensemble, a, b);
     return ig_sampler_.Sample(ig_shape, ig_scale, gen);

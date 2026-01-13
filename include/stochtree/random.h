@@ -5,9 +5,16 @@
 #ifndef STOCHTREE_RANDOM_H_
 #define STOCHTREE_RANDOM_H_
 
-#include <random>
 #include <set>
 #include <vector>
+
+#ifndef STOCHTREE_R_BUILD
+  #include <boost/nondet_random.hpp>
+#else
+  #include <random>
+#endif
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
 
 namespace StochTree {
 
@@ -20,10 +27,14 @@ class Random {
   * \brief Constructor, with random seed
   */
   Random() {
-    std::random_device rd;
-    auto genrator = std::mt19937(rd());
-    std::uniform_int_distribution<int> distribution(0, x);
-    x = distribution(genrator);
+    #ifndef STOCHTREE_R_BUILD
+      boost::random::random_device rd;
+    #else
+      std::random_device rd;
+    #endif
+    auto generator = boost::random::mt19937(rd());
+    boost::random::uniform_int_distribution<int> distribution(0, x);
+    x = distribution(generator);
   }
   /*!
   * \brief Constructor, with specific seed

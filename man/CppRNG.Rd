@@ -11,7 +11,7 @@ the C++ random number generator is initialized using \code{std::random_device}.
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
 \describe{
-\item{\code{rng_ptr}}{External pointer to a C++ std::mt19937 class}
+\item{\code{rng_ptr}}{External pointer to a C++ boost::random::mt19937 class}
 }
 \if{html}{\out{</div>}}
 }

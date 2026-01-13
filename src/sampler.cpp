@@ -8,6 +8,8 @@
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 #include <memory>
+#include <random>
+#include <boost/random/mersenne_twister.hpp>
 
 [[cpp11::register]]
 void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, 
@@ -16,7 +18,7 @@ void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDatas
                                   cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
                                   cpp11::external_pointer<StochTree::ForestTracker> tracker, 
                                   cpp11::external_pointer<StochTree::TreePrior> split_prior, 
-                                  cpp11::external_pointer<std::mt19937> rng, 
+                                  cpp11::external_pointer<boost::random::mt19937> rng, 
                                   cpp11::integers sweep_indices, 
                                   cpp11::integers feature_types, int cutpoint_grid_size, 
                                   cpp11::doubles_matrix<> leaf_model_scale_input, 
@@ -99,7 +101,7 @@ void sample_mcmc_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestData
                                    cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
                                    cpp11::external_pointer<StochTree::ForestTracker> tracker, 
                                    cpp11::external_pointer<StochTree::TreePrior> split_prior, 
-                                   cpp11::external_pointer<std::mt19937> rng, 
+                                   cpp11::external_pointer<boost::random::mt19937> rng, 
                                    cpp11::integers sweep_indices, 
                                    cpp11::integers feature_types, int cutpoint_grid_size, 
                                    cpp11::doubles_matrix<> leaf_model_scale_input, 
@@ -177,7 +179,7 @@ void sample_mcmc_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestData
 [[cpp11::register]]
 double sample_sigma2_one_iteration_cpp(cpp11::external_pointer<StochTree::ColumnVector> residual, 
                                        cpp11::external_pointer<StochTree::ForestDataset> dataset, 
-                                       cpp11::external_pointer<std::mt19937> rng, 
+                                       cpp11::external_pointer<boost::random::mt19937> rng, 
                                        double a, double b
 ) {
     // Run one iteration of the sampler
@@ -191,7 +193,7 @@ double sample_sigma2_one_iteration_cpp(cpp11::external_pointer<StochTree::Column
 
 [[cpp11::register]]
 double sample_tau_one_iteration_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, 
-                                    cpp11::external_pointer<std::mt19937> rng, 
+                                    cpp11::external_pointer<boost::random::mt19937> rng, 
                                     double a, double b
 ) {
     // Run one iteration of the sampler
@@ -200,17 +202,17 @@ double sample_tau_one_iteration_cpp(cpp11::external_pointer<StochTree::TreeEnsem
 }
 
 [[cpp11::register]]
-cpp11::external_pointer<std::mt19937> rng_cpp(int random_seed = -1) {
-    std::unique_ptr<std::mt19937> rng_;
+cpp11::external_pointer<boost::random::mt19937> rng_cpp(int random_seed = -1) {
+    std::unique_ptr<boost::random::mt19937> rng_;
     if (random_seed == -1) {
         std::random_device rd;
-        rng_ = std::make_unique<std::mt19937>(rd());
+        rng_ = std::make_unique<boost::random::mt19937>(rd());
     } else {
-        rng_ = std::make_unique<std::mt19937>(random_seed);
+        rng_ = std::make_unique<boost::random::mt19937>(random_seed);
     }
     
     // Release management of the pointer to R session
-    return cpp11::external_pointer<std::mt19937>(rng_.release());
+    return cpp11::external_pointer<boost::random::mt19937>(rng_.release());
 }
 
 [[cpp11::register]]
@@ -296,7 +298,8 @@ cpp11::writable::doubles get_cached_forest_predictions_cpp(cpp11::external_point
 cpp11::writable::integers sample_without_replacement_integer_cpp(
     cpp11::integers population_vector, 
     cpp11::doubles sampling_probs, 
-    int sample_size
+    int sample_size, 
+    int random_seed = -1
 ) {
     // Unpack pointer to population vector
     int population_size = population_vector.size();
@@ -312,8 +315,13 @@ cpp11::writable::integers sample_without_replacement_integer_cpp(
     int* output_ptr = INTEGER(PROTECT(output));
 
     // Create C++ RNG
-    std::random_device rd;
-    std::mt19937 gen(rd());
+    boost::random::mt19937 gen;
+    if (random_seed == -1) {
+        std::random_device rd;
+        boost::random::mt19937 gen(rd());
+    } else {
+        boost::random::mt19937 gen(random_seed);
+    }
   
     // Run the sampler
     StochTree::sample_without_replacement<int, double>(
