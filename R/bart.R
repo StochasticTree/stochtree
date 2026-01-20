@@ -269,12 +269,15 @@ bart <- function(
 
   # Set a function-scoped RNG if user provided a random seed
   custom_rng <- random_seed >= 0
+  has_existing_random_seed <- F
   if (custom_rng) {
-    # Store original global environment RNG state
-    original_global_seed <- .Random.seed
+    # Cache original global environment RNG state (if it exists)
+    if (exists(".Random.seed", envir = .GlobalEnv)) {
+      original_global_seed <- .Random.seed
+      has_existing_random_seed <- T
+    }
     # Set new seed and store associated RNG state
     set.seed(random_seed)
-    function_scoped_seed <- .Random.seed
   }
 
   # Check if there are enough GFR samples to seed num_chains samplers
@@ -1957,7 +1960,11 @@ bart <- function(
 
   # Restore global RNG state if user provided a random seed
   if (custom_rng) {
-    .Random.seed <- original_global_seed
+    if (has_existing_random_seed) {
+      .Random.seed <- original_global_seed
+    } else {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
   }
 
   return(result)

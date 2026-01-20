@@ -1,7 +1,8 @@
-# stochtree 0.2.1.9000
+# stochtree 0.3.1
 
 ## Bug Fixes
 
+* Fix R bug where our approach to temporarily modifying users' RNG state failed if `.Random.seed` did not exist (i.e. if the R RNG hadn't yet been accessed by an R session) ([#258](https://github.com/StochasticTree/stochtree/issues/258))
 * Fix prediction bug for R BART models with random effects with labels that aren't straightforward `1:num_groups` integers when only `y_hat` is requested ([#256](https://github.com/StochasticTree/stochtree/pull/256))
 
 # stochtree 0.2.1
