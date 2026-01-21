@@ -39,7 +39,7 @@ plt.show()
 # Check that StochTreeRegressor is a valid estimator
 check_estimator(StochTreeRegressor(general_params={"random_seed": 42}, mean_forest_params={"min_samples_leaf": 1}))
 
-# Check that can cross validate the "alpha" parameter of the mean forest
+# Check that we can cross validate stochtree BART parameters
 param_grid = {
     'num_gfr': [5, 10, 15],
     'num_mcmc': [50, 100, 200],
