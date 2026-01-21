@@ -2444,7 +2444,7 @@ print.bartmodel <- function(bart_model, ...) {
     "The sampler was run for ",
     bart_model$model_params$num_gfr,
     " GFR iterations, with ",
-    bcf_model$model_params$num_chains,
+    bart_model$model_params$num_chains,
     ifelse(
       bart_model$model_params$num_chains == 1,
       " chain of ",
@@ -2678,6 +2678,118 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
     (object$model_params$outcome_scale^2)
 
   return(result)
+}
+
+#' @title Extract parameter samples from a model.
+#' @description Extract a vector, matrix or array of parameter samples from a BART model by name.
+#' Random effects are handled by a separate `getRandomEffectSamples` function due to the complexity of the random effects parameters.
+#' If the requested model term is not found, an error is thrown.
+#' The following conventions are used for parameter names:
+#' - Global error variance: `"sigma2"`, `"global_error_scale"`, `"sigma2_global"`
+#' - Leaf scale: `"sigma2_leaf"`, `"leaf_scale"`
+#' - In-sample mean function predictions: `"y_hat_train"`
+#' - Test set mean function predictions: `"y_hat_test"`
+#' - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
+#' - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
+#'
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
+#' @param term Name of the parameter to extract (e.g., `"sigma2"`, `"y_hat_train"`, etc.)
+#' @return Array of parameter samples. If the underlying parameter is a scalar, this will be a vector of length `num_samples`.
+#' If the underlying parameter is vector-valued, this will be (`parameter_dimension` x `num_samples`) matrix, and if the underlying
+#' parameter is multidimensional, this will be an array of dimension (`parameter_dimension_1` x `parameter_dimension_2` x ... x `num_samples`).
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' snr <- 3
+#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
+#' rfx_basis <- cbind(1, runif(n, -1, 1))
+#' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
+#' E_y <- f_XW + rfx_term
+#' y <- E_y + rnorm(n, 0, 1)*(sd(E_y)/snr)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' rfx_group_ids_test <- group_ids[test_inds]
+#' rfx_group_ids_train <- group_ids[train_inds]
+#' rfx_basis_test <- rfx_basis[test_inds,]
+#' rfx_basis_train <- rfx_basis[train_inds,]
+#' rfx_term_test <- rfx_term[test_inds]
+#' rfx_term_train <- rfx_term[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test,
+#'                    rfx_group_ids_train = rfx_group_ids_train,
+#'                    rfx_group_ids_test = rfx_group_ids_test,
+#'                    rfx_basis_train = rfx_basis_train,
+#'                    rfx_basis_test = rfx_basis_test,
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
+#' sigma2_samples <- extract_parameter(bart_model, "sigma2")
+extract_parameter.bartmodel <- function(object, term) {
+  if (term %in% c("sigma2", "global_error_scale", "sigma2_global")) {
+    if (!is.null(object$sigma2_global_samples)) {
+      return(object$sigma2_global_samples)
+    } else {
+      stop("This model does not have global variance parameter samples")
+    }
+  }
+
+  if (term %in% c("sigma2_leaf", "leaf_scale")) {
+    if (!is.null(object$sigma2_leaf_samples)) {
+      return(object$sigma2_leaf_samples)
+    } else {
+      stop("This model does not have leaf variance parameter samples")
+    }
+  }
+
+  if (term %in% c("y_hat_train")) {
+    if (!is.null(object$y_hat_train)) {
+      return(object$y_hat_train)
+    } else {
+      stop(
+        "This model does not have in-sample mean function prediction samples"
+      )
+    }
+  }
+
+  if (term %in% c("y_hat_test")) {
+    if (!is.null(object$y_hat_test)) {
+      return(object$y_hat_test)
+    } else {
+      stop("This model does not have test set mean function prediction samples")
+    }
+  }
+
+  if (term %in% c("sigma2_x_train", "var_x_train")) {
+    if (!is.null(object$sigma2_x_train)) {
+      return(object$sigma2_x_train)
+    } else {
+      stop("This model does not have in-sample variance forest predictions")
+    }
+  }
+
+  if (term %in% c("sigma2_x_test", "var_x_test")) {
+    if (!is.null(object$sigma2_x_test)) {
+      return(object$sigma2_x_test)
+    } else {
+      stop("This model does not have test set variance forest predictions")
+    }
+  }
+
+  stop(paste0("term ", term, " is not a valid BART model term"))
 }
 
 #' Convert the persistent aspects of a BART model to (in-memory) JSON

@@ -3758,6 +3758,160 @@ plot.bcfmodel <- function(bcf_model, ...) {
   invisible(bcf_model)
 }
 
+#' @title Extract parameter samples from a model.
+#' @description Extract a vector, matrix or array of parameter samples from a BCF model by name.
+#' Random effects are handled by a separate `getRandomEffectSamples` function due to the complexity of the random effects parameters.
+#' If the requested model term is not found, an error is thrown.
+#' The following conventions are used for parameter names:
+#' - Global error variance: `"sigma2"`, `"global_error_scale"`, `"sigma2_global"`
+#' - Prognostic forest leaf scale: `"sigma2_leaf_mu"`, `"leaf_scale_mu"`, `"mu_leaf_scale"`
+#' - Treatment effect forest leaf scale: `"sigma2_leaf_tau"`, `"leaf_scale_tau"`, `"tau_leaf_scale"`
+#' - Adaptive coding parameters: `"adaptive_coding"` (returns both the control and treated parameters jointly, with control in the first row and treated in the second row)
+#' - In-sample mean function predictions: `"y_hat_train"`
+#' - Test set mean function predictions: `"y_hat_test"`
+#' - In-sample treatment effect forest predictions: `"tau_hat_train"`
+#' - Test set treatment effect forest predictions: `"tau_hat_test"`
+#' - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
+#' - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
+#'
+#' @param object Object of type `bcfmodel` containing draws of a BCF model and associated sampling outputs.
+#' @param term Name of the parameter to extract (e.g., `"sigma2"`, `"y_hat_train"`, etc.)
+#' @return Array of parameter samples. If the underlying parameter is a scalar, this will be a vector of length `num_samples`.
+#' If the underlying parameter is vector-valued, this will be (`parameter_dimension` x `num_samples`) matrix, and if the underlying
+#' parameter is multidimensional, this will be an array of dimension (`parameter_dimension_1` x `parameter_dimension_2` x ... x `num_samples`).
+#' @export
+#'
+#' @examples
+#' n <- 500
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' mu_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' pi_x <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
+#' )
+#' tau_x <- (
+#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
+#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
+#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
+#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
+#' )
+#' Z <- rbinom(n, 1, pi_x)
+#' E_XZ <- mu_x + Z*tau_x
+#' snr <- 3
+#' rfx_group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
+#' rfx_basis <- cbind(1, runif(n, -1, 1))
+#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
+#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
+#' bcf_model <- bcf(X_train = X, y_train = y, Z_train = Z,
+#'                  rfx_group_ids_train = rfx_group_ids,
+#'                  rfx_basis_train = rfx_basis,
+#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
+#' sigma2_samples <- extract_parameter(bcf_model, "sigma2")
+extract_parameter.bcfmodel <- function(object, term) {
+  if (term %in% c("sigma2", "global_error_scale", "sigma2_global")) {
+    if (!is.null(object$sigma2_global_samples)) {
+      return(object$sigma2_global_samples)
+    } else {
+      stop("This model does not have global variance parameter samples")
+    }
+  }
+
+  if (term %in% c("sigma2_leaf_mu", "leaf_scale_mu", "mu_leaf_scale")) {
+    if (!is.null(object$sigma2_leaf_mu_samples)) {
+      return(object$sigma2_leaf_mu_samples)
+    } else {
+      stop(
+        "This model does not have prognostic forest leaf variance parameter samples"
+      )
+    }
+  }
+
+  if (term %in% c("sigma2_leaf_tau", "leaf_scale_tau", "tau_leaf_scale")) {
+    if (!is.null(object$sigma2_leaf_tau_samples)) {
+      return(object$sigma2_leaf_tau_samples)
+    } else {
+      stop(
+        "This model does not have treatment effect forest leaf variance parameter samples"
+      )
+    }
+  }
+
+  if (term %in% c("adaptive_coding")) {
+    if (object$model_params$adaptive_coding) {
+      b0_samples <- object$b_0_samples
+      b1_samples <- object$b_1_samples
+      return(unname(rbind(b0_samples, b1_samples)))
+    } else {
+      stop("This model does not have adaptive coding parameter samples")
+    }
+  }
+
+  if (term %in% c("y_hat_train")) {
+    if (!is.null(object$y_hat_train)) {
+      return(object$y_hat_train)
+    } else {
+      stop(
+        "This model does not have in-sample mean function prediction samples"
+      )
+    }
+  }
+
+  if (term %in% c("y_hat_test")) {
+    if (!is.null(object$y_hat_test)) {
+      return(object$y_hat_test)
+    } else {
+      stop("This model does not have test set mean function prediction samples")
+    }
+  }
+
+  if (term %in% c("tau_hat_train")) {
+    if (!is.null(object$tau_hat_train)) {
+      return(object$tau_hat_train)
+    } else {
+      stop(
+        "This model does not have in-sample treatment effect forest predictions"
+      )
+    }
+  }
+
+  if (term %in% c("tau_hat_test")) {
+    if (!is.null(object$tau_hat_test)) {
+      return(object$tau_hat_test)
+    } else {
+      stop(
+        "This model does not have test set treatment effect forest predictions"
+      )
+    }
+  }
+
+  if (term %in% c("sigma2_x_train", "var_x_train")) {
+    if (!is.null(object$sigma2_x_train)) {
+      return(object$sigma2_x_train)
+    } else {
+      stop("This model does not have in-sample variance forest predictions")
+    }
+  }
+
+  if (term %in% c("sigma2_x_test", "var_x_test")) {
+    if (!is.null(object$sigma2_x_test)) {
+      return(object$sigma2_x_test)
+    } else {
+      stop("This model does not have test set variance forest predictions")
+    }
+  }
+
+  stop(paste0("term ", term, " is not a valid BCF model term"))
+}
+
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
