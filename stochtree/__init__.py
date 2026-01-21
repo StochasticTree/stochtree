@@ -22,6 +22,10 @@ from .sampler import (
     LeafVarianceModel
 )
 from .serialization import JSONSerializer
+from .sklearn import (
+    StochTreeRegressor,
+    StochTreeBinaryClassifier
+)
 from .utils import (
     NotSampledError,
     _check_array_integer,

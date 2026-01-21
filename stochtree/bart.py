@@ -393,7 +393,7 @@ class BARTModel:
         if rfx_basis_test is not None:
             if not isinstance(rfx_basis_test, np.ndarray):
                 raise ValueError("rfx_basis_test must be a numpy array")
-
+        
         # Convert everything to standard shape (2-dimensional)
         if isinstance(X_train, np.ndarray):
             if X_train.ndim == 1:
@@ -450,6 +450,19 @@ class BARTModel:
             if X_test.shape[0] != leaf_basis_test.shape[0]:
                 raise ValueError(
                     "X_test and leaf_basis_test must have the same number of rows"
+                )
+        
+        # Check that there is at least enough data to create two leaves of size `min_samples_leaf`
+        if num_trees_mean > 0 or num_trees_variance > 0:
+            if num_trees_mean > 0 and num_trees_variance == 0:
+                min_samples_leaf = min_samples_leaf_mean
+            elif num_trees_variance > 0 and num_trees_mean == 0:
+                min_samples_leaf = min_samples_leaf_variance
+            else:
+                min_samples_leaf = min(min_samples_leaf_mean, min_samples_leaf_variance)
+            if X_train.shape[0] <= 2 * min_samples_leaf:
+                raise ValueError(
+                    f"N = {X_train.shape[0]} is less than or equal to 2 * min_samples_leaf = {2 * min_samples_leaf}"
                 )
 
         # Raise a warning if the data have ties and only GFR is being run

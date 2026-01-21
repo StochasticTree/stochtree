@@ -31,7 +31,11 @@ class Dataset:
             np.expand_dims(covariates, 1) if np.ndim(covariates) == 1 else covariates
         )
         n, p = covariates_.shape
-        covariates_rowmajor = np.ascontiguousarray(covariates)
+        covariates_rowmajor = np.ascontiguousarray(covariates_)
+        # if covariates_.flags.writeable:
+        #     covariates_rowmajor = np.ascontiguousarray(covariates_)
+        # else:
+        #     covariates_rowmajor = np.array(covariates_, order="C", copy=True)
         self.dataset_cpp.AddCovariates(covariates_rowmajor, n, p, True)
 
     def add_basis(self, basis: np.array):
@@ -46,6 +50,10 @@ class Dataset:
         basis_ = np.expand_dims(basis, 1) if np.ndim(basis) == 1 else basis
         n, p = basis_.shape
         basis_rowmajor = np.ascontiguousarray(basis_)
+        # if basis_.flags.writeable:
+        #     basis_rowmajor = np.ascontiguousarray(basis_)
+        # else:
+        #     basis_rowmajor = np.array(basis_, order="C", copy=True)
         self.dataset_cpp.AddBasis(basis_rowmajor, n, p, True)
 
     def update_basis(self, basis: np.array):
@@ -72,6 +80,10 @@ class Dataset:
             raise ValueError("basis must be a numpy array with one or two dimension.")
         n, p = basis_.shape
         basis_rowmajor = np.ascontiguousarray(basis_)
+        # if basis_.flags.writeable:
+        #     basis_rowmajor = np.ascontiguousarray(basis_)
+        # else:
+        #     basis_rowmajor = np.array(basis_, order="C", copy=True)
         if self.num_basis() != p:
             raise ValueError(
                 f"The number of columns in the new basis ({p}) must match the number of columns in the existing basis ({self.num_basis()})."
@@ -94,11 +106,15 @@ class Dataset:
         if not isinstance(variance_weights, np.ndarray):
             raise ValueError("variance_weights must be a numpy array.")
         variance_weights_ = np.squeeze(variance_weights)
-        n = variance_weights_.size
         if variance_weights_.ndim != 1:
             raise ValueError("variance_weights must be a 1-dimensional numpy array.")
-
+        # if variance_weights_.flags.writeable:
+        #     variance_weights_passed_ = variance_weights_
+        # else:
+        #     variance_weights_passed_ = variance_weights_.copy()
+        n = variance_weights_.size
         self.dataset_cpp.AddVarianceWeights(variance_weights_, n)
+        # self.dataset_cpp.AddVarianceWeights(variance_weights_passed_, n)
 
     def update_variance_weights(
         self, variance_weights: np.array, exponentiate: bool = False
@@ -124,11 +140,16 @@ class Dataset:
         n = variance_weights_.size
         if variance_weights_.ndim != 1:
             raise ValueError("variance_weights must be a 1-dimensional numpy array.")
+        # if variance_weights_.flags.writeable:
+        #     variance_weights_passed_ = variance_weights_
+        # else:
+        #     variance_weights_passed_ = variance_weights_.copy()
         if self.num_observations() != n:
             raise ValueError(
                 f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()})."
             )
         self.dataset_cpp.UpdateVarianceWeights(variance_weights_, n, exponentiate)
+        # self.dataset_cpp.UpdateVarianceWeights(variance_weights_passed_, n, exponentiate)
 
     def num_observations(self) -> int:
         """
