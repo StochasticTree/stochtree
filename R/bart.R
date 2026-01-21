@@ -2329,6 +2329,286 @@ predict.bartmodel <- function(
   }
 }
 
+#' @title Print a summary of the BART model
+#' @description Prints a summary of the BART model, including the model terms and their specifications.
+#' @param bart_model The BART model object
+#' @param ... Additional arguments
+#' @export
+#' @return BART model object unchanged after printing summary
+print.bartmodel <- function(bart_model, ...) {
+  # What type of model was run
+  model_terms <- c()
+  if (bart_model$model_params$include_mean_forest) {
+    model_terms <- c(model_terms, "mean forest")
+  }
+  if (bart_model$model_params$include_variance_forest) {
+    model_terms <- c(model_terms, "variance forest")
+  }
+  if (bart_model$model_params$has_rfx) {
+    model_terms <- c(model_terms, "additive random effects")
+  }
+  if (bart_model$model_params$sample_sigma2_global) {
+    model_terms <- c(model_terms, "global error variance model")
+  }
+  if (bart_model$model_params$sample_sigma2_leaf) {
+    model_terms <- c(model_terms, "mean forest leaf scale model")
+  }
+  if (length(model_terms) > 2) {
+    summary_message <- paste0(
+      "stochtree::bart() run with ",
+      paste0(
+        paste0(model_terms[1:(length(model_terms) - 1)], collapse = ", "),
+        ", and ",
+        model_terms[length(model_terms)]
+      )
+    )
+  } else if (length(model_terms) == 2) {
+    summary_message <- paste0(
+      "stochtree::bart() run with ",
+      paste0(model_terms, collapse = " and ")
+    )
+  } else {
+    summary_message <- paste0("stochtree::bart() run with ", model_terms)
+  }
+
+  # Outcome and leaf model details
+  if (bart_model$model_params$leaf_regression) {
+    summary_message <- paste0(
+      summary_message,
+      "\n",
+      "Outcome was modeled ",
+      ifelse(
+        bart_model$model_params$probit_outcome_model,
+        "with a probit link",
+        "as gaussian"
+      ),
+      " with a leaf regression prior with ",
+      bart_model$model_params$leaf_dimension,
+      " bases for the mean forest"
+    )
+  } else if (bart_model$model_params$include_mean_forest) {
+    summary_message <- paste0(
+      summary_message,
+      "\n",
+      "Outcome was modeled ",
+      ifelse(
+        bart_model$model_params$probit_outcome_model,
+        "with a probit link",
+        "as gaussian"
+      ),
+      " with a constant leaf prior for the mean forest"
+    )
+  } else {
+    summary_message <- paste0(
+      summary_message,
+      "\n",
+      "Outcome was modeled ",
+      ifelse(
+        bart_model$model_params$probit_outcome_model,
+        "with a probit link",
+        "as gaussian"
+      ),
+    )
+  }
+
+  # Standardization
+  if (bart_model$model_params$standardize) {
+    summary_message <- paste0(
+      summary_message,
+      "\n",
+      "Outcome was standardized"
+    )
+  }
+
+  # Random effects details
+  if (bart_model$model_params$has_rfx) {
+    if (bart_model$model_params$rfx_model_spec == "custom") {
+      summary_message <- paste0(
+        summary_message,
+        "\n",
+        "Random effects were fit with a user-supplied basis"
+      )
+    } else if (bart_model$model_params$rfx_model_spec == "intercept_only") {
+      summary_message <- paste0(
+        summary_message,
+        "\n",
+        "Random effects were fit with an 'intercept-only' parameterization"
+      )
+    }
+  }
+
+  # Sampler details
+  summary_message <- paste0(
+    summary_message,
+    "\n",
+    "The sampler was run for ",
+    bart_model$model_params$num_gfr,
+    " GFR iterations, with ",
+    bart_model$model_params$num_chains,
+    ifelse(
+      bart_model$model_params$num_chains == 1,
+      " chain of ",
+      " chains of "
+    ),
+    bart_model$model_params$num_burnin,
+    " burn-in iterations and ",
+    bart_model$model_params$num_mcmc,
+    " MCMC iterations, ",
+    ifelse(
+      bart_model$model_params$keep_every == 1,
+      "retaining every iteration (i.e. no thinning)",
+      paste0(
+        "retaining every ",
+        bart_model$model_params$keep_every,
+        "th iteration (i.e. thinning)"
+      )
+    )
+  )
+
+  # Print the model details
+  cat(summary_message, "\n")
+
+  # Return bart_model invisibly
+  invisible(bart_model)
+}
+
+#' @title Summarize the BART model fit and sampled terms.
+#' @description Summarize the BART with a description of the model that was fit and numeric summaries of any sampled quantities.
+#' @param bart_model The BART model object
+#' @param ... Additional arguments
+#' @export
+#' @return BART model object unchanged after summarizing
+summary.bartmodel <- function(bart_model, ...) {
+  # First, print the BART model
+  tmp <- print(bart_model)
+
+  # Summarize any sampled quantities
+
+  # Global error scale
+  if (bart_model$model_params$sample_sigma2_global) {
+    sigma2_samples <- bart_model$sigma2_global_samples
+    n_samples <- length(sigma2_samples)
+    mean_sigma2 <- mean(sigma2_samples)
+    sd_sigma2 <- sd(sigma2_samples)
+    quantiles_sigma2 <- quantile(
+      sigma2_samples,
+      probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
+    )
+    cat(sprintf(
+      "Summary of sigma^2 posterior: \n%d samples, mean = %.3f, standard deviation = %.3f, quantiles:\n",
+      n_samples,
+      mean_sigma2,
+      sd_sigma2
+    ))
+    print(quantiles_sigma2)
+  }
+
+  # Leaf scale
+  if (bart_model$model_params$sample_sigma2_leaf) {
+    sigma2_leaf_samples <- bart_model$sigma2_leaf_samples
+    n_samples <- length(sigma2_leaf_samples)
+    mean_sigma2 <- mean(sigma2_leaf_samples)
+    sd_sigma2 <- sd(sigma2_leaf_samples)
+    quantiles_sigma2 <- quantile(
+      sigma2_leaf_samples,
+      probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
+    )
+    cat(sprintf(
+      "Summary of leaf scale posterior: \n%d samples, mean = %.3f, standard deviation = %.3f, quantiles:\n",
+      n_samples,
+      mean_sigma2,
+      sd_sigma2
+    ))
+    print(quantiles_sigma2)
+  }
+
+  # In-sample predictions
+  if (!is.null(bart_model$y_hat_train)) {
+    y_hat_train_mean <- rowMeans(bart_model$y_hat_train)
+    n_y_hat_train <- length(y_hat_train_mean)
+    mean_y_hat_train <- mean(y_hat_train_mean)
+    sd_y_hat_train <- sd(y_hat_train_mean)
+    quantiles_y_hat_train <- quantile(
+      y_hat_train_mean,
+      probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
+    )
+    cat(sprintf(
+      "Summary of in-sample posterior mean predictions: \n%d observations, mean = %.3f, standard deviation = %.3f, quantiles:\n",
+      n_y_hat_train,
+      mean_y_hat_train,
+      sd_y_hat_train
+    ))
+    print(quantiles_y_hat_train)
+  }
+
+  # Test-set predictions
+  if (!is.null(bart_model$y_hat_test)) {
+    y_hat_test_mean <- rowMeans(bart_model$y_hat_test)
+    n_y_hat_test <- length(y_hat_test_mean)
+    mean_y_hat_test <- mean(y_hat_test_mean)
+    sd_y_hat_test <- sd(y_hat_test_mean)
+    quantiles_y_hat_test <- quantile(
+      y_hat_test_mean,
+      probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
+    )
+    cat(sprintf(
+      "Summary of test-set posterior mean predictions: \n%d observations, mean = %.3f, standard deviation = %.3f, quantiles:\n",
+      n_y_hat_test,
+      mean_y_hat_test,
+      sd_y_hat_test
+    ))
+    print(quantiles_y_hat_test)
+  }
+
+  # Random effects
+  # TODO: add random effects summaries once indexing is fixed
+  if (bart_model$model_params$has_rfx) {
+    # rfx_summary <- getRandomEffectSamples(bart_model)
+    # ...
+  }
+
+  # Return bart_model invisibly
+  invisible(bart_model)
+}
+
+#' @title Plot the BART model fit.
+#' @description Plot the BART model fit and any relevant sampled quantities. This will default to a traceplot of the global error scale and the in-sample mean forest predictions for the first train set observation. Since `stochtree::bart()` is flexible and it's possible to sample a model with a fixed global error scale and no mean forest, this procedure is adaptive and will attempt to plot a trace of whichever model terms are included if these two default terms are omitted.
+#' @param bart_model The BART model object
+#' @param ... Additional arguments
+#' @export
+#' @return BART model object unchanged after summarizing
+plot.bartmodel <- function(bart_model, ...) {
+  # Check if model has global error scale samples
+  has_sigma2_samples <- bart_model$model_params$sample_sigma2_global
+  has_mean_forest_preds <- !is.null(bart_model$y_hat_train)
+
+  # First try combinations of sigma2 and mean forest predictions
+  if (has_sigma2_samples || has_mean_forest_preds) {
+    if (has_sigma2_samples) {
+      plot(
+        bart_model$sigma2_global_samples,
+        type = "l",
+        ylab = "Sigma^2",
+        main = "Global error scale traceplot"
+      )
+    } else if (has_mean_forest_preds) {
+      plot(
+        bart_model$y_hat_train[1, ],
+        type = "l",
+        ylab = "Predictions",
+        main = "In-sample mean function trace for the first train set observation"
+      )
+    }
+  } else {
+    stop(
+      "This model does not have enough model terms / parameter traces to produce stochtree's default plots. See `predict.bartmodel()` for examples of how to further investigate your model."
+    )
+  }
+
+  # Return bart_model invisibly
+  invisible(bart_model)
+}
+
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
@@ -2398,6 +2678,118 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
     (object$model_params$outcome_scale^2)
 
   return(result)
+}
+
+#' @title Extract parameter samples from a model.
+#' @description Extract a vector, matrix or array of parameter samples from a BART model by name.
+#' Random effects are handled by a separate `getRandomEffectSamples` function due to the complexity of the random effects parameters.
+#' If the requested model term is not found, an error is thrown.
+#' The following conventions are used for parameter names:
+#' - Global error variance: `"sigma2"`, `"global_error_scale"`, `"sigma2_global"`
+#' - Leaf scale: `"sigma2_leaf"`, `"leaf_scale"`
+#' - In-sample mean function predictions: `"y_hat_train"`
+#' - Test set mean function predictions: `"y_hat_test"`
+#' - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
+#' - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
+#'
+#' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
+#' @param term Name of the parameter to extract (e.g., `"sigma2"`, `"y_hat_train"`, etc.)
+#' @return Array of parameter samples. If the underlying parameter is a scalar, this will be a vector of length `num_samples`.
+#' If the underlying parameter is vector-valued, this will be (`parameter_dimension` x `num_samples`) matrix, and if the underlying
+#' parameter is multidimensional, this will be an array of dimension (`parameter_dimension_1` x `parameter_dimension_2` x ... x `num_samples`).
+#' @export
+#'
+#' @examples
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' f_XW <- (
+#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
+#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
+#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
+#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
+#' )
+#' snr <- 3
+#' group_ids <- rep(c(1,2), n %/% 2)
+#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
+#' rfx_basis <- cbind(1, runif(n, -1, 1))
+#' rfx_term <- rowSums(rfx_coefs[group_ids,] * rfx_basis)
+#' E_y <- f_XW + rfx_term
+#' y <- E_y + rnorm(n, 0, 1)*(sd(E_y)/snr)
+#' test_set_pct <- 0.2
+#' n_test <- round(test_set_pct*n)
+#' n_train <- n - n_test
+#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
+#' X_test <- X[test_inds,]
+#' X_train <- X[train_inds,]
+#' y_test <- y[test_inds]
+#' y_train <- y[train_inds]
+#' rfx_group_ids_test <- group_ids[test_inds]
+#' rfx_group_ids_train <- group_ids[train_inds]
+#' rfx_basis_test <- rfx_basis[test_inds,]
+#' rfx_basis_train <- rfx_basis[train_inds,]
+#' rfx_term_test <- rfx_term[test_inds]
+#' rfx_term_train <- rfx_term[train_inds]
+#' bart_model <- bart(X_train = X_train, y_train = y_train, X_test = X_test,
+#'                    rfx_group_ids_train = rfx_group_ids_train,
+#'                    rfx_group_ids_test = rfx_group_ids_test,
+#'                    rfx_basis_train = rfx_basis_train,
+#'                    rfx_basis_test = rfx_basis_test,
+#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
+#' sigma2_samples <- extract_parameter(bart_model, "sigma2")
+extract_parameter.bartmodel <- function(object, term) {
+  if (term %in% c("sigma2", "global_error_scale", "sigma2_global")) {
+    if (!is.null(object$sigma2_global_samples)) {
+      return(object$sigma2_global_samples)
+    } else {
+      stop("This model does not have global variance parameter samples")
+    }
+  }
+
+  if (term %in% c("sigma2_leaf", "leaf_scale")) {
+    if (!is.null(object$sigma2_leaf_samples)) {
+      return(object$sigma2_leaf_samples)
+    } else {
+      stop("This model does not have leaf variance parameter samples")
+    }
+  }
+
+  if (term %in% c("y_hat_train")) {
+    if (!is.null(object$y_hat_train)) {
+      return(object$y_hat_train)
+    } else {
+      stop(
+        "This model does not have in-sample mean function prediction samples"
+      )
+    }
+  }
+
+  if (term %in% c("y_hat_test")) {
+    if (!is.null(object$y_hat_test)) {
+      return(object$y_hat_test)
+    } else {
+      stop("This model does not have test set mean function prediction samples")
+    }
+  }
+
+  if (term %in% c("sigma2_x_train", "var_x_train")) {
+    if (!is.null(object$sigma2_x_train)) {
+      return(object$sigma2_x_train)
+    } else {
+      stop("This model does not have in-sample variance forest predictions")
+    }
+  }
+
+  if (term %in% c("sigma2_x_test", "var_x_test")) {
+    if (!is.null(object$sigma2_x_test)) {
+      return(object$sigma2_x_test)
+    } else {
+      stop("This model does not have test set variance forest predictions")
+    }
+  }
+
+  stop(paste0("term ", term, " is not a valid BART model term"))
 }
 
 #' Convert the persistent aspects of a BART model to (in-memory) JSON
