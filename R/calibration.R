@@ -2,6 +2,10 @@
 #' @description
 #' Calibrate the scale parameter on an inverse gamma prior for the global error variance as in Chipman et al (2022)
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' Chipman, H., George, E., Hahn, R., McCulloch, R., Pratola, M. and Sparapani, R. (2022). Bayesian Additive Regression Trees, Computational Approaches. In Wiley StatsRef: Statistics Reference Online (eds N. Balakrishnan, T. Colton, B. Everitt, W. Piegorsch, F. Ruggeri and J.L. Teugels). https://doi.org/10.1002/9781118445112.stat08288
 #'
 #' @param y Outcome to be modeled using BART, BCF or another nonparametric ensemble method.

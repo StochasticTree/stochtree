@@ -37,6 +37,10 @@ Return each forest's leaf node scale parameters.
 
 If leaf scale is not sampled for the forest in question, throws an error that the
 leaf model does not have a stochastic scale parameter.
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 X <- matrix(runif(10*100), ncol = 10)

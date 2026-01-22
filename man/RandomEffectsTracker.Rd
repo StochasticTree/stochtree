@@ -10,6 +10,10 @@ computation and sampling of random effects terms.
 The class stores a mapping from every observation to its group index, a mapping
 from group indices to the training sample observations available in that
 group, and predictions for each observation.
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}

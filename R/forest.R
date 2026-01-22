@@ -1,6 +1,10 @@
 #' @title Forest Container C++ Wrapper
 #' @description
 #' Wrapper around a C++ class that stores draws from an random ensemble of decision trees.
+#'
+#' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 
 ForestSamples <- R6::R6Class(
   classname = "ForestSamples",
@@ -899,6 +903,10 @@ ForestSamples <- R6::R6Class(
 #' @title Forest C++ Wrapper
 #' @description
 #' Wrapper around a C++ class that stores a single ensemble of decision trees (often treated as the "active forest" / current state of a forest term in a sampling loop in R)
+#'
+#' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 
 Forest <- R6::R6Class(
   classname = "Forest",
@@ -1230,6 +1238,10 @@ Forest <- R6::R6Class(
 #' @title Create ForestSamples Object
 #' @description Create a container of forest samples
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param num_trees Number of trees
 #' @param leaf_dimension Dimensionality of the outcome model
 #' @param is_leaf_constant Whether leaf is constant
@@ -1262,6 +1274,10 @@ createForestSamples <- function(
 
 #' @title Create Forest Object
 #' @description Create a forest
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param num_trees Number of trees in the forest
 #' @param leaf_dimension Dimensionality of the outcome model
@@ -1296,6 +1312,10 @@ createForest <- function(
 #' @title Reset Active Forest
 #' @description Reset an active forest, either from a specific forest in a `ForestContainer`
 #' or to an ensemble of single-node (i.e. root) trees
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param active_forest Current active forest
 #' @param forest_samples (Optional) Container of forest samples from which to re-initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
@@ -1341,6 +1361,10 @@ resetActiveForest <- function(
 #' @title Reset Forest Model
 #' @description
 #' Re-initialize a forest model (tracking data structures) from a specific forest in a `ForestContainer`
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param forest_model Forest model with tracking data structures
 #' @param forest Forest from which to re-initialize forest model

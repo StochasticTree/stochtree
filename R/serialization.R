@@ -1,6 +1,10 @@
 #' @title JSON C++ Object Wrapper
 #' @description
 #' Wrapper around a C++ `nlohmann::json` object
+#'
+#' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 
 CppJson <- R6::R6Class(
   classname = "CppJson",
@@ -524,6 +528,10 @@ CppJson <- R6::R6Class(
 #' @description
 #' Load a container of forest samples from json
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param json_object Object of class `CppJson`
 #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
 #'
@@ -545,6 +553,10 @@ loadForestContainerJson <- function(json_object, json_forest_label) {
 #' @title Combine JSON Model Objects into ForestSamples
 #' @description
 #' Combine multiple JSON model objects containing forests (with the same hierarchy / schema) into a single forest_container
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param json_object_list List of objects of class `CppJson`
 #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in the list)
@@ -578,6 +590,10 @@ loadForestContainerCombinedJson <- function(
 #' @description
 #' Combine multiple JSON strings representing model objects containing forests (with the same hierarchy / schema) into a single forest_container
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param json_string_list List of strings that parse into objects of type `CppJson`
 #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in the list)
 #'
@@ -609,6 +625,10 @@ loadForestContainerCombinedJsonString <- function(
 #' @title Load Random Effect Samples from JSON
 #' @description
 #' Load a container of random effect samples from json
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param json_object Object of class `CppJson`
 #' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked
@@ -644,6 +664,10 @@ loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
 #' @title Combine JSON Model Objects into RandomEffectSamples
 #' @description
 #' Combine multiple JSON model objects containing random effects (with the same hierarchy / schema) into a single container
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param json_object_list List of objects of class `CppJson`
 #' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked
@@ -695,6 +719,10 @@ loadRandomEffectSamplesCombinedJson <- function(
 #' @description
 #' Combine multiple JSON strings representing model objects containing random effects (with the same hierarchy / schema) into a single container
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param json_string_list List of objects of class `CppJson`
 #' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked
 #'
@@ -745,6 +773,10 @@ loadRandomEffectSamplesCombinedJsonString <- function(
 #' @description
 #' Load a vector from json
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param json_object Object of class `CppJson`
 #' @param json_vector_label Label referring to a particular vector (i.e. "sigma2_global_samples") in the overall json hierarchy
 #' @param subfolder_name (Optional) Name of the subfolder / hierarchy under which vector sits
@@ -773,6 +805,10 @@ loadVectorJson <- function(
 #' @title Load Scalar from JSON
 #' @description
 #' Load a scalar from json
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param json_object Object of class `CppJson`
 #' @param json_scalar_label Label referring to a particular scalar / string value (i.e. "num_samples") in the overall json hierarchy
@@ -803,6 +839,10 @@ loadScalarJson <- function(
 #' @description
 #' Create a new (empty) C++ Json object
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @return `CppJson` object
 #' @export
 #'
@@ -817,6 +857,10 @@ createCppJson <- function() {
 #' @title Create CppJson Object from File
 #' @description
 #' Create a C++ Json object from a Json file
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param json_filename Name of file to read. Must end in `.json`.
 #' @return `CppJson` object
@@ -839,6 +883,10 @@ createCppJsonFile <- function(json_filename) {
 #' @title Create CppJson Object from String
 #' @description
 #' Create a C++ Json object from a Json string
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param json_string JSON string dump
 #' @return `CppJson` object
