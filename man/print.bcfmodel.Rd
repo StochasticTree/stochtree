@@ -4,12 +4,12 @@
 \alias{print.bcfmodel}
 \title{Print a summary of the BCF model}
 \usage{
-\method{print}{bcfmodel}(bcf_model, ...)
+\method{print}{bcfmodel}(x, ...)
 }
 \arguments{
-\item{...}{Additional arguments (currently unused)}
+\item{x}{The BCF model object}
 
-\item{bart_model}{The BCF model object}
+\item{...}{Additional arguments (currently unused)}
 }
 \value{
 BCF model object unchanged after printing summary

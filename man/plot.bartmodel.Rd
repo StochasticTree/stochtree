@@ -4,10 +4,10 @@
 \alias{plot.bartmodel}
 \title{Plot the BART model fit.}
 \usage{
-\method{plot}{bartmodel}(bart_model, ...)
+\method{plot}{bartmodel}(x, ...)
 }
 \arguments{
-\item{bart_model}{The BART model object}
+\item{x}{The BART model object}
 
 \item{...}{Additional arguments}
 }

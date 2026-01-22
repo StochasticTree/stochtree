@@ -4,10 +4,10 @@
 \alias{print.bartmodel}
 \title{Print a summary of the BART model}
 \usage{
-\method{print}{bartmodel}(bart_model, ...)
+\method{print}{bartmodel}(x, ...)
 }
 \arguments{
-\item{bart_model}{The BART model object}
+\item{x}{The BART model object}
 
 \item{...}{Additional arguments}
 }
