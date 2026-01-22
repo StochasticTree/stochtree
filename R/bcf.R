@@ -3361,26 +3361,26 @@ predict.bcfmodel <- function(
 
 #' @title Print a summary of the BCF model
 #' @description Prints a summary of the BCF model, including the model terms and their specifications.
-#' @param bart_model The BCF model object
+#' @param x The BCF model object
 #' @param ... Additional arguments (currently unused)
 #' @export
 #' @return BCF model object unchanged after printing summary
-print.bcfmodel <- function(bcf_model, ...) {
+print.bcfmodel <- function(x, ...) {
   # What type of model was run
   model_terms <- c("prognostic forest", "treatment effect forest")
-  if (bcf_model$model_params$include_variance_forest) {
+  if (x$model_params$include_variance_forest) {
     model_terms <- c(model_terms, "variance forest")
   }
-  if (bcf_model$model_params$has_rfx) {
+  if (x$model_params$has_rfx) {
     model_terms <- c(model_terms, "additive random effects")
   }
-  if (bcf_model$model_params$sample_sigma2_global) {
+  if (x$model_params$sample_sigma2_global) {
     model_terms <- c(model_terms, "global error variance model")
   }
-  if (bcf_model$model_params$sample_sigma2_leaf_mu) {
+  if (x$model_params$sample_sigma2_leaf_mu) {
     model_terms <- c(model_terms, "prognostic forest leaf scale model")
   }
-  if (bcf_model$model_params$sample_sigma2_leaf_tau) {
+  if (x$model_params$sample_sigma2_leaf_tau) {
     model_terms <- c(model_terms, "treatment effect forest leaf scale model")
   }
   if (length(model_terms) > 2) {
@@ -3407,30 +3407,30 @@ print.bcfmodel <- function(bcf_model, ...) {
     "\n",
     "Outcome was modeled ",
     ifelse(
-      bcf_model$model_params$probit_outcome_model,
+      x$model_params$probit_outcome_model,
       "with a probit link",
       "as gaussian"
     )
   )
 
   # Treatment details
-  if (bcf_model$model_params$binary_treatment) {
+  if (x$model_params$binary_treatment) {
     summary_message <- paste0(
       summary_message,
       "\n",
       "Treatment was binary and ",
       ifelse(
-        bcf_model$model_params$adaptive_coding,
+        x$model_params$adaptive_coding,
         "its effect was estimated with adaptive coding",
         "its effect was estimated with default coding"
       )
     )
-  } else if (bcf_model$model_params$multivariate_treatment) {
+  } else if (x$model_params$multivariate_treatment) {
     summary_message <- paste0(
       summary_message,
       "\n",
       "Treatment was multivariate with ",
-      bcf_model$model_params$treatment_dim,
+      x$model_params$treatment_dim,
       " dimensions"
     )
   } else {
@@ -3442,7 +3442,7 @@ print.bcfmodel <- function(bcf_model, ...) {
   }
 
   # Standardization
-  if (bcf_model$model_params$standardize) {
+  if (x$model_params$standardize) {
     summary_message <- paste0(
       summary_message,
       "\n",
@@ -3451,14 +3451,14 @@ print.bcfmodel <- function(bcf_model, ...) {
   }
 
   # Internal propensity model
-  if (bcf_model$model_params$propensity_covariate == "none") {
+  if (x$model_params$propensity_covariate == "none") {
     summary_message <- paste0(
       summary_message,
       "\n",
       "Propensity scores were not used in either forest of the model"
     )
   } else {
-    if (bcf_model$model_params$internal_propensity_model) {
+    if (x$model_params$internal_propensity_model) {
       summary_message <- paste0(
         summary_message,
         "\n",
@@ -3474,22 +3474,20 @@ print.bcfmodel <- function(bcf_model, ...) {
   }
 
   # Random effects details
-  if (bcf_model$model_params$has_rfx) {
-    if (bcf_model$model_params$rfx_model_spec == "custom") {
+  if (x$model_params$has_rfx) {
+    if (x$model_params$rfx_model_spec == "custom") {
       summary_message <- paste0(
         summary_message,
         "\n",
         "Random effects were fit with a user-supplied basis"
       )
-    } else if (bcf_model$model_params$rfx_model_spec == "intercept_only") {
+    } else if (x$model_params$rfx_model_spec == "intercept_only") {
       summary_message <- paste0(
         summary_message,
         "\n",
         "Random effects were fit with an 'intercept-only' parameterization"
       )
-    } else if (
-      bcf_model$model_params$rfx_model_spec == "intercept_plus_treatment"
-    ) {
+    } else if (x$model_params$rfx_model_spec == "intercept_plus_treatment") {
       summary_message <- paste0(
         summary_message,
         "\n",
@@ -3503,20 +3501,20 @@ print.bcfmodel <- function(bcf_model, ...) {
     summary_message,
     "\n",
     "The sampler was run for ",
-    bcf_model$model_params$num_gfr,
+    x$model_params$num_gfr,
     " GFR iterations, with ",
-    bcf_model$model_params$num_chains,
-    ifelse(bcf_model$model_params$num_chains == 1, " chain of ", " chains of "),
-    bcf_model$model_params$num_burnin,
+    x$model_params$num_chains,
+    ifelse(x$model_params$num_chains == 1, " chain of ", " chains of "),
+    x$model_params$num_burnin,
     " burn-in iterations and ",
-    bcf_model$model_params$num_mcmc,
+    x$model_params$num_mcmc,
     " MCMC iterations, ",
     ifelse(
-      bcf_model$model_params$keep_every == 1,
+      x$model_params$keep_every == 1,
       "retaining every iteration (i.e. no thinning)",
       paste0(
         "retaining every ",
-        bcf_model$model_params$keep_every,
+        x$model_params$keep_every,
         "th iteration (i.e. thinning)"
       )
     )
@@ -3525,25 +3523,25 @@ print.bcfmodel <- function(bcf_model, ...) {
   # Print the model details
   cat(summary_message)
 
-  # Return bcf_model invisibly
-  invisible(bcf_model)
+  # Return bcf model invisibly
+  invisible(x)
 }
 
 #' @title Summarize the BCF model fit and sampled terms.
 #' @description Summarize the BCF with a description of the model that was fit and numeric summaries of any sampled quantities.
-#' @param bcf_model The BCF model object
+#' @param x The BCF model object
 #' @param ... Additional arguments
 #' @export
 #' @return BCF model object unchanged after summarizing
-summary.bcfmodel <- function(bcf_model, ...) {
+summary.bcfmodel <- function(x, ...) {
   # First, print the BCF model
-  tmp <- print(bcf_model)
+  tmp <- print(x)
 
   # Summarize any sampled quantities
 
   # Global error scale
-  if (bcf_model$model_params$sample_sigma2_global) {
-    sigma2_samples <- bcf_model$sigma2_global_samples
+  if (x$model_params$sample_sigma2_global) {
+    sigma2_samples <- x$sigma2_global_samples
     n_samples <- length(sigma2_samples)
     mean_sigma2 <- mean(sigma2_samples)
     sd_sigma2 <- sd(sigma2_samples)
@@ -3561,8 +3559,8 @@ summary.bcfmodel <- function(bcf_model, ...) {
   }
 
   # Leaf scale for the prognostic forest
-  if (bcf_model$model_params$sample_sigma2_leaf_mu) {
-    sigma2_leaf_samples <- bcf_model$sigma2_leaf_mu_samples
+  if (x$model_params$sample_sigma2_leaf_mu) {
+    sigma2_leaf_samples <- x$sigma2_leaf_mu_samples
     n_samples <- length(sigma2_leaf_samples)
     mean_sigma2 <- mean(sigma2_leaf_samples)
     sd_sigma2 <- sd(sigma2_leaf_samples)
@@ -3580,8 +3578,8 @@ summary.bcfmodel <- function(bcf_model, ...) {
   }
 
   # Leaf scale for the treatment effect forest
-  if (bcf_model$model_params$sample_sigma2_leaf_tau) {
-    sigma2_leaf_samples <- bcf_model$sigma2_leaf_tau_samples
+  if (x$model_params$sample_sigma2_leaf_tau) {
+    sigma2_leaf_samples <- x$sigma2_leaf_tau_samples
     n_samples <- length(sigma2_leaf_samples)
     mean_sigma2 <- mean(sigma2_leaf_samples)
     sd_sigma2 <- sd(sigma2_leaf_samples)
@@ -3599,9 +3597,9 @@ summary.bcfmodel <- function(bcf_model, ...) {
   }
 
   # Adaptive coding parameters
-  if (bcf_model$model_params$adaptive_coding) {
-    b0_samples <- bcf_model$b_0_samples
-    b1_samples <- bcf_model$b_1_samples
+  if (x$model_params$adaptive_coding) {
+    b0_samples <- x$b_0_samples
+    b1_samples <- x$b_1_samples
     n_samples <- length(b0_samples)
     mean_b0 <- mean(b0_samples)
     mean_b1 <- mean(b1_samples)
@@ -3630,8 +3628,8 @@ summary.bcfmodel <- function(bcf_model, ...) {
   }
 
   # In-sample predictions
-  if (!is.null(bcf_model$y_hat_train)) {
-    y_hat_train_mean <- rowMeans(bcf_model$y_hat_train)
+  if (!is.null(x$y_hat_train)) {
+    y_hat_train_mean <- rowMeans(x$y_hat_train)
     n_y_hat_train <- length(y_hat_train_mean)
     mean_y_hat_train <- mean(y_hat_train_mean)
     sd_y_hat_train <- sd(y_hat_train_mean)
@@ -3649,8 +3647,8 @@ summary.bcfmodel <- function(bcf_model, ...) {
   }
 
   # Test-set predictions
-  if (!is.null(bcf_model$y_hat_test)) {
-    y_hat_test_mean <- rowMeans(bcf_model$y_hat_test)
+  if (!is.null(x$y_hat_test)) {
+    y_hat_test_mean <- rowMeans(x$y_hat_test)
     n_y_hat_test <- length(y_hat_test_mean)
     mean_y_hat_test <- mean(y_hat_test_mean)
     sd_y_hat_test <- sd(y_hat_test_mean)
@@ -3668,9 +3666,9 @@ summary.bcfmodel <- function(bcf_model, ...) {
   }
 
   # In-sample treatment effect function estimates
-  if (!is.null(bcf_model$tau_hat_train)) {
-    if (!bcf_model$model_params$multivariate_treatment) {
-      tau_hat_train_mean <- rowMeans(bcf_model$tau_hat_train)
+  if (!is.null(x$tau_hat_train)) {
+    if (!x$model_params$multivariate_treatment) {
+      tau_hat_train_mean <- rowMeans(x$tau_hat_train)
       n_tau_hat_train <- length(tau_hat_train_mean)
       mean_tau_hat_train <- mean(tau_hat_train_mean)
       sd_tau_hat_train <- sd(tau_hat_train_mean)
@@ -3689,9 +3687,9 @@ summary.bcfmodel <- function(bcf_model, ...) {
   }
 
   # Test set treatment effect function estimates
-  if (!is.null(bcf_model$tau_hat_test)) {
-    if (!bcf_model$model_params$multivariate_treatment) {
-      tau_hat_test_mean <- rowMeans(bcf_model$tau_hat_test)
+  if (!is.null(x$tau_hat_test)) {
+    if (!x$model_params$multivariate_treatment) {
+      tau_hat_test_mean <- rowMeans(x$tau_hat_test)
       n_tau_hat_test <- length(tau_hat_test_mean)
       mean_tau_hat_test <- mean(tau_hat_test_mean)
       sd_tau_hat_test <- sd(tau_hat_test_mean)
@@ -3711,38 +3709,38 @@ summary.bcfmodel <- function(bcf_model, ...) {
 
   # Random effects
   # TODO: add random effects summaries once indexing is fixed
-  if (bcf_model$model_params$has_rfx) {
-    # rfx_summary <- getRandomEffectSamples(bcf_model)
+  if (x$model_params$has_rfx) {
+    # rfx_summary <- getRandomEffectSamples(x)
     # ...
   }
 
-  # Return bcf_model invisibly
-  invisible(bcf_model)
+  # Return bcf model invisibly
+  invisible(x)
 }
 
 #' @title Plot the BCF model fit.
 #' @description Plot the BCF model fit and any relevant sampled quantities. This will default to a traceplot of the global error scale and the in-sample mean forest predictions for the first train set observation. Since `stochtree::bcf()` is flexible and it's possible to sample a model with a fixed global error scale and no mean forest, this procedure will throw an error if these two default terms are omitted.
-#' @param bcf_model The BCF model object
+#' @param x The BCF model object
 #' @param ... Additional arguments
 #' @export
 #' @return BCF model object unchanged after summarizing
-plot.bcfmodel <- function(bcf_model, ...) {
+plot.bcfmodel <- function(x, ...) {
   # Check if model has global error scale samples
-  has_sigma2_samples <- bcf_model$model_params$sample_sigma2_global
-  has_mean_forest_preds <- !is.null(bcf_model$y_hat_train)
+  has_sigma2_samples <- x$model_params$sample_sigma2_global
+  has_mean_forest_preds <- !is.null(x$y_hat_train)
 
   # First try combinations of sigma2 and mean forest predictions
   if (has_sigma2_samples || has_mean_forest_preds) {
     if (has_sigma2_samples) {
       plot(
-        bcf_model$sigma2_global_samples,
+        x$sigma2_global_samples,
         type = "l",
         ylab = "Sigma^2",
         main = "Global error scale traceplot"
       )
     } else if (has_mean_forest_preds) {
       plot(
-        bcf_model$y_hat_train[1, ],
+        x$y_hat_train[1, ],
         type = "l",
         ylab = "Predictions",
         main = "In-sample mean function trace for the first train set observation"
@@ -3754,8 +3752,8 @@ plot.bcfmodel <- function(bcf_model, ...) {
     )
   }
 
-  # Return bcf_model invisibly
-  invisible(bcf_model)
+  # Return bcf model invisibly
+  invisible(x)
 }
 
 #' @title Extract parameter samples from a model.
