@@ -4,10 +4,10 @@
 \alias{summary.bartmodel}
 \title{Summarize the BART model fit and sampled terms.}
 \usage{
-\method{summary}{bartmodel}(bart_model, ...)
+\method{summary}{bartmodel}(object, ...)
 }
 \arguments{
-\item{bart_model}{The BART model object}
+\item{object}{The BART model object}
 
 \item{...}{Additional arguments}
 }

@@ -4,10 +4,10 @@
 \alias{plot.bcfmodel}
 \title{Plot the BCF model fit.}
 \usage{
-\method{plot}{bcfmodel}(bcf_model, ...)
+\method{plot}{bcfmodel}(x, ...)
 }
 \arguments{
-\item{bcf_model}{The BCF model object}
+\item{x}{The BCF model object}
 
 \item{...}{Additional arguments}
 }
