@@ -2,9 +2,9 @@
 % Please edit documentation in R/forest.R
 \name{Forest}
 \alias{Forest}
-\title{Class that stores a single ensemble of decision trees (often treated as the "active forest")}
+\title{Forest C++ Wrapper}
 \description{
-Wrapper around a C++ tree ensemble
+Wrapper around a C++ class that stores a single ensemble of decision trees (often treated as the "active forest" / current state of a forest term in a sampling loop in R)
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}

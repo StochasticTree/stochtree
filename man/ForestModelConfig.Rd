@@ -2,8 +2,7 @@
 % Please edit documentation in R/config.R
 \name{ForestModelConfig}
 \alias{ForestModelConfig}
-\title{Object used to get / set parameters and other model configuration options
-for a forest model in the "low-level" stochtree interface}
+\title{Forest Model Configuration Object}
 \value{
 Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
 
@@ -38,6 +37,8 @@ Number of unique cutpoints to consider
 Number of features to subsample for the GFR algorithm
 }
 \description{
+Object used to get / set parameters and other model configuration options
+for a forest model in the "low-level" stochtree interface.
 The "low-level" stochtree interface enables a high degreee of sampler
 customization, in which users employ R wrappers around C++ objects
 like ForestDataset, Outcome, CppRng, and ForestModel to run the

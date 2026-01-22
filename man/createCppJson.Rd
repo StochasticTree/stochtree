@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{createCppJson}
 \alias{createCppJson}
-\title{Create a new (empty) C++ Json object}
+\title{Create CppJson Object}
 \usage{
 createCppJson()
 }

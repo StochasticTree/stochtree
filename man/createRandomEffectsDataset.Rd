@@ -2,7 +2,7 @@
 % Please edit documentation in R/data.R
 \name{createRandomEffectsDataset}
 \alias{createRandomEffectsDataset}
-\title{Create a random effects dataset object}
+\title{Create RandomEffectsDataset Object}
 \usage{
 createRandomEffectsDataset(group_labels, basis, variance_weights = NULL)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/calibration.R
 \name{calibrateInverseGammaErrorVariance}
 \alias{calibrateInverseGammaErrorVariance}
-\title{Calibrate the scale parameter on an inverse gamma prior for the global error variance as in Chipman et al (2022)}
+\title{Calibrate Inverse Gamma Prior}
 \usage{
 calibrateInverseGammaErrorVariance(
   y,
@@ -30,6 +30,8 @@ calibrateInverseGammaErrorVariance(
 Value of \code{lambda} which determines the scale parameter of the global error variance prior (\code{sigma^2 ~ IG(nu,nu*lambda)})
 }
 \description{
+Calibrate the scale parameter on an inverse gamma prior for the global error variance as in Chipman et al (2022)
+
 Chipman, H., George, E., Hahn, R., McCulloch, R., Pratola, M. and Sparapani, R. (2022). Bayesian Additive Regression Trees, Computational Approaches. In Wiley StatsRef: Statistics Reference Online (eds N. Balakrishnan, T. Colton, B. Everitt, W. Piegorsch, F. Ruggeri and J.L. Teugels). https://doi.org/10.1002/9781118445112.stat08288
 }
 \examples{

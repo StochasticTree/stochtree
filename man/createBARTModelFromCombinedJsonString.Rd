@@ -2,8 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{createBARTModelFromCombinedJsonString}
 \alias{createBARTModelFromCombinedJsonString}
-\title{Convert a list of (in-memory) JSON strings that represent BART models to a single combined BART model object
-which can be used for prediction, etc...}
+\title{Convert JSON String List to Single BART Model}
 \usage{
 createBARTModelFromCombinedJsonString(json_string_list)
 }

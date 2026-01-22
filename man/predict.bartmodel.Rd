@@ -2,7 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{predict.bartmodel}
 \alias{predict.bartmodel}
-\title{Predict from a sampled BART model on new data}
+\title{Predict From a BART Model}
 \usage{
 \method{predict}{bartmodel}(
   object,

@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{compute_contrast_bart_model}
 \alias{compute_contrast_bart_model}
-\title{Compute a contrast between two outcome prediction specifications for a BART model}
+\title{Compute Contrast for BART Model}
 \usage{
 compute_contrast_bart_model(
   object,
@@ -56,8 +56,7 @@ bases / IDs for both sides of a two term contrast. For simplicity, we refer to t
 terminology of a classic two-treatment causal inference problem. We mirror the function calls and terminology of the \code{predict.bartmodel}
 function, labeling each prediction data term with a \code{1} to denote its contribution to the treatment prediction of a contrast and
 \code{0} to denote inclusion in the control prediction.
-}
-\details{
+
 Only valid when there is either a mean forest or a random effects term in the BART model.
 }
 \examples{

@@ -2,12 +2,13 @@
 % Please edit documentation in R/config.R
 \name{GlobalModelConfig}
 \alias{GlobalModelConfig}
-\title{Object used to get / set global parameters and other global model
-configuration options in the "low-level" stochtree interface}
+\title{Global Model Configuration Object}
 \value{
 Global error variance parameter
 }
 \description{
+Object used to get / set global parameters and other global model
+configuration options in the "low-level" stochtree interface.
 The "low-level" stochtree interface enables a high degreee of sampler
 customization, in which users employ R wrappers around C++ objects
 like ForestDataset, Outcome, CppRng, and ForestModel to run the

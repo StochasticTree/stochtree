@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{compute_contrast_bcf_model}
 \alias{compute_contrast_bcf_model}
-\title{Compute a contrast between two outcome prediction specifications for a BCF model}
+\title{Compute Contrast for BCF Model}
 \usage{
 compute_contrast_bcf_model(
   object,

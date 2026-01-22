@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{preprocessPredictionData}
 \alias{preprocessPredictionData}
-\title{Preprocess covariates for use in a \code{ForestDataset} at prediction time.}
+\title{Preprocess Covariates for Model Prediction}
 \usage{
 preprocessPredictionData(input_data, metadata)
 }

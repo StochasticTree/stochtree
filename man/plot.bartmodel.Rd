@@ -2,7 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{plot.bartmodel}
 \alias{plot.bartmodel}
-\title{Plot the BART model fit.}
+\title{Plot BART Model Fit.}
 \usage{
 \method{plot}{bartmodel}(x, ...)
 }

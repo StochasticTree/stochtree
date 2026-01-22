@@ -2,10 +2,11 @@
 % Please edit documentation in R/model.R
 \name{CppRNG}
 \alias{CppRNG}
-\title{Class that wraps a C++ random number generator (for reproducibility)}
+\title{Random Number Generator C++ Wrapper}
 \description{
-Persists a C++ random number generator throughout an R session to
-ensure reproducibility from a given random seed. If no seed is provided,
+Wrapper around a C++ random number generator object (for reproducibility).
+The class persists a C++ random number generator throughout an R session to
+ensure a given seed generates the same outputs (on the same OS). If no seed is provided,
 the C++ random number generator is initialized using \code{std::random_device}.
 }
 \section{Public fields}{

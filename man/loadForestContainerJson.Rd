@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{loadForestContainerJson}
 \alias{loadForestContainerJson}
-\title{Load a container of forest samples from json}
+\title{Load Forest Samples from JSON}
 \usage{
 loadForestContainerJson(json_object, json_forest_label)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{saveBCFModelToJsonString}
 \alias{saveBCFModelToJsonString}
-\title{Convert the persistent aspects of a BCF model to (in-memory) JSON string}
+\title{Convert BCF Model to JSON String}
 \usage{
 saveBCFModelToJsonString(object)
 }

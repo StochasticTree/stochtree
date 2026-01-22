@@ -2,8 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{createBCFModelFromJsonString}
 \alias{createBCFModelFromJsonString}
-\title{Convert a JSON string containing sample information on a trained BCF model
-to a BCF model object which can be used for prediction, etc...}
+\title{Convert JSON String to BCF Model}
 \usage{
 createBCFModelFromJsonString(json_string)
 }

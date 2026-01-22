@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{convertPreprocessorToJson}
 \alias{convertPreprocessorToJson}
-\title{Convert the persistent aspects of a covariate preprocessor to (in-memory) C++ JSON object}
+\title{Convert Covariate Preprocessor to CppJson}
 \usage{
 convertPreprocessorToJson(object)
 }

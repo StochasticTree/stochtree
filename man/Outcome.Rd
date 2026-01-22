@@ -2,8 +2,9 @@
 % Please edit documentation in R/data.R
 \name{Outcome}
 \alias{Outcome}
-\title{Outcome / partial residual used to sample an additive model.}
+\title{Outcome Data C++ Wrapper}
 \description{
+Outcome / partial residual used to sample an additive model.
 The outcome class is wrapper around a vector of (mutable)
 outcomes for ML tasks (supervised learning, causal inference).
 When an additive tree ensemble is sampled, the outcome used to

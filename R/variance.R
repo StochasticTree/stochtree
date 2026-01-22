@@ -1,3 +1,5 @@
+#' @title Sample Global Error Variance
+#' @description
 #' Sample one iteration of the (inverse gamma) global variance model
 #'
 #' @param residual Outcome class
@@ -34,6 +36,8 @@ sampleGlobalErrorVarianceOneIteration <- function(
   ))
 }
 
+#' @title Sample Leaf Scale
+#' @description
 #' Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)
 #'
 #' @param forest C++ forest

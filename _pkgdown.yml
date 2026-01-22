@@ -133,9 +133,6 @@ reference:
   contents:
   - sample_without_replacement
   - extract_parameter
-  - expand_dims_1d
-  - expand_dims_2d
-  - expand_dims_2d_diag
 
 - title: Package info
   desc: >

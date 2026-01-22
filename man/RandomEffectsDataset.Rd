@@ -2,9 +2,10 @@
 % Please edit documentation in R/data.R
 \name{RandomEffectsDataset}
 \alias{RandomEffectsDataset}
-\title{Dataset used to sample a random effects model}
+\title{Random Effects Dataset C++ Wrapper}
 \description{
-A dataset consists of three matrices / vectors: group labels,
+Dataset used to sample a random effects model.
+A random effects dataset consists of three matrices / vectors: group labels,
 bases, and variance weights. Variance weights are optional.
 }
 \section{Public fields}{

@@ -2,8 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{resetActiveForest}
 \alias{resetActiveForest}
-\title{Reset an active forest, either from a specific forest in a \code{ForestContainer}
-or to an ensemble of single-node (i.e. root) trees}
+\title{Reset Active Forest}
 \usage{
 resetActiveForest(active_forest, forest_samples = NULL, forest_num = NULL)
 }

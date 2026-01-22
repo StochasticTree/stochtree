@@ -2,7 +2,7 @@
 % Please edit documentation in R/config.R
 \name{createForestModelConfig}
 \alias{createForestModelConfig}
-\title{Create a forest model config object}
+\title{Create ForestModelConfig Object}
 \usage{
 createForestModelConfig(
   feature_types = NULL,
