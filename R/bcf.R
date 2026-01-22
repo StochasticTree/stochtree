@@ -3529,19 +3529,19 @@ print.bcfmodel <- function(x, ...) {
 
 #' @title Summarize the BCF model fit and sampled terms.
 #' @description Summarize the BCF with a description of the model that was fit and numeric summaries of any sampled quantities.
-#' @param x The BCF model object
+#' @param object The BCF model object
 #' @param ... Additional arguments
 #' @export
 #' @return BCF model object unchanged after summarizing
-summary.bcfmodel <- function(x, ...) {
+summary.bcfmodel <- function(object, ...) {
   # First, print the BCF model
-  tmp <- print(x)
+  tmp <- print(object)
 
   # Summarize any sampled quantities
 
   # Global error scale
-  if (x$model_params$sample_sigma2_global) {
-    sigma2_samples <- x$sigma2_global_samples
+  if (object$model_params$sample_sigma2_global) {
+    sigma2_samples <- object$sigma2_global_samples
     n_samples <- length(sigma2_samples)
     mean_sigma2 <- mean(sigma2_samples)
     sd_sigma2 <- sd(sigma2_samples)
@@ -3559,8 +3559,8 @@ summary.bcfmodel <- function(x, ...) {
   }
 
   # Leaf scale for the prognostic forest
-  if (x$model_params$sample_sigma2_leaf_mu) {
-    sigma2_leaf_samples <- x$sigma2_leaf_mu_samples
+  if (object$model_params$sample_sigma2_leaf_mu) {
+    sigma2_leaf_samples <- object$sigma2_leaf_mu_samples
     n_samples <- length(sigma2_leaf_samples)
     mean_sigma2 <- mean(sigma2_leaf_samples)
     sd_sigma2 <- sd(sigma2_leaf_samples)
@@ -3578,8 +3578,8 @@ summary.bcfmodel <- function(x, ...) {
   }
 
   # Leaf scale for the treatment effect forest
-  if (x$model_params$sample_sigma2_leaf_tau) {
-    sigma2_leaf_samples <- x$sigma2_leaf_tau_samples
+  if (object$model_params$sample_sigma2_leaf_tau) {
+    sigma2_leaf_samples <- object$sigma2_leaf_tau_samples
     n_samples <- length(sigma2_leaf_samples)
     mean_sigma2 <- mean(sigma2_leaf_samples)
     sd_sigma2 <- sd(sigma2_leaf_samples)
@@ -3597,9 +3597,9 @@ summary.bcfmodel <- function(x, ...) {
   }
 
   # Adaptive coding parameters
-  if (x$model_params$adaptive_coding) {
-    b0_samples <- x$b_0_samples
-    b1_samples <- x$b_1_samples
+  if (object$model_params$adaptive_coding) {
+    b0_samples <- object$b_0_samples
+    b1_samples <- object$b_1_samples
     n_samples <- length(b0_samples)
     mean_b0 <- mean(b0_samples)
     mean_b1 <- mean(b1_samples)
@@ -3628,8 +3628,8 @@ summary.bcfmodel <- function(x, ...) {
   }
 
   # In-sample predictions
-  if (!is.null(x$y_hat_train)) {
-    y_hat_train_mean <- rowMeans(x$y_hat_train)
+  if (!is.null(object$y_hat_train)) {
+    y_hat_train_mean <- rowMeans(object$y_hat_train)
     n_y_hat_train <- length(y_hat_train_mean)
     mean_y_hat_train <- mean(y_hat_train_mean)
     sd_y_hat_train <- sd(y_hat_train_mean)
@@ -3647,8 +3647,8 @@ summary.bcfmodel <- function(x, ...) {
   }
 
   # Test-set predictions
-  if (!is.null(x$y_hat_test)) {
-    y_hat_test_mean <- rowMeans(x$y_hat_test)
+  if (!is.null(object$y_hat_test)) {
+    y_hat_test_mean <- rowMeans(object$y_hat_test)
     n_y_hat_test <- length(y_hat_test_mean)
     mean_y_hat_test <- mean(y_hat_test_mean)
     sd_y_hat_test <- sd(y_hat_test_mean)
@@ -3666,9 +3666,9 @@ summary.bcfmodel <- function(x, ...) {
   }
 
   # In-sample treatment effect function estimates
-  if (!is.null(x$tau_hat_train)) {
-    if (!x$model_params$multivariate_treatment) {
-      tau_hat_train_mean <- rowMeans(x$tau_hat_train)
+  if (!is.null(object$tau_hat_train)) {
+    if (!object$model_params$multivariate_treatment) {
+      tau_hat_train_mean <- rowMeans(object$tau_hat_train)
       n_tau_hat_train <- length(tau_hat_train_mean)
       mean_tau_hat_train <- mean(tau_hat_train_mean)
       sd_tau_hat_train <- sd(tau_hat_train_mean)
@@ -3687,9 +3687,9 @@ summary.bcfmodel <- function(x, ...) {
   }
 
   # Test set treatment effect function estimates
-  if (!is.null(x$tau_hat_test)) {
-    if (!x$model_params$multivariate_treatment) {
-      tau_hat_test_mean <- rowMeans(x$tau_hat_test)
+  if (!is.null(object$tau_hat_test)) {
+    if (!object$model_params$multivariate_treatment) {
+      tau_hat_test_mean <- rowMeans(object$tau_hat_test)
       n_tau_hat_test <- length(tau_hat_test_mean)
       mean_tau_hat_test <- mean(tau_hat_test_mean)
       sd_tau_hat_test <- sd(tau_hat_test_mean)
@@ -3709,13 +3709,13 @@ summary.bcfmodel <- function(x, ...) {
 
   # Random effects
   # TODO: add random effects summaries once indexing is fixed
-  if (x$model_params$has_rfx) {
-    # rfx_summary <- getRandomEffectSamples(x)
+  if (object$model_params$has_rfx) {
+    # rfx_summary <- getRandomEffectSamples(object)
     # ...
   }
 
   # Return bcf model invisibly
-  invisible(x)
+  invisible(object)
 }
 
 #' @title Plot the BCF model fit.

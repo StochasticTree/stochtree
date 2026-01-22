@@ -2474,19 +2474,19 @@ print.bartmodel <- function(x, ...) {
 
 #' @title Summarize the BART model fit and sampled terms.
 #' @description Summarize the BART with a description of the model that was fit and numeric summaries of any sampled quantities.
-#' @param x The BART model object
+#' @param object The BART model object
 #' @param ... Additional arguments
 #' @export
 #' @return BART model object unchanged after summarizing
-summary.bartmodel <- function(x, ...) {
+summary.bartmodel <- function(object, ...) {
   # First, print the BART model
-  tmp <- print(x)
+  tmp <- print(object)
 
   # Summarize any sampled quantities
 
   # Global error scale
-  if (x$model_params$sample_sigma2_global) {
-    sigma2_samples <- x$sigma2_global_samples
+  if (object$model_params$sample_sigma2_global) {
+    sigma2_samples <- object$sigma2_global_samples
     n_samples <- length(sigma2_samples)
     mean_sigma2 <- mean(sigma2_samples)
     sd_sigma2 <- sd(sigma2_samples)
@@ -2504,8 +2504,8 @@ summary.bartmodel <- function(x, ...) {
   }
 
   # Leaf scale
-  if (x$model_params$sample_sigma2_leaf) {
-    sigma2_leaf_samples <- x$sigma2_leaf_samples
+  if (object$model_params$sample_sigma2_leaf) {
+    sigma2_leaf_samples <- object$sigma2_leaf_samples
     n_samples <- length(sigma2_leaf_samples)
     mean_sigma2 <- mean(sigma2_leaf_samples)
     sd_sigma2 <- sd(sigma2_leaf_samples)
@@ -2523,8 +2523,8 @@ summary.bartmodel <- function(x, ...) {
   }
 
   # In-sample predictions
-  if (!is.null(x$y_hat_train)) {
-    y_hat_train_mean <- rowMeans(x$y_hat_train)
+  if (!is.null(object$y_hat_train)) {
+    y_hat_train_mean <- rowMeans(object$y_hat_train)
     n_y_hat_train <- length(y_hat_train_mean)
     mean_y_hat_train <- mean(y_hat_train_mean)
     sd_y_hat_train <- sd(y_hat_train_mean)
@@ -2542,8 +2542,8 @@ summary.bartmodel <- function(x, ...) {
   }
 
   # Test-set predictions
-  if (!is.null(x$y_hat_test)) {
-    y_hat_test_mean <- rowMeans(x$y_hat_test)
+  if (!is.null(object$y_hat_test)) {
+    y_hat_test_mean <- rowMeans(object$y_hat_test)
     n_y_hat_test <- length(y_hat_test_mean)
     mean_y_hat_test <- mean(y_hat_test_mean)
     sd_y_hat_test <- sd(y_hat_test_mean)
@@ -2562,13 +2562,13 @@ summary.bartmodel <- function(x, ...) {
 
   # Random effects
   # TODO: add random effects summaries once indexing is fixed
-  if (x$model_params$has_rfx) {
-    # rfx_summary <- getRandomEffectSamples(x)
+  if (object$model_params$has_rfx) {
+    # rfx_summary <- getRandomEffectSamples(object)
     # ...
   }
 
   # Return bart_model invisibly
-  invisible(x)
+  invisible(object)
 }
 
 #' @title Plot the BART model fit.
