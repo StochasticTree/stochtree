@@ -2,8 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{createBCFModelFromJson}
 \alias{createBCFModelFromJson}
-\title{Convert an (in-memory) JSON representation of a BCF model to a BCF model object
-which can be used for prediction, etc...}
+\title{Convert JSON to BCF Model}
 \usage{
 createBCFModelFromJson(json_object)
 }

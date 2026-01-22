@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{loadVectorJson}
 \alias{loadVectorJson}
-\title{Load a vector from json}
+\title{Load Vector from JSON}
 \usage{
 loadVectorJson(json_object, json_vector_label, subfolder_name = NULL)
 }

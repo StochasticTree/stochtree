@@ -2,7 +2,7 @@
 % Please edit documentation in R/random_effects.R
 \name{resetRandomEffectsTracker}
 \alias{resetRandomEffectsTracker}
-\title{Reset a \code{RandomEffectsTracker} object based on the parameters indexed by \code{sample_num} in a \code{RandomEffectsSamples} object}
+\title{Reset RandomEffectsTracker Object}
 \usage{
 resetRandomEffectsTracker(
   rfx_tracker,

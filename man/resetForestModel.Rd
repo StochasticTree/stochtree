@@ -2,7 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{resetForestModel}
 \alias{resetForestModel}
-\title{Re-initialize a forest model (tracking data structures) from a specific forest in a \code{ForestContainer}}
+\title{Reset Forest Model}
 \usage{
 resetForestModel(forest_model, forest, dataset, residual, is_mean_model)
 }

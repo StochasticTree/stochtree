@@ -2,7 +2,7 @@
 % Please edit documentation in R/model.R
 \name{sample_without_replacement}
 \alias{sample_without_replacement}
-\title{Draw \code{sample_size} samples from \code{population_vector} without replacement, weighted by \code{sampling_probabilities}}
+\title{Sample Without Replacement}
 \usage{
 sample_without_replacement(
   population_vector,

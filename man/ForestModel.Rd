@@ -2,10 +2,10 @@
 % Please edit documentation in R/model.R
 \name{ForestModel}
 \alias{ForestModel}
-\title{Class that defines and samples a forest model}
+\title{Forest Model C++ Wrapper}
 \description{
-Hosts the C++ data structures needed to sample an ensemble of decision
-trees, and exposes functionality to run a forest sampler
+Wraps the C++ data structures needed to sample an ensemble of decision
+trees and exposes functionality to run a forest sampler
 (using either MCMC or the grow-from-root algorithm).
 }
 \section{Public fields}{

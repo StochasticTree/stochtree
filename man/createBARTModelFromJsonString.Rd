@@ -2,8 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{createBARTModelFromJsonString}
 \alias{createBARTModelFromJsonString}
-\title{Convert a JSON string containing sample information on a trained BART model
-to a BART model object which can be used for prediction, etc...}
+\title{Convert JSON String to BART Model}
 \usage{
 createBARTModelFromJsonString(json_string)
 }

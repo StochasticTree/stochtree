@@ -1,5 +1,4 @@
-#' Compute vector of forest leaf indices
-#'
+#' @title Query Forest Leaf Indices
 #' @description Compute and return a vector representation of a forest's leaf predictions for
 #' every observation in a dataset.
 #'
@@ -157,8 +156,7 @@ computeForestLeafIndices <- function(
   return(leaf_ind_matrix)
 }
 
-#' Compute vector of forest leaf scale parameters
-#'
+#' @title Query Forest Leaf Scale Parameters
 #' @description Return each forest's leaf node scale parameters.
 #'
 #' If leaf scale is not sampled for the forest in question, throws an error that the
@@ -269,6 +267,8 @@ computeForestLeafVariances <- function(
   return(leaf_scale_params)
 }
 
+#' @title Query Forest Max Leaf Index
+#' @description
 #' Compute and return the largest possible leaf index computable by `computeForestLeafIndices` for the forests in a designated forest sample container.
 #'
 #' @param model_object Object of type `bartmodel`, `bcfmodel`, or `ForestSamples` corresponding to a BART / BCF model with at least one forest sample, or a low-level `ForestSamples` object.

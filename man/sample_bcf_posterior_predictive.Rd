@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{sample_bcf_posterior_predictive}
 \alias{sample_bcf_posterior_predictive}
-\title{Sample from the posterior predictive distribution for outcomes modeled by BCF}
+\title{Sample BCF Posterior Predictive}
 \usage{
 sample_bcf_posterior_predictive(
   model_object,

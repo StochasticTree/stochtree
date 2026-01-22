@@ -1,8 +1,8 @@
-#' Class that wraps a C++ random number generator (for reproducibility)
-#'
+#' @title Random Number Generator C++ Wrapper
 #' @description
-#' Persists a C++ random number generator throughout an R session to
-#' ensure reproducibility from a given random seed. If no seed is provided,
+#' Wrapper around a C++ random number generator object (for reproducibility).
+#' The class persists a C++ random number generator throughout an R session to
+#' ensure a given seed generates the same outputs (on the same OS). If no seed is provided,
 #' the C++ random number generator is initialized using `std::random_device`.
 
 CppRNG <- R6::R6Class(
@@ -22,11 +22,10 @@ CppRNG <- R6::R6Class(
   )
 )
 
-#' Class that defines and samples a forest model
-#'
+#' @title Forest Model C++ Wrapper
 #' @description
-#' Hosts the C++ data structures needed to sample an ensemble of decision
-#' trees, and exposes functionality to run a forest sampler
+#' Wraps the C++ data structures needed to sample an ensemble of decision
+#' trees and exposes functionality to run a forest sampler
 #' (using either MCMC or the grow-from-root algorithm).
 
 ForestModel <- R6::R6Class(
@@ -317,6 +316,8 @@ ForestModel <- R6::R6Class(
   )
 )
 
+#' @title Create CppRNG Object
+#' @description
 #' Create an R class that wraps a C++ random number generator
 #'
 #' @param random_seed (Optional) random seed for sampling
@@ -331,6 +332,8 @@ createCppRNG <- function(random_seed = -1) {
   return(invisible((CppRNG$new(random_seed))))
 }
 
+#' @title Create ForestModel Object
+#' @description
 #' Create a forest model object
 #'
 #' @param forest_dataset ForestDataset object, used to initialize forest sampling data structures
@@ -378,6 +381,8 @@ createForestModel <- function(
 }
 
 
+#' @title Sample Without Replacement
+#' @description
 #' Draw `sample_size` samples from `population_vector` without replacement, weighted by `sampling_probabilities`
 #'
 #' @param population_vector Vector from which to draw samples.

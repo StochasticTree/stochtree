@@ -2,9 +2,9 @@
 % Please edit documentation in R/forest.R
 \name{ForestSamples}
 \alias{ForestSamples}
-\title{Class that stores draws from an random ensemble of decision trees}
+\title{Forest Container C++ Wrapper}
 \description{
-Wrapper around a C++ container of tree ensembles
+Wrapper around a C++ class that stores draws from an random ensemble of decision trees.
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}

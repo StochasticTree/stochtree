@@ -1,7 +1,6 @@
-#' Class that stores draws from an random ensemble of decision trees
-#'
+#' @title Forest Container C++ Wrapper
 #' @description
-#' Wrapper around a C++ container of tree ensembles
+#' Wrapper around a C++ class that stores draws from an random ensemble of decision trees.
 
 ForestSamples <- R6::R6Class(
   classname = "ForestSamples",
@@ -897,10 +896,9 @@ ForestSamples <- R6::R6Class(
   )
 )
 
-#' Class that stores a single ensemble of decision trees (often treated as the "active forest")
-#'
+#' @title Forest C++ Wrapper
 #' @description
-#' Wrapper around a C++ tree ensemble
+#' Wrapper around a C++ class that stores a single ensemble of decision trees (often treated as the "active forest" / current state of a forest term in a sampling loop in R)
 
 Forest <- R6::R6Class(
   classname = "Forest",
@@ -1229,7 +1227,8 @@ Forest <- R6::R6Class(
   )
 )
 
-#' Create a container of forest samples
+#' @title Create ForestSamples Object
+#' @description Create a container of forest samples
 #'
 #' @param num_trees Number of trees
 #' @param leaf_dimension Dimensionality of the outcome model
@@ -1261,7 +1260,8 @@ createForestSamples <- function(
   ))
 }
 
-#' Create a forest
+#' @title Create Forest Object
+#' @description Create a forest
 #'
 #' @param num_trees Number of trees in the forest
 #' @param leaf_dimension Dimensionality of the outcome model
@@ -1293,7 +1293,8 @@ createForest <- function(
   ))
 }
 
-#' Reset an active forest, either from a specific forest in a `ForestContainer`
+#' @title Reset Active Forest
+#' @description Reset an active forest, either from a specific forest in a `ForestContainer`
 #' or to an ensemble of single-node (i.e. root) trees
 #'
 #' @param active_forest Current active forest
@@ -1337,6 +1338,8 @@ resetActiveForest <- function(
   }
 }
 
+#' @title Reset Forest Model
+#' @description
 #' Re-initialize a forest model (tracking data structures) from a specific forest in a `ForestContainer`
 #'
 #' @param forest_model Forest model with tracking data structures

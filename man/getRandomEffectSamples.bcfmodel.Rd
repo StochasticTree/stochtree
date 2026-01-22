@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{getRandomEffectSamples.bcfmodel}
 \alias{getRandomEffectSamples.bcfmodel}
-\title{Extract raw sample values for each of the random effect parameter terms.}
+\title{Extract Random Effect Samples from BCF Model}
 \usage{
 \method{getRandomEffectSamples}{bcfmodel}(object, ...)
 }

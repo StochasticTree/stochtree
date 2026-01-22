@@ -2,8 +2,9 @@
 % Please edit documentation in R/data.R
 \name{ForestDataset}
 \alias{ForestDataset}
-\title{Dataset used to sample a forest}
+\title{Forest Dataset C++ Wrapper}
 \description{
+Wrapper around a C++ dataset class used to sample a forest.
 A dataset consists of three matrices / vectors: covariates,
 bases, and variance weights. Both the basis vector and variance
 weights are optional.

@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{loadForestContainerCombinedJsonString}
 \alias{loadForestContainerCombinedJsonString}
-\title{Combine multiple JSON strings representing model objects containing forests (with the same hierarchy / schema) into a single forest_container}
+\title{Combine JSON Strings into ForestSamples}
 \usage{
 loadForestContainerCombinedJsonString(json_string_list, json_forest_label)
 }

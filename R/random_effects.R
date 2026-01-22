@@ -1,5 +1,5 @@
-#' Class that wraps the "persistent" aspects of a C++ random effects model.
-#'
+#' @title Random Effect Container C++ Wrapper
+#' @description
 #' Class that wraps the "persistent" aspects of a C++ random effects model, including
 #' draws of the parameters and a map from the original label indices to the
 #' 0-indexed label numbers used to place group samples in memory (i.e. the
@@ -241,12 +241,13 @@ RandomEffectSamples <- R6::R6Class(
   )
 )
 
+#' @title Random Effects Tracker C++ Wrapper
+#'
+#' @description
 #' Class that defines a "tracker" for random effects models, most notably
 #' storing the data indices available in each group for quicker posterior
 #' computation and sampling of random effects terms.
-#'
-#' @description
-#' Stores a mapping from every observation to its group index, a mapping
+#' The class stores a mapping from every observation to its group index, a mapping
 #' from group indices to the training sample observations available in that
 #' group, and predictions for each observation.
 
@@ -268,9 +269,9 @@ RandomEffectsTracker <- R6::R6Class(
   )
 )
 
-#' The core "model" class for sampling random effects.
-#'
+#' @title Random Effects Model C++ Wrapper
 #' @description
+#' The core "model" class for sampling random effects.
 #' Stores current model state, prior parameters, and procedures for
 #' sampling from the conditional posterior of each parameter.
 
@@ -429,6 +430,8 @@ RandomEffectsModel <- R6::R6Class(
   )
 )
 
+#' @title Create RandomEffectSamples Object
+#' @description
 #' Create a `RandomEffectSamples` object
 #'
 #' @param num_components Number of "components" or bases defining the random effects regression
@@ -455,6 +458,8 @@ createRandomEffectSamples <- function(
   return(output)
 }
 
+#' @title Create RandomEffectsTracker Object
+#' @description
 #' Create a `RandomEffectsTracker` object
 #'
 #' @param rfx_group_indices Integer indices indicating groups used to define random effects
@@ -472,6 +477,8 @@ createRandomEffectsTracker <- function(rfx_group_indices) {
   return(invisible((RandomEffectsTracker$new(rfx_group_indices))))
 }
 
+#' @title Create RandomEffectsModel Object
+#' @description
 #' Create a `RandomEffectsModel` object
 #'
 #' @param num_components Number of "components" or bases defining the random effects regression
@@ -490,6 +497,8 @@ createRandomEffectsModel <- function(num_components, num_groups) {
   return(invisible((RandomEffectsModel$new(num_components, num_groups))))
 }
 
+#' @title Reset RandomEffectsModel Object
+#' @description
 #' Reset a `RandomEffectsModel` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
 #'
 #' @param rfx_model Object of type `RandomEffectsModel`.
@@ -552,6 +561,8 @@ resetRandomEffectsModel <- function(
   rfx_model$set_working_parameter_cov(sigma_alpha_init)
 }
 
+#' @title Reset RandomEffectsTracker Object
+#' @description
 #' Reset a `RandomEffectsTracker` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
 #'
 #' @param rfx_tracker Object of type `RandomEffectsTracker`.
@@ -611,6 +622,8 @@ resetRandomEffectsTracker <- function(
   )
 }
 
+#' @title Reset RandomEffectsModel Object to Default State
+#' @description
 #' Reset a `RandomEffectsModel` object to its "default" state
 #'
 #' @param rfx_model Object of type `RandomEffectsModel`.
@@ -674,6 +687,8 @@ rootResetRandomEffectsModel <- function(
   rfx_model$set_variance_prior_scale(sigma_xi_scale)
 }
 
+#' @title Reset RandomEffectsTracker Object to Default State
+#' @description
 #' Reset a `RandomEffectsTracker` object to its "default" state
 #'
 #' @param rfx_tracker Object of type `RandomEffectsTracker`.

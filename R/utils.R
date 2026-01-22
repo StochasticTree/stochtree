@@ -20,8 +20,8 @@ preprocessParams <- function(default_params, user_params = NULL) {
   return(default_params)
 }
 
-#' Preprocess covariates for use in a `ForestDataset` at train time.
-#'
+#' @title Preprocess Covariates for Model Training
+#' @description
 #' Preprocess covariates for use in a `ForestDataset` at train time.
 #' DataFrames will be preprocessed based on their column
 #' types. Matrices will be passed through assuming all columns are numeric.
@@ -53,8 +53,8 @@ preprocessTrainData <- function(input_data) {
   return(output)
 }
 
-#' Preprocess covariates for use in a `ForestDataset` at prediction time.
-#'
+#' @title Preprocess Covariates for Model Prediction
+#' @description
 #' Preprocess covariates for use in a `ForestDataset` at prediction time.
 #' DataFrames will be preprocessed based on their column
 #' types. Matrices will be passed through assuming all columns are numeric.
@@ -381,6 +381,8 @@ preprocessPredictionDataFrame <- function(input_df, metadata) {
   return(X)
 }
 
+#' @title Convert Covariate Preprocessor to CppJson
+#' @description
 #' Convert the persistent aspects of a covariate preprocessor to (in-memory) C++ JSON object
 #'
 #' @param object List containing information on variables, including train set
@@ -449,6 +451,8 @@ convertPreprocessorToJson <- function(object) {
   return(jsonobj)
 }
 
+#' @title Convert Covariate Preprocessor to JSON String
+#' @description
 #' Convert the persistent aspects of a covariate preprocessor to (in-memory) JSON string
 #'
 #' @param object List containing information on variables, including train set
@@ -469,6 +473,8 @@ savePreprocessorToJsonString <- function(object) {
   return(jsonobj$return_json_string())
 }
 
+#' @title Reload Covariate Preprocessor from JSON String
+#' @description
 #' Reload a covariate preprocessor object from a JSON string containing a serialized preprocessor
 #'
 #' @param json_object in-memory wrapper around JSON C++ object containing covariate preprocessor metadata
@@ -544,6 +550,8 @@ createPreprocessorFromJson <- function(json_object) {
   return(metadata)
 }
 
+#' @title Reload Covariate Preprocessor from JSON String
+#' @description
 #' Reload a covariate preprocessor object from a JSON string containing a serialized preprocessor
 #'
 #' @param json_string in-memory JSON string containing covariate preprocessor metadata
@@ -997,7 +1005,6 @@ orderedCatPreprocess <- function(x_input, unique_levels, var_name = NULL) {
 #' @param input Input to be converted to a vector (or passed through as-is)
 #' @param output_size Intended size of the output vector
 #' @return A vector of length `output_size`
-#' @export
 expand_dims_1d <- function(input, output_size) {
   if (length(input) == 1) {
     output <- rep(input, output_size)
@@ -1028,7 +1035,6 @@ expand_dims_1d <- function(input, output_size) {
 #' @param output_rows Intended number of rows in the output array
 #' @param output_cols Intended number of columns in the output array
 #' @return A matrix of dimension `output_rows` x `output_cols`
-#' @export
 expand_dims_2d <- function(input, output_rows, output_cols) {
   if (length(input) == 1) {
     output <- matrix(
@@ -1073,7 +1079,6 @@ expand_dims_2d <- function(input, output_rows, output_cols) {
 #' @param input Input to be converted to a square matrix (or passed through as-is)
 #' @param output_size Intended row and column dimension of the square output matrix
 #' @return A square matrix of dimension `output_size` x `output_size`
-#' @export
 expand_dims_2d_diag <- function(input, output_size) {
   if (length(input) == 1) {
     output <- as.matrix(diag(input, output_size))

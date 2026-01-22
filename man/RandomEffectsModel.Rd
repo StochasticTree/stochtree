@@ -2,8 +2,9 @@
 % Please edit documentation in R/random_effects.R
 \name{RandomEffectsModel}
 \alias{RandomEffectsModel}
-\title{The core "model" class for sampling random effects.}
+\title{Random Effects Model C++ Wrapper}
 \description{
+The core "model" class for sampling random effects.
 Stores current model state, prior parameters, and procedures for
 sampling from the conditional posterior of each parameter.
 }
