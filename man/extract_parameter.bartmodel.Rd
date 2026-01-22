@@ -2,7 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{extract_parameter.bartmodel}
 \alias{extract_parameter.bartmodel}
-\title{Extract parameter samples from a model.}
+\title{Extract BART Parameter Samples.}
 \usage{
 \method{extract_parameter}{bartmodel}(object, term)
 }

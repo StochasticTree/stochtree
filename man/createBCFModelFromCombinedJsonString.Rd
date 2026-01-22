@@ -2,8 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{createBCFModelFromCombinedJsonString}
 \alias{createBCFModelFromCombinedJsonString}
-\title{Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object
-which can be used for prediction, etc...}
+\title{Convert JSON String List to BCF Model}
 \usage{
 createBCFModelFromCombinedJsonString(json_string_list)
 }

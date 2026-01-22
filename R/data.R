@@ -1,6 +1,7 @@
-#' Dataset used to sample a forest
+#' @title Forest Dataset C++ Wrapper
 #'
 #' @description
+#' Wrapper around a C++ dataset class used to sample a forest.
 #' A dataset consists of three matrices / vectors: covariates,
 #' bases, and variance weights. Both the basis vector and variance
 #' weights are optional.
@@ -112,9 +113,10 @@ ForestDataset <- R6::R6Class(
   )
 )
 
-#' Outcome / partial residual used to sample an additive model.
+#' @title Outcome Data C++ Wrapper
 #'
 #' @description
+#' Outcome / partial residual used to sample an additive model.
 #' The outcome class is wrapper around a vector of (mutable)
 #' outcomes for ML tasks (supervised learning, causal inference).
 #' When an additive tree ensemble is sampled, the outcome used to
@@ -209,10 +211,11 @@ Outcome <- R6::R6Class(
   )
 )
 
-#' Dataset used to sample a random effects model
+#' @title Random Effects Dataset C++ Wrapper
 #'
 #' @description
-#' A dataset consists of three matrices / vectors: group labels,
+#' Dataset used to sample a random effects model.
+#' A random effects dataset consists of three matrices / vectors: group labels,
 #' bases, and variance weights. Variance weights are optional.
 
 RandomEffectsDataset <- R6::R6Class(
@@ -316,6 +319,8 @@ RandomEffectsDataset <- R6::R6Class(
   )
 )
 
+#' @title Create ForestDataset Object
+#' @description
 #' Create a forest dataset object
 #'
 #' @param covariates Matrix of covariates
@@ -340,6 +345,8 @@ createForestDataset <- function(
   return(invisible((ForestDataset$new(covariates, basis, variance_weights))))
 }
 
+#' @title Create Outcome Object
+#' @description
 #' Create an outcome object
 #'
 #' @param outcome Vector of outcome values
@@ -355,6 +362,8 @@ createOutcome <- function(outcome) {
   return(invisible((Outcome$new(outcome))))
 }
 
+#' @title Create RandomEffectsDataset Object
+#' @description
 #' Create a random effects dataset object
 #'
 #' @param group_labels Vector of group labels

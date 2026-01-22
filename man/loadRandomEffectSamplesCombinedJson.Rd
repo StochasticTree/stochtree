@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{loadRandomEffectSamplesCombinedJson}
 \alias{loadRandomEffectSamplesCombinedJson}
-\title{Combine multiple JSON model objects containing random effects (with the same hierarchy / schema) into a single container}
+\title{Combine JSON Model Objects into RandomEffectSamples}
 \usage{
 loadRandomEffectSamplesCombinedJson(json_object_list, json_rfx_num)
 }

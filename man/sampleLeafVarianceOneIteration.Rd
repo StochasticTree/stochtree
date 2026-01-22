@@ -2,7 +2,7 @@
 % Please edit documentation in R/variance.R
 \name{sampleLeafVarianceOneIteration}
 \alias{sampleLeafVarianceOneIteration}
-\title{Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)}
+\title{Sample Leaf Scale}
 \usage{
 sampleLeafVarianceOneIteration(forest, rng, a, b)
 }

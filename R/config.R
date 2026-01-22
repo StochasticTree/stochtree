@@ -1,7 +1,8 @@
-#' Object used to get / set parameters and other model configuration options
-#' for a forest model in the "low-level" stochtree interface
+#' @title Forest Model Configuration Object
 #'
 #' @description
+#' Object used to get / set parameters and other model configuration options
+#' for a forest model in the "low-level" stochtree interface.
 #' The "low-level" stochtree interface enables a high degreee of sampler
 #' customization, in which users employ R wrappers around C++ objects
 #' like ForestDataset, Outcome, CppRng, and ForestModel to run the
@@ -429,10 +430,11 @@ ForestModelConfig <- R6::R6Class(
   )
 )
 
-#' Object used to get / set global parameters and other global model
-#' configuration options in the "low-level" stochtree interface
+#' @title Global Model Configuration Object
 #'
 #' @description
+#' Object used to get / set global parameters and other global model
+#' configuration options in the "low-level" stochtree interface.
 #' The "low-level" stochtree interface enables a high degreee of sampler
 #' customization, in which users employ R wrappers around C++ objects
 #' like ForestDataset, Outcome, CppRng, and ForestModel to run the
@@ -472,6 +474,8 @@ GlobalModelConfig <- R6::R6Class(
   )
 )
 
+#' @title Create ForestModelConfig Object
+#' @description
 #' Create a forest model config object
 #'
 #' @param feature_types Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
@@ -538,6 +542,8 @@ createForestModelConfig <- function(
   ))
 }
 
+#' @title Create GlobalModelConfig Object
+#' @description
 #' Create a global model config object
 #'
 #' @param global_error_variance Global error variance parameter (default: `1.0`)

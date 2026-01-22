@@ -1,5 +1,5 @@
-#' Compute a contrast between two outcome prediction specifications for a BCF model
-#'
+#' @title Compute Contrast for BCF Model
+#' @description
 #' Compute a contrast using a BCF model by making two sets of outcome predictions and taking their difference.
 #' For simple BCF models with binary treatment, this will yield the same prediction as requesting `terms = "cate"`
 #' in the `predict.bcfmodel` function. For more general models, such as models with continuous / multivariate treatments or
@@ -247,8 +247,8 @@ compute_contrast_bcf_model <- function(
   }
 }
 
-#' Compute a contrast between two outcome prediction specifications for a BART model
-#'
+#' @title Compute Contrast for BART Model
+#' @description
 #' Compute a contrast using a BART model by making two sets of outcome predictions and taking their difference.
 #' This function provides the flexibility to compute any contrast of interest by specifying covariates, leaf basis, and random effects
 #' bases / IDs for both sides of a two term contrast. For simplicity, we refer to the subtrahend of the contrast as the "control" or
@@ -476,6 +476,8 @@ compute_contrast_bart_model <- function(
   }
 }
 
+#' @title Sample BCF Posterior Predictive
+#' @description
 #' Sample from the posterior predictive distribution for outcomes modeled by BCF
 #'
 #' @param model_object A fitted BCF model object of class `bcfmodel`.
@@ -676,6 +678,8 @@ sample_bcf_posterior_predictive <- function(
   return(ppd_array)
 }
 
+#' @title Sample BART Posterior Predictive
+#' @description
 #' Sample from the posterior predictive distribution for outcomes modeled by BART
 #'
 #' @param model_object A fitted BART model object of class `bartmodel`.
@@ -854,8 +858,8 @@ posterior_predictive_heuristic_multiplier <- function(
   }
 }
 
-#' Compute posterior credible intervals for BCF model terms
-#'
+#' @title Compute BCF Posterior Credible Intervals
+#' @description
 #' Compute posterior credible intervals for specified terms from a fitted BCF model. Supports intervals for prognostic forests, CATE forests, variance forests, random effects, and overall mean outcome predictions.
 #'
 #' @param model_object A fitted BCF model object of class `bcfmodel`.
@@ -1082,8 +1086,8 @@ compute_bcf_posterior_interval <- function(
   }
 }
 
-#' Compute posterior credible intervals for specified terms from a fitted BART model.
-#'
+#' @title Compute BART Posterior Credible Intervals
+#' @description
 #' Compute posterior credible intervals for specified terms from a fitted BART model. Supports intervals for mean functions, variance functions, random effects, and overall outcome predictions.
 #'
 #' @param model_object A fitted BART or BCF model object of class `bartmodel`.

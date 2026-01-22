@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{compute_bart_posterior_interval}
 \alias{compute_bart_posterior_interval}
-\title{Compute posterior credible intervals for specified terms from a fitted BART model.}
+\title{Compute BART Posterior Credible Intervals}
 \usage{
 compute_bart_posterior_interval(
   model_object,

@@ -2,7 +2,7 @@
 % Please edit documentation in R/model.R
 \name{createCppRNG}
 \alias{createCppRNG}
-\title{Create an R class that wraps a C++ random number generator}
+\title{Create CppRNG Object}
 \usage{
 createCppRNG(random_seed = -1)
 }

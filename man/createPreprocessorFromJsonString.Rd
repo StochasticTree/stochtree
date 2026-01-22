@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{createPreprocessorFromJsonString}
 \alias{createPreprocessorFromJsonString}
-\title{Reload a covariate preprocessor object from a JSON string containing a serialized preprocessor}
+\title{Reload Covariate Preprocessor from JSON String}
 \usage{
 createPreprocessorFromJsonString(json_string)
 }

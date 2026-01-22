@@ -1,3 +1,5 @@
+#' @title Run BCF for Causal Effect Estimation
+#' @description
 #' Run the Bayesian Causal Forest (BCF) algorithm for regularized causal effect estimation.
 #'
 #' @param X_train Covariates used to split trees in the ensemble. May be provided either as a dataframe or a matrix.
@@ -2793,6 +2795,8 @@ bcf <- function(
   return(result)
 }
 
+#' @title Predict From BCF Model
+#' @description
 #' Predict from a sampled BCF model on new data
 #'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
@@ -3359,7 +3363,7 @@ predict.bcfmodel <- function(
   return(result)
 }
 
-#' @title Print a summary of the BCF model
+#' @title Print Summary of BCF Model
 #' @description Prints a summary of the BCF model, including the model terms and their specifications.
 #' @param x The BCF model object
 #' @param ... Additional arguments (currently unused)
@@ -3527,7 +3531,7 @@ print.bcfmodel <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Summarize the BCF model fit and sampled terms.
+#' @title Summarize BCF Model
 #' @description Summarize the BCF with a description of the model that was fit and numeric summaries of any sampled quantities.
 #' @param object The BCF model object
 #' @param ... Additional arguments
@@ -3718,7 +3722,7 @@ summary.bcfmodel <- function(object, ...) {
   invisible(object)
 }
 
-#' @title Plot the BCF model fit.
+#' @title Plot BCF Model
 #' @description Plot the BCF model fit and any relevant sampled quantities. This will default to a traceplot of the global error scale and the in-sample mean forest predictions for the first train set observation. Since `stochtree::bcf()` is flexible and it's possible to sample a model with a fixed global error scale and no mean forest, this procedure will throw an error if these two default terms are omitted.
 #' @param x The BCF model object
 #' @param ... Additional arguments
@@ -3756,7 +3760,7 @@ plot.bcfmodel <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Extract parameter samples from a model.
+#' @title Extract BCF Parameter Samples
 #' @description Extract a vector, matrix or array of parameter samples from a BCF model by name.
 #' Random effects are handled by a separate `getRandomEffectSamples` function due to the complexity of the random effects parameters.
 #' If the requested model term is not found, an error is thrown.
@@ -3910,6 +3914,8 @@ extract_parameter.bcfmodel <- function(object, term) {
   stop(paste0("term ", term, " is not a valid BCF model term"))
 }
 
+#' @title Extract Random Effect Samples from BCF Model
+#' @description
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
@@ -4008,6 +4014,8 @@ getRandomEffectSamples.bcfmodel <- function(object, ...) {
   return(result)
 }
 
+#' @title Convert BCF Model to JSON
+#' @description
 #' Convert the persistent aspects of a BCF model to (in-memory) JSON
 #'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
@@ -4243,6 +4251,8 @@ saveBCFModelToJson <- function(object) {
   return(jsonobj)
 }
 
+#' @title Save BCF Model to JSON File
+#' @description
 #' Convert the persistent aspects of a BCF model to (in-memory) JSON and save to a file
 #'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
@@ -4327,6 +4337,8 @@ saveBCFModelToJsonFile <- function(object, filename) {
   jsonobj$save_file(filename)
 }
 
+#' @title Convert BCF Model to JSON String
+#' @description
 #' Convert the persistent aspects of a BCF model to (in-memory) JSON string
 #'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
@@ -4407,6 +4419,8 @@ saveBCFModelToJsonString <- function(object) {
   return(jsonobj$return_json_string())
 }
 
+#' @title Convert JSON to BCF Model
+#' @description
 #' Convert an (in-memory) JSON representation of a BCF model to a BCF model object
 #' which can be used for prediction, etc...
 #'
@@ -4643,6 +4657,8 @@ createBCFModelFromJson <- function(json_object) {
   return(output)
 }
 
+#' @title Convert JSON File to BCF Model
+#' @description
 #' Convert a JSON file containing sample information on a trained BCF model
 #' to a BCF model object which can be used for prediction, etc...
 #'
@@ -4730,6 +4746,8 @@ createBCFModelFromJsonFile <- function(json_filename) {
   return(bcf_object)
 }
 
+#' @title Convert JSON String to BCF Model
+#' @description
 #' Convert a JSON string containing sample information on a trained BCF model
 #' to a BCF model object which can be used for prediction, etc...
 #'
@@ -4811,6 +4829,8 @@ createBCFModelFromJsonString <- function(json_string) {
   return(bcf_object)
 }
 
+#' @title Convert JSON List to BCF Model
+#' @description
 #' Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object
 #' which can be used for prediction, etc...
 #'
@@ -5153,6 +5173,8 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   return(output)
 }
 
+#' @title Convert JSON String List to BCF Model
+#' @description
 #' Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object
 #' which can be used for prediction, etc...
 #'

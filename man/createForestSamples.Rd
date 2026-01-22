@@ -2,7 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{createForestSamples}
 \alias{createForestSamples}
-\title{Create a container of forest samples}
+\title{Create ForestSamples Object}
 \usage{
 createForestSamples(
   num_trees,

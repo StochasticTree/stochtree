@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{predict.bcfmodel}
 \alias{predict.bcfmodel}
-\title{Predict from a sampled BCF model on new data}
+\title{Predict From BCF Model}
 \usage{
 \method{predict}{bcfmodel}(
   object,

@@ -1,7 +1,6 @@
-#' Class that stores draws from an random ensemble of decision trees
-#'
+#' @title JSON C++ Object Wrapper
 #' @description
-#' Wrapper around a C++ container of tree ensembles
+#' Wrapper around a C++ `nlohmann::json` object
 
 CppJson <- R6::R6Class(
   classname = "CppJson",
@@ -521,6 +520,8 @@ CppJson <- R6::R6Class(
   )
 )
 
+#' @title Load Forest Samples from JSON
+#' @description
 #' Load a container of forest samples from json
 #'
 #' @param json_object Object of class `CppJson`
@@ -541,6 +542,8 @@ loadForestContainerJson <- function(json_object, json_forest_label) {
   return(output)
 }
 
+#' @title Combine JSON Model Objects into ForestSamples
+#' @description
 #' Combine multiple JSON model objects containing forests (with the same hierarchy / schema) into a single forest_container
 #'
 #' @param json_object_list List of objects of class `CppJson`
@@ -571,6 +574,8 @@ loadForestContainerCombinedJson <- function(
   return(output)
 }
 
+#' @title Combine JSON Strings into ForestSamples
+#' @description
 #' Combine multiple JSON strings representing model objects containing forests (with the same hierarchy / schema) into a single forest_container
 #'
 #' @param json_string_list List of strings that parse into objects of type `CppJson`
@@ -601,6 +606,8 @@ loadForestContainerCombinedJsonString <- function(
   return(output)
 }
 
+#' @title Load Random Effect Samples from JSON
+#' @description
 #' Load a container of random effect samples from json
 #'
 #' @param json_object Object of class `CppJson`
@@ -634,6 +641,8 @@ loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
   return(output)
 }
 
+#' @title Combine JSON Model Objects into RandomEffectSamples
+#' @description
 #' Combine multiple JSON model objects containing random effects (with the same hierarchy / schema) into a single container
 #'
 #' @param json_object_list List of objects of class `CppJson`
@@ -682,6 +691,8 @@ loadRandomEffectSamplesCombinedJson <- function(
   return(output)
 }
 
+#' @title Combine JSON Strings into RandomEffectSamples
+#' @description
 #' Combine multiple JSON strings representing model objects containing random effects (with the same hierarchy / schema) into a single container
 #'
 #' @param json_string_list List of objects of class `CppJson`
@@ -730,6 +741,8 @@ loadRandomEffectSamplesCombinedJsonString <- function(
   return(output)
 }
 
+#' @title Load Vector from JSON
+#' @description
 #' Load a vector from json
 #'
 #' @param json_object Object of class `CppJson`
@@ -757,6 +770,8 @@ loadVectorJson <- function(
   return(output)
 }
 
+#' @title Load Scalar from JSON
+#' @description
 #' Load a scalar from json
 #'
 #' @param json_object Object of class `CppJson`
@@ -784,6 +799,8 @@ loadScalarJson <- function(
   return(output)
 }
 
+#' @title Create CppJson Object
+#' @description
 #' Create a new (empty) C++ Json object
 #'
 #' @return `CppJson` object
@@ -797,6 +814,8 @@ createCppJson <- function() {
   return(invisible((CppJson$new())))
 }
 
+#' @title Create CppJson Object from File
+#' @description
 #' Create a C++ Json object from a Json file
 #'
 #' @param json_filename Name of file to read. Must end in `.json`.
@@ -817,6 +836,8 @@ createCppJsonFile <- function(json_filename) {
   return(output)
 }
 
+#' @title Create CppJson Object from String
+#' @description
 #' Create a C++ Json object from a Json string
 #'
 #' @param json_string JSON string dump

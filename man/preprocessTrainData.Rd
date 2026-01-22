@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{preprocessTrainData}
 \alias{preprocessTrainData}
-\title{Preprocess covariates for use in a \code{ForestDataset} at train time.}
+\title{Preprocess Covariates for Model Training}
 \usage{
 preprocessTrainData(input_data)
 }

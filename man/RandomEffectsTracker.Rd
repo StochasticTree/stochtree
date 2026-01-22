@@ -2,11 +2,12 @@
 % Please edit documentation in R/random_effects.R
 \name{RandomEffectsTracker}
 \alias{RandomEffectsTracker}
-\title{Class that defines a "tracker" for random effects models, most notably
-storing the data indices available in each group for quicker posterior
-computation and sampling of random effects terms.}
+\title{Random Effects Tracker C++ Wrapper}
 \description{
-Stores a mapping from every observation to its group index, a mapping
+Class that defines a "tracker" for random effects models, most notably
+storing the data indices available in each group for quicker posterior
+computation and sampling of random effects terms.
+The class stores a mapping from every observation to its group index, a mapping
 from group indices to the training sample observations available in that
 group, and predictions for each observation.
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{saveBARTModelToJsonFile}
 \alias{saveBARTModelToJsonFile}
-\title{Convert the persistent aspects of a BART model to (in-memory) JSON and save to a file}
+\title{Save BART Model to JSON File}
 \usage{
 saveBARTModelToJsonFile(object, filename)
 }

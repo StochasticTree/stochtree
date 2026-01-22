@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{bcf}
 \alias{bcf}
-\title{Run the Bayesian Causal Forest (BCF) algorithm for regularized causal effect estimation.}
+\title{Run BCF for Causal Effect Estimation}
 \usage{
 bcf(
   X_train,

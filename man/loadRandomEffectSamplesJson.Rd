@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{loadRandomEffectSamplesJson}
 \alias{loadRandomEffectSamplesJson}
-\title{Load a container of random effect samples from json}
+\title{Load Random Effect Samples from JSON}
 \usage{
 loadRandomEffectSamplesJson(json_object, json_rfx_num)
 }
