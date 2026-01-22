@@ -4,10 +4,10 @@
 \alias{summary.bcfmodel}
 \title{Summarize the BCF model fit and sampled terms.}
 \usage{
-\method{summary}{bcfmodel}(bcf_model, ...)
+\method{summary}{bcfmodel}(object, ...)
 }
 \arguments{
-\item{bcf_model}{The BCF model object}
+\item{object}{The BCF model object}
 
 \item{...}{Additional arguments}
 }

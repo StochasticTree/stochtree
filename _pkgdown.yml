@@ -10,6 +10,11 @@ reference:
   contents:
   - bart
   - predict.bartmodel
+  - print.bartmodel
+  - summary.bartmodel
+  - plot.bartmodel
+  - extract_parameter.bartmodel
+  - getRandomEffectSamples.bartmodel
   - compute_bart_posterior_interval
   - compute_contrast_bart_model
   - sample_bart_posterior_predictive
@@ -20,6 +25,11 @@ reference:
   contents:
   - bcf
   - predict.bcfmodel
+  - print.bcfmodel
+  - summary.bcfmodel
+  - plot.bcfmodel
+  - extract_parameter.bcfmodel
+  - getRandomEffectSamples.bcfmodel
   - compute_bcf_posterior_interval
   - compute_contrast_bcf_model
   - sample_bcf_posterior_predictive
@@ -110,8 +120,6 @@ reference:
   - RandomEffectsTracker
   - createRandomEffectsTracker
   - getRandomEffectSamples
-  - getRandomEffectSamples.bartmodel
-  - getRandomEffectSamples.bcfmodel
   - sampleGlobalErrorVarianceOneIteration
   - sampleLeafVarianceOneIteration
   - resetRandomEffectsModel
@@ -124,6 +132,7 @@ reference:
     Miscellaneous "utility" classes and functions
   contents:
   - sample_without_replacement
+  - extract_parameter
   - expand_dims_1d
   - expand_dims_2d
   - expand_dims_2d_diag
