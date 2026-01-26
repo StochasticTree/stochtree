@@ -5,6 +5,10 @@
 #' A dataset consists of three matrices / vectors: covariates,
 #' bases, and variance weights. Both the basis vector and variance
 #' weights are optional.
+#'
+#' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 
 ForestDataset <- R6::R6Class(
   classname = "ForestDataset",
@@ -123,6 +127,10 @@ ForestDataset <- R6::R6Class(
 #' sample a specific model term is the "partial residual" consisting
 #' of the outcome minus the predictions of every other model term
 #' (trees, group random effects, etc...).
+#'
+#' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 
 Outcome <- R6::R6Class(
   classname = "Outcome",
@@ -217,6 +225,10 @@ Outcome <- R6::R6Class(
 #' Dataset used to sample a random effects model.
 #' A random effects dataset consists of three matrices / vectors: group labels,
 #' bases, and variance weights. Variance weights are optional.
+#'
+#' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 
 RandomEffectsDataset <- R6::R6Class(
   classname = "RandomEffectsDataset",
@@ -323,6 +335,10 @@ RandomEffectsDataset <- R6::R6Class(
 #' @description
 #' Create a forest dataset object
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param covariates Matrix of covariates
 #' @param basis (Optional) Matrix of bases used to define a leaf regression
 #' @param variance_weights (Optional) Vector of observation-specific variance weights
@@ -349,6 +365,10 @@ createForestDataset <- function(
 #' @description
 #' Create an outcome object
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param outcome Vector of outcome values
 #'
 #' @return `Outcome` object
@@ -365,6 +385,10 @@ createOutcome <- function(outcome) {
 #' @title Create RandomEffectsDataset Object
 #' @description
 #' Create a random effects dataset object
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param group_labels Vector of group labels
 #' @param basis Matrix of bases used to define the random effects regression (for an intercept-only model, pass an array of ones)

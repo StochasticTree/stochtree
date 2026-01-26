@@ -18,6 +18,10 @@ createRandomEffectSamples(num_components, num_groups, random_effects_tracker)
 }
 \description{
 Create a \code{RandomEffectSamples} object
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 n <- 100
