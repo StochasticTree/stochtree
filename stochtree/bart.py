@@ -95,7 +95,7 @@ class BARTModel:
         Parameters
         ----------
         X_train : np.array
-            Training set covariates on which trees may be partitioned.
+            Training set covariates on which trees are partitioned.
         y_train : np.array
             Training set outcome.
         leaf_basis_train : np.array, optional

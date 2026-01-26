@@ -23,8 +23,8 @@ from .sampler import (
 )
 from .serialization import JSONSerializer
 from .sklearn import (
-    StochTreeRegressor,
-    StochTreeBinaryClassifier
+    StochTreeBARTRegressor,
+    StochTreeBARTBinaryClassifier, 
 )
 from .utils import (
     NotSampledError,
@@ -35,14 +35,13 @@ from .utils import (
     _check_matrix_square,
     _standardize_array_to_list,
     _standardize_array_to_np,
-    _expand_dims_1d, 
-    _expand_dims_2d, 
-    _expand_dims_2d_diag
 )
 
 __all__ = [
     "BARTModel",
     "BCFModel",
+    "StochTreeBARTRegressor",
+    "StochTreeBARTBinaryClassifier",
     "Dataset",
     "Residual",
     "ForestContainer",
