@@ -1365,6 +1365,7 @@ class BCFModel:
                         num_gfr=num_gfr_propensity,
                         num_burnin=num_burnin_propensity,
                         num_mcmc=num_mcmc_propensity,
+                        general_params={"random_seed": random_seed},
                     )
                     propensity_train = np.mean(
                         self.bart_propensity_model.y_hat_train, axis=1, keepdims=True
@@ -1379,6 +1380,7 @@ class BCFModel:
                         num_gfr=num_gfr_propensity,
                         num_burnin=num_burnin_propensity,
                         num_mcmc=num_mcmc_propensity,
+                        general_params={"random_seed": random_seed},
                     )
                     propensity_train = np.mean(
                         self.bart_propensity_model.y_hat_train, axis=1, keepdims=True

@@ -1,8 +1,6 @@
-from numpy import isin
-from copy import copy
 import numpy as np
 from scipy.stats import norm
-from stochtree import BARTModel, BCFModel
+from stochtree import BARTModel
 from sklearn.utils._array_api import (
     get_namespace,
     indexing_dtype,
@@ -19,7 +17,7 @@ from sklearn.utils.validation import check_is_fitted, validate_data
 
 
 
-class StochTreeRegressor(RegressorMixin, BaseEstimator):
+class StochTreeBARTRegressor(RegressorMixin, BaseEstimator):
     """A scikit-learn-compatible estimator that implements a BART regression model.
 
     Parameters
@@ -42,10 +40,10 @@ class StochTreeRegressor(RegressorMixin, BaseEstimator):
     Attributes
     ----------
     X_ : ndarray, shape (n_samples, n_features)
-        The input passed during :meth:`fit`.
+        The covariates (or features) used to define tree partitions.
 
     y_ : ndarray, shape (n_samples,)
-        The labels passed during :meth:`fit`.
+        The outcome variable (or labels) used to evaluate tree partitions.
 
     leaf_regression_basis_ : ndarray, shape (n_samples, n_bases)
         The basis functions used for leaf regression model if requested.
@@ -70,7 +68,7 @@ class StochTreeRegressor(RegressorMixin, BaseEstimator):
     >>> data = load_boston()
     >>> X = data.data
     >>> y = data.target
-    >>> reg = StochTreeRegressor().fit(X, y)
+    >>> reg = StochTreeBARTRegressor().fit(X, y)
     >>> reg.predict(X)
     """
 
@@ -265,7 +263,7 @@ class StochTreeRegressor(RegressorMixin, BaseEstimator):
             self.__dict__.update(state)
 
 
-class StochTreeBinaryClassifier(ClassifierMixin, BaseEstimator):
+class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
     """A scikit-learn-compatible estimator that implements a binary probit BART classifier.
 
     Parameters
@@ -288,10 +286,10 @@ class StochTreeBinaryClassifier(ClassifierMixin, BaseEstimator):
     Attributes
     ----------
     X_ : ndarray, shape (n_samples, n_features)
-        The input passed during :meth:`fit`.
+        The covariates (or features) used to define tree partitions.
 
     y_ : ndarray, shape (n_samples,)
-        The labels passed during :meth:`fit`.
+        The outcome variable (or labels) used to evaluate tree partitions.
 
     leaf_regression_basis_ : ndarray, shape (n_samples, n_bases)
         The basis functions used for leaf regression model if requested.
@@ -316,7 +314,7 @@ class StochTreeBinaryClassifier(ClassifierMixin, BaseEstimator):
     >>> data = load_wine()
     >>> X = data.data
     >>> y = data.target
-    >>> clf = StochTreeBinaryClassifier().fit(X, y)
+    >>> clf = StochTreeBARTBinaryClassifier().fit(X, y)
     >>> clf.predict(X)
     """
 

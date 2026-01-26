@@ -1,9 +1,14 @@
 # stochtree 0.3.1
 
+## New Features
+
+* Added `print`, `summary`, `plot`, and `extract_parameter` generic functions in R for the `bartmodel` and `bcfmodel` classes ([#271](https://github.com/StochasticTree/stochtree/pull/271))
+
 ## Bug Fixes
 
 * Fix R bug where our approach to temporarily modifying users' RNG state failed if `.Random.seed` did not exist (i.e. if the R RNG hadn't yet been accessed by an R session) ([#258](https://github.com/StochasticTree/stochtree/issues/258))
 * Fix prediction bug for R BART models with random effects with labels that aren't straightforward `1:num_groups` integers when only `y_hat` is requested ([#256](https://github.com/StochasticTree/stochtree/pull/256))
+* Fix issue with C++ standard specification in Windows R package config ([#276](https://github.com/StochasticTree/stochtree/pull/276))
 
 # stochtree 0.2.1
 
