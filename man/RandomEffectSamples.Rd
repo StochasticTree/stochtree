@@ -10,6 +10,10 @@ draws of the parameters and a map from the original label indices to the
 first label is stored in column 0 of the sample matrix, the second label
 is store in column 1 of the sample matrix, etc...)
 
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+
 Coordinates various C++ random effects classes and persists those
 needed for prediction / serialization
 }

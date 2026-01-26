@@ -41,8 +41,8 @@ check_estimator(StochTreeRegressor(general_params={"random_seed": 42}, mean_fore
 
 # Check that we can cross validate stochtree BART parameters
 param_grid = {
-    'num_gfr': [5, 10, 15],
-    'num_mcmc': [50, 100, 200],
+    'num_gfr': [10, 40],
+    'num_mcmc': [0, 1000],
     'mean_forest_params': [
         {'num_trees': 50, 'alpha': 0.95, 'beta': 2.0},
         {'num_trees': 100, 'alpha': 0.90, 'beta': 1.5},

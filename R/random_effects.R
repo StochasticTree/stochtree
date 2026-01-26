@@ -6,6 +6,10 @@
 #' first label is stored in column 0 of the sample matrix, the second label
 #' is store in column 1 of the sample matrix, etc...)
 #'
+#' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @description
 #' Coordinates various C++ random effects classes and persists those
 #' needed for prediction / serialization
@@ -250,6 +254,10 @@ RandomEffectSamples <- R6::R6Class(
 #' The class stores a mapping from every observation to its group index, a mapping
 #' from group indices to the training sample observations available in that
 #' group, and predictions for each observation.
+#'
+#' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 
 RandomEffectsTracker <- R6::R6Class(
   classname = "RandomEffectsTracker",
@@ -274,6 +282,10 @@ RandomEffectsTracker <- R6::R6Class(
 #' The core "model" class for sampling random effects.
 #' Stores current model state, prior parameters, and procedures for
 #' sampling from the conditional posterior of each parameter.
+#'
+#' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 
 RandomEffectsModel <- R6::R6Class(
   classname = "RandomEffectsModel",
@@ -434,6 +446,10 @@ RandomEffectsModel <- R6::R6Class(
 #' @description
 #' Create a `RandomEffectSamples` object
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param num_components Number of "components" or bases defining the random effects regression
 #' @param num_groups Number of random effects groups
 #' @param random_effects_tracker Object of type `RandomEffectsTracker`
@@ -462,6 +478,10 @@ createRandomEffectSamples <- function(
 #' @description
 #' Create a `RandomEffectsTracker` object
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param rfx_group_indices Integer indices indicating groups used to define random effects
 #' @return `RandomEffectsTracker` object
 #' @export
@@ -480,6 +500,10 @@ createRandomEffectsTracker <- function(rfx_group_indices) {
 #' @title Create RandomEffectsModel Object
 #' @description
 #' Create a `RandomEffectsModel` object
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param num_components Number of "components" or bases defining the random effects regression
 #' @param num_groups Number of random effects groups
@@ -500,6 +524,10 @@ createRandomEffectsModel <- function(num_components, num_groups) {
 #' @title Reset RandomEffectsModel Object
 #' @description
 #' Reset a `RandomEffectsModel` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param rfx_samples Object of type `RandomEffectSamples`.
@@ -565,6 +593,10 @@ resetRandomEffectsModel <- function(
 #' @description
 #' Reset a `RandomEffectsTracker` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
 #'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#'
 #' @param rfx_tracker Object of type `RandomEffectsTracker`.
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param rfx_dataset Object of type `RandomEffectsDataset`.
@@ -625,6 +657,10 @@ resetRandomEffectsTracker <- function(
 #' @title Reset RandomEffectsModel Object to Default State
 #' @description
 #' Reset a `RandomEffectsModel` object to its "default" state
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param alpha_init Initial value of the "working parameter".
@@ -690,6 +726,10 @@ rootResetRandomEffectsModel <- function(
 #' @title Reset RandomEffectsTracker Object to Default State
 #' @description
 #' Reset a `RandomEffectsTracker` object to its "default" state
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param rfx_tracker Object of type `RandomEffectsTracker`.
 #' @param rfx_model Object of type `RandomEffectsModel`.

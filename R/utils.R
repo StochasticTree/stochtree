@@ -1005,6 +1005,7 @@ orderedCatPreprocess <- function(x_input, unique_levels, var_name = NULL) {
 #' @param input Input to be converted to a vector (or passed through as-is)
 #' @param output_size Intended size of the output vector
 #' @return A vector of length `output_size`
+#' @noRd
 expand_dims_1d <- function(input, output_size) {
   if (length(input) == 1) {
     output <- rep(input, output_size)
@@ -1035,6 +1036,7 @@ expand_dims_1d <- function(input, output_size) {
 #' @param output_rows Intended number of rows in the output array
 #' @param output_cols Intended number of columns in the output array
 #' @return A matrix of dimension `output_rows` x `output_cols`
+#' @noRd
 expand_dims_2d <- function(input, output_rows, output_cols) {
   if (length(input) == 1) {
     output <- matrix(
@@ -1079,6 +1081,7 @@ expand_dims_2d <- function(input, output_rows, output_cols) {
 #' @param input Input to be converted to a square matrix (or passed through as-is)
 #' @param output_size Intended row and column dimension of the square output matrix
 #' @return A square matrix of dimension `output_size` x `output_size`
+#' @noRd
 expand_dims_2d_diag <- function(input, output_size) {
   if (length(input) == 1) {
     output <- as.matrix(diag(input, output_size))

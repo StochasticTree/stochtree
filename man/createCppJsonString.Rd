@@ -14,6 +14,10 @@ createCppJsonString(json_string)
 }
 \description{
 Create a C++ Json object from a Json string
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 example_vec <- runif(10)

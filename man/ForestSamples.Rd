@@ -5,6 +5,10 @@
 \title{Forest Container C++ Wrapper}
 \description{
 Wrapper around a C++ class that stores draws from an random ensemble of decision trees.
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
