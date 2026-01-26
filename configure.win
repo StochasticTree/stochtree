@@ -32,9 +32,6 @@ STOCHTREE_CPPFLAGS="${STOCHTREE_CPPFLAGS}"
 # Generate Makevars.win #
 #########################
 
-sed -e \
-    "s/@CXX_STD@/$CXX_STD/" \
-    < src/Makevars.win.in > src/Makevars.win
-sed -e \
-    "s/@STOCHTREE_CPPFLAGS@/$STOCHTREE_CPPFLAGS/" \
+sed -e "s/@CXX_STD@/$CXX_STD/" \
+    -e "s/@STOCHTREE_CPPFLAGS@/$STOCHTREE_CPPFLAGS/" \
     < src/Makevars.win.in > src/Makevars.win
