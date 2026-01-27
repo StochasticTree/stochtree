@@ -108,66 +108,90 @@ ForestDataset <- R6::R6Class(
       return(dataset_has_basis_cpp(self$data_ptr))
     },
 
-        #' @description
-        #' Whether or not a dataset has variance weights
-        #' @return True if variance weights are loaded, false otherwise
-        has_variance_weights = function() {
-            return(dataset_has_variance_weights_cpp(self$data_ptr))
-        }, 
+    #' @description
+    #' Whether or not a dataset has variance weights
+    #' @return True if variance weights are loaded, false otherwise
+    has_variance_weights = function() {
+      return(dataset_has_variance_weights_cpp(self$data_ptr))
+    },
 
-        #' @description
-        #' Whether or not a dataset has auxiliary data stored at the dimension indicated
-        #' @param dim_idx Dimension of auxiliary data
-        #' @return True if auxiliary data has been allocated for `dim_idx` False otherwise
-        has_auxiliary_dimension = function(dim_idx) {
-            return(forest_dataset_has_auxiliary_dimension_cpp(self$data_ptr, dim_idx))
-        }, 
+    #' @description
+    #' Whether or not a dataset has auxiliary data stored at the dimension indicated
+    #' @param dim_idx Dimension of auxiliary data
+    #' @return True if auxiliary data has been allocated for `dim_idx` False otherwise
+    has_auxiliary_dimension = function(dim_idx) {
+      return(forest_dataset_has_auxiliary_dimension_cpp(self$data_ptr, dim_idx))
+    },
 
-        #' @description
-        #' Initialize a new dimension / lane of auxiliary data and allocate data in its place
-        #' @param dim_size Size of the new vector of data to allocate
-        #' @return None
-        add_auxiliary_dimension = function(dim_size) {
-            return(forest_dataset_add_auxiliary_dimension_cpp(self$data_ptr, dim_size))
-        }, 
+    #' @description
+    #' Initialize a new dimension / lane of auxiliary data and allocate data in its place
+    #' @param dim_size Size of the new vector of data to allocate
+    #' @return None
+    add_auxiliary_dimension = function(dim_size) {
+      return(forest_dataset_add_auxiliary_dimension_cpp(
+        self$data_ptr,
+        dim_size
+      ))
+    },
 
-        #' @description
-        #' Retrieve auxiliary data value
-        #' @param dim_idx Dimension from which data value to be retrieved
-        #' @param element_idx Element to retrieve from dimension `dim_idx`
-        #' @return Floating point value stored in the requested auxiliary data space
-        get_auxiliary_data_value = function(dim_idx, element_idx) {
-            return(forest_dataset_get_auxiliary_data_value_cpp(self$data_ptr, dim_idx, element_idx))
-        }, 
+    #' @description
+    #' Retrieve auxiliary data value
+    #' @param dim_idx Dimension from which data value to be retrieved
+    #' @param element_idx Element to retrieve from dimension `dim_idx`
+    #' @return Floating point value stored in the requested auxiliary data space
+    get_auxiliary_data_value = function(dim_idx, element_idx) {
+      return(forest_dataset_get_auxiliary_data_value_cpp(
+        self$data_ptr,
+        dim_idx,
+        element_idx
+      ))
+    },
 
-        #' @description
-        #' Set auxiliary data value
-        #' @param dim_idx Dimension in which data value to be set
-        #' @param element_idx Element to set within dimension `dim_idx`
-        #' @param value Data value to set at auxiliary data dimension `dim_idx` and element `element_idx`
-        #' @return None
-        set_auxiliary_data_value = function(dim_idx, element_idx, value) {
-            return(forest_dataset_set_auxiliary_data_value_cpp(self$data_ptr, dim_idx, element_idx, value))
-        }, 
+    #' @description
+    #' Set auxiliary data value
+    #' @param dim_idx Dimension in which data value to be set
+    #' @param element_idx Element to set within dimension `dim_idx`
+    #' @param value Data value to set at auxiliary data dimension `dim_idx` and element `element_idx`
+    #' @return None
+    set_auxiliary_data_value = function(dim_idx, element_idx, value) {
+      return(forest_dataset_set_auxiliary_data_value_cpp(
+        self$data_ptr,
+        dim_idx,
+        element_idx,
+        value
+      ))
+    },
 
-        #' @description
-        #' Retrieve entire auxiliary data vector
-        #' @param dim_idx Dimension to retrieve
-        #' @return Vector of all of the auxiliary data stored at dimension `dim_idx`
-        get_auxiliary_data_vector = function(dim_idx) {
-            return(forest_dataset_get_auxiliary_data_vector_cpp(self$data_ptr, dim_idx))
-        }, 
+    #' @description
+    #' Retrieve entire auxiliary data vector
+    #' @param dim_idx Dimension to retrieve
+    #' @return Vector of all of the auxiliary data stored at dimension `dim_idx`
+    get_auxiliary_data_vector = function(dim_idx) {
+      return(forest_dataset_get_auxiliary_data_vector_cpp(
+        self$data_ptr,
+        dim_idx
+      ))
+    },
 
-        #' @description
-        #' Retrieve auxiliary data vector and place it into a column of the supplied matrix
-        #' @param output_matrix Matrix to be overwritten
-        #' @param dim_idx Auxiliary data dimension to retrieve
-        #' @param matrix_col_idx Matrix column in which to copy auxiliary data
-        #' @return Vector of all of the auxiliary data stored at dimension `dim_idx`
-        store_auxiliary_data_vector_matrix = function(output_matrix, dim_idx, matrix_col_idx) {
-            return(forest_dataset_store_auxiliary_data_vector_as_column_cpp(self$data_ptr, output_matrix, dim_idx, matrix_col_idx))
-        }
-    )
+    #' @description
+    #' Retrieve auxiliary data vector and place it into a column of the supplied matrix
+    #' @param output_matrix Matrix to be overwritten
+    #' @param dim_idx Auxiliary data dimension to retrieve
+    #' @param matrix_col_idx Matrix column in which to copy auxiliary data
+    #' @return Vector of all of the auxiliary data stored at dimension `dim_idx`
+    store_auxiliary_data_vector_matrix = function(
+      output_matrix,
+      dim_idx,
+      matrix_col_idx
+    ) {
+      return(forest_dataset_store_auxiliary_data_vector_as_column_cpp(
+        self$data_ptr,
+        output_matrix,
+        dim_idx,
+        matrix_col_idx
+      ))
+    }
+  )
 )
 
 #' @title Outcome Data C++ Wrapper
