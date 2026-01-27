@@ -2,18 +2,23 @@
 % Please edit documentation in R/config.R
 \name{GlobalModelConfig}
 \alias{GlobalModelConfig}
-\title{Object used to get / set global parameters and other global model
-configuration options in the "low-level" stochtree interface}
+\title{Global Model Configuration Object}
 \value{
 Global error variance parameter
 }
 \description{
+Object used to get / set global parameters and other global model
+configuration options in the "low-level" stochtree interface.
 The "low-level" stochtree interface enables a high degreee of sampler
 customization, in which users employ R wrappers around C++ objects
 like ForestDataset, Outcome, CppRng, and ForestModel to run the
 Gibbs sampler of a BART model with custom modifications.
 GlobalModelConfig allows users to specify / query the global parameters
 of a model they wish to run.
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}

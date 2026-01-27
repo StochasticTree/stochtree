@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{loadForestContainerCombinedJsonString}
 \alias{loadForestContainerCombinedJsonString}
-\title{Combine multiple JSON strings representing model objects containing forests (with the same hierarchy / schema) into a single forest_container}
+\title{Combine JSON Strings into ForestSamples}
 \usage{
 loadForestContainerCombinedJsonString(json_string_list, json_forest_label)
 }
@@ -16,6 +16,10 @@ loadForestContainerCombinedJsonString(json_string_list, json_forest_label)
 }
 \description{
 Combine multiple JSON strings representing model objects containing forests (with the same hierarchy / schema) into a single forest_container
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 X <- matrix(runif(10*100), ncol = 10)

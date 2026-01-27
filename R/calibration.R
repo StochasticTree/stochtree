@@ -1,4 +1,10 @@
+#' @title Calibrate Inverse Gamma Prior
+#' @description
 #' Calibrate the scale parameter on an inverse gamma prior for the global error variance as in Chipman et al (2022)
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' Chipman, H., George, E., Hahn, R., McCulloch, R., Pratola, M. and Sparapani, R. (2022). Bayesian Additive Regression Trees, Computational Approaches. In Wiley StatsRef: Statistics Reference Online (eds N. Balakrishnan, T. Colton, B. Everitt, W. Piegorsch, F. Ruggeri and J.L. Teugels). https://doi.org/10.1002/9781118445112.stat08288
 #'
@@ -22,25 +28,25 @@
 #' sigma2hat <- mean(resid(lm(y~X))^2)
 #' mean(var(y)/rgamma(100000, nu, rate = nu*lambda) < sigma2hat)
 calibrateInverseGammaErrorVariance <- function(
-    y,
-    X,
-    W = NULL,
-    nu = 3,
-    quant = 0.9,
-    standardize = TRUE
+  y,
+  X,
+  W = NULL,
+  nu = 3,
+  quant = 0.9,
+  standardize = TRUE
 ) {
-    # Compute regression basis
-    if (!is.null(W)) {
-        basis <- cbind(X, W)
-    } else {
-        basis <- X
-    }
-    # Standardize outcome if requested
-    if (standardize) {
-        y <- (y - mean(y)) / sd(y)
-    }
-    # Compute the "regression-based" overestimate of sigma^2
-    sigma2hat <- mean(resid(lm(y ~ basis))^2)
-    # Calibrate lambda based on the implied quantile of sigma2hat
-    return((sigma2hat * qgamma(1 - quant, nu)) / nu)
+  # Compute regression basis
+  if (!is.null(W)) {
+    basis <- cbind(X, W)
+  } else {
+    basis <- X
+  }
+  # Standardize outcome if requested
+  if (standardize) {
+    y <- (y - mean(y)) / sd(y)
+  }
+  # Compute the "regression-based" overestimate of sigma^2
+  sigma2hat <- mean(resid(lm(y ~ basis))^2)
+  # Calibrate lambda based on the implied quantile of sigma2hat
+  return((sigma2hat * qgamma(1 - quant, nu)) / nu)
 }

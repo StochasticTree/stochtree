@@ -2,7 +2,7 @@
 % Please edit documentation in R/random_effects.R
 \name{rootResetRandomEffectsTracker}
 \alias{rootResetRandomEffectsTracker}
-\title{Reset a \code{RandomEffectsTracker} object to its "default" state}
+\title{Reset RandomEffectsTracker Object to Default State}
 \usage{
 rootResetRandomEffectsTracker(rfx_tracker, rfx_model, rfx_dataset, residual)
 }
@@ -20,6 +20,10 @@ None
 }
 \description{
 Reset a \code{RandomEffectsTracker} object to its "default" state
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 n <- 100

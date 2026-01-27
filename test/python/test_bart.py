@@ -83,8 +83,8 @@ class TestBART:
         bart_model_3.from_json_string_list(bart_models_json)
 
         # Assertions
-        bart_preds_combined = bart_model_3.predict(covariates=X_train)
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        bart_preds_combined = bart_model_3.predict(X=X_train)
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -190,9 +190,9 @@ class TestBART:
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(
-            covariates=X_train, basis=basis_train
+            X=X_train, leaf_basis=basis_train
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -258,34 +258,36 @@ class TestBART:
         num_mcmc = 10
 
         # Run BART with test set and propensity score
-        bart_model = BARTModel()
-        bart_model.sample(
-            X_train=X_train,
-            y_train=y_train,
-            leaf_basis_train=basis_train,
-            X_test=X_test,
-            leaf_basis_test=basis_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-        )
+        with pytest.warns(UserWarning):
+            bart_model = BARTModel()
+            bart_model.sample(
+                X_train=X_train,
+                y_train=y_train,
+                leaf_basis_train=basis_train,
+                X_test=X_test,
+                leaf_basis_test=basis_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+            )
 
         # Assertions
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
 
         # Run second BART model
-        bart_model_2 = BARTModel()
-        bart_model_2.sample(
-            X_train=X_train,
-            y_train=y_train,
-            leaf_basis_train=basis_train,
-            X_test=X_test,
-            leaf_basis_test=basis_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-        )
+        with pytest.warns(UserWarning):
+            bart_model_2 = BARTModel()
+            bart_model_2.sample(
+                X_train=X_train,
+                y_train=y_train,
+                leaf_basis_train=basis_train,
+                X_test=X_test,
+                leaf_basis_test=basis_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+            )
 
         # Assertions
         assert bart_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -298,9 +300,9 @@ class TestBART:
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(
-            covariates=X_train, basis=basis_train
+            X=X_train, leaf_basis=basis_train
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
@@ -369,36 +371,38 @@ class TestBART:
         num_mcmc = 10
 
         # Run BART with test set and propensity score
-        bart_model = BARTModel()
-        general_params = {"sample_sigma2_global": True}
-        variance_forest_params = {"num_trees": 50}
-        bart_model.sample(
-            X_train=X_train,
-            y_train=y_train,
-            X_test=X_test,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-        )
+        with pytest.warns(UserWarning):
+            bart_model = BARTModel()
+            general_params = {"sample_sigma2_global": True}
+            variance_forest_params = {"num_trees": 50}
+            bart_model.sample(
+                X_train=X_train,
+                y_train=y_train,
+                X_test=X_test,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+            )
 
         # Assertions
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
 
         # Run second BART model
-        bart_model_2 = BARTModel()
-        bart_model_2.sample(
-            X_train=X_train,
-            y_train=y_train,
-            X_test=X_test,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-        )
+        with pytest.warns(UserWarning):
+            bart_model_2 = BARTModel()
+            bart_model_2.sample(
+                X_train=X_train,
+                y_train=y_train,
+                X_test=X_test,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+            )
 
         # Assertions
         assert bart_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -410,8 +414,11 @@ class TestBART:
         bart_model_3.from_json_string_list(bart_models_json)
 
         # Assertions
-        bart_preds_combined = bart_model_3.predict(covariates=X_train)
-        y_hat_train_combined, sigma2_x_train_combined = bart_preds_combined['y_hat'], bart_preds_combined['variance_forest_predictions']
+        bart_preds_combined = bart_model_3.predict(X=X_train)
+        y_hat_train_combined, sigma2_x_train_combined = (
+            bart_preds_combined["y_hat"],
+            bart_preds_combined["variance_forest_predictions"],
+        )
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         assert sigma2_x_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
@@ -424,14 +431,8 @@ class TestBART:
             sigma2_x_train_combined[:, 0:num_mcmc], bart_model.sigma2_x_train
         )
         np.testing.assert_allclose(
-            sigma2_x_train_combined[:, num_mcmc : (2 * num_mcmc)], bart_model_2.sigma2_x_train
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[0:num_mcmc], bart_model.global_var_samples
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[num_mcmc : (2 * num_mcmc)],
-            bart_model_2.global_var_samples,
+            sigma2_x_train_combined[:, num_mcmc : (2 * num_mcmc)],
+            bart_model_2.sigma2_x_train,
         )
 
     def test_bart_univariate_leaf_regression_heteroskedastic(self):
@@ -495,40 +496,42 @@ class TestBART:
         num_mcmc = 10
 
         # Run BART with test set and propensity score
-        bart_model = BARTModel()
-        general_params = {"sample_sigma2_global": True}
-        variance_forest_params = {"num_trees": 50}
-        bart_model.sample(
-            X_train=X_train,
-            y_train=y_train,
-            leaf_basis_train=basis_train,
-            X_test=X_test,
-            leaf_basis_test=basis_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bart_model = BARTModel()
+            general_params = {"sample_sigma2_global": True}
+            variance_forest_params = {"num_trees": 50}
+            bart_model.sample(
+                X_train=X_train,
+                y_train=y_train,
+                leaf_basis_train=basis_train,
+                X_test=X_test,
+                leaf_basis_test=basis_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
 
         # Run second BART model
-        bart_model_2 = BARTModel()
-        bart_model_2.sample(
-            X_train=X_train,
-            y_train=y_train,
-            leaf_basis_train=basis_train,
-            X_test=X_test,
-            leaf_basis_test=basis_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bart_model_2 = BARTModel()
+            bart_model_2.sample(
+                X_train=X_train,
+                y_train=y_train,
+                leaf_basis_train=basis_train,
+                X_test=X_test,
+                leaf_basis_test=basis_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bart_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -541,22 +544,15 @@ class TestBART:
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(
-            covariates=X_train, basis=basis_train
+            X=X_train, leaf_basis=basis_train
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
         )
         np.testing.assert_allclose(
             y_hat_train_combined[:, num_mcmc : (2 * num_mcmc)], bart_model_2.y_hat_train
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[0:num_mcmc], bart_model.global_var_samples
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[num_mcmc : (2 * num_mcmc)],
-            bart_model_2.global_var_samples,
         )
 
     def test_bart_multivariate_leaf_regression_heteroskedastic(self):
@@ -620,40 +616,42 @@ class TestBART:
         num_mcmc = 10
 
         # Run BART with test set and propensity score
-        bart_model = BARTModel()
-        general_params = {"sample_sigma2_global": True}
-        variance_forest_params = {"num_trees": 50}
-        bart_model.sample(
-            X_train=X_train,
-            y_train=y_train,
-            leaf_basis_train=basis_train,
-            X_test=X_test,
-            leaf_basis_test=basis_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bart_model = BARTModel()
+            general_params = {"sample_sigma2_global": True}
+            variance_forest_params = {"num_trees": 50}
+            bart_model.sample(
+                X_train=X_train,
+                y_train=y_train,
+                leaf_basis_train=basis_train,
+                X_test=X_test,
+                leaf_basis_test=basis_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
 
         # Run second BART model
-        bart_model_2 = BARTModel()
-        bart_model_2.sample(
-            X_train=X_train,
-            y_train=y_train,
-            leaf_basis_train=basis_train,
-            X_test=X_test,
-            leaf_basis_test=basis_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bart_model_2 = BARTModel()
+            bart_model_2.sample(
+                X_train=X_train,
+                y_train=y_train,
+                leaf_basis_train=basis_train,
+                X_test=X_test,
+                leaf_basis_test=basis_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bart_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -666,22 +664,15 @@ class TestBART:
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(
-            covariates=X_train, basis=basis_train
+            X=X_train, leaf_basis=basis_train
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
         )
         np.testing.assert_allclose(
             y_hat_train_combined[:, num_mcmc : (2 * num_mcmc)], bart_model_2.y_hat_train
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[0:num_mcmc], bart_model.global_var_samples
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[num_mcmc : (2 * num_mcmc)],
-            bart_model_2.global_var_samples,
         )
 
     def test_bart_constant_leaf_heteroskedastic_rfx(self):
@@ -762,23 +753,24 @@ class TestBART:
         num_mcmc = 10
 
         # Run BART with test set and propensity score
-        bart_model = BARTModel()
-        general_params = {"sample_sigma2_global": True}
-        variance_forest_params = {"num_trees": 50}
-        bart_model.sample(
-            X_train=X_train,
-            y_train=y_train,
-            X_test=X_test,
-            rfx_group_ids_train=group_labels_train,
-            rfx_basis_train=rfx_basis_train,
-            rfx_group_ids_test=group_labels_test,
-            rfx_basis_test=rfx_basis_test,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-        )
+        with pytest.warns(UserWarning):
+            bart_model = BARTModel()
+            general_params = {"sample_sigma2_global": True}
+            variance_forest_params = {"num_trees": 50}
+            bart_model.sample(
+                X_train=X_train,
+                y_train=y_train,
+                X_test=X_test,
+                rfx_group_ids_train=group_labels_train,
+                rfx_basis_train=rfx_basis_train,
+                rfx_group_ids_test=group_labels_test,
+                rfx_basis_test=rfx_basis_test,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+            )
         rfx_preds_train = bart_model.rfx_container.predict(
             group_labels_train, rfx_basis_train
         )
@@ -788,21 +780,22 @@ class TestBART:
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
 
         # Run second BART model
-        bart_model_2 = BARTModel()
-        bart_model_2.sample(
-            X_train=X_train,
-            y_train=y_train,
-            X_test=X_test,
-            rfx_group_ids_train=group_labels_train,
-            rfx_basis_train=rfx_basis_train,
-            rfx_group_ids_test=group_labels_test,
-            rfx_basis_test=rfx_basis_test,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-        )
+        with pytest.warns(UserWarning):
+            bart_model_2 = BARTModel()
+            bart_model_2.sample(
+                X_train=X_train,
+                y_train=y_train,
+                X_test=X_test,
+                rfx_group_ids_train=group_labels_train,
+                rfx_basis_train=rfx_basis_train,
+                rfx_group_ids_test=group_labels_test,
+                rfx_basis_test=rfx_basis_test,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+            )
         rfx_preds_train_2 = bart_model_2.rfx_container.predict(
             group_labels_train, rfx_basis_train
         )
@@ -821,24 +814,17 @@ class TestBART:
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(
-            covariates=X_train,
+            X=X_train,
             rfx_group_ids=group_labels_train,
             rfx_basis=rfx_basis_train,
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
         )
         np.testing.assert_allclose(
             y_hat_train_combined[:, num_mcmc : (2 * num_mcmc)], bart_model_2.y_hat_train
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[0:num_mcmc], bart_model.global_var_samples
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[num_mcmc : (2 * num_mcmc)],
-            bart_model_2.global_var_samples,
         )
         np.testing.assert_allclose(rfx_preds_train_3[:, 0:num_mcmc], rfx_preds_train)
         np.testing.assert_allclose(
@@ -931,25 +917,26 @@ class TestBART:
         num_mcmc = 10
 
         # Run BART with test set and propensity score
-        bart_model = BARTModel()
-        general_params = {"sample_sigma2_global": True}
-        variance_forest_params = {"num_trees": 50}
-        bart_model.sample(
-            X_train=X_train,
-            y_train=y_train,
-            leaf_basis_train=basis_train,
-            rfx_group_ids_train=group_labels_train,
-            rfx_basis_train=rfx_basis_train,
-            X_test=X_test,
-            leaf_basis_test=basis_test,
-            rfx_group_ids_test=group_labels_test,
-            rfx_basis_test=rfx_basis_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bart_model = BARTModel()
+            general_params = {"sample_sigma2_global": True}
+            variance_forest_params = {"num_trees": 50}
+            bart_model.sample(
+                X_train=X_train,
+                y_train=y_train,
+                leaf_basis_train=basis_train,
+                rfx_group_ids_train=group_labels_train,
+                rfx_basis_train=rfx_basis_train,
+                X_test=X_test,
+                leaf_basis_test=basis_test,
+                rfx_group_ids_test=group_labels_test,
+                rfx_basis_test=rfx_basis_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+            )
         rfx_preds_train = bart_model.rfx_container.predict(
             group_labels_train, rfx_basis_train
         )
@@ -959,23 +946,24 @@ class TestBART:
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
 
         # Run second BART model
-        bart_model_2 = BARTModel()
-        bart_model_2.sample(
-            X_train=X_train,
-            y_train=y_train,
-            leaf_basis_train=basis_train,
-            rfx_group_ids_train=group_labels_train,
-            rfx_basis_train=rfx_basis_train,
-            X_test=X_test,
-            leaf_basis_test=basis_test,
-            rfx_group_ids_test=group_labels_test,
-            rfx_basis_test=rfx_basis_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            general_params=general_params,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bart_model_2 = BARTModel()
+            bart_model_2.sample(
+                X_train=X_train,
+                y_train=y_train,
+                leaf_basis_train=basis_train,
+                rfx_group_ids_train=group_labels_train,
+                rfx_basis_train=rfx_basis_train,
+                X_test=X_test,
+                leaf_basis_test=basis_test,
+                rfx_group_ids_test=group_labels_test,
+                rfx_basis_test=rfx_basis_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                general_params=general_params,
+                variance_forest_params=variance_forest_params,
+            )
         rfx_preds_train_2 = bart_model_2.rfx_container.predict(
             group_labels_train, rfx_basis_train
         )
@@ -994,25 +982,18 @@ class TestBART:
 
         # Assertions
         bart_preds_combined = bart_model_3.predict(
-            covariates=X_train,
-            basis=basis_train,
+            X=X_train,
+            leaf_basis=basis_train,
             rfx_group_ids=group_labels_train,
             rfx_basis=rfx_basis_train,
         )
-        y_hat_train_combined = bart_preds_combined['y_hat']
+        y_hat_train_combined = bart_preds_combined["y_hat"]
         assert y_hat_train_combined.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(
             y_hat_train_combined[:, 0:num_mcmc], bart_model.y_hat_train
         )
         np.testing.assert_allclose(
             y_hat_train_combined[:, num_mcmc : (2 * num_mcmc)], bart_model_2.y_hat_train
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[0:num_mcmc], bart_model.global_var_samples
-        )
-        np.testing.assert_allclose(
-            bart_model_3.global_var_samples[num_mcmc : (2 * num_mcmc)],
-            bart_model_2.global_var_samples,
         )
         np.testing.assert_allclose(rfx_preds_train_3[:, 0:num_mcmc], rfx_preds_train)
         np.testing.assert_allclose(
@@ -1059,7 +1040,7 @@ class TestBART:
         # Define the group rfx function
         def rfx_term(group_labels, basis):
             return np.where(
-                group_labels == 0, -5 + 1. * basis[:,1], 5 - 1. * basis[:,1]
+                group_labels == 0, -5 + 1.0 * basis[:, 1], 5 - 1.0 * basis[:, 1]
             )
 
         # Define the conditional standard deviation function
@@ -1122,13 +1103,14 @@ class TestBART:
         )
 
         # Specify scalar rfx parameters
-        general_params = {
-            "rfx_working_parameter_prior_mean": 1.,
-            "rfx_group_parameter_prior_mean": 1.,
-            "rfx_working_parameter_prior_cov": 1.,
-            "rfx_group_parameter_prior_cov": 1.,
-            "rfx_variance_prior_shape": 1,
-            "rfx_variance_prior_scale": 1
+        rfx_params = {
+            "model_spec": "custom",
+            "working_parameter_prior_mean": 1.0,
+            "group_parameter_prior_mean": 1.0,
+            "working_parameter_prior_cov": 1.0,
+            "group_parameter_prior_cov": 1.0,
+            "variance_prior_shape": 1,
+            "variance_prior_scale": 1,
         }
         bart_model_2 = BARTModel()
         bart_model_2.sample(
@@ -1144,17 +1126,18 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params=general_params,
+            random_effects_params=rfx_params,
         )
 
         # Specify all relevant rfx parameters as vectors
-        general_params = {
-            "rfx_working_parameter_prior_mean": np.repeat(1., num_rfx_basis),
-            "rfx_group_parameter_prior_mean": np.repeat(1., num_rfx_basis),
-            "rfx_working_parameter_prior_cov": np.identity(num_rfx_basis),
-            "rfx_group_parameter_prior_cov": np.identity(num_rfx_basis),
-            "rfx_variance_prior_shape": 1,
-            "rfx_variance_prior_scale": 1
+        rfx_params = {
+            "model_spec": "custom",
+            "working_parameter_prior_mean": np.repeat(1.0, num_rfx_basis),
+            "group_parameter_prior_mean": np.repeat(1.0, num_rfx_basis),
+            "working_parameter_prior_cov": np.identity(num_rfx_basis),
+            "group_parameter_prior_cov": np.identity(num_rfx_basis),
+            "variance_prior_shape": 1,
+            "variance_prior_scale": 1,
         }
         bart_model_3 = BARTModel()
         bart_model_3.sample(
@@ -1170,5 +1153,30 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params=general_params,
+            random_effects_params=rfx_params,
         )
+
+        # Fit a simpler intercept-only RFX model
+        rfx_params = {"model_spec": "intercept_only"}
+        bart_model_4 = BARTModel()
+        bart_model_4.sample(
+            X_train=X_train,
+            y_train=y_train,
+            leaf_basis_train=basis_train,
+            rfx_group_ids_train=group_labels_train,
+            X_test=X_test,
+            leaf_basis_test=basis_test,
+            rfx_group_ids_test=group_labels_test,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            random_effects_params=rfx_params,
+        )
+        preds = bart_model_4.predict(
+            X=X_test,
+            leaf_basis=basis_test,
+            rfx_group_ids=group_labels_test,
+            type="posterior",
+            terms="rfx",
+        )
+        assert preds.shape == (n_test, num_mcmc)

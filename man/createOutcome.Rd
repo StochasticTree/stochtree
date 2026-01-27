@@ -2,7 +2,7 @@
 % Please edit documentation in R/data.R
 \name{createOutcome}
 \alias{createOutcome}
-\title{Create an outcome object}
+\title{Create Outcome Object}
 \usage{
 createOutcome(outcome)
 }
@@ -14,6 +14,10 @@ createOutcome(outcome)
 }
 \description{
 Create an outcome object
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 X <- matrix(runif(10*100), ncol = 10)

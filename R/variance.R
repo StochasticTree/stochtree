@@ -1,4 +1,10 @@
+#' @title Sample Global Error Variance
+#' @description
 #' Sample one iteration of the (inverse gamma) global variance model
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param residual Outcome class
 #' @param dataset ForestDataset class
@@ -19,22 +25,28 @@
 #' b <- 1.0
 #' sigma2 <- sampleGlobalErrorVarianceOneIteration(outcome, forest_dataset, rng, a, b)
 sampleGlobalErrorVarianceOneIteration <- function(
-    residual,
-    dataset,
-    rng,
+  residual,
+  dataset,
+  rng,
+  a,
+  b
+) {
+  return(sample_sigma2_one_iteration_cpp(
+    residual$data_ptr,
+    dataset$data_ptr,
+    rng$rng_ptr,
     a,
     b
-) {
-    return(sample_sigma2_one_iteration_cpp(
-        residual$data_ptr,
-        dataset$data_ptr,
-        rng$rng_ptr,
-        a,
-        b
-    ))
+  ))
 }
 
+#' @title Sample Leaf Scale
+#' @description
 #' Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)
+#'
+#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 #'
 #' @param forest C++ forest
 #' @param rng C++ random number generator
@@ -54,5 +66,5 @@ sampleGlobalErrorVarianceOneIteration <- function(
 #' b <- 1.0
 #' tau <- sampleLeafVarianceOneIteration(active_forest, rng, a, b)
 sampleLeafVarianceOneIteration <- function(forest, rng, a, b) {
-    return(sample_tau_one_iteration_cpp(forest$forest_ptr, rng$rng_ptr, a, b))
+  return(sample_tau_one_iteration_cpp(forest$forest_ptr, rng$rng_ptr, a, b))
 }

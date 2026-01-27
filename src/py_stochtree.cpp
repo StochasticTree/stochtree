@@ -183,6 +183,20 @@ class ResidualCpp {
     residual_->OverwriteData(data_ptr, num_row);
   }
 
+  void AddToData(py::array_t<double> update_vector, data_size_t num_row) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(update_vector.mutable_data());
+    // Add to data in residual_
+    residual_->AddToData(data_ptr, num_row);
+  }
+
+  void SubtractFromData(py::array_t<double> update_vector, data_size_t num_row) {
+    // Extract pointer to contiguous block of memory
+    double* data_ptr = static_cast<double*>(update_vector.mutable_data());
+    // Subtract from data in residual_
+    residual_->SubtractFromData(data_ptr, num_row);
+  }
+
  private:
   std::unique_ptr<StochTree::ColumnVector> residual_;
 };
@@ -1419,6 +1433,64 @@ class RandomEffectsContainerCpp {
   int NumGroups() {
     return rfx_container_->NumGroups();
   }
+  py::array_t<double> GetBeta() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    int num_groups = rfx_container_->NumGroups();
+    std::vector<double> beta_raw = rfx_container_->GetBeta();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_groups, num_samples}));
+    auto accessor = result.mutable_unchecked<3>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_groups; j++) {
+        for (int k = 0; k < num_samples; k++) {
+          accessor(i,j,k) = beta_raw[k*num_groups*num_components + j*num_components + i];
+        }
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetXi() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    int num_groups = rfx_container_->NumGroups();
+    std::vector<double> xi_raw = rfx_container_->GetXi();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_groups, num_samples}));
+    auto accessor = result.mutable_unchecked<3>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_groups; j++) {
+        for (int k = 0; k < num_samples; k++) {
+          accessor(i,j,k) = xi_raw[k*num_groups*num_components + j*num_components + i];
+        }
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetAlpha() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    std::vector<double> alpha_raw = rfx_container_->GetAlpha();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_samples}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_samples; j++) {
+        accessor(i,j) = alpha_raw[j*num_components + i];
+      }
+    }
+    return result;
+  }
+  py::array_t<double> GetSigma() {
+    int num_samples = rfx_container_->NumSamples();
+    int num_components = rfx_container_->NumComponents();
+    std::vector<double> sigma_raw = rfx_container_->GetSigma();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_components, num_samples}));
+    auto accessor = result.mutable_unchecked<2>();
+    for (int i = 0; i < num_components; i++) {
+      for (int j = 0; j < num_samples; j++) {
+        accessor(i,j) = sigma_raw[j*num_components + i];
+      }
+    }
+    return result;
+  }
   void DeleteSample(int sample_num) {
     rfx_container_->DeleteSample(sample_num);
   }
@@ -1469,6 +1541,8 @@ class RandomEffectsTrackerCpp {
   StochTree::RandomEffectsTracker* GetTracker() {
     return rfx_tracker_.get();
   }
+  void Reset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual);
+  void RootReset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual);
 
  private:
   std::unique_ptr<StochTree::RandomEffectsTracker> rfx_tracker_;
@@ -1499,6 +1573,18 @@ class RandomEffectsLabelMapperCpp {
   void LoadFromJson(JsonCpp& json, std::string rfx_label_mapper_label);
   StochTree::LabelMapper* GetLabelMapper() {
     return rfx_label_mapper_.get();
+  }
+  int MapGroupIdToArrayIndex(int original_label) {
+    return rfx_label_mapper_->CategoryNumber(original_label);
+  }
+  py::array_t<int> MapMultipleGroupIdsToArrayIndices(py::array_t<int> original_labels) {
+    int output_size = original_labels.size();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({output_size}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < output_size; i++) {
+      accessor(i) = rfx_label_mapper_->CategoryNumber(original_labels.at(i));
+    }
+    return result;
   }
 
  private:
@@ -1572,6 +1658,9 @@ class RandomEffectsModelCpp {
   }
   void SetVariancePriorScale(double scale) {
     rfx_model_->SetVariancePriorScale(scale);
+  }
+  void Reset(RandomEffectsContainerCpp& rfx_container, int sample_num) {
+    rfx_model_->ResetFromSample(*rfx_container.GetRandomEffectsContainer(), sample_num);
   }
 
  private:
@@ -2087,6 +2176,14 @@ void RandomEffectsModelCpp::SampleRandomEffects(RandomEffectsDatasetCpp& rfx_dat
   if (keep_sample) rfx_container.AddSample(*this);
 }
 
+void RandomEffectsTrackerCpp::Reset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual) {
+  rfx_tracker_->ResetFromSample(*rfx_model.GetModel(), *rfx_dataset.GetDataset(), *residual.GetData());
+}
+
+void RandomEffectsTrackerCpp::RootReset(RandomEffectsModelCpp& rfx_model, RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual) {
+  rfx_tracker_->RootReset(*rfx_model.GetModel(), *rfx_dataset.GetDataset(), *residual.GetData());
+}
+
 PYBIND11_MODULE(stochtree_cpp, m) {
   m.def("cppComputeForestContainerLeafIndices", &cppComputeForestContainerLeafIndices, "Compute leaf indices of the forests in a forest container");
   m.def("cppComputeForestMaxLeafIndex", &cppComputeForestMaxLeafIndex, "Compute max leaf index of a forest in a forest container");
@@ -2154,7 +2251,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<ResidualCpp>(m, "ResidualCpp")
     .def(py::init<py::array_t<double>,data_size_t>())
     .def("GetResidualArray", &ResidualCpp::GetResidualArray)
-    .def("ReplaceData", &ResidualCpp::ReplaceData);
+    .def("ReplaceData", &ResidualCpp::ReplaceData)
+    .def("AddToData", &ResidualCpp::AddToData)
+    .def("SubtractFromData", &ResidualCpp::SubtractFromData);
 
   py::class_<RngCpp>(m, "RngCpp")
     .def(py::init<int>());
@@ -2295,6 +2394,10 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("NumSamples", &RandomEffectsContainerCpp::NumSamples)
     .def("NumComponents", &RandomEffectsContainerCpp::NumComponents)
     .def("NumGroups", &RandomEffectsContainerCpp::NumGroups)
+    .def("GetBeta", &RandomEffectsContainerCpp::GetBeta)
+    .def("GetXi", &RandomEffectsContainerCpp::GetXi)
+    .def("GetAlpha", &RandomEffectsContainerCpp::GetAlpha)
+    .def("GetSigma", &RandomEffectsContainerCpp::GetSigma)
     .def("DeleteSample", &RandomEffectsContainerCpp::DeleteSample)
     .def("Predict", &RandomEffectsContainerCpp::Predict)
     .def("SaveToJsonFile", &RandomEffectsContainerCpp::SaveToJsonFile)
@@ -2308,7 +2411,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<RandomEffectsTrackerCpp>(m, "RandomEffectsTrackerCpp")
     .def(py::init<py::array_t<int>>())
     .def("GetUniqueGroupIds", &RandomEffectsTrackerCpp::GetUniqueGroupIds)
-    .def("GetTracker", &RandomEffectsTrackerCpp::GetTracker);
+    .def("GetTracker", &RandomEffectsTrackerCpp::GetTracker)
+    .def("Reset", &RandomEffectsTrackerCpp::Reset)
+    .def("RootReset", &RandomEffectsTrackerCpp::RootReset);
 
   py::class_<RandomEffectsLabelMapperCpp>(m, "RandomEffectsLabelMapperCpp")
     .def(py::init<>())
@@ -2318,7 +2423,9 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("DumpJsonString", &RandomEffectsLabelMapperCpp::DumpJsonString)
     .def("LoadFromJsonString", &RandomEffectsLabelMapperCpp::LoadFromJsonString)
     .def("LoadFromJson", &RandomEffectsLabelMapperCpp::LoadFromJson)
-    .def("GetLabelMapper", &RandomEffectsLabelMapperCpp::GetLabelMapper);
+    .def("GetLabelMapper", &RandomEffectsLabelMapperCpp::GetLabelMapper)
+    .def("MapGroupIdToArrayIndex", &RandomEffectsLabelMapperCpp::MapGroupIdToArrayIndex)
+    .def("MapMultipleGroupIdsToArrayIndices", &RandomEffectsLabelMapperCpp::MapMultipleGroupIdsToArrayIndices);
 
   py::class_<RandomEffectsModelCpp>(m, "RandomEffectsModelCpp")
     .def(py::init<int, int>())
@@ -2330,7 +2437,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("SetWorkingParameterCovariance", &RandomEffectsModelCpp::SetWorkingParameterCovariance)
     .def("SetGroupParameterCovariance", &RandomEffectsModelCpp::SetGroupParameterCovariance)
     .def("SetVariancePriorShape", &RandomEffectsModelCpp::SetVariancePriorShape)
-    .def("SetVariancePriorScale", &RandomEffectsModelCpp::SetVariancePriorScale);
+    .def("SetVariancePriorScale", &RandomEffectsModelCpp::SetVariancePriorScale)
+    .def("Reset", &RandomEffectsModelCpp::Reset);
 
   py::class_<GlobalVarianceModelCpp>(m, "GlobalVarianceModelCpp")
     .def(py::init<>())

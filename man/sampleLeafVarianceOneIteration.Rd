@@ -2,7 +2,7 @@
 % Please edit documentation in R/variance.R
 \name{sampleLeafVarianceOneIteration}
 \alias{sampleLeafVarianceOneIteration}
-\title{Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)}
+\title{Sample Leaf Scale}
 \usage{
 sampleLeafVarianceOneIteration(forest, rng, a, b)
 }
@@ -20,6 +20,10 @@ None
 }
 \description{
 Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 num_trees <- 100

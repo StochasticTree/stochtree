@@ -1,3 +1,4 @@
+from typing import Union
 import numpy as np
 from stochtree_cpp import (
     RandomEffectsContainerCpp,
@@ -110,10 +111,12 @@ class RandomEffectsDataset:
             )
         n = variance_weights_.shape[0]
         self.rfx_dataset_cpp.AddVarianceWeights(variance_weights_, n)
-    
-    def update_variance_weights(self, variance_weights: np.array, exponentiate: bool = False):
+
+    def update_variance_weights(
+        self, variance_weights: np.array, exponentiate: bool = False
+    ):
         """
-        Update variance weights in a dataset. Allows users to build an ensemble that depends on 
+        Update variance weights in a dataset. Allows users to build an ensemble that depends on
         variance weights that are updated throughout the sampler.
 
         Parameters
@@ -124,7 +127,9 @@ class RandomEffectsDataset:
             Whether to exponentiate the variance weights before storing them in the dataset.
         """
         if not self.has_variance_weights():
-            raise ValueError("This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector.")
+            raise ValueError(
+                "This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector."
+            )
         if not isinstance(variance_weights, np.ndarray):
             raise ValueError("variance_weights must be a numpy array.")
         variance_weights_ = np.squeeze(variance_weights)
@@ -134,9 +139,11 @@ class RandomEffectsDataset:
             )
         n = variance_weights_.shape[0]
         if self.num_observations() != n:
-            raise ValueError(f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()}).")
+            raise ValueError(
+                f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()})."
+            )
         self.rfx_dataset_cpp.UpdateVarianceWeights(variance_weights, n, exponentiate)
-    
+
     def get_group_labels(self) -> np.array:
         """
         Return the group labels in a RandomEffectsDataset as a numpy array
@@ -147,7 +154,7 @@ class RandomEffectsDataset:
             One-dimensional numpy array of group labels.
         """
         return self.rfx_dataset_cpp.GetGroupLabels()
-    
+
     def get_basis(self) -> np.array:
         """
         Return the bases in a RandomEffectsDataset as a numpy array
@@ -158,7 +165,7 @@ class RandomEffectsDataset:
             Two-dimensional numpy array of basis vectors.
         """
         return self.rfx_dataset_cpp.GetBasis()
-    
+
     def get_variance_weights(self) -> np.array:
         """
         Return the variance weights in a RandomEffectsDataset as a numpy array
@@ -240,6 +247,26 @@ class RandomEffectsTracker:
 
     def __init__(self, group_indices: np.ndarray) -> None:
         self.rfx_tracker_cpp = RandomEffectsTrackerCpp(group_indices)
+    
+    def reset(self, rfx_model, rfx_dataset, residual, rfx_container) -> None:
+        """
+        Reset the random effects tracker to an existing parameter state
+        """
+        self.rfx_tracker_cpp.Reset(
+            rfx_model.rfx_model_cpp,
+            rfx_dataset.rfx_dataset_cpp,
+            residual.residual_cpp
+        )
+    
+    def root_reset(self, rfx_model, rfx_dataset, residual, rfx_container) -> None:
+        """
+        Reset the random effects tracker to its initial state
+        """
+        self.rfx_tracker_cpp.RootReset(
+            rfx_model.rfx_model_cpp,
+            rfx_dataset.rfx_dataset_cpp,
+            residual.residual_cpp
+        )
 
 
 class RandomEffectsContainer:
@@ -362,6 +389,68 @@ class RandomEffectsContainer:
             rfx_dataset.rfx_dataset_cpp, self.rfx_label_mapper_cpp
         )
 
+    def extract_parameter_samples(self) -> dict[str, np.ndarray]:
+        """
+        Extract the random effects parameters sampled. With the "redundant parameterization" of Gelman et al (2008),
+        this includes four parameters: alpha (the "working parameter" shared across every group), xi
+        (the "group parameter" sampled separately for each group), beta (the product of alpha and xi,
+        which corresponds to the overall group-level random effects), and sigma (group-independent prior
+        variance for each component of xi).
+
+        Returns
+        -------
+        dict[str, np.ndarray]
+            dict of arrays. The alpha array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`.
+            The xi and beta arrays have dimension (`num_components`, `num_groups`, `num_samples`) and are simply matrices if `num_components = 1`.
+            The sigma array has dimension (`num_components`, `num_samples`) and is simply a vector if `num_components = 1`.
+        """
+        # num_samples = self.rfx_container_cpp.NumSamples()
+        # num_components = self.rfx_container_cpp.NumComponents()
+        # num_groups = self.rfx_container_cpp.NumGroups()
+        beta_samples = np.squeeze(self.rfx_container_cpp.GetBeta())
+        xi_samples = np.squeeze(self.rfx_container_cpp.GetXi())
+        alpha_samples = np.squeeze(self.rfx_container_cpp.GetAlpha())
+        sigma_samples = np.squeeze(self.rfx_container_cpp.GetSigma())
+        output = {
+            "beta_samples": beta_samples,
+            "xi_samples": xi_samples,
+            "alpha_samples": alpha_samples,
+            "sigma_samples": sigma_samples,
+        }
+        return output
+    
+    def map_group_id_to_array_index(self, group_id: int) -> int:
+        """
+        Map an integer-valued random effects group ID to its group's corresponding position in the arrays that store random effects parameter samples.
+
+        Parameters
+        ----------
+        group_id : int
+            Group identifier to be converted to an array position.
+
+        Returns
+        -------
+        int
+            The position of `group_id` in the parameter sample arrays underlying the random effects container.
+        """
+        return self.rfx_label_mapper_cpp.MapGroupIdToArrayIndex(group_id)
+    
+    def map_group_ids_to_array_indices(self, group_ids: np.ndarray) -> np.ndarray:
+        """
+        Map an array of integer-valued random effects group IDs to their groups' corresponding positions in the arrays that store random effects parameter samples.
+
+        Parameters
+        ----------
+        group_ids : np.ndarray
+            Array of group identifiers (integer-valued) to be converted to an array position.
+
+        Returns
+        -------
+        np.ndarray
+            Numpy array of the position of `group_id` in the parameter sample arrays underlying the random effects container.
+        """
+        return self.rfx_label_mapper_cpp.MapMultipleGroupIdsToArrayIndices(group_ids)
+
 
 class RandomEffectsModel:
     """
@@ -418,6 +507,28 @@ class RandomEffectsModel:
             keep_sample,
             global_variance,
             rng.rng_cpp,
+        )
+
+    def predict(
+        self, rfx_dataset: RandomEffectsDataset, rfx_tracker: RandomEffectsTracker
+    ) -> np.ndarray:
+        """
+        Predict random effects for each observation in `rfx_dataset`
+
+        Parameters
+        ----------
+        rfx_dataset: RandomEffectsDataset
+            Object of type `RandomEffectsDataset`
+        rfx_tracker: RandomEffectsTracker
+            Object of type `RandomEffectsTracker`
+
+        Returns
+        -------
+        np.ndarray
+            Numpy array with as many rows as observations in `rfx_dataset` and as many columns as samples in the container
+        """
+        return self.rfx_model_cpp.Predict(
+            rfx_dataset.rfx_dataset_cpp, rfx_tracker.rfx_tracker_cpp
         )
 
     def set_working_parameter(self, working_parameter: np.ndarray) -> None:
@@ -564,3 +675,37 @@ class RandomEffectsModel:
         if scale <= 0:
             raise ValueError("scale must a positive scalar")
         self.rfx_model_cpp.SetVariancePriorScale(scale)
+    
+    def reset(self, rfx_container: RandomEffectsContainer, sample_num: int, sigma_alpha_init: np.array) -> None:
+        """
+        Reset the random effects model to a previous sample state.
+        """
+        if not isinstance(sigma_alpha_init, np.ndarray):
+            raise ValueError("sigma_alpha_init must be a numpy array")
+        if sigma_alpha_init.ndim != 2:
+            raise ValueError(
+                "sigma_alpha_init must be a 2d square numpy array with as many rows / columns as bases in the random effects model"
+            )
+        if sigma_alpha_init.shape[0] != sigma_alpha_init.shape[1]:
+            raise ValueError(
+                "sigma_alpha_init must be a 2d square numpy array with as many rows / columns as bases in the random effects model"
+            )
+        if sigma_alpha_init.shape[0] != self.num_components:
+            raise ValueError(
+                "sigma_alpha_init must be a 2d square numpy array with as many rows / columns as bases in the random effects model"
+            )
+        self.rfx_model_cpp.Reset(
+            rfx_container.rfx_container_cpp, sample_num
+        )
+        self.set_working_parameter_covariance(sigma_alpha_init)
+    
+    def root_reset(self, alpha_init: np.array, xi_init: np.array, sigma_alpha_init: np.array, sigma_xi_init: np.array, sigma_xi_shape: float, sigma_xi_scale: float) -> None:
+        """
+        Reset the random effects model to its initial state.
+        """
+        self.set_working_parameter(alpha_init)
+        self.set_group_parameters(xi_init)
+        self.set_working_parameter_cov(sigma_alpha_init)
+        self.set_group_parameter_cov(sigma_xi_init)
+        self.set_variance_prior_shape(sigma_xi_shape)
+        self.set_variance_prior_scale(sigma_xi_scale)

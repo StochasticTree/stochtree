@@ -3,7 +3,7 @@
 # https://github.com/microsoft/LightGBM/blob/master/R-package/configure.ac
 
 AC_PREREQ(2.69)
-AC_INIT([stochtree], [0.1.1], [], [stochtree], [])
+AC_INIT([stochtree], [0.3.1], [], [stochtree], [])
 # Note: consider making version number dynamic as in 
 # https://github.com/microsoft/LightGBM/blob/195c26fc7b00eb0fec252dfe841e2e66d6833954/build-cran-package.sh
 
@@ -47,14 +47,12 @@ OPENMP_CXXFLAGS=""
 if test `uname -s` = "Linux"
 then
     OPENMP_CXXFLAGS="\$(SHLIB_OPENMP_CXXFLAGS)"
-    OPENMP_AVAILABILITY_FLAGS='-DSTOCHTREE_OPENMP_AVAILABLE'
 fi
 
 if test `uname -s` = "Darwin"
 then
     OPENMP_CXXFLAGS='-Xclang -fopenmp'
     OPENMP_LIB='-lomp'
-    OPENMP_AVAILABILITY_FLAGS='-DSTOCHTREE_OPENMP_AVAILABLE'
 
     # libomp 15.0+ from brew is keg-only (i.e. not symlinked into the standard paths search by the linker),
     # so need to search in other locations.
@@ -104,7 +102,6 @@ then
     if test "${ac_pkg_openmp}" = no; then
         OPENMP_CXXFLAGS=''
         OPENMP_LIB=''
-        OPENMP_AVAILABILITY_FLAGS=''
         echo '***********************************************************************************************'
         echo ' OpenMP is unavailable on this macOS system. stochtree code will run single-threaded as a result.'
         echo ' To use all CPU cores for training jobs, you should install OpenMP by running'
@@ -117,7 +114,6 @@ fi
 # substitute variables from this script into Makevars.in
 AC_SUBST(OPENMP_CXXFLAGS)
 AC_SUBST(OPENMP_LIB)
-AC_SUBST(OPENMP_AVAILABILITY_FLAGS)
 AC_SUBST(STOCHTREE_CPPFLAGS)
 AC_CONFIG_FILES([src/Makevars])
 

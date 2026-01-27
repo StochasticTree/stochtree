@@ -2,7 +2,7 @@
 % Please edit documentation in R/config.R
 \name{createGlobalModelConfig}
 \alias{createGlobalModelConfig}
-\title{Create a global model config object}
+\title{Create GlobalModelConfig Object}
 \usage{
 createGlobalModelConfig(global_error_variance = 1)
 }
@@ -14,6 +14,10 @@ GlobalModelConfig object
 }
 \description{
 Create a global model config object
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 config <- createGlobalModelConfig(global_error_variance = 100)

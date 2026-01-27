@@ -2,7 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{createForestSamples}
 \alias{createForestSamples}
-\title{Create a container of forest samples}
+\title{Create ForestSamples Object}
 \usage{
 createForestSamples(
   num_trees,
@@ -25,6 +25,10 @@ createForestSamples(
 }
 \description{
 Create a container of forest samples
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 num_trees <- 100

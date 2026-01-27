@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{loadRandomEffectSamplesJson}
 \alias{loadRandomEffectSamplesJson}
-\title{Load a container of random effect samples from json}
+\title{Load Random Effect Samples from JSON}
 \usage{
 loadRandomEffectSamplesJson(json_object, json_rfx_num)
 }
@@ -16,6 +16,10 @@ loadRandomEffectSamplesJson(json_object, json_rfx_num)
 }
 \description{
 Load a container of random effect samples from json
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 n <- 100

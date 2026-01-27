@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{createCppJson}
 \alias{createCppJson}
-\title{Create a new (empty) C++ Json object}
+\title{Create CppJson Object}
 \usage{
 createCppJson()
 }
@@ -11,6 +11,10 @@ createCppJson()
 }
 \description{
 Create a new (empty) C++ Json object
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 example_vec <- runif(10)

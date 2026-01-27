@@ -2,7 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{createForest}
 \alias{createForest}
-\title{Create a forest}
+\title{Create Forest Object}
 \usage{
 createForest(
   num_trees,
@@ -25,6 +25,10 @@ createForest(
 }
 \description{
 Create a forest
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 num_trees <- 100

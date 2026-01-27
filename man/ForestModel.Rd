@@ -2,11 +2,15 @@
 % Please edit documentation in R/model.R
 \name{ForestModel}
 \alias{ForestModel}
-\title{Class that defines and samples a forest model}
+\title{Forest Model C++ Wrapper}
 \description{
-Hosts the C++ data structures needed to sample an ensemble of decision
-trees, and exposes functionality to run a forest sampler
+Wraps the C++ data structures needed to sample an ensemble of decision
+trees and exposes functionality to run a forest sampler
 (using either MCMC or the grow-from-root algorithm).
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}

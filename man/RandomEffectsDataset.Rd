@@ -2,10 +2,15 @@
 % Please edit documentation in R/data.R
 \name{RandomEffectsDataset}
 \alias{RandomEffectsDataset}
-\title{Dataset used to sample a random effects model}
+\title{Random Effects Dataset C++ Wrapper}
 \description{
-A dataset consists of three matrices / vectors: group labels,
+Dataset used to sample a random effects model.
+A random effects dataset consists of three matrices / vectors: group labels,
 bases, and variance weights. Variance weights are optional.
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}

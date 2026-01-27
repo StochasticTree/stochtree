@@ -2,7 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{resetForestModel}
 \alias{resetForestModel}
-\title{Re-initialize a forest model (tracking data structures) from a specific forest in a \code{ForestContainer}}
+\title{Reset Forest Model}
 \usage{
 resetForestModel(forest_model, forest, dataset, residual, is_mean_model)
 }
@@ -22,6 +22,10 @@ None
 }
 \description{
 Re-initialize a forest model (tracking data structures) from a specific forest in a \code{ForestContainer}
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 n <- 100

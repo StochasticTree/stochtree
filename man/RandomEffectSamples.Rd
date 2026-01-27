@@ -2,12 +2,18 @@
 % Please edit documentation in R/random_effects.R
 \name{RandomEffectSamples}
 \alias{RandomEffectSamples}
-\title{Class that wraps the "persistent" aspects of a C++ random effects model
-(draws of the parameters and a map from the original label indices to the
+\title{Random Effect Container C++ Wrapper}
+\description{
+Class that wraps the "persistent" aspects of a C++ random effects model, including
+draws of the parameters and a map from the original label indices to the
 0-indexed label numbers used to place group samples in memory (i.e. the
 first label is stored in column 0 of the sample matrix, the second label
-is store in column 1 of the sample matrix, etc...))}
-\description{
+is store in column 1 of the sample matrix, etc...)
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+
 Coordinates various C++ random effects classes and persists those
 needed for prediction / serialization
 }
@@ -240,7 +246,7 @@ and sigma (group-independent prior variance for each component of xi).
 
 \subsection{Returns}{
 List of arrays. The alpha array has dimension (\code{num_components}, \code{num_samples}) and is simply a vector if \code{num_components = 1}.
-The xi and beta arrays have dimension (\code{num_components}, \code{num_groups}, \code{num_samples}) and is simply a matrix if \code{num_components = 1}.
+The xi and beta arrays have dimension (\code{num_components}, \code{num_groups}, \code{num_samples}) and are simply matrices if \code{num_components = 1}.
 The sigma array has dimension (\code{num_components}, \code{num_samples}) and is simply a vector if \code{num_components = 1}.
 }
 }

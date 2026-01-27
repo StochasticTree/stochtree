@@ -2,13 +2,18 @@
 % Please edit documentation in R/random_effects.R
 \name{RandomEffectsTracker}
 \alias{RandomEffectsTracker}
-\title{Class that defines a "tracker" for random effects models, most notably
-storing the data indices available in each group for quicker posterior
-computation and sampling of random effects terms.}
+\title{Random Effects Tracker C++ Wrapper}
 \description{
-Stores a mapping from every observation to its group index, a mapping
+Class that defines a "tracker" for random effects models, most notably
+storing the data indices available in each group for quicker posterior
+computation and sampling of random effects terms.
+The class stores a mapping from every observation to its group index, a mapping
 from group indices to the training sample observations available in that
 group, and predictions for each observation.
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}

@@ -51,10 +51,10 @@ class TestBCF:
             X_train=X_train,
             Z_train=Z_train,
             y_train=y_train,
-            pi_train=pi_train,
+            propensity_train=pi_train,
             X_test=X_test,
             Z_test=Z_test,
-            pi_test=pi_test,
+            propensity_test=pi_test,
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
@@ -71,13 +71,19 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
-        # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        # Check that we can predict just treatment effects
+        tau_hat = bcf_model.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and with propensity score
@@ -87,7 +93,7 @@ class TestBCF:
             X_train=X_train,
             Z_train=Z_train,
             y_train=y_train,
-            pi_train=pi_train,
+            propensity_train=pi_train,
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
@@ -101,12 +107,18 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF with test set and without propensity score
@@ -136,13 +148,17 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X=X_test, Z=Z_test, terms="cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and without propensity score
@@ -166,13 +182,30 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X=X_test, Z=Z_test, terms="cate")
+
+        # Check that we can run BCF without propensities
+        bcf_model = BCFModel()
+        general_params = {"propensity_covariate": "none"}
+        bcf_model.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            general_params=general_params,
+        )
 
     def test_continuous_univariate_bcf(self):
         # RNG
@@ -213,21 +246,22 @@ class TestBCF:
         num_mcmc = 10
 
         # Run BCF with test set and propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 0}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            pi_train=pi_train,
-            X_test=X_test,
-            Z_test=Z_test,
-            pi_test=pi_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 0}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                propensity_train=pi_train,
+                X_test=X_test,
+                Z_test=Z_test,
+                propensity_test=pi_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -239,31 +273,38 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run second BCF model with test set and propensity score
-        bcf_model_2 = BCFModel()
-        variance_forest_params = {"num_trees": 0}
-        bcf_model_2.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            pi_train=pi_train,
-            X_test=X_test,
-            Z_test=Z_test,
-            pi_test=pi_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model_2 = BCFModel()
+            variance_forest_params = {"num_trees": 0}
+            bcf_model_2.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                propensity_train=pi_train,
+                X_test=X_test,
+                Z_test=Z_test,
+                propensity_test=pi_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -275,13 +316,19 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds_2 = bcf_model_2.predict(X_test, Z_test, pi_test)
-        tau_hat_2, mu_hat_2, y_hat_2 = bcf_preds_2['tau_hat'], bcf_preds_2['mu_hat'], bcf_preds_2['y_hat']
+        tau_hat_2, mu_hat_2, y_hat_2 = (
+            bcf_preds_2["tau_hat"],
+            bcf_preds_2["mu_hat"],
+            bcf_preds_2["y_hat"],
+        )
         assert tau_hat_2.shape == (n_test, num_mcmc)
         assert mu_hat_2.shape == (n_test, num_mcmc)
         assert y_hat_2.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat_2 = bcf_model_2.predict_tau(X_test, Z_test, pi_test)
+        tau_hat_2 = bcf_model_2.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
+        )
         assert tau_hat_2.shape == (n_test, num_mcmc)
 
         # Combine into a single model
@@ -291,7 +338,11 @@ class TestBCF:
 
         # Assertions
         bcf_preds_3 = bcf_model_3.predict(X_test, Z_test, pi_test)
-        tau_hat_3, mu_hat_3, y_hat_3 = bcf_preds_3['tau_hat'], bcf_preds_3['mu_hat'], bcf_preds_3['y_hat']
+        tau_hat_3, mu_hat_3, y_hat_3 = (
+            bcf_preds_3["tau_hat"],
+            bcf_preds_3["mu_hat"],
+            bcf_preds_3["y_hat"],
+        )
         assert tau_hat_3.shape == (n_train, num_mcmc * 2)
         assert mu_hat_3.shape == (n_train, num_mcmc * 2)
         assert y_hat_3.shape == (n_train, num_mcmc * 2)
@@ -310,18 +361,19 @@ class TestBCF:
         )
 
         # Run BCF without test set and with propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 0}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            pi_train=pi_train,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 0}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                propensity_train=pi_train,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -330,29 +382,36 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF with test set and without propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 0}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            X_test=X_test,
-            Z_test=Z_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 0}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                X_test=X_test,
+                Z_test=Z_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -366,27 +425,32 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X=X_test, Z=Z_test, terms="cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and without propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 0}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 0}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -396,26 +460,31 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X=X_test, Z=Z_test, terms="cate")
 
         # Run second BCF model with test set and propensity score
-        bcf_model_2 = BCFModel()
-        variance_forest_params = {"num_trees": 0}
-        bcf_model_2.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model_2 = BCFModel()
+            variance_forest_params = {"num_trees": 0}
+            bcf_model_2.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model_2.y_hat_train.shape == (n_train, num_mcmc)
@@ -424,13 +493,17 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds_2 = bcf_model_2.predict(X_test, Z_test)
-        tau_hat_2, mu_hat_2, y_hat_2 = bcf_preds_2['tau_hat'], bcf_preds_2['mu_hat'], bcf_preds_2['y_hat']
+        tau_hat_2, mu_hat_2, y_hat_2 = (
+            bcf_preds_2["tau_hat"],
+            bcf_preds_2["mu_hat"],
+            bcf_preds_2["y_hat"],
+        )
         assert tau_hat_2.shape == (n_test, num_mcmc)
         assert mu_hat_2.shape == (n_test, num_mcmc)
         assert y_hat_2.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat_2 = bcf_model_2.predict_tau(X_test, Z_test)
+        tau_hat_2 = bcf_model_2.predict(X=X_test, Z=Z_test, terms="cate")
         assert tau_hat_2.shape == (n_test, num_mcmc)
 
         # Combine into a single model
@@ -440,7 +513,11 @@ class TestBCF:
 
         # Assertions
         bcf_preds_3 = bcf_model_3.predict(X_test, Z_test)
-        tau_hat_3, mu_hat_3, y_hat_3 = bcf_preds_3['tau_hat'], bcf_preds_3['mu_hat'], bcf_preds_3['y_hat']
+        tau_hat_3, mu_hat_3, y_hat_3 = (
+            bcf_preds_3["tau_hat"],
+            bcf_preds_3["mu_hat"],
+            bcf_preds_3["y_hat"],
+        )
         assert tau_hat_3.shape == (n_train, num_mcmc * 2)
         assert mu_hat_3.shape == (n_train, num_mcmc * 2)
         assert y_hat_3.shape == (n_train, num_mcmc * 2)
@@ -496,21 +573,22 @@ class TestBCF:
         num_mcmc = 10
 
         # Run BCF with test set and propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 0}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            pi_train=pi_train,
-            X_test=X_test,
-            Z_test=Z_test,
-            pi_test=pi_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 0}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                propensity_train=pi_train,
+                X_test=X_test,
+                Z_test=Z_test,
+                propensity_test=pi_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -522,28 +600,35 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
+        )
         assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
 
         # Run BCF without test set and with propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 0}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            pi_train=pi_train,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 0}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                propensity_train=pi_train,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -552,17 +637,23 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
-        tau_hat, mu_hat, y_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat']
+        tau_hat, mu_hat, y_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
+        )
         assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
 
         # Run BCF with test set and without propensity score
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             bcf_model = BCFModel()
             variance_forest_params = {"num_trees": 0}
             bcf_model.sample(
@@ -578,7 +669,7 @@ class TestBCF:
             )
 
         # Run BCF without test set and without propensity score
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             bcf_model = BCFModel()
             variance_forest_params = {"num_trees": 0}
             bcf_model.sample(
@@ -630,21 +721,22 @@ class TestBCF:
         num_mcmc = 10
 
         # Run BCF with test set and propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 50}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            pi_train=pi_train,
-            X_test=X_test,
-            Z_test=Z_test,
-            pi_test=pi_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 50}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                propensity_train=pi_train,
+                X_test=X_test,
+                Z_test=Z_test,
+                propensity_test=pi_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -658,29 +750,37 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
-        tau_hat, mu_hat, y_hat, sigma2_x_hat = bcf_preds['tau_hat'], bcf_preds['mu_hat'], bcf_preds['y_hat'], bcf_preds['variance_forest_predictions']
+        tau_hat, mu_hat, y_hat, sigma2_x_hat = (
+            bcf_preds["tau_hat"],
+            bcf_preds["mu_hat"],
+            bcf_preds["y_hat"],
+            bcf_preds["variance_forest_predictions"],
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
         assert sigma2_x_hat.shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and with propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 50}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            pi_train=pi_train,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 50}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                propensity_train=pi_train,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -690,48 +790,45 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
-        assert bcf_preds['tau_hat'].shape == (n_test, num_mcmc)
-        assert bcf_preds['mu_hat'].shape == (n_test, num_mcmc)
-        assert bcf_preds['y_hat'].shape == (n_test, num_mcmc)
-        assert bcf_preds['variance_forest_predictions'].shape == (n_test, num_mcmc)
+        assert bcf_preds["tau_hat"].shape == (n_test, num_mcmc)
+        assert bcf_preds["mu_hat"].shape == (n_test, num_mcmc)
+        assert bcf_preds["y_hat"].shape == (n_test, num_mcmc)
+        assert bcf_preds["variance_forest_predictions"].shape == (n_test, num_mcmc)
 
         # Check predictions match
         bcf_preds = bcf_model.predict(X_train, Z_train, pi_train)
-        assert bcf_preds['tau_hat'].shape == (n_train, num_mcmc)
-        assert bcf_preds['mu_hat'].shape == (n_train, num_mcmc)
-        assert bcf_preds['y_hat'].shape == (n_train, num_mcmc)
-        assert bcf_preds['variance_forest_predictions'].shape == (n_train, num_mcmc)
+        assert bcf_preds["tau_hat"].shape == (n_train, num_mcmc)
+        assert bcf_preds["mu_hat"].shape == (n_train, num_mcmc)
+        assert bcf_preds["y_hat"].shape == (n_train, num_mcmc)
+        assert bcf_preds["variance_forest_predictions"].shape == (n_train, num_mcmc)
+        np.testing.assert_allclose(bcf_preds["y_hat"], bcf_model.y_hat_train)
+        np.testing.assert_allclose(bcf_preds["mu_hat"], bcf_model.mu_hat_train)
+        np.testing.assert_allclose(bcf_preds["tau_hat"], bcf_model.tau_hat_train)
         np.testing.assert_allclose(
-            bcf_preds['y_hat'], bcf_model.y_hat_train
-        )
-        np.testing.assert_allclose(
-            bcf_preds['mu_hat'], bcf_model.mu_hat_train
-        )
-        np.testing.assert_allclose(
-            bcf_preds['tau_hat'], bcf_model.tau_hat_train
-        )
-        np.testing.assert_allclose(
-            bcf_preds['variance_forest_predictions'], bcf_model.sigma2_x_train
+            bcf_preds["variance_forest_predictions"], bcf_model.sigma2_x_train
         )
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test, pi_test)
+        tau_hat = bcf_model.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
+        )
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF with test set and without propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 50}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            X_test=X_test,
-            Z_test=Z_test,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 50}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                X_test=X_test,
+                Z_test=Z_test,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -746,27 +843,28 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test)
-        assert bcf_preds['tau_hat'].shape == (n_test, num_mcmc)
-        assert bcf_preds['mu_hat'].shape == (n_test, num_mcmc)
-        assert bcf_preds['y_hat'].shape == (n_test, num_mcmc)
-        assert bcf_preds['variance_forest_predictions'].shape == (n_test, num_mcmc)
+        assert bcf_preds["tau_hat"].shape == (n_test, num_mcmc)
+        assert bcf_preds["mu_hat"].shape == (n_test, num_mcmc)
+        assert bcf_preds["y_hat"].shape == (n_test, num_mcmc)
+        assert bcf_preds["variance_forest_predictions"].shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
+        tau_hat = bcf_model.predict(X=X_test, Z=Z_test, terms="cate")
         assert tau_hat.shape == (n_test, num_mcmc)
 
         # Run BCF without test set and without propensity score
-        bcf_model = BCFModel()
-        variance_forest_params = {"num_trees": 0}
-        bcf_model.sample(
-            X_train=X_train,
-            Z_train=Z_train,
-            y_train=y_train,
-            num_gfr=num_gfr,
-            num_burnin=num_burnin,
-            num_mcmc=num_mcmc,
-            variance_forest_params=variance_forest_params,
-        )
+        with pytest.warns(UserWarning):
+            bcf_model = BCFModel()
+            variance_forest_params = {"num_trees": 50}
+            bcf_model.sample(
+                X_train=X_train,
+                Z_train=Z_train,
+                y_train=y_train,
+                num_gfr=num_gfr,
+                num_burnin=num_burnin,
+                num_mcmc=num_mcmc,
+                variance_forest_params=variance_forest_params,
+            )
 
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
@@ -776,13 +874,13 @@ class TestBCF:
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test)
-        assert bcf_preds['tau_hat'].shape == (n_test, num_mcmc)
-        assert bcf_preds['mu_hat'].shape == (n_test, num_mcmc)
-        assert bcf_preds['y_hat'].shape == (n_test, num_mcmc)
+        assert bcf_preds["tau_hat"].shape == (n_test, num_mcmc)
+        assert bcf_preds["mu_hat"].shape == (n_test, num_mcmc)
+        assert bcf_preds["y_hat"].shape == (n_test, num_mcmc)
 
         # Check treatment effect prediction method
-        tau_hat = bcf_model.predict_tau(X_test, Z_test)
-    
+        tau_hat = bcf_model.predict(X=X_test, Z=Z_test, terms="cate")
+
     def test_bcf_rfx_parameters(self):
         # RNG
         random_seed = 101
@@ -811,9 +909,9 @@ class TestBCF:
         # Define the group rfx function
         def rfx_term(group_labels, basis):
             return np.where(
-                group_labels == 0, -5 + 1. * basis[:,1], 5 - 1. * basis[:,1]
+                group_labels == 0, -5 + 1.0 * basis[:, 1], 5 - 1.0 * basis[:, 1]
             )
-        
+
         # Generate outcome
         epsilon = rng.normal(0, 1, n)
         y = mu_X + tau_X * Z + rfx_term(group_labels, rfx_basis) + epsilon
@@ -845,10 +943,10 @@ class TestBCF:
             X_train=X_train,
             Z_train=Z_train,
             y_train=y_train,
-            pi_train=pi_train,
+            propensity_train=pi_train,
             X_test=X_test,
             Z_test=Z_test,
-            pi_test=pi_test,
+            propensity_test=pi_test,
             rfx_group_ids_train=group_labels_train,
             rfx_basis_train=rfx_basis_train,
             rfx_group_ids_test=group_labels_test,
@@ -856,27 +954,27 @@ class TestBCF:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params=general_params
+            general_params=general_params,
         )
 
         # Specify scalar rfx parameters
-        general_params = {
-            "rfx_working_parameter_prior_mean": 1.,
-            "rfx_group_parameter_prior_mean": 1.,
-            "rfx_working_parameter_prior_cov": 1.,
-            "rfx_group_parameter_prior_cov": 1.,
-            "rfx_variance_prior_shape": 1,
-            "rfx_variance_prior_scale": 1
+        rfx_params = {
+            "working_parameter_prior_mean": 1.0,
+            "group_parameter_prior_mean": 1.0,
+            "working_parameter_prior_cov": 1.0,
+            "group_parameter_prior_cov": 1.0,
+            "variance_prior_shape": 1,
+            "variance_prior_scale": 1,
         }
         bcf_model_2 = BCFModel()
         bcf_model_2.sample(
             X_train=X_train,
             Z_train=Z_train,
             y_train=y_train,
-            pi_train=pi_train,
+            propensity_train=pi_train,
             X_test=X_test,
             Z_test=Z_test,
-            pi_test=pi_test,
+            propensity_test=pi_test,
             rfx_group_ids_train=group_labels_train,
             rfx_basis_train=rfx_basis_train,
             rfx_group_ids_test=group_labels_test,
@@ -884,27 +982,27 @@ class TestBCF:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params=general_params
+            random_effects_params=rfx_params,
         )
 
         # Specify all relevant rfx parameters as vectors
-        general_params = {
-            "rfx_working_parameter_prior_mean": np.repeat(1., num_rfx_basis),
-            "rfx_group_parameter_prior_mean": np.repeat(1., num_rfx_basis),
-            "rfx_working_parameter_prior_cov": np.identity(num_rfx_basis),
-            "rfx_group_parameter_prior_cov": np.identity(num_rfx_basis),
-            "rfx_variance_prior_shape": 1,
-            "rfx_variance_prior_scale": 1
+        rfx_params = {
+            "working_parameter_prior_mean": np.repeat(1.0, num_rfx_basis),
+            "group_parameter_prior_mean": np.repeat(1.0, num_rfx_basis),
+            "working_parameter_prior_cov": np.identity(num_rfx_basis),
+            "group_parameter_prior_cov": np.identity(num_rfx_basis),
+            "variance_prior_shape": 1,
+            "variance_prior_scale": 1,
         }
         bcf_model_3 = BCFModel()
         bcf_model_3.sample(
             X_train=X_train,
             Z_train=Z_train,
             y_train=y_train,
-            pi_train=pi_train,
+            propensity_train=pi_train,
             X_test=X_test,
             Z_test=Z_test,
-            pi_test=pi_test,
+            propensity_test=pi_test,
             rfx_group_ids_train=group_labels_train,
             rfx_basis_train=rfx_basis_train,
             rfx_group_ids_test=group_labels_test,
@@ -912,5 +1010,5 @@ class TestBCF:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params=general_params
+            random_effects_params=rfx_params,
         )

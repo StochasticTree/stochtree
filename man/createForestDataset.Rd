@@ -2,7 +2,7 @@
 % Please edit documentation in R/data.R
 \name{createForestDataset}
 \alias{createForestDataset}
-\title{Create a forest dataset object}
+\title{Create ForestDataset Object}
 \usage{
 createForestDataset(covariates, basis = NULL, variance_weights = NULL)
 }
@@ -18,6 +18,10 @@ createForestDataset(covariates, basis = NULL, variance_weights = NULL)
 }
 \description{
 Create a forest dataset object
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
 }
 \examples{
 covariate_matrix <- matrix(runif(10*100), ncol = 10)

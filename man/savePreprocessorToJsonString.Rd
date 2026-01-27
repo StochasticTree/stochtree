@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{savePreprocessorToJsonString}
 \alias{savePreprocessorToJsonString}
-\title{Convert the persistent aspects of a covariate preprocessor to (in-memory) JSON string}
+\title{Convert Covariate Preprocessor to JSON String}
 \usage{
 savePreprocessorToJsonString(object)
 }

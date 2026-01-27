@@ -1,6 +1,6 @@
 Package: stochtree
 Title: Stochastic Tree Ensembles (XBART and BART) for Supervised Learning and Causal Inference
-Version: 0.1.1
+Version: 0.3.1
 Authors@R: 
   c(
     person("Drew", "Herren", email = "drewherrenopensource@gmail.com", role = c("aut", "cre"), comment = c(ORCID = "0000-0003-4109-6611")), 
@@ -43,7 +43,9 @@ Suggests:
     MASS,
     mvtnorm,
     rmarkdown,
-    tgp
+    tgp, 
+    coda, 
+    bayesplot
 VignetteBuilder: knitr
 SystemRequirements: C++17
 Imports: 
