@@ -64,11 +64,12 @@ class StochTreeBARTRegressor(RegressorMixin, BaseEstimator):
     Examples
     --------
     >>> from sklearn.datasets import load_boston
-    >>> from stochtree import StochTreeRegressor
+    >>> from stochtree import StochTreeBARTRegressor
     >>> data = load_boston()
     >>> X = data.data
     >>> y = data.target
-    >>> reg = StochTreeBARTRegressor().fit(X, y)
+    >>> reg = StochTreeBARTRegressor()
+    >>> reg.fit(X, y)
     >>> reg.predict(X)
     """
 
@@ -310,11 +311,12 @@ class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
     Examples
     --------
     >>> from sklearn.datasets import load_wine
-    >>> from stochtree import StochTreeBinaryClassifier
+    >>> from stochtree import StochTreeBARTBinaryClassifier
     >>> data = load_wine()
     >>> X = data.data
     >>> y = data.target
-    >>> clf = StochTreeBARTBinaryClassifier().fit(X, y)
+    >>> clf = StochTreeBARTBinaryClassifier()
+    >>> clf.fit(X, y)
     >>> clf.predict(X)
     """
 

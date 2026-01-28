@@ -468,7 +468,7 @@ class BARTModel:
         # Raise a warning if the data have ties and only GFR is being run
         if (num_gfr > 0) and (num_burnin == 0) and (num_mcmc == 0):
             num_values, num_cov_orig = X_train.shape
-            max_grid_size = floor(num_values / cutpoint_grid_size)
+            max_grid_size = floor(num_values / cutpoint_grid_size) if num_values > cutpoint_grid_size else 1
             x_is_df = isinstance(X_train, pd.DataFrame)
             covs_warning_1 = []
             covs_warning_2 = []
