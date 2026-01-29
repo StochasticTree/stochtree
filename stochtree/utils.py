@@ -1,7 +1,41 @@
-from typing import Union
+from typing import Union, Tuple
 import math
 
 import numpy as np
+
+
+def _set_output_defaults(outcome: str = "continuous", link: str = None) -> Tuple[str, str]:
+    if outcome is None:
+        raise ValueError("Outcome must be specified")
+    if link is None:
+        if outcome == "continuous":
+            link = "identity"
+        elif outcome == "binary":
+            link = "probit"
+        elif outcome == "ordinal":
+            link = "cloglog"
+    return outcome, link
+
+
+def _validate_outcome_model(outcome: str, link: str):
+    if outcome not in ["continuous", "binary", "ordinal"]:
+        raise ValueError("Outcome type must be one of 'continuous', 'binary', or 'ordinal'")
+    if link not in ["identity", "probit", "cloglog"]:
+        raise ValueError("Link function must be one of 'identity', 'probit', or 'cloglog'")
+    if outcome == "continuous" and link != "identity":
+        raise ValueError("Link function must be 'identity' for continuous models")
+    if outcome == "binary" and link != "probit":
+        raise ValueError("Link function must be 'probit' for binary models")
+    if outcome == "ordinal" and link != "cloglog":
+        raise ValueError("Link function must be 'cloglog' for ordinal models")
+
+
+class OutcomeModel:
+    def __init__(self, outcome: str = "continuous", link: str = None):
+        outcome, link = _set_output_defaults(outcome, link)
+        _validate_outcome_model(outcome, link)
+        self.outcome = outcome
+        self.link = link
 
 
 class NotSampledError(ValueError, AttributeError):

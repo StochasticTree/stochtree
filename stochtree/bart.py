@@ -20,6 +20,7 @@ from .random_effects import (
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
 from .utils import (
+    OutcomeModel,
     NotSampledError,
     _expand_dims_1d,
     _expand_dims_2d,
@@ -135,6 +136,7 @@ class BARTModel:
             * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
             * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see the multi chain vignettes.
+            * `outcome_model` (`stochtree.OutcomeModel`): An object of class `OutcomeModel` specifying the outcome model to be used. Default: `OutcomeModel(outcome = "continuous", link = "identity")`. This field pre-empts `probit_outcome_model`, if specified.
             * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
             * `num_threads`: Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 
@@ -205,12 +207,16 @@ class BARTModel:
             "keep_gfr": False,
             "keep_every": 1,
             "num_chains": 1,
+            "outcome_model": OutcomeModel(outcome = "continuous", link = "identity"),
             "probit_outcome_model": False,
             "num_threads": -1,
         }
         general_params_updated = _preprocess_params(
             general_params_default, general_params
         )
+        # TODO: think about validation and deprecation flow for probit_outcome_model
+        # outcome_model_specified = True if "outcome_model" in general_params.keys() and general_params["outcome_model"] else False
+        # probit_specified = True if "probit_outcome_model" in general_params.keys() and general_params["probit_outcome_model"] else False
 
         # Update mean forest BART parameters
         mean_forest_params_default = {
