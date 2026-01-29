@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stochtree"
-version = "0.3.0"
+version = "0.3.0-dev"
 dependencies = [
     "numpy",
     "pandas",

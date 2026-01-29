@@ -1,5 +1,13 @@
 # Changelog
 
+# stochtree 0.3.0-dev
+
+## New Features
+
+
+## Bug Fixes
+
+
 # stochtree 0.3.0
 
 ## New Features
