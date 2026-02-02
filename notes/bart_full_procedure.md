@@ -387,6 +387,22 @@ The leaf scale parameter for the mean forest is sampled using all leaf parameter
 
 Random effects are sampled using $\tilde{r}$ as data, where $\tilde{r}$ is specified as the partial residual, net of all mean forest predictions but not the random effects estimates.
 
+### Post-processing
+
+If users did not specify `keep_gfr = True`, then GFR samples are removed from all forest and parameter containers (they are initially retained for multi-chain MCMC initialization purposes).
+
+If a mean forest is included, we unpack cached training set predictions and scale / shift them by `y_std_train` and `y_bar_train`. If test set covariates / bases are provided, we compute test set predictions and similarly scale / shift them.
+
+If random effects are included, we compute train / test set predictions for each observation.
+
+We compute `y_hat_train` / `y_hat_test` as the combination of either or both of mean forest and random effects predictions and include these matrices in the returned model object. We also return separate `rfx_preds_train` / `rfx_preds_test` if random effects terms are present.
+
+If a variance forest is included, we compute train / test set predictions for each observation and include the resulting predictions in the returned model object as `sigma2_x_hat_train` / `sigma2_x_hat_test`.
+
+The resulting model object stores pointers to mean forests, variance forests and random effects samples if they are part of the model.
+
+We construct a `model_params` list that stores model metadata (fields such as `num_gfr`, `num_mcmc`, `has_rfx`, `include_mean_forest`, `include_variance_forest`) and include this in the returned model object.
+
 ## Prediction
 
 ### Parameter Acceptance and Validation

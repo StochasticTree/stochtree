@@ -2173,13 +2173,13 @@ predict.bartmodel <- function(
       }
     } else if (object$model_params$rfx_model_spec == "intercept_only") {
       # Only construct a basis if user-provided basis missing
-      # if (is.null(rfx_basis)) {
-      #   rfx_basis <- matrix(
-      #     rep(1, nrow(X)),
-      #     nrow = nrow(X),
-      #     ncol = 1
-      #   )
-      # }
+      if (is.null(rfx_basis)) {
+        rfx_basis <- matrix(
+          rep(1, nrow(X)),
+          nrow = nrow(X),
+          ncol = 1
+        )
+      }
     }
   }
 
