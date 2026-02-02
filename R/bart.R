@@ -867,7 +867,9 @@ bart <- function(
     # Set sigma2_init to 1, ignoring default provided
     sigma2_init <- 1.0
     # Skip variance_forest_init, since variance forests are not supported with probit link
-    b_leaf <- 1 / (num_trees_mean)
+    if (is.null(b_leaf)) {
+      b_leaf <- 1 / (num_trees_mean)
+    }
     if (has_basis) {
       if (ncol(leaf_basis_train) > 1) {
         if (is.null(sigma2_leaf_init)) {
@@ -1225,9 +1227,21 @@ bart <- function(
   # Initialize the leaves of each tree in the mean forest
   if (include_mean_forest) {
     if (requires_basis) {
-      init_values_mean_forest <- rep(0., ncol(leaf_basis_train))
+      # Handle the case in which we must initialize root values in a leaf basis regression
+      # when init_val_mean != 0. To do this, we regress rep(init_val_mean, nrow(y_train))
+      # on leaf_basis_train and use (coefs / num_trees_mean) as initial values
+      if (abs(init_val_mean) > 0.00001) {
+        init_val_y <- rep(init_val_mean, nrow(y_train))
+        init_val_model <- lm(init_val_y ~ 0 + leaf_basis_train)
+        init_values_mean_forest <- coef(init_val_model)
+        if (any(is.na(init_values_mean_forest))) {
+          init_values_mean_forest[which(is.na(init_values_mean_forest))] <- 0.
+        }
+      } else {
+        init_values_mean_forest <- rep(init_val_mean, ncol(leaf_basis_train))
+      }
     } else {
-      init_values_mean_forest <- 0.
+      init_values_mean_forest <- init_val_mean
     }
     active_forest_mean$prepare_for_sampler(
       forest_dataset_train,
@@ -1235,13 +1249,6 @@ bart <- function(
       forest_model_mean,
       leaf_model_mean_forest,
       init_values_mean_forest
-    )
-    active_forest_mean$adjust_residual(
-      forest_dataset_train,
-      outcome_train,
-      forest_model_mean,
-      requires_basis,
-      FALSE
     )
   }
 
