@@ -622,3 +622,75 @@ test_that("Random Effects BART", {
     )
   })
 })
+
+test_that("Probit BART", {
+  skip_on_cran()
+
+  # Generate simulated data
+  n <- 100
+  p <- 5
+  p_w <- 2
+  X <- matrix(runif(n * p), ncol = p)
+  W <- matrix(runif(n * p_w), ncol = p_w)
+  # fmt: skip
+  f_XW <- (((0 <= X[, 1]) & (0.25 > X[, 1])) * (-7.5 * W[, 1]) +
+    ((0.25 <= X[, 1]) & (0.5 > X[, 1])) * (-2.5 * W[, 1]) +
+    ((0.5 <= X[, 1]) & (0.75 > X[, 1])) * (2.5 * W[, 1]) +
+    ((0.75 <= X[, 1]) & (1 > X[, 1])) * (7.5 * W[, 1]))
+  z <- f_XW + rnorm(n, 0, 1)
+  y <- as.numeric(z > 0)
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  n_train <- n - n_test
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_test <- X[test_inds, ]
+  X_train <- X[train_inds, ]
+  W_test <- W[test_inds, ]
+  W_train <- W[train_inds, ]
+  y_test <- y[test_inds]
+  y_train <- y[train_inds]
+
+  # Fit probit model
+  general_param_list <- list(
+    outcome_model = outcome_model(outcome = "binary", link = "probit"),
+    sample_sigma2_global = F
+  )
+  mean_forest_param_list <- list(sample_sigma2_leaf = FALSE)
+  expect_no_error(
+    bart_model <- bart(
+      X_train = X_train,
+      y_train = y_train,
+      X_test = X_test,
+      leaf_basis_train = W_train,
+      leaf_basis_test = W_test,
+      num_gfr = 0,
+      num_burnin = 10,
+      num_mcmc = 10,
+      general_params = general_param_list,
+      mean_forest_params = mean_forest_param_list
+    )
+  )
+
+  # Predict from model on linear scale
+  expect_no_error({
+    preds <- predict(
+      bart_model,
+      X = X_test,
+      leaf_basis = W_test,
+      type = "posterior",
+      scale = "linear"
+    )
+  })
+
+  # Predict from model on probability scale
+  expect_no_error({
+    preds <- predict(
+      bart_model,
+      X = X_test,
+      leaf_basis = W_test,
+      type = "posterior",
+      scale = "probability"
+    )
+  })
+})
