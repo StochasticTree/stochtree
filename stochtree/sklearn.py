@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import norm
-from stochtree import BARTModel, OutcomeModel
+from .bart import BARTModel
+from .utils import OutcomeModel
 from sklearn.utils._array_api import (
     get_namespace,
     indexing_dtype,
