@@ -25,11 +25,21 @@ library(stochtree)
 We also define several simple functions that configure the data generating processes used in this vignette.
 
 ```{r}
-g <- function(x) {ifelse(x[,5]==1,2,ifelse(x[,5]==2,-1,-4))}
-mu1 <- function(x) {1+g(x)+x[,1]*x[,3]}
-mu2 <- function(x) {1+g(x)+6*abs(x[,3]-1)}
-tau1 <- function(x) {rep(3,nrow(x))}
-tau2 <- function(x) {1+2*x[,2]*x[,4]}
+g <- function(x) {
+  ifelse(x[, 5] == 1, 2, ifelse(x[, 5] == 2, -1, -4))
+}
+mu1 <- function(x) {
+  1 + g(x) + x[, 1] * x[, 3]
+}
+mu2 <- function(x) {
+  1 + g(x) + 6 * abs(x[, 3] - 1)
+}
+tau1 <- function(x) {
+  rep(3, nrow(x))
+}
+tau2 <- function(x) {
+  1 + 2 * x[, 2] * x[, 4]
+}
 ```
 
 # Binary Treatment
@@ -65,28 +75,28 @@ snr <- 3
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
-x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-X <- cbind(x1,x2,x3,x4,x5)
+x4 <- as.numeric(rbinom(n, 1, 0.5))
+x5 <- as.numeric(sample(1:3, n, replace = TRUE))
+X <- cbind(x1, x2, x3, x4, x5)
 p <- ncol(X)
 mu_x <- mu1(X)
 tau_x <- tau2(X)
-pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-Z <- rbinom(n,1,pi_x)
-E_XZ <- mu_x + Z*tau_x
-y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
+pi_x <- 0.8 * pnorm((3 * mu_x / sd(mu_x)) - 0.5 * X[, 1]) + 0.05 + runif(n) / 10
+Z <- rbinom(n, 1, pi_x)
+E_XZ <- mu_x + Z * tau_x
+y <- E_XZ + rnorm(n, 0, 1) * (sd(E_XZ) / snr)
 X <- as.data.frame(X)
 X$x4 <- factor(X$x4, ordered = TRUE)
 X$x5 <- factor(X$x5, ordered = TRUE)
 
 # Split data into test and train sets
 test_set_pct <- 0.2
-n_test <- round(test_set_pct*n)
+n_test <- round(test_set_pct * n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 train_inds <- (1:n)[!((1:n) %in% test_inds)]
-X_test <- X[test_inds,]
-X_train <- X[train_inds,]
+X_test <- X[test_inds, ]
+X_train <- X[train_inds, ]
 pi_test <- pi_x[test_inds]
 pi_train <- pi_x[train_inds]
 Z_test <- Z[test_inds]
@@ -116,29 +126,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r bart_warmstart_plot}
-plot(rowMeans(bcf_model_warmstart$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_warmstart$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_warmstart$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_warmstart$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -146,10 +181,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -166,29 +199,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples after burnin
 
 ```{r bart_root_plot}
-plot(rowMeans(bcf_model_root$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_root$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_root$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_root$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_root$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_root$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_root$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_root$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_root$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_root$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -196,10 +254,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -234,28 +290,28 @@ snr <- 3
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
-x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-X <- cbind(x1,x2,x3,x4,x5)
+x4 <- as.numeric(rbinom(n, 1, 0.5))
+x5 <- as.numeric(sample(1:3, n, replace = TRUE))
+X <- cbind(x1, x2, x3, x4, x5)
 p <- ncol(X)
 mu_x <- mu2(X)
 tau_x <- tau2(X)
-pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-Z <- rbinom(n,1,pi_x)
-E_XZ <- mu_x + Z*tau_x
-y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
+pi_x <- 0.8 * pnorm((3 * mu_x / sd(mu_x)) - 0.5 * X[, 1]) + 0.05 + runif(n) / 10
+Z <- rbinom(n, 1, pi_x)
+E_XZ <- mu_x + Z * tau_x
+y <- E_XZ + rnorm(n, 0, 1) * (sd(E_XZ) / snr)
 X <- as.data.frame(X)
 X$x4 <- factor(X$x4, ordered = TRUE)
 X$x5 <- factor(X$x5, ordered = TRUE)
 
 # Split data into test and train sets
 test_set_pct <- 0.2
-n_test <- round(test_set_pct*n)
+n_test <- round(test_set_pct * n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 train_inds <- (1:n)[!((1:n) %in% test_inds)]
-X_test <- X[test_inds,]
-X_train <- X[train_inds,]
+X_test <- X[test_inds, ]
+X_train <- X[train_inds, ]
 pi_test <- pi_x[test_inds]
 pi_train <- pi_x[train_inds]
 Z_test <- Z[test_inds]
@@ -285,29 +341,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r bart_warmstart_plot_2}
-plot(rowMeans(bcf_model_warmstart$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_warmstart$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_warmstart$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_warmstart$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -315,10 +396,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -335,29 +414,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples after burnin
 
 ```{r bart_root_plot_2}
-plot(rowMeans(bcf_model_root$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_root$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_root$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_root$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_root$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_root$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_root$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_root$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_root$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_root$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -365,10 +469,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -403,28 +505,28 @@ snr <- 3
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
-x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-X <- cbind(x1,x2,x3,x4,x5)
+x4 <- as.numeric(rbinom(n, 1, 0.5))
+x5 <- as.numeric(sample(1:3, n, replace = TRUE))
+X <- cbind(x1, x2, x3, x4, x5)
 p <- ncol(X)
 mu_x <- mu2(X)
 tau_x <- tau1(X)
-pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-Z <- rbinom(n,1,pi_x)
-E_XZ <- mu_x + Z*tau_x
-y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
+pi_x <- 0.8 * pnorm((3 * mu_x / sd(mu_x)) - 0.5 * X[, 1]) + 0.05 + runif(n) / 10
+Z <- rbinom(n, 1, pi_x)
+E_XZ <- mu_x + Z * tau_x
+y <- E_XZ + rnorm(n, 0, 1) * (sd(E_XZ) / snr)
 X <- as.data.frame(X)
 X$x4 <- factor(X$x4, ordered = TRUE)
 X$x5 <- factor(X$x5, ordered = TRUE)
 
 # Split data into test and train sets
 test_set_pct <- 0.2
-n_test <- round(test_set_pct*n)
+n_test <- round(test_set_pct * n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 train_inds <- (1:n)[!((1:n) %in% test_inds)]
-X_test <- X[test_inds,]
-X_train <- X[train_inds,]
+X_test <- X[test_inds, ]
+X_train <- X[train_inds, ]
 pi_test <- pi_x[test_inds]
 pi_train <- pi_x[train_inds]
 Z_test <- Z[test_inds]
@@ -454,29 +556,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r bart_warmstart_plot_3}
-plot(rowMeans(bcf_model_warmstart$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_warmstart$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_warmstart$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_warmstart$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -484,10 +611,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -504,29 +629,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples after burnin
 
 ```{r bart_root_plot_3}
-plot(rowMeans(bcf_model_root$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_root$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_root$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_root$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_root$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_root$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_root$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_root$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_root$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_root$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -534,10 +684,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -570,28 +718,32 @@ n <- 500
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
-x4 <- rnorm(n,x2,1)
-X <- cbind(x1,x2,x3,x4)
+x4 <- rnorm(n, x2, 1)
+X <- cbind(x1, x2, x3, x4)
 p <- ncol(X)
-mu <- function(x) {-1*(x[,1]>(x[,2])) + 1*(x[,1]<(x[,2])) - 0.1}
-tau <- function(x) {1/(1 + exp(-x[,3])) + x[,2]/10}
+mu <- function(x) {
+  -1 * (x[, 1] > (x[, 2])) + 1 * (x[, 1] < (x[, 2])) - 0.1
+}
+tau <- function(x) {
+  1 / (1 + exp(-x[, 3])) + x[, 2] / 10
+}
 mu_x <- mu(X)
 tau_x <- tau(X)
 pi_x <- pnorm(mu_x)
-Z <- rbinom(n,1,pi_x)
-E_XZ <- mu_x + Z*tau_x
-sigma <- diff(range(mu_x + tau_x*pi))/8
-y <- E_XZ + sigma*rnorm(n)
+Z <- rbinom(n, 1, pi_x)
+E_XZ <- mu_x + Z * tau_x
+sigma <- diff(range(mu_x + tau_x * pi)) / 8
+y <- E_XZ + sigma * rnorm(n)
 X <- as.data.frame(X)
 
 # Split data into test and train sets
 test_set_pct <- 0.2
-n_test <- round(test_set_pct*n)
+n_test <- round(test_set_pct * n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 train_inds <- (1:n)[!((1:n) %in% test_inds)]
-X_test <- X[test_inds,]
-X_train <- X[train_inds,]
+X_test <- X[test_inds, ]
+X_train <- X[train_inds, ]
 pi_test <- pi_x[test_inds]
 pi_train <- pi_x[train_inds]
 Z_test <- Z[test_inds]
@@ -621,29 +773,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r bart_warmstart_plot_4}
-plot(rowMeans(bcf_model_warmstart$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_warmstart$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_warmstart$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_warmstart$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -651,10 +828,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -671,29 +846,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples after burnin
 
 ```{r bart_root_plot_4}
-plot(rowMeans(bcf_model_root$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_root$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_root$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_root$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_root$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_root$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_root$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_root$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_root$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_root$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -701,10 +901,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -722,32 +920,32 @@ snr <- 3
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
-x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-X <- cbind(x1,x2,x3,x4,x5)
+x4 <- as.numeric(rbinom(n, 1, 0.5))
+x5 <- as.numeric(sample(1:3, n, replace = TRUE))
+X <- cbind(x1, x2, x3, x4, x5)
 p <- ncol(X)
 mu_x <- mu1(X)
 tau_x <- tau2(X)
-pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-Z <- rbinom(n,1,pi_x)
-E_XZ <- mu_x + Z*tau_x
-rfx_group_ids <- rep(c(1,2), n %/% 2)
-rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
+pi_x <- 0.8 * pnorm((3 * mu_x / sd(mu_x)) - 0.5 * X[, 1]) + 0.05 + runif(n) / 10
+Z <- rbinom(n, 1, pi_x)
+E_XZ <- mu_x + Z * tau_x
+rfx_group_ids <- rep(c(1, 2), n %/% 2)
+rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow = 2, byrow = TRUE)
 rfx_basis <- cbind(1, runif(n, -1, 1))
-rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
-y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
+rfx_term <- rowSums(rfx_coefs[rfx_group_ids, ] * rfx_basis)
+y <- E_XZ + rfx_term + rnorm(n, 0, 1) * (sd(E_XZ) / snr)
 X <- as.data.frame(X)
 X$x4 <- factor(X$x4, ordered = TRUE)
 X$x5 <- factor(X$x5, ordered = TRUE)
 
 # Split data into test and train sets
 test_set_pct <- 0.2
-n_test <- round(test_set_pct*n)
+n_test <- round(test_set_pct * n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 train_inds <- (1:n)[!((1:n) %in% test_inds)]
-X_test <- X[test_inds,]
-X_train <- X[train_inds,]
+X_test <- X[test_inds, ]
+X_train <- X[train_inds, ]
 pi_test <- pi_x[test_inds]
 pi_train <- pi_x[train_inds]
 Z_test <- Z[test_inds]
@@ -760,8 +958,8 @@ tau_test <- tau_x[test_inds]
 tau_train <- tau_x[train_inds]
 rfx_group_ids_test <- rfx_group_ids[test_inds]
 rfx_group_ids_train <- rfx_group_ids[train_inds]
-rfx_basis_test <- rfx_basis[test_inds,]
-rfx_basis_train <- rfx_basis[train_inds,]
+rfx_basis_test <- rfx_basis[test_inds, ]
+rfx_basis_train <- rfx_basis[train_inds, ]
 rfx_term_test <- rfx_term[test_inds]
 rfx_term_train <- rfx_term[train_inds]
 ```
@@ -781,36 +979,74 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    rfx_group_ids_train = rfx_group_ids_train, rfx_basis_train = rfx_basis_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, rfx_group_ids_test = rfx_group_ids_test,
-    rfx_basis_test = rfx_basis_test, num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  rfx_group_ids_train = rfx_group_ids_train,
+  rfx_basis_train = rfx_basis_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  rfx_group_ids_test = rfx_group_ids_test,
+  rfx_basis_test = rfx_basis_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r bart_warmstart_plot_rfx}
-plot(rowMeans(bcf_model_warmstart$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$y_hat_test), y_test, 
-     xlab = "predicted", ylab = "actual", main = "Outcome")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$rfx_preds_test), rfx_term_test, 
-     xlab = "predicted", ylab = "actual", main = "Random effects terms")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ-rfx_term)
-plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_warmstart$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_warmstart$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$y_hat_test),
+  y_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Outcome"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$rfx_preds_test),
+  rfx_term_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Random effects terms"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ - rfx_term)
+plot_bounds <- c(
+  min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_warmstart$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -818,10 +1054,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -837,40 +1071,44 @@ Well, in many cases it is plausible that some covariates (for example age, incom
 We draw from a modified "demo 1" DGP
 
 ```{r}
-mu <- function(x) {1+g(x)+x[,1]*x[,3]-x[,2]+3*x[,3]}
-tau <- function(x) {1 - 2*x[,1] + 2*x[,2] + 1*x[,1]*x[,2]}
+mu <- function(x) {
+  1 + g(x) + x[, 1] * x[, 3] - x[, 2] + 3 * x[, 3]
+}
+tau <- function(x) {
+  1 - 2 * x[, 1] + 2 * x[, 2] + 1 * x[, 1] * x[, 2]
+}
 n <- 500
 snr <- 4
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
-x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=TRUE))
+x4 <- as.numeric(rbinom(n, 1, 0.5))
+x5 <- as.numeric(sample(1:3, n, replace = TRUE))
 x6 <- rnorm(n)
 x7 <- rnorm(n)
 x8 <- rnorm(n)
 x9 <- rnorm(n)
 x10 <- rnorm(n)
-X <- cbind(x1,x2,x3,x4,x5,x6,x7,x8,x9,x10)
+X <- cbind(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10)
 p <- ncol(X)
 mu_x <- mu(X)
 tau_x <- tau(X)
-pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-Z <- rbinom(n,1,pi_x)
-E_XZ <- mu_x + Z*tau_x
-y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
+pi_x <- 0.8 * pnorm((3 * mu_x / sd(mu_x)) - 0.5 * X[, 1]) + 0.05 + runif(n) / 10
+Z <- rbinom(n, 1, pi_x)
+E_XZ <- mu_x + Z * tau_x
+y <- E_XZ + rnorm(n, 0, 1) * (sd(E_XZ) / snr)
 X <- as.data.frame(X)
 X$x4 <- factor(X$x4, ordered = TRUE)
 X$x5 <- factor(X$x5, ordered = TRUE)
 
 # Split data into test and train sets
 test_set_pct <- 0.5
-n_test <- round(test_set_pct*n)
+n_test <- round(test_set_pct * n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 train_inds <- (1:n)[!((1:n) %in% test_inds)]
-X_test <- X[test_inds,]
-X_train <- X[train_inds,]
+X_test <- X[test_inds, ]
+X_train <- X[train_inds, ]
 pi_test <- pi_x[test_inds]
 pi_train <- pi_x[train_inds]
 Z_test <- Z[test_inds]
@@ -898,32 +1136,62 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_mcmc <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the burned-in samples
 
 ```{r}
-plot(rowMeans(bcf_model_mcmc$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_mcmc$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_mcmc$y_hat_test), y_test, 
-     xlab = "predicted", ylab = "actual", main = "Outcome")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_mcmc$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_mcmc$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_mcmc$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_mcmc$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_mcmc$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_mcmc$y_hat_test),
+  y_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Outcome"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_mcmc$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_mcmc$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_mcmc$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -931,10 +1199,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_mcmc$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_mcmc$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -958,34 +1224,67 @@ num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
-treatment_effect_forest_params <- list(sample_sigma2_leaf = F, keep_vars = c("x1","x2"))
+treatment_effect_forest_params <- list(
+  sample_sigma2_leaf = F,
+  keep_vars = c("x1", "x2")
+)
 bcf_model_mcmc <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples
 
 ```{r}
-plot(rowMeans(bcf_model_mcmc$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_mcmc$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_mcmc$y_hat_test), y_test, 
-     xlab = "predicted", ylab = "actual", main = "Outcome")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_mcmc$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_mcmc$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_mcmc$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_mcmc$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_mcmc$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_mcmc$y_hat_test),
+  y_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Outcome"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_mcmc$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_mcmc$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_mcmc$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -993,10 +1292,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_mcmc$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_mcmc$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -1022,32 +1319,62 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r}
-plot(rowMeans(bcf_model_warmstart$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$y_hat_test), y_test, 
-     xlab = "predicted", ylab = "actual", main = "Outcome")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_warmstart$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_warmstart$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$y_hat_test),
+  y_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Outcome"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_warmstart$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -1055,10 +1382,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -1082,34 +1407,67 @@ num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
-treatment_effect_forest_params <- list(sample_sigma2_leaf = F, keep_vars = c("x1","x2"))
+treatment_effect_forest_params <- list(
+  sample_sigma2_leaf = F,
+  keep_vars = c("x1", "x2")
+)
 bcf_model_warmstart <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r}
-plot(rowMeans(bcf_model_warmstart$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$y_hat_test), y_test, 
-     xlab = "predicted", ylab = "actual", main = "Outcome")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_warmstart$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_warmstart$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$y_hat_test),
+  y_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Outcome"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_warmstart$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -1117,10 +1475,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -1164,17 +1520,17 @@ n <- 2000
 x1 <- rnorm(n)
 x2 <- rnorm(n)
 x3 <- rnorm(n)
-x4 <- as.numeric(rbinom(n,1,0.5))
-x5 <- as.numeric(sample(1:3,n,replace=TRUE))
-X <- cbind(x1,x2,x3,x4,x5)
+x4 <- as.numeric(rbinom(n, 1, 0.5))
+x5 <- as.numeric(sample(1:3, n, replace = TRUE))
+X <- cbind(x1, x2, x3, x4, x5)
 p <- ncol(X)
 mu_x <- mu1(X)
 tau_x <- tau2(X)
-pi_x <- 0.8*pnorm((3*mu_x/sd(mu_x)) - 0.5*X[,1]) + 0.05 + runif(n)/10
-Z <- rbinom(n,1,pi_x)
-E_XZ <- mu_x + Z*tau_x
+pi_x <- 0.8 * pnorm((3 * mu_x / sd(mu_x)) - 0.5 * X[, 1]) + 0.05 + runif(n) / 10
+Z <- rbinom(n, 1, pi_x)
+E_XZ <- mu_x + Z * tau_x
 w <- E_XZ + rnorm(n, 0, 1)
-y <- 1*(w > 0)
+y <- 1 * (w > 0)
 delta_x <- pnorm(mu_x + tau_x) - pnorm(mu_x)
 X <- as.data.frame(X)
 X$x4 <- factor(X$x4, ordered = TRUE)
@@ -1182,12 +1538,12 @@ X$x5 <- factor(X$x5, ordered = TRUE)
 
 # Split data into test and train sets
 test_set_pct <- 0.2
-n_test <- round(test_set_pct*n)
+n_test <- round(test_set_pct * n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 train_inds <- (1:n)[!((1:n) %in% test_inds)]
-X_test <- X[test_inds,]
-X_train <- X[train_inds,]
+X_test <- X[test_inds, ]
+X_train <- X[train_inds, ]
 pi_test <- pi_x[test_inds]
 pi_train <- pi_x[train_inds]
 Z_test <- Z[test_inds]
@@ -1217,17 +1573,27 @@ num_gfr <- 10
 num_burnin <- 0
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-general_params <- list(keep_every = 5, 
-                       probit_outcome_model = T, 
-                       sample_sigma2_global = F)
+general_params <- list(
+  keep_every = 5,
+  outcome_model = outcome_model(outcome = "binary", link = "probit"),
+  sample_sigma2_global = F
+)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -1235,32 +1601,53 @@ Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r}
 mu_hat_test <- rowMeans(bcf_model_warmstart$mu_hat_test)
-plot(mu_hat_test, mu_test, xlab = "predicted", 
-     ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
+plot(
+  mu_hat_test,
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
 tau_hat_test <- rowMeans(bcf_model_warmstart$tau_hat_test)
-plot(tau_hat_test, tau_test, xlab = "predicted", 
-     ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-delta_x_hat_test <- pnorm(mu_hat_test+tau_hat_test) - pnorm(mu_hat_test)
-plot(delta_x_hat_test, delta_x_test, 
-     xlab = "predicted", ylab = "actual", main = "Distributional treatment\neffect")
-abline(0,1,col="red",lty=3,lwd=3)
+plot(
+  tau_hat_test,
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+delta_x_hat_test <- pnorm(mu_hat_test + tau_hat_test) - pnorm(mu_hat_test)
+plot(
+  delta_x_hat_test,
+  delta_x_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Distributional treatment\neffect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
 ```
 
 Examine test set interval coverage
 
 ```{r}
 test_lb <- apply(
-    pnorm(bcf_model_warmstart$mu_hat_test + bcf_model_warmstart$tau_hat_test) - 
-        pnorm(bcf_model_warmstart$mu_hat_test), 1, quantile, 0.025)
-test_ub <- apply(
-    pnorm(bcf_model_warmstart$mu_hat_test + bcf_model_warmstart$tau_hat_test) - 
-        pnorm(bcf_model_warmstart$mu_hat_test), 1, quantile, 0.975)
-cover <- (
-    (test_lb <= delta_x_test) & 
-    (test_ub >= delta_x_test)
+  pnorm(bcf_model_warmstart$mu_hat_test + bcf_model_warmstart$tau_hat_test) -
+    pnorm(bcf_model_warmstart$mu_hat_test),
+  1,
+  quantile,
+  0.025
 )
+test_ub <- apply(
+  pnorm(bcf_model_warmstart$mu_hat_test + bcf_model_warmstart$tau_hat_test) -
+    pnorm(bcf_model_warmstart$mu_hat_test),
+  1,
+  quantile,
+  0.975
+)
+cover <- ((test_lb <= delta_x_test) &
+  (test_ub >= delta_x_test))
 mean(cover)
 ```
 
@@ -1273,17 +1660,27 @@ num_gfr <- 0
 num_burnin <- 2000
 num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
-general_params <- list(keep_every = 5, 
-                       probit_outcome_model = T, 
-                       sample_sigma2_global = F)
+general_params <- list(
+  keep_every = 5,
+  outcome_model = outcome_model(outcome = "binary", link = "probit"),
+  sample_sigma2_global = F
+)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
@@ -1291,32 +1688,53 @@ Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r}
 mu_hat_test <- rowMeans(bcf_model_root$mu_hat_test)
-plot(mu_hat_test, mu_test, xlab = "predicted", 
-     ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
+plot(
+  mu_hat_test,
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
 tau_hat_test <- rowMeans(bcf_model_root$tau_hat_test)
-plot(tau_hat_test, tau_test, xlab = "predicted", 
-     ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-delta_x_hat_test <- pnorm(mu_hat_test+tau_hat_test) - pnorm(mu_hat_test)
-plot(delta_x_hat_test, delta_x_test, 
-     xlab = "predicted", ylab = "actual", main = "Distributional treatment\neffect")
-abline(0,1,col="red",lty=3,lwd=3)
+plot(
+  tau_hat_test,
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+delta_x_hat_test <- pnorm(mu_hat_test + tau_hat_test) - pnorm(mu_hat_test)
+plot(
+  delta_x_hat_test,
+  delta_x_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Distributional treatment\neffect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
 ```
 
 Examine test set interval coverage
 
 ```{r}
 test_lb <- apply(
-    pnorm(bcf_model_root$mu_hat_test + bcf_model_root$tau_hat_test) - 
-        pnorm(bcf_model_root$mu_hat_test), 1, quantile, 0.025)
-test_ub <- apply(
-    pnorm(bcf_model_root$mu_hat_test + bcf_model_root$tau_hat_test) - 
-        pnorm(bcf_model_root$mu_hat_test), 1, quantile, 0.975)
-cover <- (
-    (test_lb <= delta_x_test) & 
-    (test_ub >= delta_x_test)
+  pnorm(bcf_model_root$mu_hat_test + bcf_model_root$tau_hat_test) -
+    pnorm(bcf_model_root$mu_hat_test),
+  1,
+  quantile,
+  0.025
 )
+test_ub <- apply(
+  pnorm(bcf_model_root$mu_hat_test + bcf_model_root$tau_hat_test) -
+    pnorm(bcf_model_root$mu_hat_test),
+  1,
+  quantile,
+  0.975
+)
+cover <- ((test_lb <= delta_x_test) &
+  (test_ub >= delta_x_test))
 mean(cover)
 ```
 
@@ -1351,25 +1769,25 @@ x2 <- rnorm(n)
 x3 <- rnorm(n)
 x4 <- rnorm(n)
 x5 <- rnorm(n)
-X <- cbind(x1,x2,x3,x4,x5)
+X <- cbind(x1, x2, x3, x4, x5)
 p <- ncol(X)
-mu_x <- 1 + 2*x1 - 4*(x2 < 0) + 4*(x2 >= 0) + 3*(abs(x3) - sqrt(2/pi))
-tau_x <- 1 + 2*x4
+mu_x <- 1 + 2 * x1 - 4 * (x2 < 0) + 4 * (x2 >= 0) + 3 * (abs(x3) - sqrt(2 / pi))
+tau_x <- 1 + 2 * x4
 u <- runif(n)
-pi_x <- ((mu_x-1)/4) + 4*(u-0.5)
-Z <- pi_x + rnorm(n,0,1)
-E_XZ <- mu_x + Z*tau_x
-y <- E_XZ + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
+pi_x <- ((mu_x - 1) / 4) + 4 * (u - 0.5)
+Z <- pi_x + rnorm(n, 0, 1)
+E_XZ <- mu_x + Z * tau_x
+y <- E_XZ + rnorm(n, 0, 1) * (sd(E_XZ) / snr)
 X <- as.data.frame(X)
 
 # Split data into test and train sets
 test_set_pct <- 0.2
-n_test <- round(test_set_pct*n)
+n_test <- round(test_set_pct * n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
 train_inds <- (1:n)[!((1:n) %in% test_inds)]
-X_test <- X[test_inds,]
-X_train <- X[train_inds,]
+X_test <- X[test_inds, ]
+X_train <- X[train_inds, ]
 pi_test <- pi_x[test_inds]
 pi_train <- pi_x[train_inds]
 Z_test <- Z[test_inds]
@@ -1399,29 +1817,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_warmstart <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples that were initialized with an XBART warm-start
 
 ```{r}
-plot(rowMeans(bcf_model_warmstart$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_warmstart$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_warmstart$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_warmstart$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_warmstart$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_warmstart$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_warmstart$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -1429,10 +1872,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_warmstart$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 
@@ -1449,29 +1890,54 @@ general_params <- list(keep_every = 5)
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
 treatment_effect_forest_params <- list(sample_sigma2_leaf = F)
 bcf_model_root <- bcf(
-    X_train = X_train, Z_train = Z_train, y_train = y_train, propensity_train = pi_train, 
-    X_test = X_test, Z_test = Z_test, propensity_test = pi_test, 
-    num_gfr = num_gfr, num_burnin = num_burnin, num_mcmc = num_mcmc, 
-    general_params = general_params, prognostic_forest_params = prognostic_forest_params, 
-    treatment_effect_forest_params = treatment_effect_forest_params
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  prognostic_forest_params = prognostic_forest_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
 )
 ```
 
 Inspect the BART samples after burnin
 
 ```{r}
-plot(rowMeans(bcf_model_root$mu_hat_test), mu_test, 
-     xlab = "predicted", ylab = "actual", main = "Prognostic function")
-abline(0,1,col="red",lty=3,lwd=3)
-plot(rowMeans(bcf_model_root$tau_hat_test), tau_test, 
-     xlab = "predicted", ylab = "actual", main = "Treatment effect")
-abline(0,1,col="red",lty=3,lwd=3)
-sigma_observed <- var(y-E_XZ)
-plot_bounds <- c(min(c(bcf_model_root$sigma2_global_samples, sigma_observed)), 
-                 max(c(bcf_model_root$sigma2_global_samples, sigma_observed)))
-plot(bcf_model_root$sigma2_global_samples, ylim = plot_bounds, 
-     ylab = "sigma^2", xlab = "Sample", main = "Global variance parameter")
-abline(h = sigma_observed, lty=3, lwd = 3, col = "blue")
+plot(
+  rowMeans(bcf_model_root$mu_hat_test),
+  mu_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Prognostic function"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+plot(
+  rowMeans(bcf_model_root$tau_hat_test),
+  tau_test,
+  xlab = "predicted",
+  ylab = "actual",
+  main = "Treatment effect"
+)
+abline(0, 1, col = "red", lty = 3, lwd = 3)
+sigma_observed <- var(y - E_XZ)
+plot_bounds <- c(
+  min(c(bcf_model_root$sigma2_global_samples, sigma_observed)),
+  max(c(bcf_model_root$sigma2_global_samples, sigma_observed))
+)
+plot(
+  bcf_model_root$sigma2_global_samples,
+  ylim = plot_bounds,
+  ylab = "sigma^2",
+  xlab = "Sample",
+  main = "Global variance parameter"
+)
+abline(h = sigma_observed, lty = 3, lwd = 3, col = "blue")
 ```
 
 Examine test set interval coverage
@@ -1479,10 +1945,8 @@ Examine test set interval coverage
 ```{r}
 test_lb <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.025)
 test_ub <- apply(bcf_model_root$tau_hat_test, 1, quantile, 0.975)
-cover <- (
-    (test_lb <= tau_x[test_inds]) & 
-    (test_ub >= tau_x[test_inds])
-)
+cover <- ((test_lb <= tau_x[test_inds]) &
+  (test_ub >= tau_x[test_inds]))
 mean(cover)
 ```
 

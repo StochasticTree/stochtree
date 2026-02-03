@@ -48,7 +48,8 @@
 #'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 #'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BCF models, see [the multi chain vignette](https://stochtree.ai/R_docs/pkgdown/articles/MultiChain.html).
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
-#'   - `probit_outcome_model` Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
+#'   - `outcome_model` A structured `outcome_model` object that specifies the outcome type and desired link function. This argument pre-empts the legacy (deprecated) `probit_outcome_model` option. Default: `outcome_model(outcome='continuous', link='identity')`.
+#'   - `probit_outcome_model` Deprecated in favor of `outcome_model`. Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
 #'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 #'
 #' @param prognostic_forest_params (Optional) A list of prognostic forest model parameters, each of which has a default value processed internally, so this argument list is optional.
@@ -201,6 +202,7 @@ bcf <- function(
     keep_every = 1,
     num_chains = 1,
     verbose = FALSE,
+    outcome_model = list(outcome = "continuous", link = "identity"),
     probit_outcome_model = FALSE,
     num_threads = -1
   )
@@ -305,6 +307,7 @@ bcf <- function(
   keep_every <- general_params_updated$keep_every
   num_chains <- general_params_updated$num_chains
   verbose <- general_params_updated$verbose
+  outcome_model <- general_params_updated$outcome_model
   probit_outcome_model <- general_params_updated$probit_outcome_model
   num_threads <- general_params_updated$num_threads
 
@@ -359,6 +362,49 @@ bcf <- function(
   rfx_group_parameter_prior_cov <- rfx_params_updated$group_parameter_prior_cov
   rfx_variance_prior_shape <- rfx_params_updated$variance_prior_shape
   rfx_variance_prior_scale <- rfx_params_updated$variance_prior_scale
+
+  # Raise a deprecation warning to use `outcome_model` if `probit_outcome_model = TRUE` is specified
+  if (probit_outcome_model) {
+    warning(
+      "Specifying a probit link through `general_params = list(probit_outcome_model = TRUE)` is deprecated and will be removed in a future version. Please use `general_params = list(outcome_model = outcome_model(outcome = 'binary', link = 'probit'))` instead."
+    )
+  }
+
+  # Unpack outcome model details
+  link_is_linear <- FALSE
+  link_is_probit <- FALSE
+  link_is_cloglog <- FALSE
+  outcome_is_continuous <- FALSE
+  outcome_is_binary <- FALSE
+  outcome_is_ordinal <- FALSE
+  if (
+    outcome_model$outcome == "continuous" && outcome_model$link == "identity"
+  ) {
+    link_is_linear <- TRUE
+    outcome_is_continuous <- TRUE
+  } else if (
+    outcome_model$outcome == "binary" && outcome_model$link == "probit"
+  ) {
+    link_is_probit <- TRUE
+    outcome_is_binary <- TRUE
+  } else if (
+    outcome_model$outcome == "binary" && outcome_model$link == "cloglog"
+  ) {
+    link_is_cloglog <- TRUE
+    outcome_is_binary <- TRUE
+  } else if (
+    outcome_model$outcome == "ordinal" && outcome_model$link == "cloglog"
+  ) {
+    link_is_cloglog <- TRUE
+    outcome_is_ordinal <- TRUE
+  } else {
+    stop(paste0(
+      "Invalid outcome model specification, outcome = ",
+      outcome_model$outcome,
+      ", link = ",
+      outcome_model$link
+    ))
+  }
 
   # Handle random effects specification
   if (!is.character(rfx_model_spec)) {
@@ -1170,16 +1216,16 @@ bcf <- function(
   }
 
   # Preliminary runtime checks for probit link
-  if (probit_outcome_model) {
+  if (link_is_probit) {
     if (!(length(unique(y_train)) == 2)) {
       stop(
-        "You specified a probit outcome model, but supplied an outcome with more than 2 unique values"
+        "You specified a probit link, but supplied an outcome with more than 2 unique values. Probit is only currently supported for binary outcomes."
       )
     }
     unique_outcomes <- sort(unique(y_train))
     if (!(all(unique_outcomes == c(0, 1)))) {
       stop(
-        "You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1"
+        "You specified a probit link, but supplied an outcome with 2 unique values other than 0 and 1"
       )
     }
     if (include_variance_forest) {
@@ -1205,7 +1251,7 @@ bcf <- function(
 
   # Handle standardization, prior calibration, and initialization of forest
   # differently for binary and continuous outcomes
-  if (probit_outcome_model) {
+  if (link_is_probit) {
     # Compute a probit-scale offset and fix scale to 1
     y_bar_train <- qnorm(mean(y_train))
     y_std_train <- 1
@@ -1654,7 +1700,7 @@ bcf <- function(
         }
       }
 
-      if (probit_outcome_model) {
+      if (link_is_probit) {
         # Sample latent probit variable, z | -
         mu_forest_pred <- active_forest_mu$predict(forest_dataset_train)
         tau_forest_pred <- active_forest_tau$predict(
@@ -2261,7 +2307,7 @@ bcf <- function(
           }
         }
 
-        if (probit_outcome_model) {
+        if (link_is_probit) {
           # Sample latent probit variable, z | -
           mu_forest_pred <- active_forest_mu$predict(
             forest_dataset_train
@@ -2732,6 +2778,7 @@ bcf <- function(
     "sample_sigma2_leaf_mu" = sample_sigma2_leaf_mu,
     "sample_sigma2_leaf_tau" = sample_sigma2_leaf_tau,
     "probit_outcome_model" = probit_outcome_model,
+    "outcome_model" = outcome_model,
     "rfx_model_spec" = rfx_model_spec
   )
   result <- list(
@@ -2880,7 +2927,7 @@ predict.bcfmodel <- function(
   if (!(scale %in% c("linear", "probability"))) {
     stop("scale must either be 'linear' or 'probability'")
   }
-  is_probit <- object$model_params$probit_outcome_model
+  is_probit <- object$model_params$outcome_model$link == "probit"
   if ((scale == "probability") && (!is_probit)) {
     stop(
       "scale cannot be 'probability' for models not fit with a probit outcome model"
@@ -3406,12 +3453,13 @@ print.bcfmodel <- function(x, ...) {
   }
 
   # Outcome details
+  is_probit <- x$model_params$outcome_model$link == "probit"
   summary_message <- paste0(
     summary_message,
     "\n",
     "Outcome was modeled ",
     ifelse(
-      x$model_params$probit_outcome_model,
+      is_probit,
       "with a probit link",
       "as gaussian"
     )
@@ -4195,6 +4243,18 @@ saveBCFModelToJson <- function(object) {
     "probit_outcome_model",
     object$model_params$probit_outcome_model
   )
+  outcome_model_outcome <- object$model_params$outcome_model$outcome
+  outcome_model_link <- object$model_params$outcome_model$link
+  jsonobj$add_string(
+    "outcome",
+    outcome_model_outcome,
+    "outcome_model"
+  )
+  jsonobj$add_string(
+    "link",
+    outcome_model_link,
+    "outcome_model"
+  )
   if (object$model_params$sample_sigma2_global) {
     jsonobj$add_vector(
       "sigma2_global_samples",
@@ -4591,6 +4651,12 @@ createBCFModelFromJson <- function(json_object) {
   model_params[["num_covariates"]] <- json_object$get_scalar("num_covariates")
   model_params[["probit_outcome_model"]] <- json_object$get_boolean(
     "probit_outcome_model"
+  )
+  outcome_model_outcome <- json_object$get_string("outcome", "outcome_model")
+  outcome_model_link <- json_object$get_string("link", "outcome_model")
+  model_params[["outcome_model"]] <- outcome_model(
+    outcome = outcome_model_outcome,
+    link = outcome_model_link
   )
   model_params[["rfx_model_spec"]] <- json_object$get_string(
     "rfx_model_spec"
@@ -5020,6 +5086,15 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
     "probit_outcome_model"
   )
+  outcome_model_outcome <- json_object_default$get_string(
+    "outcome",
+    "outcome_model"
+  )
+  outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+  model_params[["outcome_model"]] <- outcome_model(
+    outcome = outcome_model_outcome,
+    link = outcome_model_link
+  )
   model_params[["rfx_model_spec"]] <- json_object_default$get_string(
     "rfx_model_spec"
   )
@@ -5378,6 +5453,15 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   ]] <- json_object_default$get_boolean("internal_propensity_model")
   model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
     "probit_outcome_model"
+  )
+  outcome_model_outcome <- json_object_default$get_string(
+    "outcome",
+    "outcome_model"
+  )
+  outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+  model_params[["outcome_model"]] <- outcome_model(
+    outcome = outcome_model_outcome,
+    link = outcome_model_link
   )
   model_params[["rfx_model_spec"]] <- json_object_default$get_string(
     "rfx_model_spec"

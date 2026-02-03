@@ -103,7 +103,7 @@ compute_contrast_bcf_model <- function(
   if (!(scale %in% c("linear", "probability"))) {
     stop("scale must either be 'linear' or 'probability'")
   }
-  is_probit <- object$model_params$probit_outcome_model
+  is_probit <- object$model_params$outcome_model$link == "probit"
   if ((scale == "probability") && (!is_probit)) {
     stop(
       "scale cannot be 'probability' for models not fit with a probit outcome model"
@@ -333,7 +333,7 @@ compute_contrast_bart_model <- function(
   if (!(scale %in% c("linear", "probability"))) {
     stop("scale must either be 'linear' or 'probability'")
   }
-  is_probit <- object$model_params$probit_outcome_model
+  is_probit <- object$model_params$outcome_model$link == "probit"
   if ((scale == "probability") && (!is_probit)) {
     stop(
       "scale cannot be 'probability' for models not fit with a probit outcome model"
@@ -516,7 +516,7 @@ sample_bcf_posterior_predictive <- function(
   check_model_is_valid(model_object)
 
   # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
-  is_probit <- model_object$model_params$probit_outcome_model
+  is_probit <- model_object$model_params$outcome_model$link == "probit"
 
   # Check that all the necessary inputs were provided for interval computation
   needs_covariates <- TRUE
@@ -713,7 +713,7 @@ sample_bart_posterior_predictive <- function(
   check_model_is_valid(model_object)
 
   # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
-  is_probit <- model_object$model_params$probit_outcome_model
+  is_probit <- model_object$model_params$outcome_model$link == "probit"
 
   # Check that all the necessary inputs were provided for interval computation
   needs_covariates <- model_object$model_params$include_mean_forest
@@ -918,7 +918,7 @@ compute_bcf_posterior_interval <- function(
   if (!(scale %in% c("linear", "probability"))) {
     stop("scale must either be 'linear' or 'probability'")
   }
-  is_probit <- model_object$model_params$probit_outcome_model
+  is_probit <- model_object$model_params$outcome_model$link == "probit"
   if ((scale == "probability") && (!is_probit)) {
     stop(
       "scale cannot be 'probability' for models not fit with a probit outcome model"
@@ -1138,7 +1138,7 @@ compute_bart_posterior_interval <- function(
   if (!(scale %in% c("linear", "probability"))) {
     stop("scale must either be 'linear' or 'probability'")
   }
-  is_probit <- model_object$model_params$probit_outcome_model
+  is_probit <- model_object$model_params$outcome_model$link == "probit"
   if ((scale == "probability") && (!is_probit)) {
     stop(
       "scale cannot be 'probability' for models not fit with a probit outcome model"
