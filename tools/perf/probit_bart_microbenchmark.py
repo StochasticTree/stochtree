@@ -5,6 +5,9 @@ from stochtree import BARTModel, OutcomeModel
 # Translate the R code above to python
 setup_code = """
 import numpy as np
+from stochtree import BARTModel, OutcomeModel
+general_params = {'outcome_model': OutcomeModel(outcome='binary', link='probit'), 
+                  'sample_sigma2_global': False}
 rng = np.random.default_rng()
 n = 1000
 p = 20
@@ -17,10 +20,9 @@ z = f_XW + rng.normal(0, 1, n)
 y = (z > 0).astype(int)
 """
 
+num_times = 10
 time_probit = timeit.timeit("""
-from stochtree import BARTModel, OutcomeModel
-general_params = {'outcome_model': OutcomeModel(outcome='binary', link='probit'), 
-                  'sample_sigma2_global': False}
 bart_model = BARTModel()
 bart_model.sample(X, y, num_gfr=10, num_mcmc=100, general_params=general_params)
-""", setup=setup_code, number=10)
+""", setup=setup_code, number=num_times)
+print(f"Average runtime of {time_probit / num_times:<.6f} seconds")
