@@ -269,6 +269,12 @@ Create a `CppRNG`, using `random_seed` if provided.
 
 Create a `GlobalModelConfig` object, storing $\sigma^2$.
 
+If the global error variance parameter is to be sampled:
+* Create a container for variance samples
+
+If the leaf scale parameter is to be sampled:
+* Create a container for leaf scale samples
+
 If a mean forest is requested:
 * Create a `ForestModelConfig` object
 * Create a `ForestModel` (`ForestSampler` in Python) object
