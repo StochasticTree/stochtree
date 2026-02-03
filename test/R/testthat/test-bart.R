@@ -449,7 +449,7 @@ test_that("BART Predictions", {
   y_train <- y[train_inds]
 
   # Run a BART model with only GFR
-  general_params <- list(num_chains = 1)
+  general_params <- list(num_chains = 1, sample_sigma2_global = FALSE)
   variance_forest_params <- list(num_trees = 50)
   bart_model <- bart(
     X_train = X_train,

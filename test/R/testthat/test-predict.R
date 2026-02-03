@@ -244,6 +244,7 @@ test_that("BART predictions with pre-summarization", {
     num_gfr = 10,
     num_burnin = 0,
     num_mcmc = 10,
+    general_params = list(sample_sigma2_global = FALSE),
     variance_forest_params = var_params
   )
 
