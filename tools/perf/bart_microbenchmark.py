@@ -3,9 +3,7 @@ import timeit
 # Translate the R code above to python
 setup_code = """
 import numpy as np
-from stochtree import BARTModel, OutcomeModel
-general_params = {'outcome_model': OutcomeModel(outcome='binary', link='probit'), 
-                  'sample_sigma2_global': False}
+from stochtree import BARTModel
 rng = np.random.default_rng()
 n = 1000
 p = 20
@@ -14,13 +12,12 @@ f_XW = np.where((0 <= X[:, 0]) & (0.25 > X[:, 0]), -7.5,
                  np.where((0.25 <= X[:, 0]) & (0.5 > X[:, 0]), -2.5,
                           np.where((0.5 <= X[:, 0]) & (0.75 > X[:, 0]), 2.5,
                                    np.where((0.75 <= X[:, 0]) & (1 > X[:, 0]), 7.5, 0))))
-z = f_XW + rng.normal(0, 1, n)
-y = (z > 0).astype(int)
+y = f_XW + rng.normal(0, 1, n)
 """
 
 num_times = 10
-time_probit = timeit.timeit("""
+time_bart = timeit.timeit("""
 bart_model = BARTModel()
-bart_model.sample(X, y, num_gfr=10, num_mcmc=100, general_params=general_params)
+bart_model.sample(X, y, num_gfr=10, num_mcmc=100)
 """, setup=setup_code, number=num_times)
-print(f"Average runtime of {time_probit / num_times:<.6f} seconds")
+print(f"Average runtime of {time_bart / num_times:<.6f} seconds")
