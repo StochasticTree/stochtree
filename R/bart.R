@@ -862,18 +862,19 @@ bart <- function(
 
   # Preliminary runtime checks for probit link
   if (!include_mean_forest) {
-    probit_outcome_model <- FALSE
+    link_is_probit <- FALSE
+    # TODO: think about allowing binary models with probit link for homoskedastic RFX-only models?
   }
-  if (probit_outcome_model) {
+  if (link_is_probit) {
     if (!(length(unique(y_train)) == 2)) {
       stop(
-        "You specified a probit outcome model, but supplied an outcome with more than 2 unique values"
+        "You specified a probit link, but supplied an outcome with more than 2 unique values. Probit is only currently supported for binary outcomes."
       )
     }
     unique_outcomes <- sort(unique(y_train))
     if (!(all(unique_outcomes == c(0, 1)))) {
       stop(
-        "You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1"
+        "You specified a probit link, but supplied an outcome with 2 unique values other than 0 and 1"
       )
     }
     if (include_variance_forest) {
@@ -899,7 +900,7 @@ bart <- function(
 
   # Handle standardization, prior calibration, and initialization of forest
   # differently for binary and continuous outcomes
-  if (probit_outcome_model) {
+  if (link_is_probit) {
     # Compute a probit-scale offset and fix scale to 1
     y_bar_train <- qnorm(mean(y_train))
     y_std_train <- 1
@@ -1326,7 +1327,7 @@ bart <- function(
       }
 
       if (include_mean_forest) {
-        if (probit_outcome_model) {
+        if (link_is_probit) {
           # Sample latent probit variable, z | -
           outcome_pred <- active_forest_mean$predict(
             forest_dataset_train
@@ -1699,7 +1700,7 @@ bart <- function(
         }
 
         if (include_mean_forest) {
-          if (probit_outcome_model) {
+          if (link_is_probit) {
             # Sample latent probit variable, z | -
             outcome_pred <- active_forest_mean$predict(
               forest_dataset_train
@@ -1957,6 +1958,7 @@ bart <- function(
     "sample_sigma2_leaf" = sample_sigma2_leaf,
     "include_mean_forest" = include_mean_forest,
     "include_variance_forest" = include_variance_forest,
+    "outcome_model" = outcome_model,
     "probit_outcome_model" = probit_outcome_model,
     "rfx_model_spec" = rfx_model_spec
   )
@@ -2080,7 +2082,9 @@ predict.bartmodel <- function(
   if (!(scale %in% c("linear", "probability"))) {
     stop("scale must either be 'linear' or 'probability'")
   }
-  is_probit <- object$model_params$probit_outcome_model
+  outcome_model <- object$model_params$outcome_model
+  is_probit <- (outcome_model$link == "probit" &&
+    outcome_model$outcome == "binary")
   if ((scale == "probability") && (!is_probit)) {
     stop(
       "scale cannot be 'probability' for models not fit with a probit outcome model"
@@ -2423,13 +2427,16 @@ print.bartmodel <- function(x, ...) {
   }
 
   # Outcome and leaf model details
+  outcome_model <- x$model_params$outcome_model
+  is_probit <- (outcome_model$link == "probit" &&
+    outcome_model$outcome == "binary")
   if (x$model_params$leaf_regression) {
     summary_message <- paste0(
       summary_message,
       "\n",
       "Outcome was modeled ",
       ifelse(
-        x$model_params$probit_outcome_model,
+        is_probit,
         "with a probit link",
         "as gaussian"
       ),
@@ -2443,7 +2450,7 @@ print.bartmodel <- function(x, ...) {
       "\n",
       "Outcome was modeled ",
       ifelse(
-        x$model_params$probit_outcome_model,
+        is_probit,
         "with a probit link",
         "as gaussian"
       ),
@@ -2455,7 +2462,7 @@ print.bartmodel <- function(x, ...) {
       "\n",
       "Outcome was modeled ",
       ifelse(
-        x$model_params$probit_outcome_model,
+        is_probit,
         "with a probit link",
         "as gaussian"
       ),
@@ -2970,6 +2977,16 @@ saveBARTModelToJson <- function(object) {
   jsonobj$add_scalar("num_chains", object$model_params$num_chains)
   jsonobj$add_scalar("keep_every", object$model_params$keep_every)
   jsonobj$add_boolean("requires_basis", object$model_params$requires_basis)
+  jsonobj$add_string(
+    "outcome",
+    object$model_params$outcome_model$outcome,
+    "outcome_model"
+  )
+  jsonobj$add_string(
+    "link",
+    object$model_params$outcome_model$link,
+    "outcome_model"
+  )
   jsonobj$add_boolean(
     "probit_outcome_model",
     object$model_params$probit_outcome_model
@@ -3227,6 +3244,12 @@ createBARTModelFromJson <- function(json_object) {
   )
   model_params[["probit_outcome_model"]] <- json_object$get_boolean(
     "probit_outcome_model"
+  )
+  outcome_model_outcome <- json_object$get_string("outcome", "outcome_model")
+  outcome_model_link <- json_object$get_string("link", "outcome_model")
+  model_params[["outcome_model"]] <- outcome_model(
+    outcome = outcome_model_outcome,
+    link = outcome_model_link
   )
   model_params[["rfx_model_spec"]] <- json_object$get_string(
     "rfx_model_spec"
@@ -3508,6 +3531,15 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
     "probit_outcome_model"
   )
+  outcome_model_outcome <- json_object_default$get_string(
+    "outcome",
+    "outcome_model"
+  )
+  outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+  model_params[["outcome_model"]] <- outcome_model(
+    outcome = outcome_model_outcome,
+    link = outcome_model_link
+  )
   model_params[["rfx_model_spec"]] <- json_object_default$get_string(
     "rfx_model_spec"
   )
@@ -3753,6 +3785,15 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
   )
   model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
     "probit_outcome_model"
+  )
+  outcome_model_outcome <- json_object_default$get_string(
+    "outcome",
+    "outcome_model"
+  )
+  outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+  model_params[["outcome_model"]] <- outcome_model(
+    outcome = outcome_model_outcome,
+    link = outcome_model_link
   )
   model_params[["rfx_model_spec"]] <- json_object_default$get_string(
     "rfx_model_spec"
