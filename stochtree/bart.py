@@ -136,8 +136,8 @@ class BARTModel:
             * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
             * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see the multi chain vignettes.
-            * `outcome_model` (`stochtree.OutcomeModel`): An object of class `OutcomeModel` specifying the outcome model to be used. Default: `OutcomeModel(outcome = "continuous", link = "identity")`. This field pre-empts `probit_outcome_model`, if specified.
-            * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
+            * `outcome_model` (`stochtree.OutcomeModel`): An object of class `OutcomeModel` specifying the outcome model to be used. Default: `OutcomeModel(outcome = "continuous", link = "identity")`. This field pre-empts the deprecated `probit_outcome_model` parameter, if specified.
+            * `probit_outcome_model` (`bool`): Deprecated in favor of `outcome_model`. Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
             * `num_threads`: Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 
         mean_forest_params : dict, optional
@@ -214,9 +214,6 @@ class BARTModel:
         general_params_updated = _preprocess_params(
             general_params_default, general_params
         )
-        # TODO: think about validation and deprecation flow for probit_outcome_model
-        # outcome_model_specified = True if "outcome_model" in general_params.keys() and general_params["outcome_model"] else False
-        # probit_specified = True if "probit_outcome_model" in general_params.keys() and general_params["probit_outcome_model"] else False
 
         # Update mean forest BART parameters
         mean_forest_params_default = {
@@ -285,6 +282,7 @@ class BARTModel:
         keep_every = general_params_updated["keep_every"]
         num_chains = general_params_updated["num_chains"]
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
+        self.outcome_model = general_params_updated["outcome_model"]
         num_threads = general_params_updated["num_threads"]
 
         # 2. Mean forest parameters
@@ -335,6 +333,38 @@ class BARTModel:
         rfx_group_parameter_prior_cov = rfx_params_updated["group_parameter_prior_cov"]
         rfx_variance_prior_shape = rfx_params_updated["variance_prior_shape"]
         rfx_variance_prior_scale = rfx_params_updated["variance_prior_scale"]
+
+        # Raise a deprecation warning to use `outcome_model` if `probit_outcome_model = TRUE` is specified
+        if self.probit_outcome_model:
+            warnings.warn(
+                "Specifying a probit link through `general_params = {'probit_outcome_model': True}` is deprecated and will be removed in a future version. Please use `general_params = {outcome_model = OutcomeModel(outcome = 'binary', link = 'probit')}` instead.",
+                DeprecationWarning
+            )
+        # TODO: think about validation and deprecation flow for probit_outcome_model
+        # outcome_model_specified = True if "outcome_model" in general_params.keys() and general_params["outcome_model"] else False
+        # probit_specified = True if "probit_outcome_model" in general_params.keys() and general_params["probit_outcome_model"] else False
+        
+        # Unpack outcome model details
+        link_is_linear = False
+        link_is_probit = False
+        link_is_cloglog = False
+        outcome_is_continuous = False
+        outcome_is_binary = False
+        outcome_is_ordinal = False
+        if self.outcome_model.outcome == "continuous" and self.outcome_model.link == "identity":
+            link_is_linear = True
+            outcome_is_continuous = True
+        elif self.outcome_model.outcome == "binary" and self.outcome_model.link == "probit":
+            link_is_probit = True
+            outcome_is_binary = True
+        elif self.outcome_model.outcome == "binary" and self.outcome_model.link == "cloglog":
+            link_is_cloglog = True
+            outcome_is_binary = True
+        elif self.outcome_model.outcome == "ordinal" and self.outcome_model.link == "cloglog":
+            link_is_cloglog = True
+            outcome_is_ordinal = True
+        else:
+            raise ValueError(f"Invalid outcome model specification, outcome = {self.outcome_model.outcome}, link = {self.outcome_model.link}")
 
         # Check random effects specification
         if not isinstance(self.rfx_model_spec, str):
@@ -887,16 +917,16 @@ class BARTModel:
 
         # Preliminary runtime checks for probit link
         if not self.include_mean_forest:
-            self.probit_outcome_model = False
-        if self.probit_outcome_model:
+            link_is_probit = False
+        if link_is_probit:
             if np.unique(y_train).size != 2:
                 raise ValueError(
-                    "You specified a probit outcome model, but supplied an outcome with more than 2 unique values"
+                    "You specified a probit link, but supplied an outcome with more than 2 unique values. Probit is only currently supported for binary outcomes."
                 )
             unique_outcomes = np.squeeze(np.unique(y_train))
             if not np.array_equal(unique_outcomes, [0, 1]):
                 raise ValueError(
-                    "You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1"
+                    "You specified a probit link, but supplied an outcome with 2 unique values other than 0 and 1"
                 )
             if sample_sigma2_global:
                 warnings.warn(
@@ -918,7 +948,7 @@ class BARTModel:
 
         # Handle standardization, prior calibration, and initialization of forest
         # differently for binary and continuous outcomes
-        if self.probit_outcome_model:
+        if link_is_probit:
             # Compute a probit-scale offset and fix scale to 1
             self.y_bar = norm.ppf(np.squeeze(np.mean(y_train)))
             self.y_std = 1.0
@@ -1358,7 +1388,7 @@ class BARTModel:
                 if keep_sample:
                     sample_counter += 1
                 if self.include_mean_forest:
-                    if self.probit_outcome_model:
+                    if link_is_probit:
                         # Sample latent probit variable z | -
                         outcome_pred = active_forest_mean.predict(forest_dataset_train)
                         if self.has_rfx:
@@ -1605,7 +1635,7 @@ class BARTModel:
                         sample_counter += 1
 
                     if self.include_mean_forest:
-                        if self.probit_outcome_model:
+                        if link_is_probit:
                             # Sample latent probit variable z | -
                             outcome_pred = active_forest_mean.predict(
                                 forest_dataset_train
@@ -1835,7 +1865,7 @@ class BARTModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.probit_outcome_model
+        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
         if (scale == "probability") and (not is_probit):
             raise ValueError(
                 "scale cannot be 'probability' for models not fit with a probit outcome model"
@@ -2162,10 +2192,10 @@ class BARTModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.probit_outcome_model
+        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
         if (scale == "probability") and (not is_probit):
             raise ValueError(
-                "scale cannot be 'probability' for models not fit with a probit outcome model"
+                "scale cannot be 'probability' for models not fit with a probit link"
             )
         probability_scale = scale == "probability"
 
@@ -2295,10 +2325,10 @@ class BARTModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.probit_outcome_model
+        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
         if (scale == "probability") and (not is_probit):
             raise ValueError(
-                "scale cannot be 'probability' for models not fit with a probit outcome model"
+                "scale cannot be 'probability' for models not fit with a probit link"
             )
 
         # Handle prediction terms
@@ -2432,7 +2462,7 @@ class BARTModel:
             raise ValueError("Model has not yet been sampled")
 
         # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
-        is_probit = self.probit_outcome_model
+        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
 
         # Check that all the necessary inputs were provided for interval computation
         needs_covariates = self.include_mean_forest
@@ -2587,6 +2617,8 @@ class BARTModel:
         bart_json.add_integer("num_basis", self.num_basis)
         bart_json.add_boolean("requires_basis", self.has_basis)
         bart_json.add_boolean("probit_outcome_model", self.probit_outcome_model)
+        bart_json.add_string("outcome", self.outcome_model.outcome, "outcome_model")
+        bart_json.add_string("link", self.outcome_model.link, "outcome_model")
         bart_json.add_string("rfx_model_spec", self.rfx_model_spec)
 
         # Add parameter samples
@@ -2662,6 +2694,9 @@ class BARTModel:
         self.num_basis = bart_json.get_integer("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
         self.probit_outcome_model = bart_json.get_boolean("probit_outcome_model")
+        outcome_model_outcome = bart_json.get_string("outcome", "outcome_model")
+        outcome_model_link = bart_json.get_string("link", "outcome_model")
+        self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
         self.rfx_model_spec = bart_json.get_string("rfx_model_spec")
 
         # Unpack parameter samples
@@ -2775,6 +2810,9 @@ class BARTModel:
         self.probit_outcome_model = json_object_default.get_boolean(
             "probit_outcome_model"
         )
+        outcome_model_outcome = json_object_default.get_string("outcome", "outcome_model")
+        outcome_model_link = json_object_default.get_string("link", "outcome_model")
+        self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
         self.rfx_model_spec = json_object_default.get_string("rfx_model_spec")
 
         # Unpack number of samples
