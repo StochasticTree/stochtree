@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from stochtree import BCFModel
+from stochtree import BCFModel, OutcomeModel
 from sklearn.model_selection import train_test_split
 from scipy.stats import norm
 
@@ -86,7 +86,7 @@ sigma2_leaf_mu = 2/num_trees_mu
 # Construct parameter lists
 general_params = {
     'keep_every': 5, 
-    'probit_outcome_model': True, 
+    'outcome_model': OutcomeModel(outcome="binary", link="probit"),
     'sample_sigma2_global': False, 
     'adaptive_coding': False}
 prognostic_forest_params = {

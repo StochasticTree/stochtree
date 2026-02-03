@@ -5,7 +5,7 @@ import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_curve, auc
 
-from stochtree import BARTModel
+from stochtree import BARTModel, OutcomeModel
 
 # RNG
 rng = np.random.default_rng()
@@ -47,7 +47,7 @@ y_test = y[test_inds]
 # Fit Probit BART
 bart_model = BARTModel()
 general_params = {"num_chains": 1}
-mean_forest_params = {"probit_outcome_model": True}
+mean_forest_params = {"outcome_model": OutcomeModel(outcome="binary", link="probit")}
 bart_model.sample(
     X_train=X_train,
     y_train=y_train,

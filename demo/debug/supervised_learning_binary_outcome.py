@@ -3,7 +3,7 @@
 # Load necessary libraries
 import numpy as np
 import matplotlib.pyplot as plt
-from stochtree import BARTModel
+from stochtree import BARTModel, OutcomeModel
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_curve
 
@@ -64,7 +64,7 @@ y_test = y[test_inds]
 
 # Construct parameter lists
 general_params = {
-    'probit_outcome_model': True, 
+    'outcome_model': OutcomeModel(outcome="binary", link="probit"),
     'sample_sigma2_global': False
 }
 
