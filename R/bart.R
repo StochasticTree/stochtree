@@ -175,7 +175,9 @@ bart <- function(
     sigma2_leaf_scale = NULL,
     keep_vars = NULL,
     drop_vars = NULL,
-    num_features_subsample = NULL
+    num_features_subsample = NULL,
+    cloglog_leaf_prior_shape = 2.0,
+    cloglog_leaf_prior_scale = 2.0
   )
   mean_forest_params_updated <- preprocessParams(
     mean_forest_params_default,
@@ -249,6 +251,8 @@ bart <- function(
   keep_vars_mean <- mean_forest_params_updated$keep_vars
   drop_vars_mean <- mean_forest_params_updated$drop_vars
   num_features_subsample_mean <- mean_forest_params_updated$num_features_subsample
+  cloglog_leaf_prior_shape <- mean_forest_params_updated$cloglog_leaf_prior_shape
+  cloglog_leaf_prior_scale <- mean_forest_params_updated$cloglog_leaf_prior_scale
 
   # 3. Variance forest parameters
   num_trees_variance <- variance_forest_params_updated$num_trees
@@ -888,6 +892,42 @@ bart <- function(
     }
   }
 
+  # Preliminary runtime checks for cloglog link
+  if (!include_mean_forest) {
+    link_is_cloglog <- FALSE
+    # TODO: think about allowing binary models with cloglog link for homoskedastic RFX-only models?
+  }
+  if (link_is_cloglog) {
+    if (!all(as.integer(y_train) == y_train)) {
+      stop(
+        "You specified a cloglog link, but supplied an outcome with non-integer values. Cloglog is only currently supported for integer outcomes."
+      )
+    }
+    unique_outcomes <- sort(unique(y_train))
+    if (!(min(unique_outcomes) %in% c(0, 1))) {
+      stop(
+        "You specified a cloglog link, but supplied an integer outcome that does not start with 0 or 1. Please remap / shift the outcomes so that the smallest category label is either 0 or 1."
+      )
+    }
+    if (!all(diff(unique_outcomes) == 1)) {
+      stop(
+        "You specified a cloglog link, but supplied an integer outcome that is not a sequence of consecutive integers"
+      )
+    }
+    if (include_variance_forest) {
+      stop("We do not support heteroskedasticity with a cloglog link")
+    }
+    if (has_basis) {
+      stop("We do not support leaf basis regression with a cloglog link")
+    }
+    if (sample_sigma2_global) {
+      warning(
+        "Global error variance will not be sampled with a cloglog link"
+      )
+      sample_sigma2_global <- F
+    }
+  }
+
   # Runtime checks for variance forest
   if (include_variance_forest) {
     if (sample_sigma2_global) {
@@ -955,6 +995,10 @@ bart <- function(
       }
     }
     current_sigma2 <- sigma2_init
+  } else if (link_is_cloglog) {
+    # Remap outcomes to start from 0
+    resid_train <- as.integer(y_train - min(unique_outcomes))
+    n_ordinal_levels <- max(resid_train) + 1
   } else {
     # Only standardize if user requested
     if (standardize) {
