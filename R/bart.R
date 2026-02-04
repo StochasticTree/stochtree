@@ -926,6 +926,12 @@ bart <- function(
       )
       sample_sigma2_global <- F
     }
+    if (sample_sigma2_leaf) {
+      warning(
+        "Leaf scale parameter will not be sampled with a cloglog link"
+      )
+      sample_sigma2_leaf <- F
+    }
   }
 
   # Runtime checks for variance forest
@@ -996,9 +1002,32 @@ bart <- function(
     }
     current_sigma2 <- sigma2_init
   } else if (link_is_cloglog) {
+    # Fix offset to 0 and scale to 1
+    y_bar_train <- 0
+    y_std_train <- 1
+
     # Remap outcomes to start from 0
-    resid_train <- as.integer(y_train - min(unique_outcomes))
-    n_ordinal_levels <- max(resid_train) + 1
+    resid_train <- as.numeric(y_train - min(unique_outcomes))
+    cloglog_num_categories <- max(resid_train) + 1
+
+    # Set initial values of root nodes to 0.0 (in linear scale)
+    init_val_mean <- 0.0
+
+    # Calibrate priors for sigma^2 and tau
+    # Set sigma2_init to 1, ignoring default provided
+    sigma2_init <- 1.0
+    if (is.null(sigma2_leaf_init)) {
+      sigma2_leaf_init <- as.matrix(2 / (num_trees_mean))
+    }
+    current_sigma2 <- sigma2_init
+    current_leaf_scale <- sigma2_leaf_init
+
+    # Set first cutpoint to 0 for identifiability
+    cloglog_cutpoint_0 <- 0
+
+    # Set shape and rate parameters for conditional gamma model
+    cloglog_forest_shape <- 2.0
+    cloglog_forest_rate <- 2.0
   } else {
     # Only standardize if user requested
     if (standardize) {
@@ -1069,8 +1098,10 @@ bart <- function(
   }
 
   # Determine leaf model type
-  if (!has_basis) {
+  if ((!has_basis) && (!link_is_cloglog)) {
     leaf_model_mean_forest <- 0
+  } else if ((!has_basis) && (link_is_cloglog)) {
+    leaf_model_mean_forest <- 4
   } else if (ncol(leaf_basis_train) == 1) {
     leaf_model_mean_forest <- 1
   } else if (ncol(leaf_basis_train) > 1) {
@@ -1105,6 +1136,10 @@ bart <- function(
       )
       sample_sigma2_leaf <- FALSE
     }
+  } else if (leaf_model_mean_forest == 4) {
+    leaf_dimension = 1
+    is_leaf_constant = TRUE
+    leaf_regression = FALSE
   }
 
   # Data
@@ -1129,6 +1164,11 @@ bart <- function(
   }
   rng <- createCppRNG(random_seed)
 
+  # Separate ordinal sampler object for cloglog
+  if (link_is_cloglog) {
+    ordinal_sampler <- stochtree:::ordinal_sampler_cpp()
+  }
+
   # Sampling data structures
   feature_types <- as.integer(feature_types)
   global_model_config <- createGlobalModelConfig(
@@ -1151,6 +1191,10 @@ bart <- function(
       cutpoint_grid_size = cutpoint_grid_size,
       num_features_subsample = num_features_subsample_mean
     )
+    if (link_is_cloglog) {
+      forest_model_config_mean$update_cloglog_forest_shape(cloglog_forest_shape)
+      forest_model_config_mean$update_cloglog_forest_rate(cloglog_forest_rate)
+    }
     forest_model_mean <- createForestModel(
       forest_dataset_train,
       forest_model_config_mean,
@@ -1170,6 +1214,8 @@ bart <- function(
       min_samples_leaf = min_samples_leaf_variance,
       max_depth = max_depth_variance,
       leaf_model_type = leaf_model_variance_forest,
+      variance_forest_shape = a_forest,
+      variance_forest_scale = b_forest,
       cutpoint_grid_size = cutpoint_grid_size,
       num_features_subsample = num_features_subsample_variance
     )
@@ -1286,7 +1332,7 @@ bart <- function(
     )
   }
 
-  # Container of variance parameter samples
+  # Container of parameter samples
   num_actual_mcmc_iter <- num_mcmc * keep_every
   num_samples <- num_gfr + num_burnin + num_actual_mcmc_iter
   # Delete GFR samples from these containers after the fact if desired
@@ -1299,6 +1345,13 @@ bart <- function(
   }
   if (sample_sigma2_leaf) {
     leaf_scale_samples <- rep(NA, num_retained_samples)
+  }
+  if (link_is_cloglog) {
+    cloglog_cutpoint_samples <- matrix(
+      NA_real_,
+      cloglog_num_categories - 1,
+      num_retained_samples
+    )
   }
   if (include_mean_forest) {
     mean_forest_pred_train <- matrix(
@@ -1352,6 +1405,44 @@ bart <- function(
       forest_model_variance,
       leaf_model_variance_forest,
       variance_forest_init
+    )
+  }
+
+  # Initialize auxiliary data for cloglog
+  if (link_is_cloglog) {
+    ## Allocate auxiliary data
+    train_size <- nrow(X_train)
+    # Latent variable (Z in Alam et al (2025) notation)
+    forest_dataset_train$add_auxiliary_dimension(train_size)
+    # Forest predictions (eta in Alam et al (2025) notation)
+    forest_dataset_train$add_auxiliary_dimension(train_size)
+    # Log-scale non-cumulative cutpoint (gamma in Alam et al (2025) notation)
+    forest_dataset_train$add_auxiliary_dimension(cloglog_num_categories - 1)
+    # Exponentiated cumulative cutpoints (exp(c_k) in Alam et al (2025) notation)
+    # This auxiliary series is designed so that the element stored at position `i`
+    # corresponds to the sum of all exponentiated gamma_j values for j < i.
+    # It has cloglog_num_categories elements instead of cloglog_num_categories - 1 because
+    # even the largest categorical index has a valid value of sum_{j < i} exp(gamma_j)
+    forest_dataset_train$add_auxiliary_dimension(cloglog_num_categories)
+
+    ## Set initial values for auxiliary data
+    # Initialize latent variables to zero (slot 0)
+    for (i in 1:train_size) {
+      forest_dataset_train$set_auxiliary_data_value(0, i - 1, 0.0)
+    }
+    # Initialize forest predictions to zero (slot 1)
+    for (i in 1:train_size) {
+      forest_dataset_train$set_auxiliary_data_value(1, i - 1, 0.0)
+    }
+    # Initialize log-scale cutpoints to 0
+    initial_gamma <- rep(0.0, cloglog_num_categories - 1)
+    for (i in seq_along(initial_gamma)) {
+      forest_dataset_train$set_auxiliary_data_value(2, i - 1, initial_gamma[i])
+    }
+    # Convert to cumulative exponentiated cutpoints directly in C++
+    stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+      ordinal_sampler,
+      forest_dataset_train$data_ptr
     )
   }
 
@@ -1420,6 +1511,52 @@ bart <- function(
           mean_forest_pred_train[,
             sample_counter
           ] <- forest_model_mean$get_cached_forest_predictions()
+        }
+
+        # Additional Gibbs updates needed for the cloglog model
+        if (link_is_cloglog) {
+          # Update auxiliary data to current forest predictions
+          forest_pred_current <- forest_model_mean$get_cached_forest_predictions()
+          for (i in 1:train_size) {
+            forest_dataset_train$set_auxiliary_data_value(
+              1,
+              i - 1,
+              forest_pred_current[i]
+            )
+          }
+
+          # Sample latent z_i's using truncated exponential
+          stochtree:::ordinal_sampler_update_latent_variables_cpp(
+            ordinal_sampler,
+            forest_dataset_train$data_ptr,
+            outcome_train$data_ptr,
+            rng$rng_ptr
+          )
+
+          # Sample gamma parameters (cutpoints)
+          stochtree:::ordinal_sampler_update_gamma_params_cpp(
+            ordinal_sampler,
+            forest_dataset_train$data_ptr,
+            outcome_train$data_ptr,
+            cloglog_forest_shape,
+            cloglog_forest_rate,
+            cloglog_cutpoint_0,
+            rng$rng_ptr
+          )
+
+          # Update cumulative sum of exp(gamma) values
+          stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+            ordinal_sampler,
+            forest_dataset_train$data_ptr
+          )
+
+          # Retain cutpoint draw
+          if (keep_sample) {
+            cloglog_cutpoints <- forest_dataset_train$get_auxiliary_data_vector(
+              2
+            )
+            cloglog_cutpoint_samples[, sample_counter] <- cloglog_cutpoints
+          }
         }
       }
       if (include_variance_forest) {
@@ -1510,6 +1647,36 @@ bart <- function(
               current_leaf_scale
             )
           }
+          if (link_is_cloglog) {
+            # We can reset cutpoints from warm-start since cutpoints are retained
+            current_cutpoints <- cloglog_cutpoint_samples[, forest_ind + 1]
+            for (i in seq_along(current_cutpoints)) {
+              forest_dataset_train$set_auxiliary_data_value(
+                2,
+                i - 1,
+                current_cutpoints[i]
+              )
+            }
+            stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+              ordinal_sampler,
+              forest_dataset_train$data_ptr
+            )
+            # Forest predictions can also be resurrected by traversing the tree structure
+            active_forest_preds <- forest_model_mean$predict(
+              forest_dataset_train
+            )
+            for (i in 1:train_size) {
+              forest_dataset_train$set_auxiliary_data_value(
+                1,
+                i - 1,
+                active_forest_preds[i]
+              )
+            }
+            # Latent variables must be reset to 0 and burnt in
+            for (i in 1:train_size) {
+              forest_dataset_train$set_auxiliary_data_value(0, i - 1, 0.0)
+            }
+          }
         }
         if (include_variance_forest) {
           resetActiveForest(
@@ -1576,6 +1743,38 @@ bart <- function(
             forest_model_config_mean$update_leaf_model_scale(
               current_leaf_scale
             )
+          }
+          if (link_is_cloglog) {
+            # We can reset cutpoints from warm-start since cutpoints are retained
+            current_cutpoints <- previous_cloglog_cutpoint_samples[,
+              warmstart_index
+            ]
+            for (i in seq_along(current_cutpoints)) {
+              forest_dataset_train$set_auxiliary_data_value(
+                2,
+                i - 1,
+                current_cutpoints[i]
+              )
+            }
+            stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+              ordinal_sampler,
+              forest_dataset_train$data_ptr
+            )
+            # Forest predictions can also be resurrected by traversing the tree structure
+            active_forest_preds <- forest_model_mean$predict(
+              forest_dataset_train
+            )
+            for (i in 1:train_size) {
+              forest_dataset_train$set_auxiliary_data_value(
+                1,
+                i - 1,
+                active_forest_preds[i]
+              )
+            }
+            # Latent variables must be reset to 0 and burnt in
+            for (i in 1:train_size) {
+              forest_dataset_train$set_auxiliary_data_value(0, i - 1, 0.0)
+            }
           }
         }
         if (include_variance_forest) {
@@ -1655,6 +1854,30 @@ bart <- function(
             current_leaf_scale <- as.matrix(sigma2_leaf_init)
             forest_model_config_mean$update_leaf_model_scale(
               current_leaf_scale
+            )
+          }
+          if (link_is_cloglog) {
+            # Reset all cloglog parameters to default values
+            for (i in 1:train_size) {
+              forest_dataset_train$set_auxiliary_data_value(0, i - 1, 0.0)
+            }
+            # Initialize forest predictions to zero (slot 1)
+            for (i in 1:train_size) {
+              forest_dataset_train$set_auxiliary_data_value(1, i - 1, 0.0)
+            }
+            # Initialize log-scale cutpoints to 0
+            initial_gamma <- rep(0.0, cloglog_num_categories - 1)
+            for (i in seq_along(initial_gamma)) {
+              forest_dataset_train$set_auxiliary_data_value(
+                2,
+                i - 1,
+                initial_gamma[i]
+              )
+            }
+            # Convert to cumulative exponentiated cutpoints directly in C++
+            stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+              ordinal_sampler,
+              forest_dataset_train$data_ptr
             )
           }
         }
@@ -1792,6 +2015,52 @@ bart <- function(
               sample_counter
             ] <- forest_model_mean$get_cached_forest_predictions()
           }
+
+          # Additional Gibbs updates needed for the cloglog model
+          if (link_is_cloglog) {
+            # Update auxiliary data to current forest predictions
+            forest_pred_current <- forest_model_mean$get_cached_forest_predictions()
+            for (i in 1:train_size) {
+              forest_dataset_train$set_auxiliary_data_value(
+                1,
+                i - 1,
+                forest_pred_current[i]
+              )
+            }
+
+            # Sample latent z_i's using truncated exponential
+            stochtree:::ordinal_sampler_update_latent_variables_cpp(
+              ordinal_sampler,
+              forest_dataset_train$data_ptr,
+              outcome_train$data_ptr,
+              rng$rng_ptr
+            )
+
+            # Sample gamma parameters (cutpoints)
+            stochtree:::ordinal_sampler_update_gamma_params_cpp(
+              ordinal_sampler,
+              forest_dataset_train$data_ptr,
+              outcome_train$data_ptr,
+              cloglog_forest_shape,
+              cloglog_forest_rate,
+              cloglog_cutpoint_0,
+              rng$rng_ptr
+            )
+
+            # Update cumulative sum of exp(gamma) values
+            stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+              ordinal_sampler,
+              forest_dataset_train$data_ptr
+            )
+
+            # Retain cutpoint draw
+            if (keep_sample) {
+              cloglog_cutpoints <- forest_dataset_train$get_auxiliary_data_vector(
+                2
+              )
+              cloglog_cutpoint_samples[, sample_counter] <- cloglog_cutpoints
+            }
+          }
         }
         if (include_variance_forest) {
           forest_model_variance$sample_one_iteration(
@@ -1875,6 +2144,11 @@ bart <- function(
       mean_forest_pred_train <- mean_forest_pred_train[,
         (num_gfr + 1):ncol(mean_forest_pred_train)
       ]
+      if (link_is_cloglog) {
+        cloglog_cutpoint_samples <- cloglog_cutpoint_samples[,
+          (num_gfr + 1):ncol(cloglog_cutpoint_samples)
+        ]
+      }
     }
     if (include_variance_forest) {
       variance_forest_pred_train <- variance_forest_pred_train[,
@@ -2011,6 +2285,11 @@ bart <- function(
     "include_variance_forest" = include_variance_forest,
     "outcome_model" = outcome_model,
     "probit_outcome_model" = probit_outcome_model,
+    "cloglog_num_categories" = ifelse(
+      link_is_cloglog,
+      cloglog_num_categories,
+      0
+    ),
     "rfx_model_spec" = rfx_model_spec
   )
   result <- list(
@@ -2020,7 +2299,12 @@ bart <- function(
   if (include_mean_forest) {
     result[["mean_forests"]] = forest_samples_mean
     result[["y_hat_train"]] = y_hat_train
-    if (has_test) result[["y_hat_test"]] = y_hat_test
+    if (has_test) {
+      result[["y_hat_test"]] = y_hat_test
+    }
+    if (link_is_cloglog) {
+      result[["cloglog_cutpoint_samples"]] = cloglog_cutpoint_samples
+    }
   }
   if (include_variance_forest) {
     result[["variance_forests"]] = forest_samples_variance
@@ -3046,6 +3330,19 @@ saveBARTModelToJson <- function(object) {
     "rfx_model_spec",
     object$model_params$rfx_model_spec
   )
+  if (object$model_params$outcome_model$link == "cloglog") {
+    jsonobj$add_scalar(
+      "cloglog_num_categories",
+      object$model_params$cloglog_num_categories
+    )
+    for (i in 1:(object$model_params$cloglog_num_categories - 1)) {
+      jsonobj$add_vector(
+        paste0("cloglog_cutpoint_samples_", i),
+        object$cloglog_cutpoint_samples[i, ],
+        "parameters"
+      )
+    }
+  }
   if (object$model_params$sample_sigma2_global) {
     jsonobj$add_vector(
       "sigma2_global_samples",
@@ -3305,6 +3602,12 @@ createBARTModelFromJson <- function(json_object) {
   model_params[["rfx_model_spec"]] <- json_object$get_string(
     "rfx_model_spec"
   )
+  if (output$model_params$outcome_model$link == "cloglog") {
+    cloglog_num_categories <- json_object$get_scalar("cloglog_num_categories")
+    model_params[["cloglog_num_categories"]] <- cloglog_num_categories
+  } else {
+    model_params[["cloglog_num_categories"]] <- 0
+  }
 
   output[["model_params"]] <- model_params
 
@@ -3320,6 +3623,19 @@ createBARTModelFromJson <- function(json_object) {
       "sigma2_leaf_samples",
       "parameters"
     )
+  }
+  if (output$model_params$outcome_model$link == "cloglog") {
+    cloglog_cutpoint_samples <- matrix(
+      NA_real_,
+      model_params[["cloglog_num_categories"]],
+      model_params[["num_samples"]]
+    )
+    for (i in 1:(model_params[["cloglog_num_categories"]] - 1)) {
+      cloglog_cutpoint_samples[i, ] <- json_object$get_vector(
+        paste0("cloglog_cutpoint_samples_", i),
+        "parameters"
+      )
+    }
   }
 
   # Unpack random effects
@@ -3596,6 +3912,14 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   )
   model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
   model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
+  if (output$model_params$outcome_model$link == "cloglog") {
+    cloglog_num_categories <- json_object_default$get_scalar(
+      "cloglog_num_categories"
+    )
+    model_params[["cloglog_num_categories"]] <- cloglog_num_categories
+  } else {
+    model_params[["cloglog_num_categories"]] <- 0
+  }
 
   # Combine values that are sample-specific
   for (i in 1:length(json_object_list)) {
@@ -3656,6 +3980,26 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
         )
       }
     }
+  }
+  if (output$model_params$outcome_model$link == "cloglog") {
+    cloglog_cutpoint_samples <- matrix(
+      NA_real_,
+      model_params[["cloglog_num_categories"]],
+      model_params[["num_samples"]]
+    )
+    index_start <- 1
+    for (i in 1:length(json_object_list)) {
+      json_object <- json_object_list[[i]]
+      num_samples <- json_object$get_scalar("num_samples")
+      subset_inds <- index_start:(index_start + num_samples - 1)
+      for (j in 1:(model_params[["cloglog_num_categories"]] - 1)) {
+        cloglog_cutpoint_samples[j, subset_inds] <- json_object$get_vector(
+          paste0("cloglog_cutpoint_samples_", j),
+          "parameters"
+        )
+      }
+    }
+    output[["cloglog_cutpoint_samples"]] <- cloglog_cutpoint_samples
   }
 
   # Unpack random effects
@@ -3909,6 +4253,26 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
         )
       }
     }
+  }
+  if (output$model_params$outcome_model$link == "cloglog") {
+    cloglog_cutpoint_samples <- matrix(
+      NA_real_,
+      model_params[["cloglog_num_categories"]],
+      model_params[["num_samples"]]
+    )
+    index_start <- 1
+    for (i in 1:length(json_object_list)) {
+      json_object <- json_object_list[[i]]
+      num_samples <- json_object$get_scalar("num_samples")
+      subset_inds <- index_start:(index_start + num_samples - 1)
+      for (j in 1:(model_params[["cloglog_num_categories"]] - 1)) {
+        cloglog_cutpoint_samples[j, subset_inds] <- json_object$get_vector(
+          paste0("cloglog_cutpoint_samples_", j),
+          "parameters"
+        )
+      }
+    }
+    output[["cloglog_cutpoint_samples"]] <- cloglog_cutpoint_samples
   }
 
   # Unpack random effects

@@ -203,7 +203,9 @@ Raise an error if a variance forest is requested alongside a mean forest with cl
 
 Raise an error if leaf basis regression is requested alongside a mean forest with cloglog link.
 
-Override `sample_sigma2_global` to `False`, since $\sigma^2$ is fixed at 1 in the probit model.
+Override `sample_sigma2_global` to `False`.
+
+Override `sample_sigma2_leaf` to `False`.
 
 ### Runtime checks for variance model
 
