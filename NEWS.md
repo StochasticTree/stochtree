@@ -2,6 +2,7 @@
 
 ## New Features
 
+* Replaced C++ standard library distributions (`discrete_distribution`, `uniform_real_distribution`, `normal_distribution`, and `gamma_distribution`) with custom implementations for cross-platform reproducibility.
 
 ## Bug Fixes
 

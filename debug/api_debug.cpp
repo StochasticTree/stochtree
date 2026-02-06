@@ -1,6 +1,7 @@
 /*! Copyright (c) 2024 stochtree authors*/
 #include <stochtree/container.h>
 #include <stochtree/data.h>
+#include <stochtree/distributions.h>
 #include <stochtree/io.h>
 #include <nlohmann/json.hpp>
 #include <stochtree/leaf_model.h>
@@ -44,8 +45,7 @@ void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
-  std::normal_distribution<double> normal_dist(0.,1.);
+  standard_normal normal_dist;
   
   // DGP parameters
   std::vector<double> betas{-10, -5, 5, 10};
@@ -56,11 +56,11 @@ void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, s
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[i*x_cols + j] = standard_uniform_draw(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[i*omega_cols + j] = standard_uniform_draw(gen);
     }
     
     if (rfx_included) {
@@ -150,7 +150,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
 
   // Random number generation
-  std::normal_distribution<double> normal_dist(0., 1.);
+  standard_normal normal_dist;
 
   // Generate a sequence of integers from 0 to num_cells - 1
   std::vector<int32_t> cell_run(num_cells);
@@ -194,7 +194,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   }
   std::vector<double> cell_weights(num_cells, 1./num_cells);
   std::vector<double> cell_indices_sparse(p1 - 1);
-  std::discrete_distribution cell_selector(cell_weights.begin(), cell_weights.end());
+  walker_vose cell_selector(cell_weights.begin(), cell_weights.end());
   for (int i = 0; i < p1-1; i++) {
     cell_indices_sparse.at(i) = cell_selector(gen);
   }
@@ -262,8 +262,7 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
-  std::normal_distribution<double> normal_dist(0.,1.);
+  standard_normal normal_dist;
   
   // DGP parameters
   std::vector<double> betas{-10, -5, 5, 10};
@@ -274,11 +273,11 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[i*x_cols + j] = standard_uniform_draw(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[i*omega_cols + j] = standard_uniform_draw(gen);
     }
     
     if (rfx_included) {
@@ -342,8 +341,7 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
-  std::normal_distribution<double> normal_dist(0.,1.);
+  standard_normal normal_dist;
   
   // DGP parameters
   std::vector<double> betas{0.5, 1, 2, 3};
@@ -354,11 +352,11 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[i*x_cols + j] = standard_uniform_draw(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[i*omega_cols + j] = standard_uniform_draw(gen);
     }
     
     if (rfx_included) {
