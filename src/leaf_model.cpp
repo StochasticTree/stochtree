@@ -1,3 +1,4 @@
+#include <stochtree/distributions.h>
 #include <stochtree/leaf_model.h>
 #include <boost/math/special_functions/gamma.hpp>
 
@@ -259,8 +260,7 @@ void LogLinearVarianceLeafModel::SampleLeafParameters(ForestDataset& dataset, Fo
     node_rate = PosteriorParameterScale(node_suff_stat, global_variance);
     
     // Draw from IG(shape, scale) and set the leaf parameter with each draw
-    std::gamma_distribution<double> gamma_dist_(node_shape, 1.);
-    node_mu = -std::log(gamma_dist_(gen) / node_rate);
+    node_mu = -std::log(sample_gamma(gen, node_shape, 1.) / node_rate);
     // node_mu = std::log(gamma_sampler_.Sample(node_shape, node_rate, gen, true));
     tree->SetLeaf(leaf_id, node_mu);
   }

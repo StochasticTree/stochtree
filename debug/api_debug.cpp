@@ -45,7 +45,7 @@ void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::normal_distribution<double> normal_dist(0.,1.);
+  standard_normal normal_dist;
   
   // DGP parameters
   std::vector<double> betas{-10, -5, 5, 10};
@@ -150,7 +150,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
 
   // Random number generation
-  std::normal_distribution<double> normal_dist(0., 1.);
+  standard_normal normal_dist;
 
   // Generate a sequence of integers from 0 to num_cells - 1
   std::vector<int32_t> cell_run(num_cells);
@@ -262,7 +262,7 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::normal_distribution<double> normal_dist(0.,1.);
+  standard_normal normal_dist;
   
   // DGP parameters
   std::vector<double> betas{-10, -5, 5, 10};
@@ -341,7 +341,7 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::normal_distribution<double> normal_dist(0.,1.);
+  standard_normal normal_dist;
   
   // DGP parameters
   std::vector<double> betas{0.5, 1, 2, 3};
