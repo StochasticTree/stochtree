@@ -1,5 +1,6 @@
 #ifndef STOCHTREE_DISTRIBUTIONS_H
 #define STOCHTREE_DISTRIBUTIONS_H
+#include <numeric>
 #include <random>
 /*!
  * \brief A collection of random number generation utilities.
