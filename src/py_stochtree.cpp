@@ -12,6 +12,7 @@
 #include <stochtree/variance_model.h>
 #include <functional>
 #include <memory>
+#include <string>
 
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
