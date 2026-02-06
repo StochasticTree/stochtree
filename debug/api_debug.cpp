@@ -1,6 +1,7 @@
 /*! Copyright (c) 2024 stochtree authors*/
 #include <stochtree/container.h>
 #include <stochtree/data.h>
+#include <stochtree/distributions.h>
 #include <stochtree/io.h>
 #include <nlohmann/json.hpp>
 #include <stochtree/leaf_model.h>
@@ -194,7 +195,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   }
   std::vector<double> cell_weights(num_cells, 1./num_cells);
   std::vector<double> cell_indices_sparse(p1 - 1);
-  std::discrete_distribution cell_selector(cell_weights.begin(), cell_weights.end());
+  walker_vose cell_selector(cell_weights.begin(), cell_weights.end());
   for (int i = 0; i < p1-1; i++) {
     cell_indices_sparse.at(i) = cell_selector(gen);
   }
