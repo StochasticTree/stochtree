@@ -31,7 +31,7 @@ void sample_without_replacement(container_type* output, prob_type* p, container_
       for (int i = 0; i < fulfilled_sample_count; i++) p_copy[indices[i]] = 0.0;
     }
     std::generate(unif_samples.begin(), unif_samples.begin() + remaining_sample_count, [&gen](){
-      return standard_uniform_draw(gen);
+      return standard_uniform_draw_32bit(gen);
     });
     std::partial_sum(p_copy.cbegin(), p_copy.cend(), cdf.begin());
     for (int i = 0; i < cdf.size(); i++) {
