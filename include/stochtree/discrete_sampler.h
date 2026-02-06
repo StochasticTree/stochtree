@@ -4,6 +4,7 @@
  */
 #ifndef STOCHTREE_DISCRETE_SAMPLER_H_
 #define STOCHTREE_DISCRETE_SAMPLER_H_
+#include <stochtree/distributions.h>
 #include <algorithm>
 #include <numeric>
 #include <random>
