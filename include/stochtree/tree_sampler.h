@@ -613,12 +613,10 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
     }
 
     // First, sample a feature according to feature_total_cutpoint_evaluations
-    walker_vose feature_dist(feature_total_cutpoint_evaluations.begin(), feature_total_cutpoint_evaluations.end());
-    int feature_chosen = feature_dist(gen);
+    int feature_chosen = sample_discrete_stateless(gen, feature_total_cutpoint_evaluations);
 
     // Then, sample a cutpoint according to feature_cutpoint_evaluations[feature_chosen]
-    walker_vose cutpoint_dist(feature_cutpoint_evaluations[feature_chosen].begin(), feature_cutpoint_evaluations[feature_chosen].end());
-    data_size_t cutpoint_chosen = cutpoint_dist(gen);
+    int cutpoint_chosen = sample_discrete_stateless(gen, feature_cutpoint_evaluations[feature_chosen], feature_total_cutpoint_evaluations[feature_chosen]);
     
     if (feature_chosen == p){
       // "No split" sampled, don't split or add any nodes to split queue
@@ -862,7 +860,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
     }
     
     // Split based on var_min to var_max in a given node
-    double split_point_chosen = standard_uniform_draw_32bit(gen) * (var_max - var_min) + var_min;
+    double split_point_chosen = standard_uniform_draw_53bit(gen) * (var_max - var_min) + var_min;
 
     // Create a split object
     TreeSplit split = TreeSplit(split_point_chosen);
@@ -915,7 +913,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
       }
 
       // Draw a uniform random variable and accept/reject the proposal on this basis
-      double log_acceptance_prob = std::log(standard_uniform_draw_32bit(gen));
+      double log_acceptance_prob = std::log(standard_uniform_draw_53bit(gen));
       if (log_acceptance_prob <= log_mh_ratio) {
         accept = true;
         AddSplitToModel(tracker, dataset, tree_prior, split, gen, tree, tree_num, leaf_chosen, var_chosen, false, num_threads);
@@ -997,7 +995,7 @@ static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, Leaf
 
   // Draw a uniform random variable and accept/reject the proposal on this basis
   bool accept;
-  double log_acceptance_prob = std::log(standard_uniform_draw_32bit(gen));
+  double log_acceptance_prob = std::log(standard_uniform_draw_53bit(gen));
   if (log_acceptance_prob <= log_mh_ratio) {
     accept = true;
     RemoveSplitFromModel(tracker, dataset, tree_prior, gen, tree, tree_num, leaf_parent_chosen, left_node, right_node, false);
