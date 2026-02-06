@@ -45,7 +45,6 @@ void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
   std::normal_distribution<double> normal_dist(0.,1.);
   
   // DGP parameters
@@ -57,11 +56,11 @@ void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, s
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[i*x_cols + j] = standard_uniform_draw(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[i*omega_cols + j] = standard_uniform_draw(gen);
     }
     
     if (rfx_included) {
@@ -263,7 +262,6 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
   std::normal_distribution<double> normal_dist(0.,1.);
   
   // DGP parameters
@@ -275,11 +273,11 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[i*x_cols + j] = standard_uniform_draw(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[i*omega_cols + j] = standard_uniform_draw(gen);
     }
     
     if (rfx_included) {
@@ -343,7 +341,6 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
   std::normal_distribution<double> normal_dist(0.,1.);
   
   // DGP parameters
@@ -355,11 +352,11 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[i*x_cols + j] = standard_uniform_draw(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[i*omega_cols + j] = standard_uniform_draw(gen);
     }
     
     if (rfx_included) {

@@ -862,8 +862,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
     }
     
     // Split based on var_min to var_max in a given node
-    std::uniform_real_distribution<double> split_point_dist(var_min, var_max);
-    double split_point_chosen = split_point_dist(gen);
+    double split_point_chosen = standard_uniform_draw(gen) * (var_max - var_min) + var_min;
 
     // Create a split object
     TreeSplit split = TreeSplit(split_point_chosen);
@@ -916,8 +915,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
       }
 
       // Draw a uniform random variable and accept/reject the proposal on this basis
-      std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
-      double log_acceptance_prob = std::log(mh_accept(gen));
+      double log_acceptance_prob = std::log(standard_uniform_draw(gen));
       if (log_acceptance_prob <= log_mh_ratio) {
         accept = true;
         AddSplitToModel(tracker, dataset, tree_prior, split, gen, tree, tree_num, leaf_chosen, var_chosen, false, num_threads);
@@ -999,8 +997,7 @@ static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, Leaf
 
   // Draw a uniform random variable and accept/reject the proposal on this basis
   bool accept;
-  std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
-  double log_acceptance_prob = std::log(mh_accept(gen));
+  double log_acceptance_prob = std::log(standard_uniform_draw(gen));
   if (log_acceptance_prob <= log_mh_ratio) {
     accept = true;
     RemoveSplitFromModel(tracker, dataset, tree_prior, gen, tree, tree_num, leaf_parent_chosen, left_node, right_node, false);
