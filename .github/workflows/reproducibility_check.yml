@@ -62,6 +62,12 @@ jobs:
           python-version: "3.12"
           cache: "pip"
     
+      - name: Set up openmp (macos)
+        # Set up openMP on MacOS since it doesn't ship with the apple clang compiler suite
+        if: matrix.os == 'macos-latest'
+        run: | 
+          brew install libomp
+    
       - name: Install Package with Relevant Dependencies
         run: |
           pip install --upgrade pip
