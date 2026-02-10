@@ -395,6 +395,40 @@ static inline void UpdateVarModelTree(ForestTracker& tracker, ForestDataset& dat
   }
 }
 
+static inline void UpdateCLogLogModelTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, 
+                                      bool requires_basis, bool tree_new) {
+  data_size_t n = dataset.GetCovariates().rows();
+
+  double pred_value;
+  int32_t leaf_pred;
+  double pred_delta;
+  for (data_size_t i = 0; i < n; i++) {
+    if (tree_new) {
+      // If the tree has been newly sampled or adjusted, we must rerun the prediction 
+      // method and update the SamplePredMapper stored in tracker
+      leaf_pred = tracker.GetNodeId(i, tree_num);
+      if (requires_basis) {
+        pred_value = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+      } else {
+        pred_value = tree->PredictFromNode(leaf_pred);
+      }
+      pred_delta = pred_value - tracker.GetTreeSamplePrediction(i, tree_num);
+      tracker.SetTreeSamplePrediction(i, tree_num, pred_value);
+      tracker.SetSamplePrediction(i, tracker.GetSamplePrediction(i) + pred_delta);
+      // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num)
+      dataset.SetAuxiliaryDataValue(1, i, tracker.GetSamplePrediction(i) - pred_value);
+    } else {
+      // If the tree has not yet been modified via a sampling step, 
+      // we can query its prediction directly from the SamplePredMapper stored in tracker
+      pred_value = tracker.GetTreeSamplePrediction(i, tree_num);
+      // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num): needed? since tree not changed?
+      double current_lambda_hat = tracker.GetSamplePrediction(i);
+      double lambda_minus = current_lambda_hat - pred_value;
+      dataset.SetAuxiliaryDataValue(1, i, lambda_minus);
+    }
+  }
+}
+
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(
   ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, LeafModel& leaf_model, 
@@ -448,8 +482,10 @@ static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateExist
 
 template <typename LeafModel>
 static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
-                                                 ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
-  if (backfitting) {
+                         ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
+  if constexpr (std::is_same_v<LeafModel, CloglogOrdinalLeafModel>) {
+    UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), false);
+  } else if (backfitting) {
     UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::plus<double>(), false);
   } else {
     // TODO: think about a generic way to store "state" corresponding to the other models?
@@ -459,8 +495,10 @@ static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, LeafMod
 
 template <typename LeafModel>
 static inline void AdjustStateAfterTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
-                                                ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
-  if (backfitting) {
+                        ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
+  if constexpr (std::is_same_v<LeafModel, CloglogOrdinalLeafModel>) {
+    UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), true);
+  } else if (backfitting) {
     UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::minus<double>(), true);
   } else {
     // TODO: think about a generic way to store "state" corresponding to the other models?
@@ -775,6 +813,7 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
  * \param backfitting Whether or not the sampler uses "backfitting" (wherein the sampler for a given tree only depends on the other trees via
  * their effect on the residual) or the more general "blocked MCMC" (wherein the state of other trees must be more explicitly considered).
  * \param num_features_subsample How many features to subsample when running the GFR algorithm.
+ * \param num_threads Number of threads to use for split evaluations and other compute-intensive operations.
  * \param leaf_suff_stat_args Any arguments which must be supplied to initialize a `LeafSuffStat` object.
  */
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
@@ -929,7 +968,8 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
 
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, 
-                                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, int num_threads, 
+                                        LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Choose a "leaf parent" node at random
   int num_leaves = tree->NumLeaves();
   int num_leaf_parents = tree->NumLeafParents();
@@ -1081,6 +1121,7 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
  * \param pre_initialized Whether or not `active_forest` has already been initialized (note: this parameter will be refactored out soon).
  * \param backfitting Whether or not the sampler uses "backfitting" (wherein the sampler for a given tree only depends on the other trees via
  * their effect on the residual) or the more general "blocked MCMC" (wherein the state of other trees must be more explicitly considered).
+ * \param num_threads Number of threads to use for split evaluations and other compute-intensive operations.
  * \param leaf_suff_stat_args Any arguments which must be supplied to initialize a `LeafSuffStat` object.
  */
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
