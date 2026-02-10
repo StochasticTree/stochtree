@@ -41,7 +41,7 @@ jobs:
           Rscript tools/reproducibility/R/simple-bart.R
           Rscript tools/reproducibility/R/simple-bcf.R
 
-stochtree_python_reproducibility:
+  stochtree_python_reproducibility:
     name: stochtree-python-reproducibility
     runs-on: ${{ matrix.os }}
 
