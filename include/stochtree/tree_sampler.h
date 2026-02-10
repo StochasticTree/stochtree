@@ -6,6 +6,7 @@
 #include <stochtree/cutpoint_candidates.h>
 #include <stochtree/data.h>
 #include <stochtree/discrete_sampler.h>
+#include <stochtree/distributions.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/leaf_model.h>
 #include <stochtree/openmp_utils.h>
@@ -650,12 +651,10 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
     }
 
     // First, sample a feature according to feature_total_cutpoint_evaluations
-    std::discrete_distribution<data_size_t> feature_dist(feature_total_cutpoint_evaluations.begin(), feature_total_cutpoint_evaluations.end());
-    int feature_chosen = feature_dist(gen);
+    int feature_chosen = sample_discrete_stateless(gen, feature_total_cutpoint_evaluations);
 
     // Then, sample a cutpoint according to feature_cutpoint_evaluations[feature_chosen]
-    std::discrete_distribution<data_size_t> cutpoint_dist(feature_cutpoint_evaluations[feature_chosen].begin(), feature_cutpoint_evaluations[feature_chosen].end());
-    data_size_t cutpoint_chosen = cutpoint_dist(gen);
+    int cutpoint_chosen = sample_discrete_stateless(gen, feature_cutpoint_evaluations[feature_chosen], feature_total_cutpoint_evaluations[feature_chosen]);
     
     if (feature_chosen == p){
       // "No split" sampled, don't split or add any nodes to split queue
@@ -872,7 +871,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
   std::vector<int> leaves = tree->GetLeaves();
   std::vector<double> leaf_weights(num_leaves);
   std::fill(leaf_weights.begin(), leaf_weights.end(), 1.0/num_leaves);
-  std::discrete_distribution<> leaf_dist(leaf_weights.begin(), leaf_weights.end());
+  walker_vose leaf_dist(leaf_weights.begin(), leaf_weights.end());
   int leaf_chosen = leaves[leaf_dist(gen)];
   int leaf_depth = tree->GetDepth(leaf_chosen);
 
@@ -888,7 +887,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
     // Select a split variable at random
     int p = dataset.GetCovariates().cols();
     CHECK_EQ(variable_weights.size(), p);
-    std::discrete_distribution<> var_dist(variable_weights.begin(), variable_weights.end());
+    walker_vose var_dist(variable_weights.begin(), variable_weights.end());
     int var_chosen = var_dist(gen);
 
     // Determine the range of possible cutpoints
@@ -900,8 +899,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
     }
     
     // Split based on var_min to var_max in a given node
-    std::uniform_real_distribution<double> split_point_dist(var_min, var_max);
-    double split_point_chosen = split_point_dist(gen);
+    double split_point_chosen = standard_uniform_draw_53bit(gen) * (var_max - var_min) + var_min;
 
     // Create a split object
     TreeSplit split = TreeSplit(split_point_chosen);
@@ -954,8 +952,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
       }
 
       // Draw a uniform random variable and accept/reject the proposal on this basis
-      std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
-      double log_acceptance_prob = std::log(mh_accept(gen));
+      double log_acceptance_prob = std::log(standard_uniform_draw_53bit(gen));
       if (log_acceptance_prob <= log_mh_ratio) {
         accept = true;
         AddSplitToModel(tracker, dataset, tree_prior, split, gen, tree, tree_num, leaf_chosen, var_chosen, false, num_threads);
@@ -979,7 +976,7 @@ static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, Leaf
   std::vector<int> leaf_parents = tree->GetLeafParents();
   std::vector<double> leaf_parent_weights(num_leaf_parents);
   std::fill(leaf_parent_weights.begin(), leaf_parent_weights.end(), 1.0/num_leaf_parents);
-  std::discrete_distribution<> leaf_parent_dist(leaf_parent_weights.begin(), leaf_parent_weights.end());
+  walker_vose leaf_parent_dist(leaf_parent_weights.begin(), leaf_parent_weights.end());
   int leaf_parent_chosen = leaf_parents[leaf_parent_dist(gen)];
   int leaf_parent_depth = tree->GetDepth(leaf_parent_chosen);
   int left_node = tree->LeftChild(leaf_parent_chosen);
@@ -1038,8 +1035,7 @@ static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, Leaf
 
   // Draw a uniform random variable and accept/reject the proposal on this basis
   bool accept;
-  std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
-  double log_acceptance_prob = std::log(mh_accept(gen));
+  double log_acceptance_prob = std::log(standard_uniform_draw_53bit(gen));
   if (log_acceptance_prob <= log_mh_ratio) {
     accept = true;
     RemoveSplitFromModel(tracker, dataset, tree_prior, gen, tree, tree_num, leaf_parent_chosen, left_node, right_node, false);
@@ -1083,7 +1079,7 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
   } else {
     Log::Fatal("In this tree, neither grow nor prune is possible");
   }
-  std::discrete_distribution<> step_dist(step_probs.begin(), step_probs.end());
+  walker_vose step_dist(step_probs.begin(), step_probs.end());
 
   // Draw a split rule at random
   data_size_t step_chosen = step_dist(gen);
