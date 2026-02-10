@@ -31,10 +31,10 @@ y_hat_in_sample <- predict(bart_model, X = X, type = "mean", terms = "y_hat")
 
 # Compare to stored results
 global_error_scale_trace_comparison <- as.numeric(read.csv(
-  "tools/reproducibility/R/global_error_scale_trace.csv"
+  "tools/reproducibility/R/bart_global_error_scale_trace.csv"
 )[, 1])
 y_hat_in_sample_comparison <- as.numeric(read.csv(
-  "tools/reproducibility/R/y_hat_in_sample.csv"
+  "tools/reproducibility/R/bart_y_hat_in_sample.csv"
 )[, 1])
 TOL <- 0.000001
 y_hat_mismatch <- !all(abs(y_hat_in_sample_comparison - y_hat_in_sample) < TOL)
