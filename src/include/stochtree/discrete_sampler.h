@@ -4,6 +4,7 @@
  */
 #ifndef STOCHTREE_DISCRETE_SAMPLER_H_
 #define STOCHTREE_DISCRETE_SAMPLER_H_
+#include <stochtree/distributions.h>
 #include <algorithm>
 #include <numeric>
 #include <random>
@@ -20,7 +21,6 @@ void sample_without_replacement(container_type* output, prob_type* p, container_
   std::vector<prob_type> p_copy(population_size);
   std::memcpy(p_copy.data(), p, sizeof(prob_type) * population_size);
   std::vector<int> indices(sample_size);
-  std::uniform_real_distribution<> unif(0.0, 1.0);
   std::vector<prob_type> unif_samples(sample_size);
   std::vector<prob_type> cdf(population_size);
   
@@ -30,8 +30,8 @@ void sample_without_replacement(container_type* output, prob_type* p, container_
     if (fulfilled_sample_count > 0) {
       for (int i = 0; i < fulfilled_sample_count; i++) p_copy[indices[i]] = 0.0;
     }
-    std::generate(unif_samples.begin(), unif_samples.begin() + remaining_sample_count, [&gen, &unif](){
-      return unif(gen);
+    std::generate(unif_samples.begin(), unif_samples.begin() + remaining_sample_count, [&gen](){
+      return standard_uniform_draw_53bit(gen);
     });
     std::partial_sum(p_copy.cbegin(), p_copy.cend(), cdf.begin());
     for (int i = 0; i < cdf.size(); i++) {
