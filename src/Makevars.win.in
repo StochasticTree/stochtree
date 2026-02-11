@@ -26,6 +26,7 @@ OBJECTS = \
     kernel.o \
     R_data.o \
     R_random_effects.o \
+    R_utils.o \
     sampler.o \
     serialization.o \
     cpp11.o \
