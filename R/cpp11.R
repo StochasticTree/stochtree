@@ -276,6 +276,22 @@ root_reset_rfx_tracker_cpp <- function(tracker, dataset, residual, rfx_model) {
   invisible(.Call(`_stochtree_root_reset_rfx_tracker_cpp`, tracker, dataset, residual, rfx_model))
 }
 
+sum_cpp <- function(x) {
+  .Call(`_stochtree_sum_cpp`, x)
+}
+
+mean_cpp <- function(x) {
+  .Call(`_stochtree_mean_cpp`, x)
+}
+
+var_cpp <- function(x) {
+  .Call(`_stochtree_var_cpp`, x)
+}
+
+sd_cpp <- function(x) {
+  .Call(`_stochtree_sd_cpp`, x)
+}
+
 active_forest_cpp <- function(num_trees, output_dimension, is_leaf_constant, is_exponentiated) {
   .Call(`_stochtree_active_forest_cpp`, num_trees, output_dimension, is_leaf_constant, is_exponentiated)
 }

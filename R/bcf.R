@@ -1207,11 +1207,11 @@ bcf <- function(
   # differently for binary and continuous outcomes
   if (probit_outcome_model) {
     # Compute a probit-scale offset and fix scale to 1
-    y_bar_train <- qnorm(mean(y_train))
+    y_bar_train <- qnorm(mean_cpp(as.numeric(y_train)))
     y_std_train <- 1
 
-    # Set a pseudo outcome by subtracting mean(y_train) from y_train
-    resid_train <- y_train - mean(y_train)
+    # Set a pseudo outcome by subtracting mean_cpp(y_train) from y_train
+    resid_train <- y_train - mean_cpp(as.numeric(y_train))
 
     # Set initial value for the mu forest
     init_mu <- 0.0
@@ -1274,8 +1274,8 @@ bcf <- function(
   } else {
     # Only standardize if user requested
     if (standardize) {
-      y_bar_train <- mean(y_train)
-      y_std_train <- sd(y_train)
+      y_bar_train <- mean_cpp(as.numeric(y_train))
+      y_std_train <- sd_cpp(as.numeric(y_train))
     } else {
       y_bar_train <- 0
       y_std_train <- 1
@@ -1285,23 +1285,23 @@ bcf <- function(
     resid_train <- (y_train - y_bar_train) / y_std_train
 
     # Set initial value for the mu forest
-    init_mu <- mean(resid_train)
+    init_mu <- mean_cpp(as.numeric(resid_train))
 
     # Calibrate priors for global sigma^2 and sigma2_leaf_mu / sigma2_leaf_tau
     if (is.null(sigma2_init)) {
-      sigma2_init <- 1.0 * var(resid_train)
+      sigma2_init <- 1.0 * var_cpp(as.numeric(resid_train))
     }
     if (is.null(variance_forest_init)) {
-      variance_forest_init <- 1.0 * var(resid_train)
+      variance_forest_init <- 1.0 * var_cpp(as.numeric(resid_train))
     }
     if (is.null(b_leaf_mu)) {
-      b_leaf_mu <- var(resid_train) / (num_trees_mu)
+      b_leaf_mu <- var_cpp(as.numeric(resid_train)) / (num_trees_mu)
     }
     if (is.null(b_leaf_tau)) {
-      b_leaf_tau <- var(resid_train) / (2 * num_trees_tau)
+      b_leaf_tau <- var_cpp(as.numeric(resid_train)) / (2 * num_trees_tau)
     }
     if (is.null(sigma2_leaf_mu)) {
-      sigma2_leaf_mu <- 2.0 * var(resid_train) / (num_trees_mu)
+      sigma2_leaf_mu <- 2.0 * var_cpp(as.numeric(resid_train)) / (num_trees_mu)
       current_leaf_scale_mu <- as.matrix(sigma2_leaf_mu)
     } else {
       if (!is.matrix(sigma2_leaf_mu)) {
@@ -1311,7 +1311,7 @@ bcf <- function(
       }
     }
     if (is.null(sigma2_leaf_tau)) {
-      sigma2_leaf_tau <- var(resid_train) / (num_trees_tau)
+      sigma2_leaf_tau <- var_cpp(as.numeric(resid_train)) / (num_trees_tau)
       current_leaf_scale_tau <- as.matrix(diag(
         sigma2_leaf_tau,
         ncol(Z_train)
