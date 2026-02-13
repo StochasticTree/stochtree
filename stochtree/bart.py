@@ -2835,6 +2835,16 @@ class BARTModel:
                 "sigma2_leaf_samples", self.leaf_scale_samples, "parameters"
             )
 
+        # Add cloglog parameters
+        if self.outcome_model.link == "cloglog":
+            bart_json.add_integer("cloglog_num_categories", self.cloglog_num_categories)
+            for i in range(self.cloglog_num_categories - 1):
+                bart_json.add_numeric_vector(
+                    f"cloglog_cutpoint_samples_{i + 1}",
+                    self.cloglog_cutpoint_samples[i, :],
+                    "parameters",
+                )
+
         # Add covariate preprocessor
         covariate_preprocessor_string = self._covariate_preprocessor.to_json()
         bart_json.add_string("covariate_preprocessor", covariate_preprocessor_string)
@@ -2912,6 +2922,17 @@ class BARTModel:
             self.leaf_scale_samples = bart_json.get_numeric_vector(
                 "sigma2_leaf_samples", "parameters"
             )
+
+        # Unpack cloglog parameters
+        if self.outcome_model.link == "cloglog":
+            self.cloglog_num_categories = bart_json.get_integer("cloglog_num_categories")
+            self.cloglog_cutpoint_samples = np.full(
+                (self.cloglog_num_categories - 1, self.num_samples), np.nan
+            )
+            for i in range(self.cloglog_num_categories - 1):
+                self.cloglog_cutpoint_samples[i, :] = bart_json.get_numeric_vector(
+                    f"cloglog_cutpoint_samples_{i + 1}", "parameters"
+                )
 
         # Unpack covariate preprocessor
         covariate_preprocessor_string = bart_json.get_string("covariate_preprocessor")
@@ -3056,6 +3077,27 @@ class BARTModel:
                         self.leaf_scale_samples,
                         leaf_scale_samples,
                     ))
+
+        # Unpack cloglog parameters
+        if self.outcome_model.link == "cloglog":
+            self.cloglog_num_categories = json_object_default.get_integer(
+                "cloglog_num_categories"
+            )
+            for i in range(len(json_object_list)):
+                num_samples_i = json_object_list[i].get_integer("num_samples")
+                cutpoints_i = np.full(
+                    (self.cloglog_num_categories - 1, num_samples_i), np.nan
+                )
+                for k in range(self.cloglog_num_categories - 1):
+                    cutpoints_i[k, :] = json_object_list[i].get_numeric_vector(
+                        f"cloglog_cutpoint_samples_{k + 1}", "parameters"
+                    )
+                if i == 0:
+                    self.cloglog_cutpoint_samples = cutpoints_i
+                else:
+                    self.cloglog_cutpoint_samples = np.concatenate(
+                        (self.cloglog_cutpoint_samples, cutpoints_i), axis=1
+                    )
 
         # Unpack covariate preprocessor
         covariate_preprocessor_string = json_object_default.get_string(
