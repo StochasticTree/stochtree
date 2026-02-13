@@ -76,10 +76,6 @@ forest_dataset_get_auxiliary_data_vector_cpp <- function(dataset_ptr, dim_idx) {
   .Call(`_stochtree_forest_dataset_get_auxiliary_data_vector_cpp`, dataset_ptr, dim_idx)
 }
 
-forest_dataset_store_auxiliary_data_vector_as_column_cpp <- function(dataset_ptr, output_matrix, dim_idx, matrix_col_idx) {
-  .Call(`_stochtree_forest_dataset_store_auxiliary_data_vector_as_column_cpp`, dataset_ptr, output_matrix, dim_idx, matrix_col_idx)
-}
-
 create_column_vector_cpp <- function(outcome) {
   .Call(`_stochtree_create_column_vector_cpp`, outcome)
 }

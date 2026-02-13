@@ -171,25 +171,6 @@ ForestDataset <- R6::R6Class(
         self$data_ptr,
         dim_idx
       ))
-    },
-
-    #' @description
-    #' Retrieve auxiliary data vector and place it into a column of the supplied matrix
-    #' @param output_matrix Matrix to be overwritten
-    #' @param dim_idx Auxiliary data dimension to retrieve
-    #' @param matrix_col_idx Matrix column in which to copy auxiliary data
-    #' @return Vector of all of the auxiliary data stored at dimension `dim_idx`
-    store_auxiliary_data_vector_matrix = function(
-      output_matrix,
-      dim_idx,
-      matrix_col_idx
-    ) {
-      return(forest_dataset_store_auxiliary_data_vector_as_column_cpp(
-        self$data_ptr,
-        output_matrix,
-        dim_idx,
-        matrix_col_idx
-      ))
     }
   )
 )

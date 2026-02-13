@@ -39,7 +39,6 @@ For tutorials on the "proper" usage of the stochtree's advanced workflow, we pro
 \item \href{#method-ForestDataset-get_auxiliary_data_value}{\code{ForestDataset$get_auxiliary_data_value()}}
 \item \href{#method-ForestDataset-set_auxiliary_data_value}{\code{ForestDataset$set_auxiliary_data_value()}}
 \item \href{#method-ForestDataset-get_auxiliary_data_vector}{\code{ForestDataset$get_auxiliary_data_vector()}}
-\item \href{#method-ForestDataset-store_auxiliary_data_vector_matrix}{\code{ForestDataset$store_auxiliary_data_vector_matrix()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -305,34 +304,6 @@ Retrieve entire auxiliary data vector
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{dim_idx}}{Dimension to retrieve}
-}
-\if{html}{\out{</div>}}
-}
-\subsection{Returns}{
-Vector of all of the auxiliary data stored at dimension \code{dim_idx}
-}
-}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestDataset-store_auxiliary_data_vector_matrix"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestDataset-store_auxiliary_data_vector_matrix}{}}}
-\subsection{Method \code{store_auxiliary_data_vector_matrix()}}{
-Retrieve auxiliary data vector and place it into a column of the supplied matrix
-\subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$store_auxiliary_data_vector_matrix(
-  output_matrix,
-  dim_idx,
-  matrix_col_idx
-)}\if{html}{\out{</div>}}
-}
-
-\subsection{Arguments}{
-\if{html}{\out{<div class="arguments">}}
-\describe{
-\item{\code{output_matrix}}{Matrix to be overwritten}
-
-\item{\code{dim_idx}}{Auxiliary data dimension to retrieve}
-
-\item{\code{matrix_col_idx}}{Matrix column in which to copy auxiliary data}
 }
 \if{html}{\out{</div>}}
 }

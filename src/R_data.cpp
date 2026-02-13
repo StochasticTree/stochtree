@@ -180,16 +180,6 @@ cpp11::writable::doubles forest_dataset_get_auxiliary_data_vector_cpp(cpp11::ext
 }
 
 [[cpp11::register]]
-cpp11::writable::doubles_matrix<> forest_dataset_store_auxiliary_data_vector_as_column_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::writable::doubles_matrix<> output_matrix, int dim_idx, int matrix_col_idx) {
-    const std::vector<double> output_raw = dataset_ptr->GetAuxiliaryDataVector(dim_idx);
-    int n = output_raw.size();
-    for (int i = 0; i < n; i++) {
-        output_matrix(i, matrix_col_idx) = output_raw[i];
-    }
-    return output_matrix;
-}
-
-[[cpp11::register]]
 cpp11::external_pointer<StochTree::ColumnVector> create_column_vector_cpp(cpp11::doubles outcome) {
     // Unpack pointers to data and dimensions
     StochTree::data_size_t n = outcome.size();
