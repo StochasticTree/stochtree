@@ -407,6 +407,13 @@ bart <- function(
     } else {
       previous_rfx_samples <- NULL
     }
+    if (previous_bart_model$model_params$outcome_model$link == "cloglog") {
+      previous_cloglog_cutpoint_samples <- previous_bart_model$cloglog_cutpoint_samples
+      previous_cloglog_num_categories <- previous_bart_model$cloglog_num_categories
+    } else {
+      previous_cloglog_cutpoint_samples <- NULL
+      previous_cloglog_num_categories <- 0
+    }
     previous_model_num_samples <- previous_bart_model$model_params$num_samples
     if (previous_model_warmstart_sample_num > previous_model_num_samples) {
       stop(
@@ -421,6 +428,8 @@ bart <- function(
     previous_rfx_samples <- NULL
     previous_forest_samples_mean <- NULL
     previous_forest_samples_variance <- NULL
+    previous_cloglog_cutpoint_samples <- NULL
+    previous_cloglog_num_categories <- 0
     previous_model_num_samples <- 0
   }
 

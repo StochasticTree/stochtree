@@ -9,13 +9,13 @@ n <- 2000
 p <- 5
 
 # Design matrix and true lambda function
-X <- matrix(rnorm(n * p), n, p)
+X <- matrix(runif(n * p), ncol = p)
 beta <- rep(1 / sqrt(p), p)
 true_lambda_function <- X %*% beta
 
-# Set cutpoints for ordinal categories (3 categories: 1, 2, 3)
-n_categories <- 3
-gamma_true <- c(-2, 1)
+# Set cutpoints for ordinal categories (2 categories: 1, 2)
+n_categories <- 2
+gamma_true <- c(-1)
 ordinal_cutpoints <- log(cumsum(exp(gamma_true)))
 ordinal_cutpoints
 
@@ -67,7 +67,7 @@ runtime <- system.time({
   )
 })
 
-# Traceplots of cutoff parameters
+# Traceplot of cutoff parameters
 par(mfrow = c(2, 1))
 plot(
   bart_model$cloglog_cutpoint_samples[1, ],
@@ -77,35 +77,21 @@ plot(
   xlab = "MCMC Sample"
 )
 abline(h = gamma_true[1], col = 'red', lty = 2)
-plot(
-  bart_model$cloglog_cutpoint_samples[2, ],
-  type = 'l',
-  main = expression(gamma[2]),
-  ylab = "Value",
-  xlab = "MCMC Sample"
-)
-abline(h = gamma_true[2], col = 'red', lty = 2)
 
-# Histograms of cutoff parameters
+# Histogram of cutoff parameters
 gamma1 <- bart_model$cloglog_cutpoint_samples[1, ] +
   colMeans(bart_model$y_hat_train)
 summary(gamma1)
 hist(gamma1)
-gamma2 <- bart_model$cloglog_cutpoint_samples[2, ] +
-  colMeans(bart_model$y_hat_train)
-summary(gamma2)
-hist(gamma2)
 
 # Traceplots of cutoff parameters combined with average forest predictions
-par(mfrow = c(3, 2))
+par(mfrow = c(2, 1))
 rowMeans(bart_model$cloglog_cutpoint_samples)
-moo <- t(bart_model$cloglog_cutpoint_samples) + colMeans(bart_model$y_hat_train)
+moo <- t(bart_model$cloglog_cutpoint_samples) +
+  colMeans(bart_model$y_hat_train)
 plot(moo[, 1])
 abline(h = gamma_true[1] + mean(true_lambda_function[train_idx]))
-plot(moo[, 2])
-abline(h = gamma_true[2] + mean(true_lambda_function[train_idx]))
 plot(bart_model$cloglog_cutpoint_samples[1, ])
-plot(bart_model$cloglog_cutpoint_samples[2, ])
 
 # Compare forest predictions with the truth (for training and test sets)
 par(mfrow = c(2, 1))
@@ -113,9 +99,13 @@ par(mfrow = c(2, 1))
 # Train set
 lambda_pred_train <- rowMeans(bart_model$y_hat_train) -
   mean(bart_model$y_hat_train)
-plot(lambda_pred_train, true_lambda_function[train_idx])
+plot(lambda_pred_train, gamma_true[1] + true_lambda_function[train_idx])
 abline(a = 0, b = 1, col = 'blue', lwd = 2)
-cor_train <- cor(true_lambda_function[train_idx], lambda_pred_train)
+cor_train <- cor(
+  true_lambda_function[train_idx] +
+    mean(bart_model$cloglog_cutpoint_samples[1, ]),
+  gamma_true[1] + lambda_pred_train
+)
 text(
   min(true_lambda_function[train_idx]),
   max(true_lambda_function[train_idx]),
@@ -127,7 +117,7 @@ text(
 # Test set
 lambda_pred_test <- rowMeans(bart_model$y_hat_test) -
   mean(bart_model$y_hat_test)
-plot(lambda_pred_test, true_lambda_function[test_idx])
+plot(lambda_pred_test, gamma_true[1] + true_lambda_function[test_idx])
 abline(a = 0, b = 1, col = 'blue', lwd = 2)
 cor_test <- cor(true_lambda_function[test_idx], lambda_pred_test)
 text(
@@ -146,7 +136,8 @@ for (j in 1:n_categories) {
       1 -
         exp(
           -exp(
-            bart_model$y_hat_train + bart_model$cloglog_cutpoint_samples[j, ]
+            bart_model$y_hat_train +
+              bart_model$cloglog_cutpoint_samples[j, ]
           )
         )
     )
@@ -157,13 +148,15 @@ for (j in 1:n_categories) {
     est_probs_train[, j] <- rowMeans(
       exp(
         -exp(
-          bart_model$y_hat_train + bart_model$cloglog_cutpoint_samples[j - 1, ]
+          bart_model$y_hat_train +
+            bart_model$cloglog_cutpoint_samples[j - 1, ]
         )
       ) *
         (1 -
           exp(
             -exp(
-              bart_model$y_hat_train + bart_model$cloglog_cutpoint_samples[j, ]
+              bart_model$y_hat_train +
+                bart_model$cloglog_cutpoint_samples[j, ]
             )
           ))
     )
@@ -175,7 +168,6 @@ mean(
 )
 
 # Plot estimated vs true class probabilities for training set
-par(mfrow = c(2, 2))
 for (j in 1:n_categories) {
   plot(
     true_probs[train_idx, j],
@@ -201,7 +193,10 @@ for (j in 1:n_categories) {
     est_probs_test[, j] <- rowMeans(
       1 -
         exp(
-          -exp(bart_model$y_hat_test + bart_model$cloglog_cutpoint_samples[j, ])
+          -exp(
+            bart_model$y_hat_test +
+              bart_model$cloglog_cutpoint_samples[j, ]
+          )
         )
     )
   } else if (j == n_categories) {
@@ -211,13 +206,15 @@ for (j in 1:n_categories) {
     est_probs_test[, j] <- rowMeans(
       exp(
         -exp(
-          bart_model$y_hat_test + bart_model$cloglog_cutpoint_samples[j - 1, ]
+          bart_model$y_hat_test +
+            bart_model$cloglog_cutpoint_samples[j - 1, ]
         )
       ) *
         (1 -
           exp(
             -exp(
-              bart_model$y_hat_test + bart_model$cloglog_cutpoint_samples[j, ]
+              bart_model$y_hat_test +
+                bart_model$cloglog_cutpoint_samples[j, ]
             )
           ))
     )
@@ -226,8 +223,7 @@ for (j in 1:n_categories) {
 # Compute average difference
 mean(log(-log(1 - est_probs_test[, 1])) - rowMeans(bart_model$y_hat_test))
 
-# Compare estimated vs true class probabilities for test set
-par(mfrow = c(2, 2))
+# Plot estimated vs true class probabilities for test set
 for (j in 1:n_categories) {
   plot(
     true_probs[test_idx, j],
@@ -245,5 +241,3 @@ for (j in 1:n_categories) {
     col = 'red'
   )
 }
-
-runtime
