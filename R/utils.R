@@ -45,8 +45,8 @@ validate_outcome_model <- function(object) {
   if (object$outcome == "continuous" && object$link != "identity") {
     stop("Link function must be 'identity' for continuous models")
   }
-  if (object$outcome == "binary" && object$link != "probit") {
-    stop("Link function must be 'probit' for binary models")
+  if (object$outcome == "binary" && !(object$link %in% c("probit", "cloglog"))) {
+    stop("Link function must be 'probit' or 'cloglog' for binary models")
   }
   if (object$outcome == "ordinal" && object$link != "cloglog") {
     stop("Link function must be 'cloglog' for ordinal models")

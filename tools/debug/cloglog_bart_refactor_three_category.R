@@ -67,6 +67,20 @@ runtime <- system.time({
   )
 })
 
+# Compute category probabilities for train and test set
+est_probs_train <- predict(
+  bart_model,
+  X = X_train,
+  scale = "probability",
+  terms = "y_hat"
+)
+est_probs_test <- predict(
+  bart_model,
+  X = X_test,
+  scale = "probability",
+  terms = "y_hat"
+)
+
 # Traceplots of cutoff parameters
 par(mfrow = c(2, 1))
 plot(
@@ -138,108 +152,54 @@ text(
   col = 'red'
 )
 
-# Estimated ordinal class probabilities for the training set
-est_probs_train <- matrix(0, nrow = length(train_idx), ncol = n_categories)
-for (j in 1:n_categories) {
-  if (j == 1) {
-    est_probs_train[, j] <- rowMeans(
-      1 -
-        exp(
-          -exp(
-            bart_model$y_hat_train + bart_model$cloglog_cutpoint_samples[j, ]
-          )
-        )
-    )
-  } else if (j == n_categories) {
-    est_probs_train[, j] <- 1 -
-      rowSums(est_probs_train[, 1:(j - 1), drop = FALSE])
-  } else {
-    est_probs_train[, j] <- rowMeans(
-      exp(
-        -exp(
-          bart_model$y_hat_train + bart_model$cloglog_cutpoint_samples[j - 1, ]
-        )
-      ) *
-        (1 -
-          exp(
-            -exp(
-              bart_model$y_hat_train + bart_model$cloglog_cutpoint_samples[j, ]
-            )
-          ))
-    )
-  }
-}
-# Compute average difference
+# Compute average difference in estimated vs true class probabilities for training set
 mean(
-  log(-log(1 - est_probs_train[, 1])) - rowMeans(bart_model$y_hat_train)
+  log(-log(1 - rowMeans(est_probs_train[, 1, ]))) -
+    rowMeans(bart_model$y_hat_train)
 )
 
 # Plot estimated vs true class probabilities for training set
 par(mfrow = c(2, 2))
 for (j in 1:n_categories) {
+  mean_probs <- rowMeans(est_probs_train[, j, ])
   plot(
     true_probs[train_idx, j],
-    est_probs_train[, j],
+    mean_probs,
     xlab = paste("True Prob Category", j),
     ylab = paste("Estimated Prob Category", j)
   )
   abline(a = 0, b = 1, col = 'blue', lwd = 2)
-  cor_train_prob <- cor(true_probs[train_idx, j], est_probs_train[, j])
+  cor_train_prob <- cor(true_probs[train_idx, j], mean_probs)
   text(
     min(true_probs[train_idx, j]),
-    max(est_probs_train[, j]),
+    max(mean_probs),
     paste('Correlation:', round(cor_train_prob, 3)),
     adj = 0,
     col = 'red'
   )
 }
 
-# Estimated ordinal class probabilities for the test set
-est_probs_test <- matrix(0, nrow = length(test_idx), ncol = n_categories)
-for (j in 1:n_categories) {
-  if (j == 1) {
-    est_probs_test[, j] <- rowMeans(
-      1 -
-        exp(
-          -exp(bart_model$y_hat_test + bart_model$cloglog_cutpoint_samples[j, ])
-        )
-    )
-  } else if (j == n_categories) {
-    est_probs_test[, j] <- 1 -
-      rowSums(est_probs_test[, 1:(j - 1), drop = FALSE])
-  } else {
-    est_probs_test[, j] <- rowMeans(
-      exp(
-        -exp(
-          bart_model$y_hat_test + bart_model$cloglog_cutpoint_samples[j - 1, ]
-        )
-      ) *
-        (1 -
-          exp(
-            -exp(
-              bart_model$y_hat_test + bart_model$cloglog_cutpoint_samples[j, ]
-            )
-          ))
-    )
-  }
-}
-# Compute average difference
-mean(log(-log(1 - est_probs_test[, 1])) - rowMeans(bart_model$y_hat_test))
+# Compute average difference in estimated vs true class probabilities for test set
+mean(
+  log(-log(1 - rowMeans(est_probs_test[, 1, ]))) -
+    rowMeans(bart_model$y_hat_test)
+)
 
 # Compare estimated vs true class probabilities for test set
 par(mfrow = c(2, 2))
 for (j in 1:n_categories) {
+  mean_probs <- rowMeans(est_probs_test[, j, ])
   plot(
     true_probs[test_idx, j],
-    est_probs_test[, j],
+    mean_probs,
     xlab = paste("True Prob Category", j),
     ylab = paste("Estimated Prob Category", j)
   )
   abline(a = 0, b = 1, col = 'blue', lwd = 2)
-  cor_test_prob <- cor(true_probs[test_idx, j], est_probs_test[, j])
+  cor_test_prob <- cor(true_probs[test_idx, j], mean_probs)
   text(
     min(true_probs[test_idx, j]),
-    max(est_probs_test[, j]),
+    max(mean_probs),
     paste('Correlation:', round(cor_test_prob, 3)),
     adj = 0,
     col = 'red'
