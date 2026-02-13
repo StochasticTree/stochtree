@@ -239,6 +239,66 @@ class Dataset:
         """
         return self.dataset_cpp.HasVarianceWeights()
 
+    def add_auxiliary_dimension(self, dim_size: int):
+        """
+        Add an auxiliary data dimension to the dataset
+
+        Parameters
+        ----------
+        dim_size : int
+            Number of elements in the new auxiliary dimension
+        """
+        self.dataset_cpp.AddAuxiliaryDimension(dim_size)
+
+    def set_auxiliary_data_value(self, dim_idx: int, element_idx: int, value: float):
+        """
+        Set a value in the auxiliary data
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension
+        element_idx : int
+            Index of the element within the dimension
+        value : float
+            Value to set
+        """
+        self.dataset_cpp.SetAuxiliaryDataValue(dim_idx, element_idx, value)
+
+    def get_auxiliary_data_value(self, dim_idx: int, element_idx: int) -> float:
+        """
+        Get a value from the auxiliary data
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension
+        element_idx : int
+            Index of the element within the dimension
+
+        Returns
+        -------
+        float
+            The auxiliary data value
+        """
+        return self.dataset_cpp.GetAuxiliaryDataValue(dim_idx, element_idx)
+
+    def get_auxiliary_data_vector(self, dim_idx: int) -> np.array:
+        """
+        Get an auxiliary data vector as a numpy array
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension
+
+        Returns
+        -------
+        np.array
+            The auxiliary data vector
+        """
+        return self.dataset_cpp.GetAuxiliaryDataVector(dim_idx)
+
 
 class Residual:
     """

@@ -9,6 +9,7 @@
 #include <stochtree/partition_tracker.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
+#include <stochtree/ordinal_sampler.h>
 #include <stochtree/variance_model.h>
 #include <functional>
 #include <memory>
@@ -136,6 +137,29 @@ class ForestDatasetCpp {
 
   bool HasVarianceWeights() {
     return dataset_->HasVarWeights();
+  }
+
+  void AddAuxiliaryDimension(int dim_size) {
+    dataset_->AddAuxiliaryDimension(dim_size);
+  }
+
+  void SetAuxiliaryDataValue(int dim_idx, data_size_t element_idx, double value) {
+    dataset_->SetAuxiliaryDataValue(dim_idx, element_idx, value);
+  }
+
+  double GetAuxiliaryDataValue(int dim_idx, data_size_t element_idx) {
+    return dataset_->GetAuxiliaryDataValue(dim_idx, element_idx);
+  }
+
+  py::array_t<double> GetAuxiliaryDataVector(int dim_idx) {
+    std::vector<double>& aux_vec = dataset_->GetAuxiliaryDataVector(dim_idx);
+    data_size_t n = aux_vec.size();
+    auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (size_t i = 0; i < n; i++) {
+      accessor(i) = aux_vec[i];
+    }
+    return result;
   }
 
   StochTree::ForestDataset* GetDataset() {
@@ -1119,11 +1143,12 @@ class ForestSamplerCpp {
     else if (leaf_model_int == 1) model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
     else if (leaf_model_int == 2) model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
     else if (leaf_model_int == 3) model_type = StochTree::ModelType::kLogLinearVariance;
+    else if (leaf_model_int == 4) model_type = StochTree::ModelType::kCloglogOrdinal;
 
     // Unpack leaf model parameters
     double leaf_scale;
     Eigen::MatrixXd leaf_scale_matrix;
-    if ((model_type == StochTree::ModelType::kConstantLeafGaussian) || 
+    if ((model_type == StochTree::ModelType::kConstantLeafGaussian) ||
         (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian)) {
         leaf_scale = leaf_model_scale_input.at(0,0);
     } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
@@ -1162,6 +1187,8 @@ class ForestSamplerCpp {
         StochTree::GFRSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, true, num_features_subsample, num_threads, num_basis);
       } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
         StochTree::GFRSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, false, num_features_subsample, num_threads);
+      } else if (model_type == StochTree::ModelType::kCloglogOrdinal) {
+        StochTree::GFRSampleOneIter<StochTree::CloglogOrdinalLeafModel, StochTree::CloglogOrdinalSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::CloglogOrdinalLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, feature_types_, cutpoint_grid_size, keep_forest, pre_initialized, false, num_features_subsample, num_threads);
       }
     } else {
       if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
@@ -1172,6 +1199,8 @@ class ForestSamplerCpp {
         StochTree::MCMCSampleOneIter<StochTree::GaussianMultivariateRegressionLeafModel, StochTree::GaussianMultivariateRegressionSuffStat, int>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::GaussianMultivariateRegressionLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, keep_forest, pre_initialized, true, num_threads, num_basis);
       } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
         StochTree::MCMCSampleOneIter<StochTree::LogLinearVarianceLeafModel, StochTree::LogLinearVarianceSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::LogLinearVarianceLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, keep_forest, pre_initialized, false, num_threads);
+      } else if (model_type == StochTree::ModelType::kCloglogOrdinal) {
+        StochTree::MCMCSampleOneIter<StochTree::CloglogOrdinalLeafModel, StochTree::CloglogOrdinalSuffStat>(*active_forest_ptr, *(tracker_.get()), *forest_sample_ptr, std::get<StochTree::CloglogOrdinalLeafModel>(leaf_model), *forest_data_ptr, *residual_data_ptr, *(split_prior_.get()), *rng_ptr, var_weights_vector, sweep_update_indices_, global_variance, keep_forest, pre_initialized, false, num_threads);
       }
     }
   }
@@ -1184,8 +1213,9 @@ class ForestSamplerCpp {
     else if (leaf_model_int == 1) model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
     else if (leaf_model_int == 2) model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
     else if (leaf_model_int == 3) model_type = StochTree::ModelType::kLogLinearVariance;
+    else if (leaf_model_int == 4) model_type = StochTree::ModelType::kCloglogOrdinal;
     else StochTree::Log::Fatal("Invalid model type");
-    
+
     // Unpack initial value
     StochTree::TreeEnsemble* forest_ptr = forest.GetEnsemble();
     StochTree::ForestDataset* forest_data_ptr = dataset.GetDataset();
@@ -1193,9 +1223,10 @@ class ForestSamplerCpp {
     int num_trees = forest_ptr->NumTrees();
     double init_val;
     std::vector<double> init_value_vector;
-    if ((model_type == StochTree::ModelType::kConstantLeafGaussian) || 
-        (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) || 
-        (model_type == StochTree::ModelType::kLogLinearVariance)) {
+    if ((model_type == StochTree::ModelType::kConstantLeafGaussian) ||
+        (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) ||
+        (model_type == StochTree::ModelType::kLogLinearVariance) ||
+        (model_type == StochTree::ModelType::kCloglogOrdinal)) {
         init_val = initial_values.at(0);
     } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
         int leaf_dim = initial_values.size();
@@ -1228,6 +1259,11 @@ class ForestSamplerCpp {
         int n = forest_data_ptr->NumObservations();
         std::vector<double> initial_preds(n, init_val);
         forest_data_ptr->AddVarianceWeights(initial_preds.data(), n);
+    } else if (model_type == StochTree::ModelType::kCloglogOrdinal) {
+        leaf_init_val = init_val / static_cast<double>(num_trees);
+        forest_ptr->SetLeafValue(leaf_init_val);
+        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, false, std::minus<double>());
+        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
     }
   }
 
@@ -1322,6 +1358,41 @@ class LeafVarianceModelCpp {
 
  private:
   StochTree::LeafNodeHomoskedasticVarianceModel var_model_;
+};
+
+class OrdinalSamplerCpp {
+ public:
+  OrdinalSamplerCpp() {
+    ordinal_sampler_ = std::make_unique<StochTree::OrdinalSampler>();
+  }
+  ~OrdinalSamplerCpp() {}
+
+  void UpdateLatentVariables(ForestDatasetCpp& dataset, ResidualCpp& outcome, RngCpp& rng) {
+    StochTree::ForestDataset* dataset_ptr = dataset.GetDataset();
+    StochTree::ColumnVector* outcome_ptr = outcome.GetData();
+    std::mt19937* rng_ptr = rng.GetRng();
+    Eigen::VectorXd& outcome_vec = outcome_ptr->GetData();
+    ordinal_sampler_->UpdateLatentVariables(*dataset_ptr, outcome_vec, *rng_ptr);
+  }
+
+  void UpdateGammaParams(ForestDatasetCpp& dataset, ResidualCpp& outcome,
+                         double alpha_gamma, double beta_gamma,
+                         double gamma_0, RngCpp& rng) {
+    StochTree::ForestDataset* dataset_ptr = dataset.GetDataset();
+    StochTree::ColumnVector* outcome_ptr = outcome.GetData();
+    std::mt19937* rng_ptr = rng.GetRng();
+    Eigen::VectorXd& outcome_vec = outcome_ptr->GetData();
+    ordinal_sampler_->UpdateGammaParams(*dataset_ptr, outcome_vec,
+                                        alpha_gamma, beta_gamma, gamma_0, *rng_ptr);
+  }
+
+  void UpdateCumulativeExpSums(ForestDatasetCpp& dataset) {
+    StochTree::ForestDataset* dataset_ptr = dataset.GetDataset();
+    ordinal_sampler_->UpdateCumulativeExpSums(*dataset_ptr);
+  }
+
+ private:
+  std::unique_ptr<StochTree::OrdinalSampler> ordinal_sampler_;
 };
 
 class RandomEffectsDatasetCpp {
@@ -2246,7 +2317,11 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("GetBasis", &ForestDatasetCpp::GetBasis)
     .def("GetVarianceWeights", &ForestDatasetCpp::GetVarianceWeights)
     .def("HasBasis", &ForestDatasetCpp::HasBasis)
-    .def("HasVarianceWeights", &ForestDatasetCpp::HasVarianceWeights);
+    .def("HasVarianceWeights", &ForestDatasetCpp::HasVarianceWeights)
+    .def("AddAuxiliaryDimension", &ForestDatasetCpp::AddAuxiliaryDimension)
+    .def("SetAuxiliaryDataValue", &ForestDatasetCpp::SetAuxiliaryDataValue)
+    .def("GetAuxiliaryDataValue", &ForestDatasetCpp::GetAuxiliaryDataValue)
+    .def("GetAuxiliaryDataVector", &ForestDatasetCpp::GetAuxiliaryDataVector);
 
   py::class_<ResidualCpp>(m, "ResidualCpp")
     .def(py::init<py::array_t<double>,data_size_t>())
@@ -2447,6 +2522,12 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<LeafVarianceModelCpp>(m, "LeafVarianceModelCpp")
     .def(py::init<>())
     .def("SampleOneIteration", &LeafVarianceModelCpp::SampleOneIteration);
+
+  py::class_<OrdinalSamplerCpp>(m, "OrdinalSamplerCpp")
+    .def(py::init<>())
+    .def("UpdateLatentVariables", &OrdinalSamplerCpp::UpdateLatentVariables)
+    .def("UpdateGammaParams", &OrdinalSamplerCpp::UpdateGammaParams)
+    .def("UpdateCumulativeExpSums", &OrdinalSamplerCpp::UpdateCumulativeExpSums);
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

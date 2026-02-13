@@ -17,7 +17,7 @@ from .random_effects import (
     RandomEffectsModel,
     RandomEffectsTracker,
 )
-from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
+from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel, OrdinalSampler
 from .serialization import JSONSerializer
 from .utils import (
     OutcomeModel,
@@ -938,6 +938,40 @@ class BARTModel:
                     "We do not support heteroskedasticity with a probit link"
                 )
         
+        # Preliminary runtime checks for cloglog link
+        if not self.include_mean_forest:
+            link_is_cloglog = False
+        if link_is_cloglog:
+            unique_outcomes = np.sort(np.unique(y_train))
+            if not np.all(np.equal(np.mod(unique_outcomes, 1), 0)):
+                raise ValueError(
+                    "You specified a cloglog link, but supplied an outcome with non-integer values. "
+                    "Cloglog is only currently supported for integer outcomes."
+                )
+            if int(np.min(unique_outcomes)) not in (0, 1):
+                raise ValueError(
+                    "You specified a cloglog link, but supplied an integer outcome that does not start with 0 or 1. "
+                    "Please remap / shift the outcomes so that the smallest category label is either 0 or 1."
+                )
+            if not np.all(np.diff(unique_outcomes) == 1):
+                raise ValueError(
+                    "You specified a cloglog link, but supplied an integer outcome that is not a sequence of consecutive integers"
+                )
+            if self.include_variance_forest:
+                raise ValueError("We do not support heteroskedasticity with a cloglog link")
+            if self.has_basis:
+                raise ValueError("We do not support leaf basis regression with a cloglog link")
+            if sample_sigma2_global:
+                warnings.warn(
+                    "Global error variance will not be sampled with a cloglog link"
+                )
+                sample_sigma2_global = False
+            if sample_sigma2_leaf:
+                warnings.warn(
+                    "Leaf scale parameter will not be sampled with a cloglog link"
+                )
+                sample_sigma2_leaf = False
+
         # Runtime checks for variance forest
         if self.include_variance_forest:
             if sample_sigma2_global:
@@ -1021,6 +1055,30 @@ class BARTModel:
                     raise ValueError(
                         "sigma2_leaf must be either a scalar or a 2d numpy array"
                     )
+        elif link_is_cloglog:
+            # Fix offset to 0 and scale to 1
+            self.y_bar = 0
+            self.y_std = 1
+
+            # Remap outcomes to start from 0
+            resid_train = y_train - np.min(unique_outcomes)
+            cloglog_num_categories = int(np.max(resid_train)) + 1
+
+            # Set initial values of root nodes to 0.0 (in linear scale)
+            init_val_mean = 0.0
+
+            # Calibrate priors for sigma^2 and tau
+            sigma2_init = 1.0
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
+            current_leaf_scale = np.array([[2.0 / num_trees_mean]])
+
+            # Set first cutpoint to 0 for identifiability
+            cloglog_cutpoint_0 = 0.0
+
+            # Set shape and rate parameters for conditional gamma model
+            cloglog_forest_shape = 2.0
+            cloglog_forest_rate = 2.0
         else:
             # Standardize if requested
             if self.standardize:
@@ -1272,7 +1330,10 @@ class BARTModel:
         leaf_dimension_variance = 1
 
         # Determine the mean forest leaf model type
-        if not self.has_basis:
+        if link_is_cloglog and not self.has_basis:
+            leaf_model_mean_forest = 4
+            leaf_dimension_mean = 1
+        elif not self.has_basis:
             leaf_model_mean_forest = 0
             leaf_dimension_mean = 1
         elif self.num_basis == 1:
@@ -1301,6 +1362,9 @@ class BARTModel:
                 cutpoint_grid_size=cutpoint_grid_size,
                 num_features_subsample=num_features_subsample_mean,
             )
+            if link_is_cloglog:
+                forest_model_config_mean.update_cloglog_forest_shape(cloglog_forest_shape)
+                forest_model_config_mean.update_cloglog_forest_rate(cloglog_forest_rate)
             forest_sampler_mean = ForestSampler(
                 forest_dataset_train,
                 global_model_config,
@@ -1379,6 +1443,34 @@ class BARTModel:
                 init_val_variance,
             )
 
+        # Initialize auxiliary data and ordinal sampler for cloglog
+        if link_is_cloglog:
+            ordinal_sampler = OrdinalSampler()
+            train_size = self.n_train
+
+            # Slot 0: Latent variable Z (size n_train)
+            forest_dataset_train.add_auxiliary_dimension(train_size)
+            # Slot 1: Forest predictions eta (size n_train)
+            forest_dataset_train.add_auxiliary_dimension(train_size)
+            # Slot 2: Log-scale cutpoints gamma (size cloglog_num_categories - 1)
+            forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories - 1)
+            # Slot 3: Cumulative exp cutpoints seg (size cloglog_num_categories)
+            forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories)
+
+            # Initialize all slots to 0
+            for j in range(train_size):
+                forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
+                forest_dataset_train.set_auxiliary_data_value(1, j, 0.0)
+            for j in range(cloglog_num_categories - 1):
+                forest_dataset_train.set_auxiliary_data_value(2, j, 0.0)
+
+            # Compute initial cumulative exp sums
+            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+
+            # Allocate storage for cutpoint samples
+            cloglog_cutpoint_samples = np.full(
+                (cloglog_num_categories - 1, num_retained_samples), np.nan
+            )
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
             for i in range(self.num_gfr):
@@ -1486,6 +1578,37 @@ class BARTModel:
                         cpp_rng,
                     )
 
+                # Cloglog Gibbs updates
+                if link_is_cloglog:
+                    # Update auxiliary data slot 1 with current forest predictions
+                    forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
+                    for j in range(train_size):
+                        forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
+
+                    # Sample latent z_i's using truncated exponential
+                    ordinal_sampler.update_latent_variables(
+                        forest_dataset_train, residual_train, cpp_rng
+                    )
+
+                    # Sample gamma parameters (cutpoints)
+                    ordinal_sampler.update_gamma_params(
+                        forest_dataset_train,
+                        residual_train,
+                        cloglog_forest_shape,
+                        cloglog_forest_rate,
+                        cloglog_cutpoint_0,
+                        cpp_rng,
+                    )
+
+                    # Update cumulative sum of exp(gamma) values
+                    ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+
+                    # Retain cutpoint draw
+                    if keep_sample:
+                        cloglog_cutpoint_samples[:, sample_counter] = (
+                            forest_dataset_train.get_auxiliary_data_vector(2)
+                        )
+
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
             for chain_num in range(num_chains):
@@ -1528,6 +1651,19 @@ class BARTModel:
                     if self.has_rfx:
                         rfx_model.reset(self.rfx_container, forest_ind, sigma_alpha_init)
                         rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                    # Reset cloglog auxiliary data
+                    if link_is_cloglog:
+                        # Reset cutpoints from saved GFR samples
+                        current_cutpoints = cloglog_cutpoint_samples[:, forest_ind]
+                        for j in range(len(current_cutpoints)):
+                            forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
+                        ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+                        # Reset forest predictions by re-predicting from active forest
+                        active_forest_preds = active_forest_mean.predict(forest_dataset_train)
+                        for j in range(train_size):
+                            forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
+                            # Latent variables must be reset to 0 and burnt in
+                            forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
                 elif has_prev_model:
                     warmstart_index = previous_model_warmstart_sample_num - chain_num if previous_model_decrement else previous_model_warmstart_sample_num
                     # Reset mean forest
@@ -1573,6 +1709,21 @@ class BARTModel:
                     if self.has_rfx:
                         rfx_model.reset(previous_bart_model.rfx_container, warmstart_index, sigma_alpha_init)
                         rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, previous_bart_model.rfx_container)
+                    # Reset cloglog auxiliary data from previous model
+                    if link_is_cloglog:
+                        previous_cloglog_cutpoint_samples = getattr(
+                            previous_bart_model, "cloglog_cutpoint_samples", None
+                        )
+                        if previous_cloglog_cutpoint_samples is not None:
+                            current_cutpoints = previous_cloglog_cutpoint_samples[:, warmstart_index]
+                            for j in range(len(current_cutpoints)):
+                                forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
+                            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+                        active_forest_preds = active_forest_mean.predict(forest_dataset_train)
+                        for j in range(train_size):
+                            forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
+                            # Latent variables must be reset to 0 and burnt in
+                            forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
                 else:
                     # Reset mean forest
                     if self.include_mean_forest:
@@ -1597,6 +1748,21 @@ class BARTModel:
                             forest_model_config_mean.update_leaf_model_scale(
                                 current_leaf_scale
                             )
+                        if link_is_cloglog:
+                            # Reset all cloglog parameters to default values
+                            for j in range(train_size):
+                                forest_dataset_train.set_auxiliary_data_value(1, j, 0.0)
+                                forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
+                            # Initialize log-scale cutpoints to 0
+                            initial_gamma = np.zeros(cloglog_num_categories - 1)
+                            for j in range(cloglog_num_categories - 1):
+                                forest_dataset_train.set_auxiliary_data_value(
+                                    2,
+                                    j,
+                                    initial_gamma[j]
+                                )
+                            # Convert to cumulative exponentiated cutpoints
+                            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
                     # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset_root()
@@ -1737,6 +1903,37 @@ class BARTModel:
                             cpp_rng,
                         )
 
+                    # Cloglog Gibbs updates
+                    if link_is_cloglog:
+                        # Update auxiliary data slot 1 with current forest predictions
+                        forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
+                        for j in range(train_size):
+                            forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
+
+                        # Sample latent z_i's using truncated exponential
+                        ordinal_sampler.update_latent_variables(
+                            forest_dataset_train, residual_train, cpp_rng
+                        )
+
+                        # Sample gamma parameters (cutpoints)
+                        ordinal_sampler.update_gamma_params(
+                            forest_dataset_train,
+                            residual_train,
+                            cloglog_forest_shape,
+                            cloglog_forest_rate,
+                            cloglog_cutpoint_0,
+                            cpp_rng,
+                        )
+
+                        # Update cumulative sum of exp(gamma) values
+                        ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+
+                        # Retain cutpoint draw
+                        if keep_sample:
+                            cloglog_cutpoint_samples[:, sample_counter] = (
+                                forest_dataset_train.get_auxiliary_data_vector(2)
+                            )
+
         # Mark the model as sampled
         self.sampled = True
 
@@ -1757,7 +1954,14 @@ class BARTModel:
                 yhat_train_raw = yhat_train_raw[:, num_gfr:]
             if self.include_variance_forest:
                 sigma2_x_train_raw = sigma2_x_train_raw[:, num_gfr:]
+            if link_is_cloglog:
+                cloglog_cutpoint_samples = cloglog_cutpoint_samples[:, num_gfr:]
             self.num_samples -= num_gfr
+
+        # Store cloglog results
+        if link_is_cloglog:
+            self.cloglog_cutpoint_samples = cloglog_cutpoint_samples
+            self.cloglog_num_categories = cloglog_num_categories
 
         # Store predictions
         if self.sample_sigma2_global:

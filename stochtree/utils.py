@@ -24,8 +24,8 @@ def _validate_outcome_model(outcome: str, link: str):
         raise ValueError("Link function must be one of 'identity', 'probit', or 'cloglog'")
     if outcome == "continuous" and link != "identity":
         raise ValueError("Link function must be 'identity' for continuous models")
-    if outcome == "binary" and link != "probit":
-        raise ValueError("Link function must be 'probit' for binary models")
+    if outcome == "binary" and link not in ["probit", "cloglog"]:
+        raise ValueError("Link function must be 'probit' or 'cloglog' for binary models")
     if outcome == "ordinal" and link != "cloglog":
         raise ValueError("Link function must be 'cloglog' for ordinal models")
 

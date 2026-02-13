@@ -110,9 +110,9 @@ class ForestModelConfig:
         if leaf_model_type is None:
             leaf_model_type = 0
         if not _check_is_int(leaf_model_type):
-            raise ValueError("`leaf_model_type` must be an integer between 0 and 3")
-        elif leaf_model_type < 0 or leaf_model_type > 3:
-            raise ValueError("`leaf_model_type` must be an integer between 0 and 3")
+            raise ValueError("`leaf_model_type` must be an integer between 0 and 4")
+        elif leaf_model_type < 0 or leaf_model_type > 4:
+            raise ValueError("`leaf_model_type` must be an integer between 0 and 4")
         if not _check_is_int(leaf_dimension):
             raise ValueError("`leaf_dimension` must be an integer greater than 0")
         elif leaf_dimension <= 0:
@@ -192,6 +192,8 @@ class ForestModelConfig:
         self.cutpoint_grid_size = cutpoint_grid_size
         self.leaf_model_type = leaf_model_type
         self.leaf_model_scale = leaf_model_scale_array
+        self.cloglog_forest_shape = 2.0
+        self.cloglog_forest_rate = 2.0
 
     def update_feature_types(self, feature_types) -> None:
         """
@@ -384,6 +386,58 @@ class ForestModelConfig:
         self
         """
         self.variance_forest_scale = variance_forest_scale
+
+    def update_cloglog_forest_shape(self, cloglog_forest_shape: float) -> None:
+        """
+        Update shape parameter for cloglog leaf models
+
+        Parameters
+        ----------
+        cloglog_forest_shape : float
+            Shape parameter for cloglog leaf models
+
+        Returns
+        -------
+        self
+        """
+        self.cloglog_forest_shape = cloglog_forest_shape
+
+    def update_cloglog_forest_rate(self, cloglog_forest_rate: float) -> None:
+        """
+        Update rate parameter for cloglog leaf models
+
+        Parameters
+        ----------
+        cloglog_forest_rate : float
+            Rate parameter for cloglog leaf models
+
+        Returns
+        -------
+        self
+        """
+        self.cloglog_forest_rate = cloglog_forest_rate
+
+    def get_cloglog_forest_shape(self) -> float:
+        """
+        Query shape parameter for cloglog leaf models
+
+        Returns
+        -------
+        cloglog_forest_shape : float
+            Shape parameter for cloglog leaf models
+        """
+        return self.cloglog_forest_shape
+
+    def get_cloglog_forest_rate(self) -> float:
+        """
+        Query rate parameter for cloglog leaf models
+
+        Returns
+        -------
+        cloglog_forest_rate : float
+            Rate parameter for cloglog leaf models
+        """
+        return self.cloglog_forest_rate
 
     def update_cutpoint_grid_size(self, cutpoint_grid_size: int) -> None:
         """
