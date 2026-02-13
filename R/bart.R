@@ -1680,9 +1680,7 @@ bart <- function(
                 i - 1,
                 active_forest_preds[i]
               )
-            }
-            # Latent variables must be reset to 0 and burnt in
-            for (i in 1:train_size) {
+              # Latent variables must be reset to 0 and burnt in
               forest_dataset_train$set_auxiliary_data_value(0, i - 1, 0.0)
             }
           }
@@ -1779,9 +1777,7 @@ bart <- function(
                 i - 1,
                 active_forest_preds[i]
               )
-            }
-            # Latent variables must be reset to 0 and burnt in
-            for (i in 1:train_size) {
+              # Latent variables must be reset to 0 and burnt in
               forest_dataset_train$set_auxiliary_data_value(0, i - 1, 0.0)
             }
           }
@@ -1869,9 +1865,6 @@ bart <- function(
             # Reset all cloglog parameters to default values
             for (i in 1:train_size) {
               forest_dataset_train$set_auxiliary_data_value(0, i - 1, 0.0)
-            }
-            # Initialize forest predictions to zero (slot 1)
-            for (i in 1:train_size) {
               forest_dataset_train$set_auxiliary_data_value(1, i - 1, 0.0)
             }
             # Initialize log-scale cutpoints to 0
