@@ -85,14 +85,12 @@ est_probs_test <- predict(
 par(mfrow = c(2, 1))
 
 # Train set
-lambda_pred_train <- rowMeans(bart_model$y_hat_train) -
-  mean(bart_model$y_hat_train)
+lambda_pred_train <- rowMeans(bart_model$y_hat_train)
 plot(lambda_pred_train, gamma_true[1] + true_lambda_function[train_idx])
 abline(a = 0, b = 1, col = 'blue', lwd = 2)
 cor_train <- cor(
-  true_lambda_function[train_idx] +
-    mean(bart_model$cloglog_cutpoint_samples[1, ]),
-  gamma_true[1] + lambda_pred_train
+  gamma_true[1] + true_lambda_function[train_idx],
+  lambda_pred_train
 )
 text(
   min(true_lambda_function[train_idx]),
@@ -103,11 +101,13 @@ text(
 )
 
 # Test set
-lambda_pred_test <- rowMeans(bart_model$y_hat_test) -
-  mean(bart_model$y_hat_test)
+lambda_pred_test <- rowMeans(bart_model$y_hat_test)
 plot(lambda_pred_test, gamma_true[1] + true_lambda_function[test_idx])
 abline(a = 0, b = 1, col = 'blue', lwd = 2)
-cor_test <- cor(true_lambda_function[test_idx], lambda_pred_test)
+cor_test <- cor(
+  gamma_true[1] + true_lambda_function[test_idx],
+  lambda_pred_test
+)
 text(
   min(true_lambda_function[test_idx]),
   max(true_lambda_function[test_idx]),

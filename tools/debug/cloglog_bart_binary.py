@@ -88,9 +88,7 @@ est_probs_test = bart_model.predict(
 fig, axes = plt.subplots(2, 1, figsize=(8, 8))
 
 # Train set
-lambda_pred_train = np.mean(bart_model.y_hat_train, axis=1) - np.mean(
-    bart_model.y_hat_train
-)
+lambda_pred_train = np.mean(bart_model.y_hat_train, axis=1)
 axes[0].scatter(
     lambda_pred_train,
     gamma_true[0] + true_lambda_function[train_idx],
@@ -102,17 +100,15 @@ lims = [
 ]
 axes[0].plot(lims, lims, "b-", lw=2)
 cor_train = np.corrcoef(
-    true_lambda_function[train_idx],
-    gamma_true[0] + lambda_pred_train,
+    gamma_true[0] + true_lambda_function[train_idx],
+    lambda_pred_train,
 )[0, 1]
 axes[0].set_title(f"Train: Correlation = {cor_train:.3f}")
 axes[0].set_xlabel("Predicted lambda")
 axes[0].set_ylabel("True gamma + lambda")
 
 # Test set
-lambda_pred_test = np.mean(bart_model.y_hat_test, axis=1) - np.mean(
-    bart_model.y_hat_test
-)
+lambda_pred_test = np.mean(bart_model.y_hat_test, axis=1)
 axes[1].scatter(
     lambda_pred_test,
     gamma_true[0] + true_lambda_function[test_idx],
@@ -123,7 +119,7 @@ lims = [
     max(lambda_pred_test.max(), (gamma_true[0] + true_lambda_function[test_idx]).max()),
 ]
 axes[1].plot(lims, lims, "b-", lw=2)
-cor_test = np.corrcoef(true_lambda_function[test_idx], lambda_pred_test)[0, 1]
+cor_test = np.corrcoef(gamma_true[0] + true_lambda_function[test_idx], lambda_pred_test)[0, 1]
 axes[1].set_title(f"Test: Correlation = {cor_test:.3f}")
 axes[1].set_xlabel("Predicted lambda")
 axes[1].set_ylabel("True gamma + lambda")
