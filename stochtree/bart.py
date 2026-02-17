@@ -1958,10 +1958,11 @@ class BARTModel:
                 cloglog_cutpoint_samples = cloglog_cutpoint_samples[:, num_gfr:]
             self.num_samples -= num_gfr
 
-        # Store cloglog results
+        # Store cloglog results (cutpoints only for ordinal, num_categories always)
         if link_is_cloglog:
-            self.cloglog_cutpoint_samples = cloglog_cutpoint_samples
             self.cloglog_num_categories = cloglog_num_categories
+            if not outcome_is_binary:
+                self.cloglog_cutpoint_samples = cloglog_cutpoint_samples
 
         # Store predictions
         if self.sample_sigma2_global:
@@ -2058,7 +2059,7 @@ class BARTModel:
         terms : str, optional
             Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
         scale : str, optional
-            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
+            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, "probability", which transforms predictions into category probabilities, and "class", which returns the predicted class label. "probability" and "class" are only valid for models fit with a probit or cloglog outcome model. Default: "linear".
 
         Returns
         -------
@@ -2067,14 +2068,22 @@ class BARTModel:
         # Handle mean function scale
         if not isinstance(scale, str):
             raise ValueError("scale must be a string")
-        if scale not in ["linear", "probability"]:
-            raise ValueError("scale must either be 'linear' or 'probability'")
+        if scale not in ["linear", "probability", "class"]:
+            raise ValueError("scale must either be 'linear', 'probability', or 'class'")
         is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
-        if (scale == "probability") and (not is_probit):
+        is_binary_cloglog = self.outcome_model.link == "cloglog" and self.outcome_model.outcome == "binary"
+        is_ordinal_cloglog = self.outcome_model.link == "cloglog" and self.outcome_model.outcome == "ordinal"
+        is_cloglog = is_binary_cloglog or is_ordinal_cloglog
+        if (scale == "probability") and (not (is_probit or is_cloglog)):
             raise ValueError(
-                "scale cannot be 'probability' for models not fit with a probit outcome model"
+                "scale cannot be 'probability' for models not fit with a probit or cloglog outcome model"
+            )
+        if (scale == "class") and (not (is_probit or is_cloglog)):
+            raise ValueError(
+                "scale cannot be 'class' for models not fit with a probit or cloglog outcome model"
             )
         probability_scale = scale == "probability"
+        class_scale = scale == "class"
 
         # Handle prediction type
         if not isinstance(type, str):
@@ -2082,6 +2091,8 @@ class BARTModel:
         if type not in ["mean", "posterior"]:
             raise ValueError("type must either be 'mean' or 'posterior'")
         predict_mean = type == "mean"
+        if predict_mean and class_scale:
+            raise ValueError("Posterior mean predictions are not supported for scale = 'class'")
 
         # Handle prediction terms
         if not isinstance(terms, str) and not isinstance(terms, list):
@@ -2129,15 +2140,19 @@ class BARTModel:
         predict_rfx_intermediate = predict_y_hat and has_rfx
         predict_mean_forest_intermediate = predict_y_hat and has_mean_forest
 
-        # Check that we have at least one term to predict on probability scale
+        # Check that we have at least one term to predict on probability/class scale
         if (
-            probability_scale
+            (probability_scale or class_scale)
             and not predict_y_hat
             and not predict_mean_forest
             and not predict_rfx
         ):
             raise ValueError(
-                "scale can only be 'probability' if at least one mean term is requested"
+                "scale can only be 'probability' or 'class' if at least one mean term is requested"
+            )
+        if class_scale and not (predict_count == 1 and predict_y_hat):
+            raise ValueError(
+                "scale = 'class' is only supported when requesting a single 'y_hat' term"
             )
 
         # Check the model is valid
@@ -2281,17 +2296,52 @@ class BARTModel:
                 rfx_predictions = np.squeeze(rfx_predictions_raw[:, 0, :])
 
         # Combine into y hat predictions
-        if probability_scale:
-            if predict_y_hat and has_mean_forest and has_rfx:
-                y_hat = norm.cdf(mean_forest_predictions + rfx_predictions)
-                mean_forest_predictions = norm.cdf(mean_forest_predictions)
-                rfx_predictions = norm.cdf(rfx_predictions)
-            elif predict_y_hat and has_mean_forest:
-                y_hat = norm.cdf(mean_forest_predictions)
-                mean_forest_predictions = norm.cdf(mean_forest_predictions)
-            elif predict_y_hat and has_rfx:
-                y_hat = norm.cdf(rfx_predictions)
-                rfx_predictions = norm.cdf(rfx_predictions)
+        if probability_scale or class_scale:
+            if is_probit:
+                if predict_y_hat and has_mean_forest and has_rfx:
+                    y_hat = norm.cdf(mean_forest_predictions + rfx_predictions)
+                    mean_forest_predictions = norm.cdf(mean_forest_predictions)
+                    rfx_predictions = norm.cdf(rfx_predictions)
+                elif predict_y_hat and has_mean_forest:
+                    y_hat = norm.cdf(mean_forest_predictions)
+                    mean_forest_predictions = norm.cdf(mean_forest_predictions)
+                elif predict_y_hat and has_rfx:
+                    y_hat = norm.cdf(rfx_predictions)
+                    rfx_predictions = norm.cdf(rfx_predictions)
+            elif is_binary_cloglog:
+                mean_forest_predictions = np.exp(-np.exp(mean_forest_predictions))
+                if predict_y_hat:
+                    y_hat = mean_forest_predictions
+            elif is_ordinal_cloglog:
+                cloglog_num_categories = self.cloglog_num_categories
+                cloglog_cutpoint_samples = self.cloglog_cutpoint_samples
+                n_obs = X.shape[0] if isinstance(X, np.ndarray) else X.shape[0]
+                num_samples = self.num_samples
+                # Compute category probabilities: (n_obs, n_categories, n_samples)
+                mean_forest_probabilities = np.empty(
+                    (n_obs, cloglog_num_categories, num_samples)
+                )
+                for j in range(cloglog_num_categories):
+                    if j == 0:
+                        # P(Y=1) = 1 - exp(-exp(eta + gamma_1))
+                        mean_forest_probabilities[:, j, :] = 1.0 - np.exp(
+                            -np.exp(mean_forest_predictions + cloglog_cutpoint_samples[j, :])
+                        )
+                    elif j == cloglog_num_categories - 1:
+                        # P(Y=K) = 1 - sum(P(Y=1),...,P(Y=K-1))
+                        mean_forest_probabilities[:, j, :] = 1.0 - np.sum(
+                            mean_forest_probabilities[:, :j, :], axis=1
+                        )
+                    else:
+                        # P(Y=j) = exp(-exp(eta + gamma_{j-1})) * (1 - exp(-exp(eta + gamma_j)))
+                        mean_forest_probabilities[:, j, :] = np.exp(
+                            -np.exp(mean_forest_predictions + cloglog_cutpoint_samples[j - 1, :])
+                        ) * (1.0 - np.exp(
+                            -np.exp(mean_forest_predictions + cloglog_cutpoint_samples[j, :])
+                        ))
+                if predict_y_hat:
+                    y_hat = mean_forest_probabilities
+                mean_forest_predictions = mean_forest_probabilities
         else:
             if predict_y_hat and has_mean_forest and has_rfx:
                 y_hat = mean_forest_predictions + rfx_predictions
@@ -2303,11 +2353,26 @@ class BARTModel:
         # Collapse to posterior mean predictions if requested
         if predict_mean:
             if predict_mean_forest:
-                mean_forest_predictions = np.mean(mean_forest_predictions, axis=1)
+                if is_ordinal_cloglog and probability_scale:
+                    mean_forest_predictions = np.mean(mean_forest_predictions, axis=2)
+                else:
+                    mean_forest_predictions = np.mean(mean_forest_predictions, axis=1)
             if predict_rfx:
                 rfx_predictions = np.mean(rfx_predictions, axis=1)
             if predict_y_hat:
-                y_hat = np.mean(y_hat, axis=1)
+                if is_ordinal_cloglog and probability_scale:
+                    y_hat = np.mean(y_hat, axis=2)
+                else:
+                    y_hat = np.mean(y_hat, axis=1)
+
+        # Convert probabilities to classes if requested
+        if class_scale:
+            if is_ordinal_cloglog:
+                # For each (obs, sample), pick category with highest probability
+                # y_hat is (n_obs, n_categories, n_samples)
+                y_hat = np.argmax(y_hat, axis=1) + 1  # 1-indexed classes
+            else:
+                y_hat = np.where(y_hat < 0.5, 0, 1)
 
         if predict_count == 1:
             if predict_y_hat:
@@ -2835,15 +2900,16 @@ class BARTModel:
                 "sigma2_leaf_samples", self.leaf_scale_samples, "parameters"
             )
 
-        # Add cloglog parameters
+        # Add cloglog parameters (num_categories always, cutpoints only for ordinal)
         if self.outcome_model.link == "cloglog":
             bart_json.add_integer("cloglog_num_categories", self.cloglog_num_categories)
-            for i in range(self.cloglog_num_categories - 1):
-                bart_json.add_numeric_vector(
-                    f"cloglog_cutpoint_samples_{i + 1}",
-                    self.cloglog_cutpoint_samples[i, :],
-                    "parameters",
-                )
+            if self.outcome_model.outcome == "ordinal":
+                for i in range(self.cloglog_num_categories - 1):
+                    bart_json.add_numeric_vector(
+                        f"cloglog_cutpoint_samples_{i + 1}",
+                        self.cloglog_cutpoint_samples[i, :],
+                        "parameters",
+                    )
 
         # Add covariate preprocessor
         covariate_preprocessor_string = self._covariate_preprocessor.to_json()
@@ -2923,16 +2989,17 @@ class BARTModel:
                 "sigma2_leaf_samples", "parameters"
             )
 
-        # Unpack cloglog parameters
+        # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal)
         if self.outcome_model.link == "cloglog":
             self.cloglog_num_categories = bart_json.get_integer("cloglog_num_categories")
-            self.cloglog_cutpoint_samples = np.full(
-                (self.cloglog_num_categories - 1, self.num_samples), np.nan
-            )
-            for i in range(self.cloglog_num_categories - 1):
-                self.cloglog_cutpoint_samples[i, :] = bart_json.get_numeric_vector(
-                    f"cloglog_cutpoint_samples_{i + 1}", "parameters"
+            if self.outcome_model.outcome == "ordinal":
+                self.cloglog_cutpoint_samples = np.full(
+                    (self.cloglog_num_categories - 1, self.num_samples), np.nan
                 )
+                for i in range(self.cloglog_num_categories - 1):
+                    self.cloglog_cutpoint_samples[i, :] = bart_json.get_numeric_vector(
+                        f"cloglog_cutpoint_samples_{i + 1}", "parameters"
+                    )
 
         # Unpack covariate preprocessor
         covariate_preprocessor_string = bart_json.get_string("covariate_preprocessor")
@@ -3078,26 +3145,27 @@ class BARTModel:
                         leaf_scale_samples,
                     ))
 
-        # Unpack cloglog parameters
+        # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal)
         if self.outcome_model.link == "cloglog":
             self.cloglog_num_categories = json_object_default.get_integer(
                 "cloglog_num_categories"
             )
-            for i in range(len(json_object_list)):
-                num_samples_i = json_object_list[i].get_integer("num_samples")
-                cutpoints_i = np.full(
-                    (self.cloglog_num_categories - 1, num_samples_i), np.nan
-                )
-                for k in range(self.cloglog_num_categories - 1):
-                    cutpoints_i[k, :] = json_object_list[i].get_numeric_vector(
-                        f"cloglog_cutpoint_samples_{k + 1}", "parameters"
+            if self.outcome_model.outcome == "ordinal":
+                for i in range(len(json_object_list)):
+                    num_samples_i = json_object_list[i].get_integer("num_samples")
+                    cutpoints_i = np.full(
+                        (self.cloglog_num_categories - 1, num_samples_i), np.nan
                     )
-                if i == 0:
-                    self.cloglog_cutpoint_samples = cutpoints_i
-                else:
-                    self.cloglog_cutpoint_samples = np.concatenate(
-                        (self.cloglog_cutpoint_samples, cutpoints_i), axis=1
-                    )
+                    for k in range(self.cloglog_num_categories - 1):
+                        cutpoints_i[k, :] = json_object_list[i].get_numeric_vector(
+                            f"cloglog_cutpoint_samples_{k + 1}", "parameters"
+                        )
+                    if i == 0:
+                        self.cloglog_cutpoint_samples = cutpoints_i
+                    else:
+                        self.cloglog_cutpoint_samples = np.concatenate(
+                            (self.cloglog_cutpoint_samples, cutpoints_i), axis=1
+                        )
 
         # Unpack covariate preprocessor
         covariate_preprocessor_string = json_object_default.get_string(

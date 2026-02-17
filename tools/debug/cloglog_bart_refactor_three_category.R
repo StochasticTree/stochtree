@@ -2,7 +2,7 @@
 library(stochtree)
 
 # Set seed
-set.seed(2025)
+set.seed(2026)
 
 # Sample size and number of predictors
 n <- 2000
@@ -61,6 +61,7 @@ runtime <- system.time({
       keep_every = 1,
       num_chains = 1,
       verbose = FALSE,
+      random_seed = 3,
       outcome_model = outcome_model(outcome = 'ordinal', link = 'cloglog')
     ),
     mean_forest_params = list(num_trees = 50)
@@ -152,13 +153,7 @@ text(
   col = 'red'
 )
 
-# Compute average difference in estimated vs true class probabilities for training set
-mean(
-  log(-log(1 - rowMeans(est_probs_train[, 1, ]))) -
-    rowMeans(bart_model$y_hat_train)
-)
-
-# Plot estimated vs true class probabilities for training set
+# Compare estimated vs true class probabilities for training set
 par(mfrow = c(2, 2))
 for (j in 1:n_categories) {
   mean_probs <- rowMeans(est_probs_train[, j, ])
@@ -178,12 +173,6 @@ for (j in 1:n_categories) {
     col = 'red'
   )
 }
-
-# Compute average difference in estimated vs true class probabilities for test set
-mean(
-  log(-log(1 - rowMeans(est_probs_test[, 1, ]))) -
-    rowMeans(bart_model$y_hat_test)
-)
 
 # Compare estimated vs true class probabilities for test set
 par(mfrow = c(2, 2))

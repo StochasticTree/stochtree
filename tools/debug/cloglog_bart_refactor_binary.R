@@ -2,7 +2,7 @@
 library(stochtree)
 
 # Set seed
-set.seed(2025)
+set.seed(2026)
 
 # Sample size and number of predictors
 n <- 2000
@@ -15,7 +15,7 @@ true_lambda_function <- X %*% beta
 
 # Set cutpoints for ordinal categories (2 categories: 1, 2)
 n_categories <- 2
-gamma_true <- c(-1)
+gamma_true <- c(-2)
 ordinal_cutpoints <- log(cumsum(exp(gamma_true)))
 ordinal_cutpoints
 
@@ -61,37 +61,25 @@ runtime <- system.time({
       keep_every = 1,
       num_chains = 1,
       verbose = FALSE,
-      outcome_model = outcome_model(outcome = 'ordinal', link = 'cloglog')
+      outcome_model = outcome_model(outcome = 'binary', link = 'cloglog')
     ),
     mean_forest_params = list(num_trees = 50)
   )
 })
 
-# Traceplot of cutoff parameters
-par(mfrow = c(2, 1))
-plot(
-  bart_model$cloglog_cutpoint_samples[1, ],
-  type = 'l',
-  main = expression(gamma[1]),
-  ylab = "Value",
-  xlab = "MCMC Sample"
+# Compute category probabilities for train and test set
+est_probs_train <- predict(
+  bart_model,
+  X = X_train,
+  scale = "probability",
+  terms = "y_hat"
 )
-abline(h = gamma_true[1], col = 'red', lty = 2)
-
-# Histogram of cutoff parameters
-gamma1 <- bart_model$cloglog_cutpoint_samples[1, ] +
-  colMeans(bart_model$y_hat_train)
-summary(gamma1)
-hist(gamma1)
-
-# Traceplots of cutoff parameters combined with average forest predictions
-par(mfrow = c(2, 1))
-rowMeans(bart_model$cloglog_cutpoint_samples)
-moo <- t(bart_model$cloglog_cutpoint_samples) +
-  colMeans(bart_model$y_hat_train)
-plot(moo[, 1])
-abline(h = gamma_true[1] + mean(true_lambda_function[train_idx]))
-plot(bart_model$cloglog_cutpoint_samples[1, ])
+est_probs_test <- predict(
+  bart_model,
+  X = X_test,
+  scale = "probability",
+  terms = "y_hat"
+)
 
 # Compare forest predictions with the truth (for training and test sets)
 par(mfrow = c(2, 1))
@@ -128,116 +116,35 @@ text(
   col = 'red'
 )
 
-# Estimated ordinal class probabilities for the training set
-est_probs_train <- matrix(0, nrow = length(train_idx), ncol = n_categories)
-for (j in 1:n_categories) {
-  if (j == 1) {
-    est_probs_train[, j] <- rowMeans(
-      1 -
-        exp(
-          -exp(
-            bart_model$y_hat_train +
-              bart_model$cloglog_cutpoint_samples[j, ]
-          )
-        )
-    )
-  } else if (j == n_categories) {
-    est_probs_train[, j] <- 1 -
-      rowSums(est_probs_train[, 1:(j - 1), drop = FALSE])
-  } else {
-    est_probs_train[, j] <- rowMeans(
-      exp(
-        -exp(
-          bart_model$y_hat_train +
-            bart_model$cloglog_cutpoint_samples[j - 1, ]
-        )
-      ) *
-        (1 -
-          exp(
-            -exp(
-              bart_model$y_hat_train +
-                bart_model$cloglog_cutpoint_samples[j, ]
-            )
-          ))
-    )
-  }
-}
-# Compute average difference
-mean(
-  log(-log(1 - est_probs_train[, 1])) - rowMeans(bart_model$y_hat_train)
+# Compare estimated vs true class probabilities for train and test sets
+mean_probs_train <- rowMeans(est_probs_train)
+plot(
+  true_probs[train_idx, 2],
+  mean_probs_train,
+  xlab = "True Prob (Train Set)",
+  ylab = "Estimated Prob (Train Set)"
 )
-
-# Plot estimated vs true class probabilities for training set
-for (j in 1:n_categories) {
-  plot(
-    true_probs[train_idx, j],
-    est_probs_train[, j],
-    xlab = paste("True Prob Category", j),
-    ylab = paste("Estimated Prob Category", j)
-  )
-  abline(a = 0, b = 1, col = 'blue', lwd = 2)
-  cor_train_prob <- cor(true_probs[train_idx, j], est_probs_train[, j])
-  text(
-    min(true_probs[train_idx, j]),
-    max(est_probs_train[, j]),
-    paste('Correlation:', round(cor_train_prob, 3)),
-    adj = 0,
-    col = 'red'
-  )
-}
-
-# Estimated ordinal class probabilities for the test set
-est_probs_test <- matrix(0, nrow = length(test_idx), ncol = n_categories)
-for (j in 1:n_categories) {
-  if (j == 1) {
-    est_probs_test[, j] <- rowMeans(
-      1 -
-        exp(
-          -exp(
-            bart_model$y_hat_test +
-              bart_model$cloglog_cutpoint_samples[j, ]
-          )
-        )
-    )
-  } else if (j == n_categories) {
-    est_probs_test[, j] <- 1 -
-      rowSums(est_probs_test[, 1:(j - 1), drop = FALSE])
-  } else {
-    est_probs_test[, j] <- rowMeans(
-      exp(
-        -exp(
-          bart_model$y_hat_test +
-            bart_model$cloglog_cutpoint_samples[j - 1, ]
-        )
-      ) *
-        (1 -
-          exp(
-            -exp(
-              bart_model$y_hat_test +
-                bart_model$cloglog_cutpoint_samples[j, ]
-            )
-          ))
-    )
-  }
-}
-# Compute average difference
-mean(log(-log(1 - est_probs_test[, 1])) - rowMeans(bart_model$y_hat_test))
-
-# Plot estimated vs true class probabilities for test set
-for (j in 1:n_categories) {
-  plot(
-    true_probs[test_idx, j],
-    est_probs_test[, j],
-    xlab = paste("True Prob Category", j),
-    ylab = paste("Estimated Prob Category", j)
-  )
-  abline(a = 0, b = 1, col = 'blue', lwd = 2)
-  cor_test_prob <- cor(true_probs[test_idx, j], est_probs_test[, j])
-  text(
-    min(true_probs[test_idx, j]),
-    max(est_probs_test[, j]),
-    paste('Correlation:', round(cor_test_prob, 3)),
-    adj = 0,
-    col = 'red'
-  )
-}
+abline(a = 0, b = 1, col = 'blue', lwd = 2)
+cor_train_prob <- cor(true_probs[train_idx, 2], mean_probs_train)
+text(
+  min(true_probs[train_idx, 2]),
+  max(mean_probs_train),
+  paste('Correlation:', round(cor_train_prob, 3)),
+  adj = 0,
+  col = 'red'
+)
+plot(
+  true_probs[test_idx, 2],
+  mean_probs_test <- rowMeans(est_probs_test),
+  xlab = "True Prob (Test Set)",
+  ylab = "Estimated Prob (Test Set)"
+)
+abline(a = 0, b = 1, col = 'blue', lwd = 2)
+cor_test_prob <- cor(true_probs[test_idx, 2], mean_probs_test)
+text(
+  min(true_probs[test_idx, 2]),
+  max(mean_probs_test),
+  paste('Correlation:', round(cor_test_prob, 3)),
+  adj = 0,
+  col = 'red'
+)

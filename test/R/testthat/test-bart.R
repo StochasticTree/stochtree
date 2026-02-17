@@ -736,15 +736,11 @@ test_that("Cloglog Binary BART", {
   # Check model outputs
   expect_true(!is.null(bart_model$y_hat_train))
   expect_true(!is.null(bart_model$y_hat_test))
-  expect_true(!is.null(bart_model$cloglog_cutpoint_samples))
+  expect_true(is.null(bart_model$cloglog_cutpoint_samples))
   expect_equal(nrow(bart_model$y_hat_train), n_train)
   expect_equal(ncol(bart_model$y_hat_train), 10)
   expect_equal(nrow(bart_model$y_hat_test), n_test)
   expect_equal(ncol(bart_model$y_hat_test), 10)
-  # Binary has 2 categories, so 1 cutpoint row
-  expect_equal(nrow(bart_model$cloglog_cutpoint_samples), 1)
-  expect_equal(ncol(bart_model$cloglog_cutpoint_samples), 10)
-  expect_equal(bart_model$model_params$cloglog_num_categories, 2)
 
   # Predict from model on linear scale (terms = "y_hat" for single matrix return)
   expect_no_error({
@@ -769,6 +765,8 @@ test_that("Cloglog Binary BART", {
       terms = "y_hat"
     )
   })
+  expect_equal(nrow(preds_prob), n_test)
+  expect_equal(ncol(preds_prob), 10)
 
   # Predict posterior mean on linear scale
   expect_no_error({
@@ -781,6 +779,30 @@ test_that("Cloglog Binary BART", {
     )
   })
   expect_equal(length(preds_mean), n_test)
+
+  # Predict posterior mean on probability scale
+  expect_no_error({
+    preds_mean_prob <- predict(
+      bart_model,
+      X = X_test,
+      type = "mean",
+      scale = "probability",
+      terms = "y_hat"
+    )
+  })
+  expect_equal(length(preds_mean_prob), n_test)
+
+  # Predict class labels
+  expect_no_error({
+    preds_class <- predict(
+      bart_model,
+      X = X_test,
+      type = "posterior",
+      scale = "class",
+      terms = "y_hat"
+    )
+  })
+  expect_true(all(preds_class >= 0 & preds_class <= 1))
 })
 
 test_that("Cloglog Binary BART with GFR", {
@@ -824,11 +846,9 @@ test_that("Cloglog Binary BART with GFR", {
   # Check model outputs
   expect_true(!is.null(bart_model$y_hat_train))
   expect_true(!is.null(bart_model$y_hat_test))
-  expect_true(!is.null(bart_model$cloglog_cutpoint_samples))
+  expect_true(is.null(bart_model$cloglog_cutpoint_samples))
   expect_equal(nrow(bart_model$y_hat_train), n_train)
   expect_equal(ncol(bart_model$y_hat_train), 10)
-  expect_equal(nrow(bart_model$cloglog_cutpoint_samples), 1)
-  expect_equal(ncol(bart_model$cloglog_cutpoint_samples), 10)
 })
 
 test_that("Cloglog Ordinal BART", {
@@ -1020,11 +1040,9 @@ test_that("Cloglog BART multi-chain", {
 
   # Check model outputs: 2 chains x 10 MCMC = 20 total samples
   expect_true(!is.null(bart_model$y_hat_train))
-  expect_true(!is.null(bart_model$cloglog_cutpoint_samples))
+  expect_true(is.null(bart_model$cloglog_cutpoint_samples))
   expect_equal(nrow(bart_model$y_hat_train), n_train)
   expect_equal(ncol(bart_model$y_hat_train), 20)
-  expect_equal(nrow(bart_model$cloglog_cutpoint_samples), 1)
-  expect_equal(ncol(bart_model$cloglog_cutpoint_samples), 20)
 })
 
 test_that("Cloglog BART JSON round-trip", {

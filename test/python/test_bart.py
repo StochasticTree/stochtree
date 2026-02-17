@@ -1279,3 +1279,297 @@ class TestBART:
             bart_model_3.leaf_scale_samples[num_mcmc : (2 * num_mcmc)],
             bart_model_2.leaf_scale_samples,
         )
+
+    def test_cloglog_binary_bart(self):
+        # RNG
+        random_seed = 101
+        rng = np.random.default_rng(random_seed)
+
+        # Generate simulated data
+        n = 200
+        p = 5
+        X = rng.uniform(0, 1, (n, p))
+        f_X = 2.0 * (X[:, 0] > 0.5).astype(float) - 1.0
+        prob = 1.0 - np.exp(-np.exp(f_X))
+        y = rng.binomial(1, prob, n).astype(float)
+
+        # Test-train split
+        sample_inds = np.arange(n)
+        train_inds, test_inds = train_test_split(sample_inds, test_size=0.2, random_state=random_seed)
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_train = X_train.shape[0]
+        n_test = X_test.shape[0]
+
+        # BART settings
+        num_gfr = 0
+        num_burnin = 10
+        num_mcmc = 10
+
+        # Fit cloglog binary model (MCMC only)
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            general_params={
+                "outcome_model": OutcomeModel(outcome="binary", link="cloglog"),
+                "sample_sigma2_global": False,
+                "num_chains": 1,
+            },
+        )
+
+        # Check model outputs
+        assert bart_model.y_hat_train is not None
+        assert bart_model.y_hat_test is not None
+        assert not hasattr(bart_model, 'cloglog_cutpoint_samples') or bart_model.cloglog_cutpoint_samples is None
+        assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
+        assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
+
+        # Predict from model on linear scale
+        preds_linear = bart_model.predict(
+            X=X_test, type="posterior", scale="linear", terms="y_hat"
+        )
+        assert preds_linear.shape == (n_test, num_mcmc)
+
+        # Predict from model on probability scale
+        preds_prob = bart_model.predict(
+            X=X_test, type="posterior", scale="probability", terms="y_hat"
+        )
+        assert preds_prob.shape == (n_test, num_mcmc)
+
+        # Predict posterior mean on linear scale
+        preds_mean = bart_model.predict(
+            X=X_test, type="mean", scale="linear", terms="y_hat"
+        )
+        assert preds_mean.shape == (n_test,)
+
+        # Predict posterior mean on probability scale
+        preds_mean_prob = bart_model.predict(
+            X=X_test, type="mean", scale="probability", terms="y_hat"
+        )
+        assert preds_mean_prob.shape == (n_test,)
+
+        # Predict class labels
+        preds_class = bart_model.predict(
+            X=X_test, type="posterior", scale="class", terms="y_hat"
+        )
+        assert preds_class.shape == (n_test, num_mcmc)
+        assert np.all((preds_class >= 0) & (preds_class <= 1))
+
+    def test_cloglog_binary_bart_with_gfr(self):
+        # RNG
+        random_seed = 101
+        rng = np.random.default_rng(random_seed)
+
+        # Generate simulated data
+        n = 200
+        p = 5
+        X = rng.uniform(0, 1, (n, p))
+        f_X = 2.0 * (X[:, 0] > 0.5).astype(float) - 1.0
+        prob = 1.0 - np.exp(-np.exp(f_X))
+        y = rng.binomial(1, prob, n).astype(float)
+
+        # Test-train split
+        sample_inds = np.arange(n)
+        train_inds, test_inds = train_test_split(sample_inds, test_size=0.2, random_state=random_seed)
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_train = X_train.shape[0]
+        n_test = X_test.shape[0]
+
+        # BART settings
+        num_gfr = 10
+        num_burnin = 0
+        num_mcmc = 10
+
+        # Fit cloglog binary model with GFR warmstart
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            general_params={
+                "outcome_model": OutcomeModel(outcome="binary", link="cloglog"),
+                "sample_sigma2_global": False,
+                "num_chains": 1,
+            },
+        )
+
+        # Check model outputs
+        assert bart_model.y_hat_train is not None
+        assert bart_model.y_hat_test is not None
+        assert not hasattr(bart_model, 'cloglog_cutpoint_samples') or bart_model.cloglog_cutpoint_samples is None
+        assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
+        assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
+
+    def test_cloglog_ordinal_bart(self):
+        # RNG
+        random_seed = 101
+        rng = np.random.default_rng(random_seed)
+
+        # Generate simulated ordinal data (3 categories)
+        n = 300
+        p = 5
+        X = rng.uniform(0, 1, (n, p))
+        f_X = 2.0 * (X[:, 0] > 0.5).astype(float) - 1.0
+        gamma_true = np.array([-1.0, 0.5])
+        n_categories = 3
+
+        # Compute ordinal class probabilities
+        true_probs = np.zeros((n, n_categories))
+        true_probs[:, 0] = 1.0 - np.exp(-np.exp(gamma_true[0] + f_X))
+        true_probs[:, 1] = np.exp(-np.exp(gamma_true[0] + f_X)) * (
+            1.0 - np.exp(-np.exp(gamma_true[1] + f_X))
+        )
+        true_probs[:, 2] = 1.0 - true_probs[:, 0] - true_probs[:, 1]
+
+        # Generate ordinal outcomes (1-indexed)
+        y = np.array([
+            rng.choice(np.arange(1, n_categories + 1), p=true_probs[i, :])
+            for i in range(n)
+        ]).astype(float)
+
+        # Test-train split
+        sample_inds = np.arange(n)
+        train_inds, test_inds = train_test_split(sample_inds, test_size=0.2, random_state=random_seed)
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_train = X_train.shape[0]
+        n_test = X_test.shape[0]
+
+        # BART settings
+        num_gfr = 0
+        num_burnin = 10
+        num_mcmc = 10
+
+        # Fit cloglog ordinal model (MCMC only)
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            general_params={
+                "outcome_model": OutcomeModel(outcome="ordinal", link="cloglog"),
+                "sample_sigma2_global": False,
+                "num_chains": 1,
+            },
+        )
+
+        # Check model outputs
+        assert bart_model.y_hat_train is not None
+        assert bart_model.y_hat_test is not None
+        assert bart_model.cloglog_cutpoint_samples is not None
+        assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
+        assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
+        # 3 categories means 2 cutpoint rows
+        assert bart_model.cloglog_cutpoint_samples.shape == (2, num_mcmc)
+        assert bart_model.cloglog_num_categories == 3
+
+        # Predict from model on linear scale
+        preds_linear = bart_model.predict(
+            X=X_test, type="posterior", scale="linear", terms="y_hat"
+        )
+        assert preds_linear.shape == (n_test, num_mcmc)
+
+        # Predict from model on probability scale
+        preds_prob = bart_model.predict(
+            X=X_test, type="posterior", scale="probability", terms="y_hat"
+        )
+        assert preds_prob.shape == (n_test, n_categories, num_mcmc)
+
+        # Predict posterior mean on linear scale
+        preds_mean = bart_model.predict(
+            X=X_test, type="mean", scale="linear", terms="y_hat"
+        )
+        assert preds_mean.shape == (n_test,)
+
+        # Predict posterior mean on probability scale
+        preds_mean_prob = bart_model.predict(
+            X=X_test, type="mean", scale="probability", terms="y_hat"
+        )
+        assert preds_mean_prob.shape == (n_test, n_categories)
+
+        # Predict class labels
+        preds_class = bart_model.predict(
+            X=X_test, type="posterior", scale="class", terms="y_hat"
+        )
+        assert preds_class.shape == (n_test, num_mcmc)
+        assert np.all((preds_class >= 1) & (preds_class <= n_categories))
+
+    def test_cloglog_ordinal_bart_with_gfr(self):
+        # RNG
+        random_seed = 101
+        rng = np.random.default_rng(random_seed)
+
+        # Generate simulated ordinal data (3 categories)
+        n = 300
+        p = 5
+        X = rng.uniform(0, 1, (n, p))
+        f_X = 0.5 * (X[:, 0] > 0.5).astype(float) - 0.25
+        gamma_true = np.array([-0.5, 0.5])
+        n_categories = 3
+
+        # Compute ordinal class probabilities
+        true_probs = np.zeros((n, n_categories))
+        true_probs[:, 0] = 1.0 - np.exp(-np.exp(gamma_true[0] + f_X))
+        true_probs[:, 1] = np.exp(-np.exp(gamma_true[0] + f_X)) * (
+            1.0 - np.exp(-np.exp(gamma_true[1] + f_X))
+        )
+        true_probs[:, 2] = 1.0 - true_probs[:, 0] - true_probs[:, 1]
+
+        # Generate ordinal outcomes (1-indexed)
+        y = np.array([
+            rng.choice(np.arange(1, n_categories + 1), p=true_probs[i, :])
+            for i in range(n)
+        ]).astype(float)
+
+        # Test-train split
+        sample_inds = np.arange(n)
+        train_inds, test_inds = train_test_split(sample_inds, test_size=0.2, random_state=random_seed)
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_train = X_train.shape[0]
+        n_test = X_test.shape[0]
+
+        # BART settings
+        num_gfr = 10
+        num_burnin = 0
+        num_mcmc = 10
+
+        # Fit cloglog ordinal model with GFR warmstart
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            X_test=X_test,
+            num_gfr=num_gfr,
+            num_burnin=num_burnin,
+            num_mcmc=num_mcmc,
+            general_params={
+                "outcome_model": OutcomeModel(outcome="ordinal", link="cloglog"),
+                "sample_sigma2_global": False,
+                "num_chains": 1,
+            },
+        )
+
+        # Check model outputs
+        assert bart_model.y_hat_train is not None
+        assert bart_model.y_hat_test is not None
+        assert bart_model.cloglog_cutpoint_samples is not None
+        assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
+        assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
+        assert bart_model.cloglog_cutpoint_samples.shape == (2, num_mcmc)

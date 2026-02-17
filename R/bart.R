@@ -2314,7 +2314,7 @@ bart <- function(
     if (has_test) {
       result[["y_hat_test"]] = y_hat_test
     }
-    if (link_is_cloglog) {
+    if (link_is_cloglog && !outcome_is_binary) {
       result[["cloglog_cutpoint_samples"]] = cloglog_cutpoint_samples
     }
   }
@@ -2432,8 +2432,11 @@ predict.bartmodel <- function(
   outcome_model <- object$model_params$outcome_model
   is_probit <- (outcome_model$link == "probit" &&
     outcome_model$outcome == "binary")
-  is_cloglog <- ((outcome_model$link == "cloglog") &&
-    (outcome_model$outcome == "binary" || outcome_model$outcome == "ordinal"))
+  is_binary_cloglog <- (outcome_model$link == "cloglog" &&
+    outcome_model$outcome == "binary")
+  is_ordinal_cloglog <- (outcome_model$link == "cloglog" &&
+    outcome_model$outcome == "ordinal")
+  is_cloglog <- is_binary_cloglog || is_ordinal_cloglog
   if ((scale == "probability") && (!(is_probit || is_cloglog))) {
     stop(
       "scale cannot be 'probability' for models not fit with a probit or cloglog outcome model"
@@ -2495,6 +2498,11 @@ predict.bartmodel <- function(
   }
   predict_rfx_intermediate <- (predict_y_hat && has_rfx)
   predict_mean_forest_intermediate <- (predict_y_hat && has_mean_forest)
+  if (class_scale) {
+    if (!((predict_count == 1) && (predict_y_hat))) {
+      stop("Class scale can only be used with y_hat predictions")
+    }
+  }
 
   # Check that we have at least one term to predict on probability scale
   if (
@@ -2695,7 +2703,12 @@ predict.bartmodel <- function(
           rfx_predictions <- pnorm(rfx_predictions)
         }
       }
-    } else if (is_cloglog) {
+    } else if (is_binary_cloglog) {
+      mean_forest_predictions <- exp(-exp(mean_forest_predictions))
+      if (predict_y_hat) {
+        y_hat <- mean_forest_predictions
+      }
+    } else if (is_ordinal_cloglog) {
       cloglog_num_categories <- object$model_params$cloglog_num_categories
       cloglog_cutpoint_samples <- object$cloglog_cutpoint_samples
       mean_forest_probabilities <- array(
@@ -2756,7 +2769,7 @@ predict.bartmodel <- function(
   # Collapse to posterior mean predictions if requested
   if (predict_mean) {
     if (predict_mean_forest) {
-      if (is_cloglog && probability_scale) {
+      if (is_ordinal_cloglog && probability_scale) {
         mean_forest_predictions <- apply(mean_forest_predictions, c(1, 2), mean)
       } else {
         mean_forest_predictions <- rowMeans(mean_forest_predictions)
@@ -2767,11 +2780,20 @@ predict.bartmodel <- function(
       rfx_predictions <- rowMeans(rfx_predictions)
     }
     if (predict_y_hat) {
-      if (is_cloglog && probability_scale) {
+      if (is_ordinal_cloglog && probability_scale) {
         y_hat <- apply(y_hat, c(1, 2), mean)
       } else {
         y_hat <- rowMeans(y_hat)
       }
+    }
+  }
+
+  # Convert probabilities to classes if requested
+  if (class_scale) {
+    if (is_ordinal_cloglog) {
+      y_hat <- apply(y_hat, c(1, 3), which.max)
+    } else {
+      y_hat <- ifelse(y_hat < 0.5, 0, 1)
     }
   }
 
@@ -3427,12 +3449,14 @@ saveBARTModelToJson <- function(object) {
       "cloglog_num_categories",
       object$model_params$cloglog_num_categories
     )
-    for (i in 1:(object$model_params$cloglog_num_categories - 1)) {
-      jsonobj$add_vector(
-        paste0("cloglog_cutpoint_samples_", i),
-        object$cloglog_cutpoint_samples[i, ],
-        "parameters"
-      )
+    if (object$model_params$outcome_model$outcome == "ordinal") {
+      for (i in 1:(object$model_params$cloglog_num_categories - 1)) {
+        jsonobj$add_vector(
+          paste0("cloglog_cutpoint_samples_", i),
+          object$cloglog_cutpoint_samples[i, ],
+          "parameters"
+        )
+      }
     }
   }
   if (object$model_params$sample_sigma2_global) {
@@ -3716,7 +3740,10 @@ createBARTModelFromJson <- function(json_object) {
       "parameters"
     )
   }
-  if (model_params[["outcome_model"]]$link == "cloglog") {
+  if (
+    model_params[["outcome_model"]]$link == "cloglog" &&
+      model_params[["outcome_model"]]$outcome == "ordinal"
+  ) {
     cloglog_cutpoint_samples <- matrix(
       NA_real_,
       model_params[["cloglog_num_categories"]] - 1,
@@ -4074,7 +4101,10 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
       }
     }
   }
-  if (model_params[["outcome_model"]]$link == "cloglog") {
+  if (
+    model_params[["outcome_model"]]$link == "cloglog" &&
+      model_params[["outcome_model"]]$outcome == "ordinal"
+  ) {
     cloglog_cutpoint_samples <- matrix(
       NA_real_,
       model_params[["cloglog_num_categories"]] - 1,
@@ -4347,7 +4377,10 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
       }
     }
   }
-  if (model_params[["outcome_model"]]$link == "cloglog") {
+  if (
+    model_params[["outcome_model"]]$link == "cloglog" &&
+      model_params[["outcome_model"]]$outcome == "ordinal"
+  ) {
     cloglog_cutpoint_samples <- matrix(
       NA_real_,
       model_params[["cloglog_num_categories"]] - 1,

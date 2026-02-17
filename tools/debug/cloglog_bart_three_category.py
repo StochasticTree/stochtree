@@ -1,13 +1,11 @@
 # Load library
 import time
-
 import matplotlib.pyplot as plt
 import numpy as np
-
 from stochtree import BARTModel, OutcomeModel
 
 # Set seed
-np.random.seed(2025)
+np.random.seed(2026)
 
 # Sample size and number of predictors
 n = 2000
@@ -32,9 +30,8 @@ for j in range(n_categories):
     elif j == n_categories - 1:
         true_probs[:, j] = 1 - np.sum(true_probs[:, :j], axis=1)
     else:
-        true_probs[:, j] = (
-            np.exp(-np.exp(gamma_true[j - 1] + true_lambda_function))
-            * (1 - np.exp(-np.exp(gamma_true[j] + true_lambda_function)))
+        true_probs[:, j] = np.exp(-np.exp(gamma_true[j - 1] + true_lambda_function)) * (
+            1 - np.exp(-np.exp(gamma_true[j] + true_lambda_function))
         )
 
 # Generate ordinal outcomes (1-indexed like the R version)
@@ -68,12 +65,17 @@ bart_model.sample(
         sample_sigma2_global=False,
         keep_every=1,
         num_chains=1,
+        random_seed=1,
         outcome_model=OutcomeModel(outcome="ordinal", link="cloglog"),
     ),
     mean_forest_params=dict(num_trees=50),
 )
 runtime = time.time() - start_time
 print(f"Runtime: {runtime:.1f}s")
+
+# Compute category probabilities for train and test set using predict
+est_probs_train = bart_model.predict(X=X_train, scale="probability", terms="y_hat")
+est_probs_test = bart_model.predict(X=X_test, scale="probability", terms="y_hat")
 
 # Traceplots of cutoff parameters
 fig, axes = plt.subplots(2, 1, figsize=(10, 6))
@@ -93,8 +95,12 @@ gamma1 = bart_model.cloglog_cutpoint_samples[0, :] + np.mean(
 gamma2 = bart_model.cloglog_cutpoint_samples[1, :] + np.mean(
     bart_model.y_hat_train, axis=0
 )
-print(f"gamma1 + mean(yhat): min={gamma1.min():.3f}, mean={gamma1.mean():.3f}, max={gamma1.max():.3f}")
-print(f"gamma2 + mean(yhat): min={gamma2.min():.3f}, mean={gamma2.mean():.3f}, max={gamma2.max():.3f}")
+print(
+    f"gamma1 + mean(yhat): min={gamma1.min():.3f}, mean={gamma1.mean():.3f}, max={gamma1.max():.3f}"
+)
+print(
+    f"gamma2 + mean(yhat): min={gamma2.min():.3f}, mean={gamma2.mean():.3f}, max={gamma2.max():.3f}"
+)
 
 fig, axes = plt.subplots(1, 2, figsize=(10, 4))
 axes[0].hist(gamma1, bins=30)
@@ -105,13 +111,19 @@ plt.tight_layout()
 plt.show()
 
 # Traceplots of cutoff parameters combined with average forest predictions
-moo = bart_model.cloglog_cutpoint_samples.T + np.mean(bart_model.y_hat_train, axis=0).reshape(-1, 1)
+moo = bart_model.cloglog_cutpoint_samples.T + np.mean(
+    bart_model.y_hat_train, axis=0
+).reshape(-1, 1)
 fig, axes = plt.subplots(3, 2, figsize=(12, 10))
 axes[0, 0].plot(moo[:, 0])
-axes[0, 0].axhline(y=gamma_true[0] + np.mean(true_lambda_function[train_idx]), color="red")
+axes[0, 0].axhline(
+    y=gamma_true[0] + np.mean(true_lambda_function[train_idx]), color="red"
+)
 axes[0, 0].set_title("gamma_1 + mean(y_hat)")
 axes[0, 1].plot(moo[:, 1])
-axes[0, 1].axhline(y=gamma_true[1] + np.mean(true_lambda_function[train_idx]), color="red")
+axes[0, 1].axhline(
+    y=gamma_true[1] + np.mean(true_lambda_function[train_idx]), color="red"
+)
 axes[0, 1].set_title("gamma_2 + mean(y_hat)")
 axes[1, 0].plot(bart_model.cloglog_cutpoint_samples[0, :])
 axes[1, 0].set_title("gamma_1 (raw)")
@@ -157,46 +169,15 @@ axes[1].set_ylabel("True lambda")
 plt.tight_layout()
 plt.show()
 
-# Estimated ordinal class probabilities for the training set
-# y_hat_train shape: (n_train, num_samples), cutpoint shape: (n_categories-1, num_samples)
-est_probs_train = np.zeros((len(train_idx), n_categories))
-for j in range(n_categories):
-    if j == 0:
-        # P(Y=1) = 1 - exp(-exp(gamma_1 + lambda))
-        est_probs_train[:, j] = np.mean(
-            1 - np.exp(-np.exp(
-                bart_model.y_hat_train + bart_model.cloglog_cutpoint_samples[j, :]
-            )),
-            axis=1,
-        )
-    elif j == n_categories - 1:
-        est_probs_train[:, j] = 1 - np.sum(est_probs_train[:, :j], axis=1)
-    else:
-        # P(Y=j+1) = exp(-exp(gamma_j + lambda)) * (1 - exp(-exp(gamma_{j+1} + lambda)))
-        est_probs_train[:, j] = np.mean(
-            np.exp(-np.exp(
-                bart_model.y_hat_train + bart_model.cloglog_cutpoint_samples[j - 1, :]
-            ))
-            * (1 - np.exp(-np.exp(
-                bart_model.y_hat_train + bart_model.cloglog_cutpoint_samples[j, :]
-            ))),
-            axis=1,
-        )
-
-# Compute average difference
-avg_diff_train = np.mean(
-    np.log(-np.log(1 - est_probs_train[:, 0])) - np.mean(bart_model.y_hat_train, axis=1)
-)
-print(f"Avg diff (train): {avg_diff_train:.6f}")
-
 # Plot estimated vs true class probabilities for training set
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 for j in range(n_categories):
+    mean_probs = np.mean(est_probs_train[:, j, :], axis=1)
     ax = axes[j // 2, j % 2]
-    ax.scatter(true_probs[train_idx, j], est_probs_train[:, j], s=5, alpha=0.5)
-    lims = [0, max(true_probs[train_idx, j].max(), est_probs_train[:, j].max())]
+    ax.scatter(true_probs[train_idx, j], mean_probs, s=5, alpha=0.5)
+    lims = [0, max(true_probs[train_idx, j].max(), mean_probs.max())]
     ax.plot(lims, lims, "b-", lw=2)
-    cor_val = np.corrcoef(true_probs[train_idx, j], est_probs_train[:, j])[0, 1]
+    cor_val = np.corrcoef(true_probs[train_idx, j], mean_probs)[0, 1]
     ax.set_xlabel(f"True Prob Category {j + 1}")
     ax.set_ylabel(f"Estimated Prob Category {j + 1}")
     ax.set_title(f"Correlation: {cor_val:.3f}")
@@ -205,43 +186,15 @@ if n_categories < 4:
 plt.tight_layout()
 plt.show()
 
-# Estimated ordinal class probabilities for the test set
-est_probs_test = np.zeros((len(test_idx), n_categories))
-for j in range(n_categories):
-    if j == 0:
-        est_probs_test[:, j] = np.mean(
-            1 - np.exp(-np.exp(
-                bart_model.y_hat_test + bart_model.cloglog_cutpoint_samples[j, :]
-            )),
-            axis=1,
-        )
-    elif j == n_categories - 1:
-        est_probs_test[:, j] = 1 - np.sum(est_probs_test[:, :j], axis=1)
-    else:
-        est_probs_test[:, j] = np.mean(
-            np.exp(-np.exp(
-                bart_model.y_hat_test + bart_model.cloglog_cutpoint_samples[j - 1, :]
-            ))
-            * (1 - np.exp(-np.exp(
-                bart_model.y_hat_test + bart_model.cloglog_cutpoint_samples[j, :]
-            ))),
-            axis=1,
-        )
-
-# Compute average difference
-avg_diff_test = np.mean(
-    np.log(-np.log(1 - est_probs_test[:, 0])) - np.mean(bart_model.y_hat_test, axis=1)
-)
-print(f"Avg diff (test): {avg_diff_test:.6f}")
-
 # Compare estimated vs true class probabilities for test set
 fig, axes = plt.subplots(2, 2, figsize=(10, 10))
 for j in range(n_categories):
+    mean_probs = np.mean(est_probs_test[:, j, :], axis=1)
     ax = axes[j // 2, j % 2]
-    ax.scatter(true_probs[test_idx, j], est_probs_test[:, j], s=5, alpha=0.5)
-    lims = [0, max(true_probs[test_idx, j].max(), est_probs_test[:, j].max())]
+    ax.scatter(true_probs[test_idx, j], mean_probs, s=5, alpha=0.5)
+    lims = [0, max(true_probs[test_idx, j].max(), mean_probs.max())]
     ax.plot(lims, lims, "b-", lw=2)
-    cor_val = np.corrcoef(true_probs[test_idx, j], est_probs_test[:, j])[0, 1]
+    cor_val = np.corrcoef(true_probs[test_idx, j], mean_probs)[0, 1]
     ax.set_xlabel(f"True Prob Category {j + 1}")
     ax.set_ylabel(f"Estimated Prob Category {j + 1}")
     ax.set_title(f"Correlation: {cor_val:.3f}")
