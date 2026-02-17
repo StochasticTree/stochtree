@@ -1,0 +1,270 @@
+---
+title: "Ordinal Regression in StochTree"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{CLogLog-Ordinal-BART}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+bibliography: vignettes.bib
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette demonstrates how to use BART to model ordinal outcomes with a complementary log-log link function (@alam2025unified).
+
+To begin, we load the `stochtree` package.
+
+```{r}
+library(stochtree)
+```
+
+# Introduction to Ordinal BART with CLogLog Link
+
+Ordinal data represents outcomes that have a natural ordering but undefined distances between categories. Examples include survey responses (strongly disagree, disagree, neutral, agree, strongly agree), severity ratings (mild, moderate, severe), or educational levels (elementary, high school, college, graduate).
+
+The complementary log-log (cloglog) model uses the link function:
+$$\text{cloglog}(p) = \log(-\log(1-p))$$
+
+This link function is asymmetric and particularly appropriate when the probability of being in higher categories changes rapidly at certain thresholds, making it different from the symmetric probit or logit links commonly used in ordinal regression.
+
+In the BART framework with cloglog ordinal regression, we model:
+$$P(Y = k \mid Y \geq k, X = x) = 1 - \exp\left(-e^{\gamma_k + \lambda(x)}\right)$$
+
+where $\lambda(x)$ is represented by a stochastic tree ensemble and $c_k = \log \sum_{j \leq k}e^{\gamma_j}$ are the cutpoints for the ordinal categories.
+
+## Data Simulation
+
+```{r}
+# Set seed
+random_seed <- 2026
+set.seed(random_seed)
+
+# Sample size and number of predictors
+n <- 2000
+p <- 5
+
+# Design matrix and true lambda function
+X <- matrix(rnorm(n * p), n, p)
+beta <- rep(1 / sqrt(p), p)
+true_lambda_function <- X %*% beta
+
+# Set cutpoints for ordinal categories (3 categories: 1, 2, 3)
+n_categories <- 3
+gamma_true <- c(-2, 1)
+ordinal_cutpoints <- log(cumsum(exp(gamma_true)))
+
+# True ordinal class probabilities
+true_probs <- matrix(0, nrow = n, ncol = n_categories)
+for (j in 1:n_categories) {
+  if (j == 1) {
+    true_probs[, j] <- 1 - exp(-exp(gamma_true[j] + true_lambda_function))
+  } else if (j == n_categories) {
+    true_probs[, j] <- 1 - rowSums(true_probs[, 1:(j - 1), drop = FALSE])
+  } else {
+    true_probs[, j] <- exp(-exp(gamma_true[j - 1] + true_lambda_function)) *
+      (1 - exp(-exp(gamma_true[j] + true_lambda_function)))
+  }
+}
+
+# Generate ordinal outcomes
+y <- sapply(1:nrow(X), function(i) {
+  sample(1:n_categories, 1, prob = true_probs[i, ])
+})
+cat("Outcome distribution:", table(y), "\n")
+```
+
+## Model Fitting
+
+We specify the cloglog link function for modeling an ordinal outcome 
+by modifying the `general_params` argument list as follows:
+
+```{r, eval = FALSE}
+general_params <- list(
+  outcome_model = outcome_model(outcome = "ordinal", link = "cloglog")
+)
+```
+
+and passing this list to the `bart()` function, which we do below:
+
+```{r}
+# Train test split
+train_idx <- sample(1:n, size = floor(0.8 * n))
+test_idx <- setdiff(1:n, train_idx)
+X_train <- X[train_idx, ]
+y_train <- y[train_idx]
+X_test <- X[test_idx, ]
+y_test <- y[test_idx]
+
+# Sample the cloglog ordinal BART model
+bart_model <- bart(
+  X_train = X_train,
+  y_train = y_train,
+  X_test = X_test,
+  num_gfr = 0,
+  num_burnin = 1000,
+  num_mcmc = 1000,
+  general_params = list(
+    cutpoint_grid_size = 100,
+    sample_sigma2_global = FALSE,
+    keep_every = 1,
+    num_chains = 1,
+    verbose = FALSE,
+    random_seed = random_seed,
+    outcome_model = outcome_model(outcome = 'ordinal', link = 'cloglog')
+  ),
+  mean_forest_params = list(num_trees = 50, sample_sigma2_leaf = FALSE)
+)
+```
+
+As with any other BART model in `stochtree`, we can use the `predict` function on our ordinal model. 
+Specifying `scale = "linear"` and `terms = "y_hat"` will simply return predictions from the estimated $\lambda(x)$ function, 
+but users can estimate class probabilities via `scale = "probability"`, which by default will return an array of dimension 
+(`num_observations`, `num_categories`, `num_samples`), where `num_observations = nrow(X)`, `num_categories` is the number of 
+unique ordinal labels that the outcome takes, and `num_samples` is the number of draws of the model. Specifying `type = "mean"` 
+collapses the output to a `num_observations` x `num_categories` matrix, with the average posterior class probability for each observation.
+Users can also specify `type = "class"` for the maximum a posteriori (MAP) class label estimate for each draw of each observation.
+
+Below we compute the posterior class probabilities for the train and test sets.
+
+```{r}
+est_probs_train <- predict(
+  bart_model,
+  X = X_train,
+  scale = "probability",
+  terms = "y_hat"
+)
+est_probs_test <- predict(
+  bart_model,
+  X = X_test,
+  scale = "probability",
+  terms = "y_hat"
+)
+```
+
+## Model Results and Interpretation
+
+Since one of the "cutpoints" $c_k$ above is fixed for identifiability, we plot the posterior distribution of the other two cutpoints and 
+compare to their true simulated values.
+
+```{r}
+gamma1 <- bart_model$cloglog_cutpoint_samples[1, ] +
+  colMeans(bart_model$y_hat_train)
+hist(
+  gamma1,
+  main = "Posterior Distribution of Cutpoint 1",
+  xlab = "Cutpoint 1",
+  freq = FALSE
+)
+abline(v = gamma_true[1], col = 'blue', lty = 3, lwd = 3)
+gamma2 <- bart_model$cloglog_cutpoint_samples[2, ] +
+  colMeans(bart_model$y_hat_train)
+hist(
+  gamma2,
+  main = "Posterior Distribution of Cutpoint 2",
+  xlab = "Cutpoint 2",
+  freq = FALSE
+)
+abline(v = gamma_true[2], col = 'blue', lty = 3, lwd = 3)
+```
+
+Similarly, we can compare the true value of the latent utility function $\lambda(x)$ to the (mean-shifted) BART forest predictions
+
+```{r}
+# Train set predicted versus actual
+lambda_pred_train <- rowMeans(bart_model$y_hat_train) -
+  mean(bart_model$y_hat_train)
+plot(
+  lambda_pred_train,
+  true_lambda_function[train_idx],
+  main = "Train Set: Predicted vs Actual",
+  xlab = "Predicted",
+  ylab = "Actual"
+)
+abline(a = 0, b = 1, col = 'blue', lwd = 2)
+cor_train <- cor(true_lambda_function[train_idx], lambda_pred_train)
+text(
+  min(true_lambda_function[train_idx]),
+  max(true_lambda_function[train_idx]),
+  paste('Correlation:', round(cor_train, 3)),
+  adj = 0,
+  col = 'red'
+)
+
+# Test set predicted versus actual
+lambda_pred_test <- rowMeans(bart_model$y_hat_test) -
+  mean(bart_model$y_hat_test)
+plot(
+  lambda_pred_test,
+  true_lambda_function[test_idx],
+  main = "Test Set: Predicted vs Actual",
+  xlab = "Predicted",
+  ylab = "Actual"
+)
+abline(a = 0, b = 1, col = 'blue', lwd = 2)
+cor_test <- cor(true_lambda_function[test_idx], lambda_pred_test)
+text(
+  min(true_lambda_function[test_idx]),
+  max(true_lambda_function[test_idx]),
+  paste('Correlation:', round(cor_test, 3)),
+  adj = 0,
+  col = 'red'
+)
+```
+
+Finally, we can compare the estimated class probabilities with their true simulated values for each class on the training set
+
+```{r}
+for (j in 1:n_categories) {
+  mean_probs <- rowMeans(est_probs_train[, j, ])
+  plot(
+    true_probs[train_idx, j],
+    mean_probs,
+    main = paste("Training Set: True vs Estimated Probability, Class", j),
+    xlab = "True Class Probability",
+    ylab = "Estimated Class Probability"
+  )
+  abline(a = 0, b = 1, col = 'blue', lwd = 2)
+  cor_train_prob <- cor(true_probs[train_idx, j], mean_probs)
+  text(
+    min(true_probs[train_idx, j]),
+    max(mean_probs),
+    paste('Correlation:', round(cor_train_prob, 3)),
+    adj = 0,
+    col = 'red'
+  )
+}
+```
+
+And we run the same comparison on the test set
+
+```{r}
+for (j in 1:n_categories) {
+  mean_probs <- rowMeans(est_probs_test[, j, ])
+  plot(
+    true_probs[test_idx, j],
+    mean_probs,
+    main = paste("Test Set: True vs Estimated Probability, Class", j),
+    xlab = "True Class Probability",
+    ylab = "Estimated Class Probability"
+  )
+  abline(a = 0, b = 1, col = 'blue', lwd = 2)
+  cor_test_prob <- cor(true_probs[test_idx, j], mean_probs)
+  text(
+    min(true_probs[test_idx, j]),
+    max(mean_probs),
+    paste('Correlation:', round(cor_test_prob, 3)),
+    adj = 0,
+    col = 'red'
+  )
+}
+```
+
+# References
