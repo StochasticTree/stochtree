@@ -3040,6 +3040,18 @@ summary.bartmodel <- function(object, ...) {
     print(quantiles_sigma2)
   }
 
+  # Determine whether outcome model is binary / ordinal
+  outcome_model <- object$model_params$outcome_model
+  is_probit <- (outcome_model$link == "probit" &&
+    outcome_model$outcome == "binary")
+  is_binary_cloglog <- (outcome_model$link == "cloglog" &&
+    outcome_model$outcome == "binary")
+  is_ordinal_cloglog <- (outcome_model$link == "cloglog" &&
+    outcome_model$outcome == "ordinal")
+  non_continuous_outcome <- (is_probit ||
+    is_binary_cloglog ||
+    is_ordinal_cloglog)
+
   # In-sample predictions
   if (!is.null(object$y_hat_train)) {
     y_hat_train_mean <- rowMeans(object$y_hat_train)
@@ -3050,8 +3062,13 @@ summary.bartmodel <- function(object, ...) {
       y_hat_train_mean,
       probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
     )
+    if (non_continuous_outcome) {
+      summary_text <- "Summary of in-sample inverse-link-scale posterior predictions: \n%d observations, mean = %.3f, standard deviation = %.3f, quantiles:\n"
+    } else {
+      summary_text <- "Summary of in-sample posterior mean predictions: \n%d observations, mean = %.3f, standard deviation = %.3f, quantiles:\n"
+    }
     cat(sprintf(
-      "Summary of in-sample posterior mean predictions: \n%d observations, mean = %.3f, standard deviation = %.3f, quantiles:\n",
+      summary_text,
       n_y_hat_train,
       mean_y_hat_train,
       sd_y_hat_train
@@ -3069,8 +3086,13 @@ summary.bartmodel <- function(object, ...) {
       y_hat_test_mean,
       probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
     )
+    if (non_continuous_outcome) {
+      summary_text <- "Summary of test-set inverse-link-scale posterior predictions: \n%d observations, mean = %.3f, standard deviation = %.3f, quantiles:\n"
+    } else {
+      summary_text <- "Summary of test-set posterior mean predictions: \n%d observations, mean = %.3f, standard deviation = %.3f, quantiles:\n"
+    }
     cat(sprintf(
-      "Summary of test-set posterior mean predictions: \n%d observations, mean = %.3f, standard deviation = %.3f, quantiles:\n",
+      summary_text,
       n_y_hat_test,
       mean_y_hat_test,
       sd_y_hat_test
