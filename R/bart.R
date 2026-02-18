@@ -959,6 +959,7 @@ bart <- function(
     # Compute a probit-scale offset and fix scale to 1
     y_bar_train <- qnorm(mean(y_train))
     y_std_train <- 1
+    standardize <- FALSE
 
     # Set a pseudo outcome by subtracting mean(y_train) from y_train
     resid_train <- y_train - mean(y_train)
@@ -1014,6 +1015,7 @@ bart <- function(
     # Fix offset to 0 and scale to 1
     y_bar_train <- 0
     y_std_train <- 1
+    standardize <- FALSE
 
     # Remap outcomes to start from 0
     resid_train <- as.numeric(y_train - min(unique_outcomes))
@@ -2879,16 +2881,35 @@ print.bartmodel <- function(x, ...) {
   outcome_model <- x$model_params$outcome_model
   is_probit <- (outcome_model$link == "probit" &&
     outcome_model$outcome == "binary")
+  is_binary_cloglog <- (outcome_model$link == "cloglog" &&
+    outcome_model$outcome == "binary")
+  is_ordinal_cloglog <- (outcome_model$link == "cloglog" &&
+    outcome_model$outcome == "ordinal")
+  if (is_ordinal_cloglog) {
+    num_categories <- x$model_params$cloglog_num_categories
+    outcome_model_summary <- paste0(
+      "Ordinal outcome with ",
+      num_categories,
+      " categories was modeled with a complementary log-log (cloglog) link function"
+    )
+  } else if (is_binary_cloglog) {
+    outcome_model_summary <- paste0(
+      "Binary outcome was modeled with a complementary log-log (cloglog) link function"
+    )
+  } else if (is_probit) {
+    outcome_model_summary <- paste0(
+      "Binary outcome was modeled with a probit link function"
+    )
+  } else {
+    outcome_model_summary <- paste0(
+      "Continuous outcome was modeled as Gaussian"
+    )
+  }
   if (x$model_params$leaf_regression) {
     summary_message <- paste0(
       summary_message,
       "\n",
-      "Outcome was modeled ",
-      ifelse(
-        is_probit,
-        "with a probit link",
-        "as gaussian"
-      ),
+      outcome_model_summary,
       " with a leaf regression prior with ",
       x$model_params$leaf_dimension,
       " bases for the mean forest"
@@ -2897,24 +2918,14 @@ print.bartmodel <- function(x, ...) {
     summary_message <- paste0(
       summary_message,
       "\n",
-      "Outcome was modeled ",
-      ifelse(
-        is_probit,
-        "with a probit link",
-        "as gaussian"
-      ),
+      outcome_model_summary,
       " with a constant leaf prior for the mean forest"
     )
   } else {
     summary_message <- paste0(
       summary_message,
       "\n",
-      "Outcome was modeled ",
-      ifelse(
-        is_probit,
-        "with a probit link",
-        "as gaussian"
-      ),
+      outcome_model_summary,
     )
   }
 
