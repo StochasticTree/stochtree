@@ -1177,7 +1177,7 @@ bart <- function(
 
   # Separate ordinal sampler object for cloglog
   if (link_is_cloglog) {
-    ordinal_sampler <- stochtree:::ordinal_sampler_cpp()
+    ordinal_sampler <- ordinal_sampler_cpp()
   }
 
   # Sampling data structures
@@ -1451,7 +1451,7 @@ bart <- function(
       forest_dataset_train$set_auxiliary_data_value(2, i - 1, initial_gamma[i])
     }
     # Convert to cumulative exponentiated cutpoints directly in C++
-    stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+    ordinal_sampler_update_cumsum_exp_cpp(
       ordinal_sampler,
       forest_dataset_train$data_ptr
     )
@@ -1537,7 +1537,7 @@ bart <- function(
           }
 
           # Sample latent z_i's using truncated exponential
-          stochtree:::ordinal_sampler_update_latent_variables_cpp(
+          ordinal_sampler_update_latent_variables_cpp(
             ordinal_sampler,
             forest_dataset_train$data_ptr,
             outcome_train$data_ptr,
@@ -1545,7 +1545,7 @@ bart <- function(
           )
 
           # Sample gamma parameters (cutpoints)
-          stochtree:::ordinal_sampler_update_gamma_params_cpp(
+          ordinal_sampler_update_gamma_params_cpp(
             ordinal_sampler,
             forest_dataset_train$data_ptr,
             outcome_train$data_ptr,
@@ -1556,7 +1556,7 @@ bart <- function(
           )
 
           # Update cumulative sum of exp(gamma) values
-          stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+          ordinal_sampler_update_cumsum_exp_cpp(
             ordinal_sampler,
             forest_dataset_train$data_ptr
           )
@@ -1671,7 +1671,7 @@ bart <- function(
                 current_cutpoints[i]
               )
             }
-            stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+            ordinal_sampler_update_cumsum_exp_cpp(
               ordinal_sampler,
               forest_dataset_train$data_ptr
             )
@@ -1771,7 +1771,7 @@ bart <- function(
                 current_cutpoints[i]
               )
             }
-            stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+            ordinal_sampler_update_cumsum_exp_cpp(
               ordinal_sampler,
               forest_dataset_train$data_ptr
             )
@@ -1888,7 +1888,7 @@ bart <- function(
               )
             }
             # Convert to cumulative exponentiated cutpoints directly in C++
-            stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+            ordinal_sampler_update_cumsum_exp_cpp(
               ordinal_sampler,
               forest_dataset_train$data_ptr
             )
@@ -2042,7 +2042,7 @@ bart <- function(
             }
 
             # Sample latent z_i's using truncated exponential
-            stochtree:::ordinal_sampler_update_latent_variables_cpp(
+            ordinal_sampler_update_latent_variables_cpp(
               ordinal_sampler,
               forest_dataset_train$data_ptr,
               outcome_train$data_ptr,
@@ -2050,7 +2050,7 @@ bart <- function(
             )
 
             # Sample gamma parameters (cutpoints)
-            stochtree:::ordinal_sampler_update_gamma_params_cpp(
+            ordinal_sampler_update_gamma_params_cpp(
               ordinal_sampler,
               forest_dataset_train$data_ptr,
               outcome_train$data_ptr,
@@ -2061,7 +2061,7 @@ bart <- function(
             )
 
             # Update cumulative sum of exp(gamma) values
-            stochtree:::ordinal_sampler_update_cumsum_exp_cpp(
+            ordinal_sampler_update_cumsum_exp_cpp(
               ordinal_sampler,
               forest_dataset_train$data_ptr
             )
