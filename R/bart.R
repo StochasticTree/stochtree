@@ -3122,6 +3122,17 @@ plot.bartmodel <- function(x, ...) {
   has_sigma2_samples <- x$model_params$sample_sigma2_global
   has_mean_forest_preds <- !is.null(x$y_hat_train)
 
+  # Check if model is ordinal / binary
+  is_probit <- (x$model_params$outcome_model$link == "probit" &&
+    x$model_params$outcome_model$outcome == "binary")
+  is_binary_cloglog <- (x$model_params$outcome_model$link == "cloglog" &&
+    x$model_params$outcome_model$outcome == "binary")
+  is_ordinal_cloglog <- (x$model_params$outcome_model$link == "cloglog" &&
+    x$model_params$outcome_model$outcome == "ordinal")
+  non_continuous_outcome <- (is_probit ||
+    is_binary_cloglog ||
+    is_ordinal_cloglog)
+
   # First try combinations of sigma2 and mean forest predictions
   if (has_sigma2_samples || has_mean_forest_preds) {
     if (has_sigma2_samples) {
@@ -3132,11 +3143,16 @@ plot.bartmodel <- function(x, ...) {
         main = "Global error scale traceplot"
       )
     } else if (has_mean_forest_preds) {
+      if (non_continuous_outcome) {
+        plot_text <- "In-sample inverse-link-scale prediction trace for the first train set observation"
+      } else {
+        plot_text <- "In-sample mean function trace for the first train set observation"
+      }
       plot(
         x$y_hat_train[1, ],
         type = "l",
         ylab = "Predictions",
-        main = "In-sample mean function trace for the first train set observation"
+        main = plot_text
       )
     }
   } else {

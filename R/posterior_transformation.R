@@ -736,7 +736,7 @@ sample_bart_posterior_predictive <- function(
   check_model_is_valid(model_object)
 
   # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
-  is_gaussian <- model_object$model_params$outcome_model$link == "linear"
+  is_gaussian <- model_object$model_params$outcome_model$link == "identity"
   is_probit <- model_object$model_params$outcome_model$link == "probit"
   is_cloglog <- model_object$model_params$outcome_model$link == "cloglog"
   is_binary_cloglog <- is_cloglog &&
