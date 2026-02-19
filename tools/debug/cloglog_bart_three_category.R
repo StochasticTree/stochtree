@@ -195,4 +195,71 @@ for (j in 1:n_categories) {
   )
 }
 
+# Evaluate test set posterior interval coverage of lambda(x)
+preds <- predict(bart_model, X = X_test, terms = "y_hat", scale = "linear")
+adj <- -1 * mean(rowMeans(preds))
+linear_interval <- compute_bart_posterior_interval(
+  bart_model,
+  X = X_test,
+  terms = "y_hat",
+  scale = "linear"
+)
+plot(rowMeans(preds) + adj, true_lambda_function[test_idx])
+points(
+  linear_interval$lower + adj,
+  true_lambda_function[test_idx],
+  col = 'blue'
+)
+points(
+  linear_interval$upper + adj,
+  true_lambda_function[test_idx],
+  col = 'blue'
+)
+abline(0, 1)
+linear_coverage <- (((linear_interval$lower + adj) <=
+  true_lambda_function[test_idx]) &
+  ((linear_interval$upper + adj) >= true_lambda_function[test_idx]))
+mean(linear_coverage)
+
+# Evaluate test set posterior interval coverage of survival function
+probability_interval <- compute_bart_posterior_interval(
+  bart_model,
+  X = X_test,
+  terms = "y_hat",
+  scale = "probability"
+)
+probability_coverage_gt1 <- (((probability_interval$lower[, 1]) <=
+  rowSums(true_probs[test_idx, 2:n_categories, drop = FALSE])) &
+  ((probability_interval$upper[, 1]) >=
+    rowSums(true_probs[test_idx, 2:n_categories, drop = FALSE])))
+mean(probability_coverage_gt1)
+probability_coverage_gt2 <- (((probability_interval$lower[, 2]) <=
+  rowSums(true_probs[test_idx, 3:n_categories, drop = FALSE])) &
+  ((probability_interval$upper[, 2]) >=
+    rowSums(true_probs[test_idx, 3:n_categories, drop = FALSE])))
+mean(probability_coverage_gt2)
+probability_coverage_le1 <- (((1 - probability_interval$upper[, 1]) <=
+  true_probs[test_idx, 1, drop = FALSE]) &
+  ((1 - probability_interval$lower[, 1]) >=
+    true_probs[test_idx, 1, drop = FALSE]))
+mean(probability_coverage_le1)
+
+# Compute test set prediction contrast on probability scale
+X0 <- X_test
+X1 <- X_test + 1
+linear_contrast <- compute_contrast_bart_model(
+  bart_model,
+  X_0 = X0,
+  X_1 = X1,
+  type = "posterior",
+  scale = "linear"
+)
+probability_contrast <- compute_contrast_bart_model(
+  bart_model,
+  X_0 = X0,
+  X_1 = X1,
+  type = "posterior",
+  scale = "probability"
+)
+
 runtime

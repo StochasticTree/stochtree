@@ -682,3 +682,243 @@ test_that("BCF predictions with random effects", {
     )
   })
 })
+
+test_that("BART cloglog binary: posterior interval and contrast", {
+  # Generate binary cloglog data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  prob_y1 <- 1 - exp(-exp(true_lambda))
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+
+  # Fit binary cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "binary", link = "cloglog")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_true("lower" %in% names(interval_linear))
+  expect_true("upper" %in% names(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_equal(length(interval_linear$upper), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  interval_prob <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "probability",
+    X = X_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(length(interval_prob$lower), n_test)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+
+  # Test contrast on probability scale
+  contrast_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_prob))
+  expect_equal(nrow(contrast_prob), n_test)
+
+  # Test contrast with type = "mean"
+  contrast_mean_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  contrast_mean_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.numeric(contrast_mean_prob))
+  expect_equal(length(contrast_mean_prob), n_test)
+})
+
+test_that("BART cloglog ordinal: posterior interval and contrast", {
+  # Generate ordinal cloglog data (3 categories)
+  set.seed(42)
+  n <- 100
+  p <- 3
+  n_categories <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  gamma_true <- c(-2, 1)
+
+  # Compute class probabilities
+  true_probs <- matrix(0, nrow = n, ncol = n_categories)
+  for (j in 1:n_categories) {
+    if (j == 1) {
+      true_probs[, j] <- 1 - exp(-exp(gamma_true[j] + true_lambda))
+    } else if (j == n_categories) {
+      true_probs[, j] <- 1 - rowSums(true_probs[, 1:(j - 1), drop = FALSE])
+    } else {
+      true_probs[, j] <- exp(-exp(gamma_true[j - 1] + true_lambda)) *
+        (1 - exp(-exp(gamma_true[j] + true_lambda)))
+    }
+  }
+
+  # Generate ordinal outcomes
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+
+  # Fit ordinal cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "ordinal", link = "cloglog")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  # For ordinal models, probability scale returns survival probabilities P(Y > k)
+  # which are (n_test, n_categories - 1) matrices
+  interval_prob <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "probability",
+    X = X_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(nrow(interval_prob$lower), n_test)
+  expect_equal(ncol(interval_prob$lower), n_categories - 1)
+  expect_equal(nrow(interval_prob$upper), n_test)
+  expect_equal(ncol(interval_prob$upper), n_categories - 1)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+
+  # Test contrast on probability scale (ordinal returns 3D array)
+  contrast_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.array(contrast_prob))
+  expect_equal(dim(contrast_prob)[1], n_test)
+  expect_equal(dim(contrast_prob)[2], n_categories - 1)
+
+  # Test contrast with type = "mean" on linear scale
+  contrast_mean_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  # Test contrast with type = "mean" on probability scale
+  # For ordinal, mean contrast should be (n_test, n_categories - 1) matrix
+  contrast_mean_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_mean_prob))
+  expect_equal(nrow(contrast_mean_prob), n_test)
+  expect_equal(ncol(contrast_mean_prob), n_categories - 1)
+})
