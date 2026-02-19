@@ -3695,6 +3695,7 @@ class BCFModel:
                 scale=np.sqrt(ppd_variance),
                 size=(ppd_draw_multiplier, num_observations, num_posterior_draws),
             )
+            ppd_array = np.transpose(ppd_array, (1, 2, 0))
         else:
             ppd_array = np.random.normal(
                 loc=ppd_mean,

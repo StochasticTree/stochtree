@@ -856,3 +856,630 @@ class TestPredict:
         )
         assert ppd1.shape == (n_test, num_mcmc)
         assert set(np.unique(ppd1)).issubset(set(range(1, n_categories + 1)))
+
+    def test_bart_gaussian_interval_and_contrast(self):
+        # Generate gaussian data
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 3
+        X = rng.uniform(size=(n, p))
+        beta = np.full(p, 1 / np.sqrt(p))
+        mu = X @ beta
+        y = rng.normal(mu, 1.0)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+
+        # Fit gaussian BART model (default link)
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=10,
+        )
+
+        # Test posterior interval on linear scale (mean_forest term)
+        interval_linear = bart_model.compute_posterior_interval(
+            terms="mean_forest",
+            level=0.95,
+            scale="linear",
+            X=X_test,
+        )
+        assert "lower" in interval_linear
+        assert "upper" in interval_linear
+        assert interval_linear["lower"].shape == (n_test,)
+        assert interval_linear["upper"].shape == (n_test,)
+        assert np.all(interval_linear["lower"] <= interval_linear["upper"])
+
+        # Test posterior interval for y_hat term
+        interval_yhat = bart_model.compute_posterior_interval(
+            terms="y_hat",
+            level=0.95,
+            scale="linear",
+            X=X_test,
+        )
+        assert interval_yhat["lower"].shape == (n_test,)
+        assert np.all(interval_yhat["lower"] <= interval_yhat["upper"])
+
+        # Test contrast on linear scale, type = "posterior"
+        X0 = X_test
+        X1 = X_test + 0.5
+        contrast_posterior = bart_model.compute_contrast(
+            X_0=X0,
+            X_1=X1,
+            type="posterior",
+            scale="linear",
+        )
+        assert contrast_posterior.shape[0] == n_test
+
+        # Test contrast with type = "mean"
+        contrast_mean = bart_model.compute_contrast(
+            X_0=X0,
+            X_1=X1,
+            type="mean",
+            scale="linear",
+        )
+        assert contrast_mean.shape == (n_test,)
+
+    def test_bart_probit_binary_interval_and_contrast(self):
+        # Generate binary probit data
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 3
+        X = rng.uniform(size=(n, p))
+        beta = np.full(p, 1 / np.sqrt(p))
+        mu = X @ beta
+        prob_y1 = norm.cdf(mu)
+        y = rng.binomial(1, prob_y1).astype(float)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+
+        # Fit binary probit BART model
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=10,
+            general_params={
+                "sample_sigma2_global": False,
+                "outcome_model": OutcomeModel(outcome="binary", link="probit"),
+            },
+        )
+
+        # Test posterior interval on linear scale
+        interval_linear = bart_model.compute_posterior_interval(
+            terms="mean_forest",
+            level=0.95,
+            scale="linear",
+            X=X_test,
+        )
+        assert "lower" in interval_linear
+        assert "upper" in interval_linear
+        assert interval_linear["lower"].shape == (n_test,)
+        assert interval_linear["upper"].shape == (n_test,)
+        assert np.all(interval_linear["lower"] <= interval_linear["upper"])
+
+        # Test posterior interval on probability scale
+        interval_prob = bart_model.compute_posterior_interval(
+            terms="mean_forest",
+            level=0.95,
+            scale="probability",
+            X=X_test,
+        )
+        assert interval_prob["lower"].shape == (n_test,)
+        assert interval_prob["upper"].shape == (n_test,)
+        assert np.all(interval_prob["lower"] >= 0)
+        assert np.all(interval_prob["upper"] <= 1)
+        assert np.all(interval_prob["lower"] <= interval_prob["upper"])
+
+        # Test contrast on linear scale
+        X0 = X_test
+        X1 = X_test + 0.5
+        contrast_linear = bart_model.compute_contrast(
+            X_0=X0,
+            X_1=X1,
+            type="posterior",
+            scale="linear",
+        )
+        assert contrast_linear.shape[0] == n_test
+
+        # Test contrast on probability scale
+        contrast_prob = bart_model.compute_contrast(
+            X_0=X0,
+            X_1=X1,
+            type="posterior",
+            scale="probability",
+        )
+        assert contrast_prob.shape[0] == n_test
+
+        # Test contrast with type = "mean" on linear scale
+        contrast_mean_linear = bart_model.compute_contrast(
+            X_0=X0,
+            X_1=X1,
+            type="mean",
+            scale="linear",
+        )
+        assert contrast_mean_linear.shape == (n_test,)
+
+        # Test contrast with type = "mean" on probability scale
+        contrast_mean_prob = bart_model.compute_contrast(
+            X_0=X0,
+            X_1=X1,
+            type="mean",
+            scale="probability",
+        )
+        assert contrast_mean_prob.shape == (n_test,)
+
+    def test_bart_gaussian_posterior_predictive(self):
+        # Generate gaussian data
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 3
+        X = rng.uniform(size=(n, p))
+        beta = np.full(p, 1 / np.sqrt(p))
+        mu = X @ beta
+        y = rng.normal(mu, 1.0)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+        num_mcmc = 10
+
+        # Fit gaussian BART model (default link)
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=num_mcmc,
+        )
+
+        # Test with multiple draws per sample
+        ppd = bart_model.sample_posterior_predictive(
+            X=X_test, num_draws_per_sample=3
+        )
+        assert ppd.shape == (n_test, num_mcmc, 3)
+        assert np.issubdtype(ppd.dtype, np.floating)
+
+        # Test with single draw per sample
+        ppd1 = bart_model.sample_posterior_predictive(
+            X=X_test, num_draws_per_sample=1
+        )
+        assert ppd1.shape == (n_test, num_mcmc)
+        assert np.issubdtype(ppd1.dtype, np.floating)
+
+    def test_bart_probit_binary_posterior_predictive(self):
+        # Generate binary probit data
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 3
+        X = rng.uniform(size=(n, p))
+        beta = np.full(p, 1 / np.sqrt(p))
+        mu = X @ beta
+        prob_y1 = norm.cdf(mu)
+        y = rng.binomial(1, prob_y1).astype(float)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+        num_mcmc = 10
+
+        # Fit binary probit BART model
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=num_mcmc,
+            general_params={
+                "sample_sigma2_global": False,
+                "outcome_model": OutcomeModel(outcome="binary", link="probit"),
+            },
+        )
+
+        # Test with multiple draws per sample
+        ppd = bart_model.sample_posterior_predictive(
+            X=X_test, num_draws_per_sample=3
+        )
+        assert ppd.shape == (n_test, num_mcmc, 3)
+        assert set(np.unique(ppd)).issubset({0, 1})
+
+        # Test with single draw per sample
+        ppd1 = bart_model.sample_posterior_predictive(
+            X=X_test, num_draws_per_sample=1
+        )
+        assert ppd1.shape == (n_test, num_mcmc)
+        assert set(np.unique(ppd1)).issubset({0, 1})
+
+    def test_bcf_gaussian_interval_and_contrast(self):
+        # Generate gaussian causal data
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 3
+        X = rng.uniform(size=(n, p))
+        pi_x = norm.cdf(X[:, 0])
+        Z = rng.binomial(1, pi_x).astype(float)
+        mu_x = X[:, 0] + X[:, 1]
+        tau_x = np.ones(n)
+        y = mu_x + tau_x * Z + rng.normal(size=n)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        Z_train = Z[train_inds]
+        Z_test = Z[test_inds]
+        pi_train = pi_x[train_inds]
+        pi_test = pi_x[test_inds]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+        num_mcmc = 10
+
+        # Fit gaussian BCF model
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            propensity_train=pi_train,
+            X_test=X_test,
+            Z_test=Z_test,
+            propensity_test=pi_test,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=num_mcmc,
+        )
+
+        # Test posterior interval on linear scale (prognostic_function term)
+        interval_prog = bcf_model.compute_posterior_interval(
+            terms="prognostic_function",
+            level=0.95,
+            scale="linear",
+            X=X_test,
+            Z=Z_test,
+            propensity=pi_test,
+        )
+        assert "lower" in interval_prog
+        assert "upper" in interval_prog
+        assert interval_prog["lower"].shape == (n_test,)
+        assert interval_prog["upper"].shape == (n_test,)
+        assert np.all(interval_prog["lower"] <= interval_prog["upper"])
+
+        # Test posterior interval for cate term
+        interval_cate = bcf_model.compute_posterior_interval(
+            terms="cate",
+            level=0.95,
+            scale="linear",
+            X=X_test,
+            Z=Z_test,
+            propensity=pi_test,
+        )
+        assert interval_cate["lower"].shape == (n_test,)
+        assert np.all(interval_cate["lower"] <= interval_cate["upper"])
+
+        # Test posterior interval for y_hat term
+        interval_yhat = bcf_model.compute_posterior_interval(
+            terms="y_hat",
+            level=0.95,
+            scale="linear",
+            X=X_test,
+            Z=Z_test,
+            propensity=pi_test,
+        )
+        assert interval_yhat["lower"].shape == (n_test,)
+        assert np.all(interval_yhat["lower"] <= interval_yhat["upper"])
+
+        # Test contrast on linear scale (CATE: Z=1 vs Z=0)
+        contrast_posterior = bcf_model.compute_contrast(
+            X_0=X_test,
+            X_1=X_test,
+            Z_0=np.zeros(n_test),
+            Z_1=np.ones(n_test),
+            propensity_0=pi_test,
+            propensity_1=pi_test,
+            type="posterior",
+            scale="linear",
+        )
+        assert contrast_posterior.shape[0] == n_test
+        assert contrast_posterior.shape[1] == num_mcmc
+
+        # Test contrast with type = "mean"
+        contrast_mean = bcf_model.compute_contrast(
+            X_0=X_test,
+            X_1=X_test,
+            Z_0=np.zeros(n_test),
+            Z_1=np.ones(n_test),
+            propensity_0=pi_test,
+            propensity_1=pi_test,
+            type="mean",
+            scale="linear",
+        )
+        assert contrast_mean.shape == (n_test,)
+
+    def test_bcf_probit_binary_interval_and_contrast(self):
+        # Generate binary probit causal data
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 3
+        X = rng.uniform(size=(n, p))
+        pi_x = norm.cdf(X[:, 0])
+        Z = rng.binomial(1, pi_x).astype(float)
+        mu_x = X[:, 0] + X[:, 1]
+        tau_x = np.full(n, 0.5)
+        prob_y1 = norm.cdf(mu_x + tau_x * Z)
+        y = rng.binomial(1, prob_y1).astype(float)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        Z_train = Z[train_inds]
+        Z_test = Z[test_inds]
+        pi_train = pi_x[train_inds]
+        pi_test = pi_x[test_inds]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+        num_mcmc = 10
+
+        # Fit binary probit BCF model
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            propensity_train=pi_train,
+            X_test=X_test,
+            Z_test=Z_test,
+            propensity_test=pi_test,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=num_mcmc,
+            general_params={
+                "sample_sigma2_global": False,
+                "outcome_model": OutcomeModel(outcome="binary", link="probit"),
+            },
+        )
+
+        # Test posterior interval on linear scale
+        interval_linear = bcf_model.compute_posterior_interval(
+            terms="prognostic_function",
+            level=0.95,
+            scale="linear",
+            X=X_test,
+            Z=Z_test,
+            propensity=pi_test,
+        )
+        assert "lower" in interval_linear
+        assert "upper" in interval_linear
+        assert interval_linear["lower"].shape == (n_test,)
+        assert interval_linear["upper"].shape == (n_test,)
+        assert np.all(interval_linear["lower"] <= interval_linear["upper"])
+
+        # Test posterior interval on probability scale
+        interval_prob = bcf_model.compute_posterior_interval(
+            terms="prognostic_function",
+            level=0.95,
+            scale="probability",
+            X=X_test,
+            Z=Z_test,
+            propensity=pi_test,
+        )
+        assert interval_prob["lower"].shape == (n_test,)
+        assert interval_prob["upper"].shape == (n_test,)
+        assert np.all(interval_prob["lower"] >= 0)
+        assert np.all(interval_prob["upper"] <= 1)
+        assert np.all(interval_prob["lower"] <= interval_prob["upper"])
+
+        # Test contrast on linear scale (CATE: Z=1 vs Z=0)
+        contrast_linear = bcf_model.compute_contrast(
+            X_0=X_test,
+            X_1=X_test,
+            Z_0=np.zeros(n_test),
+            Z_1=np.ones(n_test),
+            propensity_0=pi_test,
+            propensity_1=pi_test,
+            type="posterior",
+            scale="linear",
+        )
+        assert contrast_linear.shape[0] == n_test
+        assert contrast_linear.shape[1] == num_mcmc
+
+        # Test contrast on probability scale
+        contrast_prob = bcf_model.compute_contrast(
+            X_0=X_test,
+            X_1=X_test,
+            Z_0=np.zeros(n_test),
+            Z_1=np.ones(n_test),
+            propensity_0=pi_test,
+            propensity_1=pi_test,
+            type="posterior",
+            scale="probability",
+        )
+        assert contrast_prob.shape[0] == n_test
+        assert contrast_prob.shape[1] == num_mcmc
+
+        # Test contrast with type = "mean" on linear scale
+        contrast_mean_linear = bcf_model.compute_contrast(
+            X_0=X_test,
+            X_1=X_test,
+            Z_0=np.zeros(n_test),
+            Z_1=np.ones(n_test),
+            propensity_0=pi_test,
+            propensity_1=pi_test,
+            type="mean",
+            scale="linear",
+        )
+        assert contrast_mean_linear.shape == (n_test,)
+
+        # Test contrast with type = "mean" on probability scale
+        contrast_mean_prob = bcf_model.compute_contrast(
+            X_0=X_test,
+            X_1=X_test,
+            Z_0=np.zeros(n_test),
+            Z_1=np.ones(n_test),
+            propensity_0=pi_test,
+            propensity_1=pi_test,
+            type="mean",
+            scale="probability",
+        )
+        assert contrast_mean_prob.shape == (n_test,)
+
+    def test_bcf_gaussian_posterior_predictive(self):
+        # Generate gaussian causal data
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 3
+        X = rng.uniform(size=(n, p))
+        pi_x = norm.cdf(X[:, 0])
+        Z = rng.binomial(1, pi_x).astype(float)
+        mu_x = X[:, 0] + X[:, 1]
+        tau_x = np.ones(n)
+        y = mu_x + tau_x * Z + rng.normal(size=n)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        Z_train = Z[train_inds]
+        Z_test = Z[test_inds]
+        pi_train = pi_x[train_inds]
+        pi_test = pi_x[test_inds]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+        num_mcmc = 10
+
+        # Fit gaussian BCF model
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            propensity_train=pi_train,
+            X_test=X_test,
+            Z_test=Z_test,
+            propensity_test=pi_test,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=num_mcmc,
+        )
+
+        # Test with multiple draws per sample
+        ppd = bcf_model.sample_posterior_predictive(
+            X=X_test,
+            Z=Z_test,
+            propensity=pi_test,
+            num_draws_per_sample=3,
+        )
+        assert ppd.shape == (n_test, num_mcmc, 3)
+        assert np.issubdtype(ppd.dtype, np.floating)
+
+        # Test with single draw per sample
+        ppd1 = bcf_model.sample_posterior_predictive(
+            X=X_test,
+            Z=Z_test,
+            propensity=pi_test,
+            num_draws_per_sample=1,
+        )
+        assert ppd1.shape == (n_test, num_mcmc)
+        assert np.issubdtype(ppd1.dtype, np.floating)
+
+    def test_bcf_probit_binary_posterior_predictive(self):
+        # Generate binary probit causal data
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 3
+        X = rng.uniform(size=(n, p))
+        pi_x = norm.cdf(X[:, 0])
+        Z = rng.binomial(1, pi_x).astype(float)
+        mu_x = X[:, 0] + X[:, 1]
+        tau_x = np.full(n, 0.5)
+        prob_y1 = norm.cdf(mu_x + tau_x * Z)
+        y = rng.binomial(1, prob_y1).astype(float)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        Z_train = Z[train_inds]
+        Z_test = Z[test_inds]
+        pi_train = pi_x[train_inds]
+        pi_test = pi_x[test_inds]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+        num_mcmc = 10
+
+        # Fit binary probit BCF model
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            propensity_train=pi_train,
+            X_test=X_test,
+            Z_test=Z_test,
+            propensity_test=pi_test,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=num_mcmc,
+            general_params={
+                "sample_sigma2_global": False,
+                "outcome_model": OutcomeModel(outcome="binary", link="probit"),
+            },
+        )
+
+        # Test with multiple draws per sample
+        ppd = bcf_model.sample_posterior_predictive(
+            X=X_test,
+            Z=Z_test,
+            propensity=pi_test,
+            num_draws_per_sample=3,
+        )
+        assert ppd.shape == (n_test, num_mcmc, 3)
+        assert set(np.unique(ppd)).issubset({0, 1})
+
+        # Test with single draw per sample
+        ppd1 = bcf_model.sample_posterior_predictive(
+            X=X_test,
+            Z=Z_test,
+            propensity=pi_test,
+            num_draws_per_sample=1,
+        )
+        assert ppd1.shape == (n_test, num_mcmc)
+        assert set(np.unique(ppd1)).issubset({0, 1})

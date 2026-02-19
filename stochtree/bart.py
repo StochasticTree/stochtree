@@ -2302,13 +2302,13 @@ class BARTModel:
             if is_probit:
                 if predict_y_hat and has_mean_forest and has_rfx:
                     y_hat = norm.cdf(mean_forest_predictions + rfx_predictions)
-                    mean_forest_predictions = norm.cdf(mean_forest_predictions)
-                    rfx_predictions = norm.cdf(rfx_predictions)
                 elif predict_y_hat and has_mean_forest:
                     y_hat = norm.cdf(mean_forest_predictions)
-                    mean_forest_predictions = norm.cdf(mean_forest_predictions)
                 elif predict_y_hat and has_rfx:
                     y_hat = norm.cdf(rfx_predictions)
+                if (predict_mean_forest or predict_mean_forest_intermediate) and has_mean_forest:
+                    mean_forest_predictions = norm.cdf(mean_forest_predictions)
+                if (predict_rfx or predict_rfx_intermediate) and has_rfx:
                     rfx_predictions = norm.cdf(rfx_predictions)
             elif is_binary_cloglog:
                 mean_forest_predictions = np.exp(-np.exp(mean_forest_predictions))
@@ -2869,6 +2869,7 @@ class BARTModel:
                     scale=np.sqrt(ppd_variance),
                     size=(ppd_draw_multiplier, num_observations, num_posterior_draws),
                 )
+                ppd_array = np.transpose(ppd_array, (1, 2, 0))
             else:
                 ppd_array = np.random.normal(
                     loc=ppd_mean,
