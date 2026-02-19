@@ -3,9 +3,7 @@
 ## New Features
 
 * Replaced C++ standard library distributions (`discrete_distribution`, `uniform_real_distribution`, `normal_distribution`, and `gamma_distribution`) with custom implementations for cross-platform reproducibility.
-
-## Bug Fixes
-
+* Substituted custom implementations for base R `mean()`, `var()`, and `sd()` in the preprocessing logic of the R `bart()` and `bcf()` functions for enhanced numeric stability across platforms.
 
 # stochtree 0.3.0
 

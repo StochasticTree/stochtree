@@ -38,4 +38,43 @@ jobs:
       
       - name: Run R replication check script(s)
         run: |
-          Rscript tools/reproducibility/simple-bart.R
+          Rscript tools/reproducibility/R/simple-bart.R
+          Rscript tools/reproducibility/R/simple-bcf.R
+
+  stochtree_python_reproducibility:
+    name: stochtree-python-reproducibility
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+      - name: Checkout stochtree repo
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+    
+      - name: Set up openmp (macos)
+        # Set up openMP on MacOS since it doesn't ship with the apple clang compiler suite
+        if: matrix.os == 'macos-latest'
+        run: | 
+          brew install libomp
+    
+      - name: Install Package with Relevant Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install .
+
+      - name: Run Python replication check script(s)
+        run: |
+          python tools/reproducibility/python/simple-bart.py
+          python tools/reproducibility/python/simple-bcf.py

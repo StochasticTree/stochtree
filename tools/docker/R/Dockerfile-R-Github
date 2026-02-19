@@ -1,0 +1,21 @@
+FROM rocker/r-ver:4.4.2
+
+# System dependencies
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc \
+        g++ \
+        git \
+        libomp-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# R package dependencies
+RUN R -e "install.packages(c('remotes', 'rpart', 'rpart.plot', 'MASS'))"
+RUN R -e "remotes::install_github('StochasticTree/stochtree', ref='r-dev')"
+
+# Set working directory
+WORKDIR /workspace
+
+# Launch R process
+CMD ["R"]

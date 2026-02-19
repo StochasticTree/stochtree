@@ -553,6 +553,34 @@ extern "C" SEXP _stochtree_root_reset_rfx_tracker_cpp(SEXP tracker, SEXP dataset
     return R_NilValue;
   END_CPP11
 }
+// R_utils.cpp
+double sum_cpp(cpp11::doubles x);
+extern "C" SEXP _stochtree_sum_cpp(SEXP x) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(sum_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(x)));
+  END_CPP11
+}
+// R_utils.cpp
+double mean_cpp(cpp11::doubles x);
+extern "C" SEXP _stochtree_mean_cpp(SEXP x) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(mean_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(x)));
+  END_CPP11
+}
+// R_utils.cpp
+double var_cpp(cpp11::doubles x);
+extern "C" SEXP _stochtree_var_cpp(SEXP x) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(var_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(x)));
+  END_CPP11
+}
+// R_utils.cpp
+double sd_cpp(cpp11::doubles x);
+extern "C" SEXP _stochtree_sd_cpp(SEXP x) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(sd_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(x)));
+  END_CPP11
+}
 // forest.cpp
 cpp11::external_pointer<StochTree::TreeEnsemble> active_forest_cpp(int num_trees, int output_dimension, bool is_leaf_constant, bool is_exponentiated);
 extern "C" SEXP _stochtree_active_forest_cpp(SEXP num_trees, SEXP output_dimension, SEXP is_leaf_constant, SEXP is_exponentiated) {
@@ -1773,6 +1801,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_leaf_values_forest_container_cpp",                    (DL_FUNC) &_stochtree_leaf_values_forest_container_cpp,                     4},
     {"_stochtree_leaves_forest_container_cpp",                         (DL_FUNC) &_stochtree_leaves_forest_container_cpp,                          3},
     {"_stochtree_left_child_node_forest_container_cpp",                (DL_FUNC) &_stochtree_left_child_node_forest_container_cpp,                 4},
+    {"_stochtree_mean_cpp",                                            (DL_FUNC) &_stochtree_mean_cpp,                                             1},
     {"_stochtree_multiply_forest_forest_container_cpp",                (DL_FUNC) &_stochtree_multiply_forest_forest_container_cpp,                 3},
     {"_stochtree_node_depth_forest_container_cpp",                     (DL_FUNC) &_stochtree_node_depth_forest_container_cpp,                      4},
     {"_stochtree_nodes_forest_container_cpp",                          (DL_FUNC) &_stochtree_nodes_forest_container_cpp,                           3},
@@ -1858,6 +1887,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_sample_sigma2_one_iteration_cpp",                     (DL_FUNC) &_stochtree_sample_sigma2_one_iteration_cpp,                      5},
     {"_stochtree_sample_tau_one_iteration_cpp",                        (DL_FUNC) &_stochtree_sample_tau_one_iteration_cpp,                         4},
     {"_stochtree_sample_without_replacement_integer_cpp",              (DL_FUNC) &_stochtree_sample_without_replacement_integer_cpp,               3},
+    {"_stochtree_sd_cpp",                                              (DL_FUNC) &_stochtree_sd_cpp,                                               1},
     {"_stochtree_set_leaf_value_active_forest_cpp",                    (DL_FUNC) &_stochtree_set_leaf_value_active_forest_cpp,                     2},
     {"_stochtree_set_leaf_value_forest_container_cpp",                 (DL_FUNC) &_stochtree_set_leaf_value_forest_container_cpp,                  2},
     {"_stochtree_set_leaf_vector_active_forest_cpp",                   (DL_FUNC) &_stochtree_set_leaf_vector_active_forest_cpp,                    2},
@@ -1866,12 +1896,14 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_split_index_forest_container_cpp",                    (DL_FUNC) &_stochtree_split_index_forest_container_cpp,                     4},
     {"_stochtree_split_theshold_forest_container_cpp",                 (DL_FUNC) &_stochtree_split_theshold_forest_container_cpp,                  4},
     {"_stochtree_subtract_from_column_vector_cpp",                     (DL_FUNC) &_stochtree_subtract_from_column_vector_cpp,                      2},
+    {"_stochtree_sum_cpp",                                             (DL_FUNC) &_stochtree_sum_cpp,                                              1},
     {"_stochtree_sum_leaves_squared_ensemble_forest_container_cpp",    (DL_FUNC) &_stochtree_sum_leaves_squared_ensemble_forest_container_cpp,     2},
     {"_stochtree_tree_prior_cpp",                                      (DL_FUNC) &_stochtree_tree_prior_cpp,                                       4},
     {"_stochtree_update_alpha_tree_prior_cpp",                         (DL_FUNC) &_stochtree_update_alpha_tree_prior_cpp,                          2},
     {"_stochtree_update_beta_tree_prior_cpp",                          (DL_FUNC) &_stochtree_update_beta_tree_prior_cpp,                           2},
     {"_stochtree_update_max_depth_tree_prior_cpp",                     (DL_FUNC) &_stochtree_update_max_depth_tree_prior_cpp,                      2},
     {"_stochtree_update_min_samples_leaf_tree_prior_cpp",              (DL_FUNC) &_stochtree_update_min_samples_leaf_tree_prior_cpp,               2},
+    {"_stochtree_var_cpp",                                             (DL_FUNC) &_stochtree_var_cpp,                                              1},
     {NULL, NULL, 0}
 };
 }

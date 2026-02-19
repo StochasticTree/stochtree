@@ -957,12 +957,12 @@ bart <- function(
   # differently for binary and continuous outcomes
   if (link_is_probit) {
     # Compute a probit-scale offset and fix scale to 1
-    y_bar_train <- qnorm(mean(y_train))
+    y_bar_train <- qnorm(mean_cpp(as.numeric(y_train)))
     y_std_train <- 1
     standardize <- FALSE
 
-    # Set a pseudo outcome by subtracting mean(y_train) from y_train
-    resid_train <- y_train - mean(y_train)
+    # Set a pseudo outcome by subtracting mean_cpp(y_train) from y_train
+    resid_train <- y_train - mean_cpp(as.numeric(y_train))
 
     # Set initial values of root nodes to 0.0 (in probit scale)
     init_val_mean <- 0.0
@@ -1042,8 +1042,8 @@ bart <- function(
   } else {
     # Only standardize if user requested
     if (standardize) {
-      y_bar_train <- mean(y_train)
-      y_std_train <- sd(y_train)
+      y_bar_train <- mean_cpp(as.numeric(y_train))
+      y_std_train <- sd_cpp(as.numeric(y_train))
     } else {
       y_bar_train <- 0
       y_std_train <- 1
@@ -1053,23 +1053,23 @@ bart <- function(
     resid_train <- (y_train - y_bar_train) / y_std_train
 
     # Compute initial value of root nodes in mean forest
-    init_val_mean <- mean(resid_train)
+    init_val_mean <- mean_cpp(as.numeric(resid_train))
 
     # Calibrate priors for sigma^2 and tau
     if (is.null(sigma2_init)) {
-      sigma2_init <- 1.0 * var(resid_train)
+      sigma2_init <- 1.0 * var_cpp(as.numeric(resid_train))
     }
     if (is.null(variance_forest_init)) {
-      variance_forest_init <- 1.0 * var(resid_train)
+      variance_forest_init <- 1.0 * var_cpp(as.numeric(resid_train))
     }
     if (is.null(b_leaf)) {
-      b_leaf <- var(resid_train) / (2 * num_trees_mean)
+      b_leaf <- var_cpp(as.numeric(resid_train)) / (2 * num_trees_mean)
     }
     if (has_basis) {
       if (ncol(leaf_basis_train) > 1) {
         if (is.null(sigma2_leaf_init)) {
           sigma2_leaf_init <- diag(
-            2 * var(resid_train) / (num_trees_mean),
+            2 * var_cpp(as.numeric(resid_train)) / (num_trees_mean),
             ncol(leaf_basis_train)
           )
         }
@@ -1084,7 +1084,7 @@ bart <- function(
       } else {
         if (is.null(sigma2_leaf_init)) {
           sigma2_leaf_init <- as.matrix(
-            2 * var(resid_train) / (num_trees_mean)
+            2 * var_cpp(as.numeric(resid_train)) / (num_trees_mean)
           )
         }
         if (!is.matrix(sigma2_leaf_init)) {
@@ -1096,7 +1096,7 @@ bart <- function(
     } else {
       if (is.null(sigma2_leaf_init)) {
         sigma2_leaf_init <- as.matrix(
-          2 * var(resid_train) / (num_trees_mean)
+          2 * var_cpp(as.numeric(resid_train)) / (num_trees_mean)
         )
       }
       if (!is.matrix(sigma2_leaf_init)) {

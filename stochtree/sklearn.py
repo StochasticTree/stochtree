@@ -27,7 +27,7 @@ class StochTreeBARTRegressor(RegressorMixin, BaseEstimator):
         The number of grow-from-root (GFR) iterations to run of the BART model.
     num_burnin : int, default=0
         The number of MCMC iterations of the BART model that will be discarded as "burn-in" samples.
-    num_trees : int, default=100
+    num_mcmc : int, default=100
         The number of retained MCMC iterations to run of the BART model.
     general_params : dict, default=None
         General parameters for the BART model.
@@ -274,7 +274,7 @@ class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
         The number of grow-from-root (GFR) iterations to run of the BART model.
     num_burnin : int, default=0
         The number of MCMC iterations of the BART model that will be discarded as "burn-in" samples.
-    num_trees : int, default=100
+    num_mcmc : int, default=100
         The number of retained MCMC iterations to run of the BART model.
     general_params : dict, default=None
         General parameters for the BART model.
