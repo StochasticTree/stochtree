@@ -794,13 +794,13 @@ test_that("BART cloglog binary: posterior interval and contrast", {
 test_that("BART cloglog ordinal: posterior interval and contrast", {
   # Generate ordinal cloglog data (3 categories)
   set.seed(42)
-  n <- 100
+  n <- 500
   p <- 3
   n_categories <- 3
   X <- matrix(runif(n * p), ncol = p)
   beta <- rep(1 / sqrt(p), p)
   true_lambda <- X %*% beta
-  gamma_true <- c(-2, 1)
+  gamma_true <- c(-1.5, -0.5)
 
   # Compute class probabilities
   true_probs <- matrix(0, nrow = n, ncol = n_categories)

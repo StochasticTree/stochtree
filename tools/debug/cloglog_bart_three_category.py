@@ -203,4 +203,80 @@ if n_categories < 4:
 plt.tight_layout()
 plt.show()
 
+# Evaluate test set posterior interval coverage of lambda(x)
+preds = bart_model.predict(X=X_test, terms="y_hat", scale="linear")
+adj = -1 * np.mean(np.mean(preds, axis=1))
+linear_interval = bart_model.compute_posterior_interval(
+    X=X_test,
+    terms="y_hat",
+    scale="linear",
+)
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter(np.mean(preds, axis=1) + adj, true_lambda_function[test_idx], s=5, alpha=0.5)
+ax.scatter(linear_interval["lower"] + adj, true_lambda_function[test_idx], s=5, alpha=0.3, color="blue")
+ax.scatter(linear_interval["upper"] + adj, true_lambda_function[test_idx], s=5, alpha=0.3, color="blue")
+lims = [
+    min(true_lambda_function[test_idx].min(), (linear_interval["lower"] + adj).min()),
+    max(true_lambda_function[test_idx].max(), (linear_interval["upper"] + adj).max()),
+]
+ax.plot(lims, lims, "k-")
+ax.set_xlabel("Predicted lambda")
+ax.set_ylabel("True lambda")
+ax.set_title("Linear scale posterior interval")
+plt.tight_layout()
+plt.show()
+linear_coverage = np.mean(
+    ((linear_interval["lower"] + adj) <= true_lambda_function[test_idx])
+    & ((linear_interval["upper"] + adj) >= true_lambda_function[test_idx])
+)
+print(f"Linear scale posterior interval coverage: {linear_coverage:.3f}")
+
+# Evaluate test set posterior interval coverage of survival function
+probability_interval = bart_model.compute_posterior_interval(
+    X=X_test,
+    terms="y_hat",
+    scale="probability",
+)
+# P(Y > 1) coverage
+true_survival_gt1 = np.sum(true_probs[test_idx, 1:n_categories], axis=1)
+probability_coverage_gt1 = np.mean(
+    (probability_interval["lower"][:, 0] <= true_survival_gt1)
+    & (probability_interval["upper"][:, 0] >= true_survival_gt1)
+)
+print(f"Probability interval coverage P(Y > 1): {probability_coverage_gt1:.3f}")
+
+# P(Y > 2) coverage
+true_survival_gt2 = np.sum(true_probs[test_idx, 2:n_categories], axis=1)
+probability_coverage_gt2 = np.mean(
+    (probability_interval["lower"][:, 1] <= true_survival_gt2)
+    & (probability_interval["upper"][:, 1] >= true_survival_gt2)
+)
+print(f"Probability interval coverage P(Y > 2): {probability_coverage_gt2:.3f}")
+
+# P(Y <= 1) = 1 - P(Y > 1) coverage
+probability_coverage_le1 = np.mean(
+    ((1 - probability_interval["upper"][:, 0]) <= true_probs[test_idx, 0])
+    & ((1 - probability_interval["lower"][:, 0]) >= true_probs[test_idx, 0])
+)
+print(f"Probability interval coverage P(Y <= 1): {probability_coverage_le1:.3f}")
+
+# Compute test set prediction contrast on linear and probability scale
+X0 = X_test
+X1 = X_test + 1
+linear_contrast = bart_model.compute_contrast(
+    X_0=X0,
+    X_1=X1,
+    type="posterior",
+    scale="linear",
+)
+print(f"Linear contrast shape: {linear_contrast.shape}")
+
+probability_contrast = bart_model.compute_contrast(
+    X_0=X0,
+    X_1=X1,
+    type="posterior",
+    scale="probability",
+)
+print(f"Probability contrast shape: {probability_contrast.shape}")
+
 print(f"\nRuntime: {runtime:.1f}s")

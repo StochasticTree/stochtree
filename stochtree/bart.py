@@ -22,6 +22,8 @@ from .serialization import JSONSerializer
 from .utils import (
     OutcomeModel,
     NotSampledError,
+    _class_probs_to_survival_probs,
+    _compute_sample_dim,
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
@@ -2450,7 +2452,7 @@ class BARTModel:
         type : str, optional
             Aggregation level of the contrast. Options are "mean", which averages the contrast evaluations over every draw of a BART model, and "posterior", which returns the entire matrix of posterior contrast estimates. Default: "posterior".
         scale : str, optional
-            Scale of the contrast. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
+            Scale of the contrast. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability". `scale = "probability"` is only valid for models fit with a probit / cloglog link on binary or ordinal outcomes. For binary outcome models, `scale = "probability"` will return a contrast over the probability that `y == 1`. For ordinal outcome models, `scale = "probability"` will return contrasts over the "survival function" `P(y > k)` for `k = 1, 2, ..., K-1` where `K` is the total number of categories. Default: "linear".
 
         Returns
         -------
@@ -2461,10 +2463,13 @@ class BARTModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
-        if (scale == "probability") and (not is_probit):
+        is_probit = self.outcome_model.link == "probit"
+        is_cloglog = self.outcome_model.link == "cloglog"
+        is_binary_cloglog = is_cloglog and self.outcome_model.outcome == "binary"
+        is_ordinal_cloglog = is_cloglog and self.outcome_model.outcome == "ordinal"
+        if (scale == "probability") and (not (is_probit or is_cloglog)):
             raise ValueError(
-                "scale cannot be 'probability' for models not fit with a probit link"
+                "scale cannot be 'probability' for models not fit with a probit or cloglog link for binary / ordinal outcome data"
             )
         probability_scale = scale == "probability"
 
@@ -2525,7 +2530,7 @@ class BARTModel:
             rfx_basis=rfx_basis_0,
             type="posterior",
             terms="y_hat",
-            scale="linear",
+            scale=scale,
         )
 
         # Predict for the treatment arm
@@ -2536,17 +2541,30 @@ class BARTModel:
             rfx_basis=rfx_basis_1,
             type="posterior",
             terms="y_hat",
-            scale="linear",
+            scale=scale,
         )
 
-        # Transform to probability scale if requested
-        if probability_scale:
-            treatment_preds = norm.cdf(treatment_preds)
-            control_preds = norm.cdf(control_preds)
+        # Convert ordinal class probabilities to "survival" probabilities
+        if is_ordinal_cloglog and probability_scale:
+            num_categories = self.cloglog_num_categories
+            control_preds = _class_probs_to_survival_probs(
+                control_preds, num_categories
+            )
+            treatment_preds = _class_probs_to_survival_probs(
+                treatment_preds, num_categories
+            )
 
         # Compute and return contrast
         if predict_mean:
-            return np.mean(treatment_preds - control_preds, axis=1)
+            output_ndim = len(treatment_preds.shape)
+            if output_ndim == 3:
+                treatment_collapsed = np.mean(treatment_preds, axis=2)
+                control_collapsed = np.mean(control_preds, axis=2)
+                return treatment_collapsed - control_collapsed
+            elif output_ndim == 2:
+                return np.mean(treatment_preds - control_preds, axis=1)
+            else:
+                raise ValueError("Unexpected output dimension")
         else:
             return treatment_preds - control_preds
 
@@ -2576,7 +2594,7 @@ class BARTModel:
         terms : str, optional
             Character string specifying the model term(s) for which to compute intervals. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`. Defaults to `"all"`.
         scale : str, optional
-            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
+            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability". `scale = "probability"` is only valid for models fit with a probit / cloglog link on binary or ordinal outcomes. For binary outcome models, `scale = "probability"` will return an interval over the probability that `y == 1`. For ordinal outcome models, `scale = "probability"` will return intervals over the "survival function" `P(y > k)` for `k = 1, 2, ..., K-1` where `K` is the total number of categories. Defaults to `"linear"`.
         level : float, optional
             A numeric value between 0 and 1 specifying the credible interval level. Defaults to 0.95 for a 95% credible interval.
 
@@ -2594,10 +2612,13 @@ class BARTModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
-        if (scale == "probability") and (not is_probit):
+        is_probit = self.outcome_model.link == "probit"
+        is_cloglog = self.outcome_model.link == "cloglog"
+        is_binary_cloglog = is_cloglog and self.outcome_model.outcome == "binary"
+        is_ordinal_cloglog = is_cloglog and self.outcome_model.outcome == "ordinal"
+        if (scale == "probability") and (not (is_probit or is_cloglog)):
             raise ValueError(
-                "scale cannot be 'probability' for models not fit with a probit link"
+                "scale cannot be 'probability' for models not fit with a probit or cloglog link for binary / ordinal outcome data"
             )
 
         # Handle prediction terms
@@ -2685,17 +2706,34 @@ class BARTModel:
         )
         has_multiple_terms = True if isinstance(predictions, dict) else False
 
+        # Convert ordinal class probabilities to "survival" probabilities
+        if is_ordinal_cloglog and scale == "probability":
+            num_categories = self.cloglog_num_categories
+            if has_multiple_terms:
+                for term_name in predictions.keys():
+                    if predictions[term_name] is not None:
+                        predictions[term_name] = _class_probs_to_survival_probs(
+                            predictions[term_name], num_categories
+                        )
+            else:
+                predictions = _class_probs_to_survival_probs(
+                    predictions, num_categories
+                )
+
         # Compute posterior intervals
+        num_samples = self.num_samples
         if has_multiple_terms:
             result = dict()
             for term in predictions.keys():
                 if predictions[term] is not None:
+                    sample_dim = _compute_sample_dim(predictions[term], num_samples)
                     result[term] = _summarize_interval(
-                        predictions[term], 1, level=level
+                        predictions[term], sample_dim, level=level
                     )
             return result
         else:
-            return _summarize_interval(predictions, 1, level=level)
+            sample_dim = _compute_sample_dim(predictions, num_samples)
+            return _summarize_interval(predictions, sample_dim, level=level)
 
     def sample_posterior_predictive(
         self,
