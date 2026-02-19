@@ -4,8 +4,7 @@
 namespace StochTree {
 
 double OrdinalSampler::SampleTruncatedExponential(std::mt19937& gen, double rate, double low, double high) {
-  std::uniform_real_distribution<double> unif(0.0, 1.0);
-  double u = unif(gen);
+  double u = standard_uniform_draw_53bit(gen);
   if ((low <= 0.0) && (high <= 0.0)) {
     return sample_exponential(u, rate);
   } else if ((low <= 0.0) && (high > 0.0)) {
