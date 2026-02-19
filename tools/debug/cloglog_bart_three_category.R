@@ -262,4 +262,19 @@ probability_contrast <- compute_contrast_bart_model(
   scale = "probability"
 )
 
+# Sample from posterior predictive distribution
+y_ppd <- sample_bart_posterior_predictive(
+  bart_model,
+  X = X_test,
+  num_draws_per_sample = 100
+)
+# Inspect results
+true_probs_test <- true_probs[test_idx, ]
+max_ind <- which.max(true_probs_test[, 1])
+true_probs_test[max_ind, ]
+hist(y_ppd[max_ind, , ])
+hist(est_probs_test[max_ind, 1, ])
+hist(est_probs_test[max_ind, 2, ])
+hist(est_probs_test[max_ind, 3, ])
+
 runtime

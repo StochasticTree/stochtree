@@ -736,7 +736,13 @@ sample_bart_posterior_predictive <- function(
   check_model_is_valid(model_object)
 
   # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
+  is_gaussian <- model_object$model_params$outcome_model$link == "linear"
   is_probit <- model_object$model_params$outcome_model$link == "probit"
+  is_cloglog <- model_object$model_params$outcome_model$link == "cloglog"
+  is_binary_cloglog <- is_cloglog &&
+    model_object$model_params$outcome_model$outcome == "binary"
+  is_ordinal_cloglog <- is_cloglog &&
+    model_object$model_params$outcome_model$outcome == "ordinal"
 
   # Check that all the necessary inputs were provided for interval computation
   needs_covariates <- model_object$model_params$include_mean_forest
@@ -797,74 +803,156 @@ sample_bart_posterior_predictive <- function(
     }
   }
 
-  # Compute posterior samples
-  bart_preds <- predict(
-    model_object,
-    X = X,
-    leaf_basis = leaf_basis,
-    rfx_group_ids = rfx_group_ids,
-    rfx_basis = rfx_basis,
-    type = "posterior",
-    terms = c("all"),
-    scale = "linear"
-  )
+  if (is_gaussian) {
+    # Compute posterior samples
+    bart_preds <- predict(
+      model_object,
+      X = X,
+      leaf_basis = leaf_basis,
+      rfx_group_ids = rfx_group_ids,
+      rfx_basis = rfx_basis,
+      type = "posterior",
+      terms = c("all"),
+      scale = "linear"
+    )
 
-  # Compute outcome mean and variance for every posterior draw
-  has_mean_term <- (model_object$model_params$include_mean_forest ||
-    model_object$model_params$has_rfx)
-  has_variance_forest <- model_object$model_params$include_variance_forest
-  samples_global_variance <- model_object$model_params$sample_sigma2_global
-  num_posterior_draws <- model_object$model_params$num_samples
-  num_observations <- nrow(X)
-  if (has_mean_term) {
-    ppd_mean <- bart_preds$y_hat
-  } else {
-    ppd_mean <- 0
-  }
-  if (has_variance_forest) {
-    ppd_variance <- bart_preds$variance_forest_predictions
-  } else {
-    if (samples_global_variance) {
-      ppd_variance <- matrix(
-        rep(
-          model_object$sigma2_global_samples,
-          each = num_observations
-        ),
-        nrow = num_observations
+    # Compute outcome mean and variance for every posterior draw
+    has_mean_term <- (model_object$model_params$include_mean_forest ||
+      model_object$model_params$has_rfx)
+    has_variance_forest <- model_object$model_params$include_variance_forest
+    samples_global_variance <- model_object$model_params$sample_sigma2_global
+    num_posterior_draws <- model_object$model_params$num_samples
+    num_observations <- nrow(X)
+    if (has_mean_term) {
+      ppd_mean <- bart_preds$y_hat
+    } else {
+      ppd_mean <- 0
+    }
+    if (has_variance_forest) {
+      ppd_variance <- bart_preds$variance_forest_predictions
+    } else {
+      if (samples_global_variance) {
+        ppd_variance <- matrix(
+          rep(
+            model_object$sigma2_global_samples,
+            each = num_observations
+          ),
+          nrow = num_observations
+        )
+      } else {
+        ppd_variance <- model_object$model_params$sigma2_init
+      }
+    }
+
+    # Sample from the posterior predictive distribution
+    if (is.null(num_draws_per_sample)) {
+      ppd_draw_multiplier <- posterior_predictive_heuristic_multiplier(
+        num_posterior_draws,
+        num_observations
       )
     } else {
-      ppd_variance <- model_object$model_params$sigma2_init
+      ppd_draw_multiplier <- num_draws_per_sample
     }
-  }
-
-  # Sample from the posterior predictive distribution
-  if (is.null(num_draws_per_sample)) {
-    ppd_draw_multiplier <- posterior_predictive_heuristic_multiplier(
-      num_posterior_draws,
+    num_ppd_draws <- ppd_draw_multiplier *
+      num_posterior_draws *
       num_observations
-    )
-  } else {
-    ppd_draw_multiplier <- num_draws_per_sample
-  }
-  num_ppd_draws <- ppd_draw_multiplier * num_posterior_draws * num_observations
-  ppd_vector <- rnorm(num_ppd_draws, ppd_mean, sqrt(ppd_variance))
+    ppd_vector <- rnorm(num_ppd_draws, ppd_mean, sqrt(ppd_variance))
 
-  # Reshape data
-  if (ppd_draw_multiplier > 1) {
-    ppd_array <- array(
-      ppd_vector,
-      dim = c(num_observations, num_posterior_draws, ppd_draw_multiplier)
+    # Reshape data
+    if (ppd_draw_multiplier > 1) {
+      ppd_array <- array(
+        ppd_vector,
+        dim = c(num_observations, num_posterior_draws, ppd_draw_multiplier)
+      )
+    } else {
+      ppd_array <- array(
+        ppd_vector,
+        dim = c(num_observations, num_posterior_draws)
+      )
+    }
+  } else if (is_probit || is_binary_cloglog) {
+    # Compute posterior probability samples
+    bart_preds <- predict(
+      model_object,
+      X = X,
+      leaf_basis = leaf_basis,
+      rfx_group_ids = rfx_group_ids,
+      rfx_basis = rfx_basis,
+      type = "posterior",
+      terms = "y_hat",
+      scale = "probability"
     )
-  } else {
-    ppd_array <- array(
-      ppd_vector,
-      dim = c(num_observations, num_posterior_draws)
-    )
-  }
 
-  # Binarize outcomes for probit models
-  if (is_probit) {
-    ppd_array <- (ppd_array > 0.0) * 1
+    # Sample from the posterior predictive distribution
+    num_posterior_draws <- model_object$model_params$num_samples
+    num_observations <- nrow(X)
+    if (is.null(num_draws_per_sample)) {
+      ppd_draw_multiplier <- posterior_predictive_heuristic_multiplier(
+        num_posterior_draws,
+        num_observations
+      )
+    } else {
+      ppd_draw_multiplier <- num_draws_per_sample
+    }
+    num_ppd_draws <- ppd_draw_multiplier *
+      num_posterior_draws *
+      num_observations
+    ppd_vector <- rbinom(num_ppd_draws, size = 1, prob = bart_preds)
+
+    # Reshape data
+    if (ppd_draw_multiplier > 1) {
+      ppd_array <- array(
+        ppd_vector,
+        dim = c(num_observations, num_posterior_draws, ppd_draw_multiplier)
+      )
+    } else {
+      ppd_array <- array(
+        ppd_vector,
+        dim = c(num_observations, num_posterior_draws)
+      )
+    }
+  } else if (is_ordinal_cloglog) {
+    # Compute posterior probability samples
+    bart_preds <- predict(
+      model_object,
+      X = X,
+      leaf_basis = leaf_basis,
+      rfx_group_ids = rfx_group_ids,
+      rfx_basis = rfx_basis,
+      type = "posterior",
+      terms = "y_hat",
+      scale = "probability"
+    )
+
+    # Sample from the posterior predictive distribution
+    num_categories <- model_object$model_params$cloglog_num_categories
+    num_posterior_draws <- model_object$model_params$num_samples
+    num_observations <- nrow(X)
+    if (is.null(num_draws_per_sample)) {
+      ppd_draw_multiplier <- posterior_predictive_heuristic_multiplier(
+        num_posterior_draws,
+        num_observations
+      )
+    } else {
+      ppd_draw_multiplier <- num_draws_per_sample
+    }
+    ppd_vector <- apply(bart_preds, c(1, 3), function(x) {
+      sample(1:n_categories, ppd_draw_multiplier, replace = T, prob = x)
+    })
+    ppd_vector <- aperm(ppd_vector, c(2, 3, 1))
+
+    # Reshape data
+    if (ppd_draw_multiplier > 1) {
+      ppd_array <- array(
+        ppd_vector,
+        dim = c(num_observations, num_posterior_draws, ppd_draw_multiplier)
+      )
+    } else {
+      ppd_array <- array(
+        ppd_vector,
+        dim = c(num_observations, num_posterior_draws)
+      )
+    }
   }
 
   return(ppd_array)
