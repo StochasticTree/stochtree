@@ -2768,8 +2768,12 @@ class BARTModel:
         if not self.is_sampled():
             raise ValueError("Model has not yet been sampled")
 
-        # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
-        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
+        # Determine the outcome model type
+        is_gaussian = self.outcome_model.link == "identity"
+        is_probit = self.outcome_model.link == "probit"
+        is_cloglog = self.outcome_model.link == "cloglog"
+        is_binary_cloglog = is_cloglog and self.outcome_model.outcome == "binary"
+        is_ordinal_cloglog = is_cloglog and self.outcome_model.outcome == "ordinal"
 
         # Check that all the necessary inputs were provided for interval computation
         needs_covariates = self.include_mean_forest
@@ -2819,59 +2823,135 @@ class BARTModel:
                         "'rfx_basis' must have the same number of rows as 'X'"
                     )
 
-        # Compute posterior predictive samples
-        bart_preds = self.predict(
-            X=X,
-            leaf_basis=leaf_basis,
-            rfx_group_ids=rfx_group_ids,
-            rfx_basis=rfx_basis,
-            type="posterior",
-            terms="all",
-        )
-
-        # Compute outcome mean and variance for posterior predictive distribution
-        has_mean_term = self.include_mean_forest or self.has_rfx
-        has_variance_forest = self.include_variance_forest
-        samples_global_variance = self.sample_sigma2_global
         num_posterior_draws = self.num_samples
         num_observations = X.shape[0]
-        if has_mean_term:
-            ppd_mean = bart_preds["y_hat"]
-        else:
-            ppd_mean = 0.0
-        if has_variance_forest:
-            ppd_variance = bart_preds["variance_forest_predictions"]
-        else:
-            if samples_global_variance:
-                ppd_variance = np.tile(self.global_var_samples, (num_observations, 1))
+
+        if is_gaussian:
+            # Compute posterior samples
+            bart_preds = self.predict(
+                X=X,
+                leaf_basis=leaf_basis,
+                rfx_group_ids=rfx_group_ids,
+                rfx_basis=rfx_basis,
+                type="posterior",
+                terms="all",
+                scale="linear",
+            )
+
+            # Compute outcome mean and variance for posterior predictive distribution
+            has_mean_term = self.include_mean_forest or self.has_rfx
+            has_variance_forest = self.include_variance_forest
+            samples_global_variance = self.sample_sigma2_global
+            if has_mean_term:
+                ppd_mean = bart_preds["y_hat"]
             else:
-                ppd_variance = self.sigma2_init
+                ppd_mean = 0.0
+            if has_variance_forest:
+                ppd_variance = bart_preds["variance_forest_predictions"]
+            else:
+                if samples_global_variance:
+                    ppd_variance = np.tile(self.global_var_samples, (num_observations, 1))
+                else:
+                    ppd_variance = self.sigma2_init
 
-        # Sample from the posterior predictive distribution
-        if num_draws_per_sample is None:
-            ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
-                num_posterior_draws, num_observations
-            )
-        else:
-            ppd_draw_multiplier = num_draws_per_sample
-        if ppd_draw_multiplier > 1:
-            ppd_mean = np.tile(ppd_mean, (ppd_draw_multiplier, 1, 1))
-            ppd_variance = np.tile(ppd_variance, (ppd_draw_multiplier, 1, 1))
-            ppd_array = np.random.normal(
-                loc=ppd_mean,
-                scale=np.sqrt(ppd_variance),
-                size=(ppd_draw_multiplier, num_observations, num_posterior_draws),
-            )
-        else:
-            ppd_array = np.random.normal(
-                loc=ppd_mean,
-                scale=np.sqrt(ppd_variance),
-                size=(num_observations, num_posterior_draws),
+            # Sample from the posterior predictive distribution
+            if num_draws_per_sample is None:
+                ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
+                    num_posterior_draws, num_observations
+                )
+            else:
+                ppd_draw_multiplier = num_draws_per_sample
+            if ppd_draw_multiplier > 1:
+                ppd_mean = np.tile(ppd_mean, (ppd_draw_multiplier, 1, 1))
+                ppd_variance = np.tile(ppd_variance, (ppd_draw_multiplier, 1, 1))
+                ppd_array = np.random.normal(
+                    loc=ppd_mean,
+                    scale=np.sqrt(ppd_variance),
+                    size=(ppd_draw_multiplier, num_observations, num_posterior_draws),
+                )
+            else:
+                ppd_array = np.random.normal(
+                    loc=ppd_mean,
+                    scale=np.sqrt(ppd_variance),
+                    size=(num_observations, num_posterior_draws),
+                )
+        elif is_probit or is_binary_cloglog:
+            # Compute posterior probability samples
+            bart_preds = self.predict(
+                X=X,
+                leaf_basis=leaf_basis,
+                rfx_group_ids=rfx_group_ids,
+                rfx_basis=rfx_basis,
+                type="posterior",
+                terms="y_hat",
+                scale="probability",
             )
 
-        # Binarize outcome for probit models
-        if is_probit:
-            ppd_array = (ppd_array > 0.0) * 1
+            # Sample from the posterior predictive distribution
+            if num_draws_per_sample is None:
+                ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
+                    num_posterior_draws, num_observations
+                )
+            else:
+                ppd_draw_multiplier = num_draws_per_sample
+            # Tile probabilities for multiple draws per sample
+            probs_tiled = np.tile(bart_preds.ravel(), ppd_draw_multiplier)
+            ppd_vector = np.random.binomial(n=1, p=probs_tiled)
+
+            # Reshape data
+            if ppd_draw_multiplier > 1:
+                ppd_array = ppd_vector.reshape(
+                    (num_observations, num_posterior_draws, ppd_draw_multiplier)
+                )
+            else:
+                ppd_array = ppd_vector.reshape(
+                    (num_observations, num_posterior_draws)
+                )
+        elif is_ordinal_cloglog:
+            # Compute posterior probability samples
+            # bart_preds shape: (n_obs, n_categories, n_samples)
+            bart_preds = self.predict(
+                X=X,
+                leaf_basis=leaf_basis,
+                rfx_group_ids=rfx_group_ids,
+                rfx_basis=rfx_basis,
+                type="posterior",
+                terms="y_hat",
+                scale="probability",
+            )
+
+            # Sample from the posterior predictive distribution
+            num_categories = self.cloglog_num_categories
+            if num_draws_per_sample is None:
+                ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
+                    num_posterior_draws, num_observations
+                )
+            else:
+                ppd_draw_multiplier = num_draws_per_sample
+
+            # For each (observation, sample), draw from the categorical distribution
+            ppd_list = np.empty(
+                (num_observations, num_posterior_draws, ppd_draw_multiplier),
+                dtype=int,
+            )
+            categories = np.arange(1, num_categories + 1)
+            for i in range(num_observations):
+                for s in range(num_posterior_draws):
+                    probs = bart_preds[i, :, s]
+                    ppd_list[i, s, :] = np.random.choice(
+                        categories,
+                        size=ppd_draw_multiplier,
+                        replace=True,
+                        p=probs,
+                    )
+
+            # Reshape data
+            if ppd_draw_multiplier > 1:
+                ppd_array = ppd_list
+            else:
+                ppd_array = ppd_list.reshape(
+                    (num_observations, num_posterior_draws)
+                )
 
         return ppd_array
 

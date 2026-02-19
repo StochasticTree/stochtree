@@ -147,4 +147,75 @@ axes[1].set_title(f"Correlation: {cor_val:.3f}")
 plt.tight_layout()
 plt.show()
 
+# Evaluate test set posterior interval coverage of lambda(x)
+preds = bart_model.predict(X=X_test, terms="y_hat", scale="linear")
+linear_interval = bart_model.compute_posterior_interval(
+    X=X_test,
+    terms="y_hat",
+    scale="linear",
+)
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.scatter(np.mean(preds, axis=1), gamma_true[0] + true_lambda_function[test_idx], s=5, alpha=0.5)
+ax.scatter(linear_interval["lower"], gamma_true[0] + true_lambda_function[test_idx], s=5, alpha=0.3, color="blue")
+ax.scatter(linear_interval["upper"], gamma_true[0] + true_lambda_function[test_idx], s=5, alpha=0.3, color="blue")
+lims = [
+    min((gamma_true[0] + true_lambda_function[test_idx]).min(), linear_interval["lower"].min()),
+    max((gamma_true[0] + true_lambda_function[test_idx]).max(), linear_interval["upper"].max()),
+]
+ax.plot(lims, lims, "k-")
+ax.set_xlabel("Predicted lambda")
+ax.set_ylabel("True lambda")
+ax.set_title("Linear scale posterior interval")
+plt.tight_layout()
+plt.show()
+linear_coverage = np.mean(
+    ((linear_interval["lower"]) <= gamma_true[0] + true_lambda_function[test_idx])
+    & ((linear_interval["upper"]) >= gamma_true[0] + true_lambda_function[test_idx])
+)
+print(f"Linear scale posterior interval coverage: {linear_coverage:.3f}")
+
+# Evaluate test set posterior interval coverage of survival function
+probability_interval = bart_model.compute_posterior_interval(
+    X=X_test,
+    terms="y_hat",
+    scale="probability",
+)
+probability_coverage = np.mean(
+    (probability_interval["lower"] <= true_probs[test_idx, 1])
+    & (probability_interval["upper"] >= true_probs[test_idx, 1])
+)
+print(f"Probability interval coverage P(Y > 1): {probability_coverage:.3f}")
+
+# Compute test set prediction contrast on linear and probability scale
+X0 = X_test
+X1 = X_test + 1
+linear_contrast = bart_model.compute_contrast(
+    X_0=X0,
+    X_1=X1,
+    type="posterior",
+    scale="linear",
+)
+print(f"Linear contrast shape: {linear_contrast.shape}")
+
+probability_contrast = bart_model.compute_contrast(
+    X_0=X0,
+    X_1=X1,
+    type="posterior",
+    scale="probability",
+)
+print(f"Probability contrast shape: {probability_contrast.shape}")
+
+# Sample from posterior predictive distribution
+y_ppd = bart_model.sample_posterior_predictive(
+    X=X_test,
+    num_draws_per_sample=100
+)
+
+# Inspect results
+true_probs_test = true_probs[test_idx, :]
+max_ind = np.argmax(true_probs_test[:, 0])
+true_probs_test[max_ind, :]
+np.histogram(y_ppd[max_ind, :, :])
+np.histogram(est_probs_test[max_ind, :])
+
 print(f"\nRuntime: {runtime:.1f}s")

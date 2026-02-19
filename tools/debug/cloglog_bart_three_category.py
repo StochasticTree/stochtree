@@ -279,4 +279,19 @@ probability_contrast = bart_model.compute_contrast(
 )
 print(f"Probability contrast shape: {probability_contrast.shape}")
 
+# Sample from posterior predictive distribution
+y_ppd = bart_model.sample_posterior_predictive(
+    X=X_test,
+    num_draws_per_sample=100
+)
+
+# Inspect results
+true_probs_test = true_probs[test_idx, :]
+max_ind = np.argmax(true_probs_test[:, 0])
+true_probs_test[max_ind, :]
+np.histogram(y_ppd[max_ind, :, :])
+np.histogram(est_probs_test[max_ind, 0, :])
+np.histogram(est_probs_test[max_ind, 1, :])
+np.histogram(est_probs_test[max_ind, 2, :])
+
 print(f"\nRuntime: {runtime:.1f}s")

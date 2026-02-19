@@ -148,3 +148,72 @@ text(
   adj = 0,
   col = 'red'
 )
+
+# Evaluate test set posterior interval coverage of lambda(x)
+par(mfrow = c(1, 1))
+preds <- predict(bart_model, X = X_test, terms = "y_hat", scale = "linear")
+linear_interval <- compute_bart_posterior_interval(
+  bart_model,
+  X = X_test,
+  terms = "y_hat",
+  scale = "linear"
+)
+plot(rowMeans(preds), gamma_true[1] + true_lambda_function[test_idx])
+points(
+  linear_interval$lower,
+  gamma_true[1] + true_lambda_function[test_idx],
+  col = 'blue'
+)
+points(
+  linear_interval$upper,
+  gamma_true[1] + true_lambda_function[test_idx],
+  col = 'blue'
+)
+abline(0, 1)
+linear_coverage <- (((linear_interval$lower) <=
+  gamma_true[1] + true_lambda_function[test_idx]) &
+  ((linear_interval$upper) >= gamma_true[1] + true_lambda_function[test_idx]))
+mean(linear_coverage)
+
+# Evaluate test set posterior interval coverage of survival function
+probability_interval <- compute_bart_posterior_interval(
+  bart_model,
+  X = X_test,
+  terms = "y_hat",
+  scale = "probability"
+)
+probability_coverage <- (((probability_interval$lower) <=
+  true_probs[test_idx, 2]) &
+  ((probability_interval$upper) >= true_probs[test_idx, 2]))
+mean(probability_coverage)
+
+# Compute test set prediction contrast on probability scale
+X0 <- X_test
+X1 <- X_test + 1
+linear_contrast <- compute_contrast_bart_model(
+  bart_model,
+  X_0 = X0,
+  X_1 = X1,
+  type = "posterior",
+  scale = "linear"
+)
+probability_contrast <- compute_contrast_bart_model(
+  bart_model,
+  X_0 = X0,
+  X_1 = X1,
+  type = "posterior",
+  scale = "probability"
+)
+
+# Sample from posterior predictive distribution
+y_ppd <- sample_bart_posterior_predictive(
+  bart_model,
+  X = X_test,
+  num_draws_per_sample = 100
+)
+# Inspect results
+true_probs_test <- true_probs[test_idx, ]
+max_ind <- which.max(true_probs_test[, 1])
+true_probs_test[max_ind, ]
+hist(y_ppd[max_ind, , ])
+hist(est_probs_test[max_ind, ])

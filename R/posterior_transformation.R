@@ -937,21 +937,16 @@ sample_bart_posterior_predictive <- function(
       ppd_draw_multiplier <- num_draws_per_sample
     }
     ppd_vector <- apply(bart_preds, c(1, 3), function(x) {
-      sample(1:n_categories, ppd_draw_multiplier, replace = T, prob = x)
+      sample(1:num_categories, ppd_draw_multiplier, replace = T, prob = x)
     })
-    ppd_vector <- aperm(ppd_vector, c(2, 3, 1))
 
     # Reshape data
     if (ppd_draw_multiplier > 1) {
-      ppd_array <- array(
-        ppd_vector,
-        dim = c(num_observations, num_posterior_draws, ppd_draw_multiplier)
-      )
+      # apply returns (ppd_draw_multiplier x num_observations x num_posterior_draws)
+      ppd_array <- aperm(ppd_vector, c(2, 3, 1))
     } else {
-      ppd_array <- array(
-        ppd_vector,
-        dim = c(num_observations, num_posterior_draws)
-      )
+      # apply returns (num_observations x num_posterior_draws) matrix
+      ppd_array <- ppd_vector
     }
   }
 

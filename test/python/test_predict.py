@@ -741,3 +741,118 @@ class TestPredict:
             scale="probability",
         )
         assert contrast_mean_prob.shape == (n_test, n_categories - 1)
+
+    def test_bart_cloglog_binary_posterior_predictive(self):
+        # Generate binary cloglog data
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 3
+        X = rng.uniform(size=(n, p))
+        beta = np.full(p, 1 / np.sqrt(p))
+        true_lambda = X @ beta
+        prob_y1 = 1 - np.exp(-np.exp(true_lambda))
+        y = rng.binomial(1, prob_y1).astype(float)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+        num_mcmc = 10
+
+        # Fit binary cloglog BART model
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=num_mcmc,
+            general_params={
+                "sample_sigma2_global": False,
+                "outcome_model": OutcomeModel(outcome="binary", link="cloglog"),
+            },
+        )
+
+        # Test with multiple draws per sample
+        ppd = bart_model.sample_posterior_predictive(
+            X=X_test, num_draws_per_sample=3
+        )
+        assert ppd.shape == (n_test, num_mcmc, 3)
+        assert set(np.unique(ppd)).issubset({0, 1})
+
+        # Test with single draw per sample
+        ppd1 = bart_model.sample_posterior_predictive(
+            X=X_test, num_draws_per_sample=1
+        )
+        assert ppd1.shape == (n_test, num_mcmc)
+        assert set(np.unique(ppd1)).issubset({0, 1})
+
+    def test_bart_cloglog_ordinal_posterior_predictive(self):
+        # Generate ordinal cloglog data (3 categories)
+        rng = np.random.default_rng(42)
+        n = 500
+        p = 3
+        n_categories = 3
+        X = rng.uniform(size=(n, p))
+        beta = np.full(p, 1 / np.sqrt(p))
+        true_lambda = X @ beta
+        gamma_true = np.array([-1.5, -0.5])
+
+        # Compute class probabilities
+        true_probs = np.zeros((n, n_categories))
+        for j in range(n_categories):
+            if j == 0:
+                true_probs[:, j] = 1 - np.exp(-np.exp(gamma_true[j] + true_lambda))
+            elif j == n_categories - 1:
+                true_probs[:, j] = 1 - np.sum(true_probs[:, :j], axis=1)
+            else:
+                true_probs[:, j] = np.exp(-np.exp(gamma_true[j - 1] + true_lambda)) * \
+                    (1 - np.exp(-np.exp(gamma_true[j] + true_lambda)))
+
+        # Generate ordinal outcomes (1-indexed)
+        y = np.array([
+            rng.choice(np.arange(1, n_categories + 1), p=true_probs[i, :])
+            for i in range(n)
+        ]).astype(float)
+
+        # Train/test split
+        train_inds, test_inds = train_test_split(
+            np.arange(n), test_size=0.2, random_state=42
+        )
+        X_train = X[train_inds, :]
+        X_test = X[test_inds, :]
+        y_train = y[train_inds]
+        n_test = X_test.shape[0]
+        num_mcmc = 10
+
+        # Fit ordinal cloglog BART model
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=X_train,
+            y_train=y_train,
+            num_gfr=10,
+            num_burnin=0,
+            num_mcmc=num_mcmc,
+            general_params={
+                "sample_sigma2_global": False,
+                "outcome_model": OutcomeModel(outcome="ordinal", link="cloglog"),
+            },
+        )
+
+        # Test with multiple draws per sample
+        ppd = bart_model.sample_posterior_predictive(
+            X=X_test, num_draws_per_sample=3
+        )
+        assert ppd.shape == (n_test, num_mcmc, 3)
+        assert set(np.unique(ppd)).issubset(set(range(1, n_categories + 1)))
+
+        # Test with single draw per sample
+        ppd1 = bart_model.sample_posterior_predictive(
+            X=X_test, num_draws_per_sample=1
+        )
+        assert ppd1.shape == (n_test, num_mcmc)
+        assert set(np.unique(ppd1)).issubset(set(range(1, n_categories + 1)))

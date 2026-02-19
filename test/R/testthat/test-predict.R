@@ -922,3 +922,127 @@ test_that("BART cloglog ordinal: posterior interval and contrast", {
   expect_equal(nrow(contrast_mean_prob), n_test)
   expect_equal(ncol(contrast_mean_prob), n_categories - 1)
 })
+
+test_that("BART cloglog binary: sample posterior predictive", {
+  # Generate binary cloglog data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  prob_y1 <- 1 - exp(-exp(true_lambda))
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "binary", link = "cloglog")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% c(0, 1)))
+
+  # Test with single draw per sample
+  ppd1 <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% c(0, 1)))
+})
+
+test_that("BART cloglog ordinal: sample posterior predictive", {
+  # Generate ordinal cloglog data (3 categories)
+  set.seed(42)
+  n <- 500
+  p <- 3
+  n_categories <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  gamma_true <- c(-1.5, -0.5)
+
+  # Compute class probabilities
+  true_probs <- matrix(0, nrow = n, ncol = n_categories)
+  for (j in 1:n_categories) {
+    if (j == 1) {
+      true_probs[, j] <- 1 - exp(-exp(gamma_true[j] + true_lambda))
+    } else if (j == n_categories) {
+      true_probs[, j] <- 1 - rowSums(true_probs[, 1:(j - 1), drop = FALSE])
+    } else {
+      true_probs[, j] <- exp(-exp(gamma_true[j - 1] + true_lambda)) *
+        (1 - exp(-exp(gamma_true[j] + true_lambda)))
+    }
+  }
+
+  # Generate ordinal outcomes
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit ordinal cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "ordinal", link = "cloglog")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% 1:n_categories))
+
+  # Test with single draw per sample
+  ppd1 <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% 1:n_categories))
+})
