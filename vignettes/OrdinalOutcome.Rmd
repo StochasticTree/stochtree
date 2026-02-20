@@ -18,29 +18,30 @@ knitr::opts_chunk$set(
 )
 ```
 
-This vignette demonstrates how to use BART to model ordinal outcomes with a complementary log-log link function (@alam2025unified).
+This vignette demonstrates how to use BART to model ordinal outcomes with a complementary log-log (cloglog) link function (@alam2025unified).
 
-To begin, we load the `stochtree` package.
+We begin by loading the requisite packages.
 
 ```{r}
 library(stochtree)
 ```
 
-# Introduction to Ordinal BART with CLogLog Link
+## Introduction to Ordinal BART with CLogLog Link
 
-Ordinal data represents outcomes that have a natural ordering but undefined distances between categories. Examples include survey responses (strongly disagree, disagree, neutral, agree, strongly agree), severity ratings (mild, moderate, severe), or educational levels (elementary, high school, college, graduate).
+Ordinal data refers to outcomes that have a natural ordering but undefined distances between categories. Examples include survey responses (strongly disagree, disagree, neutral, agree, strongly agree), severity ratings (mild, moderate, severe), or educational levels (elementary, high school, college, graduate).
 
-The complementary log-log (cloglog) model uses the link function:
+The complementary log-log (cloglog) model uses the cumulative link function
 $$\text{cloglog}(p) = \log(-\log(1-p))$$
+to express cumulative category probabilities as a function of covariates
+$$\text{cloglog}(P(Y \leq k \mid X = x)) = \log(-\log(1-P(Y \leq k \mid X = x))) = \gamma_k + \lambda(x)$$
 
 This link function is asymmetric and particularly appropriate when the probability of being in higher categories changes rapidly at certain thresholds, making it different from the symmetric probit or logit links commonly used in ordinal regression.
 
-In the BART framework with cloglog ordinal regression, we model:
-$$P(Y = k \mid Y \geq k, X = x) = 1 - \exp\left(-e^{\gamma_k + \lambda(x)}\right)$$
-
-where $\lambda(x)$ is represented by a stochastic tree ensemble and $c_k = \log \sum_{j \leq k}e^{\gamma_j}$ are the cutpoints for the ordinal categories.
+In `stochtree`, we let $\lambda(x)$ be represented by a stochastic tree ensemble and we illustrate its use below.
 
 ## Data Simulation
+
+We begin by simulating from a dataset with an ordinal outcome with three categories, $y_i \in \left\{1,2,3\right\}$ whose probabilities depend on covariates, $X$.
 
 ```{r}
 # Set seed
@@ -79,22 +80,7 @@ y <- sapply(1:nrow(X), function(i) {
   sample(1:n_categories, 1, prob = true_probs[i, ])
 })
 cat("Outcome distribution:", table(y), "\n")
-```
 
-## Model Fitting
-
-We specify the cloglog link function for modeling an ordinal outcome 
-by modifying the `general_params` argument list as follows:
-
-```{r, eval = FALSE}
-general_params <- list(
-  outcome_model = outcome_model(outcome = "ordinal", link = "cloglog")
-)
-```
-
-and passing this list to the `bart()` function, which we do below:
-
-```{r}
 # Train test split
 train_idx <- sample(1:n, size = floor(0.8 * n))
 test_idx <- setdiff(1:n, train_idx)
@@ -102,7 +88,15 @@ X_train <- X[train_idx, ]
 y_train <- y[train_idx]
 X_test <- X[test_idx, ]
 y_test <- y[test_idx]
+```
 
+## Model Fitting
+
+We specify the cloglog link function for modeling an ordinal outcome by setting `outcome_model=outcome_model(outcome="ordinal", link="cloglog")` in the `general_params` argument list. Since ordinal outcomes are incompatible with the Gaussian global error variance model, we also set `sample_sigma2_global=FALSE`.
+
+We also override the default `num_trees` for the mean forest (200) in favor of greater regularization for the ordinal model and set `sample_sigma2_leaf=FALSE`.
+
+```{r}
 # Sample the cloglog ordinal BART model
 bart_model <- bart(
   X_train = X_train,
@@ -124,13 +118,9 @@ bart_model <- bart(
 )
 ```
 
-As with any other BART model in `stochtree`, we can use the `predict` function on our ordinal model. 
-Specifying `scale = "linear"` and `terms = "y_hat"` will simply return predictions from the estimated $\lambda(x)$ function, 
-but users can estimate class probabilities via `scale = "probability"`, which by default will return an array of dimension 
-(`num_observations`, `num_categories`, `num_samples`), where `num_observations = nrow(X)`, `num_categories` is the number of 
-unique ordinal labels that the outcome takes, and `num_samples` is the number of draws of the model. Specifying `type = "mean"` 
-collapses the output to a `num_observations` x `num_categories` matrix, with the average posterior class probability for each observation.
-Users can also specify `type = "class"` for the maximum a posteriori (MAP) class label estimate for each draw of each observation.
+## Prediction
+
+As with any other BART model in `stochtree`, we can use the `predict` function on our ordinal model. Specifying `scale = "linear"` and `terms = "y_hat"` will simply return predictions from the estimated $\lambda(x)$ function, but users can estimate class probabilities via `scale = "probability"`, which by default will return an array of dimension (`num_observations`, `num_categories`, `num_samples`), where `num_observations = nrow(X)`, `num_categories` is the number of unique ordinal labels that the outcome takes, and `num_samples` is the number of draws of the model. Specifying `type = "mean"` collapses the output to a `num_observations` x `num_categories` matrix, with the average posterior class probability for each observation. Users can also specify `type = "class"` for the maximum a posteriori (MAP) class label estimate for each draw of each observation.
 
 Below we compute the posterior class probabilities for the train and test sets.
 
@@ -151,8 +141,9 @@ est_probs_test <- predict(
 
 ## Model Results and Interpretation
 
-Since one of the "cutpoints" $c_k$ above is fixed for identifiability, we plot the posterior distribution of the other two cutpoints and 
-compare to their true simulated values.
+Since one of the "cutpoints" is fixed for identifiability, we plot the posterior distributions of the other two cutpoints and compare them to their true simulated values (blue dotted lines).
+
+The cutpoint samples are accessed via `bart_model$.$cloglog_cutpoint_samples` (shape: `(n_categories - 1, num_samples)`) and are shifted by the per-sample mean of the training predictions to account for the non-identifiable intercept.
 
 ```{r}
 gamma1 <- bart_model$cloglog_cutpoint_samples[1, ] +
@@ -175,7 +166,7 @@ hist(
 abline(v = gamma_true[2], col = 'blue', lty = 3, lwd = 3)
 ```
 
-Similarly, we can compare the true value of the latent utility function $\lambda(x)$ to the (mean-shifted) BART forest predictions
+Similarly, we can compare the true value of the latent "utility function" $\lambda(x)$ to the (mean-shifted) BART forest predictions
 
 ```{r}
 # Train set predicted versus actual
