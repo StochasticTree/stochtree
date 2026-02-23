@@ -1883,6 +1883,9 @@ bcf <- function(
   # Run MCMC
   if (num_burnin + num_mcmc > 0) {
     for (chain_num in 1:num_chains) {
+      if (verbose) {
+        cat("Sampling chain", chain_num, "of", num_chains, "\n")
+      }
       if (num_gfr > 0) {
         # Reset state of active_forest and forest_model based on a previous GFR sample
         forest_ind <- num_gfr - chain_num
@@ -2231,7 +2234,7 @@ bcf <- function(
         }
         # Print progress
         if (verbose) {
-          if (num_burnin > 0) {
+          if (num_burnin > 0 && !is_mcmc) {
             if (
               ((i - num_gfr) %% 100 == 0) ||
                 ((i - num_gfr) == num_burnin)
@@ -2240,23 +2243,29 @@ bcf <- function(
                 "Sampling",
                 i - num_gfr,
                 "out of",
-                num_gfr,
-                "BCF burn-in draws\n"
+                num_burnin,
+                "BCF burn-in draws; Chain number ",
+                chain_num,
+                "\n"
               )
             }
           }
-          if (num_mcmc > 0) {
-            if (
-              ((i - num_gfr - num_burnin) %% 100 == 0) ||
-                (i == num_samples)
-            ) {
-              cat(
-                "Sampling",
-                i - num_burnin - num_gfr,
-                "out of",
-                num_mcmc,
-                "BCF MCMC draws\n"
-              )
+          if (num_mcmc > 0 && is_mcmc) {
+            raw_iter <- i - num_gfr - num_burnin
+            if ((raw_iter %% 100 == 0) || (i == num_samples)) {
+              if (keep_every == 1) {
+                cat(
+                  "Sampling", raw_iter, "out of", num_mcmc,
+                  "BCF MCMC draws; Chain number ", chain_num, "\n"
+                )
+              } else {
+                cat(
+                  "Sampling raw draw", raw_iter, "of", num_actual_mcmc_iter,
+                  "BCF MCMC draws (thinning by", keep_every, ":",
+                  raw_iter %/% keep_every, "of", num_mcmc,
+                  "retained); Chain number ", chain_num, "\n"
+                )
+              }
             }
           }
         }
