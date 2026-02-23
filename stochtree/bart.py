@@ -68,6 +68,73 @@ class BARTModel:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
 
+    def __str__(self) -> str:
+        if not self.sampled:
+            return "Empty BARTModel() object: not yet sampled"
+        else:
+            model_terms = []
+            if self.include_mean_forest:
+                model_terms.append("mean forest")
+            if self.include_variance_forest:
+                model_terms.append("variance forest")
+            if self.has_rfx:
+                model_terms.append("additive random effects")
+            if self.sample_sigma2_global:
+                model_terms.append("global error variance model")
+            if self.sample_sigma2_leaf:
+                model_terms.append("mean forest leaf scale model")
+            if len(model_terms) > 2:
+                output_str = f"BARTModel run with {', '.join(model_terms[:-1])}, and {model_terms[-1]}"  
+            elif len(model_terms) == 2:
+                output_str = f"BARTModel run with {model_terms[0]} and {model_terms[1]}"
+            else:
+                output_str = f"BARTModel run with {model_terms[0]}"
+            # Outcome model details
+            if self.has_basis:
+                output_str += (
+                    f"\nOutcome was modeled "
+                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
+                    f"with a leaf regression prior with {self.num_basis} bases for the mean forest"
+                )
+            elif self.include_mean_forest:
+                output_str += (
+                    f"\nOutcome was modeled "
+                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
+                    f"with a constant leaf prior for the mean forest"
+                )
+            else:
+                output_str += (
+                    f"\nOutcome was modeled "
+                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
+                )
+            # Standardization details
+            if self.standardize:
+                output_str += (
+                    f"\nOutcome was standardized"
+                )
+            # Random effects details
+            if self.has_rfx:
+                if self.rfx_model_spec == "custom":
+                    output_str += (
+                        f"\nRandom effects were fit with a user-supplied basis"
+                    )
+                elif self.rfx_model_spec == "intercept_only":
+                    output_str += (
+                        f"\nRandom effects were fit with an 'intercept-only' parameterization"
+                    )
+            # Sampler details
+            output_str += (
+                f"\nThe sampler was run for {self.num_gfr} GFR iterations, with {self.num_chains} "
+                f"{'chain' if self.num_chains == 1 else 'chains'} of {self.num_burnin} burn-in iterations and "
+                f"{self.num_mcmc} MCMC iterations, "
+                f"{'retaining every iteration (i.e. no thinning)' if self.keep_every == 1 else f'retaining every {self.keep_every}th iteration (i.e. thinning)'}"
+            )
+            # Append newline
+            output_str += "\n"
+        return output_str
+      
+    __repr__ = __str__
+
     def sample(
         self,
         X_train: Union[np.ndarray, pd.DataFrame],
@@ -1184,6 +1251,8 @@ class BARTModel:
         self.num_gfr = num_gfr
         self.num_burnin = num_burnin
         self.num_mcmc = num_mcmc
+        self.num_chains = num_chains
+        self.keep_every = keep_every
         num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
         num_retained_samples = num_mcmc * num_chains
         # Delete GFR samples from these containers after the fact if desired
@@ -2577,6 +2646,8 @@ class BARTModel:
         bart_json.add_integer("num_gfr", self.num_gfr)
         bart_json.add_integer("num_burnin", self.num_burnin)
         bart_json.add_integer("num_mcmc", self.num_mcmc)
+        bart_json.add_integer("num_chains", self.num_chains)
+        bart_json.add_integer("keep_every", self.keep_every)
         bart_json.add_integer("num_samples", self.num_samples)
         bart_json.add_integer("num_basis", self.num_basis)
         bart_json.add_boolean("requires_basis", self.has_basis)
@@ -2652,6 +2723,8 @@ class BARTModel:
         self.num_gfr = bart_json.get_integer("num_gfr")
         self.num_burnin = bart_json.get_integer("num_burnin")
         self.num_mcmc = bart_json.get_integer("num_mcmc")
+        self.num_chains = bart_json.get_integer("num_chains")
+        self.keep_every = bart_json.get_integer("keep_every")
         self.num_samples = bart_json.get_integer("num_samples")
         self.num_basis = bart_json.get_integer("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
@@ -2764,6 +2837,8 @@ class BARTModel:
         self.num_gfr = json_object_default.get_integer("num_gfr")
         self.num_burnin = json_object_default.get_integer("num_burnin")
         self.num_mcmc = json_object_default.get_integer("num_mcmc")
+        self.num_chains = json_object_default.get_integer("num_chains")
+        self.keep_every = json_object_default.get_integer("keep_every")
         self.num_basis = json_object_default.get_integer("num_basis")
         self.has_basis = json_object_default.get_boolean("requires_basis")
         self.probit_outcome_model = json_object_default.get_boolean(

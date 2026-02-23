@@ -1085,7 +1085,7 @@ bcf <- function(
     }
   }
 
-  if (has_test) {
+  if (has_test && !is.null(propensity_train)) {
     if (is.null(propensity_test)) {
       stop(
         "Propensity score must be provided for the test set if provided for the training set"

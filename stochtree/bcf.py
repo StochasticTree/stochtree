@@ -79,6 +79,84 @@ class BCFModel:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
 
+    def __str__(self) -> str:
+        if not self.sampled:
+            return "Empty BCFModel() object: not yet sampled"
+        else:
+            model_terms = ["prognostic forest", "treatment effect forest"]
+            if self.include_variance_forest:
+                model_terms.append("variance forest")
+            if self.has_rfx:
+                model_terms.append("additive random effects")
+            if self.sample_sigma2_global:
+                model_terms.append("global error variance model")
+            if self.sample_sigma2_leaf_mu:
+                model_terms.append("prognostic forest leaf scale model")
+            if self.sample_sigma2_leaf_tau:
+                model_terms.append("treatment effect forest leaf scale model")
+            if len(model_terms) > 2:
+                output_str = f"BCFModel run with {', '.join(model_terms[:-1])}, and {model_terms[-1]}"
+            elif len(model_terms) == 2:
+                output_str = f"BCFModel run with {model_terms[0]} and {model_terms[1]}"
+            else:
+                output_str = f"BCFModel run with {model_terms[0]}"
+            # Outcome details
+            output_str += (
+                f"\nOutcome was modeled "
+                f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'}"
+            )
+            # Treatment details
+            if self.binary_treatment:
+                output_str += (
+                    f"\nTreatment was binary and its effect was estimated with "
+                    f"{'adaptive coding' if self.adaptive_coding else 'default coding'}"
+                )
+            elif self.multivariate_treatment:
+                output_str += (
+                    f"\nTreatment was multivariate with {self.treatment_dim} dimensions"
+                )
+            else:
+                output_str += "\nTreatment was univariate but not binary"
+            # Standardization details
+            if self.standardize:
+                output_str += "\nOutcome was standardized"
+            # Propensity details
+            if self.propensity_covariate == "none":
+                output_str += (
+                    "\nPropensity scores were not used in either forest of the model"
+                )
+            elif self.internal_propensity_model:
+                output_str += (
+                    "\nAn internal propensity model was fit using BARTModel "
+                    "in lieu of user-provided propensity scores"
+                )
+            else:
+                output_str += "\nUser-provided propensity scores were included in the model"
+            # Random effects details
+            if self.has_rfx:
+                if self.rfx_model_spec == "custom":
+                    output_str += "\nRandom effects were fit with a user-supplied basis"
+                elif self.rfx_model_spec == "intercept_only":
+                    output_str += (
+                        "\nRandom effects were fit with an 'intercept-only' parameterization"
+                    )
+                elif self.rfx_model_spec == "intercept_plus_treatment":
+                    output_str += (
+                        "\nRandom effects were fit with an 'intercept-plus-treatment' parameterization"
+                    )
+            # Sampler details
+            output_str += (
+                f"\nThe sampler was run for {self.num_gfr} GFR iterations, with {self.num_chains} "
+                f"{'chain' if self.num_chains == 1 else 'chains'} of {self.num_burnin} burn-in iterations and "
+                f"{self.num_mcmc} MCMC iterations, "
+                f"{'retaining every iteration (i.e. no thinning)' if self.keep_every == 1 else f'retaining every {self.keep_every}th iteration (i.e. thinning)'}"
+            )
+            # Append newline
+            output_str += "\n"
+        return output_str
+
+    __repr__ = __str__
+
     def sample(
         self,
         X_train: Union[pd.DataFrame, np.array],
@@ -1774,6 +1852,8 @@ class BCFModel:
         self.num_gfr = num_gfr
         self.num_burnin = num_burnin
         self.num_mcmc = num_mcmc
+        self.num_chains = num_chains
+        self.keep_every = keep_every
         num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
         num_retained_samples = num_mcmc * num_chains
         # Delete GFR samples from these containers after the fact if desired
@@ -3718,6 +3798,8 @@ class BCFModel:
         bcf_json.add_scalar("num_gfr", self.num_gfr)
         bcf_json.add_scalar("num_burnin", self.num_burnin)
         bcf_json.add_scalar("num_mcmc", self.num_mcmc)
+        bcf_json.add_scalar("num_chains", self.num_chains)
+        bcf_json.add_scalar("keep_every", self.keep_every)
         bcf_json.add_scalar("num_samples", self.num_samples)
         bcf_json.add_boolean("adaptive_coding", self.adaptive_coding)
         bcf_json.add_string("propensity_covariate", self.propensity_covariate)
@@ -3807,6 +3889,8 @@ class BCFModel:
         self.num_gfr = int(bcf_json.get_scalar("num_gfr"))
         self.num_burnin = int(bcf_json.get_scalar("num_burnin"))
         self.num_mcmc = int(bcf_json.get_scalar("num_mcmc"))
+        self.num_chains = int(bcf_json.get_scalar("num_chains"))
+        self.keep_every = int(bcf_json.get_scalar("keep_every"))
         self.num_samples = int(bcf_json.get_scalar("num_samples"))
         self.adaptive_coding = bcf_json.get_boolean("adaptive_coding")
         self.propensity_covariate = bcf_json.get_string("propensity_covariate")
@@ -3938,6 +4022,8 @@ class BCFModel:
         self.num_gfr = json_object_default.get_scalar("num_gfr")
         self.num_burnin = json_object_default.get_scalar("num_burnin")
         self.num_mcmc = json_object_default.get_scalar("num_mcmc")
+        self.num_chains = int(json_object_default.get_scalar("num_chains"))
+        self.keep_every = int(json_object_default.get_scalar("keep_every"))
         self.adaptive_coding = json_object_default.get_boolean("adaptive_coding")
         self.propensity_covariate = json_object_default.get_string(
             "propensity_covariate"

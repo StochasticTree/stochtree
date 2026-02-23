@@ -705,7 +705,7 @@ class RandomEffectsModel:
         """
         self.set_working_parameter(alpha_init)
         self.set_group_parameters(xi_init)
-        self.set_working_parameter_cov(sigma_alpha_init)
-        self.set_group_parameter_cov(sigma_xi_init)
+        self.set_working_parameter_covariance(sigma_alpha_init)
+        self.set_group_parameter_covariance(sigma_xi_init)
         self.set_variance_prior_shape(sigma_xi_shape)
         self.set_variance_prior_scale(sigma_xi_scale)
