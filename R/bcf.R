@@ -2255,15 +2255,29 @@ bcf <- function(
             if ((raw_iter %% 100 == 0) || (i == num_samples)) {
               if (keep_every == 1) {
                 cat(
-                  "Sampling", raw_iter, "out of", num_mcmc,
-                  "BCF MCMC draws; Chain number ", chain_num, "\n"
+                  "Sampling",
+                  raw_iter,
+                  "out of",
+                  num_mcmc,
+                  "BCF MCMC draws; Chain number ",
+                  chain_num,
+                  "\n"
                 )
               } else {
                 cat(
-                  "Sampling raw draw", raw_iter, "of", num_actual_mcmc_iter,
-                  "BCF MCMC draws (thinning by", keep_every, ":",
-                  raw_iter %/% keep_every, "of", num_mcmc,
-                  "retained); Chain number ", chain_num, "\n"
+                  "Sampling raw draw",
+                  raw_iter,
+                  "of",
+                  num_actual_mcmc_iter,
+                  "BCF MCMC draws (thinning by",
+                  keep_every,
+                  ":",
+                  raw_iter %/% keep_every,
+                  "of",
+                  num_mcmc,
+                  "retained); Chain number ",
+                  chain_num,
+                  "\n"
                 )
               }
             }
@@ -3534,7 +3548,7 @@ print.bcfmodel <- function(x, ...) {
   )
 
   # Print the model details
-  cat(summary_message)
+  cat(summary_message, "\n")
 
   # Return bcf model invisibly
   invisible(x)
@@ -3721,10 +3735,44 @@ summary.bcfmodel <- function(object, ...) {
   }
 
   # Random effects
-  # TODO: add random effects summaries once indexing is fixed
   if (object$model_params$has_rfx) {
-    # rfx_summary <- getRandomEffectSamples(object)
-    # ...
+    rfx_samples <- getRandomEffectSamples(object)
+    rfx_beta_samples <- rfx_samples$beta_samples
+    if (length(dim(rfx_beta_samples)) > 2) {
+      cat(
+        "Random effects summary of variance components across groups and posterior draws:\n"
+      )
+      rfx_component_means <- apply(rfx_beta_samples, 1, mean)
+      rfx_component_sds <- apply(rfx_beta_samples, 1, sd)
+      cat("Variance component means: ", rfx_component_means, "\n")
+      cat("Variance component standard deviations: ", rfx_component_sds, "\n")
+      quantile_summary <- t(apply(
+        rfx_beta_samples,
+        1,
+        quantile,
+        probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
+      ))
+      cat("Variance component quantiles:\n")
+      print(quantile_summary)
+    } else {
+      cat(
+        "Random effects summary of variance components across groups and posterior draws:\n"
+      )
+      rfx_component_means <- mean(rfx_beta_samples)
+      rfx_component_sds <- sd(rfx_beta_samples)
+      cat("Random effects overall mean: ", rfx_component_means, "\n")
+      cat(
+        "Random effects overall standard deviation: ",
+        rfx_component_sds,
+        "\n"
+      )
+      quantile_summary <- quantile(
+        rfx_beta_samples,
+        probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
+      )
+      cat("Random effects overall quantiles:\n")
+      print(quantile_summary)
+    }
   }
 
   # Return bcf model invisibly
