@@ -2931,6 +2931,96 @@ class BARTModel:
 
         raise ValueError(f"term {term} is not a valid BART model term")
 
+    def summary(self) -> str:
+        # First, print the BART model
+        output_str = "BART Model Summary:\n"
+        output_str += "------------------\n"
+        output_str += f"{self.__str__()}\n"
+
+        probs = [0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975]
+
+        # Summarize any sampled quantities
+
+        # Global error scale
+        if self.sample_sigma2_global:
+            sigma2_samples = self.global_var_samples
+            n_samples = len(sigma2_samples)
+            mean_sigma2 = np.mean(sigma2_samples)
+            sd_sigma2 = np.std(sigma2_samples)
+            quantiles_sigma2 = np.quantile(sigma2_samples, probs)
+            output_str += f"Summary of sigma^2 posterior: "
+            output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_sigma2):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Leaf scale
+        if self.sample_sigma2_leaf:
+            sigma2_leaf_samples = self.leaf_scale_samples
+            n_samples = len(sigma2_leaf_samples)
+            mean_sigma2 = np.mean(sigma2_leaf_samples)
+            sd_sigma2 = np.std(sigma2_leaf_samples)
+            quantiles_sigma2 = np.quantile(sigma2_leaf_samples, probs)
+            output_str += f"Summary of leaf scale posterior: "
+            output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_sigma2):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # In-sample predictions
+        yht = getattr(self, "y_hat_train", None)
+        if yht is not None:
+            y_hat_train_mean = np.mean(yht, axis=1)
+            n_y_hat_train = len(y_hat_train_mean)
+            mean_y_hat_train = np.mean(y_hat_train_mean)
+            sd_y_hat_train = np.std(y_hat_train_mean)
+            quantiles_y_hat_train = np.quantile(y_hat_train_mean, probs)
+            output_str += f"Summary of in-sample posterior mean predictions: \n{n_y_hat_train} observations, mean = {mean_y_hat_train:.3f}, standard deviation = {sd_y_hat_train:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_y_hat_train):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Test-set predictions
+        yht = getattr(self, "y_hat_test", None)
+        if yht is not None:
+            y_hat_test_mean = np.mean(yht, axis=1)
+            n_y_hat_test = len(y_hat_test_mean)
+            mean_y_hat_test = np.mean(y_hat_test_mean)
+            sd_y_hat_test = np.std(y_hat_test_mean)
+            quantiles_y_hat_test = np.quantile(y_hat_test_mean, probs)
+            output_str += f"Summary of test-set posterior mean predictions: \n{n_y_hat_test} observations, mean = {mean_y_hat_test:.3f}, standard deviation = {sd_y_hat_test:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_y_hat_test):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Random effects
+        if self.has_rfx:
+            rfx_samples = self.rfx_container.extract_parameter_samples()
+            rfx_beta_samples = rfx_samples['beta_samples']
+            if rfx_beta_samples.ndim > 2:
+                reduce_axes = tuple(range(1, rfx_beta_samples.ndim))
+                rfx_component_means = np.mean(rfx_beta_samples, axis=reduce_axes)
+                rfx_component_sds = np.std(rfx_beta_samples, axis=reduce_axes)
+                means_str = ", ".join(f"{v:.3f}" for v in rfx_component_means)
+                sds_str = ", ".join(f"{v:.3f}" for v in rfx_component_sds)
+                output_str += "Random effects summary of variance components across groups and posterior draws:\n"
+                output_str += f"Variance component means: {means_str}\n"
+                output_str += f"Variance component standard deviations: {sds_str}\n"
+                rfx_quantiles = np.quantile(
+                    rfx_beta_samples, probs, axis=reduce_axes
+                ).T
+                output_str += "Variance component quantiles:\n"
+                for i in range(rfx_quantiles.shape[0]):
+                    output_str += f"  Component {i+1}:\n"
+                    for p, q in zip(probs, rfx_quantiles[i, :]):
+                        output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+            else:
+                rfx_component_means = np.mean(rfx_beta_samples)
+                rfx_component_sds = np.std(rfx_beta_samples)
+                output_str += f"Random effects overall mean: {rfx_component_means:.3f}\n"
+                output_str += f"Random effects overall standard deviation: {rfx_component_sds:.3f}\n"
+                output_str += "Random effects overall quantiles:\n"
+                rfx_quantiles = np.quantile(rfx_beta_samples, probs)
+                for p, q in zip(probs, rfx_quantiles):
+                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+        return output_str
+
     def __str__(self) -> str:
         if not self.sampled:
             return "Empty BARTModel() object: not yet sampled"

@@ -193,3 +193,96 @@ class TestBARTModelStr:
         s = str(model)
         assert "2 chains" in s
         assert "thinning" in s
+
+
+class TestBARTModelSummary:
+    def test_sigma2_and_leaf_scale_sampled(self, bart_data):
+        """With sigma2_global and sigma2_leaf both sampled, both appear in the summary."""
+        model = BARTModel()
+        model.sample(
+            X_train=bart_data["X_train"],
+            y_train=bart_data["y_train"],
+            X_test=bart_data["X_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"sample_sigma2_global": True},
+            mean_forest_params={"sample_sigma2_leaf": True},
+        )
+        s = model.summary()
+        assert "sigma^2" in s
+        assert "leaf scale" in s
+        assert "in-sample" in s
+        assert "test-set" in s
+
+    def test_no_test_set(self, bart_data):
+        """Without a test set, the test-set summary line is absent."""
+        model = BARTModel()
+        model.sample(
+            X_train=bart_data["X_train"],
+            y_train=bart_data["y_train"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"sample_sigma2_global": False},
+            mean_forest_params={"sample_sigma2_leaf": False},
+        )
+        s = model.summary()
+        assert "in-sample" in s
+        assert "test-set" not in s
+
+    def test_intercept_only_rfx(self, bart_data):
+        """Intercept-only random effects produce a single-component RFX summary."""
+        model = BARTModel()
+        model.sample(
+            X_train=bart_data["X_train"],
+            y_train=bart_data["y_train"],
+            X_test=bart_data["X_test"],
+            rfx_group_ids_train=bart_data["rfx_group_ids_train"],
+            rfx_group_ids_test=bart_data["rfx_group_ids_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"sample_sigma2_global": False},
+            mean_forest_params={"sample_sigma2_leaf": False},
+            random_effects_params={"model_spec": "intercept_only"},
+        )
+        s = model.summary()
+        assert "Random effects" in s
+        assert "Random effects overall mean" in s
+
+    def test_custom_rfx(self, bart_data):
+        """Custom (multi-component) random effects produce a multi-component RFX summary."""
+        model = BARTModel()
+        model.sample(
+            X_train=bart_data["X_train"],
+            y_train=bart_data["y_train"],
+            X_test=bart_data["X_test"],
+            rfx_group_ids_train=bart_data["rfx_group_ids_train"],
+            rfx_group_ids_test=bart_data["rfx_group_ids_test"],
+            rfx_basis_train=bart_data["rfx_basis_train"],
+            rfx_basis_test=bart_data["rfx_basis_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"sample_sigma2_global": False},
+            mean_forest_params={"sample_sigma2_leaf": False},
+            random_effects_params={"model_spec": "custom"},
+        )
+        s = model.summary()
+        assert "Random effects" in s
+        assert "Variance component means" in s
+
+    def test_returns_string(self, bart_data):
+        """summary() returns a string."""
+        model = BARTModel()
+        model.sample(
+            X_train=bart_data["X_train"],
+            y_train=bart_data["y_train"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"sample_sigma2_global": False},
+            mean_forest_params={"sample_sigma2_leaf": False},
+        )
+        assert isinstance(model.summary(), str)
