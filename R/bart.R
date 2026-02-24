@@ -2841,16 +2841,16 @@ extract_parameter.bartmodel <- function(object, term) {
   }
 
   if (term %in% c("sigma2_x_train", "var_x_train")) {
-    if (!is.null(object$sigma2_x_train)) {
-      return(object$sigma2_x_train)
+    if (!is.null(object$sigma2_x_hat_train)) {
+      return(object$sigma2_x_hat_train)
     } else {
       stop("This model does not have in-sample variance forest predictions")
     }
   }
 
   if (term %in% c("sigma2_x_test", "var_x_test")) {
-    if (!is.null(object$sigma2_x_test)) {
-      return(object$sigma2_x_test)
+    if (!is.null(object$sigma2_x_hat_test)) {
+      return(object$sigma2_x_hat_test)
     } else {
       stop("This model does not have test set variance forest predictions")
     }

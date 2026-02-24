@@ -68,73 +68,6 @@ class BARTModel:
         # Internal flag for whether the sample() method has been run
         self.sampled = False
 
-    def __str__(self) -> str:
-        if not self.sampled:
-            return "Empty BARTModel() object: not yet sampled"
-        else:
-            model_terms = []
-            if self.include_mean_forest:
-                model_terms.append("mean forest")
-            if self.include_variance_forest:
-                model_terms.append("variance forest")
-            if self.has_rfx:
-                model_terms.append("additive random effects")
-            if self.sample_sigma2_global:
-                model_terms.append("global error variance model")
-            if self.sample_sigma2_leaf:
-                model_terms.append("mean forest leaf scale model")
-            if len(model_terms) > 2:
-                output_str = f"BARTModel run with {', '.join(model_terms[:-1])}, and {model_terms[-1]}"  
-            elif len(model_terms) == 2:
-                output_str = f"BARTModel run with {model_terms[0]} and {model_terms[1]}"
-            else:
-                output_str = f"BARTModel run with {model_terms[0]}"
-            # Outcome model details
-            if self.has_basis:
-                output_str += (
-                    f"\nOutcome was modeled "
-                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
-                    f"with a leaf regression prior with {self.num_basis} bases for the mean forest"
-                )
-            elif self.include_mean_forest:
-                output_str += (
-                    f"\nOutcome was modeled "
-                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
-                    f"with a constant leaf prior for the mean forest"
-                )
-            else:
-                output_str += (
-                    f"\nOutcome was modeled "
-                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
-                )
-            # Standardization details
-            if self.standardize:
-                output_str += (
-                    f"\nOutcome was standardized"
-                )
-            # Random effects details
-            if self.has_rfx:
-                if self.rfx_model_spec == "custom":
-                    output_str += (
-                        f"\nRandom effects were fit with a user-supplied basis"
-                    )
-                elif self.rfx_model_spec == "intercept_only":
-                    output_str += (
-                        f"\nRandom effects were fit with an 'intercept-only' parameterization"
-                    )
-            # Sampler details
-            output_str += (
-                f"\nThe sampler was run for {self.num_gfr} GFR iterations, with {self.num_chains} "
-                f"{'chain' if self.num_chains == 1 else 'chains'} of {self.num_burnin} burn-in iterations and "
-                f"{self.num_mcmc} MCMC iterations, "
-                f"{'retaining every iteration (i.e. no thinning)' if self.keep_every == 1 else f'retaining every {self.keep_every}th iteration (i.e. thinning)'}"
-            )
-            # Append newline
-            output_str += "\n"
-        return output_str
-      
-    __repr__ = __str__
-
     def sample(
         self,
         X_train: Union[np.ndarray, pd.DataFrame],
@@ -2930,3 +2863,137 @@ class BARTModel:
             return True
         else:
             return False
+    
+    def extract_parameter(self, term: str) -> np.array:
+        """
+        Extract a vector, matrix or array of parameter samples from a BART model by name. 
+        Random effects are handled by a separate `extract_parameter_samples` method attached to the underlying `RandomEffectsContainer` object due to the complexity of the random effects parameters.
+        If the requested model term is not found, an error is thrown.
+        The following conventions are used for parameter names:
+        - Global error variance: `"sigma2"`, `"global_error_scale"`, `"sigma2_global"`
+        - Leaf scale: `"sigma2_leaf"`, `"leaf_scale"`
+        - In-sample mean function predictions: `"y_hat_train"`
+        - Test set mean function predictions: `"y_hat_test"`
+        - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
+        - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
+        
+        Parameters
+        ----------
+        term : str
+            Name of the parameter to extract (e.g., `"sigma2"`, `"y_hat_train"`, etc.)
+
+        Returns
+        -------
+        np.array
+            Array of parameter samples. If the underlying parameter is a scalar, this will be a vector of length `num_samples`.
+            If the underlying parameter is vector-valued, this will be (`parameter_dimension` x `num_samples`) matrix, and if the underlying
+            parameter is multidimensional, this will be an array of dimension (`parameter_dimension_1` x `parameter_dimension_2` x ... x `num_samples`).
+        """
+        if term in ["sigma2", "global_error_scale", "sigma2_global"]:
+            if self.sample_sigma2_global:
+                return self.global_var_samples
+            else:
+                raise ValueError("This model does not have global variance parameter samples")
+
+        if term in ["sigma2_leaf", "leaf_scale"]:
+            if self.sample_sigma2_leaf:
+                return self.leaf_scale_samples
+            else:
+                raise ValueError("This model does not have leaf variance parameter samples")
+
+        if term in ["y_hat_train"]:
+            yht = getattr(self, "y_hat_train", None)
+            if yht is not None:
+                return yht
+            else:
+                raise ValueError("This model does not have in-sample mean function prediction samples")
+
+        if term in ["y_hat_test"]:
+            yht = getattr(self, "y_hat_test", None)
+            if yht is not None:
+                return yht
+            else:
+                raise ValueError("This model does not have test set mean function prediction samples")
+
+        if term in ["sigma2_x_train", "var_x_train"]:
+            s2x = getattr(self, "sigma2_x_train", None)
+            if s2x is not None:
+                return s2x
+            else:
+                raise ValueError("This model does not have in-sample variance forest predictions")
+
+        if term in ["sigma2_x_test", "var_x_test"]:
+            s2x = getattr(self, "sigma2_x_test", None)
+            if s2x is not None:
+                return s2x
+            else:
+                raise ValueError("This model does not have test set variance forest predictions")
+
+        raise ValueError(f"term {term} is not a valid BART model term")
+
+    def __str__(self) -> str:
+        if not self.sampled:
+            return "Empty BARTModel() object: not yet sampled"
+        else:
+            model_terms = []
+            if self.include_mean_forest:
+                model_terms.append("mean forest")
+            if self.include_variance_forest:
+                model_terms.append("variance forest")
+            if self.has_rfx:
+                model_terms.append("additive random effects")
+            if self.sample_sigma2_global:
+                model_terms.append("global error variance model")
+            if self.sample_sigma2_leaf:
+                model_terms.append("mean forest leaf scale model")
+            if len(model_terms) > 2:
+                output_str = f"BARTModel run with {', '.join(model_terms[:-1])}, and {model_terms[-1]}"  
+            elif len(model_terms) == 2:
+                output_str = f"BARTModel run with {model_terms[0]} and {model_terms[1]}"
+            else:
+                output_str = f"BARTModel run with {model_terms[0]}"
+            # Outcome model details
+            if self.has_basis:
+                output_str += (
+                    f"\nOutcome was modeled "
+                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
+                    f"with a leaf regression prior with {self.num_basis} bases for the mean forest"
+                )
+            elif self.include_mean_forest:
+                output_str += (
+                    f"\nOutcome was modeled "
+                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
+                    f"with a constant leaf prior for the mean forest"
+                )
+            else:
+                output_str += (
+                    f"\nOutcome was modeled "
+                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
+                )
+            # Standardization details
+            if self.standardize:
+                output_str += (
+                    f"\nOutcome was standardized"
+                )
+            # Random effects details
+            if self.has_rfx:
+                if self.rfx_model_spec == "custom":
+                    output_str += (
+                        f"\nRandom effects were fit with a user-supplied basis"
+                    )
+                elif self.rfx_model_spec == "intercept_only":
+                    output_str += (
+                        f"\nRandom effects were fit with an 'intercept-only' parameterization"
+                    )
+            # Sampler details
+            output_str += (
+                f"\nThe sampler was run for {self.num_gfr} GFR iterations, with {self.num_chains} "
+                f"{'chain' if self.num_chains == 1 else 'chains'} of {self.num_burnin} burn-in iterations and "
+                f"{self.num_mcmc} MCMC iterations, "
+                f"{'retaining every iteration (i.e. no thinning)' if self.keep_every == 1 else f'retaining every {self.keep_every}th iteration (i.e. thinning)'}"
+            )
+            # Append newline
+            output_str += "\n"
+        return output_str
+      
+    __repr__ = __str__
