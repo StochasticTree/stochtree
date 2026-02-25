@@ -1,0 +1,187 @@
+---
+title: "Summary and Plotting Utilities"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Tree-Inspection}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+bibliography: vignettes.bib
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette demonstrates the summary and plotting utilities available for `stochtree` models in R.
+
+To begin, we load the `stochtree` package.
+
+```{r}
+library(stochtree)
+```
+
+and set a random seed for reproducibility.
+
+```{r}
+random_seed = 1234
+set.seed(random_seed)
+```
+
+# Supervised Learning
+
+We begin with the supervised learning use case served by the `bart()` function.
+
+Below we simulate a simple regression dataset.
+
+```{r}
+n <- 1000
+p_x <- 10
+p_w <- 1
+X <- matrix(runif(n * p_x), ncol = p_x)
+W <- matrix(runif(n * p_w), ncol = p_w)
+f_XW <- (((0 <= X[, 10]) & (0.25 > X[, 10])) *
+  (-7.5 * W[, 1]) +
+  ((0.25 <= X[, 10]) & (0.5 > X[, 10])) * (-2.5 * W[, 1]) +
+  ((0.5 <= X[, 10]) & (0.75 > X[, 10])) * (2.5 * W[, 1]) +
+  ((0.75 <= X[, 10]) & (1 > X[, 10])) * (7.5 * W[, 1]))
+noise_sd <- 1
+y <- f_XW + rnorm(n, 0, 1) * noise_sd
+```
+
+Now we fit a simple BART model to the data
+
+```{r}
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 1000
+general_params <- list(num_chains = 3)
+bart_model <- stochtree::bart(
+  X_train = X,
+  y_train = y,
+  leaf_basis_train = W,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params
+)
+```
+
+We obtain a high level summary of the BART model by running `print()`
+
+```{r}
+print(bart_model)
+```
+
+For a more detailed summary (including the information above), we use the `summary()` function.
+
+```{r}
+summary(bart_model)
+```
+
+We can use the `plot()` function to produce a traceplot of model terms like the global error scale $\sigma^2$ or (if $\sigma^2$ is not sampled) the first observation of cached train set predictions
+
+```{r}
+plot(bart_model)
+```
+
+For finer-grained control over which parameters to plot, we can also use the `extract_parameter()` function to pull the posterior distribution of any valid model term (e.g., global error scale $\sigma^2$, leaf scale $\sigma^2_{\ell}$, in-sample mean function predictions `y_hat_train`) and then plot any subset or transformation of these values.
+
+```{r}
+y_hat_train_samples <- extract_parameter(bart_model, "y_hat_train")
+obs_index <- 1
+plot(
+  y_hat_train_samples[obs_index, ],
+  type = "l",
+  main = paste0("In-Sample Predictions Traceplot, Observation ", obs_index),
+  xlab = "Index",
+  ylab = "Parameter Values"
+)
+```
+
+# Causal Inference
+
+We now run the same demo for the causal inference use case served by the `bcf()` function.
+
+Below we simulate a simple dataset for a causal inference problem with binary treatment and continuous outcome.
+
+```{r}
+# Generate covariates and treatment
+n <- 1000
+p_X = 5
+X = matrix(runif(n * p_X), ncol = p_X)
+pi_X = 0.25 + 0.5 * X[, 1]
+Z = rbinom(n, 1, pi_X)
+
+# Define the outcome mean functions (prognostic and treatment effects)
+mu_X = pi_X * 5 + 2 * X[, 3]
+tau_X = X[, 2] * 2 - 1
+
+# Generate outcome
+epsilon = rnorm(n, 0, 1)
+y = mu_X + tau_X * Z + epsilon
+```
+
+Now we fit a simple BCF model to the data
+
+```{r}
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 1000
+general_params <- list(num_chains = 3)
+bcf_model <- stochtree::bcf(
+  X_train = X,
+  y_train = y,
+  Z_train = Z,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params
+)
+```
+
+We obtain a high level summary of the BCF model by running `print()`
+
+```{r}
+print(bcf_model)
+```
+
+For a more detailed summary (including the information above), we use the `summary()` function.
+
+```{r}
+summary(bcf_model)
+```
+
+We can use the `plot()` function to produce a traceplot of model terms like the global error scale $\sigma^2$ or (if $\sigma^2$ is not sampled) the first observation of cached train set predictions
+
+```{r}
+plot(bcf_model)
+```
+
+For finer-grained control over which parameters to plot, we can also use the `extract_parameter()` function to pull the posterior distribution of any valid model term (e.g., global error scale $\sigma^2$, prognostic forest leaf scale $\sigma^2_{\mu}$, CATE forest leaf scale $\sigma^2_{\tau}$, adaptive coding parameters $b_0$ and $b_1$ for binary treatment, in-sample mean function predictions `y_hat_train`, in-sample CATE function predictions `tau_hat_train`) and then plot any subset or transformation of these values.
+
+```{r}
+adaptive_coding_samples <- extract_parameter(bcf_model, "adaptive_coding")
+plot(
+  adaptive_coding_samples[1, ],
+  type = "l",
+  main = "Adaptive Coding Parameter Traceplot",
+  xlab = "Index",
+  ylab = "Parameter Values",
+  ylim = range(adaptive_coding_samples),
+  col = "blue"
+)
+lines(adaptive_coding_samples[2, ], col = "orange")
+legend(
+  "topright",
+  legend = c("Control", "Treated"),
+  lty = 1,
+  col = c("blue", "orange")
+)
+```
+
