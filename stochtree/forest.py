@@ -915,6 +915,21 @@ class ForestContainer:
         """
         return self.forest_container_cpp.DeleteSample(forest_num)
 
+    def __str__(self) -> str:
+        """
+        String representation of the `ForestContainer` object.
+        """
+        num_samples = self.num_samples()
+        output_str = f"Forest container with {num_samples:<d} samples. Each forest contains "
+        output_str += f"{self.num_trees} trees with "
+        if self.leaf_constant:
+            output_str += f"a constant leaf model."
+        else:
+            output_str += f"a {self.output_dimension:<d}-dimensional leaf regression model."
+        return output_str
+
+    __repr__ = __str__
+
 
 class Forest:
     """
