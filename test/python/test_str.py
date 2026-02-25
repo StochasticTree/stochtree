@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from sklearn.model_selection import train_test_split
 
-from stochtree import BARTModel
+from stochtree import BARTModel, BCFModel
 
 
 @pytest.fixture(scope="module")
@@ -25,6 +25,30 @@ def bart_data():
         "rfx_group_ids_test": rfx_group_ids[test_inds],
         "rfx_basis_train": rfx_basis[train_inds],
         "rfx_basis_test": rfx_basis[test_inds],
+    }
+
+
+@pytest.fixture(scope="module")
+def bcf_data():
+    """Shared simulated dataset for all BCF __str__ and summary tests."""
+    rng = np.random.default_rng(42)
+    n, p = 100, 5
+    X = rng.uniform(0, 1, (n, p))
+    pi_X = 0.2 + 0.6 * X[:, 0]
+    Z = rng.binomial(1, pi_X, n).astype(float)
+    mu_X = 5 * X[:, 0]
+    tau_X = 2 * X[:, 1]
+    y = mu_X + tau_X * Z + rng.standard_normal(n)
+    sample_inds = np.arange(n)
+    train_inds, test_inds = train_test_split(sample_inds, test_size=0.2, random_state=42)
+    return {
+        "X_train": X[train_inds],
+        "X_test": X[test_inds],
+        "Z_train": Z[train_inds],
+        "Z_test": Z[test_inds],
+        "y_train": y[train_inds],
+        "pi_train": pi_X[train_inds],
+        "pi_test": pi_X[test_inds],
     }
 
 
@@ -284,5 +308,192 @@ class TestBARTModelSummary:
             num_mcmc=10,
             general_params={"sample_sigma2_global": False},
             mean_forest_params={"sample_sigma2_leaf": False},
+        )
+        assert isinstance(model.summary(), str)
+
+
+class TestBCFModelStr:
+    def test_unsampled_model(self):
+        assert "Empty BCFModel()" in str(BCFModel())
+
+    def test_default_model(self, bcf_data):
+        """Binary treatment, user propensity, adaptive coding (defaults): 2 base terms."""
+        model = BCFModel()
+        model.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            X_test=bcf_data["X_test"],
+            Z_test=bcf_data["Z_test"],
+            propensity_test=bcf_data["pi_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+        )
+        s = str(model)
+        assert "BCFModel run with prognostic forest" in s
+        assert "treatment effect forest" in s
+        assert "User-provided propensity scores" in s
+        assert "adaptive coding" in s
+        assert "1 chain" in s
+        assert "retaining every iteration" in s
+
+    def test_more_than_two_model_terms(self, bcf_data):
+        """Adding sigma2_global gives >2 terms and triggers Oxford-comma format."""
+        model = BCFModel()
+        model.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            X_test=bcf_data["X_test"],
+            Z_test=bcf_data["Z_test"],
+            propensity_test=bcf_data["pi_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"sample_sigma2_global": True},
+            prognostic_forest_params={"sample_sigma2_leaf": False},
+            treatment_effect_forest_params={"sample_sigma2_leaf": False},
+        )
+        assert ", and global error variance model" in str(model)
+
+    def test_adaptive_coding_disabled(self, bcf_data):
+        """Binary treatment without adaptive coding shows 'default coding'."""
+        model = BCFModel()
+        model.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            X_test=bcf_data["X_test"],
+            Z_test=bcf_data["Z_test"],
+            propensity_test=bcf_data["pi_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"adaptive_coding": False},
+        )
+        assert "default coding" in str(model)
+
+    def test_propensity_excluded(self, bcf_data):
+        """propensity_covariate='none' shows 'not used in either forest'."""
+        model = BCFModel()
+        model.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            X_test=bcf_data["X_test"],
+            Z_test=bcf_data["Z_test"],
+            propensity_test=bcf_data["pi_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"propensity_covariate": "none"},
+        )
+        assert "not used in either forest" in str(model)
+
+    def test_continuous_treatment(self, bcf_data):
+        """Non-binary treatment shows 'univariate but not binary'."""
+        rng = np.random.default_rng(7)
+        n_train = bcf_data["X_train"].shape[0]
+        n_test = bcf_data["X_test"].shape[0]
+        Z_cont_train = rng.standard_normal(n_train)
+        Z_cont_test = rng.standard_normal(n_test)
+        y_cont_train = bcf_data["y_train"] + 0.5 * Z_cont_train
+        model = BCFModel()
+        model.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=Z_cont_train,
+            y_train=y_cont_train,
+            X_test=bcf_data["X_test"],
+            Z_test=Z_cont_test,
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"propensity_covariate": "none"},
+        )
+        assert "univariate but not binary" in str(model)
+
+    def test_multi_chain_and_thinning(self, bcf_data):
+        """Multiple chains and thinning reflected in output."""
+        model = BCFModel()
+        model.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            X_test=bcf_data["X_test"],
+            Z_test=bcf_data["Z_test"],
+            propensity_test=bcf_data["pi_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"num_chains": 2, "keep_every": 2},
+        )
+        s = str(model)
+        assert "2 chains" in s
+        assert "thinning" in s
+
+
+class TestBCFModelSummary:
+    def test_sigma2_and_leaf_scales_and_adaptive_coding(self, bcf_data):
+        """sigma^2, both leaf scales, and adaptive coding parameters all appear when sampled."""
+        model = BCFModel()
+        model.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            X_test=bcf_data["X_test"],
+            Z_test=bcf_data["Z_test"],
+            propensity_test=bcf_data["pi_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"sample_sigma2_global": True, "adaptive_coding": True},
+            prognostic_forest_params={"sample_sigma2_leaf": True},
+            treatment_effect_forest_params={"sample_sigma2_leaf": True},
+        )
+        s = model.summary()
+        assert "sigma^2" in s
+        assert "prognostic forest leaf scale" in s
+        assert "treatment effect forest leaf scale" in s
+        assert "adaptive coding parameters" in s
+        assert "in-sample" in s
+        assert "test-set" in s
+        assert "CATEs" in s
+
+    def test_no_test_set(self, bcf_data):
+        """Without a test set, test-set summary lines are absent."""
+        model = BCFModel()
+        model.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"sample_sigma2_global": False},
+        )
+        s = model.summary()
+        assert "in-sample" in s
+        assert "test-set" not in s
+
+    def test_returns_string(self, bcf_data):
+        """summary() returns a string."""
+        model = BCFModel()
+        model.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=10,
+            general_params={"sample_sigma2_global": False},
         )
         assert isinstance(model.summary(), str)

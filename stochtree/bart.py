@@ -2934,7 +2934,7 @@ class BARTModel:
     def summary(self) -> str:
         # First, print the BART model
         output_str = "BART Model Summary:\n"
-        output_str += "------------------\n"
+        output_str += "-------------------\n"
         output_str += f"{self.__str__()}\n"
 
         probs = [0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975]
