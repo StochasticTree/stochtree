@@ -450,6 +450,14 @@ class RandomEffectsContainer:
             Numpy array of the position of `group_id` in the parameter sample arrays underlying the random effects container.
         """
         return self.rfx_label_mapper_cpp.MapMultipleGroupIdsToArrayIndices(group_ids)
+    
+    def __str__(self) -> str:
+        """
+        String representation of the random effects container.
+        """
+        return f"Random effects container with {self.num_samples()} posterior draws of a model with {self.num_components()} components and {self.num_groups()} groups."
+
+    __repr__ = __str__
 
 
 class RandomEffectsModel:

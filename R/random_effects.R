@@ -241,6 +241,27 @@ RandomEffectSamples <- R6::R6Class(
       result <- as.list(keys_and_vals[[2]] + 1)
       setNames(result, keys_and_vals[[1]])
       return(result)
+    },
+
+    #' @description
+    #' Query the number of samples in the `RandomEffectsSamples` object.
+    #' @return Integer number of samples
+    num_samples = function() {
+      return(rfx_container_num_samples_cpp(self$rfx_container_ptr))
+    },
+
+    #' @description
+    #' Query the number of components in the `RandomEffectsSamples` object.
+    #' @return Integer number of components
+    num_components = function() {
+      return(rfx_container_num_components_cpp(self$rfx_container_ptr))
+    },
+
+    #' @description
+    #' Query the number of groups in the `RandomEffectsSamples` object.
+    #' @return Integer number of groups
+    num_groups = function() {
+      return(rfx_container_num_groups_cpp(self$rfx_container_ptr))
     }
   )
 )
@@ -785,4 +806,32 @@ rootResetRandomEffectsTracker <- function(
     residual$data_ptr,
     rfx_model$rfx_model_ptr
   )
+}
+
+#' @title Summarize a RandomEffectSamples object
+#' @description Prints a summary of the RandomEffectSamples object, including number of forests and the underlying model of each forest.
+#' @param x RandomEffectSamples object
+#' @param ... Additional arguments
+#' @export
+#' @return RandomEffectSamples object unchanged after printing summary
+print.RandomEffectSamples <- function(x, ...) {
+  # Construct summary message
+  num_samples <- x$num_samples()
+  num_components <- x$num_components()
+  num_groups <- x$num_groups()
+  summary_message <- paste0(
+    "Random effects container with ",
+    num_samples,
+    " posterior draws of a model with ",
+    num_components,
+    " components and ",
+    num_groups,
+    " groups."
+  )
+
+  # Print the random effects container details
+  cat(summary_message, "\n")
+
+  # Return random effects container invisibly
+  invisible(x)
 }

@@ -358,6 +358,25 @@ test_that("Random Effects BART with Offset Numbering", {
       terms = "y_hat"
     )
   })
+
+  # Test print method
+  rfx_output <- capture.output(print(bart_model$rfx_samples))
+  expect_true(any(grepl("Random effects container", rfx_output, fixed = TRUE)))
+  expect_true(any(grepl(
+    bart_model$rfx_samples$num_samples(),
+    rfx_output,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl(
+    bart_model$rfx_samples$num_components(),
+    rfx_output,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl(
+    bart_model$rfx_samples$num_groups(),
+    rfx_output,
+    fixed = TRUE
+  )))
 })
 
 test_that("Random Effects BCF with Default Numbering", {
@@ -533,6 +552,25 @@ test_that("Random Effects BCF with Default Numbering", {
       terms = "y_hat"
     )
   })
+
+  # Test print method
+  rfx_output <- capture.output(print(bart_model$rfx_samples))
+  expect_true(any(grepl("Random effects container", rfx_output, fixed = TRUE)))
+  expect_true(any(grepl(
+    bart_model$rfx_samples$num_samples(),
+    rfx_output,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl(
+    bart_model$rfx_samples$num_components(),
+    rfx_output,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl(
+    bart_model$rfx_samples$num_groups(),
+    rfx_output,
+    fixed = TRUE
+  )))
 })
 
 test_that("Random Effects BCF with Offset Numbering", {
@@ -708,4 +746,23 @@ test_that("Random Effects BCF with Offset Numbering", {
       terms = "y_hat"
     )
   })
+
+  # Test print method
+  rfx_output <- capture.output(print(bart_model$rfx_samples))
+  expect_true(any(grepl("Random effects container", rfx_output, fixed = TRUE)))
+  expect_true(any(grepl(
+    bart_model$rfx_samples$num_samples(),
+    rfx_output,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl(
+    bart_model$rfx_samples$num_components(),
+    rfx_output,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl(
+    bart_model$rfx_samples$num_groups(),
+    rfx_output,
+    fixed = TRUE
+  )))
 })
