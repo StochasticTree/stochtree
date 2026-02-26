@@ -427,8 +427,8 @@ ForestSamples <- R6::R6Class(
     #' @description
     #' Return constant leaf status of trees in a `ForestContainer` object
     #' @return `TRUE` if leaves are constant, `FALSE` otherwise
-    is_constant_leaf = function() {
-      return(is_constant_leaf_forest_container_cpp(
+    is_leaf_constant = function() {
+      return(is_leaf_constant_forest_container_cpp(
         self$forest_container_ptr
       ))
     },
@@ -945,7 +945,7 @@ Forest <- R6::R6Class(
     #' @param forest Forest to be merged into this forest
     merge_forest = function(forest) {
       stopifnot(self$leaf_dimension() == forest$leaf_dimension())
-      stopifnot(self$is_constant_leaf() == forest$is_constant_leaf())
+      stopifnot(self$is_leaf_constant() == forest$is_leaf_constant())
       stopifnot(self$is_exponentiated() == forest$is_exponentiated())
       forest_merge_cpp(self$forest_ptr, forest$forest_ptr)
     },
@@ -1117,7 +1117,7 @@ Forest <- R6::R6Class(
     #' @description
     #' Return constant leaf status of trees in a `Forest` object
     #' @return `TRUE` if leaves are constant, `FALSE` otherwise
-    is_constant_leaf = function() {
+    is_leaf_constant = function() {
       return(is_leaf_constant_active_forest_cpp(self$forest_ptr))
     },
 
@@ -1434,4 +1434,40 @@ resetForestModel <- function(
     residual$data_ptr,
     is_mean_model
   )
+}
+
+#' @title Summarize a ForestSamples object
+#' @description Prints a summary of the ForestSamples object, including number of forests and the underlying model of each forest.
+#' @param x ForestSamples object
+#' @param ... Additional arguments
+#' @export
+#' @return ForestSamples object unchanged after printing summary
+print.ForestSamples <- function(x, ...) {
+  # Construct summary message
+  num_samples <- x$num_samples()
+  summary_message <- paste0(
+    "Forest container with ",
+    num_samples,
+    " samples. Each forest contains "
+  )
+  num_trees <- x$num_trees()
+  is_leaf_constant <- x$is_leaf_constant()
+  leaf_dimension <- x$leaf_dimension()
+  summary_message <- paste0(summary_message, num_trees, " trees with ")
+  if (is_leaf_constant) {
+    summary_message <- paste0(summary_message, "a constant leaf model.")
+  } else {
+    summary_message <- paste0(
+      summary_message,
+      "a ",
+      leaf_dimension,
+      "-dimensional leaf regression model."
+    )
+  }
+
+  # Print the forest container details
+  cat(summary_message, "\n")
+
+  # Return forest container invisibly
+  invisible(x)
 }

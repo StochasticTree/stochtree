@@ -8,6 +8,7 @@ from .kernel import (
     compute_forest_leaf_indices, 
     compute_forest_max_leaf_index
 )
+from .plotting import plot_parameter_trace
 from .preprocessing import CovariatePreprocessor
 from .random_effects import (
     RandomEffectsContainer, 
@@ -69,4 +70,5 @@ __all__ = [
     "compute_forest_leaf_indices",
     "compute_forest_max_leaf_index", 
     "calibrate_global_error_variance",
+    "plot_parameter_trace"
 ]

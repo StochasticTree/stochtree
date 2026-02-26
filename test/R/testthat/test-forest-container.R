@@ -108,6 +108,16 @@ test_that("Univariate constant forest container", {
 
   # Assertion
   expect_equal(pred, pred_expected_new)
+
+  # Test print method
+  forest_output <- capture.output(print(forest_samples))
+  expect_true(any(grepl("constant", forest_output, fixed = TRUE)))
+  expect_true(any(grepl(num_trees, forest_output, fixed = TRUE)))
+  expect_true(any(grepl(
+    forest_samples$num_samples(),
+    forest_output,
+    fixed = TRUE
+  )))
 })
 
 test_that("Collapse forests", {
@@ -294,4 +304,18 @@ test_that("Collapse forests", {
 
   # Assertion
   expect_equal(pred_orig_collapsed, pred_new)
+
+  # Test print method
+  forest_output <- capture.output(print(mean_forest_container))
+  expect_true(any(grepl("constant", forest_output, fixed = TRUE)))
+  expect_true(any(grepl(
+    mean_forest_container$num_trees(),
+    forest_output,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl(
+    mean_forest_container$num_samples(),
+    forest_output,
+    fixed = TRUE
+  )))
 })
