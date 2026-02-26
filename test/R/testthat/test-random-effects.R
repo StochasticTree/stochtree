@@ -360,6 +360,20 @@ test_that("Random Effects BART with Offset Numbering", {
   })
 
   # Test print method
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    X_test = X_test,
+    leaf_basis_train = W_train,
+    leaf_basis_test = W_test,
+    rfx_group_ids_train = rfx_group_ids_train,
+    rfx_group_ids_test = rfx_group_ids_test,
+    num_gfr = 0,
+    num_burnin = 10,
+    num_mcmc = 10,
+    mean_forest_params = mean_forest_param_list,
+    random_effects_params = rfx_param_list
+  )
   rfx_output <- capture.output(print(bart_model$rfx_samples))
   expect_true(any(grepl("Random effects container", rfx_output, fixed = TRUE)))
   expect_true(any(grepl(
@@ -554,20 +568,35 @@ test_that("Random Effects BCF with Default Numbering", {
   })
 
   # Test print method
-  rfx_output <- capture.output(print(bart_model$rfx_samples))
+  bcf_model <- bcf(
+    X_train = X_train,
+    y_train = y_train,
+    Z_train = Z_train,
+    propensity_train = pi_train,
+    rfx_group_ids_train = rfx_group_ids_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    rfx_group_ids_test = rfx_group_ids_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10,
+    random_effects_params = rfx_param_list
+  )
+  rfx_output <- capture.output(print(bcf_model$rfx_samples))
   expect_true(any(grepl("Random effects container", rfx_output, fixed = TRUE)))
   expect_true(any(grepl(
-    bart_model$rfx_samples$num_samples(),
+    bcf_model$rfx_samples$num_samples(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bart_model$rfx_samples$num_components(),
+    bcf_model$rfx_samples$num_components(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bart_model$rfx_samples$num_groups(),
+    bcf_model$rfx_samples$num_groups(),
     rfx_output,
     fixed = TRUE
   )))
@@ -748,20 +777,35 @@ test_that("Random Effects BCF with Offset Numbering", {
   })
 
   # Test print method
-  rfx_output <- capture.output(print(bart_model$rfx_samples))
+  bcf_model <- bcf(
+    X_train = X_train,
+    y_train = y_train,
+    Z_train = Z_train,
+    propensity_train = pi_train,
+    rfx_group_ids_train = rfx_group_ids_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    rfx_group_ids_test = rfx_group_ids_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10,
+    random_effects_params = rfx_param_list
+  )
+  rfx_output <- capture.output(print(bcf_model$rfx_samples))
   expect_true(any(grepl("Random effects container", rfx_output, fixed = TRUE)))
   expect_true(any(grepl(
-    bart_model$rfx_samples$num_samples(),
+    bcf_model$rfx_samples$num_samples(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bart_model$rfx_samples$num_components(),
+    bcf_model$rfx_samples$num_components(),
     rfx_output,
     fixed = TRUE
   )))
   expect_true(any(grepl(
-    bart_model$rfx_samples$num_groups(),
+    bcf_model$rfx_samples$num_groups(),
     rfx_output,
     fixed = TRUE
   )))
