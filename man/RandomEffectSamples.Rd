@@ -41,6 +41,9 @@ needed for prediction / serialization
 \item \href{#method-RandomEffectSamples-extract_parameter_samples}{\code{RandomEffectSamples$extract_parameter_samples()}}
 \item \href{#method-RandomEffectSamples-delete_sample}{\code{RandomEffectSamples$delete_sample()}}
 \item \href{#method-RandomEffectSamples-extract_label_mapping}{\code{RandomEffectSamples$extract_label_mapping()}}
+\item \href{#method-RandomEffectSamples-num_samples}{\code{RandomEffectSamples$num_samples()}}
+\item \href{#method-RandomEffectSamples-num_components}{\code{RandomEffectSamples$num_components()}}
+\item \href{#method-RandomEffectSamples-num_groups}{\code{RandomEffectSamples$num_groups()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -278,6 +281,45 @@ Convert the mapping of group IDs to random effect components indices from C++ to
 
 \subsection{Returns}{
 List mapping group ID to random effect components.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectSamples-num_samples"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectSamples-num_samples}{}}}
+\subsection{Method \code{num_samples()}}{
+Query the number of samples in the \code{RandomEffectsSamples} object.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectSamples$num_samples()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Integer number of samples
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectSamples-num_components"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectSamples-num_components}{}}}
+\subsection{Method \code{num_components()}}{
+Query the number of components in the \code{RandomEffectsSamples} object.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectSamples$num_components()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Integer number of components
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-RandomEffectSamples-num_groups"></a>}}
+\if{latex}{\out{\hypertarget{method-RandomEffectSamples-num_groups}{}}}
+\subsection{Method \code{num_groups()}}{
+Query the number of groups in the \code{RandomEffectsSamples} object.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{RandomEffectSamples$num_groups()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Integer number of groups
 }
 }
 }
