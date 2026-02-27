@@ -3353,6 +3353,7 @@ class BARTModel:
         - Test set mean function predictions: `"y_hat_test"`
         - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
         - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
+        - Ordinal model cutpoints (valid only for ordinal cloglog models): `"cloglog_cutpoints"`, `"cutpoints"`
         
         Parameters
         ----------
@@ -3405,6 +3406,12 @@ class BARTModel:
                 return s2x
             else:
                 raise ValueError("This model does not have test set variance forest predictions")
+
+        if term in ["cloglog_cutpoints", "cutpoints"]:
+            if self.outcome_model.outcome == "ordinal" and self.outcome_model.link == "cloglog":
+                return self.cloglog_cutpoint_samples
+            else:
+                raise ValueError("This model does not have ordinal cutpoint samples")
 
         raise ValueError(f"term {term} is not a valid BART model term")
 
