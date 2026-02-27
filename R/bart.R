@@ -1,3 +1,15 @@
+#' BART Serialization Routines
+#' @param object BART model to be serialized
+#' @param filename Path to save JSON file
+#' @param json_object In-memory JSON representation of the BART model
+#' @param json_filename Path of stored JSON file
+#' @param json_string String representation of BART model in JSON format
+#' @param json_object_list List of BART JSON objects
+#' @param json_string_list List of string representations of BART model in JSON format
+#' @name BartJSON
+NULL
+#> NULL
+
 #' @title Run BART for Supervised Learning
 #' @description
 #' Run the BART algorithm for supervised learning.
@@ -2863,6 +2875,7 @@ extract_parameter.bartmodel <- function(object, term) {
 #' @description
 #' Convert the persistent aspects of a BART model to (in-memory) JSON
 #'
+#' @rdname BartJSON
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #'
 #' @return Object of type `CppJson`
@@ -3029,6 +3042,7 @@ saveBARTModelToJson <- function(object) {
 #' @description
 #' Convert the persistent aspects of a BART model to (in-memory) JSON and save to a file
 #'
+#' @rdname BartJSON
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @param filename String of filepath, must end in ".json"
 #'
@@ -3073,6 +3087,7 @@ saveBARTModelToJsonFile <- function(object, filename) {
 #' @description
 #' Convert the persistent aspects of a BART model to (in-memory) JSON string
 #'
+#' @rdname BartJSON
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @return in-memory JSON string
 #' @export
@@ -3114,6 +3129,7 @@ saveBARTModelToJsonString <- function(object) {
 #' Convert an (in-memory) JSON representation of a BART model to a BART model object
 #' which can be used for prediction, etc...
 #'
+#' @rdname BartJSON
 #' @param json_object Object of type `CppJson` containing Json representation of a BART model
 #'
 #' @return Object of type `bartmodel`
@@ -3287,6 +3303,7 @@ createBARTModelFromJson <- function(json_object) {
 #' Convert a JSON file containing sample information on a trained BART model
 #' to a BART model object which can be used for prediction, etc...
 #'
+#' @rdname BartJSON
 #' @param json_filename String of filepath, must end in ".json"
 #'
 #' @return Object of type `bartmodel`
@@ -3334,6 +3351,7 @@ createBARTModelFromJsonFile <- function(json_filename) {
 #' Convert a JSON string containing sample information on a trained BART model
 #' to a BART model object which can be used for prediction, etc...
 #'
+#' @rdname BartJSON
 #' @param json_string JSON string dump
 #'
 #' @return Object of type `bartmodel`
@@ -3380,6 +3398,7 @@ createBARTModelFromJsonString <- function(json_string) {
 #' Convert a list of (in-memory) JSON representations of a BART model to a single combined BART model object
 #' which can be used for prediction, etc...
 #'
+#' @rdname BartJSON
 #' @param json_object_list List of objects of type `CppJson` containing Json representation of a BART model
 #'
 #' @return Object of type `bartmodel`
@@ -3617,6 +3636,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
 #' Convert a list of (in-memory) JSON strings that represent BART models to a single combined BART model object
 #' which can be used for prediction, etc...
 #'
+#' @rdname BartJSON
 #' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BART model
 #'
 #' @return Object of type `bartmodel`
