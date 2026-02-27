@@ -274,4 +274,64 @@ void LogLinearVarianceLeafModel::SetEnsembleRootPredictedValue(ForestDataset& da
   }
 }
 
+double CloglogOrdinalLeafModel::SplitLogMarginalLikelihood(CloglogOrdinalSuffStat& left_stat, CloglogOrdinalSuffStat& right_stat, double global_variance) {
+  double left_log_ml = SuffStatLogMarginalLikelihood(left_stat, global_variance);
+  double right_log_ml = SuffStatLogMarginalLikelihood(right_stat, global_variance);
+  return left_log_ml + right_log_ml;
+}
+
+double CloglogOrdinalLeafModel::NoSplitLogMarginalLikelihood(CloglogOrdinalSuffStat& suff_stat, double global_variance) {
+  return SuffStatLogMarginalLikelihood(suff_stat, global_variance);
+}
+
+double CloglogOrdinalLeafModel::SuffStatLogMarginalLikelihood(CloglogOrdinalSuffStat& suff_stat, double global_variance) {
+  double prior_terms = a_ * std::log(b_) - boost::math::lgamma(a_);
+  double a_term = a_ + suff_stat.sum_Y_less_K;
+  double b_term = b_ + suff_stat.other_sum;
+  double log_b_term = std::log(b_term);
+  double lgamma_a_term = boost::math::lgamma(a_term);
+  double resid_term = a_term * log_b_term;
+  double log_ml = prior_terms + lgamma_a_term - resid_term;
+  return log_ml;
+}
+
+double CloglogOrdinalLeafModel::PosteriorParameterShape(CloglogOrdinalSuffStat& suff_stat, double global_variance) {
+  return a_ + suff_stat.sum_Y_less_K;
+}
+
+double CloglogOrdinalLeafModel::PosteriorParameterRate(CloglogOrdinalSuffStat& suff_stat, double global_variance) {
+  return b_ + suff_stat.other_sum;
+}
+
+void CloglogOrdinalLeafModel::SampleLeafParameters(ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, Tree* tree, int tree_num, double global_variance, std::mt19937& gen) {
+  // Vector of leaf indices for tree
+  std::vector<int32_t> tree_leaves = tree->GetLeaves();
+  
+  // Initialize sufficient statistics
+  CloglogOrdinalSuffStat node_suff_stat = CloglogOrdinalSuffStat();
+
+  // Sample each leaf node parameter
+  double node_shape;
+  double node_rate;
+  double node_mu;
+  int32_t leaf_id;
+  for (int i = 0; i < tree_leaves.size(); i++) {
+    // Compute leaf node sufficient statistics
+    leaf_id = tree_leaves[i];
+    node_suff_stat.ResetSuffStat();
+    AccumulateSingleNodeSuffStat<CloglogOrdinalSuffStat, false>(node_suff_stat, dataset, tracker, residual, tree_num, leaf_id);
+    
+    // Compute posterior shape and rate
+    node_shape = PosteriorParameterShape(node_suff_stat, global_variance);
+    node_rate = PosteriorParameterRate(node_suff_stat, global_variance);
+
+    // Draw from log-gamma dist(node_shape, node_rate) and set the leaf parameter with each draw
+    // std::gamma_distribution<double> gamma_dist_(node_shape, 1.);
+    // node_mu = -std::log(gamma_sample / node_rate);
+    double gamma_sample = gamma_sampler_.Sample(node_shape, node_rate, gen);
+    node_mu = std::log(gamma_sample);
+    tree->SetLeaf(leaf_id, node_mu);
+  }
+}
+
 } // namespace StochTree

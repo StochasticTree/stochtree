@@ -149,6 +149,37 @@ cpp11::writable::doubles forest_dataset_get_variance_weights_cpp(cpp11::external
 }
 
 [[cpp11::register]]
+bool forest_dataset_has_auxiliary_dimension_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx) {
+    return dataset_ptr->HasAuxiliaryDimension(dim_idx);
+}
+
+[[cpp11::register]]
+void forest_dataset_add_auxiliary_dimension_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_size) {
+    dataset_ptr->AddAuxiliaryDimension(dim_size);
+}
+
+[[cpp11::register]]
+double forest_dataset_get_auxiliary_data_value_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx, int element_idx) {
+    return dataset_ptr->GetAuxiliaryDataValue(dim_idx, element_idx);
+}
+
+[[cpp11::register]]
+void forest_dataset_set_auxiliary_data_value_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx, int element_idx, double value) {
+    dataset_ptr->SetAuxiliaryDataValue(dim_idx, element_idx, value);
+}
+
+[[cpp11::register]]
+cpp11::writable::doubles forest_dataset_get_auxiliary_data_vector_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx) {
+    const std::vector<double> output_raw = dataset_ptr->GetAuxiliaryDataVector(dim_idx);
+    int n = output_raw.size();
+    cpp11::writable::doubles output(n);
+    for (int i = 0; i < n; i++) {
+        output[i] = output_raw[i];
+    }
+    return output;
+}
+
+[[cpp11::register]]
 cpp11::external_pointer<StochTree::ColumnVector> create_column_vector_cpp(cpp11::doubles outcome) {
     // Unpack pointers to data and dimensions
     StochTree::data_size_t n = outcome.size();

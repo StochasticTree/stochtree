@@ -32,6 +32,7 @@ OBJECTS = \
     data.o \
     io.o \
     leaf_model.o \
+    ordinal_sampler.o \
     partition_tracker.o \
     random_effects.o \
     tree.o

@@ -1,3 +1,73 @@
+#' Internal function that creates a new outcome model object without validation.
+#'
+#' @param outcome Character string specifying the outcome type.
+#' @param link Character string specifying the link function.
+#'
+#' @return An object of class `outcome_model`.
+#' @noRd
+new_outcome_model <- function(outcome = "continuous", link = NULL) {
+  stopifnot((is.character(outcome)))
+  stopifnot(is.character(link) || is.null(link))
+  if (is.null(link)) {
+    if (outcome == "continuous") {
+      link <- "identity"
+    } else if (outcome == "binary") {
+      link <- "probit"
+    } else if (outcome == "ordinal") {
+      link <- "cloglog"
+    }
+  }
+  structure(
+    list(
+      outcome = outcome,
+      link = link
+    ),
+    class = "outcome_model"
+  )
+}
+
+#' Internal helper function validates whether an outcome model object is correctly specified.
+#'
+#' @param object Object of type `outcome_model`
+#'
+#' @return An object of class `outcome_model`.
+#' @noRd
+validate_outcome_model <- function(object) {
+  if (!inherits(object, "outcome_model")) {
+    stop("Invalid outcome model")
+  }
+  if (!(object$outcome %in% c("continuous", "binary", "ordinal"))) {
+    stop("Outcome type must be one of 'continuous', 'binary', or 'ordinal'")
+  }
+  if (!(object$link %in% c("identity", "probit", "cloglog"))) {
+    stop("Link function must be one of 'identity', 'probit', or 'cloglog'")
+  }
+  if (object$outcome == "continuous" && object$link != "identity") {
+    stop("Link function must be 'identity' for continuous models")
+  }
+  if (object$outcome == "binary" && !(object$link %in% c("probit", "cloglog"))) {
+    stop("Link function must be 'probit' or 'cloglog' for binary models")
+  }
+  if (object$outcome == "ordinal" && object$link != "cloglog") {
+    stop("Link function must be 'cloglog' for ordinal models")
+  }
+  object
+}
+
+#' Create a new outcome model object.
+#'
+#' @param outcome Character string specifying the outcome type.
+#' @param link Character string specifying the link function.
+#'
+#' @return An object of class `outcome_model`.
+#' @export
+#'
+#' @examples
+#' my_model <- outcome_model(outcome = "continuous", link = "identity")
+outcome_model <- function(outcome = "continuous", link = NULL) {
+  validate_outcome_model(new_outcome_model(outcome, link))
+}
+
 #' Preprocess a parameter list, overriding defaults with any provided parameters.
 #'
 #' @param default_params List of parameters with default values set.

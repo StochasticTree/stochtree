@@ -8,6 +8,7 @@
 #' @importFrom stats qnorm
 #' @importFrom stats quantile
 #' @importFrom stats pnorm
+#' @importFrom stats rbinom
 #' @importFrom stats resid
 #' @importFrom stats rnorm
 #' @importFrom stats runif

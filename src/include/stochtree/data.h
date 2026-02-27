@@ -469,6 +469,32 @@ class ForestDataset {
     if (exponentiate) var_weights_.SetElement(row_id, std::exp(new_value));
     else var_weights_.SetElement(row_id, new_value);
   }
+  /*! 
+   * \brief Auxiliary data management methods 
+   * Methods to initialize, get, and set auxiliary data for BART models with more structure than the ``classic`` conjugate-Gaussian leaf BART model
+   */
+  void AddAuxiliaryDimension(int dim_size) {
+    if (!has_auxiliary_data_) has_auxiliary_data_ = true;
+    auxiliary_data_.resize(num_auxiliary_dims_ + 1);
+    auxiliary_data_[num_auxiliary_dims_].resize(dim_size);
+    num_auxiliary_dims_++;
+  }
+  double GetAuxiliaryDataValue(int dim_idx, data_size_t element_idx) {
+    return auxiliary_data_[dim_idx][element_idx];
+  }
+  void SetAuxiliaryDataValue(int dim_idx, data_size_t element_idx, double value) {
+    auxiliary_data_[dim_idx][element_idx] = value;
+  }
+  std::vector<double>& GetAuxiliaryDataVector(int dim_idx) {
+    return auxiliary_data_[dim_idx];
+  }
+  const std::vector<double>& GetAuxiliaryDataVectorConst(int dim_idx) {
+    return auxiliary_data_[dim_idx];
+  }
+  bool HasAuxiliaryDimension(int dim_idx) {
+    return (num_auxiliary_dims_ > dim_idx) & (dim_idx >= 0);
+  }
+
  private:
   ColumnMatrix covariates_;
   ColumnMatrix basis_;
@@ -479,6 +505,13 @@ class ForestDataset {
   bool has_covariates_{false};
   bool has_basis_{false};
   bool has_var_weights_{false};
+
+  /*! 
+  * \brief Vector of vectors to track (potentially jagged) auxiliary data for complex BART models
+  */
+  std::vector<std::vector<double>> auxiliary_data_;
+  int num_auxiliary_dims_{0};
+  bool has_auxiliary_data_{false};
 };
 
 /*! \brief API for loading and accessing data used to sample (additive) random effects */

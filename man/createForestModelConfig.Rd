@@ -20,6 +20,8 @@ createForestModelConfig(
   leaf_model_scale = NULL,
   variance_forest_shape = 1,
   variance_forest_scale = 1,
+  cloglog_forest_shape = 2,
+  cloglog_forest_rate = 2,
   cutpoint_grid_size = 100,
   num_features_subsample = NULL
 )
@@ -54,6 +56,10 @@ createForestModelConfig(
 \item{variance_forest_shape}{Shape parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
 
 \item{variance_forest_scale}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
+
+\item{cloglog_forest_shape}{Shape parameter for conditional gamma component of cloglog leaf models (applicable when \code{leaf_model_type = 4}). Default: \code{1}.}
+
+\item{cloglog_forest_rate}{Rate parameter for conditional gamma component of cloglog leaf models (applicable when \code{leaf_model_type = 4}). Default: \code{1}.}
 
 \item{cutpoint_grid_size}{Number of unique cutpoints to consider (default: \code{100})}
 
