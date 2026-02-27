@@ -96,6 +96,7 @@ reference:
   - createForestModel
   - ForestSamples
   - createForestSamples
+  - print.ForestSamples
   - ForestModelConfig
   - createForestModelConfig
   - GlobalModelConfig
@@ -115,6 +116,7 @@ reference:
   contents:
   - RandomEffectSamples
   - createRandomEffectSamples
+  - print.RandomEffectSamples
   - RandomEffectsModel
   - createRandomEffectsModel
   - RandomEffectsTracker
