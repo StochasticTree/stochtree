@@ -2,6 +2,7 @@
 
 ## New Features
 
+* Added support for ordinal outcome modeling through complementary log-log link function in the BART models ([#196](https://github.com/StochasticTree/stochtree/pull/196))
 * Added `__str__`, `__repr__`, `summary`, and `extract_parameter` methods in Python for the `BARTModel` and `BCFModel` classes ([#298](https://github.com/StochasticTree/stochtree/pull/298))
 * Added plotting utility function (`plot_parameter_trace`) in Python that operates on both the `BARTModel` and `BCFModel` classes ([#298](https://github.com/StochasticTree/stochtree/pull/298))
 * Added vignettes for summary / model inspection utilities in both R and Python ([#298](https://github.com/StochasticTree/stochtree/pull/298))
