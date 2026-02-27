@@ -133,6 +133,7 @@ reference:
   desc: >
     Miscellaneous "utility" classes and functions
   contents:
+  - outcome_model
   - sample_without_replacement
   - extract_parameter
 

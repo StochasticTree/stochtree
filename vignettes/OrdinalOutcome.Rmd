@@ -31,9 +31,13 @@ library(stochtree)
 Ordinal data refers to outcomes that have a natural ordering but undefined distances between categories. Examples include survey responses (strongly disagree, disagree, neutral, agree, strongly agree), severity ratings (mild, moderate, severe), or educational levels (elementary, high school, college, graduate).
 
 The complementary log-log (cloglog) model uses the cumulative link function
-$$\text{cloglog}(p) = \log(-\log(1-p))$$
+$$
+\text{cloglog}(p) = \log(-\log(1-p))
+$$
 to express cumulative category probabilities as a function of covariates
-$$\text{cloglog}(P(Y \leq k \mid X = x)) = \log(-\log(1-P(Y \leq k \mid X = x))) = \gamma_k + \lambda(x)$$
+$$
+\text{cloglog}(P(Y \leq k \mid X = x)) = \log(-\log(1-P(Y \leq k \mid X = x))) = \gamma_k + \lambda(x)
+$$
 
 This link function is asymmetric and particularly appropriate when the probability of being in higher categories changes rapidly at certain thresholds, making it different from the symmetric probit or logit links commonly used in ordinal regression.
 
@@ -143,11 +147,18 @@ est_probs_test <- predict(
 
 Since one of the "cutpoints" is fixed for identifiability, we plot the posterior distributions of the other two cutpoints and compare them to their true simulated values (blue dotted lines).
 
-The cutpoint samples are accessed via `bart_model$.$cloglog_cutpoint_samples` (shape: `(n_categories - 1, num_samples)`) and are shifted by the per-sample mean of the training predictions to account for the non-identifiable intercept.
+The cutpoint samples are accessed via `extract_parameter(bart_model, "cloglog_cutpoints")` (shape: `(n_categories - 1, num_samples)`) and are shifted by the per-sample mean of the training predictions to account for the non-identifiable intercept.
 
 ```{r}
-gamma1 <- bart_model$cloglog_cutpoint_samples[1, ] +
-  colMeans(bart_model$y_hat_train)
+y_hat_train_post <- predict(
+  bart_model,
+  X = X_train,
+  scale = "linear",
+  terms = "y_hat",
+  type = "posterior"
+)
+cutpoint_samples <- extract_parameter(bart_model, "cloglog_cutpoints")
+gamma1 <- cutpoint_samples[1, ] + colMeans(y_hat_train_post)
 hist(
   gamma1,
   main = "Posterior Distribution of Cutpoint 1",
@@ -155,8 +166,7 @@ hist(
   freq = FALSE
 )
 abline(v = gamma_true[1], col = 'blue', lty = 3, lwd = 3)
-gamma2 <- bart_model$cloglog_cutpoint_samples[2, ] +
-  colMeans(bart_model$y_hat_train)
+gamma2 <- cutpoint_samples[2, ] + colMeans(y_hat_train_post)
 hist(
   gamma2,
   main = "Posterior Distribution of Cutpoint 2",
@@ -170,8 +180,14 @@ Similarly, we can compare the true value of the latent "utility function" $\lamb
 
 ```{r}
 # Train set predicted versus actual
-lambda_pred_train <- rowMeans(bart_model$y_hat_train) -
-  mean(bart_model$y_hat_train)
+y_hat_train <- predict(
+  bart_model,
+  X = X_train,
+  scale = "linear",
+  terms = "y_hat",
+  type = "mean"
+)
+lambda_pred_train <- y_hat_train - mean(y_hat_train)
 plot(
   lambda_pred_train,
   true_lambda_function[train_idx],
@@ -182,7 +198,7 @@ plot(
 abline(a = 0, b = 1, col = 'blue', lwd = 2)
 cor_train <- cor(true_lambda_function[train_idx], lambda_pred_train)
 text(
-  min(true_lambda_function[train_idx]),
+  min(lambda_pred_train),
   max(true_lambda_function[train_idx]),
   paste('Correlation:', round(cor_train, 3)),
   adj = 0,
@@ -190,8 +206,14 @@ text(
 )
 
 # Test set predicted versus actual
-lambda_pred_test <- rowMeans(bart_model$y_hat_test) -
-  mean(bart_model$y_hat_test)
+y_hat_test <- predict(
+  bart_model,
+  X = X_test,
+  scale = "linear",
+  terms = "y_hat",
+  type = "mean"
+)
+lambda_pred_test <- y_hat_test - mean(y_hat_test)
 plot(
   lambda_pred_test,
   true_lambda_function[test_idx],
@@ -202,7 +224,7 @@ plot(
 abline(a = 0, b = 1, col = 'blue', lwd = 2)
 cor_test <- cor(true_lambda_function[test_idx], lambda_pred_test)
 text(
-  min(true_lambda_function[test_idx]),
+  min(lambda_pred_test),
   max(true_lambda_function[test_idx]),
   paste('Correlation:', round(cor_test, 3)),
   adj = 0,

@@ -1,21 +1,47 @@
 on:
   workflow_dispatch:
+    inputs:
+      source_branch:
+        description: 'Branch to build the RC from'
+        required: true
+      r_target_branch:
+        description: 'Branch to deploy the R RC to (leave empty to skip)'
+        required: false
+        default: ''
+      python_target_branch:
+        description: 'Branch to deploy the Python RC to (leave empty to skip)'
+        required: false
+        default: ''
+      custom_readme:
+        description: >
+          R only: path to a custom README (relative to repo root) to place in
+          stochtree_cran/. Leave empty to use the default R_README.md.
+        required: false
+        default: ''
+      extra_files:
+        description: >
+          R only: extra files to copy into stochtree_cran/, one per line.
+          Format: src/path:dest/subpath (dest is relative to stochtree_cran/).
+          Example: tools/debug/my_demo.R:tools/my_demo.R
+        required: false
+        default: ''
 
-name: Create a Special Branch for Unmerged Release Candidates
+name: Create Release Candidate Branch
 
 jobs:
-  testing:
-    name: r-custom-release-candidate
+  r-rc:
+    name: R Release Candidate
+    if: inputs.r_target_branch != ''
     runs-on: ubuntu-latest
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       contents: write
-    
+
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 'pr-temp-rc'
+          ref: ${{ inputs.source_branch }}
           submodules: 'recursive'
 
       - uses: r-lib/actions/setup-pandoc@v2
@@ -32,21 +58,50 @@ jobs:
         run: |
           Rscript cran-bootstrap.R
 
-      - name: Copy a release candidate-specific README.md to stochtree_cran
+      - name: Override README
+        if: inputs.custom_readme != ''
+        env:
+          CUSTOM_README: ${{ inputs.custom_readme }}
         run: |
-          cp RC_README.md stochtree_cran/README.md
+          cp "$CUSTOM_README" stochtree_cran/README.md
 
-      - name: Copy demo scripts
+      - name: Copy extra files
+        if: inputs.extra_files != ''
+        env:
+          EXTRA_FILES: ${{ inputs.extra_files }}
         run: |
-          mkdir -p stochtree_cran/tools
-          cp tools/debug/cloglog_ordinal_bart_binary.R stochtree_cran/tools/cloglog_ordinal_bart_binary.R
-          cp tools/debug/cloglog_ordinal_bart_three_category.R stochtree_cran/tools/cloglog_ordinal_bart_three_category.R
-          cp tools/debug/cloglog_ordinal_bart_four_category.R stochtree_cran/tools/cloglog_ordinal_bart_four_category.R
-      
-      - name: Deploy to CRAN dev branch
-        if: github.event_name != 'pull_request'
+          echo "$EXTRA_FILES" | while IFS=: read -r src dest; do
+            [ -z "$src" ] && continue
+            mkdir -p "stochtree_cran/$(dirname "$dest")"
+            cp "$src" "stochtree_cran/$dest"
+          done
+
+      - name: Deploy to R RC branch
         uses: JamesIves/github-pages-deploy-action@v4.5.0
         with:
           clean: false
-          branch: cloglog-bart-rc
+          branch: ${{ inputs.r_target_branch }}
           folder: stochtree_cran
+
+  python-rc:
+    name: Python Release Candidate
+    if: inputs.python_target_branch != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_branch }}
+          submodules: 'recursive'
+
+      - name: Deploy to Python RC branch
+        # Submodule contents are resolved to real files on the runner, so the
+        # deployed branch is pip-installable without --recurse-submodules:
+        #   pip install git+https://github.com/StochasticTree/stochtree@<branch>
+        uses: JamesIves/github-pages-deploy-action@v4.5.0
+        with:
+          clean: false
+          branch: ${{ inputs.python_target_branch }}
+          folder: .
