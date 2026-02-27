@@ -244,6 +244,7 @@ test_that("BART predictions with pre-summarization", {
     num_gfr = 10,
     num_burnin = 0,
     num_mcmc = 10,
+    general_params = list(sample_sigma2_global = FALSE),
     variance_forest_params = var_params
   )
 
@@ -680,4 +681,1054 @@ test_that("BCF predictions with random effects", {
       terms = c("variance_forest")
     )
   })
+})
+
+test_that("BART cloglog binary: posterior interval and contrast", {
+  # Generate binary cloglog data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  prob_y1 <- 1 - exp(-exp(true_lambda))
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+
+  # Fit binary cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "binary", link = "cloglog")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_true("lower" %in% names(interval_linear))
+  expect_true("upper" %in% names(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_equal(length(interval_linear$upper), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  interval_prob <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "probability",
+    X = X_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(length(interval_prob$lower), n_test)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+
+  # Test contrast on probability scale
+  contrast_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_prob))
+  expect_equal(nrow(contrast_prob), n_test)
+
+  # Test contrast with type = "mean"
+  contrast_mean_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  contrast_mean_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.numeric(contrast_mean_prob))
+  expect_equal(length(contrast_mean_prob), n_test)
+})
+
+test_that("BART cloglog ordinal: posterior interval and contrast", {
+  # Generate ordinal cloglog data (3 categories)
+  set.seed(42)
+  n <- 500
+  p <- 3
+  n_categories <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  gamma_true <- c(-1.5, -0.5)
+
+  # Compute class probabilities
+  true_probs <- matrix(0, nrow = n, ncol = n_categories)
+  for (j in 1:n_categories) {
+    if (j == 1) {
+      true_probs[, j] <- 1 - exp(-exp(gamma_true[j] + true_lambda))
+    } else if (j == n_categories) {
+      true_probs[, j] <- 1 - rowSums(true_probs[, 1:(j - 1), drop = FALSE])
+    } else {
+      true_probs[, j] <- exp(-exp(gamma_true[j - 1] + true_lambda)) *
+        (1 - exp(-exp(gamma_true[j] + true_lambda)))
+    }
+  }
+
+  # Generate ordinal outcomes
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+
+  # Fit ordinal cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "ordinal", link = "cloglog")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  # For ordinal models, probability scale returns survival probabilities P(Y > k)
+  # which are (n_test, n_categories - 1) matrices
+  interval_prob <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "probability",
+    X = X_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(nrow(interval_prob$lower), n_test)
+  expect_equal(ncol(interval_prob$lower), n_categories - 1)
+  expect_equal(nrow(interval_prob$upper), n_test)
+  expect_equal(ncol(interval_prob$upper), n_categories - 1)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+
+  # Test contrast on probability scale (ordinal returns 3D array)
+  contrast_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.array(contrast_prob))
+  expect_equal(dim(contrast_prob)[1], n_test)
+  expect_equal(dim(contrast_prob)[2], n_categories - 1)
+
+  # Test contrast with type = "mean" on linear scale
+  contrast_mean_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  # Test contrast with type = "mean" on probability scale
+  # For ordinal, mean contrast should be (n_test, n_categories - 1) matrix
+  contrast_mean_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_mean_prob))
+  expect_equal(nrow(contrast_mean_prob), n_test)
+  expect_equal(ncol(contrast_mean_prob), n_categories - 1)
+})
+
+test_that("BART cloglog binary: sample posterior predictive", {
+  # Generate binary cloglog data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  prob_y1 <- 1 - exp(-exp(true_lambda))
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "binary", link = "cloglog")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% c(0, 1)))
+
+  # Test with single draw per sample
+  ppd1 <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% c(0, 1)))
+})
+
+test_that("BART cloglog ordinal: sample posterior predictive", {
+  # Generate ordinal cloglog data (3 categories)
+  set.seed(42)
+  n <- 500
+  p <- 3
+  n_categories <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  gamma_true <- c(-1.5, -0.5)
+
+  # Compute class probabilities
+  true_probs <- matrix(0, nrow = n, ncol = n_categories)
+  for (j in 1:n_categories) {
+    if (j == 1) {
+      true_probs[, j] <- 1 - exp(-exp(gamma_true[j] + true_lambda))
+    } else if (j == n_categories) {
+      true_probs[, j] <- 1 - rowSums(true_probs[, 1:(j - 1), drop = FALSE])
+    } else {
+      true_probs[, j] <- exp(-exp(gamma_true[j - 1] + true_lambda)) *
+        (1 - exp(-exp(gamma_true[j] + true_lambda)))
+    }
+  }
+
+  # Generate ordinal outcomes
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit ordinal cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "ordinal", link = "cloglog")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% 1:n_categories))
+
+  # Test with single draw per sample
+  ppd1 <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% 1:n_categories))
+})
+
+test_that("BART gaussian: posterior interval and contrast", {
+  # Generate gaussian data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  mu <- X %*% beta
+  y <- rnorm(n, mu, 1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit gaussian BART model (default link)
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc
+  )
+
+  # Test posterior interval on linear scale (mean_forest term)
+  interval_linear <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_true("lower" %in% names(interval_linear))
+  expect_true("upper" %in% names(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_equal(length(interval_linear$upper), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval for y_hat term
+  interval_yhat <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "y_hat",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_yhat))
+  expect_equal(length(interval_yhat$lower), n_test)
+  expect_true(all(interval_yhat$lower <= interval_yhat$upper))
+
+  # Test contrast on linear scale, type = "posterior"
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_posterior <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_posterior))
+  expect_equal(nrow(contrast_posterior), n_test)
+  expect_equal(ncol(contrast_posterior), num_mcmc)
+
+  # Test contrast with type = "mean"
+  contrast_mean <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean))
+  expect_equal(length(contrast_mean), n_test)
+})
+
+test_that("BART binary probit: posterior interval and contrast", {
+  # Generate binary probit data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  mu <- X %*% beta
+  prob_y1 <- pnorm(mu)
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary probit BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "binary", link = "probit")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_true("lower" %in% names(interval_linear))
+  expect_true("upper" %in% names(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_equal(length(interval_linear$upper), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  interval_prob <- compute_bart_posterior_interval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "probability",
+    X = X_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(length(interval_prob$lower), n_test)
+  expect_equal(length(interval_prob$upper), n_test)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+  expect_equal(ncol(contrast_linear), num_mcmc)
+
+  # Test contrast on probability scale
+  contrast_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_prob))
+  expect_equal(nrow(contrast_prob), n_test)
+  expect_equal(ncol(contrast_prob), num_mcmc)
+
+  # Test contrast with type = "mean" on linear scale
+  contrast_mean_linear <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  # Test contrast with type = "mean" on probability scale
+  contrast_mean_prob <- compute_contrast_bart_model(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.numeric(contrast_mean_prob))
+  expect_equal(length(contrast_mean_prob), n_test)
+})
+
+test_that("BART gaussian: sample posterior predictive", {
+  # Generate gaussian data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  mu <- X %*% beta
+  y <- rnorm(n, mu, 1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit gaussian BART model (default link)
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(is.numeric(ppd))
+
+  # Test with single draw per sample
+  ppd1 <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(is.numeric(ppd1))
+})
+
+test_that("BART binary probit: sample posterior predictive", {
+  # Generate binary probit data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  mu <- X %*% beta
+  prob_y1 <- pnorm(mu)
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary probit BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "binary", link = "probit")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% c(0, 1)))
+
+  # Test with single draw per sample
+  ppd1 <- sample_bart_posterior_predictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% c(0, 1)))
+})
+
+test_that("BCF gaussian: posterior interval and contrast", {
+  # Generate gaussian causal data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- pnorm(X[, 1])
+  Z <- rbinom(n, 1, pi_x)
+  mu_x <- X[, 1] + X[, 2]
+  tau_x <- rep(1, n)
+  y <- mu_x + tau_x * Z + rnorm(n)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit gaussian BCF model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc
+  )
+
+  # Test posterior interval on linear scale (prognostic_function term)
+  interval_prog <- compute_bcf_posterior_interval(
+    bcf_model,
+    terms = "prognostic_function",
+    level = 0.95,
+    scale = "linear",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_prog))
+  expect_true("lower" %in% names(interval_prog))
+  expect_true("upper" %in% names(interval_prog))
+  expect_equal(length(interval_prog$lower), n_test)
+  expect_equal(length(interval_prog$upper), n_test)
+  expect_true(all(interval_prog$lower <= interval_prog$upper))
+
+  # Test posterior interval for cate term
+  interval_cate <- compute_bcf_posterior_interval(
+    bcf_model,
+    terms = "cate",
+    level = 0.95,
+    scale = "linear",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_cate))
+  expect_equal(length(interval_cate$lower), n_test)
+  expect_true(all(interval_cate$lower <= interval_cate$upper))
+
+  # Test posterior interval for y_hat term
+  interval_yhat <- compute_bcf_posterior_interval(
+    bcf_model,
+    terms = "y_hat",
+    level = 0.95,
+    scale = "linear",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_yhat))
+  expect_equal(length(interval_yhat$lower), n_test)
+  expect_true(all(interval_yhat$lower <= interval_yhat$upper))
+
+  # Test contrast on linear scale (CATE: Z=1 vs Z=0)
+  contrast_posterior <- compute_contrast_bcf_model(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_posterior))
+  expect_equal(nrow(contrast_posterior), n_test)
+  expect_equal(ncol(contrast_posterior), num_mcmc)
+
+  # Test contrast with type = "mean"
+  contrast_mean <- compute_contrast_bcf_model(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean))
+  expect_equal(length(contrast_mean), n_test)
+})
+
+test_that("BCF binary probit: posterior interval and contrast", {
+  # Generate binary probit causal data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- pnorm(X[, 1])
+  Z <- rbinom(n, 1, pi_x)
+  mu_x <- X[, 1] + X[, 2]
+  tau_x <- rep(0.5, n)
+  prob_y1 <- pnorm(mu_x + tau_x * Z)
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary probit BCF model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "binary", link = "probit")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- compute_bcf_posterior_interval(
+    bcf_model,
+    terms = "prognostic_function",
+    level = 0.95,
+    scale = "linear",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_true("lower" %in% names(interval_linear))
+  expect_true("upper" %in% names(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_equal(length(interval_linear$upper), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  interval_prob <- compute_bcf_posterior_interval(
+    bcf_model,
+    terms = "prognostic_function",
+    level = 0.95,
+    scale = "probability",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(length(interval_prob$lower), n_test)
+  expect_equal(length(interval_prob$upper), n_test)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale (CATE: Z=1 vs Z=0)
+  contrast_linear <- compute_contrast_bcf_model(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+  expect_equal(ncol(contrast_linear), num_mcmc)
+
+  # Test contrast on probability scale
+  contrast_prob <- compute_contrast_bcf_model(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_prob))
+  expect_equal(nrow(contrast_prob), n_test)
+  expect_equal(ncol(contrast_prob), num_mcmc)
+
+  # Test contrast with type = "mean" on linear scale
+  contrast_mean_linear <- compute_contrast_bcf_model(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  # Test contrast with type = "mean" on probability scale
+  contrast_mean_prob <- compute_contrast_bcf_model(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.numeric(contrast_mean_prob))
+  expect_equal(length(contrast_mean_prob), n_test)
+})
+
+test_that("BCF gaussian: sample posterior predictive", {
+  # Generate gaussian causal data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- pnorm(X[, 1])
+  Z <- rbinom(n, 1, pi_x)
+  mu_x <- X[, 1] + X[, 2]
+  tau_x <- rep(1, n)
+  y <- mu_x + tau_x * Z + rnorm(n)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit gaussian BCF model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sample_bcf_posterior_predictive(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(is.numeric(ppd))
+
+  # Test with single draw per sample
+  ppd1 <- sample_bcf_posterior_predictive(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(is.numeric(ppd1))
+})
+
+test_that("BCF binary probit: sample posterior predictive", {
+  # Generate binary probit causal data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- pnorm(X[, 1])
+  Z <- rbinom(n, 1, pi_x)
+  mu_x <- X[, 1] + X[, 2]
+  tau_x <- rep(0.5, n)
+  prob_y1 <- pnorm(mu_x + tau_x * Z)
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary probit BCF model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = outcome_model(outcome = "binary", link = "probit")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sample_bcf_posterior_predictive(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% c(0, 1)))
+
+  # Test with single draw per sample
+  ppd1 <- sample_bcf_posterior_predictive(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% c(0, 1)))
 })

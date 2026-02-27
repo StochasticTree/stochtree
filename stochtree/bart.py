@@ -17,10 +17,13 @@ from .random_effects import (
     RandomEffectsModel,
     RandomEffectsTracker,
 )
-from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
+from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel, OrdinalSampler
 from .serialization import JSONSerializer
 from .utils import (
+    OutcomeModel,
     NotSampledError,
+    _class_probs_to_survival_probs,
+    _compute_sample_dim,
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
@@ -135,7 +138,8 @@ class BARTModel:
             * `keep_gfr` (`bool`): Whether or not "warm-start" / grow-from-root samples should be included in predictions. Defaults to `False`. Ignored if `num_mcmc == 0`.
             * `keep_every` (`int`): How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Defaults to `1`. Setting `keep_every = k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
             * `num_chains` (`int`): How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Defaults to `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see the multi chain vignettes.
-            * `probit_outcome_model` (`bool`): Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
+            * `outcome_model` (`stochtree.OutcomeModel`): An object of class `OutcomeModel` specifying the outcome model to be used. Default: `OutcomeModel(outcome = "continuous", link = "identity")`. This field pre-empts the deprecated `probit_outcome_model` parameter, if specified.
+            * `probit_outcome_model` (`bool`): Deprecated in favor of `outcome_model`. Whether or not the outcome should be modeled as explicitly binary via a probit link. If `True`, `y` must only contain the values `0` and `1`. Default: `False`.
             * `num_threads`: Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 
         mean_forest_params : dict, optional
@@ -205,6 +209,7 @@ class BARTModel:
             "keep_gfr": False,
             "keep_every": 1,
             "num_chains": 1,
+            "outcome_model": OutcomeModel(outcome = "continuous", link = "identity"),
             "probit_outcome_model": False,
             "num_threads": -1,
         }
@@ -279,6 +284,7 @@ class BARTModel:
         keep_every = general_params_updated["keep_every"]
         num_chains = general_params_updated["num_chains"]
         self.probit_outcome_model = general_params_updated["probit_outcome_model"]
+        self.outcome_model = general_params_updated["outcome_model"]
         num_threads = general_params_updated["num_threads"]
 
         # 2. Mean forest parameters
@@ -329,6 +335,38 @@ class BARTModel:
         rfx_group_parameter_prior_cov = rfx_params_updated["group_parameter_prior_cov"]
         rfx_variance_prior_shape = rfx_params_updated["variance_prior_shape"]
         rfx_variance_prior_scale = rfx_params_updated["variance_prior_scale"]
+
+        # Raise a deprecation warning to use `outcome_model` if `probit_outcome_model = TRUE` is specified
+        if self.probit_outcome_model:
+            warnings.warn(
+                "Specifying a probit link through `general_params = {'probit_outcome_model': True}` is deprecated and will be removed in a future version. Please use `general_params = {outcome_model = OutcomeModel(outcome = 'binary', link = 'probit')}` instead.",
+                DeprecationWarning
+            )
+        # TODO: think about validation and deprecation flow for probit_outcome_model
+        # outcome_model_specified = True if "outcome_model" in general_params.keys() and general_params["outcome_model"] else False
+        # probit_specified = True if "probit_outcome_model" in general_params.keys() and general_params["probit_outcome_model"] else False
+        
+        # Unpack outcome model details
+        link_is_linear = False
+        link_is_probit = False
+        link_is_cloglog = False
+        outcome_is_continuous = False
+        outcome_is_binary = False
+        outcome_is_ordinal = False
+        if self.outcome_model.outcome == "continuous" and self.outcome_model.link == "identity":
+            link_is_linear = True
+            outcome_is_continuous = True
+        elif self.outcome_model.outcome == "binary" and self.outcome_model.link == "probit":
+            link_is_probit = True
+            outcome_is_binary = True
+        elif self.outcome_model.outcome == "binary" and self.outcome_model.link == "cloglog":
+            link_is_cloglog = True
+            outcome_is_binary = True
+        elif self.outcome_model.outcome == "ordinal" and self.outcome_model.link == "cloglog":
+            link_is_cloglog = True
+            outcome_is_ordinal = True
+        else:
+            raise ValueError(f"Invalid outcome model specification, outcome = {self.outcome_model.outcome}, link = {self.outcome_model.link}")
 
         # Check random effects specification
         if not isinstance(self.rfx_model_spec, str):
@@ -881,16 +919,16 @@ class BARTModel:
 
         # Preliminary runtime checks for probit link
         if not self.include_mean_forest:
-            self.probit_outcome_model = False
-        if self.probit_outcome_model:
+            link_is_probit = False
+        if link_is_probit:
             if np.unique(y_train).size != 2:
                 raise ValueError(
-                    "You specified a probit outcome model, but supplied an outcome with more than 2 unique values"
+                    "You specified a probit link, but supplied an outcome with more than 2 unique values. Probit is only currently supported for binary outcomes."
                 )
             unique_outcomes = np.squeeze(np.unique(y_train))
             if not np.array_equal(unique_outcomes, [0, 1]):
                 raise ValueError(
-                    "You specified a probit outcome model, but supplied an outcome with 2 unique values other than 0 and 1"
+                    "You specified a probit link, but supplied an outcome with 2 unique values other than 0 and 1"
                 )
             if sample_sigma2_global:
                 warnings.warn(
@@ -902,6 +940,40 @@ class BARTModel:
                     "We do not support heteroskedasticity with a probit link"
                 )
         
+        # Preliminary runtime checks for cloglog link
+        if not self.include_mean_forest:
+            link_is_cloglog = False
+        if link_is_cloglog:
+            unique_outcomes = np.sort(np.unique(y_train))
+            if not np.all(np.equal(np.mod(unique_outcomes, 1), 0)):
+                raise ValueError(
+                    "You specified a cloglog link, but supplied an outcome with non-integer values. "
+                    "Cloglog is only currently supported for integer outcomes."
+                )
+            if int(np.min(unique_outcomes)) not in (0, 1):
+                raise ValueError(
+                    "You specified a cloglog link, but supplied an integer outcome that does not start with 0 or 1. "
+                    "Please remap / shift the outcomes so that the smallest category label is either 0 or 1."
+                )
+            if not np.all(np.diff(unique_outcomes) == 1):
+                raise ValueError(
+                    "You specified a cloglog link, but supplied an integer outcome that is not a sequence of consecutive integers"
+                )
+            if self.include_variance_forest:
+                raise ValueError("We do not support heteroskedasticity with a cloglog link")
+            if self.has_basis:
+                raise ValueError("We do not support leaf basis regression with a cloglog link")
+            if sample_sigma2_global:
+                warnings.warn(
+                    "Global error variance will not be sampled with a cloglog link"
+                )
+                sample_sigma2_global = False
+            if sample_sigma2_leaf:
+                warnings.warn(
+                    "Leaf scale parameter will not be sampled with a cloglog link"
+                )
+                sample_sigma2_leaf = False
+
         # Runtime checks for variance forest
         if self.include_variance_forest:
             if sample_sigma2_global:
@@ -912,7 +984,7 @@ class BARTModel:
 
         # Handle standardization, prior calibration, and initialization of forest
         # differently for binary and continuous outcomes
-        if self.probit_outcome_model:
+        if link_is_probit:
             # Compute a probit-scale offset and fix scale to 1
             self.y_bar = norm.ppf(np.squeeze(np.mean(y_train)))
             self.y_std = 1.0
@@ -985,6 +1057,30 @@ class BARTModel:
                     raise ValueError(
                         "sigma2_leaf must be either a scalar or a 2d numpy array"
                     )
+        elif link_is_cloglog:
+            # Fix offset to 0 and scale to 1
+            self.y_bar = 0
+            self.y_std = 1
+
+            # Remap outcomes to start from 0
+            resid_train = y_train - np.min(unique_outcomes)
+            cloglog_num_categories = int(np.max(resid_train)) + 1
+
+            # Set initial values of root nodes to 0.0 (in linear scale)
+            init_val_mean = 0.0
+
+            # Calibrate priors for sigma^2 and tau
+            sigma2_init = 1.0
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
+            current_leaf_scale = np.array([[2.0 / num_trees_mean]])
+
+            # Set first cutpoint to 0 for identifiability
+            cloglog_cutpoint_0 = 0.0
+
+            # Set shape and rate parameters for conditional gamma model
+            cloglog_forest_shape = 2.0
+            cloglog_forest_rate = 2.0
         else:
             # Standardize if requested
             if self.standardize:
@@ -1238,7 +1334,10 @@ class BARTModel:
         leaf_dimension_variance = 1
 
         # Determine the mean forest leaf model type
-        if not self.has_basis:
+        if link_is_cloglog and not self.has_basis:
+            leaf_model_mean_forest = 4
+            leaf_dimension_mean = 1
+        elif not self.has_basis:
             leaf_model_mean_forest = 0
             leaf_dimension_mean = 1
         elif self.num_basis == 1:
@@ -1267,6 +1366,9 @@ class BARTModel:
                 cutpoint_grid_size=cutpoint_grid_size,
                 num_features_subsample=num_features_subsample_mean,
             )
+            if link_is_cloglog:
+                forest_model_config_mean.update_cloglog_forest_shape(cloglog_forest_shape)
+                forest_model_config_mean.update_cloglog_forest_rate(cloglog_forest_rate)
             forest_sampler_mean = ForestSampler(
                 forest_dataset_train,
                 global_model_config,
@@ -1345,6 +1447,34 @@ class BARTModel:
                 init_val_variance,
             )
 
+        # Initialize auxiliary data and ordinal sampler for cloglog
+        if link_is_cloglog:
+            ordinal_sampler = OrdinalSampler()
+            train_size = self.n_train
+
+            # Slot 0: Latent variable Z (size n_train)
+            forest_dataset_train.add_auxiliary_dimension(train_size)
+            # Slot 1: Forest predictions eta (size n_train)
+            forest_dataset_train.add_auxiliary_dimension(train_size)
+            # Slot 2: Log-scale cutpoints gamma (size cloglog_num_categories - 1)
+            forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories - 1)
+            # Slot 3: Cumulative exp cutpoints seg (size cloglog_num_categories)
+            forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories)
+
+            # Initialize all slots to 0
+            for j in range(train_size):
+                forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
+                forest_dataset_train.set_auxiliary_data_value(1, j, 0.0)
+            for j in range(cloglog_num_categories - 1):
+                forest_dataset_train.set_auxiliary_data_value(2, j, 0.0)
+
+            # Compute initial cumulative exp sums
+            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+
+            # Allocate storage for cutpoint samples
+            cloglog_cutpoint_samples = np.full(
+                (cloglog_num_categories - 1, num_retained_samples), np.nan
+            )
         # Run GFR (warm start) if specified
         if self.num_gfr > 0:
             for i in range(self.num_gfr):
@@ -1354,7 +1484,7 @@ class BARTModel:
                 if keep_sample:
                     sample_counter += 1
                 if self.include_mean_forest:
-                    if self.probit_outcome_model:
+                    if link_is_probit:
                         # Sample latent probit variable z | -
                         outcome_pred = active_forest_mean.predict(forest_dataset_train)
                         if self.has_rfx:
@@ -1452,6 +1582,37 @@ class BARTModel:
                         cpp_rng,
                     )
 
+                # Cloglog Gibbs updates
+                if link_is_cloglog:
+                    # Update auxiliary data slot 1 with current forest predictions
+                    forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
+                    for j in range(train_size):
+                        forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
+
+                    # Sample latent z_i's using truncated exponential
+                    ordinal_sampler.update_latent_variables(
+                        forest_dataset_train, residual_train, cpp_rng
+                    )
+
+                    # Sample gamma parameters (cutpoints)
+                    ordinal_sampler.update_gamma_params(
+                        forest_dataset_train,
+                        residual_train,
+                        cloglog_forest_shape,
+                        cloglog_forest_rate,
+                        cloglog_cutpoint_0,
+                        cpp_rng,
+                    )
+
+                    # Update cumulative sum of exp(gamma) values
+                    ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+
+                    # Retain cutpoint draw
+                    if keep_sample:
+                        cloglog_cutpoint_samples[:, sample_counter] = (
+                            forest_dataset_train.get_auxiliary_data_vector(2)
+                        )
+
         # Run MCMC
         if self.num_burnin + self.num_mcmc > 0:
             for chain_num in range(num_chains):
@@ -1494,6 +1655,19 @@ class BARTModel:
                     if self.has_rfx:
                         rfx_model.reset(self.rfx_container, forest_ind, sigma_alpha_init)
                         rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                    # Reset cloglog auxiliary data
+                    if link_is_cloglog:
+                        # Reset cutpoints from saved GFR samples
+                        current_cutpoints = cloglog_cutpoint_samples[:, forest_ind]
+                        for j in range(len(current_cutpoints)):
+                            forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
+                        ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+                        # Reset forest predictions by re-predicting from active forest
+                        active_forest_preds = active_forest_mean.predict(forest_dataset_train)
+                        for j in range(train_size):
+                            forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
+                            # Latent variables must be reset to 0 and burnt in
+                            forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
                 elif has_prev_model:
                     warmstart_index = previous_model_warmstart_sample_num - chain_num if previous_model_decrement else previous_model_warmstart_sample_num
                     # Reset mean forest
@@ -1539,6 +1713,21 @@ class BARTModel:
                     if self.has_rfx:
                         rfx_model.reset(previous_bart_model.rfx_container, warmstart_index, sigma_alpha_init)
                         rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, previous_bart_model.rfx_container)
+                    # Reset cloglog auxiliary data from previous model
+                    if link_is_cloglog:
+                        previous_cloglog_cutpoint_samples = getattr(
+                            previous_bart_model, "cloglog_cutpoint_samples", None
+                        )
+                        if previous_cloglog_cutpoint_samples is not None:
+                            current_cutpoints = previous_cloglog_cutpoint_samples[:, warmstart_index]
+                            for j in range(len(current_cutpoints)):
+                                forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
+                            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+                        active_forest_preds = active_forest_mean.predict(forest_dataset_train)
+                        for j in range(train_size):
+                            forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
+                            # Latent variables must be reset to 0 and burnt in
+                            forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
                 else:
                     # Reset mean forest
                     if self.include_mean_forest:
@@ -1563,6 +1752,21 @@ class BARTModel:
                             forest_model_config_mean.update_leaf_model_scale(
                                 current_leaf_scale
                             )
+                        if link_is_cloglog:
+                            # Reset all cloglog parameters to default values
+                            for j in range(train_size):
+                                forest_dataset_train.set_auxiliary_data_value(1, j, 0.0)
+                                forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
+                            # Initialize log-scale cutpoints to 0
+                            initial_gamma = np.zeros(cloglog_num_categories - 1)
+                            for j in range(cloglog_num_categories - 1):
+                                forest_dataset_train.set_auxiliary_data_value(
+                                    2,
+                                    j,
+                                    initial_gamma[j]
+                                )
+                            # Convert to cumulative exponentiated cutpoints
+                            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
                     # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset_root()
@@ -1601,7 +1805,7 @@ class BARTModel:
                         sample_counter += 1
 
                     if self.include_mean_forest:
-                        if self.probit_outcome_model:
+                        if link_is_probit:
                             # Sample latent probit variable z | -
                             outcome_pred = active_forest_mean.predict(
                                 forest_dataset_train
@@ -1703,6 +1907,37 @@ class BARTModel:
                             cpp_rng,
                         )
 
+                    # Cloglog Gibbs updates
+                    if link_is_cloglog:
+                        # Update auxiliary data slot 1 with current forest predictions
+                        forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
+                        for j in range(train_size):
+                            forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
+
+                        # Sample latent z_i's using truncated exponential
+                        ordinal_sampler.update_latent_variables(
+                            forest_dataset_train, residual_train, cpp_rng
+                        )
+
+                        # Sample gamma parameters (cutpoints)
+                        ordinal_sampler.update_gamma_params(
+                            forest_dataset_train,
+                            residual_train,
+                            cloglog_forest_shape,
+                            cloglog_forest_rate,
+                            cloglog_cutpoint_0,
+                            cpp_rng,
+                        )
+
+                        # Update cumulative sum of exp(gamma) values
+                        ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+
+                        # Retain cutpoint draw
+                        if keep_sample:
+                            cloglog_cutpoint_samples[:, sample_counter] = (
+                                forest_dataset_train.get_auxiliary_data_vector(2)
+                            )
+
         # Mark the model as sampled
         self.sampled = True
 
@@ -1723,7 +1958,15 @@ class BARTModel:
                 yhat_train_raw = yhat_train_raw[:, num_gfr:]
             if self.include_variance_forest:
                 sigma2_x_train_raw = sigma2_x_train_raw[:, num_gfr:]
+            if link_is_cloglog:
+                cloglog_cutpoint_samples = cloglog_cutpoint_samples[:, num_gfr:]
             self.num_samples -= num_gfr
+
+        # Store cloglog results (cutpoints only for ordinal, num_categories always)
+        if link_is_cloglog:
+            self.cloglog_num_categories = cloglog_num_categories
+            if not outcome_is_binary:
+                self.cloglog_cutpoint_samples = cloglog_cutpoint_samples
 
         # Store predictions
         if self.sample_sigma2_global:
@@ -1820,7 +2063,7 @@ class BARTModel:
         terms : str, optional
             Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
         scale : str, optional
-            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
+            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, "probability", which transforms predictions into category probabilities, and "class", which returns the predicted class label. "probability" and "class" are only valid for models fit with a probit or cloglog outcome model. Default: "linear".
 
         Returns
         -------
@@ -1829,14 +2072,22 @@ class BARTModel:
         # Handle mean function scale
         if not isinstance(scale, str):
             raise ValueError("scale must be a string")
-        if scale not in ["linear", "probability"]:
-            raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.probit_outcome_model
-        if (scale == "probability") and (not is_probit):
+        if scale not in ["linear", "probability", "class"]:
+            raise ValueError("scale must either be 'linear', 'probability', or 'class'")
+        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
+        is_binary_cloglog = self.outcome_model.link == "cloglog" and self.outcome_model.outcome == "binary"
+        is_ordinal_cloglog = self.outcome_model.link == "cloglog" and self.outcome_model.outcome == "ordinal"
+        is_cloglog = is_binary_cloglog or is_ordinal_cloglog
+        if (scale == "probability") and (not (is_probit or is_cloglog)):
             raise ValueError(
-                "scale cannot be 'probability' for models not fit with a probit outcome model"
+                "scale cannot be 'probability' for models not fit with a probit or cloglog outcome model"
+            )
+        if (scale == "class") and (not (is_probit or is_cloglog)):
+            raise ValueError(
+                "scale cannot be 'class' for models not fit with a probit or cloglog outcome model"
             )
         probability_scale = scale == "probability"
+        class_scale = scale == "class"
 
         # Handle prediction type
         if not isinstance(type, str):
@@ -1844,6 +2095,8 @@ class BARTModel:
         if type not in ["mean", "posterior"]:
             raise ValueError("type must either be 'mean' or 'posterior'")
         predict_mean = type == "mean"
+        if predict_mean and class_scale:
+            raise ValueError("Posterior mean predictions are not supported for scale = 'class'")
 
         # Handle prediction terms
         if not isinstance(terms, str) and not isinstance(terms, list):
@@ -1891,15 +2144,19 @@ class BARTModel:
         predict_rfx_intermediate = predict_y_hat and has_rfx
         predict_mean_forest_intermediate = predict_y_hat and has_mean_forest
 
-        # Check that we have at least one term to predict on probability scale
+        # Check that we have at least one term to predict on probability/class scale
         if (
-            probability_scale
+            (probability_scale or class_scale)
             and not predict_y_hat
             and not predict_mean_forest
             and not predict_rfx
         ):
             raise ValueError(
-                "scale can only be 'probability' if at least one mean term is requested"
+                "scale can only be 'probability' or 'class' if at least one mean term is requested"
+            )
+        if class_scale and not (predict_count == 1 and predict_y_hat):
+            raise ValueError(
+                "scale = 'class' is only supported when requesting a single 'y_hat' term"
             )
 
         # Check the model is valid
@@ -2043,17 +2300,52 @@ class BARTModel:
                 rfx_predictions = np.squeeze(rfx_predictions_raw[:, 0, :])
 
         # Combine into y hat predictions
-        if probability_scale:
-            if predict_y_hat and has_mean_forest and has_rfx:
-                y_hat = norm.cdf(mean_forest_predictions + rfx_predictions)
-                mean_forest_predictions = norm.cdf(mean_forest_predictions)
-                rfx_predictions = norm.cdf(rfx_predictions)
-            elif predict_y_hat and has_mean_forest:
-                y_hat = norm.cdf(mean_forest_predictions)
-                mean_forest_predictions = norm.cdf(mean_forest_predictions)
-            elif predict_y_hat and has_rfx:
-                y_hat = norm.cdf(rfx_predictions)
-                rfx_predictions = norm.cdf(rfx_predictions)
+        if probability_scale or class_scale:
+            if is_probit:
+                if predict_y_hat and has_mean_forest and has_rfx:
+                    y_hat = norm.cdf(mean_forest_predictions + rfx_predictions)
+                elif predict_y_hat and has_mean_forest:
+                    y_hat = norm.cdf(mean_forest_predictions)
+                elif predict_y_hat and has_rfx:
+                    y_hat = norm.cdf(rfx_predictions)
+                if (predict_mean_forest or predict_mean_forest_intermediate) and has_mean_forest:
+                    mean_forest_predictions = norm.cdf(mean_forest_predictions)
+                if (predict_rfx or predict_rfx_intermediate) and has_rfx:
+                    rfx_predictions = norm.cdf(rfx_predictions)
+            elif is_binary_cloglog:
+                mean_forest_predictions = np.exp(-np.exp(mean_forest_predictions))
+                if predict_y_hat:
+                    y_hat = mean_forest_predictions
+            elif is_ordinal_cloglog:
+                cloglog_num_categories = self.cloglog_num_categories
+                cloglog_cutpoint_samples = self.cloglog_cutpoint_samples
+                n_obs = X.shape[0] if isinstance(X, np.ndarray) else X.shape[0]
+                num_samples = self.num_samples
+                # Compute category probabilities: (n_obs, n_categories, n_samples)
+                mean_forest_probabilities = np.empty(
+                    (n_obs, cloglog_num_categories, num_samples)
+                )
+                for j in range(cloglog_num_categories):
+                    if j == 0:
+                        # P(Y=1) = 1 - exp(-exp(eta + gamma_1))
+                        mean_forest_probabilities[:, j, :] = 1.0 - np.exp(
+                            -np.exp(mean_forest_predictions + cloglog_cutpoint_samples[j, :])
+                        )
+                    elif j == cloglog_num_categories - 1:
+                        # P(Y=K) = 1 - sum(P(Y=1),...,P(Y=K-1))
+                        mean_forest_probabilities[:, j, :] = 1.0 - np.sum(
+                            mean_forest_probabilities[:, :j, :], axis=1
+                        )
+                    else:
+                        # P(Y=j) = exp(-exp(eta + gamma_{j-1})) * (1 - exp(-exp(eta + gamma_j)))
+                        mean_forest_probabilities[:, j, :] = np.exp(
+                            -np.exp(mean_forest_predictions + cloglog_cutpoint_samples[j - 1, :])
+                        ) * (1.0 - np.exp(
+                            -np.exp(mean_forest_predictions + cloglog_cutpoint_samples[j, :])
+                        ))
+                if predict_y_hat:
+                    y_hat = mean_forest_probabilities
+                mean_forest_predictions = mean_forest_probabilities
         else:
             if predict_y_hat and has_mean_forest and has_rfx:
                 y_hat = mean_forest_predictions + rfx_predictions
@@ -2065,11 +2357,26 @@ class BARTModel:
         # Collapse to posterior mean predictions if requested
         if predict_mean:
             if predict_mean_forest:
-                mean_forest_predictions = np.mean(mean_forest_predictions, axis=1)
+                if is_ordinal_cloglog and probability_scale:
+                    mean_forest_predictions = np.mean(mean_forest_predictions, axis=2)
+                else:
+                    mean_forest_predictions = np.mean(mean_forest_predictions, axis=1)
             if predict_rfx:
                 rfx_predictions = np.mean(rfx_predictions, axis=1)
             if predict_y_hat:
-                y_hat = np.mean(y_hat, axis=1)
+                if is_ordinal_cloglog and probability_scale:
+                    y_hat = np.mean(y_hat, axis=2)
+                else:
+                    y_hat = np.mean(y_hat, axis=1)
+
+        # Convert probabilities to classes if requested
+        if class_scale:
+            if is_ordinal_cloglog:
+                # For each (obs, sample), pick category with highest probability
+                # y_hat is (n_obs, n_categories, n_samples)
+                y_hat = np.argmax(y_hat, axis=1) + 1  # 1-indexed classes
+            else:
+                y_hat = np.where(y_hat < 0.5, 0, 1)
 
         if predict_count == 1:
             if predict_y_hat:
@@ -2147,7 +2454,7 @@ class BARTModel:
         type : str, optional
             Aggregation level of the contrast. Options are "mean", which averages the contrast evaluations over every draw of a BART model, and "posterior", which returns the entire matrix of posterior contrast estimates. Default: "posterior".
         scale : str, optional
-            Scale of the contrast. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
+            Scale of the contrast. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability". `scale = "probability"` is only valid for models fit with a probit / cloglog link on binary or ordinal outcomes. For binary outcome models, `scale = "probability"` will return a contrast over the probability that `y == 1`. For ordinal outcome models, `scale = "probability"` will return contrasts over the "survival function" `P(y > k)` for `k = 1, 2, ..., K-1` where `K` is the total number of categories. Default: "linear".
 
         Returns
         -------
@@ -2158,10 +2465,13 @@ class BARTModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.probit_outcome_model
-        if (scale == "probability") and (not is_probit):
+        is_probit = self.outcome_model.link == "probit"
+        is_cloglog = self.outcome_model.link == "cloglog"
+        is_binary_cloglog = is_cloglog and self.outcome_model.outcome == "binary"
+        is_ordinal_cloglog = is_cloglog and self.outcome_model.outcome == "ordinal"
+        if (scale == "probability") and (not (is_probit or is_cloglog)):
             raise ValueError(
-                "scale cannot be 'probability' for models not fit with a probit outcome model"
+                "scale cannot be 'probability' for models not fit with a probit or cloglog link for binary / ordinal outcome data"
             )
         probability_scale = scale == "probability"
 
@@ -2222,7 +2532,7 @@ class BARTModel:
             rfx_basis=rfx_basis_0,
             type="posterior",
             terms="y_hat",
-            scale="linear",
+            scale=scale,
         )
 
         # Predict for the treatment arm
@@ -2233,17 +2543,30 @@ class BARTModel:
             rfx_basis=rfx_basis_1,
             type="posterior",
             terms="y_hat",
-            scale="linear",
+            scale=scale,
         )
 
-        # Transform to probability scale if requested
-        if probability_scale:
-            treatment_preds = norm.cdf(treatment_preds)
-            control_preds = norm.cdf(control_preds)
+        # Convert ordinal class probabilities to "survival" probabilities
+        if is_ordinal_cloglog and probability_scale:
+            num_categories = self.cloglog_num_categories
+            control_preds = _class_probs_to_survival_probs(
+                control_preds, num_categories
+            )
+            treatment_preds = _class_probs_to_survival_probs(
+                treatment_preds, num_categories
+            )
 
         # Compute and return contrast
         if predict_mean:
-            return np.mean(treatment_preds - control_preds, axis=1)
+            output_ndim = len(treatment_preds.shape)
+            if output_ndim == 3:
+                treatment_collapsed = np.mean(treatment_preds, axis=2)
+                control_collapsed = np.mean(control_preds, axis=2)
+                return treatment_collapsed - control_collapsed
+            elif output_ndim == 2:
+                return np.mean(treatment_preds - control_preds, axis=1)
+            else:
+                raise ValueError("Unexpected output dimension")
         else:
             return treatment_preds - control_preds
 
@@ -2273,7 +2596,7 @@ class BARTModel:
         terms : str, optional
             Character string specifying the model term(s) for which to compute intervals. Options for BART models are `"mean_forest"`, `"variance_forest"`, `"rfx"`, `"y_hat"`, or `"all"`. Defaults to `"all"`.
         scale : str, optional
-            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
+            Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability". `scale = "probability"` is only valid for models fit with a probit / cloglog link on binary or ordinal outcomes. For binary outcome models, `scale = "probability"` will return an interval over the probability that `y == 1`. For ordinal outcome models, `scale = "probability"` will return intervals over the "survival function" `P(y > k)` for `k = 1, 2, ..., K-1` where `K` is the total number of categories. Defaults to `"linear"`.
         level : float, optional
             A numeric value between 0 and 1 specifying the credible interval level. Defaults to 0.95 for a 95% credible interval.
 
@@ -2291,10 +2614,13 @@ class BARTModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.probit_outcome_model
-        if (scale == "probability") and (not is_probit):
+        is_probit = self.outcome_model.link == "probit"
+        is_cloglog = self.outcome_model.link == "cloglog"
+        is_binary_cloglog = is_cloglog and self.outcome_model.outcome == "binary"
+        is_ordinal_cloglog = is_cloglog and self.outcome_model.outcome == "ordinal"
+        if (scale == "probability") and (not (is_probit or is_cloglog)):
             raise ValueError(
-                "scale cannot be 'probability' for models not fit with a probit outcome model"
+                "scale cannot be 'probability' for models not fit with a probit or cloglog link for binary / ordinal outcome data"
             )
 
         # Handle prediction terms
@@ -2382,17 +2708,34 @@ class BARTModel:
         )
         has_multiple_terms = True if isinstance(predictions, dict) else False
 
+        # Convert ordinal class probabilities to "survival" probabilities
+        if is_ordinal_cloglog and scale == "probability":
+            num_categories = self.cloglog_num_categories
+            if has_multiple_terms:
+                for term_name in predictions.keys():
+                    if predictions[term_name] is not None:
+                        predictions[term_name] = _class_probs_to_survival_probs(
+                            predictions[term_name], num_categories
+                        )
+            else:
+                predictions = _class_probs_to_survival_probs(
+                    predictions, num_categories
+                )
+
         # Compute posterior intervals
+        num_samples = self.num_samples
         if has_multiple_terms:
             result = dict()
             for term in predictions.keys():
                 if predictions[term] is not None:
+                    sample_dim = _compute_sample_dim(predictions[term], num_samples)
                     result[term] = _summarize_interval(
-                        predictions[term], 1, level=level
+                        predictions[term], sample_dim, level=level
                     )
             return result
         else:
-            return _summarize_interval(predictions, 1, level=level)
+            sample_dim = _compute_sample_dim(predictions, num_samples)
+            return _summarize_interval(predictions, sample_dim, level=level)
 
     def sample_posterior_predictive(
         self,
@@ -2427,8 +2770,12 @@ class BARTModel:
         if not self.is_sampled():
             raise ValueError("Model has not yet been sampled")
 
-        # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
-        is_probit = self.probit_outcome_model
+        # Determine the outcome model type
+        is_gaussian = self.outcome_model.link == "identity"
+        is_probit = self.outcome_model.link == "probit"
+        is_cloglog = self.outcome_model.link == "cloglog"
+        is_binary_cloglog = is_cloglog and self.outcome_model.outcome == "binary"
+        is_ordinal_cloglog = is_cloglog and self.outcome_model.outcome == "ordinal"
 
         # Check that all the necessary inputs were provided for interval computation
         needs_covariates = self.include_mean_forest
@@ -2478,59 +2825,136 @@ class BARTModel:
                         "'rfx_basis' must have the same number of rows as 'X'"
                     )
 
-        # Compute posterior predictive samples
-        bart_preds = self.predict(
-            X=X,
-            leaf_basis=leaf_basis,
-            rfx_group_ids=rfx_group_ids,
-            rfx_basis=rfx_basis,
-            type="posterior",
-            terms="all",
-        )
-
-        # Compute outcome mean and variance for posterior predictive distribution
-        has_mean_term = self.include_mean_forest or self.has_rfx
-        has_variance_forest = self.include_variance_forest
-        samples_global_variance = self.sample_sigma2_global
         num_posterior_draws = self.num_samples
         num_observations = X.shape[0]
-        if has_mean_term:
-            ppd_mean = bart_preds["y_hat"]
-        else:
-            ppd_mean = 0.0
-        if has_variance_forest:
-            ppd_variance = bart_preds["variance_forest_predictions"]
-        else:
-            if samples_global_variance:
-                ppd_variance = np.tile(self.global_var_samples, (num_observations, 1))
+
+        if is_gaussian:
+            # Compute posterior samples
+            bart_preds = self.predict(
+                X=X,
+                leaf_basis=leaf_basis,
+                rfx_group_ids=rfx_group_ids,
+                rfx_basis=rfx_basis,
+                type="posterior",
+                terms="all",
+                scale="linear",
+            )
+
+            # Compute outcome mean and variance for posterior predictive distribution
+            has_mean_term = self.include_mean_forest or self.has_rfx
+            has_variance_forest = self.include_variance_forest
+            samples_global_variance = self.sample_sigma2_global
+            if has_mean_term:
+                ppd_mean = bart_preds["y_hat"]
             else:
-                ppd_variance = self.sigma2_init
+                ppd_mean = 0.0
+            if has_variance_forest:
+                ppd_variance = bart_preds["variance_forest_predictions"]
+            else:
+                if samples_global_variance:
+                    ppd_variance = np.tile(self.global_var_samples, (num_observations, 1))
+                else:
+                    ppd_variance = self.sigma2_init
 
-        # Sample from the posterior predictive distribution
-        if num_draws_per_sample is None:
-            ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
-                num_posterior_draws, num_observations
-            )
-        else:
-            ppd_draw_multiplier = num_draws_per_sample
-        if ppd_draw_multiplier > 1:
-            ppd_mean = np.tile(ppd_mean, (ppd_draw_multiplier, 1, 1))
-            ppd_variance = np.tile(ppd_variance, (ppd_draw_multiplier, 1, 1))
-            ppd_array = np.random.normal(
-                loc=ppd_mean,
-                scale=np.sqrt(ppd_variance),
-                size=(ppd_draw_multiplier, num_observations, num_posterior_draws),
-            )
-        else:
-            ppd_array = np.random.normal(
-                loc=ppd_mean,
-                scale=np.sqrt(ppd_variance),
-                size=(num_observations, num_posterior_draws),
+            # Sample from the posterior predictive distribution
+            if num_draws_per_sample is None:
+                ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
+                    num_posterior_draws, num_observations
+                )
+            else:
+                ppd_draw_multiplier = num_draws_per_sample
+            if ppd_draw_multiplier > 1:
+                ppd_mean = np.tile(ppd_mean, (ppd_draw_multiplier, 1, 1))
+                ppd_variance = np.tile(ppd_variance, (ppd_draw_multiplier, 1, 1))
+                ppd_array = np.random.normal(
+                    loc=ppd_mean,
+                    scale=np.sqrt(ppd_variance),
+                    size=(ppd_draw_multiplier, num_observations, num_posterior_draws),
+                )
+                ppd_array = np.transpose(ppd_array, (1, 2, 0))
+            else:
+                ppd_array = np.random.normal(
+                    loc=ppd_mean,
+                    scale=np.sqrt(ppd_variance),
+                    size=(num_observations, num_posterior_draws),
+                )
+        elif is_probit or is_binary_cloglog:
+            # Compute posterior probability samples
+            bart_preds = self.predict(
+                X=X,
+                leaf_basis=leaf_basis,
+                rfx_group_ids=rfx_group_ids,
+                rfx_basis=rfx_basis,
+                type="posterior",
+                terms="y_hat",
+                scale="probability",
             )
 
-        # Binarize outcome for probit models
-        if is_probit:
-            ppd_array = (ppd_array > 0.0) * 1
+            # Sample from the posterior predictive distribution
+            if num_draws_per_sample is None:
+                ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
+                    num_posterior_draws, num_observations
+                )
+            else:
+                ppd_draw_multiplier = num_draws_per_sample
+            # Tile probabilities for multiple draws per sample
+            probs_tiled = np.tile(bart_preds.ravel(), ppd_draw_multiplier)
+            ppd_vector = np.random.binomial(n=1, p=probs_tiled)
+
+            # Reshape data
+            if ppd_draw_multiplier > 1:
+                ppd_array = ppd_vector.reshape(
+                    (num_observations, num_posterior_draws, ppd_draw_multiplier)
+                )
+            else:
+                ppd_array = ppd_vector.reshape(
+                    (num_observations, num_posterior_draws)
+                )
+        elif is_ordinal_cloglog:
+            # Compute posterior probability samples
+            # bart_preds shape: (n_obs, n_categories, n_samples)
+            bart_preds = self.predict(
+                X=X,
+                leaf_basis=leaf_basis,
+                rfx_group_ids=rfx_group_ids,
+                rfx_basis=rfx_basis,
+                type="posterior",
+                terms="y_hat",
+                scale="probability",
+            )
+
+            # Sample from the posterior predictive distribution
+            num_categories = self.cloglog_num_categories
+            if num_draws_per_sample is None:
+                ppd_draw_multiplier = _posterior_predictive_heuristic_multiplier(
+                    num_posterior_draws, num_observations
+                )
+            else:
+                ppd_draw_multiplier = num_draws_per_sample
+
+            # For each (observation, sample), draw from the categorical distribution
+            ppd_list = np.empty(
+                (num_observations, num_posterior_draws, ppd_draw_multiplier),
+                dtype=int,
+            )
+            categories = np.arange(1, num_categories + 1)
+            for i in range(num_observations):
+                for s in range(num_posterior_draws):
+                    probs = bart_preds[i, :, s]
+                    ppd_list[i, s, :] = np.random.choice(
+                        categories,
+                        size=ppd_draw_multiplier,
+                        replace=True,
+                        p=probs,
+                    )
+
+            # Reshape data
+            if ppd_draw_multiplier > 1:
+                ppd_array = ppd_list
+            else:
+                ppd_array = ppd_list.reshape(
+                    (num_observations, num_posterior_draws)
+                )
 
         return ppd_array
 
@@ -2585,6 +3009,8 @@ class BARTModel:
         bart_json.add_integer("num_basis", self.num_basis)
         bart_json.add_boolean("requires_basis", self.has_basis)
         bart_json.add_boolean("probit_outcome_model", self.probit_outcome_model)
+        bart_json.add_string("outcome", self.outcome_model.outcome, "outcome_model")
+        bart_json.add_string("link", self.outcome_model.link, "outcome_model")
         bart_json.add_string("rfx_model_spec", self.rfx_model_spec)
 
         # Add parameter samples
@@ -2596,6 +3022,17 @@ class BARTModel:
             bart_json.add_numeric_vector(
                 "sigma2_leaf_samples", self.leaf_scale_samples, "parameters"
             )
+
+        # Add cloglog parameters (num_categories always, cutpoints only for ordinal)
+        if self.outcome_model.link == "cloglog":
+            bart_json.add_integer("cloglog_num_categories", self.cloglog_num_categories)
+            if self.outcome_model.outcome == "ordinal":
+                for i in range(self.cloglog_num_categories - 1):
+                    bart_json.add_numeric_vector(
+                        f"cloglog_cutpoint_samples_{i + 1}",
+                        self.cloglog_cutpoint_samples[i, :],
+                        "parameters",
+                    )
 
         # Add covariate preprocessor
         covariate_preprocessor_string = self._covariate_preprocessor.to_json()
@@ -2662,6 +3099,9 @@ class BARTModel:
         self.num_basis = bart_json.get_integer("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
         self.probit_outcome_model = bart_json.get_boolean("probit_outcome_model")
+        outcome_model_outcome = bart_json.get_string("outcome", "outcome_model")
+        outcome_model_link = bart_json.get_string("link", "outcome_model")
+        self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
         self.rfx_model_spec = bart_json.get_string("rfx_model_spec")
 
         # Unpack parameter samples
@@ -2673,6 +3113,18 @@ class BARTModel:
             self.leaf_scale_samples = bart_json.get_numeric_vector(
                 "sigma2_leaf_samples", "parameters"
             )
+
+        # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal)
+        if self.outcome_model.link == "cloglog":
+            self.cloglog_num_categories = bart_json.get_integer("cloglog_num_categories")
+            if self.outcome_model.outcome == "ordinal":
+                self.cloglog_cutpoint_samples = np.full(
+                    (self.cloglog_num_categories - 1, self.num_samples), np.nan
+                )
+                for i in range(self.cloglog_num_categories - 1):
+                    self.cloglog_cutpoint_samples[i, :] = bart_json.get_numeric_vector(
+                        f"cloglog_cutpoint_samples_{i + 1}", "parameters"
+                    )
 
         # Unpack covariate preprocessor
         covariate_preprocessor_string = bart_json.get_string("covariate_preprocessor")
@@ -2777,6 +3229,9 @@ class BARTModel:
         self.probit_outcome_model = json_object_default.get_boolean(
             "probit_outcome_model"
         )
+        outcome_model_outcome = json_object_default.get_string("outcome", "outcome_model")
+        outcome_model_link = json_object_default.get_string("link", "outcome_model")
+        self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
         self.rfx_model_spec = json_object_default.get_string("rfx_model_spec")
 
         # Unpack number of samples
@@ -2816,6 +3271,28 @@ class BARTModel:
                         self.leaf_scale_samples,
                         leaf_scale_samples,
                     ))
+
+        # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal)
+        if self.outcome_model.link == "cloglog":
+            self.cloglog_num_categories = json_object_default.get_integer(
+                "cloglog_num_categories"
+            )
+            if self.outcome_model.outcome == "ordinal":
+                for i in range(len(json_object_list)):
+                    num_samples_i = json_object_list[i].get_integer("num_samples")
+                    cutpoints_i = np.full(
+                        (self.cloglog_num_categories - 1, num_samples_i), np.nan
+                    )
+                    for k in range(self.cloglog_num_categories - 1):
+                        cutpoints_i[k, :] = json_object_list[i].get_numeric_vector(
+                            f"cloglog_cutpoint_samples_{k + 1}", "parameters"
+                        )
+                    if i == 0:
+                        self.cloglog_cutpoint_samples = cutpoints_i
+                    else:
+                        self.cloglog_cutpoint_samples = np.concatenate(
+                            (self.cloglog_cutpoint_samples, cutpoints_i), axis=1
+                        )
 
         # Unpack covariate preprocessor
         covariate_preprocessor_string = json_object_default.get_string(

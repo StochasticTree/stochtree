@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from sklearn.model_selection import train_test_split
 
-from stochtree import BARTModel, BCFModel
+from stochtree import BARTModel, BCFModel, OutcomeModel
 
 
 def run_bart_factorial(
@@ -37,7 +37,7 @@ def run_bart_factorial(
     general_params = {
         "num_chains": num_chains,
         "sample_sigma2_global": sampling_global_error_scale,
-        "probit_outcome_model": outcome_type == "binary",
+        "outcome_model": OutcomeModel(outcome=outcome_type),
     }
     mean_forest_params = {"sample_sigma2_leaf": sampling_leaf_scale}
     variance_forest_params = {"num_trees": 20 if variance_forest else 0}
@@ -151,7 +151,7 @@ def run_bcf_factorial(
     general_params = {
         "num_chains": num_chains,
         "sample_sigma2_global": sampling_global_error_scale,
-        "probit_outcome_model": outcome_type == "binary",
+        "outcome_model": OutcomeModel(outcome=outcome_type),
         "adaptive_coding": adaptive_coding,
     }
     mu_forest_params = {"sample_sigma2_leaf": sampling_mu_leaf_scale}

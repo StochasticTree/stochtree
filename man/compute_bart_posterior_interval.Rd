@@ -22,7 +22,7 @@ compute_bart_posterior_interval(
 
 \item{level}{A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95\% credible interval).}
 
-\item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
+\item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability". \code{scale = "probability"} is only valid for models fit with a probit / cloglog links on binary or ordinal outcomes. For binary outcome models, \code{scale = "probability"} will return an interval over the probability that \code{y == 1}. For ordinal outcome models, \code{scale = "probability"} will return intervals over the "survival function" \code{P(y > k)} for \verb{k = 1, 2, ..., K-1} where \code{K} is the total number of categories. Default: "linear".}
 
 \item{X}{A matrix or data frame of covariates at which to compute the intervals. Required if the requested term depends on covariates (e.g., mean forest, variance forest, or overall predictions).}
 
