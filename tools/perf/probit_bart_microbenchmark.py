@@ -1,6 +1,5 @@
 import timeit
 
-# Translate the R code above to python
 setup_code = """
 import numpy as np
 from stochtree import BARTModel, OutcomeModel

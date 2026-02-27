@@ -1,5 +1,4 @@
 #include <stochtree/ordinal_sampler.h>
-#include <stdexcept>
 
 namespace StochTree {
 
