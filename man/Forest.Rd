@@ -33,7 +33,7 @@ For tutorials on the "proper" usage of the stochtree's advanced workflow, we pro
 \item \href{#method-Forest-adjust_residual}{\code{Forest$adjust_residual()}}
 \item \href{#method-Forest-num_trees}{\code{Forest$num_trees()}}
 \item \href{#method-Forest-leaf_dimension}{\code{Forest$leaf_dimension()}}
-\item \href{#method-Forest-is_constant_leaf}{\code{Forest$is_constant_leaf()}}
+\item \href{#method-Forest-is_leaf_constant}{\code{Forest$is_leaf_constant()}}
 \item \href{#method-Forest-is_exponentiated}{\code{Forest$is_exponentiated()}}
 \item \href{#method-Forest-add_numeric_split_tree}{\code{Forest$add_numeric_split_tree()}}
 \item \href{#method-Forest-get_tree_leaves}{\code{Forest$get_tree_leaves()}}
@@ -277,12 +277,12 @@ Leaf node parameter size
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Forest-is_constant_leaf"></a>}}
-\if{latex}{\out{\hypertarget{method-Forest-is_constant_leaf}{}}}
-\subsection{Method \code{is_constant_leaf()}}{
+\if{html}{\out{<a id="method-Forest-is_leaf_constant"></a>}}
+\if{latex}{\out{\hypertarget{method-Forest-is_leaf_constant}{}}}
+\subsection{Method \code{is_leaf_constant()}}{
 Return constant leaf status of trees in a \code{Forest} object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Forest$is_constant_leaf()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Forest$is_leaf_constant()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{

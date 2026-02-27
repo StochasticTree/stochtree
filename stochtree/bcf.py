@@ -1810,6 +1810,8 @@ class BCFModel:
         self.num_gfr = num_gfr
         self.num_burnin = num_burnin
         self.num_mcmc = num_mcmc
+        self.num_chains = num_chains
+        self.keep_every = keep_every
         num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
         num_retained_samples = num_mcmc * num_chains
         # Delete GFR samples from these containers after the fact if desired
@@ -3755,6 +3757,8 @@ class BCFModel:
         bcf_json.add_scalar("num_gfr", self.num_gfr)
         bcf_json.add_scalar("num_burnin", self.num_burnin)
         bcf_json.add_scalar("num_mcmc", self.num_mcmc)
+        bcf_json.add_scalar("num_chains", self.num_chains)
+        bcf_json.add_scalar("keep_every", self.keep_every)
         bcf_json.add_scalar("num_samples", self.num_samples)
         bcf_json.add_boolean("adaptive_coding", self.adaptive_coding)
         bcf_json.add_string("propensity_covariate", self.propensity_covariate)
@@ -3847,6 +3851,8 @@ class BCFModel:
         self.num_gfr = int(bcf_json.get_scalar("num_gfr"))
         self.num_burnin = int(bcf_json.get_scalar("num_burnin"))
         self.num_mcmc = int(bcf_json.get_scalar("num_mcmc"))
+        self.num_chains = int(bcf_json.get_scalar("num_chains"))
+        self.keep_every = int(bcf_json.get_scalar("keep_every"))
         self.num_samples = int(bcf_json.get_scalar("num_samples"))
         self.adaptive_coding = bcf_json.get_boolean("adaptive_coding")
         self.propensity_covariate = bcf_json.get_string("propensity_covariate")
@@ -3981,6 +3987,8 @@ class BCFModel:
         self.num_gfr = json_object_default.get_scalar("num_gfr")
         self.num_burnin = json_object_default.get_scalar("num_burnin")
         self.num_mcmc = json_object_default.get_scalar("num_mcmc")
+        self.num_chains = int(json_object_default.get_scalar("num_chains"))
+        self.keep_every = int(json_object_default.get_scalar("keep_every"))
         self.adaptive_coding = json_object_default.get_boolean("adaptive_coding")
         self.propensity_covariate = json_object_default.get_string(
             "propensity_covariate"
@@ -4109,3 +4117,327 @@ class BCFModel:
             return True
         else:
             return False
+    
+    def extract_parameter(self, term: str) -> np.array:
+        """
+        Extract a vector, matrix or array of parameter samples from a BCF model by name.
+        Random effects are handled by a separate `extract_parameter_samples` method attached to the underlying `RandomEffectsContainer` object due to the complexity of the random effects parameters.
+        If the requested model term is not found, an error is thrown.
+        The following conventions are used for parameter names:
+        - Global error variance: `"sigma2"`, `"global_error_scale"`, `"sigma2_global"`
+        - Prognostic forest leaf scale: `"sigma2_leaf_mu"`, `"leaf_scale_mu"`, `"mu_leaf_scale"`
+        - Treatment effect forest leaf scale: `"sigma2_leaf_tau"`, `"leaf_scale_tau"`, `"tau_leaf_scale"`
+        - Adaptive coding parameters: `"adaptive_coding"` (returns both the control and treated parameters jointly, with control in the first row and treated in the second row)
+        - In-sample mean function predictions: `"y_hat_train"`
+        - Test set mean function predictions: `"y_hat_test"`
+        - In-sample treatment effect forest predictions: `"tau_hat_train"`
+        - Test set treatment effect forest predictions: `"tau_hat_test"`
+        - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
+        - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
+        
+        Parameters
+        ----------
+        term : str
+            Name of the parameter to extract (e.g., `"sigma2"`, `"y_hat_train"`, etc.)
+
+        Returns
+        -------
+        np.array
+            Array of parameter samples. If the underlying parameter is a scalar, this will be a vector of length `num_samples`.
+            If the underlying parameter is vector-valued, this will be (`parameter_dimension` x `num_samples`) matrix, and if the underlying
+            parameter is multidimensional, this will be an array of dimension (`parameter_dimension_1` x `parameter_dimension_2` x ... x `num_samples`).
+        """
+        if term in ["sigma2", "global_error_scale", "sigma2_global"]:
+            if self.sample_sigma2_global:
+                return self.global_var_samples
+            else:
+                raise ValueError("This model does not have global variance parameter samples")
+
+        if term in ["sigma2_leaf_mu", "leaf_scale_mu", "mu_leaf_scale"]:
+            if self.sample_sigma2_leaf_mu:
+                return self.leaf_scale_mu_samples
+            else:
+                raise ValueError("This model does not have prognostic forest leaf variance parameter samples")
+
+        if term in ["sigma2_leaf_tau", "leaf_scale_tau", "tau_leaf_scale"]:
+            if self.sample_sigma2_leaf_tau:
+                return self.leaf_scale_tau_samples
+            else:
+                raise ValueError("This model does not have treatment effect forest leaf variance parameter samples")
+
+        if term in ["adaptive_coding"]:
+            if self.adaptive_coding:
+                return np.vstack([self.b0_samples, self.b1_samples])
+            else:
+                raise ValueError("This model does not have adaptive coding parameter samples")
+
+        if term in ["y_hat_train"]:
+            yht = getattr(self, "y_hat_train", None)
+            if yht is not None:
+                return yht
+            else:
+                raise ValueError("This model does not have in-sample mean function prediction samples")
+
+        if term in ["y_hat_test"]:
+            yht = getattr(self, "y_hat_test", None)
+            if yht is not None:
+                return yht
+            else:
+                raise ValueError("This model does not have test set mean function prediction samples")
+
+        if term in ["tau_hat_train"]:
+            tht = getattr(self, "tau_hat_train", None)
+            if tht is not None:
+                return tht
+            else:
+                raise ValueError("This model does not have in-sample treatment effect forest predictions")
+
+        if term in ["tau_hat_test"]:
+            tht = getattr(self, "tau_hat_test", None)
+            if tht is not None:
+                return tht
+            else:
+                raise ValueError("This model does not have test set treatment effect forest predictions")
+
+        if term in ["sigma2_x_train", "var_x_train"]:
+            s2x = getattr(self, "sigma2_x_train", None)
+            if s2x is not None:
+                return s2x
+            else:
+                raise ValueError("This model does not have in-sample variance forest predictions")
+
+        if term in ["sigma2_x_test", "var_x_test"]:
+            s2x = getattr(self, "sigma2_x_test", None)
+            if s2x is not None:
+                return s2x
+            else:
+                raise ValueError("This model does not have test set variance forest predictions")
+
+        raise ValueError(f"term {term} is not a valid BCF model term")
+
+    def summary(self) -> str:
+        # First, print the BCF model
+        output_str = "BCF Model Summary:\n"
+        output_str += "------------------\n"
+        output_str += f"{self.__str__()}\n"
+
+        probs = [0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975]
+
+        # Summarize any sampled quantities
+
+        # Global error scale
+        if self.sample_sigma2_global:
+            sigma2_samples = self.global_var_samples
+            n_samples = len(sigma2_samples)
+            mean_sigma2 = np.mean(sigma2_samples)
+            sd_sigma2 = np.std(sigma2_samples)
+            quantiles_sigma2 = np.quantile(sigma2_samples, probs)
+            output_str += f"Summary of sigma^2 posterior: "
+            output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_sigma2):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Leaf scale mu
+        if self.sample_sigma2_leaf_mu:
+            sigma2_leaf_samples = self.leaf_scale_mu_samples
+            n_samples = len(sigma2_leaf_samples)
+            mean_sigma2 = np.mean(sigma2_leaf_samples)
+            sd_sigma2 = np.std(sigma2_leaf_samples)
+            quantiles_sigma2 = np.quantile(sigma2_leaf_samples, probs)
+            output_str += f"Summary of prognostic forest leaf scale posterior: "
+            output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_sigma2):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Leaf scale tau
+        if self.sample_sigma2_leaf_tau:
+            sigma2_leaf_samples = self.leaf_scale_tau_samples
+            n_samples = len(sigma2_leaf_samples)
+            mean_sigma2 = np.mean(sigma2_leaf_samples)
+            sd_sigma2 = np.std(sigma2_leaf_samples)
+            quantiles_sigma2 = np.quantile(sigma2_leaf_samples, probs)
+            output_str += f"Summary of treatment effect forest leaf scale posterior: "
+            output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_sigma2):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Adaptive coding parameters
+        if self.adaptive_coding:
+            b0_samples = self.b0_samples
+            b1_samples = self.b1_samples
+            n_samples = len(b0_samples)
+            mean_b0 = np.mean(b0_samples)
+            mean_b1 = np.mean(b1_samples)
+            sd_b0 = np.std(b0_samples)
+            sd_b1 = np.std(b1_samples)
+            quantiles_b0 = np.quantile(b0_samples, probs)
+            quantiles_b1 = np.quantile(b1_samples, probs)
+            output_str += f"Summary of adaptive coding parameters: \n{n_samples} samples, mean (control) = {mean_b0:.3f}, mean (treated) = {mean_b1:.3f}, standard deviation (control) = {sd_b0:.3f}, standard deviation (treated) = {sd_b1:.3f}\n"
+            output_str += "quantiles (control):\n"
+            for p, q in zip(probs, quantiles_b0):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+            output_str += "\nquantiles (treated):\n"
+            for p, q in zip(probs, quantiles_b1):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # In-sample predictions
+        yht = getattr(self, "y_hat_train", None)
+        if yht is not None:
+            y_hat_train_mean = np.mean(yht, axis=1)
+            n_y_hat_train = len(y_hat_train_mean)
+            mean_y_hat_train = np.mean(y_hat_train_mean)
+            sd_y_hat_train = np.std(y_hat_train_mean)
+            quantiles_y_hat_train = np.quantile(y_hat_train_mean, probs)
+            output_str += f"Summary of in-sample posterior mean predictions: \n{n_y_hat_train} observations, mean = {mean_y_hat_train:.3f}, standard deviation = {sd_y_hat_train:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_y_hat_train):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Test-set predictions
+        yht = getattr(self, "y_hat_test", None)
+        if yht is not None:
+            y_hat_test_mean = np.mean(yht, axis=1)
+            n_y_hat_test = len(y_hat_test_mean)
+            mean_y_hat_test = np.mean(y_hat_test_mean)
+            sd_y_hat_test = np.std(y_hat_test_mean)
+            quantiles_y_hat_test = np.quantile(y_hat_test_mean, probs)
+            output_str += f"Summary of test-set posterior mean predictions: \n{n_y_hat_test} observations, mean = {mean_y_hat_test:.3f}, standard deviation = {sd_y_hat_test:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_y_hat_test):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+        
+        
+        
+        # In-sample treatment effect function estimates
+        tauhat_train = getattr(self, "tau_hat_train", None)
+        if tauhat_train is not None:
+            if not self.multivariate_treatment:
+                tau_hat_train_mean = np.mean(tauhat_train, axis=1)
+                n_tau_hat_train = len(tau_hat_train_mean)
+                mean_tau_hat_train = np.mean(tau_hat_train_mean)
+                sd_tau_hat_train = np.std(tau_hat_train_mean)
+                output_str += f"Summary of in-sample posterior mean CATEs: \n{n_tau_hat_train} observations, mean = {mean_tau_hat_train:.3f}, standard deviation = {sd_tau_hat_train:.3f}, quantiles:\n"
+                quantiles_tau_hat_train = np.quantile(tau_hat_train_mean, probs)
+                for p, q in zip(probs, quantiles_tau_hat_train):
+                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Test set treatment effect function estimates
+        tauhat_test = getattr(self, "tau_hat_test", None)
+        if tauhat_test is not None:
+            if not self.multivariate_treatment:
+                tau_hat_test_mean = np.mean(tauhat_test, axis=1)
+                n_tau_hat_test = len(tau_hat_test_mean)
+                mean_tau_hat_test = np.mean(tau_hat_test_mean)
+                sd_tau_hat_test = np.std(tau_hat_test_mean)
+                output_str += f"Summary of test-set posterior mean CATEs: \n{n_tau_hat_test} observations, mean = {mean_tau_hat_test:.3f}, standard deviation = {sd_tau_hat_test:.3f}, quantiles:\n"
+                quantiles_tau_hat_test = np.quantile(tau_hat_test_mean, probs)
+                for p, q in zip(probs, quantiles_tau_hat_test):
+                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Random effects
+        if self.has_rfx:
+            rfx_samples = self.rfx_container.extract_parameter_samples()
+            rfx_beta_samples = rfx_samples['beta_samples']
+            if rfx_beta_samples.ndim > 2:
+                reduce_axes = tuple(range(1, rfx_beta_samples.ndim))
+                rfx_component_means = np.mean(rfx_beta_samples, axis=reduce_axes)
+                rfx_component_sds = np.std(rfx_beta_samples, axis=reduce_axes)
+                means_str = ", ".join(f"{v:.3f}" for v in rfx_component_means)
+                sds_str = ", ".join(f"{v:.3f}" for v in rfx_component_sds)
+                output_str += "Random effects summary of variance components across groups and posterior draws:\n"
+                output_str += f"Variance component means: {means_str}\n"
+                output_str += f"Variance component standard deviations: {sds_str}\n"
+                rfx_quantiles = np.quantile(
+                    rfx_beta_samples, probs, axis=reduce_axes
+                ).T
+                output_str += "Variance component quantiles:\n"
+                for i in range(rfx_quantiles.shape[0]):
+                    output_str += f"  Component {i+1}:\n"
+                    for p, q in zip(probs, rfx_quantiles[i, :]):
+                        output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+            else:
+                rfx_component_means = np.mean(rfx_beta_samples)
+                rfx_component_sds = np.std(rfx_beta_samples)
+                output_str += f"Random effects overall mean: {rfx_component_means:.3f}\n"
+                output_str += f"Random effects overall standard deviation: {rfx_component_sds:.3f}\n"
+                output_str += "Random effects overall quantiles:\n"
+                rfx_quantiles = np.quantile(rfx_beta_samples, probs)
+                for p, q in zip(probs, rfx_quantiles):
+                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+        return output_str
+
+    def __str__(self) -> str:
+        if not self.sampled:
+            return "Empty BCFModel() object: not yet sampled"
+        else:
+            model_terms = ["prognostic forest", "treatment effect forest"]
+            if self.include_variance_forest:
+                model_terms.append("variance forest")
+            if self.has_rfx:
+                model_terms.append("additive random effects")
+            if self.sample_sigma2_global:
+                model_terms.append("global error variance model")
+            if self.sample_sigma2_leaf_mu:
+                model_terms.append("prognostic forest leaf scale model")
+            if self.sample_sigma2_leaf_tau:
+                model_terms.append("treatment effect forest leaf scale model")
+            if len(model_terms) > 2:
+                output_str = f"BCFModel run with {', '.join(model_terms[:-1])}, and {model_terms[-1]}"
+            elif len(model_terms) == 2:
+                output_str = f"BCFModel run with {model_terms[0]} and {model_terms[1]}"
+            else:
+                output_str = f"BCFModel run with {model_terms[0]}"
+            # Outcome details
+            output_str += (
+                f"\nOutcome was modeled "
+                f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'}"
+            )
+            # Treatment details
+            if self.binary_treatment:
+                output_str += (
+                    f"\nTreatment was binary and its effect was estimated with "
+                    f"{'adaptive coding' if self.adaptive_coding else 'default coding'}"
+                )
+            elif self.multivariate_treatment:
+                output_str += (
+                    f"\nTreatment was multivariate with {self.treatment_dim} dimensions"
+                )
+            else:
+                output_str += "\nTreatment was univariate but not binary"
+            # Standardization details
+            if self.standardize:
+                output_str += "\nOutcome was standardized"
+            # Propensity details
+            if self.propensity_covariate == "none":
+                output_str += (
+                    "\nPropensity scores were not used in either forest of the model"
+                )
+            elif self.internal_propensity_model:
+                output_str += (
+                    "\nAn internal propensity model was fit using BARTModel "
+                    "in lieu of user-provided propensity scores"
+                )
+            else:
+                output_str += "\nUser-provided propensity scores were included in the model"
+            # Random effects details
+            if self.has_rfx:
+                if self.rfx_model_spec == "custom":
+                    output_str += "\nRandom effects were fit with a user-supplied basis"
+                elif self.rfx_model_spec == "intercept_only":
+                    output_str += (
+                        "\nRandom effects were fit with an 'intercept-only' parameterization"
+                    )
+                elif self.rfx_model_spec == "intercept_plus_treatment":
+                    output_str += (
+                        "\nRandom effects were fit with an 'intercept-plus-treatment' parameterization"
+                    )
+            # Sampler details
+            output_str += (
+                f"\nThe sampler was run for {self.num_gfr} GFR iterations, with {self.num_chains} "
+                f"{'chain' if self.num_chains == 1 else 'chains'} of {self.num_burnin} burn-in iterations and "
+                f"{self.num_mcmc} MCMC iterations, "
+                f"{'retaining every iteration (i.e. no thinning)' if self.keep_every == 1 else f'retaining every {self.keep_every}th iteration (i.e. thinning)'}"
+            )
+            # Append newline
+            output_str += "\n"
+        return output_str
+
+    __repr__ = __str__

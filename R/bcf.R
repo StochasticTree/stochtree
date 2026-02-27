@@ -1131,7 +1131,7 @@ bcf <- function(
     }
   }
 
-  if (has_test) {
+  if (has_test && !is.null(propensity_train)) {
     if (is.null(propensity_test)) {
       stop(
         "Propensity score must be provided for the test set if provided for the training set"
@@ -1929,6 +1929,9 @@ bcf <- function(
   # Run MCMC
   if (num_burnin + num_mcmc > 0) {
     for (chain_num in 1:num_chains) {
+      if (verbose) {
+        cat("Sampling chain", chain_num, "of", num_chains, "\n")
+      }
       if (num_gfr > 0) {
         # Reset state of active_forest and forest_model based on a previous GFR sample
         forest_ind <- num_gfr - chain_num
@@ -2277,7 +2280,7 @@ bcf <- function(
         }
         # Print progress
         if (verbose) {
-          if (num_burnin > 0) {
+          if (num_burnin > 0 && !is_mcmc) {
             if (
               ((i - num_gfr) %% 100 == 0) ||
                 ((i - num_gfr) == num_burnin)
@@ -2286,23 +2289,43 @@ bcf <- function(
                 "Sampling",
                 i - num_gfr,
                 "out of",
-                num_gfr,
-                "BCF burn-in draws\n"
+                num_burnin,
+                "BCF burn-in draws; Chain number ",
+                chain_num,
+                "\n"
               )
             }
           }
-          if (num_mcmc > 0) {
-            if (
-              ((i - num_gfr - num_burnin) %% 100 == 0) ||
-                (i == num_samples)
-            ) {
-              cat(
-                "Sampling",
-                i - num_burnin - num_gfr,
-                "out of",
-                num_mcmc,
-                "BCF MCMC draws\n"
-              )
+          if (num_mcmc > 0 && is_mcmc) {
+            raw_iter <- i - num_gfr - num_burnin
+            if ((raw_iter %% 100 == 0) || (i == num_samples)) {
+              if (keep_every == 1) {
+                cat(
+                  "Sampling",
+                  raw_iter,
+                  "out of",
+                  num_mcmc,
+                  "BCF MCMC draws; Chain number ",
+                  chain_num,
+                  "\n"
+                )
+              } else {
+                cat(
+                  "Sampling raw draw",
+                  raw_iter,
+                  "of",
+                  num_actual_mcmc_iter,
+                  "BCF MCMC draws (thinning by",
+                  keep_every,
+                  ":",
+                  raw_iter %/% keep_every,
+                  "of",
+                  num_mcmc,
+                  "retained); Chain number ",
+                  chain_num,
+                  "\n"
+                )
+              }
             }
           }
         }
@@ -3573,7 +3596,7 @@ print.bcfmodel <- function(x, ...) {
   )
 
   # Print the model details
-  cat(summary_message)
+  cat(summary_message, "\n")
 
   # Return bcf model invisibly
   invisible(x)
@@ -3760,10 +3783,44 @@ summary.bcfmodel <- function(object, ...) {
   }
 
   # Random effects
-  # TODO: add random effects summaries once indexing is fixed
   if (object$model_params$has_rfx) {
-    # rfx_summary <- getRandomEffectSamples(object)
-    # ...
+    rfx_samples <- getRandomEffectSamples(object)
+    rfx_beta_samples <- rfx_samples$beta_samples
+    if (length(dim(rfx_beta_samples)) > 2) {
+      cat(
+        "Random effects summary of variance components across groups and posterior draws:\n"
+      )
+      rfx_component_means <- apply(rfx_beta_samples, 1, mean)
+      rfx_component_sds <- apply(rfx_beta_samples, 1, sd)
+      cat("Variance component means: ", rfx_component_means, "\n")
+      cat("Variance component standard deviations: ", rfx_component_sds, "\n")
+      quantile_summary <- t(apply(
+        rfx_beta_samples,
+        1,
+        quantile,
+        probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
+      ))
+      cat("Variance component quantiles:\n")
+      print(quantile_summary)
+    } else {
+      cat(
+        "Random effects summary of variance components across groups and posterior draws:\n"
+      )
+      rfx_component_means <- mean(rfx_beta_samples)
+      rfx_component_sds <- sd(rfx_beta_samples)
+      cat("Random effects overall mean: ", rfx_component_means, "\n")
+      cat(
+        "Random effects overall standard deviation: ",
+        rfx_component_sds,
+        "\n"
+      )
+      quantile_summary <- quantile(
+        rfx_beta_samples,
+        probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
+      )
+      cat("Random effects overall quantiles:\n")
+      print(quantile_summary)
+    }
   }
 
   # Return bcf model invisibly
@@ -3944,16 +4001,16 @@ extract_parameter.bcfmodel <- function(object, term) {
   }
 
   if (term %in% c("sigma2_x_train", "var_x_train")) {
-    if (!is.null(object$sigma2_x_train)) {
-      return(object$sigma2_x_train)
+    if (!is.null(object$sigma2_x_hat_train)) {
+      return(object$sigma2_x_hat_train)
     } else {
       stop("This model does not have in-sample variance forest predictions")
     }
   }
 
   if (term %in% c("sigma2_x_test", "var_x_test")) {
-    if (!is.null(object$sigma2_x_test)) {
-      return(object$sigma2_x_test)
+    if (!is.null(object$sigma2_x_hat_test)) {
+      return(object$sigma2_x_hat_test)
     } else {
       stop("This model does not have test set variance forest predictions")
     }

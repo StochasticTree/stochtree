@@ -271,3 +271,8 @@ class TestPredict:
 
         # Assertion
         np.testing.assert_almost_equal(pred_orig_collapsed, pred_new)
+
+        # Test print
+        s = str(mean_forest_container)
+        assert f"Forest container with {mean_forest_container.num_samples():<d}" in s
+        assert "constant leaf model" in s

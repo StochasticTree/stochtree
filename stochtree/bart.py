@@ -1280,6 +1280,8 @@ class BARTModel:
         self.num_gfr = num_gfr
         self.num_burnin = num_burnin
         self.num_mcmc = num_mcmc
+        self.num_chains = num_chains
+        self.keep_every = keep_every
         num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
         num_retained_samples = num_mcmc * num_chains
         # Delete GFR samples from these containers after the fact if desired
@@ -3001,6 +3003,8 @@ class BARTModel:
         bart_json.add_integer("num_gfr", self.num_gfr)
         bart_json.add_integer("num_burnin", self.num_burnin)
         bart_json.add_integer("num_mcmc", self.num_mcmc)
+        bart_json.add_integer("num_chains", self.num_chains)
+        bart_json.add_integer("keep_every", self.keep_every)
         bart_json.add_integer("num_samples", self.num_samples)
         bart_json.add_integer("num_basis", self.num_basis)
         bart_json.add_boolean("requires_basis", self.has_basis)
@@ -3089,6 +3093,8 @@ class BARTModel:
         self.num_gfr = bart_json.get_integer("num_gfr")
         self.num_burnin = bart_json.get_integer("num_burnin")
         self.num_mcmc = bart_json.get_integer("num_mcmc")
+        self.num_chains = bart_json.get_integer("num_chains")
+        self.keep_every = bart_json.get_integer("keep_every")
         self.num_samples = bart_json.get_integer("num_samples")
         self.num_basis = bart_json.get_integer("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
@@ -3216,6 +3222,8 @@ class BARTModel:
         self.num_gfr = json_object_default.get_integer("num_gfr")
         self.num_burnin = json_object_default.get_integer("num_burnin")
         self.num_mcmc = json_object_default.get_integer("num_mcmc")
+        self.num_chains = json_object_default.get_integer("num_chains")
+        self.keep_every = json_object_default.get_integer("keep_every")
         self.num_basis = json_object_default.get_integer("num_basis")
         self.has_basis = json_object_default.get_boolean("requires_basis")
         self.probit_outcome_model = json_object_default.get_boolean(
@@ -3332,3 +3340,227 @@ class BARTModel:
             return True
         else:
             return False
+    
+    def extract_parameter(self, term: str) -> np.array:
+        """
+        Extract a vector, matrix or array of parameter samples from a BART model by name. 
+        Random effects are handled by a separate `extract_parameter_samples` method attached to the underlying `RandomEffectsContainer` object due to the complexity of the random effects parameters.
+        If the requested model term is not found, an error is thrown.
+        The following conventions are used for parameter names:
+        - Global error variance: `"sigma2"`, `"global_error_scale"`, `"sigma2_global"`
+        - Leaf scale: `"sigma2_leaf"`, `"leaf_scale"`
+        - In-sample mean function predictions: `"y_hat_train"`
+        - Test set mean function predictions: `"y_hat_test"`
+        - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
+        - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
+        
+        Parameters
+        ----------
+        term : str
+            Name of the parameter to extract (e.g., `"sigma2"`, `"y_hat_train"`, etc.)
+
+        Returns
+        -------
+        np.array
+            Array of parameter samples. If the underlying parameter is a scalar, this will be a vector of length `num_samples`.
+            If the underlying parameter is vector-valued, this will be (`parameter_dimension` x `num_samples`) matrix, and if the underlying
+            parameter is multidimensional, this will be an array of dimension (`parameter_dimension_1` x `parameter_dimension_2` x ... x `num_samples`).
+        """
+        if term in ["sigma2", "global_error_scale", "sigma2_global"]:
+            if self.sample_sigma2_global:
+                return self.global_var_samples
+            else:
+                raise ValueError("This model does not have global variance parameter samples")
+
+        if term in ["sigma2_leaf", "leaf_scale"]:
+            if self.sample_sigma2_leaf:
+                return self.leaf_scale_samples
+            else:
+                raise ValueError("This model does not have leaf variance parameter samples")
+
+        if term in ["y_hat_train"]:
+            yht = getattr(self, "y_hat_train", None)
+            if yht is not None:
+                return yht
+            else:
+                raise ValueError("This model does not have in-sample mean function prediction samples")
+
+        if term in ["y_hat_test"]:
+            yht = getattr(self, "y_hat_test", None)
+            if yht is not None:
+                return yht
+            else:
+                raise ValueError("This model does not have test set mean function prediction samples")
+
+        if term in ["sigma2_x_train", "var_x_train"]:
+            s2x = getattr(self, "sigma2_x_train", None)
+            if s2x is not None:
+                return s2x
+            else:
+                raise ValueError("This model does not have in-sample variance forest predictions")
+
+        if term in ["sigma2_x_test", "var_x_test"]:
+            s2x = getattr(self, "sigma2_x_test", None)
+            if s2x is not None:
+                return s2x
+            else:
+                raise ValueError("This model does not have test set variance forest predictions")
+
+        raise ValueError(f"term {term} is not a valid BART model term")
+
+    def summary(self) -> str:
+        # First, print the BART model
+        output_str = "BART Model Summary:\n"
+        output_str += "-------------------\n"
+        output_str += f"{self.__str__()}\n"
+
+        probs = [0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975]
+
+        # Summarize any sampled quantities
+
+        # Global error scale
+        if self.sample_sigma2_global:
+            sigma2_samples = self.global_var_samples
+            n_samples = len(sigma2_samples)
+            mean_sigma2 = np.mean(sigma2_samples)
+            sd_sigma2 = np.std(sigma2_samples)
+            quantiles_sigma2 = np.quantile(sigma2_samples, probs)
+            output_str += f"Summary of sigma^2 posterior: "
+            output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_sigma2):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Leaf scale
+        if self.sample_sigma2_leaf:
+            sigma2_leaf_samples = self.leaf_scale_samples
+            n_samples = len(sigma2_leaf_samples)
+            mean_sigma2 = np.mean(sigma2_leaf_samples)
+            sd_sigma2 = np.std(sigma2_leaf_samples)
+            quantiles_sigma2 = np.quantile(sigma2_leaf_samples, probs)
+            output_str += f"Summary of leaf scale posterior: "
+            output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_sigma2):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # In-sample predictions
+        yht = getattr(self, "y_hat_train", None)
+        if yht is not None:
+            y_hat_train_mean = np.mean(yht, axis=1)
+            n_y_hat_train = len(y_hat_train_mean)
+            mean_y_hat_train = np.mean(y_hat_train_mean)
+            sd_y_hat_train = np.std(y_hat_train_mean)
+            quantiles_y_hat_train = np.quantile(y_hat_train_mean, probs)
+            output_str += f"Summary of in-sample posterior mean predictions: \n{n_y_hat_train} observations, mean = {mean_y_hat_train:.3f}, standard deviation = {sd_y_hat_train:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_y_hat_train):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Test-set predictions
+        yht = getattr(self, "y_hat_test", None)
+        if yht is not None:
+            y_hat_test_mean = np.mean(yht, axis=1)
+            n_y_hat_test = len(y_hat_test_mean)
+            mean_y_hat_test = np.mean(y_hat_test_mean)
+            sd_y_hat_test = np.std(y_hat_test_mean)
+            quantiles_y_hat_test = np.quantile(y_hat_test_mean, probs)
+            output_str += f"Summary of test-set posterior mean predictions: \n{n_y_hat_test} observations, mean = {mean_y_hat_test:.3f}, standard deviation = {sd_y_hat_test:.3f}, quantiles:\n"
+            for p, q in zip(probs, quantiles_y_hat_test):
+                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Random effects
+        if self.has_rfx:
+            rfx_samples = self.rfx_container.extract_parameter_samples()
+            rfx_beta_samples = rfx_samples['beta_samples']
+            if rfx_beta_samples.ndim > 2:
+                reduce_axes = tuple(range(1, rfx_beta_samples.ndim))
+                rfx_component_means = np.mean(rfx_beta_samples, axis=reduce_axes)
+                rfx_component_sds = np.std(rfx_beta_samples, axis=reduce_axes)
+                means_str = ", ".join(f"{v:.3f}" for v in rfx_component_means)
+                sds_str = ", ".join(f"{v:.3f}" for v in rfx_component_sds)
+                output_str += "Random effects summary of variance components across groups and posterior draws:\n"
+                output_str += f"Variance component means: {means_str}\n"
+                output_str += f"Variance component standard deviations: {sds_str}\n"
+                rfx_quantiles = np.quantile(
+                    rfx_beta_samples, probs, axis=reduce_axes
+                ).T
+                output_str += "Variance component quantiles:\n"
+                for i in range(rfx_quantiles.shape[0]):
+                    output_str += f"  Component {i+1}:\n"
+                    for p, q in zip(probs, rfx_quantiles[i, :]):
+                        output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+            else:
+                rfx_component_means = np.mean(rfx_beta_samples)
+                rfx_component_sds = np.std(rfx_beta_samples)
+                output_str += f"Random effects overall mean: {rfx_component_means:.3f}\n"
+                output_str += f"Random effects overall standard deviation: {rfx_component_sds:.3f}\n"
+                output_str += "Random effects overall quantiles:\n"
+                rfx_quantiles = np.quantile(rfx_beta_samples, probs)
+                for p, q in zip(probs, rfx_quantiles):
+                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+        return output_str
+
+    def __str__(self) -> str:
+        if not self.sampled:
+            return "Empty BARTModel() object: not yet sampled"
+        else:
+            model_terms = []
+            if self.include_mean_forest:
+                model_terms.append("mean forest")
+            if self.include_variance_forest:
+                model_terms.append("variance forest")
+            if self.has_rfx:
+                model_terms.append("additive random effects")
+            if self.sample_sigma2_global:
+                model_terms.append("global error variance model")
+            if self.sample_sigma2_leaf:
+                model_terms.append("mean forest leaf scale model")
+            if len(model_terms) > 2:
+                output_str = f"BARTModel run with {', '.join(model_terms[:-1])}, and {model_terms[-1]}"  
+            elif len(model_terms) == 2:
+                output_str = f"BARTModel run with {model_terms[0]} and {model_terms[1]}"
+            else:
+                output_str = f"BARTModel run with {model_terms[0]}"
+            # Outcome model details
+            if self.has_basis:
+                output_str += (
+                    f"\nOutcome was modeled "
+                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
+                    f"with a leaf regression prior with {self.num_basis} bases for the mean forest"
+                )
+            elif self.include_mean_forest:
+                output_str += (
+                    f"\nOutcome was modeled "
+                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
+                    f"with a constant leaf prior for the mean forest"
+                )
+            else:
+                output_str += (
+                    f"\nOutcome was modeled "
+                    f"{'with a probit link' if self.probit_outcome_model else 'as gaussian'} "
+                )
+            # Standardization details
+            if self.standardize:
+                output_str += (
+                    f"\nOutcome was standardized"
+                )
+            # Random effects details
+            if self.has_rfx:
+                if self.rfx_model_spec == "custom":
+                    output_str += (
+                        f"\nRandom effects were fit with a user-supplied basis"
+                    )
+                elif self.rfx_model_spec == "intercept_only":
+                    output_str += (
+                        f"\nRandom effects were fit with an 'intercept-only' parameterization"
+                    )
+            # Sampler details
+            output_str += (
+                f"\nThe sampler was run for {self.num_gfr} GFR iterations, with {self.num_chains} "
+                f"{'chain' if self.num_chains == 1 else 'chains'} of {self.num_burnin} burn-in iterations and "
+                f"{self.num_mcmc} MCMC iterations, "
+                f"{'retaining every iteration (i.e. no thinning)' if self.keep_every == 1 else f'retaining every {self.keep_every}th iteration (i.e. thinning)'}"
+            )
+            # Append newline
+            output_str += "\n"
+        return output_str
+      
+    __repr__ = __str__
