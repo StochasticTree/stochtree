@@ -3303,6 +3303,7 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
 #' - Test set mean function predictions: `"y_hat_test"`
 #' - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
 #' - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
+#' - Ordinal model cutpoints (valid only for ordinal cloglog models): `"cloglog_cutpoints"`, `"cutpoints"`
 #'
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @param term Name of the parameter to extract (e.g., `"sigma2"`, `"y_hat_train"`, etc.)
@@ -3398,6 +3399,14 @@ extract_parameter.bartmodel <- function(object, term) {
       return(object$sigma2_x_hat_test)
     } else {
       stop("This model does not have test set variance forest predictions")
+    }
+  }
+
+  if (term %in% c("cloglog_cutpoints", "cutpoints")) {
+    if (!is.null(object$cloglog_cutpoint_samples)) {
+      return(object$cloglog_cutpoint_samples)
+    } else {
+      stop("This model does not have ordinal cutpoint samples")
     }
   }
 
