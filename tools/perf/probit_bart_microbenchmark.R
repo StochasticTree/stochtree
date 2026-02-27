@@ -33,7 +33,7 @@ bench_results <- microbenchmark(
     num_gfr = 10,
     num_mcmc = 100,
     general_params = list(
-      probit_outcome_model = T,
+      outcome_model = outcome_model(outcome = "binary", link = "probit"),
       sample_sigma2_global = F
     )
   ),

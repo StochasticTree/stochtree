@@ -149,6 +149,7 @@ articles:
   - BayesianSupervisedLearning
   - CausalInference
   - Heteroskedasticity
+  - OrdinalOutcome
 
 - title: Advanced Model Interface
   navbar: Advanced Model Interface

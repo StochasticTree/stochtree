@@ -1,7 +1,7 @@
 # Debugging probit BCF with random effects
 
 # Load libraries
-from stochtree import BCFModel
+from stochtree import BCFModel, OutcomeModel
 from scipy.stats import norm
 from sklearn.model_selection import train_test_split
 import numpy as np
@@ -58,7 +58,7 @@ bcf_model.sample(
     num_gfr=10,
     num_burnin=0,
     num_mcmc=1000,
-    general_params={"probit_outcome_model": True},
+    general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit")},
 )
 
 # Compute contrast posterior

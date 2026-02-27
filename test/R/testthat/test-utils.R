@@ -1,3 +1,35 @@
+test_that("OutcomeModel initialization", {
+  # Valid initializations with both terms specified
+  model <- outcome_model(outcome = "continuous", link = "identity")
+  expect_equal(model$outcome, "continuous")
+  expect_equal(model$link, "identity")
+  model <- outcome_model(outcome = "binary", link = "probit")
+  expect_equal(model$outcome, "binary")
+  expect_equal(model$link, "probit")
+  model <- outcome_model(outcome = "ordinal", link = "cloglog")
+  expect_equal(model$outcome, "ordinal")
+  expect_equal(model$link, "cloglog")
+
+  # Valid initializations with only outcome specified
+  model <- outcome_model(outcome = "continuous")
+  expect_equal(model$outcome, "continuous")
+  expect_equal(model$link, "identity")
+  model <- outcome_model(outcome = "binary")
+  expect_equal(model$outcome, "binary")
+  expect_equal(model$link, "probit")
+  model <- outcome_model(outcome = "ordinal")
+  expect_equal(model$outcome, "ordinal")
+  expect_equal(model$link, "cloglog")
+
+  # Invalid initializations
+  expect_error(OutcomeModel(outcome = "continuous", link = "other"))
+  expect_error(OutcomeModel(outcome = "binary", link = "other"))
+  expect_error(OutcomeModel(outcome = "ordinal", link = "other"))
+  expect_error(OutcomeModel(outcome = "other", link = "identity"))
+  expect_error(OutcomeModel(outcome = "other", link = "probit"))
+  expect_error(OutcomeModel(outcome = "other", link = "cloglog"))
+})
+
 test_that("Array conversion", {
   skip_on_cran()
 

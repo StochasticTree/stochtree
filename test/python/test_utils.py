@@ -12,10 +12,43 @@ from stochtree.utils import (
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
+    OutcomeModel
 )
 
 
 class TestUtils:
+    def test_outcome_model(self):
+        # Valid initializations with both terms specified
+        model = OutcomeModel(outcome="continuous", link="identity")
+        assert model.outcome == "continuous"
+        assert model.link == "identity"
+        model = OutcomeModel(outcome="binary", link="probit")
+        assert model.outcome == "binary"
+        assert model.link == "probit"
+        model = OutcomeModel(outcome="ordinal", link="cloglog")
+        assert model.outcome == "ordinal"
+        assert model.link == "cloglog"
+
+        # Valid initializations with only outcome specified
+        model = OutcomeModel(outcome="continuous")
+        assert model.outcome == "continuous"
+        assert model.link == "identity"
+        model = OutcomeModel(outcome="binary")
+        assert model.outcome == "binary"
+        assert model.link == "probit"
+        model = OutcomeModel(outcome="ordinal")
+        assert model.outcome == "ordinal"
+        assert model.link == "cloglog"
+
+        # Invalid initializations
+        with pytest.raises(ValueError):
+            _ = OutcomeModel(outcome="continuous", link="other")
+            _ = OutcomeModel(outcome="binary", link="other")
+            _ = OutcomeModel(outcome="ordinal", link="other")
+            _ = OutcomeModel(outcome="other", link="identity")
+            _ = OutcomeModel(outcome="other", link="probit")
+            _ = OutcomeModel(outcome="other", link="cloglog")
+
     def test_check_array(self):
         # Test data
         array_list1 = [1, 2, 3, 4, 5]

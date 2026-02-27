@@ -1,7 +1,41 @@
-from typing import Union
+from typing import Union, Tuple
 import math
 
 import numpy as np
+
+
+def _set_output_defaults(outcome: str = "continuous", link: str = None) -> Tuple[str, str]:
+    if outcome is None:
+        raise ValueError("Outcome must be specified")
+    if link is None:
+        if outcome == "continuous":
+            link = "identity"
+        elif outcome == "binary":
+            link = "probit"
+        elif outcome == "ordinal":
+            link = "cloglog"
+    return outcome, link
+
+
+def _validate_outcome_model(outcome: str, link: str):
+    if outcome not in ["continuous", "binary", "ordinal"]:
+        raise ValueError("Outcome type must be one of 'continuous', 'binary', or 'ordinal'")
+    if link not in ["identity", "probit", "cloglog"]:
+        raise ValueError("Link function must be one of 'identity', 'probit', or 'cloglog'")
+    if outcome == "continuous" and link != "identity":
+        raise ValueError("Link function must be 'identity' for continuous models")
+    if outcome == "binary" and link not in ["probit", "cloglog"]:
+        raise ValueError("Link function must be 'probit' or 'cloglog' for binary models")
+    if outcome == "ordinal" and link != "cloglog":
+        raise ValueError("Link function must be 'cloglog' for ordinal models")
+
+
+class OutcomeModel:
+    def __init__(self, outcome: str = "continuous", link: str = None):
+        outcome, link = _set_output_defaults(outcome, link)
+        _validate_outcome_model(outcome, link)
+        self.outcome = outcome
+        self.link = link
 
 
 class NotSampledError(ValueError, AttributeError):
@@ -375,3 +409,63 @@ def _summarize_interval(
 
     # Return results as a dictionary
     return {"lower": result_lb, "upper": result_ub}
+
+
+def _class_probs_to_survival_probs(
+    probs: np.ndarray, num_categories: int
+) -> np.ndarray:
+    """Convert class probabilities to survival probabilities P(Y > k).
+
+    Parameters
+    ----------
+    probs : np.ndarray
+        A 3D array of shape (n_obs, num_categories, num_samples) containing
+        class probabilities.
+    num_categories : int
+        The total number of categories.
+
+    Returns
+    -------
+    np.ndarray
+        A 3D array of shape (n_obs, num_categories - 1, num_samples) containing
+        survival probabilities P(Y > k) for k = 1, ..., K-1.
+    """
+    output = np.full(
+        (probs.shape[0], probs.shape[1] - 1, probs.shape[2]), np.nan
+    )
+    for i in range(1, num_categories):
+        output[:, i - 1, :] = np.sum(probs[:, i:num_categories, :], axis=1)
+    return output
+
+
+def _compute_sample_dim(predictions: np.ndarray, num_samples: int) -> int:
+    """Determine which axis of a prediction array corresponds to posterior samples.
+
+    Parameters
+    ----------
+    predictions : np.ndarray
+        Array of predictions (at least 2D).
+    num_samples : int
+        The number of posterior samples in the model.
+
+    Returns
+    -------
+    int
+        The axis index corresponding to the sample dimension.
+    """
+    term_shape = predictions.shape
+    if len(term_shape) <= 1:
+        return 0
+    matches = [i for i, s in enumerate(term_shape) if s == num_samples]
+    if len(matches) > 1:
+        import warnings
+        warnings.warn(
+            "Multiple posterior dimensions matching the number of posterior draws "
+            "found in the array, using the last one as the MCMC index"
+        )
+        return matches[-1]
+    elif len(matches) == 0:
+        raise ValueError(
+            "No posterior dimension was found that matches the number of posterior draws"
+        )
+    return matches[0]

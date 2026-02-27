@@ -43,7 +43,7 @@ for group labels that were not in the training set. Must be a vector.}
 
 \item{type}{(Optional) Aggregation level of the contrast. Options are "mean", which averages the contrast evaluations over every draw of a BART model, and "posterior", which returns the entire matrix of posterior contrast estimates. Default: "posterior".}
 
-\item{scale}{(Optional) Scale of the contrast. Options are "linear", which returns a contrast on the original scale of the mean forest / RFX terms, and "probability", which transforms each contrast term into a probability of observing \code{y == 1} before taking their difference. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
+\item{scale}{(Optional) Scale of the contrast. Options are "linear", which returns contrast of predictions on the original scale of the mean forest / RFX terms, and "probability". \code{scale = "probability"} is only valid for models fit with a probit / cloglog links on binary or ordinal outcomes. For binary outcome models, \code{scale = "probability"} will return contrasts of the probability that \code{y == 1}. For ordinal outcome models, \code{scale = "probability"} will return contrasts over the "survival function" \code{P(y > k)} for \verb{k = 1, 2, ..., K-1} where \code{K} is the total number of categories. Default: "linear".}
 }
 \value{
 Contrast matrix or vector, depending on whether type = "mean" or "posterior".

@@ -3,6 +3,7 @@ from stochtree_cpp import (
     ForestSamplerCpp,
     GlobalVarianceModelCpp,
     LeafVarianceModelCpp,
+    OrdinalSamplerCpp,
     RngCpp,
 )
 
@@ -157,6 +158,14 @@ class ForestSampler:
         if sweep_update_indices is None:
             sweep_update_indices = np.arange(forest_config.get_num_trees(), dtype=int)
 
+        # Use cloglog shape/rate for cloglog leaf models, otherwise variance forest shape/scale
+        if forest_config.get_leaf_model_type() == 4:
+            a_forest = forest_config.get_cloglog_forest_shape()
+            b_forest = forest_config.get_cloglog_forest_rate()
+        else:
+            a_forest = forest_config.get_variance_forest_shape()
+            b_forest = forest_config.get_variance_forest_scale()
+
         # Run the sampler
         self.forest_sampler_cpp.SampleOneIteration(
             forest_container.forest_container_cpp,
@@ -169,8 +178,8 @@ class ForestSampler:
             forest_config.get_cutpoint_grid_size(),
             forest_config.get_leaf_model_scale(),
             forest_config.get_variable_weights(),
-            forest_config.get_variance_forest_shape(),
-            forest_config.get_variance_forest_scale(),
+            a_forest,
+            b_forest,
             global_config.get_global_error_variance(),
             forest_config.get_leaf_model_type(),
             forest_config.get_num_features_subsample(),
@@ -401,3 +410,79 @@ class LeafVarianceModel:
         return self.variance_model_cpp.SampleOneIteration(
             forest.forest_cpp, rng.rng_cpp, a, b
         )
+
+
+class OrdinalSampler:
+    """
+    Wrapper around the C++ OrdinalSampler class for sampling ordinal model hyperparameters
+    (latent variables, cutpoint parameters, and cumulative exponential sums).
+    """
+
+    def __init__(self) -> None:
+        self.ordinal_sampler_cpp = OrdinalSamplerCpp()
+
+    def update_latent_variables(
+        self, dataset: Dataset, outcome: Residual, rng: RNG
+    ) -> None:
+        """
+        Update truncated exponential latent variables (Z)
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Forest dataset containing training data and auxiliary data
+        outcome : Residual
+            Outcome data stored as a Residual object
+        rng : RNG
+            Random number generator
+        """
+        self.ordinal_sampler_cpp.UpdateLatentVariables(
+            dataset.dataset_cpp, outcome.residual_cpp, rng.rng_cpp
+        )
+
+    def update_gamma_params(
+        self,
+        dataset: Dataset,
+        outcome: Residual,
+        alpha_gamma: float,
+        beta_gamma: float,
+        gamma_0: float,
+        rng: RNG,
+    ) -> None:
+        """
+        Update gamma cutpoint parameters
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Forest dataset containing training data and auxiliary data
+        outcome : Residual
+            Outcome data stored as a Residual object
+        alpha_gamma : float
+            Shape parameter for log-gamma prior on cutpoints
+        beta_gamma : float
+            Rate parameter for log-gamma prior on cutpoints
+        gamma_0 : float
+            Fixed value for first cutpoint parameter (for identifiability)
+        rng : RNG
+            Random number generator
+        """
+        self.ordinal_sampler_cpp.UpdateGammaParams(
+            dataset.dataset_cpp,
+            outcome.residual_cpp,
+            alpha_gamma,
+            beta_gamma,
+            gamma_0,
+            rng.rng_cpp,
+        )
+
+    def update_cumulative_exp_sums(self, dataset: Dataset) -> None:
+        """
+        Update cumulative exponential sums (seg)
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Forest dataset containing training data and auxiliary data
+        """
+        self.ordinal_sampler_cpp.UpdateCumulativeExpSums(dataset.dataset_cpp)

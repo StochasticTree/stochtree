@@ -22,6 +22,7 @@ We accept optional user-provided parameter lists / dictionaries, which override 
 1. `keep_every`: 1
 1. `num_chains`: 1
 1. `verbose`: False
+1. `outcome_model`: `OutcomeModel(outcome = 'continuous', link = 'identity')`
 1. `probit_outcome_model`: False
 1. `num_threads`: -1
 
@@ -38,6 +39,8 @@ We accept optional user-provided parameter lists / dictionaries, which override 
 1. `keep_vars`: None
 1. `drop_vars`: None
 1. `num_features_subsample`: None
+1. `cloglog_leaf_prior_shape`: 2.0
+1. `cloglog_leaf_prior_scale`: 2.0
 
 **Variance Forest Parameters**
 1. `num_trees`: 0
@@ -70,6 +73,8 @@ If `num_mcmc == 0`, then we override `keep_gfr` to `True`.
 
 ### Previous Model JSON Initialization
 
+**[CLOGLOG UPDATE]**
+
 If a "previous" model was passed as json, check if an initialization index passed. 
 
 If provided, it must be between 1 and the number of draws stored in a JSON object. 
@@ -85,6 +90,24 @@ Initialize the following model terms from JSON if they exist:
 1. Global error scale samples (`previous_global_var_samples`)
 1. Leaf scale samples (`previous_leaf_var_samples`)
 1. Random effects samples (`previous_rfx_samples`)
+
+### Unpacking Outcome Model / Link Details
+
+Based on the user-provided `outcome_model` specification, we extract the following details:
+
+1. Outcome type (e.g., 'continuous', 'binary', 'ordinal')
+1. Link function (e.g., 'identity', 'probit', 'cloglog')
+
+into the following boolean variables:
+
+1. `outcome_is_continuous`
+1. `outcome_is_binary`
+1. `outcome_is_ordinal`
+1. `link_is_identity`
+1. `link_is_probit`
+1. `link_is_cloglog`
+
+If a user specifies `probit_outcome_model = True`, we raise a deprecation warning and instruct users to use the `outcome_model` variable instead.
 
 ### Forest Parameter Overrides
 
@@ -160,13 +183,29 @@ Set `has_basis` to `True` if `leaf_basis_train` is provided. Set `has_test` to `
 
 ### Runtime checks for probit model
 
-Override `probit_outcome_model = True` specification if no mean forest is requested.
+Override `link_is_probit = True` specification if no mean forest is requested.
 
-Check that `y_train` has two unique values, 0 and 1, if `probit_outcome_model = True`, raise an error if not.
+Check that `y_train` has two unique values, 0 and 1, if `link_is_probit = True`, raise an error if not.
 
 Raise an error if a variance forest is requested alongside a mean forest with probit link.
 
 Override `sample_sigma2_global` to `False`, since $\sigma^2$ is fixed at 1 in the probit model.
+
+### Runtime checks for cloglog model
+
+Override `link_is_cloglog = True` specification if no mean forest is requested.
+
+Check that `y_train` is integer-valued, starting at either 0 or 1, if `link_is_cloglog = True`, with at least two unique values, raise an error if not.
+
+If `y_train` starts at 1, subtract 1 from all values to make it start at 0 before passing through to a C++ `Outcome` object.
+
+Raise an error if a variance forest is requested alongside a mean forest with cloglog link.
+
+Raise an error if leaf basis regression is requested alongside a mean forest with cloglog link.
+
+Override `sample_sigma2_global` to `False`.
+
+Override `sample_sigma2_leaf` to `False`.
 
 ### Runtime checks for variance model
 
@@ -243,6 +282,9 @@ If a mean forest is requested:
 * Create a `ForestModel` (`ForestSampler` in Python) object
 * Create a `Forest` object as the "active mean forest"
 * Create a `ForestSamples` object as the forest container
+
+If a cloglog link is used for the mean forest:
+* Create a container for cutpoint samples
 
 If a variance forest is requested:
 * Create a `ForestModelConfig` object

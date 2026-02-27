@@ -32,7 +32,7 @@ run_bart_factorial <- function(
   general_params <- list(
     num_chains = num_chains,
     sample_sigma2_global = sampling_global_error_scale,
-    probit_outcome_model = outcome_type == "binary"
+    outcome_model = outcome_model(outcome = outcome_type)
   )
   mean_forest_params <- list(
     sample_sigma2_leaf = sampling_leaf_scale
@@ -159,7 +159,7 @@ run_bcf_factorial <- function(
   general_params <- list(
     num_chains = num_chains,
     sample_sigma2_global = sampling_global_error_scale,
-    probit_outcome_model = outcome_type == "binary",
+    outcome_model = outcome_model(outcome = outcome_type),
     adaptive_coding = adaptive_coding
   )
   mu_forest_params <- list(

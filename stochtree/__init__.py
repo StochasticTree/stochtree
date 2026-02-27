@@ -28,6 +28,7 @@ from .sklearn import (
     StochTreeBARTBinaryClassifier, 
 )
 from .utils import (
+    OutcomeModel,
     NotSampledError,
     _check_array_integer,
     _check_array_numeric,
@@ -59,6 +60,7 @@ __all__ = [
     "ForestModelConfig",
     "GlobalModelConfig",
     "JSONSerializer",
+    "OutcomeModel",
     "NotSampledError",
     "_check_array_integer",
     "_check_array_numeric",

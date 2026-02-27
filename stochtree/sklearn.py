@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import norm
-from stochtree import BARTModel
+from .bart import BARTModel
+from .utils import OutcomeModel
 from sklearn.utils._array_api import (
     get_namespace,
     indexing_dtype,
@@ -144,7 +145,7 @@ class StochTreeBARTRegressor(RegressorMixin, BaseEstimator):
         # Parameter validation
         general_params = {
           **(self.general_params or {}),
-          "probit_outcome_model": False
+          "outcome_model": OutcomeModel(outcome="continuous", link="identity")
         }
 
         # Initialize and sample a BART model
@@ -392,7 +393,7 @@ class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
         # Initialize and sample a BART model
         general_params = {
           **(self.general_params or {}),
-          "probit_outcome_model": True,
+          "outcome_model": OutcomeModel(outcome="binary", link="probit"),
           "sample_sigma2_global": False,
         }
         self.model_ = BARTModel()

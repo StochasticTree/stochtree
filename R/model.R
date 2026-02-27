@@ -114,8 +114,13 @@ ForestModel <- R6::R6Class(
       leaf_model_int <- forest_model_config$leaf_model_type
       leaf_model_scale <- forest_model_config$leaf_model_scale
       variable_weights <- forest_model_config$variable_weights
-      a_forest <- forest_model_config$variance_forest_shape
-      b_forest <- forest_model_config$variance_forest_scale
+      if (leaf_model_int == 4) {
+        a_forest <- forest_model_config$cloglog_forest_shape
+        b_forest <- forest_model_config$cloglog_forest_rate
+      } else {
+        a_forest <- forest_model_config$variance_forest_shape
+        b_forest <- forest_model_config$variance_forest_scale
+      }
       global_scale <- global_model_config$global_error_variance
       cutpoint_grid_size <- forest_model_config$cutpoint_grid_size
       num_features_subsample <- forest_model_config$num_features_subsample
