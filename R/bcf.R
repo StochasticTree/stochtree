@@ -1,3 +1,66 @@
+#' BCF Serialization Routines
+#' @name BCFSerialization
+#' @description
+#' BCF models contains external pointers to C++ objects, which means they cannot
+#' be correctly serialized to `.Rds` from an R session in their default state.
+#' These functions allow us to convert between C++ data structures and a persistent JSON
+#' representation. The `CppJson` class wraps a performant C++ JSON API, and the functions
+#' `saveBCFModelToJson` and `createBCFModelFromJson` save to and load from this format.
+#' This representation, of course, also relies on external C++ pointers, so in order to
+#' save and reload BCF models across sessions, we provide two other interfaces.
+#'
+#' `saveBCFModelToJsonFile` and `createBCFModelFromJsonFile` save or reload a BCF model's JSON
+#' representation directly to / from a `.json` file.
+#'
+#' `saveBCFModelToJsonString` and `createBCFModelFromJsonString` handle in-memory strings containing JSON data,
+#' which can be written to disk or passed between processes.
+#'
+#' Finally, for cases in which multiple BCF models have been sampled (for instance, sampled in multiple processes
+#' via `doParallel`), we offer `createBCFModelFromCombinedJson` and `createBCFModelFromCombinedJsonString` for
+#' loading a new combined BCF model from a list of BCF JSON objects or strings.
+#' @returns
+#' `saveBCFModelToJson` return an object of type `CppJson`.
+#' `saveBCFModelToJsonFile` returns nothing, but writes to the provided filename.
+#' `saveBCFModelToJsonString` returns a string dump of the BCF model's JSON representation.
+#'
+#' `createBCFModelFromJson`, `createBCFModelFromJsonFile`, `createBCFModelFromJsonString`,
+#' `createBCFModelFromCombinedJson`, and `createBCFModelFromCombinedJsonString` all return
+#' objects of type `bcfmodel`.
+#' @examples
+#' # Generate data
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' Z <- rbinom(n, p = 0.5, size = 1)
+#' y <- X[,1] + Z + rnorm(n, 0, 1)
+#'
+#' # Sample BCF model
+#' bcf_model <- bcf(X_train = X, Z_train = Z, y_train = y,
+#'                  num_gfr = 0, num_burnin = 0, num_mcmc = 10)
+#'
+#' # Save to in-memory JSON
+#' bcf_json <- saveBCFModelToJson(bcf_model)
+#' # Save to JSON string
+#' bcf_json_string <- saveBCFModelToJsonString(bcf_model)
+#' # Save to JSON file
+#' tmpjson <- tempfile(fileext = ".json")
+#' saveBCFModelToJsonFile(bcf_model, file.path(tmpjson))
+#'
+#' # Reload BCF model from in-memory JSON object
+#' bcf_model_roundtrip <- createBCFModelFromJson(bcf_json)
+#' # Reload BCF model from JSON string
+#' bcf_model_roundtrip <- createBCFModelFromJsonString(bcf_json_string)
+#' # Reload BCF model from JSON file
+#' bcf_model_roundtrip <- createBCFModelFromJsonFile(file.path(tmpjson))
+#' unlink(tmpjson)
+#' # Reload BCF model from list of JSON objects
+#' bcf_model_roundtrip <- createBCFModelFromCombinedJson(list(bcf_json))
+#' # Reload BCF model from list of JSON strings
+#' bcf_model_roundtrip <- createBCFModelFromCombinedJsonString(list(bcf_json_string))
+#'
+NULL
+#> NULL
+
 #' @title Run BCF for Causal Effect Estimation
 #' @description
 #' Run the Bayesian Causal Forest (BCF) algorithm for regularized causal effect estimation.
@@ -4120,80 +4183,9 @@ getRandomEffectSamples.bcfmodel <- function(object, ...) {
 }
 
 #' @title Convert BCF Model to JSON
-#' @description
-#' Convert the persistent aspects of a BCF model to (in-memory) JSON
-#'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
-#'
-#' @return Object of type `CppJson`
 #' @export
-#'
-#' @examples
-#' n <- 500
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' mu_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' pi_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
-#' )
-#' tau_x <- (
-#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
-#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
-#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
-#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
-#' )
-#' Z <- rbinom(n, 1, pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 3
-#' rfx_group_ids <- rep(c(1,2), n %/% 2)
-#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
-#' rfx_basis <- cbind(1, runif(n, -1, 1))
-#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
-#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' pi_test <- pi_x[test_inds]
-#' pi_train <- pi_x[train_inds]
-#' Z_test <- Z[test_inds]
-#' Z_train <- Z[train_inds]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' mu_test <- mu_x[test_inds]
-#' mu_train <- mu_x[train_inds]
-#' tau_test <- tau_x[test_inds]
-#' tau_train <- tau_x[train_inds]
-#' rfx_group_ids_test <- rfx_group_ids[test_inds]
-#' rfx_group_ids_train <- rfx_group_ids[train_inds]
-#' rfx_basis_test <- rfx_basis[test_inds,]
-#' rfx_basis_train <- rfx_basis[train_inds,]
-#' rfx_term_test <- rfx_term[test_inds]
-#' rfx_term_train <- rfx_term[train_inds]
-#' mu_params <- list(sample_sigma2_leaf = TRUE)
-#' tau_params <- list(sample_sigma2_leaf = FALSE)
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
-#'                  propensity_train = pi_train,
-#'                  rfx_group_ids_train = rfx_group_ids_train,
-#'                  rfx_basis_train = rfx_basis_train, X_test = X_test,
-#'                  Z_test = Z_test, propensity_test = pi_test,
-#'                  rfx_group_ids_test = rfx_group_ids_test,
-#'                  rfx_basis_test = rfx_basis_test,
-#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10,
-#'                  prognostic_forest_params = mu_params,
-#'                  treatment_effect_forest_params = tau_params)
-#' bcf_json <- saveBCFModelToJson(bcf_model)
+#' @rdname BCFSerialization
 saveBCFModelToJson <- function(object) {
   jsonobj <- createCppJson()
 
@@ -4369,83 +4361,10 @@ saveBCFModelToJson <- function(object) {
 }
 
 #' @title Save BCF Model to JSON File
-#' @description
-#' Convert the persistent aspects of a BCF model to (in-memory) JSON and save to a file
-#'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #' @param filename String of filepath, must end in ".json"
-#'
-#' @return in-memory JSON string
 #' @export
-#'
-#' @examples
-#' n <- 500
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' mu_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' pi_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
-#' )
-#' tau_x <- (
-#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
-#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
-#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
-#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
-#' )
-#' Z <- rbinom(n, 1, pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 3
-#' rfx_group_ids <- rep(c(1,2), n %/% 2)
-#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
-#' rfx_basis <- cbind(1, runif(n, -1, 1))
-#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
-#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' pi_test <- pi_x[test_inds]
-#' pi_train <- pi_x[train_inds]
-#' Z_test <- Z[test_inds]
-#' Z_train <- Z[train_inds]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' mu_test <- mu_x[test_inds]
-#' mu_train <- mu_x[train_inds]
-#' tau_test <- tau_x[test_inds]
-#' tau_train <- tau_x[train_inds]
-#' rfx_group_ids_test <- rfx_group_ids[test_inds]
-#' rfx_group_ids_train <- rfx_group_ids[train_inds]
-#' rfx_basis_test <- rfx_basis[test_inds,]
-#' rfx_basis_train <- rfx_basis[train_inds,]
-#' rfx_term_test <- rfx_term[test_inds]
-#' rfx_term_train <- rfx_term[train_inds]
-#' mu_params <- list(sample_sigma2_leaf = TRUE)
-#' tau_params <- list(sample_sigma2_leaf = FALSE)
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
-#'                  propensity_train = pi_train,
-#'                  rfx_group_ids_train = rfx_group_ids_train,
-#'                  rfx_basis_train = rfx_basis_train, X_test = X_test,
-#'                  Z_test = Z_test, propensity_test = pi_test,
-#'                  rfx_group_ids_test = rfx_group_ids_test,
-#'                  rfx_basis_test = rfx_basis_test,
-#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10,
-#'                  prognostic_forest_params = mu_params,
-#'                  treatment_effect_forest_params = tau_params)
-#' tmpjson <- tempfile(fileext = ".json")
-#' saveBCFModelToJsonFile(bcf_model, file.path(tmpjson))
-#' unlink(tmpjson)
+#' @rdname BCFSerialization
 saveBCFModelToJsonFile <- function(object, filename) {
   # Convert to Json
   jsonobj <- saveBCFModelToJson(object)
@@ -4455,79 +4374,9 @@ saveBCFModelToJsonFile <- function(object, filename) {
 }
 
 #' @title Convert BCF Model to JSON String
-#' @description
-#' Convert the persistent aspects of a BCF model to (in-memory) JSON string
-#'
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
-#' @return JSON string
 #' @export
-#'
-#' @examples
-#' n <- 500
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' mu_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' pi_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
-#' )
-#' tau_x <- (
-#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
-#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
-#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
-#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
-#' )
-#' Z <- rbinom(n, 1, pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 3
-#' rfx_group_ids <- rep(c(1,2), n %/% 2)
-#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
-#' rfx_basis <- cbind(1, runif(n, -1, 1))
-#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
-#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' pi_test <- pi_x[test_inds]
-#' pi_train <- pi_x[train_inds]
-#' Z_test <- Z[test_inds]
-#' Z_train <- Z[train_inds]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' mu_test <- mu_x[test_inds]
-#' mu_train <- mu_x[train_inds]
-#' tau_test <- tau_x[test_inds]
-#' tau_train <- tau_x[train_inds]
-#' rfx_group_ids_test <- rfx_group_ids[test_inds]
-#' rfx_group_ids_train <- rfx_group_ids[train_inds]
-#' rfx_basis_test <- rfx_basis[test_inds,]
-#' rfx_basis_train <- rfx_basis[train_inds,]
-#' rfx_term_test <- rfx_term[test_inds]
-#' rfx_term_train <- rfx_term[train_inds]
-#' mu_params <- list(sample_sigma2_leaf = TRUE)
-#' tau_params <- list(sample_sigma2_leaf = FALSE)
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
-#'                  propensity_train = pi_train,
-#'                  rfx_group_ids_train = rfx_group_ids_train,
-#'                  rfx_basis_train = rfx_basis_train, X_test = X_test,
-#'                  Z_test = Z_test, propensity_test = pi_test,
-#'                  rfx_group_ids_test = rfx_group_ids_test,
-#'                  rfx_basis_test = rfx_basis_test,
-#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10,
-#'                  prognostic_forest_params = mu_params,
-#'                  treatment_effect_forest_params = tau_params)
-#' saveBCFModelToJsonString(bcf_model)
+#' @rdname BCFSerialization
 saveBCFModelToJsonString <- function(object) {
   # Convert to Json
   jsonobj <- saveBCFModelToJson(object)
@@ -4537,82 +4386,9 @@ saveBCFModelToJsonString <- function(object) {
 }
 
 #' @title Convert JSON to BCF Model
-#' @description
-#' Convert an (in-memory) JSON representation of a BCF model to a BCF model object
-#' which can be used for prediction, etc...
-#'
 #' @param json_object Object of type `CppJson` containing Json representation of a BCF model
-#'
-#' @return Object of type `bcfmodel`
 #' @export
-#'
-#' @examples
-#' n <- 500
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' mu_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' pi_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
-#' )
-#' tau_x <- (
-#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
-#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
-#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
-#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
-#' )
-#' Z <- rbinom(n, 1, pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 3
-#' rfx_group_ids <- rep(c(1,2), n %/% 2)
-#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
-#' rfx_basis <- cbind(1, runif(n, -1, 1))
-#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
-#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' pi_test <- pi_x[test_inds]
-#' pi_train <- pi_x[train_inds]
-#' Z_test <- Z[test_inds]
-#' Z_train <- Z[train_inds]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' mu_test <- mu_x[test_inds]
-#' mu_train <- mu_x[train_inds]
-#' tau_test <- tau_x[test_inds]
-#' tau_train <- tau_x[train_inds]
-#' rfx_group_ids_test <- rfx_group_ids[test_inds]
-#' rfx_group_ids_train <- rfx_group_ids[train_inds]
-#' rfx_basis_test <- rfx_basis[test_inds,]
-#' rfx_basis_train <- rfx_basis[train_inds,]
-#' rfx_term_test <- rfx_term[test_inds]
-#' rfx_term_train <- rfx_term[train_inds]
-#' mu_params <- list(sample_sigma2_leaf = TRUE)
-#' tau_params <- list(sample_sigma2_leaf = FALSE)
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
-#'                  propensity_train = pi_train,
-#'                  rfx_group_ids_train = rfx_group_ids_train,
-#'                  rfx_basis_train = rfx_basis_train, X_test = X_test,
-#'                  Z_test = Z_test, propensity_test = pi_test,
-#'                  rfx_group_ids_test = rfx_group_ids_test,
-#'                  rfx_basis_test = rfx_basis_test,
-#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10,
-#'                  prognostic_forest_params = mu_params,
-#'                  treatment_effect_forest_params = tau_params)
-#' bcf_json <- saveBCFModelToJson(bcf_model)
-#' bcf_model_roundtrip <- createBCFModelFromJson(bcf_json)
+#' @rdname BCFSerialization
 createBCFModelFromJson <- function(json_object) {
   # Initialize the BCF model
   output <- list()
@@ -4781,84 +4557,9 @@ createBCFModelFromJson <- function(json_object) {
 }
 
 #' @title Convert JSON File to BCF Model
-#' @description
-#' Convert a JSON file containing sample information on a trained BCF model
-#' to a BCF model object which can be used for prediction, etc...
-#'
 #' @param json_filename String of filepath, must end in ".json"
-#'
-#' @return Object of type `bcfmodel`
 #' @export
-#'
-#' @examples
-#' n <- 500
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' mu_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' pi_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
-#' )
-#' tau_x <- (
-#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
-#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
-#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
-#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
-#' )
-#' Z <- rbinom(n, 1, pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 3
-#' rfx_group_ids <- rep(c(1,2), n %/% 2)
-#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
-#' rfx_basis <- cbind(1, runif(n, -1, 1))
-#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
-#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' pi_test <- pi_x[test_inds]
-#' pi_train <- pi_x[train_inds]
-#' Z_test <- Z[test_inds]
-#' Z_train <- Z[train_inds]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' mu_test <- mu_x[test_inds]
-#' mu_train <- mu_x[train_inds]
-#' tau_test <- tau_x[test_inds]
-#' tau_train <- tau_x[train_inds]
-#' rfx_group_ids_test <- rfx_group_ids[test_inds]
-#' rfx_group_ids_train <- rfx_group_ids[train_inds]
-#' rfx_basis_test <- rfx_basis[test_inds,]
-#' rfx_basis_train <- rfx_basis[train_inds,]
-#' rfx_term_test <- rfx_term[test_inds]
-#' rfx_term_train <- rfx_term[train_inds]
-#' mu_params <- list(sample_sigma2_leaf = TRUE)
-#' tau_params <- list(sample_sigma2_leaf = FALSE)
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
-#'                  propensity_train = pi_train,
-#'                  rfx_group_ids_train = rfx_group_ids_train,
-#'                  rfx_basis_train = rfx_basis_train, X_test = X_test,
-#'                  Z_test = Z_test, propensity_test = pi_test,
-#'                  rfx_group_ids_test = rfx_group_ids_test,
-#'                  rfx_basis_test = rfx_basis_test,
-#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10,
-#'                  prognostic_forest_params = mu_params,
-#'                  treatment_effect_forest_params = tau_params)
-#' tmpjson <- tempfile(fileext = ".json")
-#' saveBCFModelToJsonFile(bcf_model, file.path(tmpjson))
-#' bcf_model_roundtrip <- createBCFModelFromJsonFile(file.path(tmpjson))
-#' unlink(tmpjson)
+#' @rdname BCFSerialization
 createBCFModelFromJsonFile <- function(json_filename) {
   # Load a `CppJson` object from file
   bcf_json <- createCppJsonFile(json_filename)
@@ -4870,78 +4571,9 @@ createBCFModelFromJsonFile <- function(json_filename) {
 }
 
 #' @title Convert JSON String to BCF Model
-#' @description
-#' Convert a JSON string containing sample information on a trained BCF model
-#' to a BCF model object which can be used for prediction, etc...
-#'
 #' @param json_string JSON string dump
-#'
-#' @return Object of type `bcfmodel`
 #' @export
-#'
-#' @examples
-#' n <- 500
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' mu_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' pi_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
-#' )
-#' tau_x <- (
-#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
-#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
-#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
-#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
-#' )
-#' Z <- rbinom(n, 1, pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 3
-#' rfx_group_ids <- rep(c(1,2), n %/% 2)
-#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
-#' rfx_basis <- cbind(1, runif(n, -1, 1))
-#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
-#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' pi_test <- pi_x[test_inds]
-#' pi_train <- pi_x[train_inds]
-#' Z_test <- Z[test_inds]
-#' Z_train <- Z[train_inds]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' mu_test <- mu_x[test_inds]
-#' mu_train <- mu_x[train_inds]
-#' tau_test <- tau_x[test_inds]
-#' tau_train <- tau_x[train_inds]
-#' rfx_group_ids_test <- rfx_group_ids[test_inds]
-#' rfx_group_ids_train <- rfx_group_ids[train_inds]
-#' rfx_basis_test <- rfx_basis[test_inds,]
-#' rfx_basis_train <- rfx_basis[train_inds,]
-#' rfx_term_test <- rfx_term[test_inds]
-#' rfx_term_train <- rfx_term[train_inds]
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
-#'                  propensity_train = pi_train,
-#'                  rfx_group_ids_train = rfx_group_ids_train,
-#'                  rfx_basis_train = rfx_basis_train, X_test = X_test,
-#'                  Z_test = Z_test, propensity_test = pi_test,
-#'                  rfx_group_ids_test = rfx_group_ids_test,
-#'                  rfx_basis_test = rfx_basis_test,
-#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' bcf_json <- saveBCFModelToJsonString(bcf_model)
-#' bcf_model_roundtrip <- createBCFModelFromJsonString(bcf_json)
+#' @rdname BCFSerialization
 createBCFModelFromJsonString <- function(json_string) {
   # Load a `CppJson` object from string
   bcf_json <- createCppJsonString(json_string)
@@ -4953,78 +4585,9 @@ createBCFModelFromJsonString <- function(json_string) {
 }
 
 #' @title Convert JSON List to BCF Model
-#' @description
-#' Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object
-#' which can be used for prediction, etc...
-#'
 #' @param json_object_list List of objects of type `CppJson` containing Json representation of a BCF model
-#'
-#' @return Object of type `bcfmodel`
 #' @export
-#'
-#' @examples
-#' n <- 500
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' mu_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' pi_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
-#' )
-#' tau_x <- (
-#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
-#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
-#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
-#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
-#' )
-#' Z <- rbinom(n, 1, pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 3
-#' rfx_group_ids <- rep(c(1,2), n %/% 2)
-#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
-#' rfx_basis <- cbind(1, runif(n, -1, 1))
-#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
-#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' pi_test <- pi_x[test_inds]
-#' pi_train <- pi_x[train_inds]
-#' Z_test <- Z[test_inds]
-#' Z_train <- Z[train_inds]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' mu_test <- mu_x[test_inds]
-#' mu_train <- mu_x[train_inds]
-#' tau_test <- tau_x[test_inds]
-#' tau_train <- tau_x[train_inds]
-#' rfx_group_ids_test <- rfx_group_ids[test_inds]
-#' rfx_group_ids_train <- rfx_group_ids[train_inds]
-#' rfx_basis_test <- rfx_basis[test_inds,]
-#' rfx_basis_train <- rfx_basis[train_inds,]
-#' rfx_term_test <- rfx_term[test_inds]
-#' rfx_term_train <- rfx_term[train_inds]
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
-#'                  propensity_train = pi_train,
-#'                  rfx_group_ids_train = rfx_group_ids_train,
-#'                  rfx_basis_train = rfx_basis_train, X_test = X_test,
-#'                  Z_test = Z_test, propensity_test = pi_test,
-#'                  rfx_group_ids_test = rfx_group_ids_test,
-#'                  rfx_basis_test = rfx_basis_test,
-#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' bcf_json_list <- list(saveBCFModelToJson(bcf_model))
-#' bcf_model_roundtrip <- createBCFModelFromCombinedJson(bcf_json_list)
+#' @rdname BCFSerialization
 createBCFModelFromCombinedJson <- function(json_object_list) {
   # Initialize the BCF model
   output <- list()
@@ -5306,78 +4869,9 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
 }
 
 #' @title Convert JSON String List to BCF Model
-#' @description
-#' Convert a list of (in-memory) JSON strings that represent BCF models to a single combined BCF model object
-#' which can be used for prediction, etc...
-#'
 #' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BCF model
-#'
-#' @return Object of type `bcfmodel`
 #' @export
-#'
-#' @examples
-#' n <- 500
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' mu_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' pi_x <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (0.2) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (0.4) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (0.6) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (0.8)
-#' )
-#' tau_x <- (
-#'     ((0 <= X[,2]) & (0.25 > X[,2])) * (0.5) +
-#'     ((0.25 <= X[,2]) & (0.5 > X[,2])) * (1.0) +
-#'     ((0.5 <= X[,2]) & (0.75 > X[,2])) * (1.5) +
-#'     ((0.75 <= X[,2]) & (1 > X[,2])) * (2.0)
-#' )
-#' Z <- rbinom(n, 1, pi_x)
-#' E_XZ <- mu_x + Z*tau_x
-#' snr <- 3
-#' rfx_group_ids <- rep(c(1,2), n %/% 2)
-#' rfx_coefs <- matrix(c(-1, -1, 1, 1), nrow=2, byrow=TRUE)
-#' rfx_basis <- cbind(1, runif(n, -1, 1))
-#' rfx_term <- rowSums(rfx_coefs[rfx_group_ids,] * rfx_basis)
-#' y <- E_XZ + rfx_term + rnorm(n, 0, 1)*(sd(E_XZ)/snr)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' pi_test <- pi_x[test_inds]
-#' pi_train <- pi_x[train_inds]
-#' Z_test <- Z[test_inds]
-#' Z_train <- Z[train_inds]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' mu_test <- mu_x[test_inds]
-#' mu_train <- mu_x[train_inds]
-#' tau_test <- tau_x[test_inds]
-#' tau_train <- tau_x[train_inds]
-#' rfx_group_ids_test <- rfx_group_ids[test_inds]
-#' rfx_group_ids_train <- rfx_group_ids[train_inds]
-#' rfx_basis_test <- rfx_basis[test_inds,]
-#' rfx_basis_train <- rfx_basis[train_inds,]
-#' rfx_term_test <- rfx_term[test_inds]
-#' rfx_term_train <- rfx_term[train_inds]
-#' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
-#'                  propensity_train = pi_train,
-#'                  rfx_group_ids_train = rfx_group_ids_train,
-#'                  rfx_basis_train = rfx_basis_train, X_test = X_test,
-#'                  Z_test = Z_test, propensity_test = pi_test,
-#'                  rfx_group_ids_test = rfx_group_ids_test,
-#'                  rfx_basis_test = rfx_basis_test,
-#'                  num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' bcf_json_string_list <- list(saveBCFModelToJsonString(bcf_model))
-#' bcf_model_roundtrip <- createBCFModelFromCombinedJsonString(bcf_json_string_list)
+#' @rdname BCFSerialization
 createBCFModelFromCombinedJsonString <- function(json_string_list) {
   # Initialize the BCF model
   output <- list()
