@@ -3354,7 +3354,7 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
   return(result)
 }
 
-#' @title Extract BART Parameter Samples.
+#' @title Extract BART Parameter Samples
 #' @description Extract a vector, matrix or array of parameter samples from a BART model by name.
 #' Random effects are handled by a separate `getRandomEffectSamples` function due to the complexity of the random effects parameters.
 #' If the requested model term is not found, an error is thrown.

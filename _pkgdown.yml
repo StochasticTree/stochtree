@@ -18,6 +18,7 @@ reference:
   - compute_bart_posterior_interval
   - compute_contrast_bart_model
   - sample_bart_posterior_predictive
+  - BARTSerialization
 
 - title: Causal inference
   desc: >
@@ -33,6 +34,7 @@ reference:
   - compute_bcf_posterior_interval
   - compute_contrast_bcf_model
   - sample_bcf_posterior_predictive
+  - BCFSerialization
 
 - title: Low-level functionality
 
@@ -52,22 +54,6 @@ reference:
   - loadRandomEffectSamplesJson
   - loadRandomEffectSamplesCombinedJson
   - loadRandomEffectSamplesCombinedJsonString
-  - saveBARTModelToJson
-  - saveBARTModelToJsonFile
-  - saveBARTModelToJsonString
-  - createBARTModelFromJson
-  - createBARTModelFromJsonFile
-  - createBARTModelFromJsonString
-  - createBARTModelFromCombinedJson
-  - createBARTModelFromCombinedJsonString
-  - saveBCFModelToJson
-  - saveBCFModelToJsonFile
-  - saveBCFModelToJsonString
-  - createBCFModelFromJsonFile
-  - createBCFModelFromJsonString
-  - createBCFModelFromJson
-  - createBCFModelFromCombinedJson
-  - createBCFModelFromCombinedJsonString
 
 - subtitle: Data
   desc: >
