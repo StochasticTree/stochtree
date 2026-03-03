@@ -28,11 +28,11 @@ resetForestModel(forest_model, forest, dataset, residual, is_mean_model)
 \item{is_mean_model}{Whether the model being updated is a conditional mean model}
 }
 \value{
-Both function have no return type and operate in-place on the relevant \link{Forest} or \link{ForestModel} objects
+Both functions have no return type and operate in-place on the relevant \link{Forest} or \link{ForestModel} objects
 }
 \description{
 A forest sampler features two types of state: ephemeral and persistent.
-Persistent state includes things like \link{ForestSamples} and \link{RandomEffectSamples} objects
+Persistent state includes objects like \link{ForestSamples} and \link{RandomEffectSamples}
 which constitute part of the final sampled model.
 Ephemeral state supports the sampling computations, but is not retained after the sampler finishes.
 

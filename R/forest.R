@@ -2,7 +2,7 @@
 #' @name ForestStateManagement
 #' @description
 #' A forest sampler features two types of state: ephemeral and persistent.
-#' Persistent state includes things like [ForestSamples] and [RandomEffectSamples] objects
+#' Persistent state includes objects like [ForestSamples] and [RandomEffectSamples]
 #' which constitute part of the final sampled model.
 #' Ephemeral state supports the sampling computations, but is not retained after the sampler finishes.
 #'
@@ -23,7 +23,7 @@
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
 #' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #' @returns
-#' Both function have no return type and operate in-place on the relevant [Forest] or [ForestModel] objects
+#' Both functions have no return type and operate in-place on the relevant [Forest] or [ForestModel] objects
 #' @examples
 #' n <- 100
 #' p <- 10
