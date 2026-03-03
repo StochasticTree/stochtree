@@ -76,11 +76,12 @@ loading a new combined BCF model from a list of BCF JSON objects or strings.
 n <- 100
 p <- 5
 X <- matrix(runif(n*p), ncol = p)
-Z <- rbinom(n, p = 0.5, size = 1)
+pi_X <- runif(n, 0.3, 0.7)
+Z <- rbinom(n, p = pi_X, size = 1)
 y <- X[,1] + Z + rnorm(n, 0, 1)
 
 # Sample BCF model
-bcf_model <- bcf(X_train = X, Z_train = Z, y_train = y,
+bcf_model <- bcf(X_train = X, Z_train = Z, propensity_train = pi_X, y_train = y,
                  num_gfr = 0, num_burnin = 0, num_mcmc = 10)
 
 # Save to in-memory JSON
