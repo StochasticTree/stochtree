@@ -1,6 +1,6 @@
 # Changelog
 
-# stochtree 0.3.1-dev
+# stochtree 0.4.0
 
 ## New Features
 

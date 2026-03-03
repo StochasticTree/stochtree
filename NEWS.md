@@ -1,4 +1,4 @@
-# stochtree 0.3.1.9000
+# stochtree 0.4.0
 
 ## New Features
 
