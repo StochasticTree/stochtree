@@ -67,7 +67,8 @@ Following the API for serializing \code{bartmodel} and \code{bcfmodel} objects, 
 via \code{createPreprocessorFromJson} and \code{createPreprocessorFromJsonString}.
 }
 \examples{
-# Check that running the same data through `preprocessTrainData` and `preprocessPredictionData` yields the same result
+# Check that running the same data through `preprocessTrainData`
+# and `preprocessPredictionData` yields the same result
 n <- 100
 x1 <- rnorm(n)
 x2 <- factor(sample(1:3, n, replace = TRUE), ordered = TRUE)
