@@ -13,11 +13,12 @@ reference:
   - print.bartmodel
   - summary.bartmodel
   - plot.bartmodel
-  - extract_parameter.bartmodel
+  - extractParameter.bartmodel
   - getRandomEffectSamples.bartmodel
-  - compute_bart_posterior_interval
-  - compute_contrast_bart_model
-  - sample_bart_posterior_predictive
+  - computeBARTPosteriorInterval
+  - computeContrastBARTModel
+  - sampleBARTPosteriorPredictive
+  - BARTSerialization
 
 - title: Causal inference
   desc: >
@@ -28,11 +29,12 @@ reference:
   - print.bcfmodel
   - summary.bcfmodel
   - plot.bcfmodel
-  - extract_parameter.bcfmodel
+  - extractParameter.bcfmodel
   - getRandomEffectSamples.bcfmodel
-  - compute_bcf_posterior_interval
-  - compute_contrast_bcf_model
-  - sample_bcf_posterior_predictive
+  - computeBCFPosteriorInterval
+  - computeContrastBCFModel
+  - sampleBCFPosteriorPredictive
+  - BCFSerialization
 
 - title: Low-level functionality
 
@@ -52,22 +54,6 @@ reference:
   - loadRandomEffectSamplesJson
   - loadRandomEffectSamplesCombinedJson
   - loadRandomEffectSamplesCombinedJsonString
-  - saveBARTModelToJson
-  - saveBARTModelToJsonFile
-  - saveBARTModelToJsonString
-  - createBARTModelFromJson
-  - createBARTModelFromJsonFile
-  - createBARTModelFromJsonString
-  - createBARTModelFromCombinedJson
-  - createBARTModelFromCombinedJsonString
-  - saveBCFModelToJson
-  - saveBCFModelToJsonFile
-  - saveBCFModelToJsonString
-  - createBCFModelFromJsonFile
-  - createBCFModelFromJsonString
-  - createBCFModelFromJson
-  - createBCFModelFromCombinedJson
-  - createBCFModelFromCombinedJsonString
 
 - subtitle: Data
   desc: >
@@ -79,12 +65,7 @@ reference:
   - createOutcome
   - RandomEffectsDataset
   - createRandomEffectsDataset
-  - preprocessTrainData
-  - preprocessPredictionData
-  - convertPreprocessorToJson
-  - savePreprocessorToJsonString
-  - createPreprocessorFromJson
-  - createPreprocessorFromJsonString
+  - DataPreprocessing
 
 - subtitle: Forest
   desc: >
@@ -104,11 +85,8 @@ reference:
   - CppRNG
   - createCppRNG
   - calibrateInverseGammaErrorVariance
-  - computeForestMaxLeafIndex
-  - computeForestLeafIndices
-  - computeForestLeafVariances
-  - resetActiveForest
-  - resetForestModel
+  - ForestKernelComputation
+  - ForestStateManagement
 
 - subtitle: Random Effects
   desc: >
@@ -124,18 +102,15 @@ reference:
   - getRandomEffectSamples
   - sampleGlobalErrorVarianceOneIteration
   - sampleLeafVarianceOneIteration
-  - resetRandomEffectsModel
-  - resetRandomEffectsTracker
-  - rootResetRandomEffectsModel
-  - rootResetRandomEffectsTracker
+  - RandomEffectStateManagement
 
 - subtitle: Utilities
   desc: >
     Miscellaneous "utility" classes and functions
   contents:
-  - outcome_model
+  - OutcomeModel
   - sample_without_replacement
-  - extract_parameter
+  - extractParameter
 
 - title: Package info
   desc: >

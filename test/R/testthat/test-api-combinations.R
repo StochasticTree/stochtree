@@ -32,7 +32,7 @@ run_bart_factorial <- function(
   general_params <- list(
     num_chains = num_chains,
     sample_sigma2_global = sampling_global_error_scale,
-    outcome_model = outcome_model(outcome = outcome_type)
+    outcome_model = OutcomeModel(outcome = outcome_type)
   )
   mean_forest_params <- list(
     sample_sigma2_leaf = sampling_leaf_scale
@@ -99,7 +99,7 @@ run_bart_factorial <- function(
   )
 
   # Compute intervals
-  posterior_interval <- compute_bart_posterior_interval(
+  posterior_interval <- computeBARTPosteriorInterval(
     bart_model,
     terms = "all",
     level = 0.95,
@@ -111,7 +111,7 @@ run_bart_factorial <- function(
   )
 
   # Sample posterior predictive
-  posterior_predictive_draws <- sample_bart_posterior_predictive(
+  posterior_predictive_draws <- sampleBARTPosteriorPredictive(
     bart_model,
     X = X_test,
     leaf_basis = leaf_basis_test,
@@ -159,7 +159,7 @@ run_bcf_factorial <- function(
   general_params <- list(
     num_chains = num_chains,
     sample_sigma2_global = sampling_global_error_scale,
-    outcome_model = outcome_model(outcome = outcome_type),
+    outcome_model = OutcomeModel(outcome = outcome_type),
     adaptive_coding = adaptive_coding
   )
   mu_forest_params <- list(
@@ -235,7 +235,7 @@ run_bcf_factorial <- function(
   )
 
   # Compute intervals
-  posterior_interval <- compute_bcf_posterior_interval(
+  posterior_interval <- computeBCFPosteriorInterval(
     bcf_model,
     terms = "all",
     level = 0.95,
@@ -248,7 +248,7 @@ run_bcf_factorial <- function(
   )
 
   # Sample posterior predictive
-  posterior_predictive_draws <- sample_bcf_posterior_predictive(
+  posterior_predictive_draws <- sampleBCFPosteriorPredictive(
     bcf_model,
     X = X_test,
     Z = Z_test,

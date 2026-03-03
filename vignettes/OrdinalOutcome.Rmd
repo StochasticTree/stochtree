@@ -96,7 +96,7 @@ y_test <- y[test_idx]
 
 ## Model Fitting
 
-We specify the cloglog link function for modeling an ordinal outcome by setting `outcome_model=outcome_model(outcome="ordinal", link="cloglog")` in the `general_params` argument list. Since ordinal outcomes are incompatible with the Gaussian global error variance model, we also set `sample_sigma2_global=FALSE`.
+We specify the cloglog link function for modeling an ordinal outcome by setting `outcome_model=OutcomeModel(outcome="ordinal", link="cloglog")` in the `general_params` argument list. Since ordinal outcomes are incompatible with the Gaussian global error variance model, we also set `sample_sigma2_global=FALSE`.
 
 We also override the default `num_trees` for the mean forest (200) in favor of greater regularization for the ordinal model and set `sample_sigma2_leaf=FALSE`.
 
@@ -116,7 +116,7 @@ bart_model <- bart(
     num_chains = 1,
     verbose = FALSE,
     random_seed = random_seed,
-    outcome_model = outcome_model(outcome = 'ordinal', link = 'cloglog')
+    outcome_model = OutcomeModel(outcome = 'ordinal', link = 'cloglog')
   ),
   mean_forest_params = list(num_trees = 50, sample_sigma2_leaf = FALSE)
 )
@@ -147,7 +147,7 @@ est_probs_test <- predict(
 
 Since one of the "cutpoints" is fixed for identifiability, we plot the posterior distributions of the other two cutpoints and compare them to their true simulated values (blue dotted lines).
 
-The cutpoint samples are accessed via `extract_parameter(bart_model, "cloglog_cutpoints")` (shape: `(n_categories - 1, num_samples)`) and are shifted by the per-sample mean of the training predictions to account for the non-identifiable intercept.
+The cutpoint samples are accessed via `extractParameter(bart_model, "cloglog_cutpoints")` (shape: `(n_categories - 1, num_samples)`) and are shifted by the per-sample mean of the training predictions to account for the non-identifiable intercept.
 
 ```{r}
 y_hat_train_post <- predict(
@@ -157,7 +157,7 @@ y_hat_train_post <- predict(
   terms = "y_hat",
   type = "posterior"
 )
-cutpoint_samples <- extract_parameter(bart_model, "cloglog_cutpoints")
+cutpoint_samples <- extractParameter(bart_model, "cloglog_cutpoints")
 gamma1 <- cutpoint_samples[1, ] + colMeans(y_hat_train_post)
 hist(
   gamma1,

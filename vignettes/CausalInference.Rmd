@@ -1575,7 +1575,7 @@ num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(
   keep_every = 5,
-  outcome_model = outcome_model(outcome = "binary", link = "probit"),
+  outcome_model = OutcomeModel(outcome = "binary", link = "probit"),
   sample_sigma2_global = F
 )
 prognostic_forest_params <- list(sample_sigma2_leaf = F)
@@ -1662,7 +1662,7 @@ num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(
   keep_every = 5,
-  outcome_model = outcome_model(outcome = "binary", link = "probit"),
+  outcome_model = OutcomeModel(outcome = "binary", link = "probit"),
   sample_sigma2_global = F
 )
 prognostic_forest_params <- list(sample_sigma2_leaf = F)

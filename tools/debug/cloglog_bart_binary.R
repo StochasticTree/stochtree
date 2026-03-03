@@ -61,7 +61,7 @@ runtime <- system.time({
       keep_every = 1,
       num_chains = 1,
       verbose = FALSE,
-      outcome_model = outcome_model(outcome = 'binary', link = 'cloglog')
+      outcome_model = OutcomeModel(outcome = 'binary', link = 'cloglog')
     ),
     mean_forest_params = list(num_trees = 50)
   )
@@ -152,7 +152,7 @@ text(
 # Evaluate test set posterior interval coverage of lambda(x)
 par(mfrow = c(1, 1))
 preds <- predict(bart_model, X = X_test, terms = "y_hat", scale = "linear")
-linear_interval <- compute_bart_posterior_interval(
+linear_interval <- computeBARTPosteriorInterval(
   bart_model,
   X = X_test,
   terms = "y_hat",
@@ -176,7 +176,7 @@ linear_coverage <- (((linear_interval$lower) <=
 mean(linear_coverage)
 
 # Evaluate test set posterior interval coverage of survival function
-probability_interval <- compute_bart_posterior_interval(
+probability_interval <- computeBARTPosteriorInterval(
   bart_model,
   X = X_test,
   terms = "y_hat",
@@ -190,14 +190,14 @@ mean(probability_coverage)
 # Compute test set prediction contrast on probability scale
 X0 <- X_test
 X1 <- X_test + 1
-linear_contrast <- compute_contrast_bart_model(
+linear_contrast <- computeContrastBARTModel(
   bart_model,
   X_0 = X0,
   X_1 = X1,
   type = "posterior",
   scale = "linear"
 )
-probability_contrast <- compute_contrast_bart_model(
+probability_contrast <- computeContrastBARTModel(
   bart_model,
   X_0 = X0,
   X_1 = X1,
@@ -206,7 +206,7 @@ probability_contrast <- compute_contrast_bart_model(
 )
 
 # Sample from posterior predictive distribution
-y_ppd <- sample_bart_posterior_predictive(
+y_ppd <- sampleBARTPosteriorPredictive(
   bart_model,
   X = X_test,
   num_draws_per_sample = 100

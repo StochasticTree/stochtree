@@ -448,7 +448,7 @@ num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(
   sample_sigma2_global = F,
-  outcome_model = outcome_model(outcome = "binary", link = "probit")
+  outcome_model = OutcomeModel(outcome = "binary", link = "probit")
 )
 mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 100)
 bart_model_warmstart <- stochtree::bart(
@@ -542,7 +542,7 @@ num_mcmc <- 100
 num_samples <- num_gfr + num_burnin + num_mcmc
 general_params <- list(
   sample_sigma2_global = F,
-  outcome_model = outcome_model(outcome = "binary", link = "probit")
+  outcome_model = OutcomeModel(outcome = "binary", link = "probit")
 )
 mean_forest_params <- list(sample_sigma2_leaf = F, num_trees = 100)
 bart_model_root <- stochtree::bart(

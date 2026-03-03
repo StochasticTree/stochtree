@@ -1,3 +1,72 @@
+#' Random Effects State Management Routines
+#' @name RandomEffectStateManagement
+#' @description
+#' A forest sampler features two types of state: ephemeral and persistent.
+#' Persistent state includes objects like [ForestSamples] and [RandomEffectSamples]
+#' which constitute part of the final sampled model.
+#' Ephemeral state supports the sampling computations, but is not retained after the sampler finishes.
+#'
+#' The two primary random-effects-based bits of ephemeral state are the [RandomEffectsModel] and [RandomEffectsTracker] classes,
+#' which represent the current state of a random effects model and its corresponding tracking data structures.
+#'
+#' In a linear sampling loop, this ephemeral state is updated with each iteration of the sampler
+#' and any retained forests are copied to a [RandomEffectSamples] object. However, in multi-chain settings,
+#' the state of a random effects model must typically be "reset" at the beginning of a new chain. These function enable
+#' this process by synchronizing the state of a [RandomEffectsModel] and [RandomEffectsTracker] with a corresponding element
+#' of a [RandomEffectSamples] object, or by resetting both to their default (root) state.
+#'
+#' `resetRandomEffectsModel` resets a `RandomEffectsModel` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object.
+#' `resetRandomEffectsTracker` resets a `RandomEffectsTracker` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object.
+#'
+#' `rootResetRandomEffectsModel` resets a `RandomEffectsModel` object to its "default" state.
+#' `rootResetRandomEffectsTracker` resets a `RandomEffectsTracker` object to its "default" state.
+#'
+#' These functions are intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
+#' @returns
+#' All four functions have no return type and operate in-place on the relevant [RandomEffectsModel] or [RandomEffectsTracker] objects
+#' @examples
+#' n <- 100
+#' p <- 10
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
+#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
+#' y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
+#' y_std <- (y-mean(y))/sd(y)
+#' outcome <- createOutcome(y_std)
+#' rng <- createCppRNG(1234)
+#' num_groups <- length(unique(rfx_group_ids))
+#' num_components <- ncol(rfx_basis)
+#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
+#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
+#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
+#' alpha_init <- rep(1,num_components)
+#' xi_init <- matrix(rep(alpha_init, num_groups),num_components,num_groups)
+#' sigma_alpha_init <- diag(1,num_components,num_components)
+#' sigma_xi_init <- diag(1,num_components,num_components)
+#' sigma_xi_shape <- 1
+#' sigma_xi_scale <- 1
+#' rfx_model$set_working_parameter(alpha_init)
+#' rfx_model$set_group_parameters(xi_init)
+#' rfx_model$set_working_parameter_cov(sigma_alpha_init)
+#' rfx_model$set_group_parameter_cov(sigma_xi_init)
+#' rfx_model$set_variance_prior_shape(sigma_xi_shape)
+#' rfx_model$set_variance_prior_scale(sigma_xi_scale)
+#' for (i in 1:3) {
+#'     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome,
+#'                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples,
+#'                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
+#' }
+#' resetRandomEffectsModel(rfx_model, rfx_samples, 0, 1.0)
+#' resetRandomEffectsTracker(rfx_tracker, rfx_model, rfx_dataset, outcome, rfx_samples)
+#' rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
+#'                             sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+#' rootResetRandomEffectsTracker(rfx_tracker, rfx_model, rfx_dataset, outcome)
+#'
+NULL
+#> NULL
+
 #' @title Random Effect Container C++ Wrapper
 #' @description
 #' Class that wraps the "persistent" aspects of a C++ random effects model, including
@@ -8,7 +77,7 @@
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @description
 #' Coordinates various C++ random effects classes and persists those
@@ -278,7 +347,7 @@ RandomEffectSamples <- R6::R6Class(
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 
 RandomEffectsTracker <- R6::R6Class(
   classname = "RandomEffectsTracker",
@@ -306,7 +375,7 @@ RandomEffectsTracker <- R6::R6Class(
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 
 RandomEffectsModel <- R6::R6Class(
   classname = "RandomEffectsModel",
@@ -463,13 +532,13 @@ RandomEffectsModel <- R6::R6Class(
   )
 )
 
-#' @title Create RandomEffectSamples Object
+#' @title Create RandomEffectSamples object
 #' @description
 #' Create a `RandomEffectSamples` object
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param num_components Number of "components" or bases defining the random effects regression
 #' @param num_groups Number of random effects groups
@@ -495,13 +564,13 @@ createRandomEffectSamples <- function(
   return(output)
 }
 
-#' @title Create RandomEffectsTracker Object
+#' @title Create RandomEffectsTracker object
 #' @description
 #' Create a `RandomEffectsTracker` object
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param rfx_group_indices Integer indices indicating groups used to define random effects
 #' @return `RandomEffectsTracker` object
@@ -518,13 +587,13 @@ createRandomEffectsTracker <- function(rfx_group_indices) {
   return(invisible((RandomEffectsTracker$new(rfx_group_indices))))
 }
 
-#' @title Create RandomEffectsModel Object
+#' @title Create RandomEffectsModel object
 #' @description
 #' Create a `RandomEffectsModel` object
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param num_components Number of "components" or bases defining the random effects regression
 #' @param num_groups Number of random effects groups
@@ -542,54 +611,13 @@ createRandomEffectsModel <- function(num_components, num_groups) {
   return(invisible((RandomEffectsModel$new(num_components, num_groups))))
 }
 
-#' @title Reset RandomEffectsModel Object
-#' @description
-#' Reset a `RandomEffectsModel` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Reset RandomEffectsModel object
+#' @rdname RandomEffectStateManagement
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param rfx_samples Object of type `RandomEffectSamples`.
 #' @param sample_num Index of sample stored in `rfx_samples` from which to reset the state of a random effects model. Zero-indexed, so resetting based on the first sample would require setting `sample_num = 0`.
 #' @param sigma_alpha_init Initial value of the "working parameter" scale parameter.
-#' @return None
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 10
-#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
-#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
-#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
-#' y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
-#' y_std <- (y-mean(y))/sd(y)
-#' outcome <- createOutcome(y_std)
-#' rng <- createCppRNG(1234)
-#' num_groups <- length(unique(rfx_group_ids))
-#' num_components <- ncol(rfx_basis)
-#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
-#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
-#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
-#' alpha_init <- rep(1,num_components)
-#' xi_init <- matrix(rep(alpha_init, num_groups),num_components,num_groups)
-#' sigma_alpha_init <- diag(1,num_components,num_components)
-#' sigma_xi_init <- diag(1,num_components,num_components)
-#' sigma_xi_shape <- 1
-#' sigma_xi_scale <- 1
-#' rfx_model$set_working_parameter(alpha_init)
-#' rfx_model$set_group_parameters(xi_init)
-#' rfx_model$set_working_parameter_cov(sigma_alpha_init)
-#' rfx_model$set_group_parameter_cov(sigma_xi_init)
-#' rfx_model$set_variance_prior_shape(sigma_xi_shape)
-#' rfx_model$set_variance_prior_scale(sigma_xi_scale)
-#' for (i in 1:3) {
-#'     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome,
-#'                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples,
-#'                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
-#' }
-#' resetRandomEffectsModel(rfx_model, rfx_samples, 0, 1.0)
 resetRandomEffectsModel <- function(
   rfx_model,
   rfx_samples,
@@ -610,56 +638,14 @@ resetRandomEffectsModel <- function(
   rfx_model$set_working_parameter_cov(sigma_alpha_init)
 }
 
-#' @title Reset RandomEffectsTracker Object
-#' @description
-#' Reset a `RandomEffectsTracker` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Reset RandomEffectsTracker object
+#' @rdname RandomEffectStateManagement
 #' @param rfx_tracker Object of type `RandomEffectsTracker`.
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param rfx_dataset Object of type `RandomEffectsDataset`.
 #' @param residual Object of type `Outcome`.
 #' @param rfx_samples Object of type `RandomEffectSamples`.
-#' @return None
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 10
-#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
-#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
-#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
-#' y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
-#' y_std <- (y-mean(y))/sd(y)
-#' outcome <- createOutcome(y_std)
-#' rng <- createCppRNG(1234)
-#' num_groups <- length(unique(rfx_group_ids))
-#' num_components <- ncol(rfx_basis)
-#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
-#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
-#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
-#' alpha_init <- rep(1,num_components)
-#' xi_init <- matrix(rep(alpha_init, num_groups),num_components,num_groups)
-#' sigma_alpha_init <- diag(1,num_components,num_components)
-#' sigma_xi_init <- diag(1,num_components,num_components)
-#' sigma_xi_shape <- 1
-#' sigma_xi_scale <- 1
-#' rfx_model$set_working_parameter(alpha_init)
-#' rfx_model$set_group_parameters(xi_init)
-#' rfx_model$set_working_parameter_cov(sigma_alpha_init)
-#' rfx_model$set_group_parameter_cov(sigma_xi_init)
-#' rfx_model$set_variance_prior_shape(sigma_xi_shape)
-#' rfx_model$set_variance_prior_scale(sigma_xi_scale)
-#' for (i in 1:3) {
-#'     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome,
-#'                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples,
-#'                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
-#' }
-#' resetRandomEffectsModel(rfx_model, rfx_samples, 0, 1.0)
-#' resetRandomEffectsTracker(rfx_tracker, rfx_model, rfx_dataset, outcome, rfx_samples)
 resetRandomEffectsTracker <- function(
   rfx_tracker,
   rfx_model,
@@ -675,14 +661,8 @@ resetRandomEffectsTracker <- function(
   )
 }
 
-#' @title Reset RandomEffectsModel Object to Default State
-#' @description
-#' Reset a `RandomEffectsModel` object to its "default" state
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Reset RandomEffectsModel object to default state
+#' @rdname RandomEffectStateManagement
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param alpha_init Initial value of the "working parameter".
 #' @param xi_init Initial value of the "group parameters".
@@ -690,43 +670,7 @@ resetRandomEffectsTracker <- function(
 #' @param sigma_xi_init Initial value of the "group parameters" scale parameter.
 #' @param sigma_xi_shape Shape parameter for the inverse gamma variance model on the group parameters.
 #' @param sigma_xi_scale Scale parameter for the inverse gamma variance model on the group parameters.
-#' @return None
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 10
-#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
-#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
-#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
-#' y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
-#' y_std <- (y-mean(y))/sd(y)
-#' outcome <- createOutcome(y_std)
-#' rng <- createCppRNG(1234)
-#' num_groups <- length(unique(rfx_group_ids))
-#' num_components <- ncol(rfx_basis)
-#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
-#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
-#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
-#' alpha_init <- rep(1,num_components)
-#' xi_init <- matrix(rep(alpha_init, num_groups),num_components,num_groups)
-#' sigma_alpha_init <- diag(1,num_components,num_components)
-#' sigma_xi_init <- diag(1,num_components,num_components)
-#' sigma_xi_shape <- 1
-#' sigma_xi_scale <- 1
-#' rfx_model$set_working_parameter(alpha_init)
-#' rfx_model$set_group_parameters(xi_init)
-#' rfx_model$set_working_parameter_cov(sigma_alpha_init)
-#' rfx_model$set_group_parameter_cov(sigma_xi_init)
-#' rfx_model$set_variance_prior_shape(sigma_xi_shape)
-#' rfx_model$set_variance_prior_scale(sigma_xi_scale)
-#' for (i in 1:3) {
-#'     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome,
-#'                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples,
-#'                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
-#' }
-#' rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
-#'                             sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
 rootResetRandomEffectsModel <- function(
   rfx_model,
   alpha_init,
@@ -744,56 +688,13 @@ rootResetRandomEffectsModel <- function(
   rfx_model$set_variance_prior_scale(sigma_xi_scale)
 }
 
-#' @title Reset RandomEffectsTracker Object to Default State
-#' @description
-#' Reset a `RandomEffectsTracker` object to its "default" state
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Reset RandomEffectsTracker object to default state
+#' @rdname RandomEffectStateManagement
 #' @param rfx_tracker Object of type `RandomEffectsTracker`.
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param rfx_dataset Object of type `RandomEffectsDataset`.
 #' @param residual Object of type `Outcome`.
-#' @return None
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 10
-#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
-#' rfx_basis <- matrix(rep(1.0, n), ncol=1)
-#' rfx_dataset <- createRandomEffectsDataset(rfx_group_ids, rfx_basis)
-#' y <- (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
-#' y_std <- (y-mean(y))/sd(y)
-#' outcome <- createOutcome(y_std)
-#' rng <- createCppRNG(1234)
-#' num_groups <- length(unique(rfx_group_ids))
-#' num_components <- ncol(rfx_basis)
-#' rfx_model <- createRandomEffectsModel(num_components, num_groups)
-#' rfx_tracker <- createRandomEffectsTracker(rfx_group_ids)
-#' rfx_samples <- createRandomEffectSamples(num_components, num_groups, rfx_tracker)
-#' alpha_init <- rep(1,num_components)
-#' xi_init <- matrix(rep(alpha_init, num_groups),num_components,num_groups)
-#' sigma_alpha_init <- diag(1,num_components,num_components)
-#' sigma_xi_init <- diag(1,num_components,num_components)
-#' sigma_xi_shape <- 1
-#' sigma_xi_scale <- 1
-#' rfx_model$set_working_parameter(alpha_init)
-#' rfx_model$set_group_parameters(xi_init)
-#' rfx_model$set_working_parameter_cov(sigma_alpha_init)
-#' rfx_model$set_group_parameter_cov(sigma_xi_init)
-#' rfx_model$set_variance_prior_shape(sigma_xi_shape)
-#' rfx_model$set_variance_prior_scale(sigma_xi_scale)
-#' for (i in 1:3) {
-#'     rfx_model$sample_random_effect(rfx_dataset=rfx_dataset, residual=outcome,
-#'                                    rfx_tracker=rfx_tracker, rfx_samples=rfx_samples,
-#'                                    keep_sample=TRUE, global_variance=1.0, rng=rng)
-#' }
-#' rootResetRandomEffectsModel(rfx_model, alpha_init, xi_init, sigma_alpha_init,
-#'                             sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
-#' rootResetRandomEffectsTracker(rfx_tracker, rfx_model, rfx_dataset, outcome)
 rootResetRandomEffectsTracker <- function(
   rfx_tracker,
   rfx_model,

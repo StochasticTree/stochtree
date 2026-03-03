@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{predict.bcfmodel}
 \alias{predict.bcfmodel}
-\title{Predict From BCF Model}
+\title{Predict from BCF model}
 \usage{
 \method{predict}{bcfmodel}(
   object,

@@ -1,4 +1,63 @@
-#' Internal function that creates a new outcome model object without validation.
+#' Data Preprocessing Routines
+#' @name DataPreprocessing
+#' @description
+#' The functions in this group are designed to handle data preprocessing for stochastic forest models.
+#' For example, factor-valued columns in data frames are either one-hot encoded or converted to integer indices
+#' before the dataframe is converted to a standard matrix format for sampling.
+#' This preprocessing routine defines a set of "steps" that must be repeated on out-of-sample datasets before
+#' predictions can be obtained from a sampling model.
+#'
+#' `preprocessTrainData` preprocesses covariates for the forest sampler routines, depending on the input type.
+#' DataFrames will be preprocessed based on their column types (numeric columns are not modified, ordered factors are
+#' integer coded, and unordered factors are one-hot encoded). Matrices are unmodified (assuming all columns are numeric).
+#' This function also records and returns a "metadata" list with preprocessing details to ensure that other datasets can be preprocessing identically.
+#'
+#' `preprocessPredictionData` preprocesses covariates for the forest sampler routines, based on the steps outlined in a metadata list produced by `preprocessTrainData`.
+#'
+#' These procedures are handled internally in the [bart()] and [bcf()] functions, but they are provided in `stochtree` as convenience functions for users writing custom samplers.
+#' Furthermore, while R lists can be serialized to `RDS` format, we offer a number of JSON serialization routines for the metadata list produced by `preprocessTrainData` for
+#' consistency with the broader serialization approach of stochtree (see [BARTSerialization] and [BCFSerialization]).
+#'
+#' Following the API for serializing `bartmodel` and `bcfmodel` objects, we can convert metadata to JSON or JSON strings via
+#' `savePreprocessorToJson` and `savePreprocessorToJsonString`. Similarly, we can reload a metadata list from JSON or JSON strings
+#' via `createPreprocessorFromJson` and `createPreprocessorFromJsonString`.
+#' @returns
+#' `preprocessTrainData` returns a list with transformed matrix data and a "metadata" list with details on the preprocessing procedures applied.
+#' `preprocessPredictionData` returns a matrix reflecting the data transformations specified in the provided metadata list.
+#'
+#' `savePreprocessorToJson` return an object of type `CppJson`.
+#' `savePreprocessorToJsonString` returns a string dump of the preprocessor's JSON representation.
+#'
+#' `createPreprocessorFromJson` and `createPreprocessorFromJsonString` both return metadata lists.
+#' @examples
+#' # Check that running the same data through `preprocessTrainData`
+#' # and `preprocessPredictionData` yields the same result
+#' n <- 100
+#' x1 <- rnorm(n)
+#' x2 <- factor(sample(1:3, n, replace = TRUE), ordered = TRUE)
+#' x3 <- factor(sample(1:3, n, replace = TRUE), ordered = FALSE)
+#' df1 <- data.frame(x1 = x1, x2 = x2, x3 = x3)
+#' df2 <- data.frame(x1 = x1, x2 = x2, x3 = x3)
+#' preprocess_train_list <- preprocessTrainData(df1)
+#' df1_process <- preprocess_train_list$data
+#' df1_metadata <- preprocess_train_list$metadata
+#' df2_process <- preprocessPredictionData(df2, df1_metadata)
+#' all.equal(df1_process, df2_process)
+#'
+#' # Save to in-memory JSON
+#' metadata_json <- savePreprocessorToJson(df1_metadata)
+#' # Save to JSON string
+#' metadata_json_string <- savePreprocessorToJsonString(df1_metadata)
+#'
+#' # Reload metadata list from in-memory JSON object
+#' metadata_roundtrip <- createPreprocessorFromJson(metadata_json)
+#' # Reload metadata list from JSON string
+#' metadata_roundtrip <- createPreprocessorFromJsonString(metadata_json_string)
+#'
+NULL
+#> NULL
+
+#' Internal function that creates a new outcome model object without validation
 #'
 #' @param outcome Character string specifying the outcome type.
 #' @param link Character string specifying the link function.
@@ -26,7 +85,7 @@ new_outcome_model <- function(outcome = "continuous", link = NULL) {
   )
 }
 
-#' Internal helper function validates whether an outcome model object is correctly specified.
+#' Internal helper function validates whether an outcome model object is correctly specified
 #'
 #' @param object Object of type `outcome_model`
 #'
@@ -45,7 +104,9 @@ validate_outcome_model <- function(object) {
   if (object$outcome == "continuous" && object$link != "identity") {
     stop("Link function must be 'identity' for continuous models")
   }
-  if (object$outcome == "binary" && !(object$link %in% c("probit", "cloglog"))) {
+  if (
+    object$outcome == "binary" && !(object$link %in% c("probit", "cloglog"))
+  ) {
     stop("Link function must be 'probit' or 'cloglog' for binary models")
   }
   if (object$outcome == "ordinal" && object$link != "cloglog") {
@@ -54,7 +115,7 @@ validate_outcome_model <- function(object) {
   object
 }
 
-#' Create a new outcome model object.
+#' Create a new outcome model object
 #'
 #' @param outcome Character string specifying the outcome type.
 #' @param link Character string specifying the link function.
@@ -63,8 +124,8 @@ validate_outcome_model <- function(object) {
 #' @export
 #'
 #' @examples
-#' my_model <- outcome_model(outcome = "continuous", link = "identity")
-outcome_model <- function(outcome = "continuous", link = NULL) {
+#' my_model <- OutcomeModel(outcome = "continuous", link = "identity")
+OutcomeModel <- function(outcome = "continuous", link = NULL) {
   validate_outcome_model(new_outcome_model(outcome, link))
 }
 
@@ -90,23 +151,10 @@ preprocessParams <- function(default_params, user_params = NULL) {
   return(default_params)
 }
 
-#' @title Preprocess Covariates for Model Training
-#' @description
-#' Preprocess covariates for use in a `ForestDataset` at train time.
-#' DataFrames will be preprocessed based on their column
-#' types. Matrices will be passed through assuming all columns are numeric.
-#'
+#' @title Preprocess covariates for model training
 #' @param input_data Covariates, provided as either a dataframe or a matrix
-#'
-#' @return List with preprocessed (unmodified) data and details on the number of each type
-#' of variable, unique categories associated with categorical variables, and the
-#' vector of feature types needed for calls to BART and BCF.
 #' @export
-#'
-#' @examples
-#' cov_mat <- matrix(1:12, ncol = 3)
-#' preprocess_list <- preprocessTrainData(cov_mat)
-#' X <- preprocess_list$X
+#' @rdname DataPreprocessing
 preprocessTrainData <- function(input_data) {
   # Input checks
   if ((!is.matrix(input_data)) && (!is.data.frame(input_data))) {
@@ -123,18 +171,12 @@ preprocessTrainData <- function(input_data) {
   return(output)
 }
 
-#' @title Preprocess Covariates for Model Prediction
-#' @description
-#' Preprocess covariates for use in a `ForestDataset` at prediction time.
-#' DataFrames will be preprocessed based on their column
-#' types. Matrices will be passed through assuming all columns are numeric.
-#'
+#' @title Preprocess covariates for model prediction
 #' @param input_data Covariates, provided as either a dataframe or a matrix
 #' @param metadata List containing information on variables, including train set
 #' categories for categorical variables
-#'
-#' @return Preprocessed data with categorical variables appropriately handled
 #' @export
+#' @rdname DataPreprocessing
 #'
 #' @examples
 #' cov_df <- data.frame(x1 = 1:5, x2 = 5:1, x3 = 6:10)
@@ -451,21 +493,12 @@ preprocessPredictionDataFrame <- function(input_df, metadata) {
   return(X)
 }
 
-#' @title Convert Covariate Preprocessor to CppJson
-#' @description
-#' Convert the persistent aspects of a covariate preprocessor to (in-memory) C++ JSON object
-#'
+#' @title Convert Covariate Preprocessor to [CppJson]
 #' @param object List containing information on variables, including train set
 #' categories for categorical variables
-#'
-#' @return wrapper around in-memory C++ JSON object
 #' @export
-#'
-#' @examples
-#' cov_mat <- matrix(1:12, ncol = 3)
-#' preprocess_list <- preprocessTrainData(cov_mat)
-#' preprocessor_json <- convertPreprocessorToJson(preprocess_list$metadata)
-convertPreprocessorToJson <- function(object) {
+#' @rdname DataPreprocessing
+savePreprocessorToJson <- function(object) {
   jsonobj <- createCppJson()
   if (is.null(object$feature_types)) {
     stop("This covariate preprocessor has not yet been fit")
@@ -522,41 +555,22 @@ convertPreprocessorToJson <- function(object) {
 }
 
 #' @title Convert Covariate Preprocessor to JSON String
-#' @description
-#' Convert the persistent aspects of a covariate preprocessor to (in-memory) JSON string
-#'
 #' @param object List containing information on variables, including train set
 #' categories for categorical variables
-#'
-#' @return in-memory JSON string
 #' @export
-#'
-#' @examples
-#' cov_mat <- matrix(1:12, ncol = 3)
-#' preprocess_list <- preprocessTrainData(cov_mat)
-#' preprocessor_json_string <- savePreprocessorToJsonString(preprocess_list$metadata)
+#' @rdname DataPreprocessing
 savePreprocessorToJsonString <- function(object) {
   # Convert to Json
-  jsonobj <- convertPreprocessorToJson(object)
+  jsonobj <- savePreprocessorToJson(object)
 
   # Dump to string
   return(jsonobj$return_json_string())
 }
 
 #' @title Reload Covariate Preprocessor from JSON String
-#' @description
-#' Reload a covariate preprocessor object from a JSON string containing a serialized preprocessor
-#'
 #' @param json_object in-memory wrapper around JSON C++ object containing covariate preprocessor metadata
-#'
-#' @returns Preprocessor object that can be used with the `preprocessPredictionData` function
 #' @export
-#'
-#' @examples
-#' cov_mat <- matrix(1:12, ncol = 3)
-#' preprocess_list <- preprocessTrainData(cov_mat)
-#' preprocessor_json <- convertPreprocessorToJson(preprocess_list$metadata)
-#' preprocessor_roundtrip <- createPreprocessorFromJson(preprocessor_json)
+#' @rdname DataPreprocessing
 createPreprocessorFromJson <- function(json_object) {
   # Initialize the metadata list
   metadata <- list()
@@ -621,19 +635,9 @@ createPreprocessorFromJson <- function(json_object) {
 }
 
 #' @title Reload Covariate Preprocessor from JSON String
-#' @description
-#' Reload a covariate preprocessor object from a JSON string containing a serialized preprocessor
-#'
 #' @param json_string in-memory JSON string containing covariate preprocessor metadata
-#'
-#' @return Preprocessor object that can be used with the `preprocessPredictionData` function
 #' @export
-#'
-#' @examples
-#' cov_mat <- matrix(1:12, ncol = 3)
-#' preprocess_list <- preprocessTrainData(cov_mat)
-#' preprocessor_json_string <- savePreprocessorToJsonString(preprocess_list$metadata)
-#' preprocessor_roundtrip <- createPreprocessorFromJsonString(preprocessor_json_string)
+#' @rdname DataPreprocessing
 createPreprocessorFromJsonString <- function(json_string) {
   # Load a `CppJson` object from string
   preprocessor_json <- createCppJsonString(json_string)

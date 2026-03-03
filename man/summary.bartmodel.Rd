@@ -2,7 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{summary.bartmodel}
 \alias{summary.bartmodel}
-\title{Summarize the BART model fit and sampled terms.}
+\title{Summarize BART model fit and parameters}
 \usage{
 \method{summary}{bartmodel}(object, ...)
 }

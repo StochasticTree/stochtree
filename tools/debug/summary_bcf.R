@@ -44,8 +44,8 @@ summary(bcf_model)
 plot(bcf_model)
 
 # Extract parameters
-extract_parameter(bcf_model, "sigma2")
-extract_parameter(bcf_model, "sigma2_leaf_mu")
-extract_parameter(bcf_model, "sigma2_leaf_tau")
-extract_parameter(bcf_model, "tau_hat_train")
-extract_parameter(bcf_model, "adaptive_coding")
+extractParameter(bcf_model, "sigma2")
+extractParameter(bcf_model, "sigma2_leaf_mu")
+extractParameter(bcf_model, "sigma2_leaf_tau")
+extractParameter(bcf_model, "tau_hat_train")
+extractParameter(bcf_model, "adaptive_coding")

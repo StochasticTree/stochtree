@@ -653,7 +653,7 @@ test_that("Probit BART", {
 
   # Fit probit model
   general_param_list <- list(
-    outcome_model = outcome_model(outcome = "binary", link = "probit"),
+    outcome_model = OutcomeModel(outcome = "binary", link = "probit"),
     sample_sigma2_global = F
   )
   mean_forest_param_list <- list(sample_sigma2_leaf = FALSE)
@@ -717,7 +717,7 @@ test_that("Cloglog Binary BART", {
 
   # Fit cloglog binary model (MCMC only)
   general_param_list <- list(
-    outcome_model = outcome_model(outcome = "binary", link = "cloglog"),
+    outcome_model = OutcomeModel(outcome = "binary", link = "cloglog"),
     sample_sigma2_global = FALSE,
     num_chains = 1
   )
@@ -827,7 +827,7 @@ test_that("Cloglog Binary BART with GFR", {
 
   # Fit cloglog binary model with GFR warmstart
   general_param_list <- list(
-    outcome_model = outcome_model(outcome = "binary", link = "cloglog"),
+    outcome_model = OutcomeModel(outcome = "binary", link = "cloglog"),
     sample_sigma2_global = FALSE,
     num_chains = 1
   )
@@ -870,7 +870,9 @@ test_that("Cloglog Ordinal BART", {
   true_probs[, 3] <- 1 - true_probs[, 1] - true_probs[, 2]
 
   # Generate ordinal outcomes (1-indexed)
-  y <- sapply(1:n, function(i) sample(1:n_categories, 1, prob = true_probs[i, ]))
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
 
   test_set_pct <- 0.2
   n_test <- round(test_set_pct * n)
@@ -884,7 +886,7 @@ test_that("Cloglog Ordinal BART", {
 
   # Fit cloglog ordinal model (MCMC only)
   general_param_list <- list(
-    outcome_model = outcome_model(outcome = "ordinal", link = "cloglog"),
+    outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog"),
     sample_sigma2_global = FALSE,
     num_chains = 1
   )
@@ -958,7 +960,9 @@ test_that("Cloglog Ordinal BART with GFR", {
   true_probs[, 3] <- 1 - true_probs[, 1] - true_probs[, 2]
 
   # Generate ordinal outcomes (1-indexed)
-  y <- sapply(1:n, function(i) sample(1:n_categories, 1, prob = true_probs[i, ]))
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
 
   test_set_pct <- 0.2
   n_test <- round(test_set_pct * n)
@@ -972,7 +976,7 @@ test_that("Cloglog Ordinal BART with GFR", {
 
   # Fit cloglog ordinal model with GFR warmstart
   general_param_list <- list(
-    outcome_model = outcome_model(outcome = "ordinal", link = "cloglog"),
+    outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog"),
     sample_sigma2_global = FALSE,
     num_chains = 1
   )
@@ -1022,7 +1026,7 @@ test_that("Cloglog BART multi-chain", {
 
   # Fit cloglog binary model with 2 chains
   general_param_list <- list(
-    outcome_model = outcome_model(outcome = "binary", link = "cloglog"),
+    outcome_model = OutcomeModel(outcome = "binary", link = "cloglog"),
     sample_sigma2_global = FALSE,
     num_chains = 2
   )
@@ -1060,7 +1064,9 @@ test_that("Cloglog BART JSON round-trip", {
   true_probs[, 2] <- exp(-exp(gamma_true[1] + f_X)) *
     (1 - exp(-exp(gamma_true[2] + f_X)))
   true_probs[, 3] <- 1 - true_probs[, 1] - true_probs[, 2]
-  y <- sapply(1:n, function(i) sample(1:n_categories, 1, prob = true_probs[i, ]))
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
 
   test_set_pct <- 0.2
   n_test <- round(test_set_pct * n)
@@ -1074,7 +1080,7 @@ test_that("Cloglog BART JSON round-trip", {
 
   # Fit cloglog ordinal model
   general_param_list <- list(
-    outcome_model = outcome_model(outcome = "ordinal", link = "cloglog"),
+    outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog"),
     sample_sigma2_global = FALSE,
     num_chains = 1
   )
@@ -1111,12 +1117,18 @@ test_that("Cloglog BART JSON round-trip", {
 
   # Check that forest predictions survive round-trip
   pred_orig <- predict(
-    bart_model, X = X_test, type = "posterior",
-    scale = "linear", terms = "y_hat"
+    bart_model,
+    X = X_test,
+    type = "posterior",
+    scale = "linear",
+    terms = "y_hat"
   )
   pred_loaded <- predict(
-    bart_model_loaded, X = X_test, type = "posterior",
-    scale = "linear", terms = "y_hat"
+    bart_model_loaded,
+    X = X_test,
+    type = "posterior",
+    scale = "linear",
+    terms = "y_hat"
   )
   expect_equal(pred_orig, pred_loaded)
 })

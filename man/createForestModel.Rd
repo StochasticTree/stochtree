@@ -2,7 +2,7 @@
 % Please edit documentation in R/model.R
 \name{createForestModel}
 \alias{createForestModel}
-\title{Create ForestModel Object}
+\title{Create ForestModel object}
 \usage{
 createForestModel(forest_dataset, forest_model_config, global_model_config)
 }
@@ -21,7 +21,7 @@ Create a forest model object
 
 This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \examples{
 num_trees <- 100

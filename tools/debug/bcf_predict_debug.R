@@ -74,7 +74,7 @@ y_hat_test <- predict(
 )
 
 # Compute intervals around model terms (including E[y | X, Z])
-y_hat_intervals <- compute_bcf_posterior_interval(
+y_hat_intervals <- computeBCFPosteriorInterval(
   model_object = bcf_model,
   scale = "linear",
   terms = c("all"),
@@ -92,7 +92,7 @@ y_hat_intervals <- compute_bcf_posterior_interval(
 
 # Posterior predictive coverage and MSE checks
 quantiles <- c(0.05, 0.95)
-ppd_samples <- sample_bcf_posterior_predictive(
+ppd_samples <- sampleBCFPosteriorPredictive(
   model_object = bcf_model,
   X = X_test,
   Z = Z_test,
@@ -175,7 +175,7 @@ y_hat_post_prob <- predict(
 )
 
 # Compute intervals on latent scale
-y_hat_intervals <- compute_bcf_posterior_interval(
+y_hat_intervals <- computeBCFPosteriorInterval(
   model_object = bcf_model,
   scale = "linear",
   terms = c("y_hat"),
@@ -186,7 +186,7 @@ y_hat_intervals <- compute_bcf_posterior_interval(
 )
 
 # Compute intervals on probability scale
-y_hat_prob_intervals <- compute_bcf_posterior_interval(
+y_hat_prob_intervals <- computeBCFPosteriorInterval(
   model_object = bcf_model,
   scale = "probability",
   terms = c("y_hat"),
@@ -213,7 +213,7 @@ lines(y_hat_prob_intervals$lower[sort_inds])
 lines(y_hat_prob_intervals$upper[sort_inds])
 
 # Draw from posterior predictive for covariates / treatment values in the test set
-ppd_samples <- sample_bcf_posterior_predictive(
+ppd_samples <- sampleBCFPosteriorPredictive(
   model_object = bcf_model,
   X = X_test,
   Z = Z_test,
@@ -356,7 +356,7 @@ tau_hat_test <- predict(
 all(abs(tau_hat_test - posterior_preds_test$tau_hat) < 0.0001)
 
 # Compute intervals for all of the model terms
-posterior_intervals_test <- compute_bcf_posterior_interval(
+posterior_intervals_test <- computeBCFPosteriorInterval(
   model_object = bcf_model,
   scale = "linear",
   terms = "all",
@@ -368,7 +368,7 @@ posterior_intervals_test <- compute_bcf_posterior_interval(
 )
 
 # Compute intervals for just the prognostic term
-prog_intervals_test <- compute_bcf_posterior_interval(
+prog_intervals_test <- computeBCFPosteriorInterval(
   model_object = bcf_model,
   scale = "linear",
   terms = "prognostic_function",
@@ -380,7 +380,7 @@ prog_intervals_test <- compute_bcf_posterior_interval(
 )
 
 # Compute intervals for just the CATE term
-cate_intervals_test <- compute_bcf_posterior_interval(
+cate_intervals_test <- computeBCFPosteriorInterval(
   model_object = bcf_model,
   scale = "linear",
   terms = "cate",
@@ -422,7 +422,7 @@ all(
 )
 
 # Check that the prog and CATE intervals are different from the mu and tau intervals
-mu_intervals_test <- compute_bcf_posterior_interval(
+mu_intervals_test <- computeBCFPosteriorInterval(
   model_object = bcf_model,
   scale = "linear",
   terms = "mu",
@@ -432,7 +432,7 @@ mu_intervals_test <- compute_bcf_posterior_interval(
   rfx_group_ids = rfx_group_ids_test,
   level = 0.95
 )
-tau_intervals_test <- compute_bcf_posterior_interval(
+tau_intervals_test <- computeBCFPosteriorInterval(
   model_object = bcf_model,
   scale = "linear",
   terms = "tau",

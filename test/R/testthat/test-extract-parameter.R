@@ -1,4 +1,4 @@
-test_that("extract_parameter.bartmodel", {
+test_that("extractParameter.bartmodel", {
   skip_on_cran()
 
   # Generate simulated data
@@ -27,10 +27,10 @@ test_that("extract_parameter.bartmodel", {
     general_params = list(sample_sigma2_global = TRUE),
     mean_forest_params = list(sample_sigma2_leaf = FALSE)
   )
-  s2 <- extract_parameter(bart_sigma2, "sigma2")
+  s2 <- extractParameter(bart_sigma2, "sigma2")
   expect_length(s2, num_mcmc)
-  expect_equal(s2, extract_parameter(bart_sigma2, "global_error_scale"))
-  expect_equal(s2, extract_parameter(bart_sigma2, "sigma2_global"))
+  expect_equal(s2, extractParameter(bart_sigma2, "global_error_scale"))
+  expect_equal(s2, extractParameter(bart_sigma2, "sigma2_global"))
 
   # sigma2_leaf / leaf_scale both return leaf-scale samples
   bart_leaf <- bart(
@@ -43,9 +43,9 @@ test_that("extract_parameter.bartmodel", {
     general_params = list(sample_sigma2_global = FALSE),
     mean_forest_params = list(sample_sigma2_leaf = TRUE)
   )
-  sl <- extract_parameter(bart_leaf, "sigma2_leaf")
+  sl <- extractParameter(bart_leaf, "sigma2_leaf")
   expect_length(sl, num_mcmc)
-  expect_equal(sl, extract_parameter(bart_leaf, "leaf_scale"))
+  expect_equal(sl, extractParameter(bart_leaf, "leaf_scale"))
 
   # y_hat_train returns matrix of shape (n_train, num_mcmc)
   bart_base <- bart(
@@ -58,11 +58,11 @@ test_that("extract_parameter.bartmodel", {
     general_params = list(sample_sigma2_global = FALSE),
     mean_forest_params = list(sample_sigma2_leaf = FALSE)
   )
-  yht <- extract_parameter(bart_base, "y_hat_train")
+  yht <- extractParameter(bart_base, "y_hat_train")
   expect_equal(dim(yht), c(n_train, num_mcmc))
 
   # y_hat_test returns matrix of shape (n_test, num_mcmc)
-  yhtest <- extract_parameter(bart_base, "y_hat_test")
+  yhtest <- extractParameter(bart_base, "y_hat_test")
   expect_equal(dim(yhtest), c(n_test, num_mcmc))
 
   # sigma2_x_train / var_x_train return variance forest in-sample predictions
@@ -77,14 +77,14 @@ test_that("extract_parameter.bartmodel", {
     mean_forest_params = list(sample_sigma2_leaf = FALSE),
     variance_forest_params = list(num_trees = 10)
   )
-  s2x_train <- extract_parameter(bart_var, "sigma2_x_train")
+  s2x_train <- extractParameter(bart_var, "sigma2_x_train")
   expect_equal(dim(s2x_train), c(n_train, num_mcmc))
-  expect_equal(s2x_train, extract_parameter(bart_var, "var_x_train"))
+  expect_equal(s2x_train, extractParameter(bart_var, "var_x_train"))
 
   # sigma2_x_test / var_x_test return variance forest test-set predictions
-  s2x_test <- extract_parameter(bart_var, "sigma2_x_test")
+  s2x_test <- extractParameter(bart_var, "sigma2_x_test")
   expect_equal(dim(s2x_test), c(n_test, num_mcmc))
-  expect_equal(s2x_test, extract_parameter(bart_var, "var_x_test"))
+  expect_equal(s2x_test, extractParameter(bart_var, "var_x_test"))
 
   # Error: sigma2 when not sampled
   bart_nosigma2 <- bart(
@@ -97,36 +97,36 @@ test_that("extract_parameter.bartmodel", {
     mean_forest_params = list(sample_sigma2_leaf = FALSE)
   )
   expect_error(
-    extract_parameter(bart_nosigma2, "sigma2"),
+    extractParameter(bart_nosigma2, "sigma2"),
     "global variance"
   )
 
   # Error: sigma2_leaf when not sampled
   expect_error(
-    extract_parameter(bart_nosigma2, "sigma2_leaf"),
+    extractParameter(bart_nosigma2, "sigma2_leaf"),
     "leaf variance"
   )
 
   # Error: y_hat_test without a test set
   expect_error(
-    extract_parameter(bart_nosigma2, "y_hat_test"),
+    extractParameter(bart_nosigma2, "y_hat_test"),
     "test set"
   )
 
   # Error: sigma2_x_train without variance forest
   expect_error(
-    extract_parameter(bart_nosigma2, "sigma2_x_train"),
+    extractParameter(bart_nosigma2, "sigma2_x_train"),
     "variance forest"
   )
 
   # Error: invalid term
   expect_error(
-    extract_parameter(bart_nosigma2, "not_a_real_term"),
+    extractParameter(bart_nosigma2, "not_a_real_term"),
     "not a valid BART model term"
   )
 })
 
-test_that("extract_parameter.bcfmodel", {
+test_that("extractParameter.bcfmodel", {
   skip_on_cran()
 
   # Generate simulated data
@@ -167,10 +167,10 @@ test_that("extract_parameter.bcfmodel", {
     num_mcmc = num_mcmc,
     general_params = list(sample_sigma2_global = TRUE)
   )
-  s2 <- extract_parameter(bcf_sigma2, "sigma2")
+  s2 <- extractParameter(bcf_sigma2, "sigma2")
   expect_length(s2, num_mcmc)
-  expect_equal(s2, extract_parameter(bcf_sigma2, "global_error_scale"))
-  expect_equal(s2, extract_parameter(bcf_sigma2, "sigma2_global"))
+  expect_equal(s2, extractParameter(bcf_sigma2, "global_error_scale"))
+  expect_equal(s2, extractParameter(bcf_sigma2, "sigma2_global"))
 
   # sigma2_leaf_mu / leaf_scale_mu / mu_leaf_scale for prognostic forest
   bcf_leaf_mu <- bcf(
@@ -188,10 +188,10 @@ test_that("extract_parameter.bcfmodel", {
     prognostic_forest_params = list(sample_sigma2_leaf = TRUE),
     treatment_effect_forest_params = list(sample_sigma2_leaf = FALSE)
   )
-  sl_mu <- extract_parameter(bcf_leaf_mu, "sigma2_leaf_mu")
+  sl_mu <- extractParameter(bcf_leaf_mu, "sigma2_leaf_mu")
   expect_length(sl_mu, num_mcmc)
-  expect_equal(sl_mu, extract_parameter(bcf_leaf_mu, "leaf_scale_mu"))
-  expect_equal(sl_mu, extract_parameter(bcf_leaf_mu, "mu_leaf_scale"))
+  expect_equal(sl_mu, extractParameter(bcf_leaf_mu, "leaf_scale_mu"))
+  expect_equal(sl_mu, extractParameter(bcf_leaf_mu, "mu_leaf_scale"))
 
   # sigma2_leaf_tau / leaf_scale_tau / tau_leaf_scale for treatment effect forest
   bcf_leaf_tau <- bcf(
@@ -209,10 +209,10 @@ test_that("extract_parameter.bcfmodel", {
     prognostic_forest_params = list(sample_sigma2_leaf = FALSE),
     treatment_effect_forest_params = list(sample_sigma2_leaf = TRUE)
   )
-  sl_tau <- extract_parameter(bcf_leaf_tau, "sigma2_leaf_tau")
+  sl_tau <- extractParameter(bcf_leaf_tau, "sigma2_leaf_tau")
   expect_length(sl_tau, num_mcmc)
-  expect_equal(sl_tau, extract_parameter(bcf_leaf_tau, "leaf_scale_tau"))
-  expect_equal(sl_tau, extract_parameter(bcf_leaf_tau, "tau_leaf_scale"))
+  expect_equal(sl_tau, extractParameter(bcf_leaf_tau, "leaf_scale_tau"))
+  expect_equal(sl_tau, extractParameter(bcf_leaf_tau, "tau_leaf_scale"))
 
   # adaptive_coding returns matrix with 2 rows (control, treated)
   bcf_ac <- bcf(
@@ -228,7 +228,7 @@ test_that("extract_parameter.bcfmodel", {
     num_mcmc = num_mcmc,
     general_params = list(sample_sigma2_global = FALSE, adaptive_coding = TRUE)
   )
-  ac <- extract_parameter(bcf_ac, "adaptive_coding")
+  ac <- extractParameter(bcf_ac, "adaptive_coding")
   expect_equal(dim(ac), c(2L, num_mcmc))
 
   # y_hat_train and y_hat_test
@@ -245,15 +245,15 @@ test_that("extract_parameter.bcfmodel", {
     num_mcmc = num_mcmc,
     general_params = list(sample_sigma2_global = FALSE)
   )
-  yht <- extract_parameter(bcf_base, "y_hat_train")
+  yht <- extractParameter(bcf_base, "y_hat_train")
   expect_equal(dim(yht), c(n_train, num_mcmc))
-  yhtest <- extract_parameter(bcf_base, "y_hat_test")
+  yhtest <- extractParameter(bcf_base, "y_hat_test")
   expect_equal(dim(yhtest), c(n_test, num_mcmc))
 
   # tau_hat_train and tau_hat_test
-  tht <- extract_parameter(bcf_base, "tau_hat_train")
+  tht <- extractParameter(bcf_base, "tau_hat_train")
   expect_equal(dim(tht), c(n_train, num_mcmc))
-  thtest <- extract_parameter(bcf_base, "tau_hat_test")
+  thtest <- extractParameter(bcf_base, "tau_hat_test")
   expect_equal(dim(thtest), c(n_test, num_mcmc))
 
   # sigma2_x_train / var_x_train and sigma2_x_test / var_x_test (variance forest)
@@ -271,13 +271,13 @@ test_that("extract_parameter.bcfmodel", {
     general_params = list(sample_sigma2_global = FALSE),
     variance_forest_params = list(num_trees = 10)
   )
-  s2x_train <- extract_parameter(bcf_var, "sigma2_x_train")
+  s2x_train <- extractParameter(bcf_var, "sigma2_x_train")
   expect_equal(dim(s2x_train), c(n_train, num_mcmc))
-  expect_equal(s2x_train, extract_parameter(bcf_var, "var_x_train"))
+  expect_equal(s2x_train, extractParameter(bcf_var, "var_x_train"))
 
-  s2x_test <- extract_parameter(bcf_var, "sigma2_x_test")
+  s2x_test <- extractParameter(bcf_var, "sigma2_x_test")
   expect_equal(dim(s2x_test), c(n_test, num_mcmc))
-  expect_equal(s2x_test, extract_parameter(bcf_var, "var_x_test"))
+  expect_equal(s2x_test, extractParameter(bcf_var, "var_x_test"))
 
   # Error: sigma2 when not sampled
   bcf_noextras <- bcf(
@@ -293,19 +293,19 @@ test_that("extract_parameter.bcfmodel", {
     treatment_effect_forest_params = list(sample_sigma2_leaf = FALSE)
   )
   expect_error(
-    extract_parameter(bcf_noextras, "sigma2"),
+    extractParameter(bcf_noextras, "sigma2"),
     "global variance"
   )
 
   # Error: sigma2_leaf_mu when not sampled
   expect_error(
-    extract_parameter(bcf_noextras, "sigma2_leaf_mu"),
+    extractParameter(bcf_noextras, "sigma2_leaf_mu"),
     "prognostic forest leaf variance"
   )
 
   # Error: sigma2_leaf_tau when not sampled
   expect_error(
-    extract_parameter(bcf_noextras, "sigma2_leaf_tau"),
+    extractParameter(bcf_noextras, "sigma2_leaf_tau"),
     "treatment effect forest leaf variance"
   )
 
@@ -321,31 +321,31 @@ test_that("extract_parameter.bcfmodel", {
     general_params = list(sample_sigma2_global = FALSE, adaptive_coding = FALSE)
   )
   expect_error(
-    extract_parameter(bcf_noac, "adaptive_coding"),
+    extractParameter(bcf_noac, "adaptive_coding"),
     "adaptive coding"
   )
 
   # Error: y_hat_test without a test set
   expect_error(
-    extract_parameter(bcf_noextras, "y_hat_test"),
+    extractParameter(bcf_noextras, "y_hat_test"),
     "test set"
   )
 
   # Error: tau_hat_test without a test set
   expect_error(
-    extract_parameter(bcf_noextras, "tau_hat_test"),
+    extractParameter(bcf_noextras, "tau_hat_test"),
     "test set"
   )
 
   # Error: sigma2_x_train without variance forest
   expect_error(
-    extract_parameter(bcf_noextras, "sigma2_x_train"),
+    extractParameter(bcf_noextras, "sigma2_x_train"),
     "variance forest"
   )
 
   # Error: invalid term
   expect_error(
-    extract_parameter(bcf_noextras, "not_a_real_term"),
+    extractParameter(bcf_noextras, "not_a_real_term"),
     "not a valid BCF model term"
   )
 })

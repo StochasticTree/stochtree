@@ -90,10 +90,10 @@ We can use the `plot()` function to produce a traceplot of model terms like the 
 plot(bart_model)
 ```
 
-For finer-grained control over which parameters to plot, we can also use the `extract_parameter()` function to pull the posterior distribution of any valid model term (e.g., global error scale $\sigma^2$, leaf scale $\sigma^2_{\ell}$, in-sample mean function predictions `y_hat_train`) and then plot any subset or transformation of these values.
+For finer-grained control over which parameters to plot, we can also use the `extractParameter()` function to pull the posterior distribution of any valid model term (e.g., global error scale $\sigma^2$, leaf scale $\sigma^2_{\ell}$, in-sample mean function predictions `y_hat_train`) and then plot any subset or transformation of these values.
 
 ```{r}
-y_hat_train_samples <- extract_parameter(bart_model, "y_hat_train")
+y_hat_train_samples <- extractParameter(bart_model, "y_hat_train")
 obs_index <- 1
 plot(
   y_hat_train_samples[obs_index, ],
@@ -163,10 +163,10 @@ We can use the `plot()` function to produce a traceplot of model terms like the 
 plot(bcf_model)
 ```
 
-For finer-grained control over which parameters to plot, we can also use the `extract_parameter()` function to pull the posterior distribution of any valid model term (e.g., global error scale $\sigma^2$, prognostic forest leaf scale $\sigma^2_{\mu}$, CATE forest leaf scale $\sigma^2_{\tau}$, adaptive coding parameters $b_0$ and $b_1$ for binary treatment, in-sample mean function predictions `y_hat_train`, in-sample CATE function predictions `tau_hat_train`) and then plot any subset or transformation of these values.
+For finer-grained control over which parameters to plot, we can also use the `extractParameter()` function to pull the posterior distribution of any valid model term (e.g., global error scale $\sigma^2$, prognostic forest leaf scale $\sigma^2_{\mu}$, CATE forest leaf scale $\sigma^2_{\tau}$, adaptive coding parameters $b_0$ and $b_1$ for binary treatment, in-sample mean function predictions `y_hat_train`, in-sample CATE function predictions `tau_hat_train`) and then plot any subset or transformation of these values.
 
 ```{r}
-adaptive_coding_samples <- extract_parameter(bcf_model, "adaptive_coding")
+adaptive_coding_samples <- extractParameter(bcf_model, "adaptive_coding")
 plot(
   adaptive_coding_samples[1, ],
   type = "l",

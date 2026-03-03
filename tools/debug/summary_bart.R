@@ -34,5 +34,5 @@ summary(bart_model)
 plot(bart_model)
 
 # Extract parameters
-sigma2_samples <- extract_parameter(bart_model, "sigma2")
-var_x_samples <- extract_parameter(bart_model, "var_x_train")
+sigma2_samples <- extractParameter(bart_model, "sigma2")
+var_x_samples <- extractParameter(bart_model, "var_x_train")
