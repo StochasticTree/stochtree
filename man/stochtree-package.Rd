@@ -6,7 +6,7 @@
 \alias{stochtree-package}
 \title{stochtree: Stochastic Tree Ensembles (XBART and BART) for Supervised Learning and Causal Inference}
 \description{
-Flexible stochastic tree ensemble software. Robust implementations of Bayesian Additive Regression Trees (BART) (Chipman, George, McCulloch (2010) \doi{10.1214/09-AOAS285}) for supervised learning and Bayesian Causal Forests (BCF) (Hahn, Murray, Carvalho (2020) \doi{10.1214/19-BA1195}) for causal inference. Enables model serialization and parallel sampling and provides a low-level interface for custom stochastic forest samplers.
+Flexible stochastic tree ensemble software. Robust implementations of Bayesian Additive Regression Trees (BART) (Chipman, George, McCulloch (2010) doi:10.1214/09-AOAS285) for supervised learning and Bayesian Causal Forests (BCF) (Hahn, Murray, Carvalho (2020) doi:10.1214/19-BA1195) for causal inference. Enables model serialization and parallel sampling and provides a low-level interface for custom stochastic forest samplers. Includes the grow-from-root algorithm for accelerated forest sampling (He and Hahn (2021) doi:10.1080/01621459.2021.1942012), a log-linear leaf model for forest-based heteroskedasticity (Murray (2020) doi:10.1080/01621459.2020.1813587), and the cloglog BART model of Alam and Linero (2025) doi:10.48550/arXiv.2502.00606 for ordinal outcomes.
 }
 \seealso{
 Useful links:
@@ -31,6 +31,7 @@ Authors:
 Other contributors:
 \itemize{
   \item Pedro Lima [contributor]
+  \item Entejar Alam [contributor]
   \item stochtree contributors [copyright holder]
   \item Eigen contributors (C++ source uses the Eigen library for matrix operations, see inst/COPYRIGHTS) [copyright holder]
   \item xgboost contributors (C++ tree code and related operations include or are inspired by code from the xgboost library, see inst/COPYRIGHTS) [copyright holder]

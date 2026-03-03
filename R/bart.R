@@ -3281,7 +3281,7 @@ plot.bartmodel <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Extract random effects samples
+#' @title Extract random effects samples from BART model
 #' @description
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
