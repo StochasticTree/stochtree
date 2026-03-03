@@ -8,7 +8,7 @@
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 
 ForestDataset <- R6::R6Class(
   classname = "ForestDataset",
@@ -179,7 +179,7 @@ ForestDataset <- R6::R6Class(
 #'
 #' @description
 #' Outcome / partial residual used to sample an additive model.
-#' The outcome class is wrapper around a vector of (mutable)
+#' The outcome class is a wrapper around a vector of (mutable)
 #' outcomes for ML tasks (supervised learning, causal inference).
 #' When an additive tree ensemble is sampled, the outcome used to
 #' sample a specific model term is the "partial residual" consisting
@@ -188,13 +188,13 @@ ForestDataset <- R6::R6Class(
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 
 Outcome <- R6::R6Class(
   classname = "Outcome",
   cloneable = FALSE,
   public = list(
-    #' @field data_ptr External pointer to a C++ Outcome class
+    #' @field data_ptr External pointer to a C++ `Outcome` class
     data_ptr = NULL,
 
     #' @description
@@ -286,7 +286,7 @@ Outcome <- R6::R6Class(
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 
 RandomEffectsDataset <- R6::R6Class(
   classname = "RandomEffectsDataset",
@@ -395,7 +395,7 @@ RandomEffectsDataset <- R6::R6Class(
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param covariates Matrix of covariates
 #' @param basis (Optional) Matrix of bases used to define a leaf regression
@@ -425,7 +425,7 @@ createForestDataset <- function(
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param outcome Vector of outcome values
 #'
@@ -446,7 +446,7 @@ createOutcome <- function(outcome) {
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param group_labels Vector of group labels
 #' @param basis Matrix of bases used to define the random effects regression (for an intercept-only model, pass an array of ones)

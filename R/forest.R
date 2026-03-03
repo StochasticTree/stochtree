@@ -4,7 +4,7 @@
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 
 ForestSamples <- R6::R6Class(
   classname = "ForestSamples",
@@ -906,7 +906,7 @@ ForestSamples <- R6::R6Class(
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 
 Forest <- R6::R6Class(
   classname = "Forest",
@@ -1240,7 +1240,7 @@ Forest <- R6::R6Class(
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param num_trees Number of trees
 #' @param leaf_dimension Dimensionality of the outcome model
@@ -1277,7 +1277,7 @@ createForestSamples <- function(
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param num_trees Number of trees in the forest
 #' @param leaf_dimension Dimensionality of the outcome model
@@ -1315,7 +1315,7 @@ createForest <- function(
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param active_forest Current active forest
 #' @param forest_samples (Optional) Container of forest samples from which to re-initialize active forest. If not provided, active forest will be reset to an ensemble of single-node (i.e. root) trees.
@@ -1364,7 +1364,7 @@ resetActiveForest <- function(
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param forest_model Forest model with tracking data structures
 #' @param forest Forest from which to re-initialize forest model

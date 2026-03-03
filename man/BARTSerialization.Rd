@@ -45,8 +45,8 @@ createBARTModelFromCombinedJsonString(json_string_list)
 }
 \value{
 \code{saveBARTModelToJson} return an object of type \code{CppJson}.
-\code{saveBARTModelToJsonFile} returns nothing, but writes to the provided filename.
 \code{saveBARTModelToJsonString} returns a string dump of the BART model's JSON representation.
+\code{saveBARTModelToJsonFile} returns nothing, but writes to the provided filename.
 
 \code{createBARTModelFromJson}, \code{createBARTModelFromJsonFile}, \code{createBARTModelFromJsonString},
 \code{createBARTModelFromCombinedJson}, and \code{createBARTModelFromCombinedJsonString} all return
@@ -55,21 +55,21 @@ objects of type \code{bartmodel}.
 \description{
 BART models contains external pointers to C++ objects, which means they cannot
 be correctly serialized to \code{.Rds} from an R session in their default state.
-These functions allow us to convert between C++ data structures and a persistent JSON
+This group of serialization functions allow us to convert between C++ data structures and a persistent JSON
 representation. The \code{CppJson} class wraps a performant C++ JSON API, and the functions
 \code{saveBARTModelToJson} and \code{createBARTModelFromJson} save to and load from this format.
 This representation, of course, also relies on external C++ pointers, so in order to
 save and reload BART models across sessions, we provide two other interfaces.
 
-\code{saveBARTModelToJsonFile} and \code{createBARTModelFromJsonFile} save or reload a BART model's JSON
-representation directly to / from a \code{.json} file.
+\code{saveBARTModelToJsonString} converts a BART model to an in-memory string containing the model's
+JSON representation and \code{createBARTModelFromJsonString} converts this representation back to a BART model object.
 
-\code{saveBARTModelToJsonString} and \code{createBARTModelFromJsonString} handle in-memory strings containing JSON data,
-which can be written to disk or passed between processes.
+\code{saveBARTModelToJsonFile} and \code{createBARTModelFromJsonFile} save or reload a BART model
+directly to / from a \code{.json} file.
 
-Finally, for cases in which multiple BART models have been sampled (for instance, sampled in multiple processes
-via \code{doParallel}), we offer \code{createBARTModelFromCombinedJson} and \code{createBARTModelFromCombinedJsonString} for
-loading a new combined BART model from a list of BART JSON objects or strings.
+Finally, for cases in which multiple BART models have been sampled (for instance, multiple processes
+run via \code{doParallel}), we offer \code{createBARTModelFromCombinedJson} and \code{createBARTModelFromCombinedJsonString} for
+loading a new combined BART model from a list of BART JSON objects / strings.
 }
 \examples{
 # Generate data

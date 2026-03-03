@@ -30,7 +30,7 @@ CppRNG <- R6::R6Class(
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 
 ForestModel <- R6::R6Class(
   classname = "ForestModel",
@@ -347,7 +347,7 @@ createCppRNG <- function(random_seed = -1) {
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param forest_dataset ForestDataset object, used to initialize forest sampling data structures
 #' @param forest_model_config ForestModelConfig object containing forest model parameters and settings
@@ -400,7 +400,7 @@ createForestModel <- function(
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param population_vector Vector from which to draw samples.
 #' @param sampling_probabilities Vector of probabilities of drawing each element of `population_vector`.

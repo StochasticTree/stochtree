@@ -65,12 +65,7 @@ reference:
   - createOutcome
   - RandomEffectsDataset
   - createRandomEffectsDataset
-  - preprocessTrainData
-  - preprocessPredictionData
-  - convertPreprocessorToJson
-  - savePreprocessorToJsonString
-  - createPreprocessorFromJson
-  - createPreprocessorFromJsonString
+  - DataPreprocessing
 
 - subtitle: Forest
   desc: >
