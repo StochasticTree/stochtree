@@ -5,7 +5,8 @@
 #' is based on the extent to which two observations are mapped to the same leaf nodes.
 #' This function group offers utilities for evaluating this kernel.
 #'
-#' `computeForestLeafIndices` computes and return a vector representation of a forest's leaf predictions for every observation in a dataset.
+#' `computeForestLeafIndices` computes and return a vector representation of a forest's
+#' leaf predictions for every observation in a dataset.
 #' The resulting vector has a "row-major" format that can be easily re-represented as
 #' as a CSR sparse matrix: elements are organized so that the first `n` elements
 #' correspond to leaf predictions for all `n` observations in a dataset for the
