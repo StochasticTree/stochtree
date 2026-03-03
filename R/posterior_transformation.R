@@ -77,11 +77,11 @@
 #' bcf_model <- bcf(X_train = X_train, Z_train = Z_train, y_train = y_train,
 #'                  propensity_train = pi_train, num_gfr = 10,
 #'                  num_burnin = 0, num_mcmc = 10)
-#' tau_hat_test <- compute_contrast_bcf_model(
+#' tau_hat_test <- computeContrastBCFModel(
 #'     bcf_model, X_0=X_test, X_1=X_test, Z_0=rep(0, n_test), Z_1=rep(1, n_test),
 #'     propensity_0 = pi_test, propensity_1 = pi_test
 #' )
-compute_contrast_bcf_model <- function(
+computeContrastBCFModel <- function(
   object,
   X_0,
   X_1,
@@ -304,7 +304,7 @@ compute_contrast_bcf_model <- function(
 #' y_train <- y[train_inds]
 #' bart_model <- bart(X_train = X_train, leaf_basis_train = W_train, y_train = y_train,
 #'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' contrast_test <- compute_contrast_bart_model(
+#' contrast_test <- computeContrastBARTModel(
 #'     bart_model,
 #'     X_0 = X_test,
 #'     X_1 = X_test,
@@ -313,7 +313,7 @@ compute_contrast_bcf_model <- function(
 #'     type = "posterior",
 #'     scale = "linear"
 #' )
-compute_contrast_bart_model <- function(
+computeContrastBARTModel <- function(
   object,
   X_0,
   X_1,
@@ -522,11 +522,11 @@ compute_contrast_bart_model <- function(
 #' Z <- rbinom(n, 1, pi_X)
 #' y <- 2 * X[,2] + 0.5 * X[,2] * Z + rnorm(n)
 #' bcf_model <- bcf(X_train = X, Z_train = Z, y_train = y, propensity_train = pi_X)
-#' ppd_samples <- sample_bcf_posterior_predictive(
+#' ppd_samples <- sampleBCFPosteriorPredictive(
 #'   model_object = bcf_model, X = X,
 #'   Z = Z, propensity = pi_X
 #' )
-sample_bcf_posterior_predictive <- function(
+sampleBCFPosteriorPredictive <- function(
   model_object,
   X = NULL,
   Z = NULL,
@@ -721,10 +721,10 @@ sample_bcf_posterior_predictive <- function(
 #' X <- matrix(rnorm(n * p), nrow = n, ncol = p)
 #' y <- 2 * X[,1] + rnorm(n)
 #' bart_model <- bart(y_train = y, X_train = X)
-#' ppd_samples <- sample_bart_posterior_predictive(
+#' ppd_samples <- sampleBARTPosteriorPredictive(
 #'   model_object = bart_model, X = X
 #' )
-sample_bart_posterior_predictive <- function(
+sampleBARTPosteriorPredictive <- function(
   model_object,
   X = NULL,
   leaf_basis = NULL,
@@ -992,7 +992,7 @@ posterior_predictive_heuristic_multiplier <- function(
 #' y <- mu_X + tau_X * Z + rnorm(n)
 #' bcf_model <- bcf(X_train = X, Z_train = Z, y_train = y,
 #'                  propensity_train = pi_X)
-#' intervals <- compute_bcf_posterior_interval(
+#' intervals <- computeBCFPosteriorInterval(
 #'  model_object = bcf_model,
 #'  terms = c("prognostic_function", "cate"),
 #'  X = X,
@@ -1000,7 +1000,7 @@ posterior_predictive_heuristic_multiplier <- function(
 #'  propensity = pi_X,
 #'  level = 0.90
 #' )
-compute_bcf_posterior_interval <- function(
+computeBCFPosteriorInterval <- function(
   model_object,
   terms,
   level = 0.95,
@@ -1214,14 +1214,14 @@ compute_bcf_posterior_interval <- function(
 #' X <- matrix(rnorm(n * p), nrow = n, ncol = p)
 #' y <- 2 * X[,1] + rnorm(n)
 #' bart_model <- bart(y_train = y, X_train = X)
-#' intervals <- compute_bart_posterior_interval(
+#' intervals <- computeBARTPosteriorInterval(
 #'  model_object = bart_model,
 #'  terms = c("mean_forest", "y_hat"),
 #'  X = X,
 #'  level = 0.90
 #' )
 #' @export
-compute_bart_posterior_interval <- function(
+computeBARTPosteriorInterval <- function(
   model_object,
   terms,
   level = 0.95,

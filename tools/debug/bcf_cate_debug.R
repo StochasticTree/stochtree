@@ -49,7 +49,7 @@ bcf_model <- bcf(
 )
 
 # Compute CATE posterior
-tau_hat_posterior_test <- compute_contrast_bcf_model(
+tau_hat_posterior_test <- computeContrastBCFModel(
   bcf_model,
   X_0 = X_test,
   X_1 = X_test,
@@ -134,7 +134,7 @@ bcf_model <- bcf(
 )
 
 # Compute CATE posterior
-tau_hat_posterior_test <- compute_contrast_bcf_model(
+tau_hat_posterior_test <- computeContrastBCFModel(
   bcf_model,
   X_0 = X_test,
   X_1 = X_test,
@@ -213,7 +213,7 @@ bcf_model <- bcf(
 )
 
 # Compute CATE posterior
-tau_hat_posterior_test <- compute_contrast_bcf_model(
+tau_hat_posterior_test <- computeContrastBCFModel(
   bcf_model,
   X_0 = X_test,
   X_1 = X_test,
@@ -307,7 +307,7 @@ bcf_model <- bcf(
 )
 
 # Compute CATE posterior on probability scale
-tau_hat_posterior_test <- compute_contrast_bcf_model(
+tau_hat_posterior_test <- computeContrastBCFModel(
   bcf_model,
   X_0 = X_test,
   X_1 = X_test,

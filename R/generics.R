@@ -39,7 +39,7 @@ getRandomEffectSamples <- function(object, ...) {
 #' y <- (-5 + 10*(X[,1] > 0.5)) + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
 #' bart_model <- bart(X_train=X, y_train=y, rfx_group_ids_train=rfx_group_ids,
 #'                    rfx_basis_train = rfx_basis, num_gfr=0, num_mcmc=10)
-#' sigma2_samples <- extract_parameter(bart_model, "sigma2")
-extract_parameter <- function(object, term) {
-  UseMethod("extract_parameter")
+#' sigma2_samples <- extractParameter(bart_model, "sigma2")
+extractParameter <- function(object, term) {
+  UseMethod("extractParameter")
 }

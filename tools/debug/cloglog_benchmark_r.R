@@ -46,7 +46,7 @@ for (rep in 1:n_reps) {
         num_chains = 1,
         verbose = FALSE,
         random_seed = seed,
-        outcome_model = outcome_model(outcome = "ordinal", link = "cloglog")
+        outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog")
       ),
       mean_forest_params = list(num_trees = 50)
     )

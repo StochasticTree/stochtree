@@ -43,7 +43,7 @@ bart_model <- bart(
 )
 
 # Compute contrast posterior
-contrast_posterior_test <- compute_contrast_bart_model(
+contrast_posterior_test <- computeContrastBARTModel(
   bart_model,
   X_0 = X_test,
   X_1 = X_test,
@@ -126,7 +126,7 @@ bart_model <- bart(
 )
 
 # Compute contrast posterior
-contrast_posterior_test <- compute_contrast_bart_model(
+contrast_posterior_test <- computeContrastBARTModel(
   bart_model,
   X_0 = X_test,
   X_1 = X_test,

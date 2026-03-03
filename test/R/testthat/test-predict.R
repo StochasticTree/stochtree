@@ -712,12 +712,12 @@ test_that("BART cloglog binary: posterior interval and contrast", {
     num_mcmc = 10,
     general_params = list(
       sample_sigma2_global = FALSE,
-      outcome_model = outcome_model(outcome = "binary", link = "cloglog")
+      outcome_model = OutcomeModel(outcome = "binary", link = "cloglog")
     )
   )
 
   # Test posterior interval on linear scale
-  interval_linear <- compute_bart_posterior_interval(
+  interval_linear <- computeBARTPosteriorInterval(
     bart_model,
     terms = "mean_forest",
     level = 0.95,
@@ -732,7 +732,7 @@ test_that("BART cloglog binary: posterior interval and contrast", {
   expect_true(all(interval_linear$lower <= interval_linear$upper))
 
   # Test posterior interval on probability scale
-  interval_prob <- compute_bart_posterior_interval(
+  interval_prob <- computeBARTPosteriorInterval(
     bart_model,
     terms = "mean_forest",
     level = 0.95,
@@ -748,7 +748,7 @@ test_that("BART cloglog binary: posterior interval and contrast", {
   # Test contrast on linear scale
   X0 <- X_test
   X1 <- X_test + 0.5
-  contrast_linear <- compute_contrast_bart_model(
+  contrast_linear <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -759,7 +759,7 @@ test_that("BART cloglog binary: posterior interval and contrast", {
   expect_equal(nrow(contrast_linear), n_test)
 
   # Test contrast on probability scale
-  contrast_prob <- compute_contrast_bart_model(
+  contrast_prob <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -770,7 +770,7 @@ test_that("BART cloglog binary: posterior interval and contrast", {
   expect_equal(nrow(contrast_prob), n_test)
 
   # Test contrast with type = "mean"
-  contrast_mean_linear <- compute_contrast_bart_model(
+  contrast_mean_linear <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -780,7 +780,7 @@ test_that("BART cloglog binary: posterior interval and contrast", {
   expect_true(is.numeric(contrast_mean_linear))
   expect_equal(length(contrast_mean_linear), n_test)
 
-  contrast_mean_prob <- compute_contrast_bart_model(
+  contrast_mean_prob <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -838,12 +838,12 @@ test_that("BART cloglog ordinal: posterior interval and contrast", {
     num_mcmc = 10,
     general_params = list(
       sample_sigma2_global = FALSE,
-      outcome_model = outcome_model(outcome = "ordinal", link = "cloglog")
+      outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog")
     )
   )
 
   # Test posterior interval on linear scale
-  interval_linear <- compute_bart_posterior_interval(
+  interval_linear <- computeBARTPosteriorInterval(
     bart_model,
     terms = "mean_forest",
     level = 0.95,
@@ -857,7 +857,7 @@ test_that("BART cloglog ordinal: posterior interval and contrast", {
   # Test posterior interval on probability scale
   # For ordinal models, probability scale returns survival probabilities P(Y > k)
   # which are (n_test, n_categories - 1) matrices
-  interval_prob <- compute_bart_posterior_interval(
+  interval_prob <- computeBARTPosteriorInterval(
     bart_model,
     terms = "mean_forest",
     level = 0.95,
@@ -876,7 +876,7 @@ test_that("BART cloglog ordinal: posterior interval and contrast", {
   # Test contrast on linear scale
   X0 <- X_test
   X1 <- X_test + 0.5
-  contrast_linear <- compute_contrast_bart_model(
+  contrast_linear <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -887,7 +887,7 @@ test_that("BART cloglog ordinal: posterior interval and contrast", {
   expect_equal(nrow(contrast_linear), n_test)
 
   # Test contrast on probability scale (ordinal returns 3D array)
-  contrast_prob <- compute_contrast_bart_model(
+  contrast_prob <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -899,7 +899,7 @@ test_that("BART cloglog ordinal: posterior interval and contrast", {
   expect_equal(dim(contrast_prob)[2], n_categories - 1)
 
   # Test contrast with type = "mean" on linear scale
-  contrast_mean_linear <- compute_contrast_bart_model(
+  contrast_mean_linear <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -911,7 +911,7 @@ test_that("BART cloglog ordinal: posterior interval and contrast", {
 
   # Test contrast with type = "mean" on probability scale
   # For ordinal, mean contrast should be (n_test, n_categories - 1) matrix
-  contrast_mean_prob <- compute_contrast_bart_model(
+  contrast_mean_prob <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -953,12 +953,12 @@ test_that("BART cloglog binary: sample posterior predictive", {
     num_mcmc = num_mcmc,
     general_params = list(
       sample_sigma2_global = FALSE,
-      outcome_model = outcome_model(outcome = "binary", link = "cloglog")
+      outcome_model = OutcomeModel(outcome = "binary", link = "cloglog")
     )
   )
 
   # Test with multiple draws per sample
-  ppd <- sample_bart_posterior_predictive(
+  ppd <- sampleBARTPosteriorPredictive(
     bart_model,
     X = X_test,
     num_draws_per_sample = 3
@@ -967,7 +967,7 @@ test_that("BART cloglog binary: sample posterior predictive", {
   expect_true(all(ppd %in% c(0, 1)))
 
   # Test with single draw per sample
-  ppd1 <- sample_bart_posterior_predictive(
+  ppd1 <- sampleBARTPosteriorPredictive(
     bart_model,
     X = X_test,
     num_draws_per_sample = 1
@@ -1024,12 +1024,12 @@ test_that("BART cloglog ordinal: sample posterior predictive", {
     num_mcmc = num_mcmc,
     general_params = list(
       sample_sigma2_global = FALSE,
-      outcome_model = outcome_model(outcome = "ordinal", link = "cloglog")
+      outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog")
     )
   )
 
   # Test with multiple draws per sample
-  ppd <- sample_bart_posterior_predictive(
+  ppd <- sampleBARTPosteriorPredictive(
     bart_model,
     X = X_test,
     num_draws_per_sample = 3
@@ -1038,7 +1038,7 @@ test_that("BART cloglog ordinal: sample posterior predictive", {
   expect_true(all(ppd %in% 1:n_categories))
 
   # Test with single draw per sample
-  ppd1 <- sample_bart_posterior_predictive(
+  ppd1 <- sampleBARTPosteriorPredictive(
     bart_model,
     X = X_test,
     num_draws_per_sample = 1
@@ -1077,7 +1077,7 @@ test_that("BART gaussian: posterior interval and contrast", {
   )
 
   # Test posterior interval on linear scale (mean_forest term)
-  interval_linear <- compute_bart_posterior_interval(
+  interval_linear <- computeBARTPosteriorInterval(
     bart_model,
     terms = "mean_forest",
     level = 0.95,
@@ -1092,7 +1092,7 @@ test_that("BART gaussian: posterior interval and contrast", {
   expect_true(all(interval_linear$lower <= interval_linear$upper))
 
   # Test posterior interval for y_hat term
-  interval_yhat <- compute_bart_posterior_interval(
+  interval_yhat <- computeBARTPosteriorInterval(
     bart_model,
     terms = "y_hat",
     level = 0.95,
@@ -1106,7 +1106,7 @@ test_that("BART gaussian: posterior interval and contrast", {
   # Test contrast on linear scale, type = "posterior"
   X0 <- X_test
   X1 <- X_test + 0.5
-  contrast_posterior <- compute_contrast_bart_model(
+  contrast_posterior <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -1118,7 +1118,7 @@ test_that("BART gaussian: posterior interval and contrast", {
   expect_equal(ncol(contrast_posterior), num_mcmc)
 
   # Test contrast with type = "mean"
-  contrast_mean <- compute_contrast_bart_model(
+  contrast_mean <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -1159,12 +1159,12 @@ test_that("BART binary probit: posterior interval and contrast", {
     num_mcmc = num_mcmc,
     general_params = list(
       sample_sigma2_global = FALSE,
-      outcome_model = outcome_model(outcome = "binary", link = "probit")
+      outcome_model = OutcomeModel(outcome = "binary", link = "probit")
     )
   )
 
   # Test posterior interval on linear scale
-  interval_linear <- compute_bart_posterior_interval(
+  interval_linear <- computeBARTPosteriorInterval(
     bart_model,
     terms = "mean_forest",
     level = 0.95,
@@ -1179,7 +1179,7 @@ test_that("BART binary probit: posterior interval and contrast", {
   expect_true(all(interval_linear$lower <= interval_linear$upper))
 
   # Test posterior interval on probability scale
-  interval_prob <- compute_bart_posterior_interval(
+  interval_prob <- computeBARTPosteriorInterval(
     bart_model,
     terms = "mean_forest",
     level = 0.95,
@@ -1196,7 +1196,7 @@ test_that("BART binary probit: posterior interval and contrast", {
   # Test contrast on linear scale
   X0 <- X_test
   X1 <- X_test + 0.5
-  contrast_linear <- compute_contrast_bart_model(
+  contrast_linear <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -1208,7 +1208,7 @@ test_that("BART binary probit: posterior interval and contrast", {
   expect_equal(ncol(contrast_linear), num_mcmc)
 
   # Test contrast on probability scale
-  contrast_prob <- compute_contrast_bart_model(
+  contrast_prob <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -1220,7 +1220,7 @@ test_that("BART binary probit: posterior interval and contrast", {
   expect_equal(ncol(contrast_prob), num_mcmc)
 
   # Test contrast with type = "mean" on linear scale
-  contrast_mean_linear <- compute_contrast_bart_model(
+  contrast_mean_linear <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -1231,7 +1231,7 @@ test_that("BART binary probit: posterior interval and contrast", {
   expect_equal(length(contrast_mean_linear), n_test)
 
   # Test contrast with type = "mean" on probability scale
-  contrast_mean_prob <- compute_contrast_bart_model(
+  contrast_mean_prob <- computeContrastBARTModel(
     bart_model,
     X_0 = X0,
     X_1 = X1,
@@ -1272,7 +1272,7 @@ test_that("BART gaussian: sample posterior predictive", {
   )
 
   # Test with multiple draws per sample
-  ppd <- sample_bart_posterior_predictive(
+  ppd <- sampleBARTPosteriorPredictive(
     bart_model,
     X = X_test,
     num_draws_per_sample = 3
@@ -1281,7 +1281,7 @@ test_that("BART gaussian: sample posterior predictive", {
   expect_true(is.numeric(ppd))
 
   # Test with single draw per sample
-  ppd1 <- sample_bart_posterior_predictive(
+  ppd1 <- sampleBARTPosteriorPredictive(
     bart_model,
     X = X_test,
     num_draws_per_sample = 1
@@ -1320,12 +1320,12 @@ test_that("BART binary probit: sample posterior predictive", {
     num_mcmc = num_mcmc,
     general_params = list(
       sample_sigma2_global = FALSE,
-      outcome_model = outcome_model(outcome = "binary", link = "probit")
+      outcome_model = OutcomeModel(outcome = "binary", link = "probit")
     )
   )
 
   # Test with multiple draws per sample
-  ppd <- sample_bart_posterior_predictive(
+  ppd <- sampleBARTPosteriorPredictive(
     bart_model,
     X = X_test,
     num_draws_per_sample = 3
@@ -1334,7 +1334,7 @@ test_that("BART binary probit: sample posterior predictive", {
   expect_true(all(ppd %in% c(0, 1)))
 
   # Test with single draw per sample
-  ppd1 <- sample_bart_posterior_predictive(
+  ppd1 <- sampleBARTPosteriorPredictive(
     bart_model,
     X = X_test,
     num_draws_per_sample = 1
@@ -1384,7 +1384,7 @@ test_that("BCF gaussian: posterior interval and contrast", {
   )
 
   # Test posterior interval on linear scale (prognostic_function term)
-  interval_prog <- compute_bcf_posterior_interval(
+  interval_prog <- computeBCFPosteriorInterval(
     bcf_model,
     terms = "prognostic_function",
     level = 0.95,
@@ -1401,7 +1401,7 @@ test_that("BCF gaussian: posterior interval and contrast", {
   expect_true(all(interval_prog$lower <= interval_prog$upper))
 
   # Test posterior interval for cate term
-  interval_cate <- compute_bcf_posterior_interval(
+  interval_cate <- computeBCFPosteriorInterval(
     bcf_model,
     terms = "cate",
     level = 0.95,
@@ -1415,7 +1415,7 @@ test_that("BCF gaussian: posterior interval and contrast", {
   expect_true(all(interval_cate$lower <= interval_cate$upper))
 
   # Test posterior interval for y_hat term
-  interval_yhat <- compute_bcf_posterior_interval(
+  interval_yhat <- computeBCFPosteriorInterval(
     bcf_model,
     terms = "y_hat",
     level = 0.95,
@@ -1429,7 +1429,7 @@ test_that("BCF gaussian: posterior interval and contrast", {
   expect_true(all(interval_yhat$lower <= interval_yhat$upper))
 
   # Test contrast on linear scale (CATE: Z=1 vs Z=0)
-  contrast_posterior <- compute_contrast_bcf_model(
+  contrast_posterior <- computeContrastBCFModel(
     bcf_model,
     X_0 = X_test,
     X_1 = X_test,
@@ -1445,7 +1445,7 @@ test_that("BCF gaussian: posterior interval and contrast", {
   expect_equal(ncol(contrast_posterior), num_mcmc)
 
   # Test contrast with type = "mean"
-  contrast_mean <- compute_contrast_bcf_model(
+  contrast_mean <- computeContrastBCFModel(
     bcf_model,
     X_0 = X_test,
     X_1 = X_test,
@@ -1501,12 +1501,12 @@ test_that("BCF binary probit: posterior interval and contrast", {
     num_mcmc = num_mcmc,
     general_params = list(
       sample_sigma2_global = FALSE,
-      outcome_model = outcome_model(outcome = "binary", link = "probit")
+      outcome_model = OutcomeModel(outcome = "binary", link = "probit")
     )
   )
 
   # Test posterior interval on linear scale
-  interval_linear <- compute_bcf_posterior_interval(
+  interval_linear <- computeBCFPosteriorInterval(
     bcf_model,
     terms = "prognostic_function",
     level = 0.95,
@@ -1523,7 +1523,7 @@ test_that("BCF binary probit: posterior interval and contrast", {
   expect_true(all(interval_linear$lower <= interval_linear$upper))
 
   # Test posterior interval on probability scale
-  interval_prob <- compute_bcf_posterior_interval(
+  interval_prob <- computeBCFPosteriorInterval(
     bcf_model,
     terms = "prognostic_function",
     level = 0.95,
@@ -1540,7 +1540,7 @@ test_that("BCF binary probit: posterior interval and contrast", {
   expect_true(all(interval_prob$lower <= interval_prob$upper))
 
   # Test contrast on linear scale (CATE: Z=1 vs Z=0)
-  contrast_linear <- compute_contrast_bcf_model(
+  contrast_linear <- computeContrastBCFModel(
     bcf_model,
     X_0 = X_test,
     X_1 = X_test,
@@ -1556,7 +1556,7 @@ test_that("BCF binary probit: posterior interval and contrast", {
   expect_equal(ncol(contrast_linear), num_mcmc)
 
   # Test contrast on probability scale
-  contrast_prob <- compute_contrast_bcf_model(
+  contrast_prob <- computeContrastBCFModel(
     bcf_model,
     X_0 = X_test,
     X_1 = X_test,
@@ -1572,7 +1572,7 @@ test_that("BCF binary probit: posterior interval and contrast", {
   expect_equal(ncol(contrast_prob), num_mcmc)
 
   # Test contrast with type = "mean" on linear scale
-  contrast_mean_linear <- compute_contrast_bcf_model(
+  contrast_mean_linear <- computeContrastBCFModel(
     bcf_model,
     X_0 = X_test,
     X_1 = X_test,
@@ -1587,7 +1587,7 @@ test_that("BCF binary probit: posterior interval and contrast", {
   expect_equal(length(contrast_mean_linear), n_test)
 
   # Test contrast with type = "mean" on probability scale
-  contrast_mean_prob <- compute_contrast_bcf_model(
+  contrast_mean_prob <- computeContrastBCFModel(
     bcf_model,
     X_0 = X_test,
     X_1 = X_test,
@@ -1643,7 +1643,7 @@ test_that("BCF gaussian: sample posterior predictive", {
   )
 
   # Test with multiple draws per sample
-  ppd <- sample_bcf_posterior_predictive(
+  ppd <- sampleBCFPosteriorPredictive(
     bcf_model,
     X = X_test,
     Z = Z_test,
@@ -1654,7 +1654,7 @@ test_that("BCF gaussian: sample posterior predictive", {
   expect_true(is.numeric(ppd))
 
   # Test with single draw per sample
-  ppd1 <- sample_bcf_posterior_predictive(
+  ppd1 <- sampleBCFPosteriorPredictive(
     bcf_model,
     X = X_test,
     Z = Z_test,
@@ -1706,12 +1706,12 @@ test_that("BCF binary probit: sample posterior predictive", {
     num_mcmc = num_mcmc,
     general_params = list(
       sample_sigma2_global = FALSE,
-      outcome_model = outcome_model(outcome = "binary", link = "probit")
+      outcome_model = OutcomeModel(outcome = "binary", link = "probit")
     )
   )
 
   # Test with multiple draws per sample
-  ppd <- sample_bcf_posterior_predictive(
+  ppd <- sampleBCFPosteriorPredictive(
     bcf_model,
     X = X_test,
     Z = Z_test,
@@ -1722,7 +1722,7 @@ test_that("BCF binary probit: sample posterior predictive", {
   expect_true(all(ppd %in% c(0, 1)))
 
   # Test with single draw per sample
-  ppd1 <- sample_bcf_posterior_predictive(
+  ppd1 <- sampleBCFPosteriorPredictive(
     bcf_model,
     X = X_test,
     Z = Z_test,

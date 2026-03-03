@@ -108,7 +108,7 @@ NULL
 #'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 #'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see [the multi chain vignette](https://stochtree.ai/R_docs/pkgdown/articles/MultiChain.html).
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
-#'   - `outcome_model` A structured `outcome_model` object that specifies the outcome type and desired link function. This argument pre-empts the legacy (deprecated) `probit_outcome_model` option. Default: `outcome_model(outcome='continuous', link='identity')`.
+#'   - `outcome_model` A structured `OutcomeModel` object that specifies the outcome type and desired link function. This argument pre-empts the legacy (deprecated) `probit_outcome_model` option. Default: `OutcomeModel(outcome='continuous', link='identity')`.
 #'   - `probit_outcome_model` Deprecated in favor of `outcome_model`. Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
 #'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 #'
@@ -214,7 +214,7 @@ bart <- function(
     keep_every = 1,
     num_chains = 1,
     verbose = FALSE,
-    outcome_model = outcome_model(outcome = "continuous", link = "identity"),
+    outcome_model = OutcomeModel(outcome = "continuous", link = "identity"),
     probit_outcome_model = FALSE,
     num_threads = -1
   )
@@ -342,7 +342,7 @@ bart <- function(
   # Raise a deprecation warning to use `outcome_model` if `probit_outcome_model = TRUE` is specified
   if (probit_outcome_model) {
     warning(
-      "Specifying a probit link through `general_params = list(probit_outcome_model = TRUE)` is deprecated and will be removed in a future version. Please use `general_params = list(outcome_model = outcome_model(outcome = 'binary', link = 'probit'))` instead."
+      "Specifying a probit link through `general_params = list(probit_outcome_model = TRUE)` is deprecated and will be removed in a future version. Please use `general_params = list(outcome_model = OutcomeModel(outcome = 'binary', link = 'probit'))` instead."
     )
   }
 
@@ -3412,8 +3412,8 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
 #'                    rfx_basis_train = rfx_basis_train,
 #'                    rfx_basis_test = rfx_basis_test,
 #'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' sigma2_samples <- extract_parameter(bart_model, "sigma2")
-extract_parameter.bartmodel <- function(object, term) {
+#' sigma2_samples <- extractParameter(bart_model, "sigma2")
+extractParameter.bartmodel <- function(object, term) {
   if (term %in% c("sigma2", "global_error_scale", "sigma2_global")) {
     if (!is.null(object$sigma2_global_samples)) {
       return(object$sigma2_global_samples)
@@ -3767,7 +3767,7 @@ createBARTModelFromJson <- function(json_object) {
   )
   outcome_model_outcome <- json_object$get_string("outcome", "outcome_model")
   outcome_model_link <- json_object$get_string("link", "outcome_model")
-  model_params[["outcome_model"]] <- outcome_model(
+  model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
@@ -3983,7 +3983,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
     "outcome_model"
   )
   outcome_model_link <- json_object_default$get_string("link", "outcome_model")
-  model_params[["outcome_model"]] <- outcome_model(
+  model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
@@ -4238,7 +4238,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
     "outcome_model"
   )
   outcome_model_link <- json_object_default$get_string("link", "outcome_model")
-  model_params[["outcome_model"]] <- outcome_model(
+  model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )

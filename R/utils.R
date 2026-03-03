@@ -124,8 +124,8 @@ validate_outcome_model <- function(object) {
 #' @export
 #'
 #' @examples
-#' my_model <- outcome_model(outcome = "continuous", link = "identity")
-outcome_model <- function(outcome = "continuous", link = NULL) {
+#' my_model <- OutcomeModel(outcome = "continuous", link = "identity")
+OutcomeModel <- function(outcome = "continuous", link = NULL) {
   validate_outcome_model(new_outcome_model(outcome, link))
 }
 
