@@ -1,8 +1,13 @@
-#' @title Query Forest Leaf Indices
-#' @description Compute and return a vector representation of a forest's leaf predictions for
-#' every observation in a dataset.
+#' Forest Kernel Computation Routines
+#' @name ForestKernelComputation
+#' @description
+#' Decision tree ensembles can be represented in part by a "kernel" function whose distance metric
+#' is based on the extent to which two observations are mapped to the same leaf nodes.
+#' This function group offers utilities for evaluating this kernel.
 #'
-#' The vector has a "row-major" format that can be easily re-represented as
+#' `computeForestLeafIndices` computes and return a vector representation of a forest's
+#' leaf predictions for every observation in a dataset.
+#' The resulting vector has a "row-major" format that can be easily re-represented as
 #' as a CSR sparse matrix: elements are organized so that the first `n` elements
 #' correspond to leaf predictions for all `n` observations in a dataset for the
 #' first tree in an ensemble, the next `n` elements correspond to predictions for
@@ -11,6 +16,41 @@
 #' if tree 1 has 3 leaves, its column indices range from 0 to 2, and then tree 2's
 #' leaf indices begin at 3, etc...).
 #'
+#' `computeForestLeafVariances` returns each forest's leaf node scale parameters.
+#' If leaf scale is not sampled for the forest in question, the function throws an error that the
+#' leaf model does not have a stochastic scale parameter.
+#'
+#' `computeForestMaxLeafIndex` computes and returns the largest possible leaf index computable by `computeForestLeafIndices` for the forests in a designated forest sample container.
+#'
+#' These functions are intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
+#' @returns
+#' `computeForestLeafIndices` returns a vector of size `num_obs * num_trees`, where `num_obs = nrow(covariates)`
+#' and `num_trees` is the number of trees in the relevant forest of `model_object`.
+#'
+#' `computeForestLeafVariances` returns a vector of size `length(forest_inds)` with the leaf scale parameter for each requested forest.
+#'
+#' `computeForestMaxLeafIndex` returns a vector containing the largest possible leaf index computable by `computeForestLeafIndices` for the forests in a designated forest sample container.
+#' @examples
+#' X <- matrix(runif(10*100), ncol = 10)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+#' leaf_indices <- computeForestLeafIndices(bart_model, X, "mean")
+#' leaf_indices <- computeForestLeafIndices(bart_model, X, "mean", 0)
+#' leaf_indices <- computeForestLeafIndices(bart_model, X, "mean", c(1,3,9))
+#' leaf_variances <- computeForestLeafVariances(bart_model, "mean")
+#' leaf_variances <- computeForestLeafVariances(bart_model, "mean", 0)
+#' leaf_variances <- computeForestLeafVariances(bart_model, "mean", c(1,3,5))
+#' max_leaf_index <- computeForestMaxLeafIndex(bart_model, "mean")
+#' max_leaf_index <- computeForestMaxLeafIndex(bart_model, "mean", 0)
+#' max_leaf_index <- computeForestMaxLeafIndex(bart_model, "mean", c(1,3,9))
+#'
+NULL
+#> NULL
+
+#' @title Query forest leaf indices
+#' @rdname ForestKernelComputation
 #' @param model_object Object of type `bartmodel`, `bcfmodel`, or `ForestSamples` corresponding to a BART / BCF model with at least one forest sample, or a low-level `ForestSamples` object.
 #' @param covariates Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.
 #' @param forest_type Which forest to use from `model_object`.
@@ -35,17 +75,7 @@
 #' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided,
 #' this function will return leaf indices for every sample of a forest.
 #' This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
-#' @return Vector of size `num_obs * num_trees`, where `num_obs = nrow(covariates)`
-#' and `num_trees` is the number of trees in the relevant forest of `model_object`.
 #' @export
-#'
-#' @examples
-#' X <- matrix(runif(10*100), ncol = 10)
-#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
-#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
-#' computeForestLeafIndices(bart_model, X, "mean")
-#' computeForestLeafIndices(bart_model, X, "mean", 0)
-#' computeForestLeafIndices(bart_model, X, "mean", c(1,3,9))
 computeForestLeafIndices <- function(
   model_object,
   covariates,
@@ -156,16 +186,8 @@ computeForestLeafIndices <- function(
   return(leaf_ind_matrix)
 }
 
-#' @title Query Forest Leaf Scale Parameters
-#' @description Return each forest's leaf node scale parameters.
-#'
-#' If leaf scale is not sampled for the forest in question, throws an error that the
-#' leaf model does not have a stochastic scale parameter.
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Query forest leaf scale parameters
+#' @rdname ForestKernelComputation
 #' @param model_object Object of type `bartmodel` or `bcfmodel` corresponding to a BART / BCF model with at least one forest sample
 #' @param forest_type Which forest to use from `model_object`.
 #' Valid inputs depend on the model type, and whether or not a given forest was sampled in that model.
@@ -184,16 +206,7 @@ computeForestLeafIndices <- function(
 #' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute leaf indices. If not provided,
 #' this function will return leaf indices for every sample of a forest.
 #' This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
-#' @return Vector of size `length(forest_inds)` with the leaf scale parameter for each requested forest.
 #' @export
-#'
-#' @examples
-#' X <- matrix(runif(10*100), ncol = 10)
-#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
-#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
-#' computeForestLeafVariances(bart_model, "mean")
-#' computeForestLeafVariances(bart_model, "mean", 0)
-#' computeForestLeafVariances(bart_model, "mean", c(1,3,5))
 computeForestLeafVariances <- function(
   model_object,
   forest_type,
@@ -271,10 +284,8 @@ computeForestLeafVariances <- function(
   return(leaf_scale_params)
 }
 
-#' @title Query Forest Max Leaf Index
-#' @description
-#' Compute and return the largest possible leaf index computable by `computeForestLeafIndices` for the forests in a designated forest sample container.
-#'
+#' @title Query forest max leaf index
+#' @rdname ForestKernelComputation
 #' @param model_object Object of type `bartmodel`, `bcfmodel`, or `ForestSamples` corresponding to a BART / BCF model with at least one forest sample, or a low-level `ForestSamples` object.
 #' @param forest_type Which forest to use from `model_object`.
 #' Valid inputs depend on the model type, and whether or not a
@@ -297,16 +308,7 @@ computeForestLeafVariances <- function(
 #' @param forest_inds (Optional) Indices of the forest sample(s) for which to compute max leaf indices. If not provided,
 #' this function will return max leaf indices for every sample of a forest.
 #' This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
-#' @return Vector containing the largest possible leaf index computable by `computeForestLeafIndices` for the forests in a designated forest sample container.
 #' @export
-#'
-#' @examples
-#' X <- matrix(runif(10*100), ncol = 10)
-#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
-#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
-#' computeForestMaxLeafIndex(bart_model, "mean")
-#' computeForestMaxLeafIndex(bart_model, "mean", 0)
-#' computeForestMaxLeafIndex(bart_model, "mean", c(1,3,9))
 computeForestMaxLeafIndex <- function(
   model_object,
   forest_type = NULL,

@@ -1,10 +1,81 @@
+#' Forest Container Serialization Routines
+#' @name ForestSamplesSerialization
+#' @description
+#' While the [BARTSerialization] and [BCFSerialization] topics focus on JSON serialization / deserialization for
+#' entire `bartmodel` and `bcfmodel` objects, this function group provides an interface for a more focused use case:
+#' loading a single [ForestSamples] container from a broader BART / BCF model (which may include multiple forests and other parametric terms).
+#'
+#' `loadForestContainerJson` converts a [CppJson] object representing a BART or BCF model into a [ForestSamples] container
+#' by extracting the JSON indexed by a forest label (i.e. `"forest_0"`) and deserializing it into a [ForestSamples] object.
+#'
+#' Both `loadForestContainerJson` and `loadForestContainerCombinedJson` operate similarly, but on a list of [CppJson] or JSON string
+#' representations of BART / BCF models with the same structure.
+#'
+#' These functions are intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
+#' @returns
+#' Each of the functions in this group returns a `ForestSamples` object.
+#' @examples
+#' X <- matrix(runif(10*100), ncol = 10)
+#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
+#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
+#' bart_json <- saveBARTModelToJson(bart_model)
+#' bart_json_string <- saveBARTModelToJsonString(bart_model)
+#' bart_json_list <- list(bart_json)
+#' bart_json_string_list <- list(bart_json_string)
+#' mean_forest <- loadForestContainerJson(bart_json, "forest_0")
+#' mean_forest <- loadForestContainerCombinedJson(bart_json_list, "forest_0")
+#' mean_forest <- loadForestContainerCombinedJsonString(bart_json_string_list, "forest_0")
+#'
+NULL
+#> NULL
+
+#' Random Effects Container Serialization Routines
+#' @name RandomEffectSamplesSerialization
+#' @description
+#' While the [BARTSerialization] and [BCFSerialization] topics focus on JSON serialization / deserialization for
+#' entire `bartmodel` and `bcfmodel` objects, this function group provides an interface for a more focused use case:
+#' loading a single [RandomEffectSamples] container from a broader BART / BCF model (which may include forests and other parametric terms).
+#'
+#' `loadRandomEffectSamplesJson` converts a [CppJson] object representing a BART or BCF model into a [RandomEffectSamples] container
+#' by extracting the JSON indexed by an integer label (i.e. `0`) and deserializing it into a [RandomEffectSamples] object.
+#'
+#' Both `loadRandomEffectSamplesJson` and `loadRandomEffectSamplesCombinedJson` operate similarly, but on a list of [CppJson] or JSON string
+#' representations of BART / BCF models with the same structure.
+#'
+#' These functions are intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
+#' @returns
+#' Each of the functions in this group returns a `RandomEffectSamples` object.
+#' @examples
+#' n <- 100
+#' p <- 10
+#' X <- matrix(runif(n*p), ncol = p)
+#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
+#' rfx_basis <- rep(1.0, n)
+#' y <- (-5 + 10*(X[,1] > 0.5)) + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2))
+#' bart_model <- bart(X_train=X, y_train=y, rfx_group_ids_train=rfx_group_ids,
+#'                    rfx_basis_train = rfx_basis, num_gfr=0, num_mcmc=10)
+#' bart_json <- saveBARTModelToJson(bart_model)
+#' bart_json_string <- saveBARTModelToJsonString(bart_model)
+#' bart_json_list <- list(bart_json)
+#' bart_json_string_list <- list(bart_json_string)
+#' rfx_container <- loadRandomEffectSamplesJson(bart_json, 0)
+#' rfx_container <- loadRandomEffectSamplesCombinedJson(bart_json_list, 0)
+#' rfx_container <- loadRandomEffectSamplesCombinedJsonString(bart_json_string_list, 0)
+#'
+NULL
+#> NULL
+
 #' @title JSON C++ Object Wrapper
 #' @description
 #' Wrapper around a C++ `nlohmann::json` object
 #'
 #' This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 
 CppJson <- R6::R6Class(
   classname = "CppJson",
@@ -524,52 +595,22 @@ CppJson <- R6::R6Class(
   )
 )
 
-#' @title Load Forest Samples from JSON
-#' @description
-#' Load a container of forest samples from json
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Load forest samples from JSON
+#' @rdname ForestSamplesSerialization
 #' @param json_object Object of class `CppJson`
-#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy
-#'
-#' @return `ForestSamples` object
+#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
 #' @export
-#'
-#' @examples
-#' X <- matrix(runif(10*100), ncol = 10)
-#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
-#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
-#' bart_json <- saveBARTModelToJson(bart_model)
-#' mean_forest <- loadForestContainerJson(bart_json, "forest_0")
 loadForestContainerJson <- function(json_object, json_forest_label) {
   invisible(output <- ForestSamples$new(0, 1, T))
   output$load_from_json(json_object, json_forest_label)
   return(output)
 }
 
-#' @title Combine JSON Model Objects into ForestSamples
-#' @description
-#' Combine multiple JSON model objects containing forests (with the same hierarchy / schema) into a single forest_container
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Combine JSON model objects into ForestSamples
+#' @rdname ForestSamplesSerialization
 #' @param json_object_list List of objects of class `CppJson`
-#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in the list)
-#'
-#' @return `ForestSamples` object
+#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
 #' @export
-#'
-#' @examples
-#' X <- matrix(runif(10*100), ncol = 10)
-#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
-#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
-#' bart_json <- list(saveBARTModelToJson(bart_model))
-#' mean_forest <- loadForestContainerCombinedJson(bart_json, "forest_0")
 loadForestContainerCombinedJson <- function(
   json_object_list,
   json_forest_label
@@ -586,26 +627,11 @@ loadForestContainerCombinedJson <- function(
   return(output)
 }
 
-#' @title Combine JSON Strings into ForestSamples
-#' @description
-#' Combine multiple JSON strings representing model objects containing forests (with the same hierarchy / schema) into a single forest_container
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Combine JSON strings into ForestSamples
+#' @rdname ForestSamplesSerialization
 #' @param json_string_list List of strings that parse into objects of type `CppJson`
-#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in the list)
-#'
-#' @return `ForestSamples` object
+#' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
 #' @export
-#'
-#' @examples
-#' X <- matrix(runif(10*100), ncol = 10)
-#' y <- -5 + 10*(X[,1] > 0.5) + rnorm(100)
-#' bart_model <- bart(X, y, num_gfr=0, num_mcmc=10)
-#' bart_json_string <- list(saveBARTModelToJsonString(bart_model))
-#' mean_forest <- loadForestContainerCombinedJsonString(bart_json_string, "forest_0")
 loadForestContainerCombinedJsonString <- function(
   json_string_list,
   json_forest_label
@@ -622,31 +648,11 @@ loadForestContainerCombinedJsonString <- function(
   return(output)
 }
 
-#' @title Load Random Effect Samples from JSON
-#' @description
-#' Load a container of random effect samples from json
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Load random effect samples from JSON
+#' @rdname RandomEffectSamplesSerialization
 #' @param json_object Object of class `CppJson`
-#' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked
-#'
-#' @return `RandomEffectSamples` object
+#' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked (must exist in every json object in a list if a list is provided)
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 10
-#' X <- matrix(runif(n*p), ncol = p)
-#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
-#' rfx_basis <- rep(1.0, n)
-#' y <- (-5 + 10*(X[,1] > 0.5)) + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
-#' bart_model <- bart(X_train=X, y_train=y, rfx_group_ids_train=rfx_group_ids,
-#'                    rfx_basis_train = rfx_basis, num_gfr=0, num_mcmc=10)
-#' bart_json <- saveBARTModelToJson(bart_model)
-#' rfx_samples <- loadRandomEffectSamplesJson(bart_json, 0)
 loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
   json_rfx_container_label <- paste0("random_effect_container_", json_rfx_num)
   json_rfx_mapper_label <- paste0("random_effect_label_mapper_", json_rfx_num)
@@ -661,31 +667,11 @@ loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
   return(output)
 }
 
-#' @title Combine JSON Model Objects into RandomEffectSamples
-#' @description
-#' Combine multiple JSON model objects containing random effects (with the same hierarchy / schema) into a single container
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Combine JSON model objects into RandomEffectSamples
+#' @rdname RandomEffectSamplesSerialization
 #' @param json_object_list List of objects of class `CppJson`
-#' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked
-#'
-#' @return `RandomEffectSamples` object
+#' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked (must exist in every json object in a list if a list is provided)
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 10
-#' X <- matrix(runif(n*p), ncol = p)
-#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
-#' rfx_basis <- rep(1.0, n)
-#' y <- (-5 + 10*(X[,1] > 0.5)) + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
-#' bart_model <- bart(X_train=X, y_train=y, rfx_group_ids_train=rfx_group_ids,
-#'                    rfx_basis_train = rfx_basis, num_gfr=0, num_mcmc=10)
-#' bart_json <- list(saveBARTModelToJson(bart_model))
-#' rfx_samples <- loadRandomEffectSamplesCombinedJson(bart_json, 0)
 loadRandomEffectSamplesCombinedJson <- function(
   json_object_list,
   json_rfx_num
@@ -715,31 +701,11 @@ loadRandomEffectSamplesCombinedJson <- function(
   return(output)
 }
 
-#' @title Combine JSON Strings into RandomEffectSamples
-#' @description
-#' Combine multiple JSON strings representing model objects containing random effects (with the same hierarchy / schema) into a single container
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
+#' @title Combine JSON strings into RandomEffectSamples
+#' @rdname RandomEffectSamplesSerialization
 #' @param json_string_list List of objects of class `CppJson`
-#' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked
-#'
-#' @return `RandomEffectSamples` object
+#' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked (must exist in every json object in a list if a list is provided)
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 10
-#' X <- matrix(runif(n*p), ncol = p)
-#' rfx_group_ids <- sample(1:2, size = n, replace = TRUE)
-#' rfx_basis <- rep(1.0, n)
-#' y <- (-5 + 10*(X[,1] > 0.5)) + (-2*(rfx_group_ids==1)+2*(rfx_group_ids==2)) + rnorm(n)
-#' bart_model <- bart(X_train=X, y_train=y, rfx_group_ids_train=rfx_group_ids,
-#'                    rfx_basis_train = rfx_basis, num_gfr=0, num_mcmc=10)
-#' bart_json_string <- list(saveBARTModelToJsonString(bart_model))
-#' rfx_samples <- loadRandomEffectSamplesCombinedJsonString(bart_json_string, 0)
 loadRandomEffectSamplesCombinedJsonString <- function(
   json_string_list,
   json_rfx_num
@@ -769,13 +735,13 @@ loadRandomEffectSamplesCombinedJsonString <- function(
   return(output)
 }
 
-#' @title Load Vector from JSON
+#' @title Load vector from JSON
 #' @description
 #' Load a vector from json
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param json_object Object of class `CppJson`
 #' @param json_vector_label Label referring to a particular vector (i.e. "sigma2_global_samples") in the overall json hierarchy
@@ -802,13 +768,13 @@ loadVectorJson <- function(
   return(output)
 }
 
-#' @title Load Scalar from JSON
+#' @title Load scalar from JSON
 #' @description
 #' Load a scalar from json
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
 #'
 #' @param json_object Object of class `CppJson`
 #' @param json_scalar_label Label referring to a particular scalar / string value (i.e. "num_samples") in the overall json hierarchy
@@ -835,37 +801,21 @@ loadScalarJson <- function(
   return(output)
 }
 
-#' @title Create CppJson Object
+#' JSON Creation Routines
+#' @name JSONCreation
 #' @description
-#' Create a new (empty) C++ Json object
+#' The [CppJson] class wraps an external pointer to C++ JSON object for a seamless R serialization interface.
+#' This function group provides several utilities for creating [CppJson] objects: from scratch (i.e. initializing an empty JSON object),
+#' from a JSON file, or from a string that parses to valid JSON.
 #'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+#' `createCppJson` creates a new (empty) [CppJson] object. `createCppJsonFile` creates and populates a [CppJson] object from data in a JSON file.
+#' `createCppJsonString` creates and populates a [CppJson] object from a JSON string.
+#'
+#' These functions are intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 #' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
-#' @return `CppJson` object
-#' @export
-#'
-#' @examples
-#' example_vec <- runif(10)
-#' example_json <- createCppJson()
-#' example_json$add_vector("myvec", example_vec)
-createCppJson <- function() {
-  return(invisible((CppJson$new())))
-}
-
-#' @title Create CppJson Object from File
-#' @description
-#' Create a C++ Json object from a Json file
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
-#' @param json_filename Name of file to read. Must end in `.json`.
-#' @return `CppJson` object
-#' @export
-#'
+#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at <https://stochtree.ai/>
+#' @returns
+#' Each of the functions in this group returns a `CppJson` object.
 #' @examples
 #' example_vec <- runif(10)
 #' example_json <- createCppJson()
@@ -874,30 +824,33 @@ createCppJson <- function() {
 #' example_json$save_file(file.path(tmpjson))
 #' example_json_roundtrip <- createCppJsonFile(file.path(tmpjson))
 #' unlink(tmpjson)
+#' example_json_string <- example_json$return_json_string()
+#' example_json_roundtrip <- createCppJsonString(example_json_string)
+#'
+NULL
+#> NULL
+
+#' @title Create CppJson object
+#' @rdname JSONCreation
+#' @export
+createCppJson <- function() {
+  return(invisible((CppJson$new())))
+}
+
+#' @title Create CppJson object from file
+#' @rdname JSONCreation
+#' @param json_filename Name of JSON file to read. Must end in `.json`.
+#' @export
 createCppJsonFile <- function(json_filename) {
   invisible((output <- CppJson$new()))
   output$load_from_file(json_filename)
   return(output)
 }
 
-#' @title Create CppJson Object from String
-#' @description
-#' Create a C++ Json object from a Json string
-#'
-#' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
-#' Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-#' For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
-#'
-#' @param json_string JSON string dump
-#' @return `CppJson` object
+#' @title Create CppJson object from string
+#' @rdname JSONCreation
+#' @param json_string JSON string
 #' @export
-#'
-#' @examples
-#' example_vec <- runif(10)
-#' example_json <- createCppJson()
-#' example_json$add_vector("myvec", example_vec)
-#' example_json_string <- example_json$return_json_string()
-#' example_json_roundtrip <- createCppJsonString(example_json_string)
 createCppJsonString <- function(json_string) {
   invisible((output <- CppJson$new()))
   output$load_from_string(json_string)

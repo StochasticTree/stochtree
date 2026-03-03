@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{plot.bcfmodel}
 \alias{plot.bcfmodel}
-\title{Plot BCF Model}
+\title{Plot BCF model}
 \usage{
 \method{plot}{bcfmodel}(x, ...)
 }

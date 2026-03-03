@@ -2,7 +2,7 @@
 % Please edit documentation in R/model.R
 \name{sample_without_replacement}
 \alias{sample_without_replacement}
-\title{Sample Without Replacement}
+\title{Sample without replacement}
 \usage{
 sample_without_replacement(
   population_vector,
@@ -25,7 +25,7 @@ Draw \code{sample_size} samples from \code{population_vector} without replacemen
 
 This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
 Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
-For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at stochtree.ai
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \examples{
 a <- as.integer(c(4,3,2,5,1,9,7))

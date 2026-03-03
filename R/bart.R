@@ -1,4 +1,66 @@
-#' @title Run BART for Supervised Learning
+#' BART Serialization Routines
+#' @name BARTSerialization
+#' @description
+#' BART models contains external pointers to C++ objects, which means they cannot
+#' be correctly serialized to `.Rds` from an R session in their default state.
+#' This group of serialization functions allow us to convert between C++ data structures and a persistent JSON
+#' representation. The `CppJson` class wraps a performant C++ JSON API, and the functions
+#' `saveBARTModelToJson` and `createBARTModelFromJson` save to and load from this format.
+#' This representation, of course, also relies on external C++ pointers, so in order to
+#' save and reload BART models across sessions, we provide two other interfaces.
+#'
+#' `saveBARTModelToJsonString` converts a BART model to an in-memory string containing the model's
+#' JSON representation and `createBARTModelFromJsonString` converts this representation back to a BART model object.
+#'
+#' `saveBARTModelToJsonFile` and `createBARTModelFromJsonFile` save or reload a BART model
+#' directly to / from a `.json` file.
+#'
+#' Finally, for cases in which multiple BART models have been sampled (for instance, multiple processes
+#' run via `doParallel`), we offer `createBARTModelFromCombinedJson` and `createBARTModelFromCombinedJsonString` for
+#' loading a new combined BART model from a list of BART JSON objects / strings.
+#' @returns
+#' `saveBARTModelToJson` return an object of type `CppJson`.
+#' `saveBARTModelToJsonString` returns a string dump of the BART model's JSON representation.
+#' `saveBARTModelToJsonFile` returns nothing, but writes to the provided filename.
+#'
+#' `createBARTModelFromJson`, `createBARTModelFromJsonFile`, `createBARTModelFromJsonString`,
+#' `createBARTModelFromCombinedJson`, and `createBARTModelFromCombinedJsonString` all return
+#' objects of type `bartmodel`.
+#' @examples
+#' # Generate data
+#' n <- 100
+#' p <- 5
+#' X <- matrix(runif(n*p), ncol = p)
+#' y <- X[,1] + rnorm(n, 0, 1)
+#'
+#' # Sample BART model
+#' bart_model <- bart(X_train = X, y_train = y, num_gfr = 0,
+#'                    num_burnin = 0, num_mcmc = 10)
+#'
+#' # Save to in-memory JSON
+#' bart_json <- saveBARTModelToJson(bart_model)
+#' # Save to JSON string
+#' bart_json_string <- saveBARTModelToJsonString(bart_model)
+#' # Save to JSON file
+#' tmpjson <- tempfile(fileext = ".json")
+#' saveBARTModelToJsonFile(bart_model, file.path(tmpjson))
+#'
+#' # Reload BART model from in-memory JSON object
+#' bart_model_roundtrip <- createBARTModelFromJson(bart_json)
+#' # Reload BART model from JSON string
+#' bart_model_roundtrip <- createBARTModelFromJsonString(bart_json_string)
+#' # Reload BART model from JSON file
+#' bart_model_roundtrip <- createBARTModelFromJsonFile(file.path(tmpjson))
+#' unlink(tmpjson)
+#' # Reload BART model from list of JSON objects
+#' bart_model_roundtrip <- createBARTModelFromCombinedJson(list(bart_json))
+#' # Reload BART model from list of JSON strings
+#' bart_model_roundtrip <- createBARTModelFromCombinedJsonString(list(bart_json_string))
+#'
+NULL
+#> NULL
+
+#' @title Run BART for supervised learning
 #' @description
 #' Run the BART algorithm for supervised learning.
 #'
@@ -46,7 +108,7 @@
 #'   - `keep_every` How many iterations of the burned-in MCMC sampler should be run before forests and parameters are retained. Default `1`. Setting `keep_every <- k` for some `k > 1` will "thin" the MCMC samples by retaining every `k`-th sample, rather than simply every sample. This can reduce the autocorrelation of the MCMC samples.
 #'   - `num_chains` How many independent MCMC chains should be sampled. If `num_mcmc = 0`, this is ignored. If `num_gfr = 0`, then each chain is run from root for `num_mcmc * keep_every + num_burnin` iterations, with `num_mcmc` samples retained. If `num_gfr > 0`, each MCMC chain will be initialized from a separate GFR ensemble, with the requirement that `num_gfr >= num_chains`. Default: `1`. Note that if `num_chains > 1`, the returned model object will contain samples from all chains, stored consecutively. That is, if there are 4 chains with 100 samples each, the first 100 samples will be from chain 1, the next 100 samples will be from chain 2, etc... For more detail on working with multi-chain BART models, see [the multi chain vignette](https://stochtree.ai/R_docs/pkgdown/articles/MultiChain.html).
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
-#'   - `outcome_model` A structured `outcome_model` object that specifies the outcome type and desired link function. This argument pre-empts the legacy (deprecated) `probit_outcome_model` option. Default: `outcome_model(outcome='continuous', link='identity')`.
+#'   - `outcome_model` A structured `OutcomeModel` object that specifies the outcome type and desired link function. This argument pre-empts the legacy (deprecated) `probit_outcome_model` option. Default: `OutcomeModel(outcome='continuous', link='identity')`.
 #'   - `probit_outcome_model` Deprecated in favor of `outcome_model`. Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
 #'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
 #'
@@ -152,7 +214,7 @@ bart <- function(
     keep_every = 1,
     num_chains = 1,
     verbose = FALSE,
-    outcome_model = outcome_model(outcome = "continuous", link = "identity"),
+    outcome_model = OutcomeModel(outcome = "continuous", link = "identity"),
     probit_outcome_model = FALSE,
     num_threads = -1
   )
@@ -280,7 +342,7 @@ bart <- function(
   # Raise a deprecation warning to use `outcome_model` if `probit_outcome_model = TRUE` is specified
   if (probit_outcome_model) {
     warning(
-      "Specifying a probit link through `general_params = list(probit_outcome_model = TRUE)` is deprecated and will be removed in a future version. Please use `general_params = list(outcome_model = outcome_model(outcome = 'binary', link = 'probit'))` instead."
+      "Specifying a probit link through `general_params = list(probit_outcome_model = TRUE)` is deprecated and will be removed in a future version. Please use `general_params = list(outcome_model = OutcomeModel(outcome = 'binary', link = 'probit'))` instead."
     )
   }
 
@@ -2389,7 +2451,7 @@ bart <- function(
   return(result)
 }
 
-#' @title Predict From a BART Model
+#' @title Predict from a BART model
 #' @description
 #' Predict from a sampled BART model on new data
 #'
@@ -2854,7 +2916,7 @@ predict.bartmodel <- function(
   }
 }
 
-#' @title Summarize a BART Model
+#' @title Print summary of BART model
 #' @description Prints a summary of the BART model, including the model terms and their specifications.
 #' @param x The BART model object
 #' @param ... Additional arguments
@@ -3009,7 +3071,7 @@ print.bartmodel <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Summarize the BART model fit and sampled terms.
+#' @title Summarize BART model fit and parameters
 #' @description Summarize the BART with a description of the model that was fit and numeric summaries of any sampled quantities.
 #' @param object The BART model object
 #' @param ... Additional arguments
@@ -3165,7 +3227,7 @@ summary.bartmodel <- function(object, ...) {
   invisible(object)
 }
 
-#' @title Plot BART Model Fit.
+#' @title Plot BART model fit
 #' @description Plot the BART model fit and any relevant sampled quantities. This will default to a traceplot of the global error scale and the in-sample mean forest predictions for the first train set observation. Since `stochtree::bart()` is flexible and it's possible to sample a model with a fixed global error scale and no mean forest, this procedure is adaptive and will attempt to plot a trace of whichever model terms are included if these two default terms are omitted.
 #' @param x The BART model object
 #' @param ... Additional arguments
@@ -3219,7 +3281,7 @@ plot.bartmodel <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Extract Random Effects Samples
+#' @title Extract random effects samples from BART model
 #' @description
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
@@ -3292,7 +3354,7 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
   return(result)
 }
 
-#' @title Extract BART Parameter Samples.
+#' @title Extract BART parameter samples
 #' @description Extract a vector, matrix or array of parameter samples from a BART model by name.
 #' Random effects are handled by a separate `getRandomEffectSamples` function due to the complexity of the random effects parameters.
 #' If the requested model term is not found, an error is thrown.
@@ -3350,8 +3412,8 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
 #'                    rfx_basis_train = rfx_basis_train,
 #'                    rfx_basis_test = rfx_basis_test,
 #'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' sigma2_samples <- extract_parameter(bart_model, "sigma2")
-extract_parameter.bartmodel <- function(object, term) {
+#' sigma2_samples <- extractParameter(bart_model, "sigma2")
+extractParameter.bartmodel <- function(object, term) {
   if (term %in% c("sigma2", "global_error_scale", "sigma2_global")) {
     if (!is.null(object$sigma2_global_samples)) {
       return(object$sigma2_global_samples)
@@ -3413,39 +3475,10 @@ extract_parameter.bartmodel <- function(object, term) {
   stop(paste0("term ", term, " is not a valid BART model term"))
 }
 
-#' @title Convert BART Model to JSON
-#' @description
-#' Convert the persistent aspects of a BART model to (in-memory) JSON
-#'
+#' @title Convert BART model to JSON
+#' @rdname BARTSerialization
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
-#'
-#' @return Object of type `CppJson`
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' f_XW <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' noise_sd <- 1
-#' y <- f_XW + rnorm(n, 0, noise_sd)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train,
-#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' bart_json <- saveBARTModelToJson(bart_model)
 saveBARTModelToJson <- function(object) {
   jsonobj <- createCppJson()
 
@@ -3604,42 +3637,12 @@ saveBARTModelToJson <- function(object) {
   return(jsonobj)
 }
 
-#' @title Save BART Model to JSON File
-#' @description
-#' Convert the persistent aspects of a BART model to (in-memory) JSON and save to a file
-#'
+#' @title Save BART model to JSON file
+#' @rdname BARTSerialization
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @param filename String of filepath, must end in ".json"
 #'
-#' @return None
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' f_XW <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' noise_sd <- 1
-#' y <- f_XW + rnorm(n, 0, noise_sd)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train,
-#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' tmpjson <- tempfile(fileext = ".json")
-#' saveBARTModelToJsonFile(bart_model, file.path(tmpjson))
-#' unlink(tmpjson)
 saveBARTModelToJsonFile <- function(object, filename) {
   # Convert to Json
   jsonobj <- saveBARTModelToJson(object)
@@ -3648,38 +3651,10 @@ saveBARTModelToJsonFile <- function(object, filename) {
   jsonobj$save_file(filename)
 }
 
-#' @title Convert BART Model to JSON String
-#' @description
-#' Convert the persistent aspects of a BART model to (in-memory) JSON string
-#'
+#' @title Convert BART model to JSON string
+#' @rdname BARTSerialization
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
-#' @return in-memory JSON string
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' f_XW <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' noise_sd <- 1
-#' y <- f_XW + rnorm(n, 0, noise_sd)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train,
-#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' bart_json_string <- saveBARTModelToJsonString(bart_model)
 saveBARTModelToJsonString <- function(object) {
   # Convert to Json
   jsonobj <- saveBARTModelToJson(object)
@@ -3688,41 +3663,10 @@ saveBARTModelToJsonString <- function(object) {
   return(jsonobj$return_json_string())
 }
 
-#' @title Convert JSON to BART Model
-#' @description
-#' Convert an (in-memory) JSON representation of a BART model to a BART model object
-#' which can be used for prediction, etc...
-#'
+#' @title Convert JSON to BART model
+#' @rdname BARTSerialization
 #' @param json_object Object of type `CppJson` containing Json representation of a BART model
-#'
-#' @return Object of type `bartmodel`
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' f_XW <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' noise_sd <- 1
-#' y <- f_XW + rnorm(n, 0, noise_sd)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train,
-#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' bart_json <- saveBARTModelToJson(bart_model)
-#' bart_model_roundtrip <- createBARTModelFromJson(bart_json)
 createBARTModelFromJson <- function(json_object) {
   # Initialize the BCF model
   output <- list()
@@ -3823,7 +3767,7 @@ createBARTModelFromJson <- function(json_object) {
   )
   outcome_model_outcome <- json_object$get_string("outcome", "outcome_model")
   outcome_model_link <- json_object$get_string("link", "outcome_model")
-  model_params[["outcome_model"]] <- outcome_model(
+  model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
@@ -3890,43 +3834,10 @@ createBARTModelFromJson <- function(json_object) {
   return(output)
 }
 
-#' @title Convert JSON File to BART Model
-#' @description
-#' Convert a JSON file containing sample information on a trained BART model
-#' to a BART model object which can be used for prediction, etc...
-#'
+#' @title Convert JSON file to BART model
+#' @rdname BARTSerialization
 #' @param json_filename String of filepath, must end in ".json"
-#'
-#' @return Object of type `bartmodel`
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' f_XW <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' noise_sd <- 1
-#' y <- f_XW + rnorm(n, 0, noise_sd)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train,
-#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' tmpjson <- tempfile(fileext = ".json")
-#' saveBARTModelToJsonFile(bart_model, file.path(tmpjson))
-#' bart_model_roundtrip <- createBARTModelFromJsonFile(file.path(tmpjson))
-#' unlink(tmpjson)
 createBARTModelFromJsonFile <- function(json_filename) {
   # Load a `CppJson` object from file
   bart_json <- createCppJsonFile(json_filename)
@@ -3937,42 +3848,10 @@ createBARTModelFromJsonFile <- function(json_filename) {
   return(bart_object)
 }
 
-#' @title Convert JSON String to BART Model
-#' @description
-#' Convert a JSON string containing sample information on a trained BART model
-#' to a BART model object which can be used for prediction, etc...
-#'
+#' @title Convert JSON string to BART model
+#' @rdname BARTSerialization
 #' @param json_string JSON string dump
-#'
-#' @return Object of type `bartmodel`
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' f_XW <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' noise_sd <- 1
-#' y <- f_XW + rnorm(n, 0, noise_sd)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train,
-#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' bart_json <- saveBARTModelToJsonString(bart_model)
-#' bart_model_roundtrip <- createBARTModelFromJsonString(bart_json)
-#' y_hat_mean_roundtrip <- rowMeans(predict(bart_model_roundtrip, X=X_train)$y_hat)
 createBARTModelFromJsonString <- function(json_string) {
   # Load a `CppJson` object from string
   bart_json <- createCppJsonString(json_string)
@@ -3983,41 +3862,10 @@ createBARTModelFromJsonString <- function(json_string) {
   return(bart_object)
 }
 
-#' @title Convert JSON List to Single BART Model
-#' @description
-#' Convert a list of (in-memory) JSON representations of a BART model to a single combined BART model object
-#' which can be used for prediction, etc...
-#'
+#' @title Convert JSON list to single BART model
+#' @rdname BARTSerialization
 #' @param json_object_list List of objects of type `CppJson` containing Json representation of a BART model
-#'
-#' @return Object of type `bartmodel`
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' f_XW <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' noise_sd <- 1
-#' y <- f_XW + rnorm(n, 0, noise_sd)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train,
-#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' bart_json <- list(saveBARTModelToJson(bart_model))
-#' bart_model_roundtrip <- createBARTModelFromCombinedJson(bart_json)
 createBARTModelFromCombinedJson <- function(json_object_list) {
   # Initialize the BCF model
   output <- list()
@@ -4135,7 +3983,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
     "outcome_model"
   )
   outcome_model_link <- json_object_default$get_string("link", "outcome_model")
-  model_params[["outcome_model"]] <- outcome_model(
+  model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
@@ -4260,41 +4108,10 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   return(output)
 }
 
-#' @title Convert JSON String List to Single BART Model
-#' @description
-#' Convert a list of (in-memory) JSON strings that represent BART models to a single combined BART model object
-#' which can be used for prediction, etc...
-#'
+#' @title Convert JSON string list to single BART model
+#' @rdname BARTSerialization
 #' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BART model
-#'
-#' @return Object of type `bartmodel`
 #' @export
-#'
-#' @examples
-#' n <- 100
-#' p <- 5
-#' X <- matrix(runif(n*p), ncol = p)
-#' f_XW <- (
-#'     ((0 <= X[,1]) & (0.25 > X[,1])) * (-7.5) +
-#'     ((0.25 <= X[,1]) & (0.5 > X[,1])) * (-2.5) +
-#'     ((0.5 <= X[,1]) & (0.75 > X[,1])) * (2.5) +
-#'     ((0.75 <= X[,1]) & (1 > X[,1])) * (7.5)
-#' )
-#' noise_sd <- 1
-#' y <- f_XW + rnorm(n, 0, noise_sd)
-#' test_set_pct <- 0.2
-#' n_test <- round(test_set_pct*n)
-#' n_train <- n - n_test
-#' test_inds <- sort(sample(1:n, n_test, replace = FALSE))
-#' train_inds <- (1:n)[!((1:n) %in% test_inds)]
-#' X_test <- X[test_inds,]
-#' X_train <- X[train_inds,]
-#' y_test <- y[test_inds]
-#' y_train <- y[train_inds]
-#' bart_model <- bart(X_train = X_train, y_train = y_train,
-#'                    num_gfr = 10, num_burnin = 0, num_mcmc = 10)
-#' bart_json_string_list <- list(saveBARTModelToJsonString(bart_model))
-#' bart_model_roundtrip <- createBARTModelFromCombinedJsonString(bart_json_string_list)
 createBARTModelFromCombinedJsonString <- function(json_string_list) {
   # Initialize the BCF model
   output <- list()
@@ -4421,7 +4238,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
     "outcome_model"
   )
   outcome_model_link <- json_object_default$get_string("link", "outcome_model")
-  model_params[["outcome_model"]] <- outcome_model(
+  model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
