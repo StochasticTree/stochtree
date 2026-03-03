@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{compute_contrast_bart_model}
 \alias{compute_contrast_bart_model}
-\title{Compute Contrast for BART Model}
+\title{Compute contrast for BART model}
 \usage{
 compute_contrast_bart_model(
   object,

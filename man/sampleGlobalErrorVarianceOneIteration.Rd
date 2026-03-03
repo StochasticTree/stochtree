@@ -2,7 +2,7 @@
 % Please edit documentation in R/variance.R
 \name{sampleGlobalErrorVarianceOneIteration}
 \alias{sampleGlobalErrorVarianceOneIteration}
-\title{Sample Global Error Variance}
+\title{Sample global error variance}
 \usage{
 sampleGlobalErrorVarianceOneIteration(residual, dataset, rng, a, b)
 }

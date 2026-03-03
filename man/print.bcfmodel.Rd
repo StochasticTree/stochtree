@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{print.bcfmodel}
 \alias{print.bcfmodel}
-\title{Print Summary of BCF Model}
+\title{Print summary of BCF model}
 \usage{
 \method{print}{bcfmodel}(x, ...)
 }

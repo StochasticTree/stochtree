@@ -2,7 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{createForest}
 \alias{createForest}
-\title{Create Forest Object}
+\title{Create forest object}
 \usage{
 createForest(
   num_trees,

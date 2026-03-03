@@ -2,7 +2,7 @@
 % Please edit documentation in R/config.R
 \name{createGlobalModelConfig}
 \alias{createGlobalModelConfig}
-\title{Create GlobalModelConfig Object}
+\title{Create GlobalModelConfig object}
 \usage{
 createGlobalModelConfig(global_error_variance = 1)
 }

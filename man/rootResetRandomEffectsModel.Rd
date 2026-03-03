@@ -2,7 +2,7 @@
 % Please edit documentation in R/random_effects.R
 \name{rootResetRandomEffectsModel}
 \alias{rootResetRandomEffectsModel}
-\title{Reset RandomEffectsModel Object to Default State}
+\title{Reset RandomEffectsModel object to default state}
 \usage{
 rootResetRandomEffectsModel(
   rfx_model,

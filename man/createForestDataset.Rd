@@ -2,7 +2,7 @@
 % Please edit documentation in R/data.R
 \name{createForestDataset}
 \alias{createForestDataset}
-\title{Create ForestDataset Object}
+\title{Create ForestDataset object}
 \usage{
 createForestDataset(covariates, basis = NULL, variance_weights = NULL)
 }

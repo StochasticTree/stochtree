@@ -1235,7 +1235,7 @@ Forest <- R6::R6Class(
   )
 )
 
-#' @title Create ForestSamples Object
+#' @title Create ForestSamples object
 #' @description Create a container of forest samples
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
@@ -1272,7 +1272,7 @@ createForestSamples <- function(
   ))
 }
 
-#' @title Create Forest Object
+#' @title Create forest object
 #' @description Create a forest
 #'
 #' This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
@@ -1309,7 +1309,7 @@ createForest <- function(
   ))
 }
 
-#' @title Reset Active Forest
+#' @title Reset active forest
 #' @description Reset an active forest, either from a specific forest in a `ForestContainer`
 #' or to an ensemble of single-node (i.e. root) trees
 #'
@@ -1358,7 +1358,7 @@ resetActiveForest <- function(
   }
 }
 
-#' @title Reset Forest Model
+#' @title Reset forest model
 #' @description
 #' Re-initialize a forest model (tracking data structures) from a specific forest in a `ForestContainer`
 #'

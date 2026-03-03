@@ -2,7 +2,7 @@
 % Please edit documentation in R/random_effects.R
 \name{resetRandomEffectsTracker}
 \alias{resetRandomEffectsTracker}
-\title{Reset RandomEffectsTracker Object}
+\title{Reset RandomEffectsTracker object}
 \usage{
 resetRandomEffectsTracker(
   rfx_tracker,

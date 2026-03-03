@@ -2,7 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{print.bartmodel}
 \alias{print.bartmodel}
-\title{Summarize a BART Model}
+\title{Print summary of BART model}
 \usage{
 \method{print}{bartmodel}(x, ...)
 }

@@ -522,7 +522,7 @@ GlobalModelConfig <- R6::R6Class(
   )
 )
 
-#' @title Create ForestModelConfig Object
+#' @title Create ForestModelConfig object
 #' @description
 #' Create a forest model config object
 #'
@@ -598,7 +598,7 @@ createForestModelConfig <- function(
   ))
 }
 
-#' @title Create GlobalModelConfig Object
+#' @title Create GlobalModelConfig object
 #' @description
 #' Create a global model config object
 #'

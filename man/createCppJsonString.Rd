@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{createCppJsonString}
 \alias{createCppJsonString}
-\title{Create CppJson Object from String}
+\title{Create CppJson object from string}
 \usage{
 createCppJsonString(json_string)
 }

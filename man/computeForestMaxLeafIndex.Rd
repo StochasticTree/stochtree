@@ -2,7 +2,7 @@
 % Please edit documentation in R/kernel.R
 \name{computeForestMaxLeafIndex}
 \alias{computeForestMaxLeafIndex}
-\title{Query Forest Max Leaf Index}
+\title{Query forest max leaf index}
 \usage{
 computeForestMaxLeafIndex(model_object, forest_type = NULL, forest_inds = NULL)
 }

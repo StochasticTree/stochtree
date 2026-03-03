@@ -389,7 +389,7 @@ RandomEffectsDataset <- R6::R6Class(
   )
 )
 
-#' @title Create ForestDataset Object
+#' @title Create ForestDataset object
 #' @description
 #' Create a forest dataset object
 #'
@@ -419,7 +419,7 @@ createForestDataset <- function(
   return(invisible((ForestDataset$new(covariates, basis, variance_weights))))
 }
 
-#' @title Create Outcome Object
+#' @title Create outcome object
 #' @description
 #' Create an outcome object
 #'
@@ -440,7 +440,7 @@ createOutcome <- function(outcome) {
   return(invisible((Outcome$new(outcome))))
 }
 
-#' @title Create RandomEffectsDataset Object
+#' @title Create RandomEffectsDataset object
 #' @description
 #' Create a random effects dataset object
 #'

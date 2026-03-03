@@ -1,4 +1,4 @@
-#' @title Query Forest Leaf Indices
+#' @title Query forest leaf indices
 #' @description Compute and return a vector representation of a forest's leaf predictions for
 #' every observation in a dataset.
 #'
@@ -156,7 +156,7 @@ computeForestLeafIndices <- function(
   return(leaf_ind_matrix)
 }
 
-#' @title Query Forest Leaf Scale Parameters
+#' @title Query forest leaf scale parameters
 #' @description Return each forest's leaf node scale parameters.
 #'
 #' If leaf scale is not sampled for the forest in question, throws an error that the
@@ -271,7 +271,7 @@ computeForestLeafVariances <- function(
   return(leaf_scale_params)
 }
 
-#' @title Query Forest Max Leaf Index
+#' @title Query forest max leaf index
 #' @description
 #' Compute and return the largest possible leaf index computable by `computeForestLeafIndices` for the forests in a designated forest sample container.
 #'

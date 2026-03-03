@@ -1,4 +1,4 @@
-#' @title Calibrate Inverse Gamma Prior
+#' @title Calibrate inverse gamma prior
 #' @description
 #' Calibrate the scale parameter on an inverse gamma prior for the global error variance as in Chipman et al (2022)
 #'

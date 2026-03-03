@@ -1,4 +1,4 @@
-#' @title Compute Contrast for BCF Model
+#' @title Compute contrast for BCF model
 #' @description
 #' Compute a contrast using a BCF model by making two sets of outcome predictions and taking their difference.
 #' For simple BCF models with binary treatment, this will yield the same prediction as requesting `terms = "cate"`
@@ -247,7 +247,7 @@ compute_contrast_bcf_model <- function(
   }
 }
 
-#' @title Compute Contrast for BART Model
+#' @title Compute contrast for BART model
 #' @description
 #' Compute a contrast using a BART model by making two sets of outcome predictions and taking their difference.
 #' This function provides the flexibility to compute any contrast of interest by specifying covariates, leaf basis, and random effects
@@ -499,7 +499,7 @@ compute_contrast_bart_model <- function(
   }
 }
 
-#' @title Sample BCF Posterior Predictive
+#' @title Sample BCF posterior predictive
 #' @description
 #' Sample from the posterior predictive distribution for outcomes modeled by BCF
 #'
@@ -701,7 +701,7 @@ sample_bcf_posterior_predictive <- function(
   return(ppd_array)
 }
 
-#' @title Sample BART Posterior Predictive
+#' @title Sample BART posterior predictive
 #' @description
 #' Sample from the posterior predictive distribution for outcomes modeled by BART
 #'
@@ -964,7 +964,7 @@ posterior_predictive_heuristic_multiplier <- function(
   }
 }
 
-#' @title Compute BCF Posterior Credible Intervals
+#' @title Compute BCF posterior credible intervals
 #' @description
 #' Compute posterior credible intervals for specified terms from a fitted BCF model. Supports intervals for prognostic forests, CATE forests, variance forests, random effects, and overall mean outcome predictions.
 #'
@@ -1192,7 +1192,7 @@ compute_bcf_posterior_interval <- function(
   }
 }
 
-#' @title Compute BART Posterior Credible Intervals
+#' @title Compute BART posterior credible intervals
 #' @description
 #' Compute posterior credible intervals for specified terms from a fitted BART model. Supports intervals for mean functions, variance functions, random effects, and overall outcome predictions.
 #'

@@ -150,7 +150,7 @@ preprocessParams <- function(default_params, user_params = NULL) {
   return(default_params)
 }
 
-#' @title Preprocess Covariates for Model Training
+#' @title Preprocess covariates for model training
 #' @param input_data Covariates, provided as either a dataframe or a matrix
 #' @export
 #' @rdname DataPreprocessing
@@ -170,7 +170,7 @@ preprocessTrainData <- function(input_data) {
   return(output)
 }
 
-#' @title Preprocess Covariates for Model Prediction
+#' @title Preprocess covariates for model prediction
 #' @param input_data Covariates, provided as either a dataframe or a matrix
 #' @param metadata List containing information on variables, including train set
 #' categories for categorical variables

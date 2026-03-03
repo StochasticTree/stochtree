@@ -2,7 +2,7 @@
 % Please edit documentation in R/random_effects.R
 \name{resetRandomEffectsModel}
 \alias{resetRandomEffectsModel}
-\title{Reset RandomEffectsModel Object}
+\title{Reset RandomEffectsModel object}
 \usage{
 resetRandomEffectsModel(rfx_model, rfx_samples, sample_num, sigma_alpha_init)
 }

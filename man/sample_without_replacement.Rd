@@ -2,7 +2,7 @@
 % Please edit documentation in R/model.R
 \name{sample_without_replacement}
 \alias{sample_without_replacement}
-\title{Sample Without Replacement}
+\title{Sample without replacement}
 \usage{
 sample_without_replacement(
   population_vector,

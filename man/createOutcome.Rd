@@ -2,7 +2,7 @@
 % Please edit documentation in R/data.R
 \name{createOutcome}
 \alias{createOutcome}
-\title{Create Outcome Object}
+\title{Create outcome object}
 \usage{
 createOutcome(outcome)
 }

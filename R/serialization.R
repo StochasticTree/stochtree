@@ -524,7 +524,7 @@ CppJson <- R6::R6Class(
   )
 )
 
-#' @title Load Forest Samples from JSON
+#' @title Load forest samples from JSON
 #' @description
 #' Load a container of forest samples from json
 #'
@@ -550,7 +550,7 @@ loadForestContainerJson <- function(json_object, json_forest_label) {
   return(output)
 }
 
-#' @title Combine JSON Model Objects into ForestSamples
+#' @title Combine JSON model objects into ForestSamples
 #' @description
 #' Combine multiple JSON model objects containing forests (with the same hierarchy / schema) into a single forest_container
 #'
@@ -586,7 +586,7 @@ loadForestContainerCombinedJson <- function(
   return(output)
 }
 
-#' @title Combine JSON Strings into ForestSamples
+#' @title Combine JSON strings into ForestSamples
 #' @description
 #' Combine multiple JSON strings representing model objects containing forests (with the same hierarchy / schema) into a single forest_container
 #'
@@ -622,7 +622,7 @@ loadForestContainerCombinedJsonString <- function(
   return(output)
 }
 
-#' @title Load Random Effect Samples from JSON
+#' @title Load random effect samples from JSON
 #' @description
 #' Load a container of random effect samples from json
 #'
@@ -661,7 +661,7 @@ loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
   return(output)
 }
 
-#' @title Combine JSON Model Objects into RandomEffectSamples
+#' @title Combine JSON model objects into RandomEffectSamples
 #' @description
 #' Combine multiple JSON model objects containing random effects (with the same hierarchy / schema) into a single container
 #'
@@ -715,7 +715,7 @@ loadRandomEffectSamplesCombinedJson <- function(
   return(output)
 }
 
-#' @title Combine JSON Strings into RandomEffectSamples
+#' @title Combine JSON strings into RandomEffectSamples
 #' @description
 #' Combine multiple JSON strings representing model objects containing random effects (with the same hierarchy / schema) into a single container
 #'
@@ -769,7 +769,7 @@ loadRandomEffectSamplesCombinedJsonString <- function(
   return(output)
 }
 
-#' @title Load Vector from JSON
+#' @title Load vector from JSON
 #' @description
 #' Load a vector from json
 #'
@@ -802,7 +802,7 @@ loadVectorJson <- function(
   return(output)
 }
 
-#' @title Load Scalar from JSON
+#' @title Load scalar from JSON
 #' @description
 #' Load a scalar from json
 #'
@@ -835,7 +835,7 @@ loadScalarJson <- function(
   return(output)
 }
 
-#' @title Create CppJson Object
+#' @title Create CppJson object
 #' @description
 #' Create a new (empty) C++ Json object
 #'
@@ -854,7 +854,7 @@ createCppJson <- function() {
   return(invisible((CppJson$new())))
 }
 
-#' @title Create CppJson Object from File
+#' @title Create CppJson object from file
 #' @description
 #' Create a C++ Json object from a Json file
 #'
@@ -880,7 +880,7 @@ createCppJsonFile <- function(json_filename) {
   return(output)
 }
 
-#' @title Create CppJson Object from String
+#' @title Create CppJson object from string
 #' @description
 #' Create a C++ Json object from a Json string
 #'

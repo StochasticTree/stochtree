@@ -3848,7 +3848,7 @@ createBARTModelFromJsonFile <- function(json_filename) {
   return(bart_object)
 }
 
-#' @title Convert JSON String to BART Model
+#' @title Convert JSON string to BART model
 #' @rdname BARTSerialization
 #' @param json_string JSON string dump
 #' @export
@@ -3862,7 +3862,7 @@ createBARTModelFromJsonString <- function(json_string) {
   return(bart_object)
 }
 
-#' @title Convert JSON List to Single BART Model
+#' @title Convert JSON list to single BART model
 #' @rdname BARTSerialization
 #' @param json_object_list List of objects of type `CppJson` containing Json representation of a BART model
 #' @export
@@ -4108,7 +4108,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   return(output)
 }
 
-#' @title Convert JSON String List to Single BART Model
+#' @title Convert JSON string list to single BART model
 #' @rdname BARTSerialization
 #' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BART model
 #' @export

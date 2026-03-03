@@ -2,7 +2,7 @@
 % Please edit documentation in R/random_effects.R
 \name{createRandomEffectsModel}
 \alias{createRandomEffectsModel}
-\title{Create RandomEffectsModel Object}
+\title{Create RandomEffectsModel object}
 \usage{
 createRandomEffectsModel(num_components, num_groups)
 }

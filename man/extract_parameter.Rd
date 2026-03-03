@@ -2,7 +2,7 @@
 % Please edit documentation in R/generics.R
 \name{extract_parameter}
 \alias{extract_parameter}
-\title{Extract Parameter Samples Generic Function}
+\title{Extract parameter samples generic function}
 \usage{
 extract_parameter(object, term)
 }

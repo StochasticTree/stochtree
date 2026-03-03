@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{compute_bcf_posterior_interval}
 \alias{compute_bcf_posterior_interval}
-\title{Compute BCF Posterior Credible Intervals}
+\title{Compute BCF posterior credible intervals}
 \usage{
 compute_bcf_posterior_interval(
   model_object,

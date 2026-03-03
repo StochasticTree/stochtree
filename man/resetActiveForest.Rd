@@ -2,7 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{resetActiveForest}
 \alias{resetActiveForest}
-\title{Reset Active Forest}
+\title{Reset active forest}
 \usage{
 resetActiveForest(active_forest, forest_samples = NULL, forest_num = NULL)
 }

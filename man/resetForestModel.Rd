@@ -2,7 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{resetForestModel}
 \alias{resetForestModel}
-\title{Reset Forest Model}
+\title{Reset forest model}
 \usage{
 resetForestModel(forest_model, forest, dataset, residual, is_mean_model)
 }

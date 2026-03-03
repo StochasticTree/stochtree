@@ -2,7 +2,7 @@
 % Please edit documentation in R/model.R
 \name{createForestModel}
 \alias{createForestModel}
-\title{Create ForestModel Object}
+\title{Create ForestModel object}
 \usage{
 createForestModel(forest_dataset, forest_model_config, global_model_config)
 }

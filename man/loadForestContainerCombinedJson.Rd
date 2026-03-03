@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{loadForestContainerCombinedJson}
 \alias{loadForestContainerCombinedJson}
-\title{Combine JSON Model Objects into ForestSamples}
+\title{Combine JSON model objects into ForestSamples}
 \usage{
 loadForestContainerCombinedJson(json_object_list, json_forest_label)
 }

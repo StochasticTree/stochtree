@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{bcf}
 \alias{bcf}
-\title{Run BCF for Causal Effect Estimation}
+\title{Run BCF for causal effect estimation}
 \usage{
 bcf(
   X_train,

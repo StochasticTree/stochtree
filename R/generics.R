@@ -1,4 +1,4 @@
-#' @title Extract Random Effect Samples Generic Function
+#' @title Extract random effect samples generic function
 #' @description
 #' Generic function for extracting random effect samples from a model object (BCF, BART, etc...)
 #'
@@ -21,7 +21,7 @@ getRandomEffectSamples <- function(object, ...) {
   UseMethod("getRandomEffectSamples")
 }
 
-#' @title Extract Parameter Samples Generic Function
+#' @title Extract parameter samples generic function
 #' @description
 #' Generic function for extracting parameter samples from a model object (BCF, BART, etc...)
 #'

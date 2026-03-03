@@ -325,7 +325,7 @@ ForestModel <- R6::R6Class(
   )
 )
 
-#' @title Create CppRNG Object
+#' @title Create CppRNG object
 #' @description
 #' Create an R class that wraps a C++ random number generator
 #'
@@ -341,7 +341,7 @@ createCppRNG <- function(random_seed = -1) {
   return(invisible((CppRNG$new(random_seed))))
 }
 
-#' @title Create ForestModel Object
+#' @title Create ForestModel object
 #' @description
 #' Create a forest model object
 #'
@@ -394,7 +394,7 @@ createForestModel <- function(
 }
 
 
-#' @title Sample Without Replacement
+#' @title Sample without replacement
 #' @description
 #' Draw `sample_size` samples from `population_vector` without replacement, weighted by `sampling_probabilities`
 #'

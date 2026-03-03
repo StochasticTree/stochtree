@@ -2,7 +2,7 @@
 % Please edit documentation in R/random_effects.R
 \name{createRandomEffectsTracker}
 \alias{createRandomEffectsTracker}
-\title{Create RandomEffectsTracker Object}
+\title{Create RandomEffectsTracker object}
 \usage{
 createRandomEffectsTracker(rfx_group_indices)
 }

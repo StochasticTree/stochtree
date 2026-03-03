@@ -2,7 +2,7 @@
 % Please edit documentation in R/kernel.R
 \name{computeForestLeafVariances}
 \alias{computeForestLeafVariances}
-\title{Query Forest Leaf Scale Parameters}
+\title{Query forest leaf scale parameters}
 \usage{
 computeForestLeafVariances(model_object, forest_type, forest_inds = NULL)
 }

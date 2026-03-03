@@ -2,7 +2,7 @@
 % Please edit documentation in R/kernel.R
 \name{computeForestLeafIndices}
 \alias{computeForestLeafIndices}
-\title{Query Forest Leaf Indices}
+\title{Query forest leaf indices}
 \usage{
 computeForestLeafIndices(
   model_object,

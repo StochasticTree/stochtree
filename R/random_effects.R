@@ -463,7 +463,7 @@ RandomEffectsModel <- R6::R6Class(
   )
 )
 
-#' @title Create RandomEffectSamples Object
+#' @title Create RandomEffectSamples object
 #' @description
 #' Create a `RandomEffectSamples` object
 #'
@@ -495,7 +495,7 @@ createRandomEffectSamples <- function(
   return(output)
 }
 
-#' @title Create RandomEffectsTracker Object
+#' @title Create RandomEffectsTracker object
 #' @description
 #' Create a `RandomEffectsTracker` object
 #'
@@ -518,7 +518,7 @@ createRandomEffectsTracker <- function(rfx_group_indices) {
   return(invisible((RandomEffectsTracker$new(rfx_group_indices))))
 }
 
-#' @title Create RandomEffectsModel Object
+#' @title Create RandomEffectsModel object
 #' @description
 #' Create a `RandomEffectsModel` object
 #'
@@ -542,7 +542,7 @@ createRandomEffectsModel <- function(num_components, num_groups) {
   return(invisible((RandomEffectsModel$new(num_components, num_groups))))
 }
 
-#' @title Reset RandomEffectsModel Object
+#' @title Reset RandomEffectsModel object
 #' @description
 #' Reset a `RandomEffectsModel` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
 #'
@@ -610,7 +610,7 @@ resetRandomEffectsModel <- function(
   rfx_model$set_working_parameter_cov(sigma_alpha_init)
 }
 
-#' @title Reset RandomEffectsTracker Object
+#' @title Reset RandomEffectsTracker object
 #' @description
 #' Reset a `RandomEffectsTracker` object based on the parameters indexed by `sample_num` in a `RandomEffectsSamples` object
 #'
@@ -675,7 +675,7 @@ resetRandomEffectsTracker <- function(
   )
 }
 
-#' @title Reset RandomEffectsModel Object to Default State
+#' @title Reset RandomEffectsModel object to default state
 #' @description
 #' Reset a `RandomEffectsModel` object to its "default" state
 #'
@@ -744,7 +744,7 @@ rootResetRandomEffectsModel <- function(
   rfx_model$set_variance_prior_scale(sigma_xi_scale)
 }
 
-#' @title Reset RandomEffectsTracker Object to Default State
+#' @title Reset RandomEffectsTracker object to default state
 #' @description
 #' Reset a `RandomEffectsTracker` object to its "default" state
 #'

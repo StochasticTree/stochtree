@@ -61,7 +61,7 @@
 NULL
 #> NULL
 
-#' @title Run BCF for Causal Effect Estimation
+#' @title Run BCF for causal effect estimation
 #' @description
 #' Run the Bayesian Causal Forest (BCF) algorithm for regularized causal effect estimation.
 #'
@@ -2928,7 +2928,7 @@ bcf <- function(
   return(result)
 }
 
-#' @title Predict From BCF Model
+#' @title Predict from BCF model
 #' @description
 #' Predict from a sampled BCF model on new data
 #'
@@ -3496,7 +3496,7 @@ predict.bcfmodel <- function(
   return(result)
 }
 
-#' @title Print Summary of BCF Model
+#' @title Print summary of BCF model
 #' @description Prints a summary of the BCF model, including the model terms and their specifications.
 #' @param x The BCF model object
 #' @param ... Additional arguments (currently unused)
@@ -3665,7 +3665,7 @@ print.bcfmodel <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Summarize BCF Model
+#' @title Summarize BCF model
 #' @description Summarize the BCF with a description of the model that was fit and numeric summaries of any sampled quantities.
 #' @param object The BCF model object
 #' @param ... Additional arguments
@@ -3890,7 +3890,7 @@ summary.bcfmodel <- function(object, ...) {
   invisible(object)
 }
 
-#' @title Plot BCF Model
+#' @title Plot BCF model
 #' @description Plot the BCF model fit and any relevant sampled quantities. This will default to a traceplot of the global error scale and the in-sample mean forest predictions for the first train set observation. Since `stochtree::bcf()` is flexible and it's possible to sample a model with a fixed global error scale and no mean forest, this procedure will throw an error if these two default terms are omitted.
 #' @param x The BCF model object
 #' @param ... Additional arguments
@@ -3928,7 +3928,7 @@ plot.bcfmodel <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Extract BCF Parameter Samples
+#' @title Extract BCF parameter samples
 #' @description Extract a vector, matrix or array of parameter samples from a BCF model by name.
 #' Random effects are handled by a separate `getRandomEffectSamples` function due to the complexity of the random effects parameters.
 #' If the requested model term is not found, an error is thrown.
@@ -4082,7 +4082,7 @@ extract_parameter.bcfmodel <- function(object, term) {
   stop(paste0("term ", term, " is not a valid BCF model term"))
 }
 
-#' @title Extract Random Effect Samples from BCF Model
+#' @title Extract random effect samples from BCF model
 #' @description
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
@@ -4182,7 +4182,7 @@ getRandomEffectSamples.bcfmodel <- function(object, ...) {
   return(result)
 }
 
-#' @title Convert BCF Model to JSON
+#' @title Convert BCF model to JSON
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #' @export
 #' @rdname BCFSerialization
@@ -4373,7 +4373,7 @@ saveBCFModelToJsonFile <- function(object, filename) {
   jsonobj$save_file(filename)
 }
 
-#' @title Convert BCF Model to JSON String
+#' @title Convert BCF model to JSON string
 #' @param object Object of type `bcfmodel` containing draws of a Bayesian causal forest model and associated sampling outputs.
 #' @export
 #' @rdname BCFSerialization
@@ -4385,7 +4385,7 @@ saveBCFModelToJsonString <- function(object) {
   return(jsonobj$return_json_string())
 }
 
-#' @title Convert JSON to BCF Model
+#' @title Convert JSON to BCF model
 #' @param json_object Object of type `CppJson` containing Json representation of a BCF model
 #' @export
 #' @rdname BCFSerialization
@@ -4556,7 +4556,7 @@ createBCFModelFromJson <- function(json_object) {
   return(output)
 }
 
-#' @title Convert JSON File to BCF Model
+#' @title Convert JSON file to BCF model
 #' @param json_filename String of filepath, must end in ".json"
 #' @export
 #' @rdname BCFSerialization
@@ -4570,7 +4570,7 @@ createBCFModelFromJsonFile <- function(json_filename) {
   return(bcf_object)
 }
 
-#' @title Convert JSON String to BCF Model
+#' @title Convert JSON string to BCF model
 #' @param json_string JSON string dump
 #' @export
 #' @rdname BCFSerialization
@@ -4584,7 +4584,7 @@ createBCFModelFromJsonString <- function(json_string) {
   return(bcf_object)
 }
 
-#' @title Convert JSON List to BCF Model
+#' @title Convert JSON list to BCF model
 #' @param json_object_list List of objects of type `CppJson` containing Json representation of a BCF model
 #' @export
 #' @rdname BCFSerialization
@@ -4868,7 +4868,7 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   return(output)
 }
 
-#' @title Convert JSON String List to BCF Model
+#' @title Convert JSON string list to BCF model
 #' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BCF model
 #' @export
 #' @rdname BCFSerialization

@@ -2,7 +2,7 @@
 % Please edit documentation in R/random_effects.R
 \name{createRandomEffectSamples}
 \alias{createRandomEffectSamples}
-\title{Create RandomEffectSamples Object}
+\title{Create RandomEffectSamples object}
 \usage{
 createRandomEffectSamples(num_components, num_groups, random_effects_tracker)
 }

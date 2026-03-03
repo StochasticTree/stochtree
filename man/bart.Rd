@@ -2,7 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{bart}
 \alias{bart}
-\title{Run BART for Supervised Learning}
+\title{Run BART for supervised learning}
 \usage{
 bart(
   X_train,
