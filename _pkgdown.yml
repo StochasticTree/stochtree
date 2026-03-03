@@ -85,11 +85,8 @@ reference:
   - CppRNG
   - createCppRNG
   - calibrateInverseGammaErrorVariance
-  - computeForestMaxLeafIndex
-  - computeForestLeafIndices
-  - computeForestLeafVariances
-  - resetActiveForest
-  - resetForestModel
+  - ForestKernelComputation
+  - ForestStateManagement
 
 - subtitle: Random Effects
   desc: >
@@ -105,10 +102,7 @@ reference:
   - getRandomEffectSamples
   - sampleGlobalErrorVarianceOneIteration
   - sampleLeafVarianceOneIteration
-  - resetRandomEffectsModel
-  - resetRandomEffectsTracker
-  - rootResetRandomEffectsModel
-  - rootResetRandomEffectsTracker
+  - RandomEffectStateManagement
 
 - subtitle: Utilities
   desc: >
