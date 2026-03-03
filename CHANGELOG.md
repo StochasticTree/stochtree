@@ -8,7 +8,24 @@
 * Added `__str__`, `__repr__`, `summary`, and `extract_parameter` methods in Python for the `BARTModel` and `BCFModel` classes ([#298](https://github.com/StochasticTree/stochtree/pull/298))
 * Added plotting utility function (`plot_parameter_trace`) in Python that operates on both the `BARTModel` and `BCFModel` classes ([#298](https://github.com/StochasticTree/stochtree/pull/298))
 * Added vignettes for summary / model inspection utilities in both R and Python ([#298](https://github.com/StochasticTree/stochtree/pull/298))
-* Added `print` methods for R and `__str__` methods for Python for the forest container and random effects container objects ([#298](https://github.com/StochasticTree/stochtree/pull/298))
+* Added `print` methods in R and `__str__` methods in Python for the forest container and random effects container objects ([#298](https://github.com/StochasticTree/stochtree/pull/298))
+* Updated R documentation to group related functions into topics ([#302](https://github.com/StochasticTree/stochtree/pull/302)):
+  * `BARTSerialization`
+  * `BCFSerialization`
+  * `ForestSamplesSerialization`
+  * `RandomEffectSamplesSerialization`
+  * `DataPreprocessing`
+  * `ForestKernelComputation`
+  * `ForestStateManagement`
+  * `RandomEffectStateManagement`
+* Converted the following R function names from snake case to camel case ([#302](https://github.com/StochasticTree/stochtree/pull/302)):
+  * `compute_bart_posterior_interval` -> `computeBARTPosteriorInterval`
+  * `compute_bcf_posterior_interval` -> `computeBCFPosteriorInterval`
+  * `compute_contrast_bart_model` -> `computeContrastBARTModel`
+  * `compute_contrast_bcf_model` -> `computeContrastBCFModel`
+  * `extract_parameter` -> `extractParameter`
+  * `sample_bart_posterior_predictive` -> `sampleBARTPosteriorPredictive`
+  * `sample_bcf_posterior_predictive` -> `sampleBCFPosteriorPredictive`
 
 ## Bug Fixes
 
