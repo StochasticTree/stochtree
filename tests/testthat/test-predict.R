@@ -1,174 +1,1734 @@
 test_that("Prediction from trees with constant leaf", {
-    # Create dataset and forest container
-    num_trees <- 10
-    X = matrix(c(1.5, 8.7, 1.2, 
+  # Create dataset and forest container
+  num_trees <- 10
+  # fmt: skip
+  X = matrix(c(1.5, 8.7, 1.2, 
                  2.7, 3.4, 5.4, 
                  3.6, 1.2, 9.3, 
                  4.4, 5.4, 10.4, 
                  5.3, 9.3, 3.6, 
                  6.1, 10.4, 4.4), 
-               byrow = T, nrow = 6)
-    n <- nrow(X)
-    p <- ncol(X)
-    forest_dataset = createForestDataset(X)
-    forest_samples <- createForestSamples(num_trees, 1, T)
-    
-    # Initialize a forest with constant root predictions
-    forest_samples$add_forest_with_constant_leaves(0.)
-    
-    # Check that regular and "raw" predictions are the same (since the leaf is constant)
-    pred <- forest_samples$predict(forest_dataset)
-    pred_raw <- forest_samples$predict_raw(forest_dataset)
-    
-    # Assertion
-    expect_equal(pred, pred_raw)
-    
-    # Split the root of the first tree in the ensemble at X[,1] > 4.0
-    forest_samples$add_numeric_split_tree(0, 0, 0, 0, 4.0, -5., 5.)
-    
-    # Check that regular and "raw" predictions are the same (since the leaf is constant)
-    pred <- forest_samples$predict(forest_dataset)
-    pred_raw <- forest_samples$predict_raw(forest_dataset)
-    
-    # Assertion
-    expect_equal(pred, pred_raw)
-    
-    # Split the left leaf of the first tree in the ensemble at X[,2] > 4.0
-    forest_samples$add_numeric_split_tree(0, 0, 1, 1, 4.0, -7.5, -2.5)
-    
-    # Check that regular and "raw" predictions are the same (since the leaf is constant)
-    pred <- forest_samples$predict(forest_dataset)
-    pred_raw <- forest_samples$predict_raw(forest_dataset)
-    
-    # Assertion
-    expect_equal(pred, pred_raw)
-    
-    # Check the split count for the first tree in the ensemble
-    split_counts <- forest_samples$get_tree_split_counts(0,0,p)
-    split_counts_expected <- c(1,1,0)
-    
-    # Assertion
-    expect_equal(split_counts, split_counts_expected)
+               byrow = TRUE, nrow = 6)
+  n <- nrow(X)
+  p <- ncol(X)
+  forest_dataset = createForestDataset(X)
+  forest_samples <- createForestSamples(num_trees, 1, TRUE)
+
+  # Initialize a forest with constant root predictions
+  forest_samples$add_forest_with_constant_leaves(0.)
+
+  # Check that regular and "raw" predictions are the same (since the leaf is constant)
+  pred <- forest_samples$predict(forest_dataset)
+  pred_raw <- forest_samples$predict_raw(forest_dataset)
+
+  # Assertion
+  expect_equal(pred, pred_raw)
+
+  # Split the root of the first tree in the ensemble at X[,1] > 4.0
+  forest_samples$add_numeric_split_tree(0, 0, 0, 0, 4.0, -5., 5.)
+
+  # Check that regular and "raw" predictions are the same (since the leaf is constant)
+  pred <- forest_samples$predict(forest_dataset)
+  pred_raw <- forest_samples$predict_raw(forest_dataset)
+
+  # Assertion
+  expect_equal(pred, pred_raw)
+
+  # Split the left leaf of the first tree in the ensemble at X[,2] > 4.0
+  forest_samples$add_numeric_split_tree(0, 0, 1, 1, 4.0, -7.5, -2.5)
+
+  # Check that regular and "raw" predictions are the same (since the leaf is constant)
+  pred <- forest_samples$predict(forest_dataset)
+  pred_raw <- forest_samples$predict_raw(forest_dataset)
+
+  # Assertion
+  expect_equal(pred, pred_raw)
+
+  # Check the split count for the first tree in the ensemble
+  split_counts <- forest_samples$get_tree_split_counts(0, 0, p)
+  split_counts_expected <- c(1, 1, 0)
+
+  # Assertion
+  expect_equal(split_counts, split_counts_expected)
 })
 
 test_that("Prediction from trees with univariate leaf basis", {
-    # Create dataset and forest container
-    num_trees <- 10
-    X = matrix(c(1.5, 8.7, 1.2, 
+  # Create dataset and forest container
+  num_trees <- 10
+  # fmt: skip
+  X = matrix(c(1.5, 8.7, 1.2, 
                  2.7, 3.4, 5.4, 
                  3.6, 1.2, 9.3, 
                  4.4, 5.4, 10.4, 
                  5.3, 9.3, 3.6, 
                  6.1, 10.4, 4.4), 
-               byrow = T, nrow = 6)
-    W = as.matrix(c(-1,-1,-1,1,1,1))
-    n <- nrow(X)
-    p <- ncol(X)
-    forest_dataset = createForestDataset(X,W)
-    forest_samples <- createForestSamples(num_trees, 1, F)
-    
-    # Initialize a forest with constant root predictions
-    forest_samples$add_forest_with_constant_leaves(0.)
-    
-    # Check that regular and "raw" predictions are the same (since the leaf is constant)
-    pred <- forest_samples$predict(forest_dataset)
-    pred_raw <- forest_samples$predict_raw(forest_dataset)
-    
-    # Assertion
-    expect_equal(pred, pred_raw)
-    
-    # Split the root of the first tree in the ensemble at X[,1] > 4.0
-    forest_samples$add_numeric_split_tree(0, 0, 0, 0, 4.0, -5., 5.)
-    
-    # Check that regular and "raw" predictions are the same (since the leaf is constant)
-    pred <- forest_samples$predict(forest_dataset)
-    pred_raw <- forest_samples$predict_raw(forest_dataset)
-    pred_manual <- pred_raw*W
-    
-    # Assertion
-    expect_equal(pred, pred_manual)
-    
-    # Split the left leaf of the first tree in the ensemble at X[,2] > 4.0
-    forest_samples$add_numeric_split_tree(0, 0, 1, 1, 4.0, -7.5, -2.5)
-    
-    # Check that regular and "raw" predictions are the same (since the leaf is constant)
-    pred <- forest_samples$predict(forest_dataset)
-    pred_raw <- forest_samples$predict_raw(forest_dataset)
-    pred_manual <- pred_raw*W
-    
-    # Assertion
-    expect_equal(pred, pred_manual)
-    
-    # Check the split count for the first tree in the ensemble
-    split_counts <- forest_samples$get_tree_split_counts(0,0,p)
-    split_counts_expected <- c(1,1,0)
-    
-    # Assertion
-    expect_equal(split_counts, split_counts_expected)
+               byrow = TRUE, nrow = 6)
+  W = as.matrix(c(-1, -1, -1, 1, 1, 1))
+  n <- nrow(X)
+  p <- ncol(X)
+  forest_dataset = createForestDataset(X, W)
+  forest_samples <- createForestSamples(num_trees, 1, FALSE)
+
+  # Initialize a forest with constant root predictions
+  forest_samples$add_forest_with_constant_leaves(0.)
+
+  # Check that regular and "raw" predictions are the same (since the leaf is constant)
+  pred <- forest_samples$predict(forest_dataset)
+  pred_raw <- forest_samples$predict_raw(forest_dataset)
+
+  # Assertion
+  expect_equal(pred, pred_raw)
+
+  # Split the root of the first tree in the ensemble at X[,1] > 4.0
+  forest_samples$add_numeric_split_tree(0, 0, 0, 0, 4.0, -5., 5.)
+
+  # Check that regular and "raw" predictions are the same (since the leaf is constant)
+  pred <- forest_samples$predict(forest_dataset)
+  pred_raw <- forest_samples$predict_raw(forest_dataset)
+  pred_manual <- pred_raw * W
+
+  # Assertion
+  expect_equal(pred, pred_manual)
+
+  # Split the left leaf of the first tree in the ensemble at X[,2] > 4.0
+  forest_samples$add_numeric_split_tree(0, 0, 1, 1, 4.0, -7.5, -2.5)
+
+  # Check that regular and "raw" predictions are the same (since the leaf is constant)
+  pred <- forest_samples$predict(forest_dataset)
+  pred_raw <- forest_samples$predict_raw(forest_dataset)
+  pred_manual <- pred_raw * W
+
+  # Assertion
+  expect_equal(pred, pred_manual)
+
+  # Check the split count for the first tree in the ensemble
+  split_counts <- forest_samples$get_tree_split_counts(0, 0, p)
+  split_counts_expected <- c(1, 1, 0)
+
+  # Assertion
+  expect_equal(split_counts, split_counts_expected)
 })
 
 test_that("Prediction from trees with multivariate leaf basis", {
-    # Create dataset and forest container
-    num_trees <- 10
-    output_dim <- 2
-    num_samples <- 0
-    X = matrix(c(1.5, 8.7, 1.2, 
+  # Create dataset and forest container
+  num_trees <- 10
+  output_dim <- 2
+  num_samples <- 0
+  # fmt: skip
+  X = matrix(c(1.5, 8.7, 1.2, 
                  2.7, 3.4, 5.4, 
                  3.6, 1.2, 9.3, 
                  4.4, 5.4, 10.4, 
                  5.3, 9.3, 3.6, 
                  6.1, 10.4, 4.4), 
-               byrow = T, nrow = 6)
-    n <- nrow(X)
-    p <- ncol(X)
-    W = matrix(c(1,1,1,1,1,1,-1,-1,-1,1,1,1), byrow=F, nrow=6)
-    forest_dataset = createForestDataset(X,W)
-    forest_samples <- createForestSamples(num_trees, output_dim, F)
-    
-    # Initialize a forest with constant root predictions
-    forest_samples$add_forest_with_constant_leaves(c(1.,1.))
-    num_samples <- num_samples + 1
-    
-    # Check that regular and "raw" predictions are the same (since the leaf is constant)
-    pred <- forest_samples$predict(forest_dataset)
-    pred_raw <- forest_samples$predict_raw(forest_dataset)
-    pred_intermediate <- as.numeric(pred_raw) * as.numeric(W)
-    dim(pred_intermediate) <- c(n, output_dim, num_samples)
-    pred_manual <- apply(pred_intermediate, 3, function(x) rowSums(x))
-    
-    # Assertion
-    expect_equal(pred, pred_manual)
-    
-    # Split the root of the first tree in the ensemble at X[,1] > 4.0
-    forest_samples$add_numeric_split_tree(0, 0, 0, 0, 4.0, c(-5.,-1.), c(5.,1.))
-    
-    # Check that regular and "raw" predictions are the same (since the leaf is constant)
-    pred <- forest_samples$predict(forest_dataset)
-    pred_raw <- forest_samples$predict_raw(forest_dataset)
-    pred_intermediate <- as.numeric(pred_raw) * as.numeric(W)
-    dim(pred_intermediate) <- c(n, output_dim, num_samples)
-    pred_manual <- apply(pred_intermediate, 3, function(x) rowSums(x))
-    
-    # Assertion
-    expect_equal(pred, pred_manual)
-    
-    # Split the left leaf of the first tree in the ensemble at X[,2] > 4.0
-    forest_samples$add_numeric_split_tree(0, 0, 1, 1, 4.0, c(-7.5,2.5), c(-2.5,7.5))
-    
-    # Check that regular and "raw" predictions are the same (since the leaf is constant)
-    pred <- forest_samples$predict(forest_dataset)
-    pred_raw <- forest_samples$predict_raw(forest_dataset)
-    pred_intermediate <- as.numeric(pred_raw) * as.numeric(W)
-    dim(pred_intermediate) <- c(n, output_dim, num_samples)
-    pred_manual <- apply(pred_intermediate, 3, function(x) rowSums(x))
-    
-    # Assertion
-    expect_equal(pred, pred_manual)
-    
-    # Check the split count for the first tree in the ensemble
-    split_counts <- forest_samples$get_tree_split_counts(0,0,3)
-    split_counts_expected <- c(1,1,0)
-    
-    # Assertion
-    expect_equal(split_counts, split_counts_expected)
+               byrow = TRUE, nrow = 6)
+  n <- nrow(X)
+  p <- ncol(X)
+  W = matrix(c(1, 1, 1, 1, 1, 1, -1, -1, -1, 1, 1, 1), byrow = FALSE, nrow = 6)
+  forest_dataset = createForestDataset(X, W)
+  forest_samples <- createForestSamples(num_trees, output_dim, FALSE)
+
+  # Initialize a forest with constant root predictions
+  forest_samples$add_forest_with_constant_leaves(c(1., 1.))
+  num_samples <- num_samples + 1
+
+  # Check that regular and "raw" predictions are the same (since the leaf is constant)
+  pred <- forest_samples$predict(forest_dataset)
+  pred_raw <- forest_samples$predict_raw(forest_dataset)
+  pred_intermediate <- as.numeric(pred_raw) * as.numeric(W)
+  dim(pred_intermediate) <- c(n, output_dim, num_samples)
+  pred_manual <- apply(pred_intermediate, 3, function(x) rowSums(x))
+
+  # Assertion
+  expect_equal(pred, pred_manual)
+
+  # Split the root of the first tree in the ensemble at X[,1] > 4.0
+  forest_samples$add_numeric_split_tree(0, 0, 0, 0, 4.0, c(-5., -1.), c(5., 1.))
+
+  # Check that regular and "raw" predictions are the same (since the leaf is constant)
+  pred <- forest_samples$predict(forest_dataset)
+  pred_raw <- forest_samples$predict_raw(forest_dataset)
+  pred_intermediate <- as.numeric(pred_raw) * as.numeric(W)
+  dim(pred_intermediate) <- c(n, output_dim, num_samples)
+  pred_manual <- apply(pred_intermediate, 3, function(x) rowSums(x))
+
+  # Assertion
+  expect_equal(pred, pred_manual)
+
+  # Split the left leaf of the first tree in the ensemble at X[,2] > 4.0
+  forest_samples$add_numeric_split_tree(
+    0,
+    0,
+    1,
+    1,
+    4.0,
+    c(-7.5, 2.5),
+    c(-2.5, 7.5)
+  )
+
+  # Check that regular and "raw" predictions are the same (since the leaf is constant)
+  pred <- forest_samples$predict(forest_dataset)
+  pred_raw <- forest_samples$predict_raw(forest_dataset)
+  pred_intermediate <- as.numeric(pred_raw) * as.numeric(W)
+  dim(pred_intermediate) <- c(n, output_dim, num_samples)
+  pred_manual <- apply(pred_intermediate, 3, function(x) rowSums(x))
+
+  # Assertion
+  expect_equal(pred, pred_manual)
+
+  # Check the split count for the first tree in the ensemble
+  split_counts <- forest_samples$get_tree_split_counts(0, 0, 3)
+  split_counts_expected <- c(1, 1, 0)
+
+  # Assertion
+  expect_equal(split_counts, split_counts_expected)
+})
+
+test_that("BART predictions with pre-summarization", {
+  # Generate data and test-train split
+  n <- 100
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  # fmt: skip
+  f_XW <- (((0 <= X[, 1]) & (0.25 > X[, 1])) * (-7.5) +
+                 ((0.25 <= X[, 1]) & (0.5 > X[, 1])) * (-2.5) +
+                 ((0.5 <= X[, 1]) & (0.75 > X[, 1])) * (2.5) +
+                 ((0.75 <= X[, 1]) & (1 > X[, 1])) * (7.5))
+  noise_sd <- 1
+  y <- f_XW + rnorm(n, 0, noise_sd)
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  n_train <- n - n_test
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_test <- X[test_inds, ]
+  X_train <- X[train_inds, ]
+  y_test <- y[test_inds]
+  y_train <- y[train_inds]
+
+  # Fit a "classic" BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10
+  )
+
+  # Check that the default predict method returns a list
+  pred <- predict(bart_model, X = X_test)
+  y_hat_posterior_test <- pred$y_hat
+  expect_equal(dim(y_hat_posterior_test), c(20, 10))
+
+  # Check that the pre-aggregated predictions match with those computed by rowMeans
+  pred_mean <- predict(bart_model, X = X_test, type = "mean")
+  y_hat_mean_test <- pred_mean$y_hat
+  expect_equal(y_hat_mean_test, rowMeans(y_hat_posterior_test))
+
+  # Check that we warn and return a NULL when requesting terms that weren't fit
+  expect_warning({
+    pred_mean <- predict(
+      bart_model,
+      X = X_test,
+      type = "mean",
+      terms = c("rfx", "variance_forest")
+    )
+  })
+  expect_equal(NULL, pred_mean)
+
+  # Fit a heteroskedastic BART model
+  var_params <- list(num_trees = 20)
+  het_bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10,
+    general_params = list(sample_sigma2_global = FALSE),
+    variance_forest_params = var_params
+  )
+
+  # Check that the default predict method returns a list
+  pred <- predict(het_bart_model, X = X_test)
+  y_hat_posterior_test <- pred$y_hat
+  sigma2_hat_posterior_test <- pred$variance_forest_predictions
+
+  # Assertion
+  expect_equal(dim(y_hat_posterior_test), c(20, 10))
+  expect_equal(dim(sigma2_hat_posterior_test), c(20, 10))
+
+  # Check that the pre-aggregated predictions match with those computed by rowMeans
+  pred_mean <- predict(het_bart_model, X = X_test, type = "mean")
+  y_hat_mean_test <- pred_mean$y_hat
+  sigma2_hat_mean_test <- pred_mean$variance_forest_predictions
+
+  # Assertion
+  expect_equal(y_hat_mean_test, rowMeans(y_hat_posterior_test))
+  expect_equal(sigma2_hat_mean_test, rowMeans(sigma2_hat_posterior_test))
+
+  # Check that the "single-term" pre-aggregated predictions
+  # match those computed by pre-aggregated predictions returned in a list
+  y_hat_mean_test_single_term <- predict(
+    het_bart_model,
+    X = X_test,
+    type = "mean",
+    terms = "y_hat"
+  )
+  sigma2_hat_mean_test_single_term <- predict(
+    het_bart_model,
+    X = X_test,
+    type = "mean",
+    terms = "variance_forest"
+  )
+
+  # Assertion
+  expect_equal(y_hat_mean_test, y_hat_mean_test_single_term)
+  expect_equal(sigma2_hat_mean_test, sigma2_hat_mean_test_single_term)
+})
+
+test_that("BART predictions with random effects", {
+  # Generate data and test-train split
+  n <- 100
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  # fmt: skip
+  f_XW <- (((0 <= X[, 1]) & (0.25 > X[, 1])) * (-7.5) +
+                 ((0.25 <= X[, 1]) & (0.5 > X[, 1])) * (-2.5) +
+                 ((0.5 <= X[, 1]) & (0.75 > X[, 1])) * (2.5) +
+                 ((0.75 <= X[, 1]) & (1 > X[, 1])) * (7.5))
+  noise_sd <- 1
+  rfx_group_ids <- sample(1:3, n, replace = TRUE)
+  rfx_coefs <- c(-2, 0, 2)
+  rfx_term <- rfx_coefs[rfx_group_ids]
+  rfx_basis <- matrix(1, nrow = n, ncol = 1)
+  y <- f_XW + rfx_term + rnorm(n, 0, noise_sd)
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  n_train <- n - n_test
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_test <- X[test_inds, ]
+  X_train <- X[train_inds, ]
+  rfx_group_ids_test <- rfx_group_ids[test_inds]
+  rfx_group_ids_train <- rfx_group_ids[train_inds]
+  rfx_basis_test <- rfx_basis[test_inds, ]
+  rfx_basis_train <- rfx_basis[train_inds, ]
+  y_test <- y[test_inds]
+  y_train <- y[train_inds]
+
+  # Fit a "classic" BART model
+  rfx_params <- list(model_spec = "intercept_only")
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    rfx_group_ids_train = rfx_group_ids_train,
+    random_effects_params = rfx_params,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10
+  )
+
+  # Check that the default predict method returns a list
+  pred <- predict(bart_model, X = X_test, rfx_group_ids = rfx_group_ids_test)
+  y_hat_posterior_test <- pred$y_hat
+  expect_equal(dim(y_hat_posterior_test), c(20, 10))
+
+  # Check that the pre-aggregated predictions match with those computed by rowMeans
+  pred_mean <- predict(
+    bart_model,
+    X = X_test,
+    rfx_group_ids = rfx_group_ids_test,
+    type = "mean"
+  )
+  y_hat_mean_test <- pred_mean$y_hat
+  expect_equal(y_hat_mean_test, rowMeans(y_hat_posterior_test))
+
+  # Check that we warn and return a NULL when requesting terms that weren't fit
+  expect_warning({
+    pred_mean <- predict(
+      bart_model,
+      X = X_test,
+      rfx_group_ids = rfx_group_ids_test,
+      type = "mean",
+      terms = c("variance_forest")
+    )
+  })
+  expect_equal(NULL, pred_mean)
+})
+
+test_that("BCF predictions with pre-summarization", {
+  # Generate data and test-train split
+  n <- 100
+  g <- function(x) {
+    ifelse(x[, 5] == 1, 2, ifelse(x[, 5] == 2, -1, -4))
+  }
+  x1 <- rnorm(n)
+  x2 <- rnorm(n)
+  x3 <- rnorm(n)
+  x4 <- as.numeric(rbinom(n, 1, 0.5))
+  x5 <- as.numeric(sample(1:3, n, replace = TRUE))
+  X <- cbind(x1, x2, x3, x4, x5)
+  p <- ncol(X)
+  mu_x <- 1 + g(X) + X[, 1] * X[, 3]
+  tau_x <- 1 + 2 * X[, 2] * X[, 4]
+  pi_x <- 0.8 *
+    pnorm((3 * mu_x / sd(mu_x)) - 0.5 * X[, 1]) +
+    0.05 +
+    runif(n) / 10
+  Z <- rbinom(n, 1, pi_x)
+  E_XZ <- mu_x + Z * tau_x
+  snr <- 2
+  y <- E_XZ + rnorm(n, 0, 1) * (sd(E_XZ) / snr)
+  X <- as.data.frame(X)
+  X$x4 <- factor(X$x4, ordered = TRUE)
+  X$x5 <- factor(X$x5, ordered = TRUE)
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  n_train <- n - n_test
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_test <- X[test_inds, ]
+  X_train <- X[train_inds, ]
+  pi_test <- pi_x[test_inds]
+  pi_train <- pi_x[train_inds]
+  Z_test <- Z[test_inds]
+  Z_train <- Z[train_inds]
+  y_test <- y[test_inds]
+  y_train <- y[train_inds]
+
+  # Fit a "classic" BCF model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10
+  )
+
+  # Check that the default predict method returns a list
+  pred <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  y_hat_posterior_test <- pred$y_hat
+  expect_equal(dim(y_hat_posterior_test), c(20, 10))
+
+  # Check that the pre-aggregated predictions match with those computed by rowMeans
+  pred_mean <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    type = "mean"
+  )
+  y_hat_mean_test <- pred_mean$y_hat
+  expect_equal(y_hat_mean_test, rowMeans(y_hat_posterior_test))
+
+  # Check that we warn and return a NULL when requesting terms that weren't fit
+  expect_warning({
+    pred_mean <- predict(
+      bcf_model,
+      X = X_test,
+      Z = Z_test,
+      propensity = pi_test,
+      type = "mean",
+      terms = c("rfx", "variance_forest")
+    )
+  })
+  expect_equal(NULL, pred_mean)
+
+  # Fit a heteroskedastic BCF model
+  var_params <- list(num_trees = 20)
+  expect_warning(
+    het_bcf_model <- bcf(
+      X_train = X_train,
+      Z_train = Z_train,
+      y_train = y_train,
+      propensity_train = pi_train,
+      X_test = X_test,
+      Z_test = Z_test,
+      propensity_test = pi_test,
+      num_gfr = 10,
+      num_burnin = 0,
+      num_mcmc = 10,
+      variance_forest_params = var_params
+    )
+  )
+
+  # Check that the default predict method returns a list
+  pred <- predict(
+    het_bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  y_hat_posterior_test <- pred$y_hat
+  sigma2_hat_posterior_test <- pred$variance_forest_predictions
+
+  # Assertion
+  expect_equal(dim(y_hat_posterior_test), c(20, 10))
+  expect_equal(dim(sigma2_hat_posterior_test), c(20, 10))
+
+  # Check that the pre-aggregated predictions match with those computed by rowMeans
+  pred_mean <- predict(
+    het_bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    type = "mean"
+  )
+  y_hat_mean_test <- pred_mean$y_hat
+  sigma2_hat_mean_test <- pred_mean$variance_forest_predictions
+
+  # Assertion
+  expect_equal(y_hat_mean_test, rowMeans(y_hat_posterior_test))
+  expect_equal(sigma2_hat_mean_test, rowMeans(sigma2_hat_posterior_test))
+
+  # Check that the "single-term" pre-aggregated predictions
+  # match those computed by pre-aggregated predictions returned in a list
+  y_hat_mean_test_single_term <- predict(
+    het_bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    type = "mean",
+    terms = "y_hat"
+  )
+  sigma2_hat_mean_test_single_term <- predict(
+    het_bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    type = "mean",
+    terms = "variance_forest"
+  )
+
+  # Assertion
+  expect_equal(y_hat_mean_test, y_hat_mean_test_single_term)
+  expect_equal(sigma2_hat_mean_test, sigma2_hat_mean_test_single_term)
+})
+
+test_that("BCF predictions with random effects", {
+  # Generate data and test-train split
+  n <- 100
+  g <- function(x) {
+    ifelse(x[, 5] == 1, 2, ifelse(x[, 5] == 2, -1, -4))
+  }
+  x1 <- rnorm(n)
+  x2 <- rnorm(n)
+  x3 <- rnorm(n)
+  x4 <- as.numeric(rbinom(n, 1, 0.5))
+  x5 <- as.numeric(sample(1:3, n, replace = TRUE))
+  X <- cbind(x1, x2, x3, x4, x5)
+  p <- ncol(X)
+  mu_x <- 1 + g(X) + X[, 1] * X[, 3]
+  tau_x <- 1 + 2 * X[, 2] * X[, 4]
+  pi_x <- 0.8 *
+    pnorm((3 * mu_x / sd(mu_x)) - 0.5 * X[, 1]) +
+    0.05 +
+    runif(n) / 10
+  Z <- rbinom(n, 1, pi_x)
+  E_XZ <- mu_x + Z * tau_x
+  rfx_group_ids <- sample(1:3, n, replace = TRUE)
+  rfx_basis <- cbind(1, Z)
+  rfx_coefs <- matrix(
+    c(
+      -2,
+      -0.5,
+      0,
+      0.0,
+      2,
+      0.5
+    ),
+    byrow = T,
+    ncol = 2
+  )
+  rfx_term <- rowSums(rfx_basis * rfx_coefs[rfx_group_ids, ])
+  snr <- 2
+  y <- E_XZ + rfx_term + rnorm(n, 0, 1) * (sd(E_XZ + rfx_term) / snr)
+  X <- as.data.frame(X)
+  X$x4 <- factor(X$x4, ordered = TRUE)
+  X$x5 <- factor(X$x5, ordered = TRUE)
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  n_train <- n - n_test
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_test <- X[test_inds, ]
+  X_train <- X[train_inds, ]
+  pi_test <- pi_x[test_inds]
+  pi_train <- pi_x[train_inds]
+  rfx_group_ids_test <- rfx_group_ids[test_inds]
+  rfx_group_ids_train <- rfx_group_ids[train_inds]
+  rfx_basis_test <- rfx_basis[test_inds, ]
+  rfx_basis_train <- rfx_basis[train_inds, ]
+  Z_test <- Z[test_inds]
+  Z_train <- Z[train_inds]
+  y_test <- y[test_inds]
+  y_train <- y[train_inds]
+
+  # Fit a BCF model with random intercept and random slope on Z
+  rfx_params = list(model_spec = "intercept_plus_treatment")
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    rfx_group_ids_train = rfx_group_ids_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    rfx_group_ids_test = rfx_group_ids_test,
+    random_effects_params = rfx_params,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10
+  )
+
+  # Check that the default predict method returns a list
+  pred <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    rfx_group_ids = rfx_group_ids_test
+  )
+  y_hat_posterior_test <- pred$y_hat
+  expect_equal(dim(y_hat_posterior_test), c(20, 10))
+
+  # Check that the pre-aggregated predictions match with those computed by rowMeans
+  pred_mean <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    rfx_group_ids = rfx_group_ids_test,
+    type = "mean"
+  )
+  y_hat_mean_test <- pred_mean$y_hat
+  expect_equal(y_hat_mean_test, rowMeans(y_hat_posterior_test))
+
+  # Check that we warn and return a NULL when requesting terms that weren't fit
+  expect_warning({
+    pred_mean <- predict(
+      bcf_model,
+      X = X_test,
+      Z = Z_test,
+      propensity = pi_test,
+      type = "mean",
+      terms = c("variance_forest")
+    )
+  })
+  expect_equal(NULL, pred_mean)
+
+  # Fit a BCF model with random intercept only
+  # Fit a BCF model with random intercept and random slope on Z
+  rfx_params = list(model_spec = "intercept_only")
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    rfx_group_ids_train = rfx_group_ids_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    rfx_group_ids_test = rfx_group_ids_test,
+    random_effects_params = rfx_params,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10
+  )
+
+  # Check that the default predict method returns a list
+  pred <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    rfx_group_ids = rfx_group_ids_test
+  )
+  y_hat_posterior_test <- pred$y_hat
+  expect_equal(dim(y_hat_posterior_test), c(20, 10))
+
+  # Check that the pre-aggregated predictions match with those computed by rowMeans
+  pred_mean <- predict(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    rfx_group_ids = rfx_group_ids_test,
+    type = "mean"
+  )
+  y_hat_mean_test <- pred_mean$y_hat
+  expect_equal(y_hat_mean_test, rowMeans(y_hat_posterior_test))
+
+  # Check that we warn and return a NULL when requesting terms that weren't fit
+  expect_warning({
+    pred_mean <- predict(
+      bcf_model,
+      X = X_test,
+      Z = Z_test,
+      propensity = pi_test,
+      type = "mean",
+      terms = c("variance_forest")
+    )
+  })
+})
+
+test_that("BART cloglog binary: posterior interval and contrast", {
+  # Generate binary cloglog data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  prob_y1 <- 1 - exp(-exp(true_lambda))
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+
+  # Fit binary cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = OutcomeModel(outcome = "binary", link = "cloglog")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- computeBARTPosteriorInterval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_true("lower" %in% names(interval_linear))
+  expect_true("upper" %in% names(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_equal(length(interval_linear$upper), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  interval_prob <- computeBARTPosteriorInterval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "probability",
+    X = X_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(length(interval_prob$lower), n_test)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_linear <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+
+  # Test contrast on probability scale
+  contrast_prob <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_prob))
+  expect_equal(nrow(contrast_prob), n_test)
+
+  # Test contrast with type = "mean"
+  contrast_mean_linear <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  contrast_mean_prob <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.numeric(contrast_mean_prob))
+  expect_equal(length(contrast_mean_prob), n_test)
+})
+
+test_that("BART cloglog ordinal: posterior interval and contrast", {
+  # Generate ordinal cloglog data (3 categories)
+  set.seed(42)
+  n <- 500
+  p <- 3
+  n_categories <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  gamma_true <- c(-1.5, -0.5)
+
+  # Compute class probabilities
+  true_probs <- matrix(0, nrow = n, ncol = n_categories)
+  for (j in 1:n_categories) {
+    if (j == 1) {
+      true_probs[, j] <- 1 - exp(-exp(gamma_true[j] + true_lambda))
+    } else if (j == n_categories) {
+      true_probs[, j] <- 1 - rowSums(true_probs[, 1:(j - 1), drop = FALSE])
+    } else {
+      true_probs[, j] <- exp(-exp(gamma_true[j - 1] + true_lambda)) *
+        (1 - exp(-exp(gamma_true[j] + true_lambda)))
+    }
+  }
+
+  # Generate ordinal outcomes
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+
+  # Fit ordinal cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = 10,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- computeBARTPosteriorInterval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  # For ordinal models, probability scale returns survival probabilities P(Y > k)
+  # which are (n_test, n_categories - 1) matrices
+  interval_prob <- computeBARTPosteriorInterval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "probability",
+    X = X_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(nrow(interval_prob$lower), n_test)
+  expect_equal(ncol(interval_prob$lower), n_categories - 1)
+  expect_equal(nrow(interval_prob$upper), n_test)
+  expect_equal(ncol(interval_prob$upper), n_categories - 1)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_linear <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+
+  # Test contrast on probability scale (ordinal returns 3D array)
+  contrast_prob <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.array(contrast_prob))
+  expect_equal(dim(contrast_prob)[1], n_test)
+  expect_equal(dim(contrast_prob)[2], n_categories - 1)
+
+  # Test contrast with type = "mean" on linear scale
+  contrast_mean_linear <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  # Test contrast with type = "mean" on probability scale
+  # For ordinal, mean contrast should be (n_test, n_categories - 1) matrix
+  contrast_mean_prob <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_mean_prob))
+  expect_equal(nrow(contrast_mean_prob), n_test)
+  expect_equal(ncol(contrast_mean_prob), n_categories - 1)
+})
+
+test_that("BART cloglog binary: sample posterior predictive", {
+  # Generate binary cloglog data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  prob_y1 <- 1 - exp(-exp(true_lambda))
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = OutcomeModel(outcome = "binary", link = "cloglog")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sampleBARTPosteriorPredictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% c(0, 1)))
+
+  # Test with single draw per sample
+  ppd1 <- sampleBARTPosteriorPredictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% c(0, 1)))
+})
+
+test_that("BART cloglog ordinal: sample posterior predictive", {
+  # Generate ordinal cloglog data (3 categories)
+  set.seed(42)
+  n <- 500
+  p <- 3
+  n_categories <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  gamma_true <- c(-1.5, -0.5)
+
+  # Compute class probabilities
+  true_probs <- matrix(0, nrow = n, ncol = n_categories)
+  for (j in 1:n_categories) {
+    if (j == 1) {
+      true_probs[, j] <- 1 - exp(-exp(gamma_true[j] + true_lambda))
+    } else if (j == n_categories) {
+      true_probs[, j] <- 1 - rowSums(true_probs[, 1:(j - 1), drop = FALSE])
+    } else {
+      true_probs[, j] <- exp(-exp(gamma_true[j - 1] + true_lambda)) *
+        (1 - exp(-exp(gamma_true[j] + true_lambda)))
+    }
+  }
+
+  # Generate ordinal outcomes
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit ordinal cloglog BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sampleBARTPosteriorPredictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% 1:n_categories))
+
+  # Test with single draw per sample
+  ppd1 <- sampleBARTPosteriorPredictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% 1:n_categories))
+})
+
+test_that("BART gaussian: posterior interval and contrast", {
+  # Generate gaussian data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  mu <- X %*% beta
+  y <- rnorm(n, mu, 1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit gaussian BART model (default link)
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc
+  )
+
+  # Test posterior interval on linear scale (mean_forest term)
+  interval_linear <- computeBARTPosteriorInterval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_true("lower" %in% names(interval_linear))
+  expect_true("upper" %in% names(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_equal(length(interval_linear$upper), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval for y_hat term
+  interval_yhat <- computeBARTPosteriorInterval(
+    bart_model,
+    terms = "y_hat",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_yhat))
+  expect_equal(length(interval_yhat$lower), n_test)
+  expect_true(all(interval_yhat$lower <= interval_yhat$upper))
+
+  # Test contrast on linear scale, type = "posterior"
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_posterior <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_posterior))
+  expect_equal(nrow(contrast_posterior), n_test)
+  expect_equal(ncol(contrast_posterior), num_mcmc)
+
+  # Test contrast with type = "mean"
+  contrast_mean <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean))
+  expect_equal(length(contrast_mean), n_test)
+})
+
+test_that("BART binary probit: posterior interval and contrast", {
+  # Generate binary probit data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  mu <- X %*% beta
+  prob_y1 <- pnorm(mu)
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary probit BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = OutcomeModel(outcome = "binary", link = "probit")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- computeBARTPosteriorInterval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "linear",
+    X = X_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_true("lower" %in% names(interval_linear))
+  expect_true("upper" %in% names(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_equal(length(interval_linear$upper), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  interval_prob <- computeBARTPosteriorInterval(
+    bart_model,
+    terms = "mean_forest",
+    level = 0.95,
+    scale = "probability",
+    X = X_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(length(interval_prob$lower), n_test)
+  expect_equal(length(interval_prob$upper), n_test)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale
+  X0 <- X_test
+  X1 <- X_test + 0.5
+  contrast_linear <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+  expect_equal(ncol(contrast_linear), num_mcmc)
+
+  # Test contrast on probability scale
+  contrast_prob <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_prob))
+  expect_equal(nrow(contrast_prob), n_test)
+  expect_equal(ncol(contrast_prob), num_mcmc)
+
+  # Test contrast with type = "mean" on linear scale
+  contrast_mean_linear <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  # Test contrast with type = "mean" on probability scale
+  contrast_mean_prob <- computeContrastBARTModel(
+    bart_model,
+    X_0 = X0,
+    X_1 = X1,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.numeric(contrast_mean_prob))
+  expect_equal(length(contrast_mean_prob), n_test)
+})
+
+test_that("BART gaussian: sample posterior predictive", {
+  # Generate gaussian data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  mu <- X %*% beta
+  y <- rnorm(n, mu, 1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit gaussian BART model (default link)
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sampleBARTPosteriorPredictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(is.numeric(ppd))
+
+  # Test with single draw per sample
+  ppd1 <- sampleBARTPosteriorPredictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(is.numeric(ppd1))
+})
+
+test_that("BART binary probit: sample posterior predictive", {
+  # Generate binary probit data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  mu <- X %*% beta
+  prob_y1 <- pnorm(mu)
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary probit BART model
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = OutcomeModel(outcome = "binary", link = "probit")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sampleBARTPosteriorPredictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% c(0, 1)))
+
+  # Test with single draw per sample
+  ppd1 <- sampleBARTPosteriorPredictive(
+    bart_model,
+    X = X_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% c(0, 1)))
+})
+
+test_that("BCF gaussian: posterior interval and contrast", {
+  # Generate gaussian causal data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- pnorm(X[, 1])
+  Z <- rbinom(n, 1, pi_x)
+  mu_x <- X[, 1] + X[, 2]
+  tau_x <- rep(1, n)
+  y <- mu_x + tau_x * Z + rnorm(n)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit gaussian BCF model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc
+  )
+
+  # Test posterior interval on linear scale (prognostic_function term)
+  interval_prog <- computeBCFPosteriorInterval(
+    bcf_model,
+    terms = "prognostic_function",
+    level = 0.95,
+    scale = "linear",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_prog))
+  expect_true("lower" %in% names(interval_prog))
+  expect_true("upper" %in% names(interval_prog))
+  expect_equal(length(interval_prog$lower), n_test)
+  expect_equal(length(interval_prog$upper), n_test)
+  expect_true(all(interval_prog$lower <= interval_prog$upper))
+
+  # Test posterior interval for cate term
+  interval_cate <- computeBCFPosteriorInterval(
+    bcf_model,
+    terms = "cate",
+    level = 0.95,
+    scale = "linear",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_cate))
+  expect_equal(length(interval_cate$lower), n_test)
+  expect_true(all(interval_cate$lower <= interval_cate$upper))
+
+  # Test posterior interval for y_hat term
+  interval_yhat <- computeBCFPosteriorInterval(
+    bcf_model,
+    terms = "y_hat",
+    level = 0.95,
+    scale = "linear",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_yhat))
+  expect_equal(length(interval_yhat$lower), n_test)
+  expect_true(all(interval_yhat$lower <= interval_yhat$upper))
+
+  # Test contrast on linear scale (CATE: Z=1 vs Z=0)
+  contrast_posterior <- computeContrastBCFModel(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_posterior))
+  expect_equal(nrow(contrast_posterior), n_test)
+  expect_equal(ncol(contrast_posterior), num_mcmc)
+
+  # Test contrast with type = "mean"
+  contrast_mean <- computeContrastBCFModel(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean))
+  expect_equal(length(contrast_mean), n_test)
+})
+
+test_that("BCF binary probit: posterior interval and contrast", {
+  # Generate binary probit causal data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- pnorm(X[, 1])
+  Z <- rbinom(n, 1, pi_x)
+  mu_x <- X[, 1] + X[, 2]
+  tau_x <- rep(0.5, n)
+  prob_y1 <- pnorm(mu_x + tau_x * Z)
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary probit BCF model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = OutcomeModel(outcome = "binary", link = "probit")
+    )
+  )
+
+  # Test posterior interval on linear scale
+  interval_linear <- computeBCFPosteriorInterval(
+    bcf_model,
+    terms = "prognostic_function",
+    level = 0.95,
+    scale = "linear",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_linear))
+  expect_true("lower" %in% names(interval_linear))
+  expect_true("upper" %in% names(interval_linear))
+  expect_equal(length(interval_linear$lower), n_test)
+  expect_equal(length(interval_linear$upper), n_test)
+  expect_true(all(interval_linear$lower <= interval_linear$upper))
+
+  # Test posterior interval on probability scale
+  interval_prob <- computeBCFPosteriorInterval(
+    bcf_model,
+    terms = "prognostic_function",
+    level = 0.95,
+    scale = "probability",
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test
+  )
+  expect_true(is.list(interval_prob))
+  expect_equal(length(interval_prob$lower), n_test)
+  expect_equal(length(interval_prob$upper), n_test)
+  expect_true(all(interval_prob$lower >= 0 & interval_prob$lower <= 1))
+  expect_true(all(interval_prob$upper >= 0 & interval_prob$upper <= 1))
+  expect_true(all(interval_prob$lower <= interval_prob$upper))
+
+  # Test contrast on linear scale (CATE: Z=1 vs Z=0)
+  contrast_linear <- computeContrastBCFModel(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "posterior",
+    scale = "linear"
+  )
+  expect_true(is.matrix(contrast_linear))
+  expect_equal(nrow(contrast_linear), n_test)
+  expect_equal(ncol(contrast_linear), num_mcmc)
+
+  # Test contrast on probability scale
+  contrast_prob <- computeContrastBCFModel(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "posterior",
+    scale = "probability"
+  )
+  expect_true(is.matrix(contrast_prob))
+  expect_equal(nrow(contrast_prob), n_test)
+  expect_equal(ncol(contrast_prob), num_mcmc)
+
+  # Test contrast with type = "mean" on linear scale
+  contrast_mean_linear <- computeContrastBCFModel(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "mean",
+    scale = "linear"
+  )
+  expect_true(is.numeric(contrast_mean_linear))
+  expect_equal(length(contrast_mean_linear), n_test)
+
+  # Test contrast with type = "mean" on probability scale
+  contrast_mean_prob <- computeContrastBCFModel(
+    bcf_model,
+    X_0 = X_test,
+    X_1 = X_test,
+    Z_0 = rep(0, n_test),
+    Z_1 = rep(1, n_test),
+    propensity_0 = pi_test,
+    propensity_1 = pi_test,
+    type = "mean",
+    scale = "probability"
+  )
+  expect_true(is.numeric(contrast_mean_prob))
+  expect_equal(length(contrast_mean_prob), n_test)
+})
+
+test_that("BCF gaussian: sample posterior predictive", {
+  # Generate gaussian causal data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- pnorm(X[, 1])
+  Z <- rbinom(n, 1, pi_x)
+  mu_x <- X[, 1] + X[, 2]
+  tau_x <- rep(1, n)
+  y <- mu_x + tau_x * Z + rnorm(n)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit gaussian BCF model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sampleBCFPosteriorPredictive(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(is.numeric(ppd))
+
+  # Test with single draw per sample
+  ppd1 <- sampleBCFPosteriorPredictive(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(is.numeric(ppd1))
+})
+
+test_that("BCF binary probit: sample posterior predictive", {
+  # Generate binary probit causal data
+  set.seed(42)
+  n <- 100
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- pnorm(X[, 1])
+  Z <- rbinom(n, 1, pi_x)
+  mu_x <- X[, 1] + X[, 2]
+  tau_x <- rep(0.5, n)
+  prob_y1 <- pnorm(mu_x + tau_x * Z)
+  y <- rbinom(n, 1, prob_y1)
+
+  # Train/test split
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
+  pi_train <- pi_x[train_inds]
+  pi_test <- pi_x[test_inds]
+  y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  # Fit binary probit BCF model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    X_test = X_test,
+    Z_test = Z_test,
+    propensity_test = pi_test,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = OutcomeModel(outcome = "binary", link = "probit")
+    )
+  )
+
+  # Test with multiple draws per sample
+  ppd <- sampleBCFPosteriorPredictive(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    num_draws_per_sample = 3
+  )
+  expect_equal(dim(ppd), c(n_test, num_mcmc, 3))
+  expect_true(all(ppd %in% c(0, 1)))
+
+  # Test with single draw per sample
+  ppd1 <- sampleBCFPosteriorPredictive(
+    bcf_model,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    num_draws_per_sample = 1
+  )
+  expect_equal(dim(ppd1), c(n_test, num_mcmc))
+  expect_true(all(ppd1 %in% c(0, 1)))
 })

@@ -37,9 +37,12 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 LinkingTo: 
     cpp11, BH
+Suggests: 
+    testthat (>= 3.0.0), 
 SystemRequirements: C++17
 Imports: 
     R6,
     stats
 URL: https://stochtree.ai/, https://github.com/StochasticTree/stochtree
 BugReports: https://github.com/StochasticTree/stochtree/issues
+Config/testthat/edition: 3
