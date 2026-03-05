@@ -1,5 +1,11 @@
 # Changelog
 
+# stochtree 0.4.0-dev
+
+## New Features
+
+## Bug Fixes
+
 # stochtree 0.4.0
 
 ## New Features
