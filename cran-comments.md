@@ -3,7 +3,7 @@
 0 errors | 0 warnings | 2 notes
 
 * Checking installed package size ... NOTE installed size is 46.3Mb (linux-only)
-* Possibly misspelled words in DESCRIPTION: All of the words are proper nouns or technical terms (BCF, Carvalho, Chipman, McCulloch, XBART)
+* Possibly misspelled words in DESCRIPTION: All of the words are proper nouns or technical terms (BCF, Carvalho, Chipman, McCulloch, XBART, Alam, Linero, cloglog, heteroskedasticity)
 
 ## CRAN comments (20250206)
 
