@@ -1865,6 +1865,38 @@ bcf <- function(
         )
       }
 
+      # Sample tau_0 (global treatment effect intercept, if requested)
+      if (sample_tau_0) {
+        mu_x_raw_tau0 <- active_forest_mu$predict_raw(forest_dataset_train)
+        tau_x_raw_tau0 <- active_forest_tau$predict_raw(forest_dataset_train)
+        Z_basis_mat <- as.matrix(tau_basis_train)
+        # tau(X) * basis contribution per observation
+        tau_x_full <- rowSums(Z_basis_mat * as.matrix(tau_x_raw_tau0))
+        partial_resid_tau0 <- resid_train - as.numeric(mu_x_raw_tau0) - tau_x_full
+        if (has_rfx) {
+          partial_resid_tau0 <- partial_resid_tau0 - as.numeric(
+            rfx_model$predict(rfx_dataset_train, rfx_tracker_train)
+          )
+        }
+        Ztr_tau0 <- t(Z_basis_mat) %*% as.matrix(partial_resid_tau0)
+        ZtZ_current <- crossprod(Z_basis_mat)
+        Sigma_post <- solve(ZtZ_current / current_sigma2 + diag(p_tau0) / tau_0_prior_var)
+        mu_post_tau0 <- as.numeric(Sigma_post %*% Ztr_tau0 / current_sigma2)
+        if (p_tau0 == 1) {
+          tau_0_new <- rnorm(1, mu_post_tau0, sqrt(as.numeric(Sigma_post)))
+        } else {
+          tau_0_new <- as.numeric(
+            mu_post_tau0 + t(chol(Sigma_post)) %*% rnorm(p_tau0)
+          )
+        }
+        resid_delta <- as.numeric(Z_basis_mat %*% matrix(tau_0_new - tau_0, ncol = 1))
+        outcome_train$subtract_vector(resid_delta)
+        tau_0 <- tau_0_new
+        if (keep_sample) {
+          tau_0_samples[, sample_counter] <- tau_0
+        }
+      }
+
       # Sample the treatment forest
       forest_model_tau$sample_one_iteration(
         forest_dataset = forest_dataset_train,
@@ -1955,38 +1987,6 @@ bcf <- function(
           outcome_train$subtract_vector(
             as.numeric(tau_basis_train - tau_basis_old) * tau_0[1]
           )
-        }
-      }
-
-      # Sample tau_0 (global treatment effect intercept, if requested)
-      if (sample_tau_0) {
-        mu_x_raw_tau0 <- active_forest_mu$predict_raw(forest_dataset_train)
-        tau_x_raw_tau0 <- active_forest_tau$predict_raw(forest_dataset_train)
-        Z_basis_mat <- as.matrix(tau_basis_train)
-        # tau(X) * basis contribution per observation
-        tau_x_full <- rowSums(Z_basis_mat * as.matrix(tau_x_raw_tau0))
-        partial_resid_tau0 <- resid_train - as.numeric(mu_x_raw_tau0) - tau_x_full
-        if (has_rfx) {
-          partial_resid_tau0 <- partial_resid_tau0 - as.numeric(
-            rfx_model$predict(rfx_dataset_train, rfx_tracker_train)
-          )
-        }
-        Ztr_tau0 <- t(Z_basis_mat) %*% as.matrix(partial_resid_tau0)
-        ZtZ_current <- crossprod(Z_basis_mat)
-        Sigma_post <- solve(ZtZ_current / current_sigma2 + diag(p_tau0) / tau_0_prior_var)
-        mu_post_tau0 <- as.numeric(Sigma_post %*% Ztr_tau0 / current_sigma2)
-        if (p_tau0 == 1) {
-          tau_0_new <- rnorm(1, mu_post_tau0, sqrt(as.numeric(Sigma_post)))
-        } else {
-          tau_0_new <- as.numeric(
-            mu_post_tau0 + t(chol(Sigma_post)) %*% rnorm(p_tau0)
-          )
-        }
-        resid_delta <- as.numeric(Z_basis_mat %*% matrix(tau_0_new - tau_0, ncol = 1))
-        outcome_train$subtract_vector(resid_delta)
-        tau_0 <- tau_0_new
-        if (keep_sample) {
-          tau_0_samples[, sample_counter] <- tau_0
         }
       }
 
@@ -2541,6 +2541,38 @@ bcf <- function(
           )
         }
 
+        # Sample tau_0 (global treatment effect intercept, if requested)
+        if (sample_tau_0) {
+          mu_x_raw_tau0 <- active_forest_mu$predict_raw(forest_dataset_train)
+          tau_x_raw_tau0 <- active_forest_tau$predict_raw(forest_dataset_train)
+          Z_basis_mat <- as.matrix(tau_basis_train)
+          # tau(X) * basis contribution per observation
+          tau_x_full <- rowSums(Z_basis_mat * as.matrix(tau_x_raw_tau0))
+          partial_resid_tau0 <- resid_train - as.numeric(mu_x_raw_tau0) - tau_x_full
+          if (has_rfx) {
+            partial_resid_tau0 <- partial_resid_tau0 - as.numeric(
+              rfx_model$predict(rfx_dataset_train, rfx_tracker_train)
+            )
+          }
+          Ztr_tau0 <- t(Z_basis_mat) %*% as.matrix(partial_resid_tau0)
+          ZtZ_current <- crossprod(Z_basis_mat)
+          Sigma_post <- solve(ZtZ_current / current_sigma2 + diag(p_tau0) / tau_0_prior_var)
+          mu_post_tau0 <- as.numeric(Sigma_post %*% Ztr_tau0 / current_sigma2)
+          if (p_tau0 == 1) {
+            tau_0_new <- rnorm(1, mu_post_tau0, sqrt(as.numeric(Sigma_post)))
+          } else {
+            tau_0_new <- as.numeric(
+              mu_post_tau0 + t(chol(Sigma_post)) %*% rnorm(p_tau0)
+            )
+          }
+          resid_delta <- as.numeric(Z_basis_mat %*% matrix(tau_0_new - tau_0, ncol = 1))
+          outcome_train$subtract_vector(resid_delta)
+          tau_0 <- tau_0_new
+          if (keep_sample) {
+            tau_0_samples[, sample_counter] <- tau_0
+          }
+        }
+
         # Sample the treatment forest
         forest_model_tau$sample_one_iteration(
           forest_dataset = forest_dataset_train,
@@ -2639,38 +2671,6 @@ bcf <- function(
             outcome_train$subtract_vector(
               as.numeric(tau_basis_train - tau_basis_old) * tau_0[1]
             )
-          }
-        }
-
-        # Sample tau_0 (global treatment effect intercept, if requested)
-        if (sample_tau_0) {
-          mu_x_raw_tau0 <- active_forest_mu$predict_raw(forest_dataset_train)
-          tau_x_raw_tau0 <- active_forest_tau$predict_raw(forest_dataset_train)
-          Z_basis_mat <- as.matrix(tau_basis_train)
-          # tau(X) * basis contribution per observation
-          tau_x_full <- rowSums(Z_basis_mat * as.matrix(tau_x_raw_tau0))
-          partial_resid_tau0 <- resid_train - as.numeric(mu_x_raw_tau0) - tau_x_full
-          if (has_rfx) {
-            partial_resid_tau0 <- partial_resid_tau0 - as.numeric(
-              rfx_model$predict(rfx_dataset_train, rfx_tracker_train)
-            )
-          }
-          Ztr_tau0 <- t(Z_basis_mat) %*% as.matrix(partial_resid_tau0)
-          ZtZ_current <- crossprod(Z_basis_mat)
-          Sigma_post <- solve(ZtZ_current / current_sigma2 + diag(p_tau0) / tau_0_prior_var)
-          mu_post_tau0 <- as.numeric(Sigma_post %*% Ztr_tau0 / current_sigma2)
-          if (p_tau0 == 1) {
-            tau_0_new <- rnorm(1, mu_post_tau0, sqrt(as.numeric(Sigma_post)))
-          } else {
-            tau_0_new <- as.numeric(
-              mu_post_tau0 + t(chol(Sigma_post)) %*% rnorm(p_tau0)
-            )
-          }
-          resid_delta <- as.numeric(Z_basis_mat %*% matrix(tau_0_new - tau_0, ncol = 1))
-          outcome_train$subtract_vector(resid_delta)
-          tau_0 <- tau_0_new
-          if (keep_sample) {
-            tau_0_samples[, sample_counter] <- tau_0
           }
         }
 

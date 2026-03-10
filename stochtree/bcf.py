@@ -2099,6 +2099,28 @@ class BCFModel:
                             current_leaf_scale_mu[0, 0]
                         )
 
+                # Sample tau_0 (global treatment effect intercept, if requested)
+                if self.sample_tau_0:
+                    mu_x_tau0 = np.squeeze(active_forest_mu.predict_raw(forest_dataset_train))
+                    tau_x_raw_tau0 = active_forest_tau.predict_raw(forest_dataset_train)
+                    Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
+                    tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
+                    tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
+                    partial_resid_tau0 = np.squeeze(resid_train) - mu_x_tau0 - tau_x_full
+                    if self.has_rfx:
+                        partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
+                            rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                        )
+                    Ztr = Z_basis.T @ partial_resid_tau0
+                    ZtZ_current = Z_basis.T @ Z_basis
+                    Sigma_post = np.linalg.inv(ZtZ_current / current_sigma2 + np.eye(p_tau0) / tau_0_prior_var)
+                    mu_post = Sigma_post @ Ztr / current_sigma2
+                    tau_0_new = self.rng.multivariate_normal(mean=mu_post, cov=Sigma_post)
+                    residual_train.add_vector(-np.squeeze(Z_basis @ (tau_0_new - tau_0)))
+                    tau_0 = tau_0_new
+                    if keep_sample:
+                        self.tau_0_samples[:, sample_counter] = tau_0
+
                 # Sample the treatment forest
                 forest_sampler_tau.sample_one_iteration(
                     self.forest_container_tau,
@@ -2174,28 +2196,6 @@ class BCFModel:
                         residual_train.add_vector(
                             -(np.squeeze(tau_basis_train) - tau_basis_old) * tau_0[0]
                         )
-
-                # Sample tau_0 (global treatment effect intercept, if requested)
-                if self.sample_tau_0:
-                    mu_x_tau0 = np.squeeze(active_forest_mu.predict_raw(forest_dataset_train))
-                    tau_x_raw_tau0 = active_forest_tau.predict_raw(forest_dataset_train)
-                    Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
-                    tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
-                    tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
-                    partial_resid_tau0 = np.squeeze(resid_train) - mu_x_tau0 - tau_x_full
-                    if self.has_rfx:
-                        partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
-                            rfx_model.predict(rfx_dataset_train, rfx_tracker)
-                        )
-                    Ztr = Z_basis.T @ partial_resid_tau0
-                    ZtZ_current = Z_basis.T @ Z_basis
-                    Sigma_post = np.linalg.inv(ZtZ_current / current_sigma2 + np.eye(p_tau0) / tau_0_prior_var)
-                    mu_post = Sigma_post @ Ztr / current_sigma2
-                    tau_0_new = self.rng.multivariate_normal(mean=mu_post, cov=Sigma_post)
-                    residual_train.add_vector(-np.squeeze(Z_basis @ (tau_0_new - tau_0)))
-                    tau_0 = tau_0_new
-                    if keep_sample:
-                        self.tau_0_samples[:, sample_counter] = tau_0
 
                 # Sample the variance forest
                 if self.include_variance_forest:
@@ -2611,6 +2611,28 @@ class BCFModel:
                                 current_leaf_scale_mu[0, 0]
                             )
 
+                    # Sample tau_0 (global treatment effect intercept, if requested)
+                    if self.sample_tau_0:
+                        mu_x_tau0 = np.squeeze(active_forest_mu.predict_raw(forest_dataset_train))
+                        tau_x_raw_tau0 = active_forest_tau.predict_raw(forest_dataset_train)
+                        Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
+                        tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
+                        tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
+                        partial_resid_tau0 = np.squeeze(resid_train) - mu_x_tau0 - tau_x_full
+                        if self.has_rfx:
+                            partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
+                                rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                            )
+                        Ztr = Z_basis.T @ partial_resid_tau0
+                        ZtZ_current = Z_basis.T @ Z_basis
+                        Sigma_post = np.linalg.inv(ZtZ_current / current_sigma2 + np.eye(p_tau0) / tau_0_prior_var)
+                        mu_post = Sigma_post @ Ztr / current_sigma2
+                        tau_0_new = self.rng.multivariate_normal(mean=mu_post, cov=Sigma_post)
+                        residual_train.add_vector(-np.squeeze(Z_basis @ (tau_0_new - tau_0)))
+                        tau_0 = tau_0_new
+                        if keep_sample:
+                            self.tau_0_samples[:, sample_counter] = tau_0
+
                     # Sample the treatment forest
                     forest_sampler_tau.sample_one_iteration(
                         self.forest_container_tau,
@@ -2690,28 +2712,6 @@ class BCFModel:
                             residual_train.add_vector(
                                 -(tau_basis_train - tau_basis_old) * tau_0[0]
                             )
-
-                    # Sample tau_0 (global treatment effect intercept, if requested)
-                    if self.sample_tau_0:
-                        mu_x_tau0 = np.squeeze(active_forest_mu.predict_raw(forest_dataset_train))
-                        tau_x_raw_tau0 = active_forest_tau.predict_raw(forest_dataset_train)
-                        Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
-                        tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
-                        tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
-                        partial_resid_tau0 = np.squeeze(resid_train) - mu_x_tau0 - tau_x_full
-                        if self.has_rfx:
-                            partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
-                                rfx_model.predict(rfx_dataset_train, rfx_tracker)
-                            )
-                        Ztr = Z_basis.T @ partial_resid_tau0
-                        ZtZ_current = Z_basis.T @ Z_basis
-                        Sigma_post = np.linalg.inv(ZtZ_current / current_sigma2 + np.eye(p_tau0) / tau_0_prior_var)
-                        mu_post = Sigma_post @ Ztr / current_sigma2
-                        tau_0_new = self.rng.multivariate_normal(mean=mu_post, cov=Sigma_post)
-                        residual_train.add_vector(-np.squeeze(Z_basis @ (tau_0_new - tau_0)))
-                        tau_0 = tau_0_new
-                        if keep_sample:
-                            self.tau_0_samples[:, sample_counter] = tau_0
 
                     # Sample the variance forest
                     if self.include_variance_forest:
