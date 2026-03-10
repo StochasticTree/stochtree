@@ -3711,8 +3711,8 @@ class BCFModel:
                 )
             result["tau_0"] = _summarize_interval(self.tau_0_samples, 1, level=level)
 
-        # Return single interval directly if only one term was requested
-        if len(terms) == 1:
+        # Return single interval directly if only one specific term was requested
+        if len(terms) == 1 and terms[0] in result:
             return result[terms[0]]
         return result
 
