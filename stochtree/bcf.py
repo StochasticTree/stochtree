@@ -3554,7 +3554,7 @@ class BCFModel:
         rfx_basis : np.array, optional
             Optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
         terms : str, optional
-            Character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Defaults to `"all"`. Note that `"mu"` is only different from `"prognostic_function"` if random effects are included with a model spec of `"intercept_only"` or `"intercept_plus_treatment"` and `"tau"` is only different from `"cate"` if random effects are included with a model spec of `"intercept_plus_treatment"`.
+            Character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"tau_0"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Defaults to `"all"`. Note that `"mu"` is only different from `"prognostic_function"` if random effects are included with a model spec of `"intercept_only"` or `"intercept_plus_treatment"` and `"tau"` is only different from `"cate"` if random effects are included with a model spec of `"intercept_plus_treatment"`. `"tau_0"` is only available when the model was fit with `sample_intercept = True`.
         scale : str, optional
             Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
         level : float, optional
@@ -3595,23 +3595,26 @@ class BCFModel:
             terms = [terms]
         for term in terms:
             if term not in [
-                "y_hat",
                 "prognostic_function",
                 "mu",
                 "cate",
                 "tau",
+                "tau_0",
                 "rfx",
                 "variance_forest",
+                "y_hat",
                 "all",
             ]:
                 raise ValueError(
-                    f"term '{term}' was requested. Valid terms are 'y_hat', 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', and 'all'"
+                    f"term '{term}' was requested. Valid terms are 'prognostic_function', 'mu', 'cate', 'tau', 'tau_0', 'rfx', 'variance_forest', 'y_hat', and 'all'"
                 )
-        needs_covariates_intermediate = ("y_hat" in terms) or ("all" in terms)
+        # tau_0 is fetched directly from stored samples and does not require X/Z
+        predict_terms = [t for t in terms if t != "tau_0"]
+        needs_covariates_intermediate = ("y_hat" in predict_terms) or ("all" in predict_terms)
         needs_covariates = (
-            ("prognostic_function" in terms)
-            or ("cate" in terms)
-            or ("variance_forest" in terms)
+            ("prognostic_function" in predict_terms)
+            or ("cate" in predict_terms)
+            or ("variance_forest" in predict_terms)
             or needs_covariates_intermediate
         )
         if needs_covariates:
@@ -3648,9 +3651,9 @@ class BCFModel:
                     "'propensity' must have the same number of rows as 'X'"
                 )
         needs_rfx_data_intermediate = (
-            ("y_hat" in terms) or ("all" in terms)
+            ("y_hat" in predict_terms) or ("all" in predict_terms)
         ) and self.has_rfx
-        needs_rfx_data = ("rfx" in terms) or needs_rfx_data_intermediate
+        needs_rfx_data = ("rfx" in predict_terms) or needs_rfx_data_intermediate
         if needs_rfx_data:
             if rfx_group_ids is None:
                 raise ValueError(
@@ -3675,30 +3678,43 @@ class BCFModel:
                         "'rfx_basis' must have the same number of rows as 'X'"
                     )
 
-        # Compute posterior matrices for the requested model terms
-        predictions = self.predict(
-            X=X,
-            Z=Z,
-            propensity=propensity,
-            rfx_group_ids=rfx_group_ids,
-            rfx_basis=rfx_basis,
-            type="posterior",
-            terms=terms,
-            scale=scale,
-        )
-        has_multiple_terms = True if isinstance(predictions, dict) else False
+        result = dict()
 
-        # Compute posterior intervals
-        if has_multiple_terms:
-            result = dict()
-            for term in predictions.keys():
-                if predictions[term] is not None:
-                    result[term] = _summarize_interval(
-                        predictions[term], 1, level=level
-                    )
-            return result
-        else:
-            return _summarize_interval(predictions, 1, level=level)
+        # Compute posterior matrices for predict-able terms (if any)
+        if len(predict_terms) > 0:
+            predictions = self.predict(
+                X=X,
+                Z=Z,
+                propensity=propensity,
+                rfx_group_ids=rfx_group_ids,
+                rfx_basis=rfx_basis,
+                type="posterior",
+                terms=predict_terms,
+                scale=scale,
+            )
+            if isinstance(predictions, dict):
+                for term in predictions.keys():
+                    if predictions[term] is not None:
+                        result[term] = _summarize_interval(
+                            predictions[term], 1, level=level
+                        )
+            else:
+                result[predict_terms[0]] = _summarize_interval(
+                    predictions, 1, level=level
+                )
+
+        # Compute interval for tau_0 directly from stored samples (if requested)
+        if "tau_0" in terms:
+            if not self.sample_tau_0 or not hasattr(self, "tau_0_samples"):
+                raise ValueError(
+                    "'tau_0' was requested but this model was not fit with 'sample_intercept = True'"
+                )
+            result["tau_0"] = _summarize_interval(self.tau_0_samples, 1, level=level)
+
+        # Return single interval directly if only one term was requested
+        if len(terms) == 1:
+            return result[terms[0]]
+        return result
 
     def sample_posterior_predictive(
         self,
