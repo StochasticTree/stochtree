@@ -197,6 +197,8 @@ class BCFModel:
             * `keep_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be included in the treatment effect (`tau(X)`) forest. Defaults to `None`.
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (`tau(X)`) forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
             * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+            * `sample_intercept` (`bool`): Whether to sample a global treatment effect intercept `tau_0` so the full CATE is `tau_0 + tau(X)`. Defaults to `True`. Compatible with `adaptive_coding = True`, in which case the recoded treatment basis is used.
+            * `tau_0_prior_var` (`float`): Variance of the normal prior on `tau_0` (applied independently to each treatment dimension). Auto-calibrated to `1.0` in standardized outcome space when `None`. Only used when `sample_intercept = True`.
 
         variance_forest_params : dict, optional
             Dictionary of variance forest model  parameters, each of which has a default value processed internally, so this argument is optional.
@@ -295,6 +297,8 @@ class BCFModel:
             "keep_vars": None,
             "drop_vars": None,
             "num_features_subsample": None,
+            "sample_intercept": True,
+            "tau_0_prior_var": None,
         }
         treatment_effect_forest_params_updated = _preprocess_params(
             treatment_effect_forest_params_default, treatment_effect_forest_params
@@ -391,6 +395,8 @@ class BCFModel:
         num_features_subsample_tau = treatment_effect_forest_params_updated[
             "num_features_subsample"
         ]
+        self.sample_tau_0 = treatment_effect_forest_params_updated["sample_intercept"]
+        tau_0_prior_var = treatment_effect_forest_params_updated["tau_0_prior_var"]
 
         # 4. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
@@ -1372,6 +1378,11 @@ class BCFModel:
             )
             self.adaptive_coding = False
 
+        # Validate tau_0_prior_var if sample_tau_0 is True
+        if self.sample_tau_0 and tau_0_prior_var is not None:
+            if not isinstance(tau_0_prior_var, (int, float)) or tau_0_prior_var <= 0:
+                raise ValueError("tau_0_prior_var must be a single positive numeric value")
+
         # Sampling sigma2_leaf_tau will be ignored for multivariate treatments
         if sample_sigma2_leaf_tau and self.multivariate_treatment:
             warnings.warn(
@@ -1830,6 +1841,9 @@ class BCFModel:
             self.leaf_scale_mu_samples = np.empty(self.num_samples, dtype=np.float64)
         if sample_sigma2_leaf_tau:
             self.leaf_scale_tau_samples = np.empty(self.num_samples, dtype=np.float64)
+        if self.sample_tau_0:
+            p_tau0 = Z_train.shape[1] if Z_train.ndim > 1 else 1
+            self.tau_0_samples = np.empty((p_tau0, self.num_samples), dtype=np.float64)
         muhat_train_raw = np.empty((self.n_train, self.num_samples), dtype=np.float64)
         if self.include_variance_forest:
             sigma2_x_train_raw = np.empty(
@@ -1854,6 +1868,14 @@ class BCFModel:
             tau_basis_train = Z_train
             if self.has_test:
                 tau_basis_test = Z_test
+
+        # Prepare tau_0 (global treatment effect intercept) structure
+        if self.sample_tau_0:
+            tau_0 = np.zeros(p_tau0)
+            # Auto-calibrate prior variance if not provided: 1.0 in standardized outcome space
+            if tau_0_prior_var is None:
+                tau_0_prior_var = 1.0
+            prior_var_tau0 = np.eye(p_tau0) * tau_0_prior_var
 
         # Prognostic Forest Dataset (covariates)
         forest_dataset_train = Dataset()
@@ -2107,13 +2129,15 @@ class BCFModel:
                             rfx_model.predict(rfx_dataset_train, rfx_tracker)
                         )
                         partial_resid_train = partial_resid_train - rfx_pred
-                    s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
-                    s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
+                    # Use tau_total = tau_0 + tau(X) for sufficient stats when sample_tau_0
+                    tau_x_for_coding = (tau_x + tau_0[0]) if self.sample_tau_0 else tau_x
+                    s_tt0 = np.sum(tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 0))
+                    s_tt1 = np.sum(tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 1))
                     s_ty0 = np.sum(
-                        tau_x * partial_resid_train * (np.squeeze(Z_train) == 0)
+                        tau_x_for_coding * partial_resid_train * (np.squeeze(Z_train) == 0)
                     )
                     s_ty1 = np.sum(
-                        tau_x * partial_resid_train * (np.squeeze(Z_train) == 1)
+                        tau_x_for_coding * partial_resid_train * (np.squeeze(Z_train) == 1)
                     )
                     current_b_0 = self.rng.normal(
                         loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -2125,6 +2149,8 @@ class BCFModel:
                         scale=np.sqrt(current_sigma2 / (s_tt1 + 2 * current_sigma2)),
                         size=1,
                     )[0]
+                    if self.sample_tau_0:
+                        tau_basis_old = np.squeeze(tau_basis_train).copy()
                     tau_basis_train = (
                         1 - np.squeeze(Z_train)
                     ) * current_b_0 + np.squeeze(Z_train) * current_b_1
@@ -2142,6 +2168,34 @@ class BCFModel:
                     forest_sampler_tau.propagate_basis_update(
                         forest_dataset_train, residual_train, active_forest_tau
                     )
+
+                    # Fix tau_0 component of residual after basis change
+                    if self.sample_tau_0:
+                        residual_train.add_vector(
+                            -(np.squeeze(tau_basis_train) - tau_basis_old) * tau_0[0]
+                        )
+
+                # Sample tau_0 (global treatment effect intercept, if requested)
+                if self.sample_tau_0:
+                    mu_x_tau0 = np.squeeze(active_forest_mu.predict_raw(forest_dataset_train))
+                    tau_x_raw_tau0 = active_forest_tau.predict_raw(forest_dataset_train)
+                    Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
+                    tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
+                    tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
+                    partial_resid_tau0 = np.squeeze(resid_train) - mu_x_tau0 - tau_x_full
+                    if self.has_rfx:
+                        partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
+                            rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                        )
+                    Ztr = Z_basis.T @ partial_resid_tau0
+                    ZtZ_current = Z_basis.T @ Z_basis
+                    Sigma_post = np.linalg.inv(ZtZ_current / current_sigma2 + np.eye(p_tau0) / tau_0_prior_var)
+                    mu_post = Sigma_post @ Ztr / current_sigma2
+                    tau_0_new = self.rng.multivariate_normal(mean=mu_post, cov=Sigma_post)
+                    residual_train.add_vector(-np.squeeze(Z_basis @ (tau_0_new - tau_0)))
+                    tau_0 = tau_0_new
+                    if keep_sample:
+                        self.tau_0_samples[:, sample_counter] = tau_0
 
                 # Sample the variance forest
                 if self.include_variance_forest:
@@ -2587,13 +2641,15 @@ class BCFModel:
                                 rfx_model.predict(rfx_dataset_train, rfx_tracker)
                             )
                             partial_resid_train = partial_resid_train - rfx_pred
-                        s_tt0 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 0))
-                        s_tt1 = np.sum(tau_x * tau_x * (np.squeeze(Z_train) == 1))
+                        # Use tau_total = tau_0 + tau(X) for sufficient stats when sample_tau_0
+                        tau_x_for_coding = (tau_x + tau_0[0]) if self.sample_tau_0 else tau_x
+                        s_tt0 = np.sum(tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 0))
+                        s_tt1 = np.sum(tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 1))
                         s_ty0 = np.sum(
-                            tau_x * partial_resid_train * (np.squeeze(Z_train) == 0)
+                            tau_x_for_coding * partial_resid_train * (np.squeeze(Z_train) == 0)
                         )
                         s_ty1 = np.sum(
-                            tau_x * partial_resid_train * (np.squeeze(Z_train) == 1)
+                            tau_x_for_coding * partial_resid_train * (np.squeeze(Z_train) == 1)
                         )
                         current_b_0 = self.rng.normal(
                             loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -2609,6 +2665,8 @@ class BCFModel:
                             ),
                             size=1,
                         )[0]
+                        if self.sample_tau_0:
+                            tau_basis_old = np.squeeze(tau_basis_train).copy()
                         tau_basis_train = (
                             1 - np.squeeze(Z_train)
                         ) * current_b_0 + np.squeeze(Z_train) * current_b_1
@@ -2626,6 +2684,34 @@ class BCFModel:
                         forest_sampler_tau.propagate_basis_update(
                             forest_dataset_train, residual_train, active_forest_tau
                         )
+
+                        # Fix tau_0 component of residual after basis change
+                        if self.sample_tau_0:
+                            residual_train.add_vector(
+                                -(tau_basis_train - tau_basis_old) * tau_0[0]
+                            )
+
+                    # Sample tau_0 (global treatment effect intercept, if requested)
+                    if self.sample_tau_0:
+                        mu_x_tau0 = np.squeeze(active_forest_mu.predict_raw(forest_dataset_train))
+                        tau_x_raw_tau0 = active_forest_tau.predict_raw(forest_dataset_train)
+                        Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
+                        tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
+                        tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
+                        partial_resid_tau0 = np.squeeze(resid_train) - mu_x_tau0 - tau_x_full
+                        if self.has_rfx:
+                            partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
+                                rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                            )
+                        Ztr = Z_basis.T @ partial_resid_tau0
+                        ZtZ_current = Z_basis.T @ Z_basis
+                        Sigma_post = np.linalg.inv(ZtZ_current / current_sigma2 + np.eye(p_tau0) / tau_0_prior_var)
+                        mu_post = Sigma_post @ Ztr / current_sigma2
+                        tau_0_new = self.rng.multivariate_normal(mean=mu_post, cov=Sigma_post)
+                        residual_train.add_vector(-np.squeeze(Z_basis @ (tau_0_new - tau_0)))
+                        tau_0 = tau_0_new
+                        if keep_sample:
+                            self.tau_0_samples[:, sample_counter] = tau_0
 
                     # Sample the variance forest
                     if self.include_variance_forest:
@@ -2697,6 +2783,8 @@ class BCFModel:
             if self.adaptive_coding:
                 self.b1_samples = self.b1_samples[num_gfr:]
                 self.b0_samples = self.b0_samples[num_gfr:]
+            if self.sample_tau_0:
+                self.tau_0_samples = self.tau_0_samples[:, num_gfr:]
             if self.sample_sigma2_global:
                 self.global_var_samples = self.global_var_samples[num_gfr:]
             if self.sample_sigma2_leaf_mu:
@@ -2723,6 +2811,25 @@ class BCFModel:
             self.tau_hat_train = self.tau_hat_train * adaptive_coding_weights
             self.mu_hat_train = self.mu_hat_train + np.squeeze(control_adj_train)
         self.tau_hat_train = np.squeeze(self.tau_hat_train * self.y_std)
+        if self.sample_tau_0:
+            # Add tau_0 contribution to CATE (tau_0_samples in standardized outcome space)
+            tau_0_vec = self.tau_0_samples[0, :]  # num_samples vector (scalar treatment)
+            if self.adaptive_coding:
+                # CATE = (b_1 - b_0) * (tau_0 + tau(X));  control adj = b_0 * (tau_0 + tau(X))
+                self.tau_hat_train = self.tau_hat_train + (
+                    (self.b1_samples - self.b0_samples) * tau_0_vec * self.y_std
+                )
+                self.mu_hat_train = self.mu_hat_train + (
+                    self.b0_samples * tau_0_vec * self.y_std
+                )
+            elif self.multivariate_treatment:
+                # tau_hat_train: n x num_samples x p; tau_0_samples: p x num_samples
+                for j in range(p_tau0):
+                    self.tau_hat_train[:, :, j] = self.tau_hat_train[:, :, j] + (
+                        self.tau_0_samples[j, :] * self.y_std
+                    )
+            else:
+                self.tau_hat_train = self.tau_hat_train + tau_0_vec * self.y_std
         if self.multivariate_treatment:
             treatment_term_train = np.multiply(
                 np.atleast_3d(Z_train).swapaxes(1, 2), self.tau_hat_train
@@ -2748,6 +2855,21 @@ class BCFModel:
                 self.tau_hat_test = self.tau_hat_test * adaptive_coding_weights_test
                 self.mu_hat_test = self.mu_hat_test + np.squeeze(control_adj_test)
             self.tau_hat_test = np.squeeze(self.tau_hat_test * self.y_std)
+            if self.sample_tau_0:
+                if self.adaptive_coding:
+                    self.tau_hat_test = self.tau_hat_test + (
+                        (self.b1_samples - self.b0_samples) * tau_0_vec * self.y_std
+                    )
+                    self.mu_hat_test = self.mu_hat_test + (
+                        self.b0_samples * tau_0_vec * self.y_std
+                    )
+                elif self.multivariate_treatment:
+                    for j in range(p_tau0):
+                        self.tau_hat_test[:, :, j] = self.tau_hat_test[:, :, j] + (
+                            self.tau_0_samples[j, :] * self.y_std
+                        )
+                else:
+                    self.tau_hat_test = self.tau_hat_test + tau_0_vec * self.y_std
             if self.multivariate_treatment:
                 treatment_term_test = np.multiply(
                     np.atleast_3d(Z_test).swapaxes(1, 2), self.tau_hat_test
@@ -2783,6 +2905,9 @@ class BCFModel:
         if self.adaptive_coding:
             self.b0_samples = self.b0_samples
             self.b1_samples = self.b1_samples
+
+        if self.sample_tau_0:
+            self.tau_0_samples = self.tau_0_samples * self.y_std
 
         if self.include_variance_forest:
             if self.sample_sigma2_global:
@@ -3057,6 +3182,24 @@ class BCFModel:
                     mu_x_forest = mu_x_forest + np.squeeze(control_adj)
                 tau_raw = tau_raw * adaptive_coding_weights
             tau_x_forest = np.squeeze(tau_raw * self.y_std)
+            if getattr(self, "sample_tau_0", False) and hasattr(self, "tau_0_samples"):
+                tau_0_vec = self.tau_0_samples[0, :]
+                if self.adaptive_coding:
+                    tau_x_forest = tau_x_forest + (
+                        (self.b1_samples - self.b0_samples) * tau_0_vec
+                    )
+                    if predict_mu_forest or predict_mu_forest_intermediate:
+                        mu_x_forest = mu_x_forest + (
+                            self.b0_samples * tau_0_vec
+                        )
+                elif Z.shape[1] > 1:
+                    p_tau0 = Z.shape[1]
+                    for j in range(p_tau0):
+                        tau_x_forest[:, :, j] = tau_x_forest[:, :, j] + (
+                            self.tau_0_samples[j, :]
+                        )
+                else:
+                    tau_x_forest = tau_x_forest + tau_0_vec
             if Z.shape[1] > 1:
                 treatment_term = np.multiply(
                     np.atleast_3d(Z).swapaxes(1, 2), tau_x_forest
@@ -3761,6 +3904,7 @@ class BCFModel:
         bcf_json.add_scalar("keep_every", self.keep_every)
         bcf_json.add_scalar("num_samples", self.num_samples)
         bcf_json.add_boolean("adaptive_coding", self.adaptive_coding)
+        bcf_json.add_boolean("sample_tau_0", self.sample_tau_0)
         bcf_json.add_string("propensity_covariate", self.propensity_covariate)
         bcf_json.add_boolean(
             "internal_propensity_model", self.internal_propensity_model
@@ -3787,6 +3931,11 @@ class BCFModel:
         if self.adaptive_coding:
             bcf_json.add_numeric_vector("b0_samples", self.b0_samples, "parameters")
             bcf_json.add_numeric_vector("b1_samples", self.b1_samples, "parameters")
+        if self.sample_tau_0 and hasattr(self, "tau_0_samples"):
+            bcf_json.add_scalar("tau_0_dim", self.tau_0_samples.shape[0])
+            bcf_json.add_numeric_vector(
+                "tau_0_samples", self.tau_0_samples.ravel(), "parameters"
+            )
 
         # Add propensity model (if it exists)
         if self.internal_propensity_model:
@@ -3855,6 +4004,7 @@ class BCFModel:
         self.keep_every = int(bcf_json.get_scalar("keep_every"))
         self.num_samples = int(bcf_json.get_scalar("num_samples"))
         self.adaptive_coding = bcf_json.get_boolean("adaptive_coding")
+        self.sample_tau_0 = bcf_json.get_boolean("sample_tau_0")
         self.propensity_covariate = bcf_json.get_string("propensity_covariate")
         self.internal_propensity_model = bcf_json.get_boolean(
             "internal_propensity_model"
@@ -3881,6 +4031,10 @@ class BCFModel:
         if self.adaptive_coding:
             self.b1_samples = bcf_json.get_numeric_vector("b1_samples", "parameters")
             self.b0_samples = bcf_json.get_numeric_vector("b0_samples", "parameters")
+        if self.sample_tau_0:
+            tau_0_dim = int(bcf_json.get_scalar("tau_0_dim"))
+            tau_0_vec = bcf_json.get_numeric_vector("tau_0_samples", "parameters")
+            self.tau_0_samples = tau_0_vec.reshape(tau_0_dim, -1)
 
         # Unpack internal propensity model
         if self.internal_propensity_model:
@@ -3990,6 +4144,7 @@ class BCFModel:
         self.num_chains = int(json_object_default.get_scalar("num_chains"))
         self.keep_every = int(json_object_default.get_scalar("keep_every"))
         self.adaptive_coding = json_object_default.get_boolean("adaptive_coding")
+        self.sample_tau_0 = json_object_default.get_boolean("sample_tau_0")
         self.propensity_covariate = json_object_default.get_string(
             "propensity_covariate"
         )
@@ -4056,6 +4211,18 @@ class BCFModel:
                         self.sample_sigma2_leaf_tau,
                         sample_sigma2_leaf_tau,
                     ))
+
+        if self.sample_tau_0:
+            tau_0_dim = int(json_object_default.get_scalar("tau_0_dim"))
+            for i in range(len(json_object_list)):
+                tau_0_vec_i = json_object_list[i].get_numeric_vector(
+                    "tau_0_samples", "parameters"
+                )
+                tau_0_mat_i = tau_0_vec_i.reshape(tau_0_dim, -1)
+                if i == 0:
+                    self.tau_0_samples = tau_0_mat_i
+                else:
+                    self.tau_0_samples = np.hstack((self.tau_0_samples, tau_0_mat_i))
 
         # Unpack internal propensity model
         if self.internal_propensity_model:
@@ -4132,6 +4299,7 @@ class BCFModel:
         - Test set mean function predictions: `"y_hat_test"`
         - In-sample treatment effect forest predictions: `"tau_hat_train"`
         - Test set treatment effect forest predictions: `"tau_hat_test"`
+        - Treatment effect intercept: `"tau_0"`, `"treatment_intercept"`, `"tau_intercept"`
         - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
         - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
         
@@ -4213,6 +4381,13 @@ class BCFModel:
             else:
                 raise ValueError("This model does not have test set variance forest predictions")
 
+        if term in ["tau_0", "treatment_intercept", "tau_intercept"]:
+            t0 = getattr(self, "tau_0_samples", None)
+            if t0 is not None:
+                return t0
+            else:
+                raise ValueError("This model does not have treatment effect intercept (tau_0) samples")
+
         raise ValueError(f"term {term} is not a valid BCF model term")
 
     def summary(self) -> str:
@@ -4279,6 +4454,20 @@ class BCFModel:
             output_str += "\nquantiles (treated):\n"
             for p, q in zip(probs, quantiles_b1):
                 output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+
+        # Treatment effect intercept (tau_0)
+        if self.sample_tau_0:
+            tau_0_samp = getattr(self, "tau_0_samples", None)
+            if tau_0_samp is not None:
+                tau_0_vec = tau_0_samp.ravel()
+                n_samples = tau_0_samp.shape[1]
+                mean_tau_0 = np.mean(tau_0_vec)
+                sd_tau_0 = np.std(tau_0_vec)
+                quantiles_tau_0 = np.quantile(tau_0_vec, probs)
+                output_str += f"Summary of treatment effect intercept (tau_0) posterior: "
+                output_str += f"{n_samples} samples, mean = {mean_tau_0:.3f}, standard deviation = {sd_tau_0:.3f}, quantiles:\n"
+                for p, q in zip(probs, quantiles_tau_0):
+                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
 
         # In-sample predictions
         yht = getattr(self, "y_hat_train", None)
@@ -4379,6 +4568,8 @@ class BCFModel:
                 model_terms.append("prognostic forest leaf scale model")
             if self.sample_sigma2_leaf_tau:
                 model_terms.append("treatment effect forest leaf scale model")
+            if self.sample_tau_0:
+                model_terms.append("treatment effect intercept model")
             if len(model_terms) > 2:
                 output_str = f"BCFModel run with {', '.join(model_terms[:-1])}, and {model_terms[-1]}"
             elif len(model_terms) == 2:
