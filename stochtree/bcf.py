@@ -4215,7 +4215,7 @@ class BCFModel:
 
         raise ValueError(f"term {term} is not a valid BCF model term")
 
-    def summary(self) -> str:
+    def summary(self) -> None:
         # First, print the BCF model
         output_str = "BCF Model Summary:\n"
         output_str += "------------------\n"
@@ -4362,7 +4362,7 @@ class BCFModel:
                 rfx_quantiles = np.quantile(rfx_beta_samples, probs)
                 for p, q in zip(probs, rfx_quantiles):
                     output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
-        return output_str
+        print(output_str)
 
     def __str__(self) -> str:
         if not self.sampled:
