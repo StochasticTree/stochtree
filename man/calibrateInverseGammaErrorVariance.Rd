@@ -2,7 +2,7 @@
 % Please edit documentation in R/calibration.R
 \name{calibrateInverseGammaErrorVariance}
 \alias{calibrateInverseGammaErrorVariance}
-\title{Calibrate inverse gamma prior}
+\title{Calibrate Inverse Gamma Prior}
 \usage{
 calibrateInverseGammaErrorVariance(
   y,

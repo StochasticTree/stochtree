@@ -595,7 +595,7 @@ CppJson <- R6::R6Class(
   )
 )
 
-#' @title Load forest samples from JSON
+#' @title Load Forest Samples from JSON
 #' @rdname ForestSamplesSerialization
 #' @param json_object Object of class `CppJson`
 #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
@@ -606,7 +606,7 @@ loadForestContainerJson <- function(json_object, json_forest_label) {
   return(output)
 }
 
-#' @title Combine JSON model objects into ForestSamples
+#' @title Combine JSON Model Objects into ForestSamples
 #' @rdname ForestSamplesSerialization
 #' @param json_object_list List of objects of class `CppJson`
 #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
@@ -627,7 +627,7 @@ loadForestContainerCombinedJson <- function(
   return(output)
 }
 
-#' @title Combine JSON strings into ForestSamples
+#' @title Combine JSON Strings into ForestSamples
 #' @rdname ForestSamplesSerialization
 #' @param json_string_list List of strings that parse into objects of type `CppJson`
 #' @param json_forest_label Label referring to a particular forest (i.e. "forest_0") in the overall json hierarchy (must exist in every json object in a list if a list is provided)
@@ -648,7 +648,7 @@ loadForestContainerCombinedJsonString <- function(
   return(output)
 }
 
-#' @title Load random effect samples from JSON
+#' @title Load Random Effect Samples from JSON
 #' @rdname RandomEffectSamplesSerialization
 #' @param json_object Object of class `CppJson`
 #' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked (must exist in every json object in a list if a list is provided)
@@ -667,7 +667,7 @@ loadRandomEffectSamplesJson <- function(json_object, json_rfx_num) {
   return(output)
 }
 
-#' @title Combine JSON model objects into RandomEffectSamples
+#' @title Combine JSON Model Objects into RandomEffectSamples
 #' @rdname RandomEffectSamplesSerialization
 #' @param json_object_list List of objects of class `CppJson`
 #' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked (must exist in every json object in a list if a list is provided)
@@ -701,7 +701,7 @@ loadRandomEffectSamplesCombinedJson <- function(
   return(output)
 }
 
-#' @title Combine JSON strings into RandomEffectSamples
+#' @title Combine JSON Strings into RandomEffectSamples
 #' @rdname RandomEffectSamplesSerialization
 #' @param json_string_list List of objects of class `CppJson`
 #' @param json_rfx_num Integer index indicating the position of the random effects term to be unpacked (must exist in every json object in a list if a list is provided)
@@ -735,7 +735,7 @@ loadRandomEffectSamplesCombinedJsonString <- function(
   return(output)
 }
 
-#' @title Load vector from JSON
+#' @title Load Vector from JSON
 #' @description
 #' Load a vector from json
 #'
@@ -768,7 +768,7 @@ loadVectorJson <- function(
   return(output)
 }
 
-#' @title Load scalar from JSON
+#' @title Load Scalar from JSON
 #' @description
 #' Load a scalar from json
 #'
@@ -830,14 +830,14 @@ loadScalarJson <- function(
 NULL
 #> NULL
 
-#' @title Create CppJson object
+#' @title Create CppJson Object
 #' @rdname JSONCreation
 #' @export
 createCppJson <- function() {
   return(invisible((CppJson$new())))
 }
 
-#' @title Create CppJson object from file
+#' @title Create CppJson Object from File
 #' @rdname JSONCreation
 #' @param json_filename Name of JSON file to read. Must end in `.json`.
 #' @export
@@ -847,7 +847,7 @@ createCppJsonFile <- function(json_filename) {
   return(output)
 }
 
-#' @title Create CppJson object from string
+#' @title Create CppJson Object from String
 #' @rdname JSONCreation
 #' @param json_string JSON string
 #' @export

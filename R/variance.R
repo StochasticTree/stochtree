@@ -1,4 +1,4 @@
-#' @title Sample global error variance
+#' @title Sample Global Error Variance
 #' @description
 #' Sample one iteration of the (inverse gamma) global variance model
 #'
@@ -40,7 +40,7 @@ sampleGlobalErrorVarianceOneIteration <- function(
   ))
 }
 
-#' @title Sample leaf scale
+#' @title Sample Leaf Scale
 #' @description
 #' Sample one iteration of the leaf parameter variance model (only for univariate basis and constant leaf!)
 #'

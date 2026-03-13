@@ -1,3 +1,6 @@
+import io
+from contextlib import redirect_stdout
+
 import numpy as np
 import pytest
 from sklearn.model_selection import train_test_split
@@ -233,7 +236,10 @@ class TestBARTModelSummary:
             general_params={"sample_sigma2_global": True},
             mean_forest_params={"sample_sigma2_leaf": True},
         )
-        s = model.summary()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            model.summary()
+        s = buf.getvalue()
         assert "sigma^2" in s
         assert "leaf scale" in s
         assert "in-sample" in s
@@ -251,7 +257,10 @@ class TestBARTModelSummary:
             general_params={"sample_sigma2_global": False},
             mean_forest_params={"sample_sigma2_leaf": False},
         )
-        s = model.summary()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            model.summary()
+        s = buf.getvalue()
         assert "in-sample" in s
         assert "test-set" not in s
 
@@ -271,7 +280,10 @@ class TestBARTModelSummary:
             mean_forest_params={"sample_sigma2_leaf": False},
             random_effects_params={"model_spec": "intercept_only"},
         )
-        s = model.summary()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            model.summary()
+        s = buf.getvalue()
         assert "Random effects" in s
         assert "Random effects overall mean" in s
 
@@ -293,12 +305,15 @@ class TestBARTModelSummary:
             mean_forest_params={"sample_sigma2_leaf": False},
             random_effects_params={"model_spec": "custom"},
         )
-        s = model.summary()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            model.summary()
+        s = buf.getvalue()
         assert "Random effects" in s
         assert "Variance component means" in s
 
-    def test_returns_string(self, bart_data):
-        """summary() returns a string."""
+    def test_returns_none(self, bart_data):
+        """summary() prints and returns None."""
         model = BARTModel()
         model.sample(
             X_train=bart_data["X_train"],
@@ -309,7 +324,7 @@ class TestBARTModelSummary:
             general_params={"sample_sigma2_global": False},
             mean_forest_params={"sample_sigma2_leaf": False},
         )
-        assert isinstance(model.summary(), str)
+        assert model.summary() is None
 
 
 class TestBCFModelStr:
@@ -457,7 +472,10 @@ class TestBCFModelSummary:
             prognostic_forest_params={"sample_sigma2_leaf": True},
             treatment_effect_forest_params={"sample_sigma2_leaf": True},
         )
-        s = model.summary()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            model.summary()
+        s = buf.getvalue()
         assert "sigma^2" in s
         assert "prognostic forest leaf scale" in s
         assert "treatment effect forest leaf scale" in s
@@ -479,12 +497,15 @@ class TestBCFModelSummary:
             num_mcmc=10,
             general_params={"sample_sigma2_global": False},
         )
-        s = model.summary()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            model.summary()
+        s = buf.getvalue()
         assert "in-sample" in s
         assert "test-set" not in s
 
-    def test_returns_string(self, bcf_data):
-        """summary() returns a string."""
+    def test_returns_none(self, bcf_data):
+        """summary() prints and returns None."""
         model = BCFModel()
         model.sample(
             X_train=bcf_data["X_train"],
@@ -496,4 +517,4 @@ class TestBCFModelSummary:
             num_mcmc=10,
             general_params={"sample_sigma2_global": False},
         )
-        assert isinstance(model.summary(), str)
+        assert model.summary() is None

@@ -2,7 +2,7 @@
 % Please edit documentation in R/variance.R
 \name{sampleLeafVarianceOneIteration}
 \alias{sampleLeafVarianceOneIteration}
-\title{Sample leaf scale}
+\title{Sample Leaf Scale}
 \usage{
 sampleLeafVarianceOneIteration(forest, rng, a, b)
 }

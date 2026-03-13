@@ -2,7 +2,7 @@
 % Please edit documentation in R/posterior_transformation.R
 \name{sampleBARTPosteriorPredictive}
 \alias{sampleBARTPosteriorPredictive}
-\title{Sample BART posterior predictive}
+\title{Sample BART Posterior Predictive}
 \usage{
 sampleBARTPosteriorPredictive(
   model_object,

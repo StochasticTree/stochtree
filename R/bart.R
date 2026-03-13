@@ -60,7 +60,7 @@
 NULL
 #> NULL
 
-#' @title Run BART for supervised learning
+#' @title Run BART for Supervised Learning
 #' @description
 #' Run the BART algorithm for supervised learning.
 #'
@@ -2451,7 +2451,7 @@ bart <- function(
   return(result)
 }
 
-#' @title Predict from a BART model
+#' @title Predict from a BART Model
 #' @description
 #' Predict from a sampled BART model on new data
 #'
@@ -2916,7 +2916,7 @@ predict.bartmodel <- function(
   }
 }
 
-#' @title Print summary of BART model
+#' @title Print Summary of BART Model
 #' @description Prints a summary of the BART model, including the model terms and their specifications.
 #' @param x The BART model object
 #' @param ... Additional arguments
@@ -3071,8 +3071,8 @@ print.bartmodel <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Summarize BART model fit and parameters
-#' @description Summarize the BART with a description of the model that was fit and numeric summaries of any sampled quantities.
+#' @title Summarize BART Model Fit and Parameters
+#' @description Summarize a BART fit with a description of the model that was fit and numeric summaries of any sampled quantities.
 #' @param object The BART model object
 #' @param ... Additional arguments
 #' @export
@@ -3227,7 +3227,7 @@ summary.bartmodel <- function(object, ...) {
   invisible(object)
 }
 
-#' @title Plot BART model fit
+#' @title Plot BART Model Fit
 #' @description Plot the BART model fit and any relevant sampled quantities. This will default to a traceplot of the global error scale and the in-sample mean forest predictions for the first train set observation. Since `stochtree::bart()` is flexible and it's possible to sample a model with a fixed global error scale and no mean forest, this procedure is adaptive and will attempt to plot a trace of whichever model terms are included if these two default terms are omitted.
 #' @param x The BART model object
 #' @param ... Additional arguments
@@ -3281,7 +3281,7 @@ plot.bartmodel <- function(x, ...) {
   invisible(x)
 }
 
-#' @title Extract random effects samples from BART model
+#' @title Extract Random Effects Samples from BART Model
 #' @description
 #' Extract raw sample values for each of the random effect parameter terms.
 #'
@@ -3354,7 +3354,7 @@ getRandomEffectSamples.bartmodel <- function(object, ...) {
   return(result)
 }
 
-#' @title Extract BART parameter samples
+#' @title Extract BART Parameter Samples
 #' @description Extract a vector, matrix or array of parameter samples from a BART model by name.
 #' Random effects are handled by a separate `getRandomEffectSamples` function due to the complexity of the random effects parameters.
 #' If the requested model term is not found, an error is thrown.
@@ -3475,7 +3475,7 @@ extractParameter.bartmodel <- function(object, term) {
   stop(paste0("term ", term, " is not a valid BART model term"))
 }
 
-#' @title Convert BART model to JSON
+#' @title Convert BART Model to JSON
 #' @rdname BARTSerialization
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @export
@@ -3637,7 +3637,7 @@ saveBARTModelToJson <- function(object) {
   return(jsonobj)
 }
 
-#' @title Save BART model to JSON file
+#' @title Save BART Model to JSON File
 #' @rdname BARTSerialization
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @param filename String of filepath, must end in ".json"
@@ -3651,7 +3651,7 @@ saveBARTModelToJsonFile <- function(object, filename) {
   jsonobj$save_file(filename)
 }
 
-#' @title Convert BART model to JSON string
+#' @title Convert BART Model to JSON String
 #' @rdname BARTSerialization
 #' @param object Object of type `bartmodel` containing draws of a BART model and associated sampling outputs.
 #' @export
@@ -3663,7 +3663,7 @@ saveBARTModelToJsonString <- function(object) {
   return(jsonobj$return_json_string())
 }
 
-#' @title Convert JSON to BART model
+#' @title Convert JSON to BART Model
 #' @rdname BARTSerialization
 #' @param json_object Object of type `CppJson` containing Json representation of a BART model
 #' @export
@@ -3834,7 +3834,7 @@ createBARTModelFromJson <- function(json_object) {
   return(output)
 }
 
-#' @title Convert JSON file to BART model
+#' @title Convert JSON File to BART Model
 #' @rdname BARTSerialization
 #' @param json_filename String of filepath, must end in ".json"
 #' @export
@@ -3848,7 +3848,7 @@ createBARTModelFromJsonFile <- function(json_filename) {
   return(bart_object)
 }
 
-#' @title Convert JSON string to BART model
+#' @title Convert JSON String to BART Model
 #' @rdname BARTSerialization
 #' @param json_string JSON string dump
 #' @export
@@ -3862,7 +3862,7 @@ createBARTModelFromJsonString <- function(json_string) {
   return(bart_object)
 }
 
-#' @title Convert JSON list to single BART model
+#' @title Convert JSON List to Single BART Model
 #' @rdname BARTSerialization
 #' @param json_object_list List of objects of type `CppJson` containing Json representation of a BART model
 #' @export
@@ -4108,7 +4108,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   return(output)
 }
 
-#' @title Convert JSON string list to single BART model
+#' @title Convert JSON String List to Single BART Model
 #' @rdname BARTSerialization
 #' @param json_string_list List of JSON strings which can be parsed to objects of type `CppJson` containing Json representation of a BART model
 #' @export
