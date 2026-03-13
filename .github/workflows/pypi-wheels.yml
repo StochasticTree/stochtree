@@ -47,7 +47,7 @@ jobs:
           brew install libomp
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.23.2
+        uses: pypa/cibuildwheel@v3.4.0
         env:
           CIBW_SKIP: "pp* *-musllinux_* *-win32"
           CIBW_ARCHS: ${{ matrix.cibw_archs }}
