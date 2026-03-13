@@ -115,7 +115,7 @@ validate_outcome_model <- function(object) {
   object
 }
 
-#' Create a new outcome model object
+#' Create a New Outcome Model Object
 #'
 #' @param outcome Character string specifying the outcome type.
 #' @param link Character string specifying the link function.
@@ -151,7 +151,7 @@ preprocessParams <- function(default_params, user_params = NULL) {
   return(default_params)
 }
 
-#' @title Preprocess covariates for model training
+#' @title Preprocess Covariates for Model Training
 #' @param input_data Covariates, provided as either a dataframe or a matrix
 #' @export
 #' @rdname DataPreprocessing
@@ -171,7 +171,7 @@ preprocessTrainData <- function(input_data) {
   return(output)
 }
 
-#' @title Preprocess covariates for model prediction
+#' @title Preprocess Covariates for Model Prediction
 #' @param input_data Covariates, provided as either a dataframe or a matrix
 #' @param metadata List containing information on variables, including train set
 #' categories for categorical variables

@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{OutcomeModel}
 \alias{OutcomeModel}
-\title{Create a new outcome model object}
+\title{Create a New Outcome Model Object}
 \usage{
 OutcomeModel(outcome = "continuous", link = NULL)
 }
@@ -15,7 +15,7 @@ OutcomeModel(outcome = "continuous", link = NULL)
 An object of class \code{outcome_model}.
 }
 \description{
-Create a new outcome model object
+Create a New Outcome Model Object
 }
 \examples{
 my_model <- OutcomeModel(outcome = "continuous", link = "identity")

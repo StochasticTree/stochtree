@@ -2,7 +2,7 @@
 % Please edit documentation in R/serialization.R
 \name{loadScalarJson}
 \alias{loadScalarJson}
-\title{Load scalar from JSON}
+\title{Load Scalar from JSON}
 \usage{
 loadScalarJson(json_object, json_scalar_label, subfolder_name = NULL)
 }

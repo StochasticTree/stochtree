@@ -532,7 +532,7 @@ RandomEffectsModel <- R6::R6Class(
   )
 )
 
-#' @title Create RandomEffectSamples object
+#' @title Create RandomEffectSamples Object
 #' @description
 #' Create a `RandomEffectSamples` object
 #'
@@ -564,7 +564,7 @@ createRandomEffectSamples <- function(
   return(output)
 }
 
-#' @title Create RandomEffectsTracker object
+#' @title Create RandomEffectsTracker Object
 #' @description
 #' Create a `RandomEffectsTracker` object
 #'
@@ -587,7 +587,7 @@ createRandomEffectsTracker <- function(rfx_group_indices) {
   return(invisible((RandomEffectsTracker$new(rfx_group_indices))))
 }
 
-#' @title Create RandomEffectsModel object
+#' @title Create RandomEffectsModel Object
 #' @description
 #' Create a `RandomEffectsModel` object
 #'
@@ -611,7 +611,7 @@ createRandomEffectsModel <- function(num_components, num_groups) {
   return(invisible((RandomEffectsModel$new(num_components, num_groups))))
 }
 
-#' @title Reset RandomEffectsModel object
+#' @title Reset RandomEffectsModel Object
 #' @rdname RandomEffectStateManagement
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param rfx_samples Object of type `RandomEffectSamples`.
@@ -638,7 +638,7 @@ resetRandomEffectsModel <- function(
   rfx_model$set_working_parameter_cov(sigma_alpha_init)
 }
 
-#' @title Reset RandomEffectsTracker object
+#' @title Reset RandomEffectsTracker Object
 #' @rdname RandomEffectStateManagement
 #' @param rfx_tracker Object of type `RandomEffectsTracker`.
 #' @param rfx_model Object of type `RandomEffectsModel`.
@@ -661,7 +661,7 @@ resetRandomEffectsTracker <- function(
   )
 }
 
-#' @title Reset RandomEffectsModel object to default state
+#' @title Reset RandomEffectsModel Object to Default State
 #' @rdname RandomEffectStateManagement
 #' @param rfx_model Object of type `RandomEffectsModel`.
 #' @param alpha_init Initial value of the "working parameter".
@@ -688,7 +688,7 @@ rootResetRandomEffectsModel <- function(
   rfx_model$set_variance_prior_scale(sigma_xi_scale)
 }
 
-#' @title Reset RandomEffectsTracker object to default state
+#' @title Reset RandomEffectsTracker Object to Default State
 #' @rdname RandomEffectStateManagement
 #' @param rfx_tracker Object of type `RandomEffectsTracker`.
 #' @param rfx_model Object of type `RandomEffectsModel`.
@@ -709,7 +709,7 @@ rootResetRandomEffectsTracker <- function(
   )
 }
 
-#' @title Summarize a RandomEffectSamples object
+#' @title Summarize a RandomEffectSamples Object
 #' @description Prints a summary of the RandomEffectSamples object, including number of forests and the underlying model of each forest.
 #' @param x RandomEffectSamples object
 #' @param ... Additional arguments
