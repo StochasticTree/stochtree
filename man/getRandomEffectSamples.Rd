@@ -2,7 +2,7 @@
 % Please edit documentation in R/generics.R
 \name{getRandomEffectSamples}
 \alias{getRandomEffectSamples}
-\title{Extract random effect samples generic function}
+\title{Extract Random Effect Samples Generic Function}
 \usage{
 getRandomEffectSamples(object, ...)
 }

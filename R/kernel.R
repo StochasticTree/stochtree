@@ -49,7 +49,7 @@
 NULL
 #> NULL
 
-#' @title Query forest leaf indices
+#' @title Query Forest Leaf Indices
 #' @rdname ForestKernelComputation
 #' @param model_object Object of type `bartmodel`, `bcfmodel`, or `ForestSamples` corresponding to a BART / BCF model with at least one forest sample, or a low-level `ForestSamples` object.
 #' @param covariates Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.
@@ -186,7 +186,7 @@ computeForestLeafIndices <- function(
   return(leaf_ind_matrix)
 }
 
-#' @title Query forest leaf scale parameters
+#' @title Query Forest Leaf Scale Parameters
 #' @rdname ForestKernelComputation
 #' @param model_object Object of type `bartmodel` or `bcfmodel` corresponding to a BART / BCF model with at least one forest sample
 #' @param forest_type Which forest to use from `model_object`.
@@ -284,7 +284,7 @@ computeForestLeafVariances <- function(
   return(leaf_scale_params)
 }
 
-#' @title Query forest max leaf index
+#' @title Query Forest Max Leaf Index
 #' @rdname ForestKernelComputation
 #' @param model_object Object of type `bartmodel`, `bcfmodel`, or `ForestSamples` corresponding to a BART / BCF model with at least one forest sample, or a low-level `ForestSamples` object.
 #' @param forest_type Which forest to use from `model_object`.

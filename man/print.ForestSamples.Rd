@@ -2,7 +2,7 @@
 % Please edit documentation in R/forest.R
 \name{print.ForestSamples}
 \alias{print.ForestSamples}
-\title{Summarize a ForestSamples object}
+\title{Summarize a ForestSamples Object}
 \usage{
 \method{print}{ForestSamples}(x, ...)
 }
