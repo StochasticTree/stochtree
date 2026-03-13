@@ -3072,7 +3072,7 @@ print.bartmodel <- function(x, ...) {
 }
 
 #' @title Summarize BART Model Fit and Parameters
-#' @description Summarize the BART with a description of the model that was fit and numeric summaries of any sampled quantities.
+#' @description Summarize a BART fit with a description of the model that was fit and numeric summaries of any sampled quantities.
 #' @param object The BART model object
 #' @param ... Additional arguments
 #' @export

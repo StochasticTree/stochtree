@@ -1,8 +1,12 @@
-# stochtree 0.4.0.9000
+# stochtree 0.4.1
 
 ## New Features
 
 ## Bug Fixes
+
+## Documentation and Other Maintenance
+
+* Converted all R man page titles to title case [#310](https://github.com/StochasticTree/stochtree/pull/310)
 
 # stochtree 0.4.0
 

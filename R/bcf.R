@@ -3667,7 +3667,7 @@ print.bcfmodel <- function(x, ...) {
 }
 
 #' @title Summarize BCF Model
-#' @description Summarize the BCF with a description of the model that was fit and numeric summaries of any sampled quantities.
+#' @description Summarize a BCF fit with a description of the model that was fit and numeric summaries of any sampled quantities.
 #' @param object The BCF model object
 #' @param ... Additional arguments
 #' @export

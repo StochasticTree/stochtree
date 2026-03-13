@@ -4216,6 +4216,15 @@ class BCFModel:
         raise ValueError(f"term {term} is not a valid BCF model term")
 
     def summary(self) -> None:
+        """
+        Summarize a BCF fit with a description of the model that was fit and numeric summaries of any sampled quantities
+
+        Prints summary directly to the console with no return type.
+        
+        Returns
+        -------
+        None
+        """
         # First, print the BCF model
         output_str = "BCF Model Summary:\n"
         output_str += "------------------\n"

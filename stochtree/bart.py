@@ -3416,6 +3416,15 @@ class BARTModel:
         raise ValueError(f"term {term} is not a valid BART model term")
 
     def summary(self) -> None:
+        """
+        Summarize a BART fit with a description of the model that was fit and numeric summaries of any sampled quantities
+
+        Prints summary directly to the console with no return type.
+        
+        Returns
+        -------
+        None
+        """
         # First, print the BART model
         output_str = "BART Model Summary:\n"
         output_str += "-------------------\n"
