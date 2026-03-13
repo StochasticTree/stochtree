@@ -2,7 +2,7 @@
 % Please edit documentation in R/random_effects.R
 \name{print.RandomEffectSamples}
 \alias{print.RandomEffectSamples}
-\title{Summarize a RandomEffectSamples object}
+\title{Summarize a RandomEffectSamples Object}
 \usage{
 \method{print}{RandomEffectSamples}(x, ...)
 }

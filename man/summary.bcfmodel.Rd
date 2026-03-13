@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{summary.bcfmodel}
 \alias{summary.bcfmodel}
-\title{Summarize BCF model}
+\title{Summarize BCF Model}
 \usage{
 \method{summary}{bcfmodel}(object, ...)
 }

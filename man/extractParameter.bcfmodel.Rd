@@ -2,7 +2,7 @@
 % Please edit documentation in R/bcf.R
 \name{extractParameter.bcfmodel}
 \alias{extractParameter.bcfmodel}
-\title{Extract BCF parameter samples}
+\title{Extract BCF Parameter Samples}
 \usage{
 \method{extractParameter}{bcfmodel}(object, term)
 }

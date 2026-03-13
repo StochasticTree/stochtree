@@ -2,7 +2,7 @@
 % Please edit documentation in R/bart.R
 \name{getRandomEffectSamples.bartmodel}
 \alias{getRandomEffectSamples.bartmodel}
-\title{Extract random effects samples from BART model}
+\title{Extract Random Effects Samples from BART Model}
 \usage{
 \method{getRandomEffectSamples}{bartmodel}(object, ...)
 }
