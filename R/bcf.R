@@ -134,20 +134,22 @@ NULL
 #'
 #' @param treatment_effect_forest_params (Optional) A list of treatment effect forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
-#'   - `num_trees` Number of trees in the ensemble for the treatment effect forest. Default: `50`. Must be a positive integer.
+#'   - `num_trees` Number of trees in the ensemble for the treatment effect forest. Default: `100`. Must be a positive integer.
 #'   - `alpha` Prior probability of splitting for a tree of depth 0 in the treatment effect forest. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `0.25`.
 #'   - `beta` Exponent that decreases split probabilities for nodes of depth > 0 in the treatment effect forest. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Default: `3`.
 #'   - `min_samples_leaf` Minimum allowable size of a leaf, in terms of training samples, in the treatment effect forest. Default: `5`.
 #'   - `max_depth` Maximum depth of any tree in the ensemble in the treatment effect forest. Default: `5`. Can be overridden with ``-1`` which does not enforce any depth limits on trees.
 #'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable in the treatment effect forest. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here.
 #'   - `sample_sigma2_leaf` Whether or not to update the leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `ncol(Z_train)>1`. Default: `FALSE`.
-#'   - `sigma2_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
+#'   - `sigma2_leaf_init` Starting value of leaf node scale parameter. Calibrated internally as `0.5 * var(y)/num_trees` if not set here (`0.5 / num_trees` if `y` is continuous and `standardize = TRUE` in the `general_params` list).
 #'   - `sigma2_leaf_shape` Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Default: `3`.
 #'   - `sigma2_leaf_scale` Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
 #'   - `delta_max` Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in `general_params`. Must be > 0 and < 1. Default: `0.9`. Ignored if `sigma2_leaf_init` is set directly, as this parameter is used to calibrate `sigma2_leaf_init`.
 #'   - `keep_vars` Vector of variable names or column indices denoting variables that should be included in the forest. Default: `NULL`.
 #'   - `drop_vars` Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: `NULL`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
 #'   - `num_features_subsample` How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+#'   - `sample_intercept` Whether to sample a global treatment effect intercept `tau_0` so the full CATE is `tau_0 + tau(X)`. Default: `TRUE`. Compatible with `adaptive_coding = TRUE`, in which case the recoded treatment basis is used.
+#'   - `tau_0_prior_var` Variance of the normal prior on `tau_0` (a scalar applied to each treatment dimension independently). Auto-calibrated to outcome variance when `NULL` and outcome is continuous. Only used when `sample_intercept = TRUE`.
 #'
 #' @param variance_forest_params (Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -297,7 +299,7 @@ bcf <- function(
 
   # Update tau forest BCF parameters
   treatment_effect_forest_params_default <- list(
-    num_trees = 50,
+    num_trees = 100,
     alpha = 0.25,
     beta = 3.0,
     min_samples_leaf = 5,
@@ -309,7 +311,9 @@ bcf <- function(
     keep_vars = NULL,
     drop_vars = NULL,
     delta_max = 0.9,
-    num_features_subsample = NULL
+    num_features_subsample = NULL,
+    sample_intercept = TRUE,
+    tau_0_prior_var = NULL
   )
   treatment_effect_forest_params_updated <- preprocessParams(
     treatment_effect_forest_params_default,
@@ -403,6 +407,8 @@ bcf <- function(
   drop_vars_tau <- treatment_effect_forest_params_updated$drop_vars
   delta_max <- treatment_effect_forest_params_updated$delta_max
   num_features_subsample_tau <- treatment_effect_forest_params_updated$num_features_subsample
+  sample_tau_0 <- treatment_effect_forest_params_updated$sample_intercept
+  tau_0_prior_var <- treatment_effect_forest_params_updated$tau_0_prior_var
 
   # 4. Variance forest parameters
   num_trees_variance <- variance_forest_params_updated$num_trees
@@ -1157,6 +1163,17 @@ bcf <- function(
     adaptive_coding <- FALSE
   }
 
+  # Validate tau_0_prior_var if sample_tau_0 is TRUE
+  if (sample_tau_0 && !is.null(tau_0_prior_var)) {
+    if (
+      !is.numeric(tau_0_prior_var) ||
+        length(tau_0_prior_var) != 1 ||
+        tau_0_prior_var <= 0
+    ) {
+      stop("tau_0_prior_var must be a single positive numeric value")
+    }
+  }
+
   # Check if propensity_covariate is one of the required inputs
   if (
     !(propensity_covariate %in%
@@ -1421,7 +1438,9 @@ bcf <- function(
       }
     }
     if (is.null(sigma2_leaf_tau)) {
-      sigma2_leaf_tau <- var_cpp(as.numeric(resid_train)) / (num_trees_tau)
+      sigma2_leaf_tau <- 0.5 *
+        var_cpp(as.numeric(resid_train)) /
+        (num_trees_tau)
       current_leaf_scale_tau <- as.matrix(diag(
         sigma2_leaf_tau,
         ncol(Z_train)
@@ -1559,6 +1578,10 @@ bcf <- function(
   if (sample_sigma2_leaf_tau) {
     leaf_scale_tau_samples <- rep(NA, num_retained_samples)
   }
+  if (sample_tau_0) {
+    p_tau0 <- ncol(as.matrix(Z_train))
+    tau_0_samples <- matrix(NA_real_, p_tau0, num_retained_samples)
+  }
   muhat_train_raw <- matrix(NA_real_, nrow(X_train), num_retained_samples)
   if (include_variance_forest) {
     sigma2_x_train_raw <- matrix(
@@ -1590,6 +1613,19 @@ bcf <- function(
   } else {
     tau_basis_train <- Z_train
     if (has_test) tau_basis_test <- Z_test
+  }
+
+  # Prepare tau_0 (global treatment effect intercept) structure
+  if (sample_tau_0) {
+    if (!exists("p_tau0")) {
+      p_tau0 <- ncol(as.matrix(Z_train))
+    }
+    tau_0 <- rep(0.0, p_tau0)
+    # Auto-calibrate prior variance if not provided
+    if (is.null(tau_0_prior_var)) {
+      tau_0_prior_var <- var_cpp(as.numeric(resid_train))
+    }
+    prior_var_tau0 <- diag(p_tau0) * tau_0_prior_var
   }
 
   # Data
@@ -1839,6 +1875,45 @@ bcf <- function(
         )
       }
 
+      # Sample tau_0 (global treatment effect intercept, if requested)
+      if (sample_tau_0) {
+        mu_x_raw_tau0 <- active_forest_mu$predict_raw(forest_dataset_train)
+        tau_x_raw_tau0 <- active_forest_tau$predict_raw(forest_dataset_train)
+        Z_basis_mat <- as.matrix(tau_basis_train)
+        # tau(X) * basis contribution per observation
+        tau_x_full <- rowSums(Z_basis_mat * as.matrix(tau_x_raw_tau0))
+        partial_resid_tau0 <- resid_train -
+          as.numeric(mu_x_raw_tau0) -
+          tau_x_full
+        if (has_rfx) {
+          partial_resid_tau0 <- partial_resid_tau0 -
+            as.numeric(
+              rfx_model$predict(rfx_dataset_train, rfx_tracker_train)
+            )
+        }
+        Ztr_tau0 <- t(Z_basis_mat) %*% as.matrix(partial_resid_tau0)
+        ZtZ_current <- crossprod(Z_basis_mat)
+        Sigma_post <- solve(
+          ZtZ_current / current_sigma2 + diag(p_tau0) / tau_0_prior_var
+        )
+        mu_post_tau0 <- as.numeric(Sigma_post %*% Ztr_tau0 / current_sigma2)
+        if (p_tau0 == 1) {
+          tau_0_new <- rnorm(1, mu_post_tau0, sqrt(as.numeric(Sigma_post)))
+        } else {
+          tau_0_new <- as.numeric(
+            mu_post_tau0 + t(chol(Sigma_post)) %*% rnorm(p_tau0)
+          )
+        }
+        resid_delta <- as.numeric(
+          Z_basis_mat %*% matrix(tau_0_new - tau_0, ncol = 1)
+        )
+        outcome_train$subtract_vector(resid_delta)
+        tau_0 <- tau_0_new
+        if (keep_sample) {
+          tau_0_samples[, sample_counter] <- tau_0
+        }
+      }
+
       # Sample the treatment forest
       forest_model_tau$sample_one_iteration(
         forest_dataset = forest_dataset_train,
@@ -1876,17 +1951,23 @@ bcf <- function(
             rfx_preds_train
         }
 
-        # Compute sufficient statistics for regression of y - mu(X) on [tau(X)(1-Z), tau(X)Z]
-        s_tt0 <- sum(tau_x_raw_train * tau_x_raw_train * (Z_train == 0))
-        s_tt1 <- sum(tau_x_raw_train * tau_x_raw_train * (Z_train == 1))
+        # Compute sufficient statistics for regression of y - mu(X) on [tau_total(X)(1-Z), tau_total(X)Z]
+        # where tau_total(X) = tau_0 + tau(X) when sample_tau_0, else tau(X)
+        tau_x_for_coding <- if (sample_tau_0) {
+          tau_x_raw_train + tau_0[1]
+        } else {
+          tau_x_raw_train
+        }
+        s_tt0 <- sum(tau_x_for_coding * tau_x_for_coding * (Z_train == 0))
+        s_tt1 <- sum(tau_x_for_coding * tau_x_for_coding * (Z_train == 1))
         s_ty0 <- sum(
-          tau_x_raw_train * partial_resid_mu_train * (Z_train == 0)
+          tau_x_for_coding * partial_resid_mu_train * (Z_train == 0)
         )
         s_ty1 <- sum(
-          tau_x_raw_train * partial_resid_mu_train * (Z_train == 1)
+          tau_x_for_coding * partial_resid_mu_train * (Z_train == 1)
         )
 
-        # Sample b0 (coefficient on tau(X)(1-Z)) and b1 (coefficient on tau(X)Z)
+        # Sample b0 (coefficient on tau_total(X)(1-Z)) and b1 (coefficient on tau_total(X)Z)
         current_b_0 <- rnorm(
           1,
           (s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -1899,6 +1980,9 @@ bcf <- function(
         )
 
         # Update basis for the leaf regression
+        if (sample_tau_0) {
+          tau_basis_old <- tau_basis_train
+        }
         tau_basis_train <- (1 - Z_train) *
           current_b_0 +
           Z_train * current_b_1
@@ -1920,6 +2004,13 @@ bcf <- function(
           outcome_train,
           active_forest_tau
         )
+
+        # Fix tau_0 component of residual after basis change
+        if (sample_tau_0) {
+          outcome_train$subtract_vector(
+            as.numeric(tau_basis_train - tau_basis_old) * tau_0[1]
+          )
+        }
       }
 
       # Sample variance parameters (if requested)
@@ -2473,6 +2564,45 @@ bcf <- function(
           )
         }
 
+        # Sample tau_0 (global treatment effect intercept, if requested)
+        if (sample_tau_0) {
+          mu_x_raw_tau0 <- active_forest_mu$predict_raw(forest_dataset_train)
+          tau_x_raw_tau0 <- active_forest_tau$predict_raw(forest_dataset_train)
+          Z_basis_mat <- as.matrix(tau_basis_train)
+          # tau(X) * basis contribution per observation
+          tau_x_full <- rowSums(Z_basis_mat * as.matrix(tau_x_raw_tau0))
+          partial_resid_tau0 <- resid_train -
+            as.numeric(mu_x_raw_tau0) -
+            tau_x_full
+          if (has_rfx) {
+            partial_resid_tau0 <- partial_resid_tau0 -
+              as.numeric(
+                rfx_model$predict(rfx_dataset_train, rfx_tracker_train)
+              )
+          }
+          Ztr_tau0 <- t(Z_basis_mat) %*% as.matrix(partial_resid_tau0)
+          ZtZ_current <- crossprod(Z_basis_mat)
+          Sigma_post <- solve(
+            ZtZ_current / current_sigma2 + diag(p_tau0) / tau_0_prior_var
+          )
+          mu_post_tau0 <- as.numeric(Sigma_post %*% Ztr_tau0 / current_sigma2)
+          if (p_tau0 == 1) {
+            tau_0_new <- rnorm(1, mu_post_tau0, sqrt(as.numeric(Sigma_post)))
+          } else {
+            tau_0_new <- as.numeric(
+              mu_post_tau0 + t(chol(Sigma_post)) %*% rnorm(p_tau0)
+            )
+          }
+          resid_delta <- as.numeric(
+            Z_basis_mat %*% matrix(tau_0_new - tau_0, ncol = 1)
+          )
+          outcome_train$subtract_vector(resid_delta)
+          tau_0 <- tau_0_new
+          if (keep_sample) {
+            tau_0_samples[, sample_counter] <- tau_0
+          }
+        }
+
         # Sample the treatment forest
         forest_model_tau$sample_one_iteration(
           forest_dataset = forest_dataset_train,
@@ -2510,25 +2640,31 @@ bcf <- function(
               rfx_preds_train
           }
 
-          # Compute sufficient statistics for regression of y - mu(X) on [tau(X)(1-Z), tau(X)Z]
+          # Compute sufficient statistics for regression of y - mu(X) on [tau_total(X)(1-Z), tau_total(X)Z]
+          # where tau_total(X) = tau_0 + tau(X) when sample_tau_0, else tau(X)
+          tau_x_for_coding <- if (sample_tau_0) {
+            tau_x_raw_train + tau_0[1]
+          } else {
+            tau_x_raw_train
+          }
           s_tt0 <- sum(
-            tau_x_raw_train * tau_x_raw_train * (Z_train == 0)
+            tau_x_for_coding * tau_x_for_coding * (Z_train == 0)
           )
           s_tt1 <- sum(
-            tau_x_raw_train * tau_x_raw_train * (Z_train == 1)
+            tau_x_for_coding * tau_x_for_coding * (Z_train == 1)
           )
           s_ty0 <- sum(
-            tau_x_raw_train *
+            tau_x_for_coding *
               partial_resid_mu_train *
               (Z_train == 0)
           )
           s_ty1 <- sum(
-            tau_x_raw_train *
+            tau_x_for_coding *
               partial_resid_mu_train *
               (Z_train == 1)
           )
 
-          # Sample b0 (coefficient on tau(X)(1-Z)) and b1 (coefficient on tau(X)Z)
+          # Sample b0 (coefficient on tau_total(X)(1-Z)) and b1 (coefficient on tau_total(X)Z)
           current_b_0 <- rnorm(
             1,
             (s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -2541,6 +2677,9 @@ bcf <- function(
           )
 
           # Update basis for the leaf regression
+          if (sample_tau_0) {
+            tau_basis_old <- tau_basis_train
+          }
           tau_basis_train <- (1 - Z_train) *
             current_b_0 +
             Z_train * current_b_1
@@ -2562,6 +2701,13 @@ bcf <- function(
             outcome_train,
             active_forest_tau
           )
+
+          # Fix tau_0 component of residual after basis change
+          if (sample_tau_0) {
+            outcome_train$subtract_vector(
+              as.numeric(tau_basis_train - tau_basis_old) * tau_0[1]
+            )
+          }
         }
 
         # Sample variance parameters (if requested)
@@ -2666,6 +2812,12 @@ bcf <- function(
       b_1_samples <- b_1_samples[(num_gfr + 1):length(b_1_samples)]
       b_0_samples <- b_0_samples[(num_gfr + 1):length(b_0_samples)]
     }
+    if (sample_tau_0) {
+      tau_0_samples <- tau_0_samples[,
+        (num_gfr + 1):ncol(tau_0_samples),
+        drop = FALSE
+      ]
+    }
     muhat_train_raw <- muhat_train_raw[,
       (num_gfr + 1):ncol(muhat_train_raw)
     ]
@@ -2691,8 +2843,39 @@ bcf <- function(
     tau_hat_train <- forest_samples_tau$predict_raw(forest_dataset_train) *
       y_std_train
   }
+  # tau_hat_train stores the forest-only component tau(X); compute cate_train
+  # (tau_0 + tau(X)) separately for the treatment term used in y_hat
+  if (sample_tau_0) {
+    tau_0_vec <- as.numeric(tau_0_samples) # num_retained_samples vector (scalar treatment)
+    if (adaptive_coding) {
+      # CATE = (b_1 - b_0) * (tau_0 + tau(X)); control adj to mu = b_0 * (tau_0 + tau(X))
+      cate_train <- sweep(
+        tau_hat_train,
+        2,
+        (b_1_samples - b_0_samples) * tau_0_vec * y_std_train,
+        "+"
+      )
+      mu_hat_train <- sweep(
+        mu_hat_train,
+        2,
+        b_0_samples * tau_0_vec * y_std_train,
+        "+"
+      )
+    } else if (!has_multivariate_treatment) {
+      cate_train <- sweep(tau_hat_train, 2, tau_0_vec * y_std_train, "+")
+    } else {
+      # tau_hat_train: n x p x num_retained_samples; tau_0_samples: p x num_retained_samples
+      cate_train <- tau_hat_train
+      for (j in seq_len(p_tau0)) {
+        cate_train[, j, ] <- cate_train[, j, ] +
+          outer(rep(1, nrow(X_train)), tau_0_samples[j, ] * y_std_train)
+      }
+    }
+  } else {
+    cate_train <- tau_hat_train
+  }
   if (has_multivariate_treatment) {
-    tau_train_dim <- dim(tau_hat_train)
+    tau_train_dim <- dim(cate_train)
     tau_num_obs <- tau_train_dim[1]
     tau_num_samples <- tau_train_dim[3]
     treatment_term_train <- matrix(
@@ -2702,11 +2885,11 @@ bcf <- function(
     )
     for (i in 1:nrow(Z_train)) {
       treatment_term_train[i, ] <- colSums(
-        tau_hat_train[i, , ] * Z_train[i, ]
+        cate_train[i, , ] * Z_train[i, ]
       )
     }
   } else {
-    treatment_term_train <- tau_hat_train * as.numeric(Z_train)
+    treatment_term_train <- cate_train * as.numeric(Z_train)
   }
   y_hat_train <- mu_hat_train + treatment_term_train
   if (has_test) {
@@ -2729,8 +2912,35 @@ bcf <- function(
       ) *
         y_std_train
     }
+    # tau_hat_test stores forest-only tau(X); compute cate_test for y_hat
+    if (sample_tau_0) {
+      if (adaptive_coding) {
+        cate_test <- sweep(
+          tau_hat_test,
+          2,
+          (b_1_samples - b_0_samples) * tau_0_vec * y_std_train,
+          "+"
+        )
+        mu_hat_test <- sweep(
+          mu_hat_test,
+          2,
+          b_0_samples * tau_0_vec * y_std_train,
+          "+"
+        )
+      } else if (!has_multivariate_treatment) {
+        cate_test <- sweep(tau_hat_test, 2, tau_0_vec * y_std_train, "+")
+      } else {
+        cate_test <- tau_hat_test
+        for (j in seq_len(p_tau0)) {
+          cate_test[, j, ] <- cate_test[, j, ] +
+            outer(rep(1, nrow(X_test)), tau_0_samples[j, ] * y_std_train)
+        }
+      }
+    } else {
+      cate_test <- tau_hat_test
+    }
     if (has_multivariate_treatment) {
-      tau_test_dim <- dim(tau_hat_test)
+      tau_test_dim <- dim(cate_test)
       tau_num_obs <- tau_test_dim[1]
       tau_num_samples <- tau_test_dim[3]
       treatment_term_test <- matrix(
@@ -2740,11 +2950,11 @@ bcf <- function(
       )
       for (i in 1:nrow(Z_test)) {
         treatment_term_test[i, ] <- colSums(
-          tau_hat_test[i, , ] * Z_test[i, ]
+          cate_test[i, , ] * Z_test[i, ]
         )
       }
     } else {
-      treatment_term_test <- tau_hat_test * as.numeric(Z_test)
+      treatment_term_test <- cate_test * as.numeric(Z_test)
     }
     y_hat_test <- mu_hat_test + treatment_term_test
   }
@@ -2850,6 +3060,8 @@ bcf <- function(
     "binary_treatment" = binary_treatment,
     "multivariate_treatment" = has_multivariate_treatment,
     "adaptive_coding" = adaptive_coding,
+    "sample_tau_0" = sample_tau_0,
+    "tau_0_prior_var" = if (sample_tau_0) tau_0_prior_var else NULL,
     "internal_propensity_model" = internal_propensity_model,
     "num_samples" = num_retained_samples,
     "num_gfr" = num_gfr,
@@ -2903,6 +3115,9 @@ bcf <- function(
   if (adaptive_coding) {
     result[["b_0_samples"]] = b_0_samples
     result[["b_1_samples"]] = b_1_samples
+  }
+  if (sample_tau_0) {
+    result[["tau_0_samples"]] = tau_0_samples * y_std_train
   }
   if (has_rfx) {
     result[["rfx_samples"]] = rfx_samples
@@ -3285,16 +3500,48 @@ predict.bcfmodel <- function(
       tau_hat_forest <- object$forests_tau$predict_raw(forest_dataset_pred) *
         y_std
     }
+    # tau_hat_forest is the forest-only component tau(X); compute cate_hat_forest
+    # (tau_0 + tau(X)) for the "cate" term and treatment_term used in y_hat
+    if (object$model_params$sample_tau_0 && !is.null(object$tau_0_samples)) {
+      tau_0_samp <- object$tau_0_samples # p_tau0 x num_samples (already in original scale)
+      if (object$model_params$adaptive_coding) {
+        cate_hat_forest <- sweep(
+          tau_hat_forest,
+          2,
+          (object$b_1_samples - object$b_0_samples) * as.numeric(tau_0_samp),
+          "+"
+        )
+        if (predict_mu_forest || predict_mu_forest_intermediate) {
+          mu_hat_forest <- sweep(
+            mu_hat_forest,
+            2,
+            object$b_0_samples * as.numeric(tau_0_samp),
+            "+"
+          )
+        }
+      } else if (!object$model_params$multivariate_treatment) {
+        cate_hat_forest <- sweep(tau_hat_forest, 2, as.numeric(tau_0_samp), "+")
+      } else {
+        p_tau0 <- nrow(tau_0_samp)
+        cate_hat_forest <- tau_hat_forest
+        for (j in seq_len(p_tau0)) {
+          cate_hat_forest[, j, ] <- cate_hat_forest[, j, ] +
+            outer(rep(1, nrow(X)), tau_0_samp[j, ])
+        }
+      }
+    } else {
+      cate_hat_forest <- tau_hat_forest
+    }
     if (object$model_params$multivariate_treatment) {
-      tau_dim <- dim(tau_hat_forest)
+      tau_dim <- dim(cate_hat_forest)
       tau_num_obs <- tau_dim[1]
       tau_num_samples <- tau_dim[3]
       treatment_term <- matrix(NA_real_, nrow = tau_num_obs, tau_num_samples)
       for (i in 1:nrow(Z)) {
-        treatment_term[i, ] <- colSums(tau_hat_forest[i, , ] * Z[i, ])
+        treatment_term[i, ] <- colSums(cate_hat_forest[i, , ] * Z[i, ])
       }
     } else {
-      treatment_term <- tau_hat_forest * as.numeric(Z)
+      treatment_term <- cate_hat_forest * as.numeric(Z)
     }
   }
 
@@ -3344,10 +3591,10 @@ predict.bcfmodel <- function(
   }
   if (predict_cate_function) {
     if (tau_cate_separate) {
-      cate <- (tau_hat_forest +
+      cate <- (cate_hat_forest +
         rfx_predictions_raw[, 2:ncol(rfx_basis), ])
     } else {
-      cate <- tau_hat_forest
+      cate <- cate_hat_forest
     }
   }
 
@@ -3520,6 +3767,9 @@ print.bcfmodel <- function(x, ...) {
   }
   if (x$model_params$sample_sigma2_leaf_tau) {
     model_terms <- c(model_terms, "treatment effect forest leaf scale model")
+  }
+  if (x$model_params$sample_tau_0) {
+    model_terms <- c(model_terms, "treatment effect intercept model")
   }
   if (length(model_terms) > 2) {
     summary_message <- paste0(
@@ -3766,6 +4016,25 @@ summary.bcfmodel <- function(object, ...) {
     print(quantiles_b1)
   }
 
+  # Treatment effect intercept (tau_0)
+  if (object$model_params$sample_tau_0 && !is.null(object$tau_0_samples)) {
+    tau_0_vec <- as.numeric(object$tau_0_samples)
+    n_samples <- ncol(object$tau_0_samples)
+    mean_tau_0 <- mean(tau_0_vec)
+    sd_tau_0 <- sd(tau_0_vec)
+    quantiles_tau_0 <- quantile(
+      tau_0_vec,
+      probs = c(0.025, 0.1, 0.25, 0.5, 0.75, 0.9, 0.975)
+    )
+    cat(sprintf(
+      "Summary of treatment effect intercept (tau_0) posterior: \n%d samples, mean = %.3f, standard deviation = %.3f, quantiles:\n",
+      n_samples,
+      mean_tau_0,
+      sd_tau_0
+    ))
+    print(quantiles_tau_0)
+  }
+
   # In-sample predictions
   if (!is.null(object$y_hat_train)) {
     y_hat_train_mean <- rowMeans(object$y_hat_train)
@@ -3942,6 +4211,7 @@ plot.bcfmodel <- function(x, ...) {
 #' - Test set mean function predictions: `"y_hat_test"`
 #' - In-sample treatment effect forest predictions: `"tau_hat_train"`
 #' - Test set treatment effect forest predictions: `"tau_hat_test"`
+#' - Treatment effect intercept: `"tau_0"`, `"treatment_intercept"`, `"tau_intercept"`
 #' - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
 #' - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
 #'
@@ -4077,6 +4347,16 @@ extractParameter.bcfmodel <- function(object, term) {
       return(object$sigma2_x_hat_test)
     } else {
       stop("This model does not have test set variance forest predictions")
+    }
+  }
+
+  if (term %in% c("tau_0", "treatment_intercept", "tau_intercept")) {
+    if (!is.null(object$tau_0_samples)) {
+      return(object$tau_0_samples)
+    } else {
+      stop(
+        "This model does not have treatment effect intercept (tau_0) samples"
+      )
     }
   }
 
@@ -4278,6 +4558,7 @@ saveBCFModelToJson <- function(object) {
     object$model_params$multivariate_treatment
   )
   jsonobj$add_boolean("adaptive_coding", object$model_params$adaptive_coding)
+  jsonobj$add_boolean("sample_tau_0", object$model_params$sample_tau_0)
   jsonobj$add_boolean(
     "internal_propensity_model",
     object$model_params$internal_propensity_model
@@ -4329,6 +4610,14 @@ saveBCFModelToJson <- function(object) {
   if (object$model_params$adaptive_coding) {
     jsonobj$add_vector("b_1_samples", object$b_1_samples, "parameters")
     jsonobj$add_vector("b_0_samples", object$b_0_samples, "parameters")
+  }
+  if (object$model_params$sample_tau_0 && !is.null(object$tau_0_samples)) {
+    jsonobj$add_scalar("tau_0_dim", nrow(object$tau_0_samples))
+    jsonobj$add_vector(
+      "tau_0_samples",
+      as.numeric(object$tau_0_samples),
+      "parameters"
+    )
   }
 
   # Add random effects (if present)
@@ -4472,6 +4761,7 @@ createBCFModelFromJson <- function(json_object) {
   model_params[["adaptive_coding"]] <- json_object$get_boolean(
     "adaptive_coding"
   )
+  model_params[["sample_tau_0"]] <- json_object$get_boolean("sample_tau_0")
   model_params[["multivariate_treatment"]] <- json_object$get_boolean(
     "multivariate_treatment"
   )
@@ -4525,6 +4815,11 @@ createBCFModelFromJson <- function(json_object) {
       "b_0_samples",
       "parameters"
     )
+  }
+  if (model_params[["sample_tau_0"]]) {
+    tau_0_dim <- as.integer(json_object$get_scalar("tau_0_dim"))
+    tau_0_vec <- json_object$get_vector("tau_0_samples", "parameters")
+    output[["tau_0_samples"]] <- matrix(tau_0_vec, nrow = tau_0_dim)
   }
 
   # Unpack random effects
@@ -4698,6 +4993,9 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   model_params[["adaptive_coding"]] <- json_object_default$get_boolean(
     "adaptive_coding"
   )
+  model_params[["sample_tau_0"]] <- json_object_default$get_boolean(
+    "sample_tau_0"
+  )
   model_params[["multivariate_treatment"]] <- json_object_default$get_boolean(
     "multivariate_treatment"
   )
@@ -4841,6 +5139,24 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
         output[["b_0_samples"]] <- c(
           output[["b_0_samples"]],
           json_object$get_vector("b_0_samples", "parameters")
+        )
+      }
+    }
+  }
+  if (model_params[["sample_tau_0"]]) {
+    tau_0_dim <- as.integer(json_object_default$get_scalar("tau_0_dim"))
+    for (i in 1:length(json_object_list)) {
+      json_object <- json_object_list[[i]]
+      tau_0_mat_i <- matrix(
+        json_object$get_vector("tau_0_samples", "parameters"),
+        nrow = tau_0_dim
+      )
+      if (i == 1) {
+        output[["tau_0_samples"]] <- tau_0_mat_i
+      } else {
+        output[["tau_0_samples"]] <- cbind(
+          output[["tau_0_samples"]],
+          tau_0_mat_i
         )
       }
     }
@@ -5000,6 +5316,9 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   model_params[["adaptive_coding"]] <- json_object_default$get_boolean(
     "adaptive_coding"
   )
+  model_params[["sample_tau_0"]] <- json_object_default$get_boolean(
+    "sample_tau_0"
+  )
   model_params[[
     "internal_propensity_model"
   ]] <- json_object_default$get_boolean("internal_propensity_model")
@@ -5140,6 +5459,24 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
         output[["b_0_samples"]] <- c(
           output[["b_0_samples"]],
           json_object$get_vector("b_0_samples", "parameters")
+        )
+      }
+    }
+  }
+  if (model_params[["sample_tau_0"]]) {
+    tau_0_dim <- as.integer(json_object_default$get_scalar("tau_0_dim"))
+    for (i in 1:length(json_object_list)) {
+      json_object <- json_object_list[[i]]
+      tau_0_mat_i <- matrix(
+        json_object$get_vector("tau_0_samples", "parameters"),
+        nrow = tau_0_dim
+      )
+      if (i == 1) {
+        output[["tau_0_samples"]] <- tau_0_mat_i
+      } else {
+        output[["tau_0_samples"]] <- cbind(
+          output[["tau_0_samples"]],
+          tau_0_mat_i
         )
       }
     }
