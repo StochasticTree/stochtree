@@ -24,11 +24,11 @@ ate_coverage_parametric_heterogeneous <- rep(NA_integer_, n_sim)
 num_trees_tau_classic <- 100
 num_trees_tau_parametric <- 100
 leaf_scale_tau_classic <- 1 / num_trees_tau_classic
-leaf_scale_tau_parametric <- 0.5 / num_trees_tau_parametric
-leaf_scale_tau_0_parametric <- 0.5
-num_gfr <- 10
-num_burnin <- 0
-num_mcmc <- 100
+leaf_scale_tau_parametric <- 0.25 / num_trees_tau_parametric
+leaf_scale_tau_0_parametric <- 1
+num_gfr <- 3
+num_burnin <- 200
+num_mcmc <- 500
 
 for (i in 1:n_sim) {
   # Shared aspects of both DGPs

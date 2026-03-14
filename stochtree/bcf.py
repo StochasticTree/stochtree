@@ -184,13 +184,13 @@ class BCFModel:
         treatment_effect_forest_params : dict, optional
             Dictionary of treatment effect forest model parameters, each of which has a default value processed internally, so this argument is optional.
 
-            * `num_trees` (`int`): Number of trees in the treatment effect forest. Defaults to `50`. Must be a positive integer.
+            * `num_trees` (`int`): Number of trees in the treatment effect forest. Defaults to `100`. Must be a positive integer.
             * `alpha` (`float`): Prior probability of splitting for a tree of depth 0 in the treatment effect forest. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `0.25`.
             * `beta` (`float`): Exponent that decreases split probabilities for nodes of depth > 0 in the treatment effect forest. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`. Defaults to `3`.
             * `min_samples_leaf` (`int`): Minimum allowable size of a leaf, in terms of training samples, in the treatment effect forest. Defaults to `5`.
             * `max_depth` (`int`): Maximum depth of any tree in the ensemble in the treatment effect forest. Defaults to `5`. Can be overriden with `-1` which does not enforce any depth limits on trees.
             * `sample_sigma2_leaf` (`bool`): Whether or not to update the `tau` leaf scale variance parameter based on `IG(sigma2_leaf_shape, sigma2_leaf_scale)`. Cannot (currently) be set to true if `basis_train` has more than one column. Defaults to `False`.
-            * `sigma2_leaf_init` (`float`): Starting value of leaf node scale parameter. Calibrated internally as `1/num_trees` if not set here.
+            * `sigma2_leaf_init` (`float`): Starting value of leaf node scale parameter. Calibrated internally as `0.5 * np.var(y) / num_trees` if not set here (`0.5 / num_trees` if `y` is continuous and `standardize: True` in the `general_params` dictionary).
             * `sigma2_leaf_shape` (`float`): Shape parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Defaults to `3`.
             * `sigma2_leaf_scale` (`float`): Scale parameter in the `IG(sigma2_leaf_shape, sigma2_leaf_scale)` leaf node parameter variance model. Calibrated internally as `0.5/num_trees` if not set here.
             * `delta_max` (`float`): Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in `general_params`. Must be > 0 and < 1. Defaults to `0.9`. Ignored if `sigma2_leaf_init` is set directly, as this parameter is used to calibrate `sigma2_leaf_init`.
@@ -198,7 +198,7 @@ class BCFModel:
             * `drop_vars` (`list` or `np.array`): Vector of variable names or column indices denoting variables that should be excluded from the treatment effect (`tau(X)`) forest. Defaults to `None`. If both `drop_vars` and `keep_vars` are set, `drop_vars` will be ignored.
             * `num_features_subsample` (`int`): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
             * `sample_intercept` (`bool`): Whether to sample a global treatment effect intercept `tau_0` so the full CATE is `tau_0 + tau(X)`. Defaults to `True`. Compatible with `adaptive_coding = True`, in which case the recoded treatment basis is used.
-            * `tau_0_prior_var` (`float`): Variance of the normal prior on `tau_0` (applied independently to each treatment dimension). Auto-calibrated to `1.0` in standardized outcome space when `None`. Only used when `sample_intercept = True`.
+            * `tau_0_prior_var` (`float`): Variance of the normal prior on `tau_0` (applied independently to each treatment dimension). Auto-calibrated to outcome variance when `None` and outcome is continuous. Only used when `sample_intercept = True`.
 
         variance_forest_params : dict, optional
             Dictionary of variance forest model  parameters, each of which has a default value processed internally, so this argument is optional.
@@ -284,7 +284,7 @@ class BCFModel:
 
         # Update tau forest BART parameters
         treatment_effect_forest_params_default = {
-            "num_trees": 50,
+            "num_trees": 100,
             "alpha": 0.25,
             "beta": 3.0,
             "min_samples_leaf": 5,
@@ -1634,7 +1634,7 @@ class BCFModel:
             else:
                 raise ValueError("sigma2_leaf_mu must be a scalar")
             sigma2_leaf_tau = (
-                np.squeeze(np.var(resid_train)) / (num_trees_tau)
+                np.squeeze(np.var(resid_train) * 0.5) / (num_trees_tau)
                 if sigma2_leaf_tau is None
                 else sigma2_leaf_tau
             )
@@ -1872,10 +1872,9 @@ class BCFModel:
         # Prepare tau_0 (global treatment effect intercept) structure
         if self.sample_tau_0:
             tau_0 = np.zeros(p_tau0)
-            # Auto-calibrate prior variance if not provided: 1.0 in standardized outcome space
+            # Auto-calibrate prior variance if not provided
             if tau_0_prior_var is None:
-                tau_0_prior_var = 1.0
-            prior_var_tau0 = np.eye(p_tau0) * tau_0_prior_var
+                tau_0_prior_var = np.var(resid_train)
 
         # Prognostic Forest Dataset (covariates)
         forest_dataset_train = Dataset()
@@ -2811,31 +2810,34 @@ class BCFModel:
             self.tau_hat_train = self.tau_hat_train * adaptive_coding_weights
             self.mu_hat_train = self.mu_hat_train + np.squeeze(control_adj_train)
         self.tau_hat_train = np.squeeze(self.tau_hat_train * self.y_std)
+        # tau_hat_train stores the forest-only component tau(X); compute cate_train
+        # (tau_0 + tau(X)) separately for the treatment term used in y_hat
         if self.sample_tau_0:
-            # Add tau_0 contribution to CATE (tau_0_samples in standardized outcome space)
             tau_0_vec = self.tau_0_samples[0, :]  # num_samples vector (scalar treatment)
             if self.adaptive_coding:
-                # CATE = (b_1 - b_0) * (tau_0 + tau(X));  control adj = b_0 * (tau_0 + tau(X))
-                self.tau_hat_train = self.tau_hat_train + (
+                # CATE = (b_1 - b_0) * (tau_0 + tau(X)); control adj to mu = b_0 * (tau_0 + tau(X))
+                cate_train = self.tau_hat_train + (
                     (self.b1_samples - self.b0_samples) * tau_0_vec * self.y_std
                 )
                 self.mu_hat_train = self.mu_hat_train + (
                     self.b0_samples * tau_0_vec * self.y_std
                 )
             elif self.multivariate_treatment:
-                # tau_hat_train: n x num_samples x p; tau_0_samples: p x num_samples
+                cate_train = self.tau_hat_train.copy()
                 for j in range(p_tau0):
-                    self.tau_hat_train[:, :, j] = self.tau_hat_train[:, :, j] + (
+                    cate_train[:, :, j] = cate_train[:, :, j] + (
                         self.tau_0_samples[j, :] * self.y_std
                     )
             else:
-                self.tau_hat_train = self.tau_hat_train + tau_0_vec * self.y_std
+                cate_train = self.tau_hat_train + tau_0_vec * self.y_std
+        else:
+            cate_train = self.tau_hat_train
         if self.multivariate_treatment:
             treatment_term_train = np.multiply(
-                np.atleast_3d(Z_train).swapaxes(1, 2), self.tau_hat_train
+                np.atleast_3d(Z_train).swapaxes(1, 2), cate_train
             ).sum(axis=2)
         else:
-            treatment_term_train = Z_train * np.squeeze(self.tau_hat_train)
+            treatment_term_train = Z_train * np.squeeze(cate_train)
         self.y_hat_train = self.mu_hat_train + treatment_term_train
         if self.has_test:
             mu_raw_test = self.forest_container_mu.forest_container_cpp.Predict(
@@ -2855,27 +2857,31 @@ class BCFModel:
                 self.tau_hat_test = self.tau_hat_test * adaptive_coding_weights_test
                 self.mu_hat_test = self.mu_hat_test + np.squeeze(control_adj_test)
             self.tau_hat_test = np.squeeze(self.tau_hat_test * self.y_std)
+            # tau_hat_test stores forest-only tau(X); compute cate_test for y_hat
             if self.sample_tau_0:
                 if self.adaptive_coding:
-                    self.tau_hat_test = self.tau_hat_test + (
+                    cate_test = self.tau_hat_test + (
                         (self.b1_samples - self.b0_samples) * tau_0_vec * self.y_std
                     )
                     self.mu_hat_test = self.mu_hat_test + (
                         self.b0_samples * tau_0_vec * self.y_std
                     )
                 elif self.multivariate_treatment:
+                    cate_test = self.tau_hat_test.copy()
                     for j in range(p_tau0):
-                        self.tau_hat_test[:, :, j] = self.tau_hat_test[:, :, j] + (
+                        cate_test[:, :, j] = cate_test[:, :, j] + (
                             self.tau_0_samples[j, :] * self.y_std
                         )
                 else:
-                    self.tau_hat_test = self.tau_hat_test + tau_0_vec * self.y_std
+                    cate_test = self.tau_hat_test + tau_0_vec * self.y_std
+            else:
+                cate_test = self.tau_hat_test
             if self.multivariate_treatment:
                 treatment_term_test = np.multiply(
-                    np.atleast_3d(Z_test).swapaxes(1, 2), self.tau_hat_test
+                    np.atleast_3d(Z_test).swapaxes(1, 2), cate_test
                 ).sum(axis=2)
             else:
-                treatment_term_test = Z_test * np.squeeze(self.tau_hat_test)
+                treatment_term_test = Z_test * np.squeeze(cate_test)
             self.y_hat_test = self.mu_hat_test + treatment_term_test
 
         # TODO: make rfx_preds_train and rfx_preds_test persistent properties
@@ -3182,10 +3188,12 @@ class BCFModel:
                     mu_x_forest = mu_x_forest + np.squeeze(control_adj)
                 tau_raw = tau_raw * adaptive_coding_weights
             tau_x_forest = np.squeeze(tau_raw * self.y_std)
+            # tau_x_forest is the forest-only component tau(X); compute cate_x_forest
+            # (tau_0 + tau(X)) for the "cate" term and treatment_term used in y_hat
             if getattr(self, "sample_tau_0", False) and hasattr(self, "tau_0_samples"):
                 tau_0_vec = self.tau_0_samples[0, :]
                 if self.adaptive_coding:
-                    tau_x_forest = tau_x_forest + (
+                    cate_x_forest = tau_x_forest + (
                         (self.b1_samples - self.b0_samples) * tau_0_vec
                     )
                     if predict_mu_forest or predict_mu_forest_intermediate:
@@ -3194,18 +3202,21 @@ class BCFModel:
                         )
                 elif Z.shape[1] > 1:
                     p_tau0 = Z.shape[1]
+                    cate_x_forest = tau_x_forest.copy()
                     for j in range(p_tau0):
-                        tau_x_forest[:, :, j] = tau_x_forest[:, :, j] + (
+                        cate_x_forest[:, :, j] = cate_x_forest[:, :, j] + (
                             self.tau_0_samples[j, :]
                         )
                 else:
-                    tau_x_forest = tau_x_forest + tau_0_vec
+                    cate_x_forest = tau_x_forest + tau_0_vec
+            else:
+                cate_x_forest = tau_x_forest
             if Z.shape[1] > 1:
                 treatment_term = np.multiply(
-                    np.atleast_3d(Z).swapaxes(1, 2), tau_x_forest
+                    np.atleast_3d(Z).swapaxes(1, 2), cate_x_forest
                 ).sum(axis=2)
             else:
-                treatment_term = Z * np.squeeze(tau_x_forest)
+                treatment_term = Z * np.squeeze(cate_x_forest)
 
         # Random effects data checks
         if has_rfx:
@@ -3285,9 +3296,9 @@ class BCFModel:
                 prognostic_function = mu_x_forest
         if predict_cate_function:
             if tau_cate_separate:
-                cate = tau_x_forest + np.squeeze(rfx_predictions_raw[:, 1:, :])
+                cate = cate_x_forest + np.squeeze(rfx_predictions_raw[:, 1:, :])
             else:
-                cate = tau_x_forest
+                cate = cate_x_forest
 
         # Combine into y hat predictions
         needs_mean_term_preds = (
