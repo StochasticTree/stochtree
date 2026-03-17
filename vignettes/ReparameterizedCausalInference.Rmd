@@ -399,4 +399,211 @@ hist(
 abline(v = tau_x, col = "red", lty = 3, lwd = 3)
 ```
 
+# Continuous Treatment with Homogeneous Treatment Effect
+
+The $\tau_0 + t(x)$ reparameterization generalizes naturally to continuous treatment. With a continuous $Z$, $\tau(x)$ represents the marginal effect of a one-unit increase in $Z$, and $\tau_0$ captures the homogeneous component of that effect.
+
+Consider the following data generating process:
+
+\begin{equation*}
+\begin{aligned}
+y &= \mu(X) + \tau(X)\, Z + \epsilon\\
+\mu(X) &= 2 \sin(2 \pi X_1) - 2 (2 X_3 - 1)\\
+\tau(X) &= 2\\
+\pi(X) &= \mathrm{E}[Z \mid X] = \mu(X)/8\\
+Z \mid X &\sim \mathrm{N}(\pi(X),\, 1)\\
+\epsilon &\sim N\left(0,\sigma^2\right)
+\end{aligned}
+\end{equation*}
+
+### Simulation
+
+We draw from the DGP defined above
+
+```{r}
+n <- 500
+p <- 20
+snr <- 2
+X <- matrix(runif(n * p), n, p)
+mu_x <- 2 * sin(2 * pi * X[, 1]) - 2 * (2 * X[, 3] - 1)
+tau_x <- 2
+pi_x <- mu_x / 8
+Z <- pi_x + rnorm(n, 0, 1)
+E_XZ <- mu_x + Z * tau_x
+sigma_true <- sd(E_XZ) / snr
+y <- E_XZ + rnorm(n, 0, 1) * sigma_true
+```
+
+And split data into test and train sets
+
+```{r}
+test_inds <- sort(sample(1:n, round(0.5 * n), replace = FALSE))
+train_inds <- (1:n)[!((1:n) %in% test_inds)]
+X_test <- X[test_inds, ]
+X_train <- X[train_inds, ]
+pi_test <- pi_x[test_inds]
+pi_train <- pi_x[train_inds]
+Z_test <- Z[test_inds]
+Z_train <- Z[train_inds]
+y_test <- y[test_inds]
+y_train <- y[train_inds]
+```
+
+## Sampling and Analysis
+
+Note that `adaptive_coding` must be `FALSE` for continuous treatment, since the adaptive coding scheme is designed for binary treatment.
+
+### Classic BCF Model
+
+```{r}
+num_gfr <- 0
+num_burnin <- 1000
+num_mcmc <- 500
+general_params <- list(
+  adaptive_coding = FALSE,
+  num_chains = 4,
+  random_seed = random_seed,
+  num_threads = 1
+)
+num_trees_tau <- 50
+treatment_effect_forest_params <- list(
+  num_trees = num_trees_tau,
+  sample_intercept = FALSE,
+  sigma2_leaf_init = 1 / num_trees_tau
+)
+bcf_model_classic <- bcf(
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
+)
+```
+
+We compare the posterior distribution of the ATE to its true value
+
+```{r}
+cate_posterior_classic <- predict(
+  bcf_model_classic,
+  X = X_test,
+  Z = Z_test,
+  propensity = pi_test,
+  type = "posterior",
+  terms = "cate"
+)
+ate_posterior_classic <- colMeans(cate_posterior_classic)
+hist(
+  ate_posterior_classic,
+  freq = F,
+  xlab = "ATE",
+  ylab = "Density",
+  main = "Posterior Distribution of ATE (Classic BCF, Continuous Treatment)"
+)
+abline(v = tau_x, col = "red", lty = 3, lwd = 3)
+```
+
+As a rough convergence check, we inspect the traceplot of $\sigma^2$
+
+```{r}
+sigma2_samples <- extractParameter(bcf_model_classic, "sigma2")
+plot(
+  sigma2_samples,
+  type = "l",
+  main = "Traceplot of Sigma^2 (Classic BCF, Continuous Treatment)",
+  ylab = "Sigma^2",
+  xlab = "Iteration"
+)
+abline(h = sigma_true^2, col = "red", lty = 3, lwd = 3)
+```
+
+### Reparameterized BCF Model
+
+```{r}
+treatment_effect_forest_params <- list(
+  num_trees = num_trees_tau,
+  sample_intercept = TRUE,
+  sigma2_leaf_init = 0.25 / num_trees_tau,
+  tau_0_prior_var = 1
+)
+bcf_model_reparam <- bcf(
+  X_train = X_train,
+  Z_train = Z_train,
+  y_train = y_train,
+  propensity_train = pi_train,
+  X_test = X_test,
+  Z_test = Z_test,
+  propensity_test = pi_test,
+  num_gfr = num_gfr,
+  num_burnin = num_burnin,
+  num_mcmc = num_mcmc,
+  general_params = general_params,
+  treatment_effect_forest_params = treatment_effect_forest_params
+)
+```
+
+And we compare the posterior distribution of the ATE to its true value
+
+```{r}
+cate_posterior_reparam <- predict(
+  bcf_model_reparam,
+  X = X_test,
+  Z = Z_test,
+  propensity = pi_test,
+  type = "posterior",
+  terms = "cate"
+)
+ate_posterior_reparam <- colMeans(cate_posterior_reparam)
+hist(
+  ate_posterior_reparam,
+  freq = F,
+  xlab = "ATE",
+  ylab = "Density",
+  main = "Posterior Distribution of ATE (Reparameterized BCF, Continuous Treatment)"
+)
+abline(v = tau_x, col = "red", lty = 3, lwd = 3)
+```
+
+As above, we check convergence by inspecting the traceplot of $\sigma^2$
+
+```{r}
+sigma2_samples <- extractParameter(bcf_model_reparam, "sigma2")
+plot(
+  sigma2_samples,
+  type = "l",
+  main = "Traceplot of Sigma^2 (Reparameterized BCF, Continuous Treatment)",
+  ylab = "Sigma^2",
+  xlab = "Iteration"
+)
+abline(h = sigma_true^2, col = "red", lty = 3, lwd = 3)
+```
+
+As in the binary treatment case, $\tau_0$ and $\bar{t}(X)$ are negatively correlated across posterior draws
+
+```{r}
+tau_0_posterior <- extractParameter(bcf_model_reparam, "tau_0")
+t_x_posterior <- predict(
+  bcf_model_reparam,
+  X = X_test,
+  Z = Z_test,
+  propensity = pi_test,
+  type = "posterior",
+  terms = "tau"
+)
+t_x_posterior <- colMeans(t_x_posterior)
+plot(
+  tau_0_posterior,
+  t_x_posterior,
+  xlab = "tau_0",
+  ylab = "t(X)",
+  main = "Posterior of tau_0 vs t(X), averaged over X (Continuous Treatment)"
+)
+```
+
 # References
