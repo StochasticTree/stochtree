@@ -27,7 +27,7 @@ where $\mathrm{BART}(\alpha, \beta, m)$ defines a BART model with $m$ trees and 
 
 The authors noted that separating estimation / regularization of a control function, $f_0(x)$, and a CATE function, $\tau(x)$, can give better estimation error and interval coverage in settings with strong confounding and treatment effect moderation.
 
-`stochtree` by default implements a slight modification of this model with the treatment effect function decomposed into parametric and nonparametric components
+`stochtree` now defaults to a slight modification of this model, with the treatment effect function decomposed into parametric and nonparametric components
 \begin{equation}
 \begin{aligned}
 Y_i \mid x_i, z_i &\sim \mathrm{N}(f_0(x_i) + (\tau_0 + t(x_i)) z_i, \sigma^2)\\
@@ -182,7 +182,7 @@ abline(h = sigma_true^2, col = "red", lty = 3, lwd = 3)
 
 ### Reparameterized BCF Model
 
-Now we fit the reparameterized model, regularizing the $t(x)$ forest more heavily to account for the $\tau_0$ term.
+Now we fit the reparameterized model, regularizing the $t(x)$ forest more heavily to account for the standard normal prior on the $\tau_0$ term.
 
 ```{r}
 num_trees_tau <- 50
@@ -303,7 +303,7 @@ bcf_model_reparam <- bcf(
 )
 ```
 
-And we compare the posterior distribution of the ATE to its true value
+Again we plot the posterior distribution of the ATE
 
 ```{r}
 cate_posterior_reparam <- predict(
@@ -325,7 +325,7 @@ hist(
 abline(v = tau_x, col = "red", lty = 3, lwd = 3)
 ```
 
-And we check the correlation of $\tau_0$ and $\bar{t}(X)$
+This time we see no correlation between the $\tau_0$ posterior and the (highly-regularized) $\bar{t}(X)$ posterior
 
 ```{r}
 tau_0_posterior <- extractParameter(bcf_model_reparam, "tau_0")
@@ -395,3 +395,5 @@ hist(
 )
 abline(v = tau_x, col = "red", lty = 3, lwd = 3)
 ```
+
+# References
