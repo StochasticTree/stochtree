@@ -1055,11 +1055,12 @@ computeBCFPosteriorInterval <- function(
       )
     }
   }
-  needs_covariates_intermediate <- ((("y_hat" %in% terms) ||
-    ("all" %in% terms)))
-  needs_covariates <- (("prognostic_function" %in% terms) ||
-    ("cate" %in% terms) ||
-    ("variance_forest" %in% terms) ||
+  predict_terms <- terms
+  needs_covariates_intermediate <- ((("y_hat" %in% predict_terms) ||
+    ("all" %in% predict_terms)))
+  needs_covariates <- (("prognostic_function" %in% predict_terms) ||
+    ("cate" %in% predict_terms) ||
+    ("variance_forest" %in% predict_terms) ||
     (needs_covariates_intermediate))
   if (needs_covariates) {
     if (is.null(X)) {
@@ -1119,10 +1120,10 @@ computeBCFPosteriorInterval <- function(
       }
     }
   }
-  needs_rfx_data_intermediate <- ((("y_hat" %in% terms) ||
-    ("all" %in% terms)) &&
+  needs_rfx_data_intermediate <- ((("y_hat" %in% predict_terms) ||
+    ("all" %in% predict_terms)) &&
     model_object$model_params$has_rfx)
-  needs_rfx_data <- (("rfx" %in% terms) ||
+  needs_rfx_data <- (("rfx" %in% predict_terms) ||
     (needs_rfx_data_intermediate))
   if (needs_rfx_data) {
     if (is.null(rfx_group_ids)) {
@@ -1154,42 +1155,47 @@ computeBCFPosteriorInterval <- function(
     }
   }
 
-  # Compute posterior matrices for the requested model terms
-  predictions <- predict(
-    model_object,
-    X = X,
-    Z = Z,
-    propensity = propensity,
-    rfx_group_ids = rfx_group_ids,
-    rfx_basis = rfx_basis,
-    type = "posterior",
-    terms = terms,
-    scale = scale
-  )
-  has_multiple_terms <- ifelse(is.list(predictions), TRUE, FALSE)
+  result <- list()
 
-  # Compute the interval
-  if (has_multiple_terms) {
-    result <- list()
-    for (term_name in names(predictions)) {
-      if (!is.null(predictions[[term_name]])) {
-        result[[term_name]] <- summarize_interval(
-          predictions[[term_name]],
-          sample_dim = 2,
-          level = level
-        )
-      } else {
-        result[[term_name]] <- NULL
+  # Compute posterior matrices for predict-able terms (if any)
+  if (length(predict_terms) > 0) {
+    predictions <- predict(
+      model_object,
+      X = X,
+      Z = Z,
+      propensity = propensity,
+      rfx_group_ids = rfx_group_ids,
+      rfx_basis = rfx_basis,
+      type = "posterior",
+      terms = predict_terms,
+      scale = scale
+    )
+    if (is.list(predictions)) {
+      for (term_name in names(predictions)) {
+        if (!is.null(predictions[[term_name]])) {
+          result[[term_name]] <- summarize_interval(
+            predictions[[term_name]],
+            sample_dim = 2,
+            level = level
+          )
+        } else {
+          result[[term_name]] <- NULL
+        }
       }
+    } else {
+      result[[predict_terms]] <- summarize_interval(
+        predictions,
+        sample_dim = 2,
+        level = level
+      )
     }
-    return(result)
-  } else {
-    return(summarize_interval(
-      predictions,
-      sample_dim = 2,
-      level = level
-    ))
   }
+
+  # Return single interval directly if only one term was requested
+  if (length(terms) == 1) {
+    return(result[[terms]])
+  }
+  return(result)
 }
 
 #' @title Compute BART Posterior Credible Intervals
