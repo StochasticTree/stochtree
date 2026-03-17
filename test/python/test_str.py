@@ -355,7 +355,7 @@ class TestBCFModelStr:
         assert "retaining every iteration" in s
 
     def test_more_than_two_model_terms(self, bcf_data):
-        """Adding sigma2_global gives >2 terms and triggers Oxford-comma format."""
+        """Adding sigma2_global and tau_0 gives >2 terms and triggers Oxford-comma format."""
         model = BCFModel()
         model.sample(
             X_train=bcf_data["X_train"],
@@ -372,7 +372,7 @@ class TestBCFModelStr:
             prognostic_forest_params={"sample_sigma2_leaf": False},
             treatment_effect_forest_params={"sample_sigma2_leaf": False},
         )
-        assert ", and global error variance model" in str(model)
+        assert ", and treatment effect intercept model" in str(model)
 
     def test_adaptive_coding_disabled(self, bcf_data):
         """Binary treatment without adaptive coding shows 'default coding'."""

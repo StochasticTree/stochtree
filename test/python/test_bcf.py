@@ -338,20 +338,22 @@ class TestBCF:
 
         # Assertions
         bcf_preds_3 = bcf_model_3.predict(X_test, Z_test, pi_test)
-        tau_hat_3, mu_hat_3, y_hat_3 = (
-            bcf_preds_3["tau_hat"],
+        # Use "cate" (tau_0 + tau(X)) for the CATE comparison, consistent with how
+        # tau_hat and tau_hat_2 were set above (via predict(terms="cate"))
+        cate_hat_3, mu_hat_3, y_hat_3 = (
+            bcf_preds_3["cate"],
             bcf_preds_3["mu_hat"],
             bcf_preds_3["y_hat"],
         )
-        assert tau_hat_3.shape == (n_train, num_mcmc * 2)
+        assert cate_hat_3.shape == (n_train, num_mcmc * 2)
         assert mu_hat_3.shape == (n_train, num_mcmc * 2)
         assert y_hat_3.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(y_hat_3[:, 0:num_mcmc], y_hat)
         np.testing.assert_allclose(y_hat_3[:, num_mcmc : (2 * num_mcmc)], y_hat_2)
         np.testing.assert_allclose(mu_hat_3[:, 0:num_mcmc], mu_hat)
         np.testing.assert_allclose(mu_hat_3[:, num_mcmc : (2 * num_mcmc)], mu_hat_2)
-        np.testing.assert_allclose(tau_hat_3[:, 0:num_mcmc], tau_hat)
-        np.testing.assert_allclose(tau_hat_3[:, num_mcmc : (2 * num_mcmc)], tau_hat_2)
+        np.testing.assert_allclose(cate_hat_3[:, 0:num_mcmc], tau_hat)
+        np.testing.assert_allclose(cate_hat_3[:, num_mcmc : (2 * num_mcmc)], tau_hat_2)
         np.testing.assert_allclose(
             bcf_model_3.global_var_samples[0:num_mcmc], bcf_model.global_var_samples
         )
@@ -513,17 +515,17 @@ class TestBCF:
 
         # Assertions
         bcf_preds_3 = bcf_model_3.predict(X_test, Z_test)
-        tau_hat_3, mu_hat_3, y_hat_3 = (
-            bcf_preds_3["tau_hat"],
+        cate_hat_3, mu_hat_3, y_hat_3 = (
+            bcf_preds_3["cate"],
             bcf_preds_3["mu_hat"],
             bcf_preds_3["y_hat"],
         )
-        assert tau_hat_3.shape == (n_train, num_mcmc * 2)
+        assert cate_hat_3.shape == (n_train, num_mcmc * 2)
         assert mu_hat_3.shape == (n_train, num_mcmc * 2)
         assert y_hat_3.shape == (n_train, num_mcmc * 2)
         np.testing.assert_allclose(y_hat_3[:, 0:num_mcmc], y_hat)
         np.testing.assert_allclose(mu_hat_3[:, 0:num_mcmc], mu_hat)
-        np.testing.assert_allclose(tau_hat_3[:, 0:num_mcmc], tau_hat)
+        np.testing.assert_allclose(cate_hat_3[:, 0:num_mcmc], tau_hat)
         np.testing.assert_allclose(
             bcf_model_3.global_var_samples[0:num_mcmc], bcf_model.global_var_samples
         )
