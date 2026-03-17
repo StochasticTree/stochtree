@@ -1,5 +1,15 @@
 # Changelog
 
+# stochtree 0.4.1-dev
+
+## New Features
+
+* Added support for parametric treatment effect term in BCF [#309](https://github.com/StochasticTree/stochtree/pull/309/)
+
+## Bug Fixes
+
+## Documentation and Other Maintenance
+
 # stochtree 0.4.1
 
 ## New Features
