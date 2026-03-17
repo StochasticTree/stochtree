@@ -115,20 +115,22 @@ that were not in the training set.}
 
 \item{treatment_effect_forest_params}{(Optional) A list of treatment effect forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 \itemize{
-\item \code{num_trees} Number of trees in the ensemble for the treatment effect forest. Default: \code{50}. Must be a positive integer.
+\item \code{num_trees} Number of trees in the ensemble for the treatment effect forest. Default: \code{100}. Must be a positive integer.
 \item \code{alpha} Prior probability of splitting for a tree of depth 0 in the treatment effect forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{0.25}.
 \item \code{beta} Exponent that decreases split probabilities for nodes of depth > 0 in the treatment effect forest. Tree split prior combines \code{alpha} and \code{beta} via \code{alpha*(1+node_depth)^-beta}. Default: \code{3}.
 \item \code{min_samples_leaf} Minimum allowable size of a leaf, in terms of training samples, in the treatment effect forest. Default: \code{5}.
 \item \code{max_depth} Maximum depth of any tree in the ensemble in the treatment effect forest. Default: \code{5}. Can be overridden with \code{-1} which does not enforce any depth limits on trees.
 \item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable in the treatment effect forest. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here.
 \item \code{sample_sigma2_leaf} Whether or not to update the leaf scale variance parameter based on \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)}. Cannot (currently) be set to true if \code{ncol(Z_train)>1}. Default: \code{FALSE}.
-\item \code{sigma2_leaf_init} Starting value of leaf node scale parameter. Calibrated internally as \code{1/num_trees} if not set here.
+\item \code{sigma2_leaf_init} Starting value of leaf node scale parameter. Calibrated internally as \code{0.5 * var(y)/num_trees} if not set here (\code{0.5 / num_trees} if \code{y} is continuous and \code{standardize = TRUE} in the \code{general_params} list).
 \item \code{sigma2_leaf_shape} Shape parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Default: \code{3}.
 \item \code{sigma2_leaf_scale} Scale parameter in the \code{IG(sigma2_leaf_shape, sigma2_leaf_scale)} leaf node parameter variance model. Calibrated internally as \code{0.5/num_trees} if not set here.
 \item \code{delta_max} Maximum plausible conditional distributional treatment effect (i.e. P(Y(1) = 1 | X) - P(Y(0) = 1 | X)) when the outcome is binary. Only used when the outcome is specified as a probit model in \code{general_params}. Must be > 0 and < 1. Default: \code{0.9}. Ignored if \code{sigma2_leaf_init} is set directly, as this parameter is used to calibrate \code{sigma2_leaf_init}.
 \item \code{keep_vars} Vector of variable names or column indices denoting variables that should be included in the forest. Default: \code{NULL}.
 \item \code{drop_vars} Vector of variable names or column indices denoting variables that should be excluded from the forest. Default: \code{NULL}. If both \code{drop_vars} and \code{keep_vars} are set, \code{drop_vars} will be ignored.
 \item \code{num_features_subsample} How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+\item \code{sample_intercept} Whether to sample a global treatment effect intercept \code{tau_0} so the full CATE is \code{tau_0 + tau(X)}. Default: \code{TRUE}. Compatible with \code{adaptive_coding = TRUE}, in which case the recoded treatment basis is used.
+\item \code{tau_0_prior_var} Variance of the normal prior on \code{tau_0} (a scalar applied to each treatment dimension independently). Auto-calibrated to outcome variance when \code{NULL} and outcome is continuous. Only used when \code{sample_intercept = TRUE}.
 }}
 
 \item{variance_forest_params}{(Optional) A list of variance forest model parameters, each of which has a default value processed internally, so this argument list is optional.
