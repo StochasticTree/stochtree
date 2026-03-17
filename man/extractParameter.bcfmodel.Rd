@@ -30,6 +30,7 @@ The following conventions are used for parameter names:
 \item Test set mean function predictions: \code{"y_hat_test"}
 \item In-sample treatment effect forest predictions: \code{"tau_hat_train"}
 \item Test set treatment effect forest predictions: \code{"tau_hat_test"}
+\item Treatment effect intercept: \code{"tau_0"}, \code{"treatment_intercept"}, \code{"tau_intercept"}
 \item In-sample variance forest predictions: \code{"sigma2_x_train"}, \code{"var_x_train"}
 \item Test set variance forest predictions: \code{"sigma2_x_test"}, \code{"var_x_test"}
 }
