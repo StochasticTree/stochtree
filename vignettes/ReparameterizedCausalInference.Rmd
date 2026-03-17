@@ -49,7 +49,7 @@ library(stochtree)
 We set a seed for reproducibility
 
 ```{r}
-random_seed = 1234
+random_seed <- 1234
 set.seed(random_seed)
 ```
 
@@ -87,7 +87,7 @@ sigma_true <- sd(E_XZ) / snr
 y <- E_XZ + rnorm(n, 0, 1) * sigma_true
 
 # Split data into test and train sets
-test_set_pct <- 0.2
+test_set_pct <- 0.5
 n_test <- round(test_set_pct * n)
 n_train <- n - n_test
 test_inds <- sort(sample(1:n, n_test, replace = FALSE))
@@ -119,7 +119,8 @@ num_mcmc <- 500
 general_params <- list(
   adaptive_coding = TRUE,
   num_chains = 4,
-  random_seed = random_seed
+  random_seed = random_seed,
+  num_threads = 1
 )
 num_trees_tau <- 50
 treatment_effect_forest_params <- list(
@@ -188,7 +189,8 @@ num_trees_tau <- 50
 general_params <- list(
   adaptive_coding = FALSE,
   num_chains = 4,
-  random_seed = random_seed
+  random_seed = random_seed,
+  num_threads = 1
 )
 treatment_effect_forest_params <- list(
   num_trees = num_trees_tau,
@@ -276,7 +278,8 @@ While we do not currently have the ability to directly constrain $t(X)$ to sum t
 general_params <- list(
   adaptive_coding = FALSE,
   num_chains = 4,
-  random_seed = random_seed
+  random_seed = random_seed,
+  num_threads = 1
 )
 treatment_effect_forest_params <- list(
   num_trees = 1,
@@ -351,7 +354,8 @@ We can further regularize estimation of the ATE by reducing $\sigma_{\tau_0}^2$
 general_params <- list(
   adaptive_coding = FALSE,
   num_chains = 4,
-  random_seed = random_seed
+  random_seed = random_seed,
+  num_threads = 1
 )
 treatment_effect_forest_params <- list(
   num_trees = 1,
