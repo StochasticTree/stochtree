@@ -3610,17 +3610,15 @@ class BCFModel:
                 "mu",
                 "cate",
                 "tau",
-                "tau_0",
                 "rfx",
                 "variance_forest",
                 "y_hat",
                 "all",
             ]:
                 raise ValueError(
-                    f"term '{term}' was requested. Valid terms are 'prognostic_function', 'mu', 'cate', 'tau', 'tau_0', 'rfx', 'variance_forest', 'y_hat', and 'all'"
+                    f"term '{term}' was requested. Valid terms are 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', 'y_hat', and 'all'"
                 )
-        # tau_0 is fetched directly from stored samples and does not require X/Z
-        predict_terms = [t for t in terms if t != "tau_0"]
+        predict_terms = terms
         needs_covariates_intermediate = ("y_hat" in predict_terms) or ("all" in predict_terms)
         needs_covariates = (
             ("prognostic_function" in predict_terms)
@@ -3713,14 +3711,6 @@ class BCFModel:
                 result[predict_terms[0]] = _summarize_interval(
                     predictions, 1, level=level
                 )
-
-        # Compute interval for tau_0 directly from stored samples (if requested)
-        if "tau_0" in terms:
-            if not self.sample_tau_0 or not hasattr(self, "tau_0_samples"):
-                raise ValueError(
-                    "'tau_0' was requested but this model was not fit with 'sample_intercept = True'"
-                )
-            result["tau_0"] = _summarize_interval(self.tau_0_samples, 1, level=level)
 
         # Return single interval directly if only one specific term was requested
         if len(terms) == 1 and terms[0] in result:

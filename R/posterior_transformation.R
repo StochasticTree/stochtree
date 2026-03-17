@@ -1040,7 +1040,6 @@ computeBCFPosteriorInterval <- function(
           "mu",
           "cate",
           "tau",
-          "tau_0",
           "variance_forest",
           "rfx",
           "y_hat",
@@ -1051,13 +1050,12 @@ computeBCFPosteriorInterval <- function(
         paste0(
           "Term '",
           term,
-          "' was requested. Valid terms are 'prognostic_function', 'mu', 'cate', 'tau', 'tau_0', 'variance_forest', 'rfx', 'y_hat', and 'all'."
+          "' was requested. Valid terms are 'prognostic_function', 'mu', 'cate', 'tau', 'variance_forest', 'rfx', 'y_hat', and 'all'."
         )
       )
     }
   }
-  # tau_0 is fetched directly from stored samples and does not require X/Z
-  predict_terms <- terms[terms != "tau_0"]
+  predict_terms <- terms
   needs_covariates_intermediate <- ((("y_hat" %in% predict_terms) ||
     ("all" %in% predict_terms)))
   needs_covariates <- (("prognostic_function" %in% predict_terms) ||
@@ -1191,18 +1189,6 @@ computeBCFPosteriorInterval <- function(
         level = level
       )
     }
-  }
-
-  # Compute interval for tau_0 directly from stored samples (if requested)
-  if ("tau_0" %in% terms) {
-    if (!model_object$model_params$sample_tau_0 || is.null(model_object$tau_0_samples)) {
-      stop("'tau_0' was requested but this model was not fit with 'sample_intercept = TRUE'")
-    }
-    result[["tau_0"]] <- summarize_interval(
-      model_object$tau_0_samples,
-      sample_dim = 2,
-      level = level
-    )
   }
 
   # Return single interval directly if only one term was requested
@@ -1540,8 +1526,6 @@ bcf_model_has_term <- function(model_object, term) {
     return(TRUE)
   } else if (term == "all") {
     return(TRUE)
-  } else if (term == "tau_0") {
-    return(model_object$model_params$sample_tau_0)
   } else {
     return(FALSE)
   }
@@ -1562,7 +1546,6 @@ validate_bcf_term <- function(term) {
     "mu",
     "cate",
     "tau",
-    "tau_0",
     "variance_forest",
     "rfx",
     "y_hat",
@@ -1570,7 +1553,7 @@ validate_bcf_term <- function(term) {
   )
   if (!(term %in% model_terms)) {
     stop(
-      "'term' must be one of 'prognostic_function', 'mu', 'cate', 'tau', 'tau_0', 'variance_forest', 'rfx', 'y_hat', or 'all' for bcfmodel objects"
+      "'term' must be one of 'prognostic_function', 'mu', 'cate', 'tau', 'variance_forest', 'rfx', 'y_hat', or 'all' for bcfmodel objects"
     )
   }
 }
