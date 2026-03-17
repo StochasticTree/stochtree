@@ -55,7 +55,7 @@ set.seed(random_seed)
 
 # Binary Treatment with Homogeneous Treatment Effect
 
-Consider the following data generating process:
+Consider the following data generating process
 
 \begin{equation*}
 \begin{aligned}
@@ -85,8 +85,11 @@ Z <- rbinom(n, 1, pi_x)
 E_XZ <- mu_x + Z * tau_x
 sigma_true <- sd(E_XZ) / snr
 y <- E_XZ + rnorm(n, 0, 1) * sigma_true
+```
 
-# Split data into test and train sets
+And split data into test and train sets
+
+```{r}
 test_set_pct <- 0.5
 n_test <- round(test_set_pct * n)
 n_train <- n - n_test
@@ -272,7 +275,7 @@ plot(
 )
 ```
 
-While we do not currently have the ability to directly constrain $t(X)$ to sum to 0 over the training set in `stochtree`, we can more heavily regularize $t(X)$ so that its values are much closer to zero.
+While `stochtree` does not currently support constraining $t(X)$ to sum to 0 over the training set, we can more heavily regularize $t(X)$ so that its values are much closer to zero. Using a single tree with a very small leaf scale effectively collapses the forest to a constant near zero, making $\tau_0$ the primary vehicle for the treatment effect.
 
 ```{r}
 general_params <- list(
@@ -325,7 +328,7 @@ hist(
 abline(v = tau_x, col = "red", lty = 3, lwd = 3)
 ```
 
-This time we see no correlation between the $\tau_0$ posterior and the (highly-regularized) $\bar{t}(X)$ posterior
+This time we see no correlation between the $\tau_0$ posterior and the (highly-regularized) $\bar{t}(X)$ posterior -- $\tau_0$ more directly captures the majority of the ATE
 
 ```{r}
 tau_0_posterior <- extractParameter(bcf_model_reparam, "tau_0")
