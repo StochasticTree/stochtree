@@ -27,6 +27,7 @@ from .utils import (
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
+    _get_stochtree_version,
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
@@ -3901,7 +3902,8 @@ class BCFModel:
         if self.has_rfx:
             bcf_json.add_random_effects(self.rfx_container)
 
-        # Add global parameters
+        # Add version stamp and global parameters
+        bcf_json.add_string("stochtree_version", _get_stochtree_version())
         bcf_json.add_scalar("outcome_scale", self.y_std)
         bcf_json.add_scalar("outcome_mean", self.y_bar)
         bcf_json.add_boolean("standardize", self.standardize)

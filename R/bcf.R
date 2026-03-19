@@ -4525,7 +4525,8 @@ saveBCFModelToJson <- function(object) {
     )
   }
 
-  # Add global parameters
+  # Add version stamp and global parameters
+  jsonobj$add_string("stochtree_version", getStochtreeVersion())
   jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
   jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
   jsonobj$add_boolean("standardize", object$model_params$standardize)

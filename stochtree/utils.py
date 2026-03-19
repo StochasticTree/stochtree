@@ -1,7 +1,65 @@
 from typing import Union, Tuple
+import json
 import math
 
 import numpy as np
+
+
+def _get_stochtree_version() -> str:
+    """Return the current stochtree package version, or 'dev' for editable installs."""
+    try:
+        from importlib.metadata import version, PackageNotFoundError
+        return version("stochtree")
+    except Exception:
+        return "dev"
+
+
+def _infer_stochtree_version(json_string: str) -> str:
+    """Infer the stochtree version bracket from the fields present in a JSON string.
+
+    When a JSON was serialized before version stamping was introduced, the version
+    can be approximated by checking which fields are present. The returned string is
+    intended for use in warning messages only, not to gate deserialization behavior.
+
+    Parameters
+    ----------
+    json_string : str
+        Raw JSON string as produced by ``to_json()`` / ``saveBARTModelToJsonString()``.
+
+    Returns
+    -------
+    str
+        The stamp value if ``stochtree_version`` is present, otherwise a bracket
+        string such as ``"<0.4.1"`` indicating the latest version known to be
+        missing the observed fields.
+    """
+    try:
+        d = json.loads(json_string)
+    except Exception:
+        return "unknown"
+
+    if "stochtree_version" in d:
+        return d["stochtree_version"]
+
+    # outcome/link were added in ~0.4.1
+    outcome_model = d.get("outcome_model", {})
+    if "outcome" not in outcome_model or "link" not in outcome_model:
+        return "<0.4.1"
+
+    # has_rfx_basis / num_rfx_basis were added in ~0.4.0
+    if "has_rfx_basis" not in d or "num_rfx_basis" not in d:
+        return "<0.4.0"
+
+    # internal_propensity_model was added in ~0.3.2 (BCF only; absent in BART JSON)
+    # Only flag this if we can confirm it's a BCF JSON by checking a BCF-only field
+    if "propensity_covariate" in d and "internal_propensity_model" not in d:
+        return "<0.3.2"
+
+    # rfx_model_spec and covariate_preprocessor were added in ~0.3.0
+    if "rfx_model_spec" not in d or "covariate_preprocessor" not in d:
+        return "<0.3.0"
+
+    return "unknown"
 
 
 def _set_output_defaults(outcome: str = "continuous", link: str = None) -> Tuple[str, str]:

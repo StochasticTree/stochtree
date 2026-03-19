@@ -1174,3 +1174,65 @@ expand_dims_2d_diag <- function(input, output_size) {
   }
   return(output)
 }
+
+#' Return the current stochtree package version string.
+#'
+#' Falls back to "dev" if the package metadata is unavailable (e.g. during
+#' development installs that have not been properly registered).
+#'
+#' @return A character string such as "0.4.1" or "dev".
+#' @noRd
+getStochtreeVersion <- function() {
+  tryCatch(
+    as.character(utils::packageVersion("stochtree")),
+    error = function(e) "dev"
+  )
+}
+
+#' Infer the stochtree version bracket from the fields present in a JSON object.
+#'
+#' When a JSON was serialized before version stamping was introduced, the version
+#' can be approximated by checking which fields are present. The returned string
+#' is intended for use in warning messages only, not to gate deserialization
+#' behavior.
+#'
+#' @param json_object A \code{CppJson} object as returned by \code{createCppJson()}
+#'   or the various \code{saveBARTModelToJson} / \code{saveBCFModelToJson} functions.
+#' @return A character string: the stamp value if \code{stochtree_version} is
+#'   present, otherwise a bracket string such as \code{"<0.4.1"}.
+#' @noRd
+inferStorchtreeJsonVersion <- function(json_object) {
+  has_field <- function(name) {
+    json_contains_field_cpp(json_object$json_ptr, name)
+  }
+  has_subfolder_field <- function(subfolder, name) {
+    json_contains_field_subfolder_cpp(json_object$json_ptr, subfolder, name)
+  }
+
+  if (has_field("stochtree_version")) {
+    return(json_object$get_string("stochtree_version"))
+  }
+
+  # outcome/link in outcome_model were added in ~0.4.1
+  if (!has_subfolder_field("outcome_model", "outcome") ||
+      !has_subfolder_field("outcome_model", "link")) {
+    return("<0.4.1")
+  }
+
+  # has_rfx_basis / num_rfx_basis were added in ~0.4.0
+  if (!has_field("has_rfx_basis") || !has_field("num_rfx_basis")) {
+    return("<0.4.0")
+  }
+
+  # internal_propensity_model was added in ~0.3.2 (BCF only)
+  if (has_field("propensity_covariate") && !has_field("internal_propensity_model")) {
+    return("<0.3.2")
+  }
+
+  # rfx_model_spec and preprocessor_metadata were added in ~0.3.0
+  if (!has_field("rfx_model_spec") || !has_field("preprocessor_metadata")) {
+    return("<0.3.0")
+  }
+
+  return("unknown")
+}

@@ -27,6 +27,7 @@ from .utils import (
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
+    _get_stochtree_version,
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
@@ -2988,7 +2989,8 @@ class BARTModel:
         if self.has_rfx:
             bart_json.add_random_effects(self.rfx_container)
 
-        # Add global parameters
+        # Add version stamp and global parameters
+        bart_json.add_string("stochtree_version", _get_stochtree_version())
         bart_json.add_scalar("outcome_scale", self.y_std)
         bart_json.add_scalar("outcome_mean", self.y_bar)
         bart_json.add_boolean("standardize", self.standardize)
