@@ -1195,7 +1195,7 @@ bcf <- function(
     bart_model_propensity <- bart(
       X_train = X_train,
       y_train = as.numeric(Z_train),
-      X_test = X_test_raw,
+      X_test = X_test,
       num_gfr = num_gfr_propensity,
       num_burnin = num_burnin_propensity,
       num_mcmc = num_mcmc_propensity
