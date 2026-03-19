@@ -800,3 +800,50 @@ test_that("Random Effects BCF", {
     )
   )
 })
+
+test_that("BCF internal propensity model works with data frame covariates", {
+  skip_on_cran()
+
+  # X_test_raw was incorrectly passed to the internal BART propensity model instead of the preprocessed X_test,
+  # causing "undefined columns selected" when X contained factor columns.
+  set.seed(42)
+  n <- 100
+  p <- 4
+  X_num <- matrix(runif(n * p), ncol = p)
+  # Add a factor column — triggers preprocessTrainData to one-hot encode,
+  # changing the column structure and exposing the raw/processed mismatch
+  X_cat <- factor(sample(c("a", "b", "c"), n, replace = TRUE))
+  X <- data.frame(X_num, cat = X_cat)
+
+  pi_X <- 0.25 + 0.5 * X_num[, 1]
+  Z <- rbinom(n, 1, pi_X)
+  mu_X <- X_num[, 1] * 2
+  tau_X <- X_num[, 2]
+  y <- mu_X + tau_X * Z + rnorm(n)
+
+  test_inds <- 1:20
+  train_inds <- 21:n
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test <- Z[test_inds]
+  y_train <- y[train_inds]
+
+  # No propensity_train provided — triggers internal BART propensity model.
+  # Before the fix, this raised "undefined columns selected" because X_test_raw
+  # (unprocessed) was passed instead of preprocessed X_test.
+  expect_no_error(
+    bcf_model <- bcf(
+      X_train = X_train,
+      y_train = y_train,
+      Z_train = Z_train,
+      X_test = X_test,
+      Z_test = Z_test,
+      num_gfr = 5,
+      num_burnin = 0,
+      num_mcmc = 5
+    )
+  )
+  expect_true(!is.null(bcf_model$tau_hat_train))
+  expect_true(!is.null(bcf_model$tau_hat_test))
+})

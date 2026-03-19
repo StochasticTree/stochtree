@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.model_selection import train_test_split
 
@@ -1014,3 +1015,44 @@ class TestBCF:
             num_mcmc=num_mcmc,
             random_effects_params=rfx_params,
         )
+
+    def test_internal_propensity_with_categorical_dataframe(self):
+        # When X is a DataFrame with categorical columns, preprocessing changes
+        # the column structure (one-hot encoding). The internal BART propensity
+        # model must receive the preprocessed X_test, not the raw original.
+        rng = np.random.default_rng(42)
+        n = 100
+        p = 4
+        X_num = rng.uniform(0, 1, (n, p))
+        X_cat = rng.choice(["a", "b", "c"], size=n)
+        X = pd.DataFrame(X_num, columns=[f"x{i}" for i in range(p)])
+        X["cat"] = pd.Categorical(X_cat)
+
+        pi_X = 0.25 + 0.5 * X_num[:, 0]
+        Z = rng.binomial(1, pi_X, n).astype(float)
+        y = X_num[:, 0] * 2 + X_num[:, 1] * Z + rng.normal(0, 1, n)
+
+        train_inds, test_inds = train_test_split(np.arange(n), test_size=0.2, random_state=0)
+        X_train = X.iloc[train_inds].reset_index(drop=True)
+        X_test = X.iloc[test_inds].reset_index(drop=True)
+        Z_train = Z[train_inds]
+        Z_test = Z[test_inds]
+        y_train = y[train_inds]
+
+        # No propensity_train provided — triggers internal BART propensity model.
+        # Python uses preprocessed covariates correctly, so this should not raise.
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=X_train,
+            Z_train=Z_train,
+            y_train=y_train,
+            X_test=X_test,
+            Z_test=Z_test,
+            num_gfr=5,
+            num_burnin=0,
+            num_mcmc=5,
+        )
+        assert bcf_model.y_hat_train is not None
+        assert bcf_model.y_hat_test is not None
+        assert bcf_model.tau_hat_train is not None
+        assert bcf_model.tau_hat_test is not None
