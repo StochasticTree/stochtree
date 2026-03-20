@@ -179,3 +179,75 @@ test_that("BCF Serialization (no propensity)", {
   # Assertion
   expect_equal(y_hat_orig, y_hat_reloaded)
 })
+
+test_that("BCF JSON uses canonical field names (sigma2_init, b1_samples, b0_samples)", {
+  skip_on_cran()
+
+  set.seed(1)
+  n <- 100
+  X <- matrix(runif(n * 5), ncol = 5)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- pi_x * 5 + Z * X[, 2] * 2 + rnorm(n)
+
+  bcf_model <- bcf(
+    X_train = X, Z_train = Z, y_train = y,
+    propensity_train = pi_x,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+  json_string <- saveBCFModelToJsonString(bcf_model)
+
+  # New canonical names must be present
+  expect_true(grepl('"sigma2_init"', json_string))
+  expect_true(grepl('"b1_samples"', json_string))
+  expect_true(grepl('"b0_samples"', json_string))
+
+  # Legacy names must not be present
+  expect_false(grepl('"initial_sigma2"', json_string))
+  expect_false(grepl('"b_1_samples"', json_string))
+  expect_false(grepl('"b_0_samples"', json_string))
+})
+
+test_that("BCF JSON deserialization handles legacy field names with warnings", {
+  skip_on_cran()
+
+  set.seed(2)
+  n <- 100
+  X <- matrix(runif(n * 5), ncol = 5)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- pi_x * 5 + Z * X[, 2] * 2 + rnorm(n)
+  X_test <- matrix(runif(20 * 5), ncol = 5)
+  pi_test <- rep(0.5, 20)
+  Z_test <- rbinom(20, 1, 0.5)
+
+  bcf_model <- bcf(
+    X_train = X, Z_train = Z, y_train = y,
+    propensity_train = pi_x,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+  preds_orig <- predict(bcf_model, X_test, Z_test, pi_test)
+
+  # Simulate a legacy JSON by replacing canonical names with old names
+  json_new <- saveBCFModelToJsonString(bcf_model)
+  json_legacy <- gsub('"sigma2_init"', '"initial_sigma2"', json_new, fixed = TRUE)
+  json_legacy <- gsub('"b1_samples"', '"b_1_samples"', json_legacy, fixed = TRUE)
+  json_legacy <- gsub('"b0_samples"', '"b_0_samples"', json_legacy, fixed = TRUE)
+
+  # Loading a legacy JSON should emit deprecation warnings for all renamed fields
+  all_warnings <- character(0)
+  withCallingHandlers(
+    bcf_legacy <- createBCFModelFromJsonString(json_legacy),
+    warning = function(w) {
+      all_warnings <<- c(all_warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_true(any(grepl("initial_sigma2.*deprecated|deprecated.*initial_sigma2", all_warnings)))
+  expect_true(any(grepl("b_1_samples.*deprecated|b_0_samples.*deprecated|deprecated.*b_[01]_samples", all_warnings)))
+
+  # Predictions must still match
+  preds_legacy <- predict(bcf_legacy, X_test, Z_test, pi_test)
+  expect_equal(rowMeans(preds_legacy[["y_hat"]]), rowMeans(preds_orig[["y_hat"]]))
+  expect_equal(rowMeans(preds_legacy[["tau_hat"]]), rowMeans(preds_orig[["tau_hat"]]))
+})

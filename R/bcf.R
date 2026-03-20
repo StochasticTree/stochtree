@@ -4525,11 +4525,12 @@ saveBCFModelToJson <- function(object) {
     )
   }
 
-  # Add global parameters
+  # Add version stamp and global parameters
+  jsonobj$add_string("stochtree_version", getStochtreeVersion())
   jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
   jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
   jsonobj$add_boolean("standardize", object$model_params$standardize)
-  jsonobj$add_scalar("initial_sigma2", object$model_params$initial_sigma2)
+  jsonobj$add_scalar("sigma2_init", object$model_params$initial_sigma2)
   jsonobj$add_boolean(
     "sample_sigma2_global",
     object$model_params$sample_sigma2_global
@@ -4608,8 +4609,8 @@ saveBCFModelToJson <- function(object) {
     )
   }
   if (object$model_params$adaptive_coding) {
-    jsonobj$add_vector("b_1_samples", object$b_1_samples, "parameters")
-    jsonobj$add_vector("b_0_samples", object$b_0_samples, "parameters")
+    jsonobj$add_vector("b1_samples", object$b_1_samples, "parameters")
+    jsonobj$add_vector("b0_samples", object$b_0_samples, "parameters")
   }
   if (object$model_params$sample_tau_0 && !is.null(object$tau_0_samples)) {
     jsonobj$add_scalar("tau_0_dim", nrow(object$tau_0_samples))
@@ -4683,6 +4684,13 @@ createBCFModelFromJson <- function(json_object) {
   # Initialize the BCF model
   output <- list()
 
+  # Version inference and presence-check helpers
+  .ver <- inferStochtreeJsonVersion(json_object)
+  has_field <- function(name) json_contains_field_cpp(json_object$json_ptr, name)
+  has_subfolder_field <- function(subfolder, name) {
+    json_contains_field_subfolder_cpp(json_object$json_ptr, subfolder, name)
+  }
+
   # Unpack the forests
   output[["forests_mu"]] <- loadForestContainerJson(json_object, "forest_0")
   output[["forests_tau"]] <- loadForestContainerJson(json_object, "forest_1")
@@ -4741,7 +4749,15 @@ createBCFModelFromJson <- function(json_object) {
   model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
   model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
   model_params[["standardize"]] <- json_object$get_boolean("standardize")
-  model_params[["initial_sigma2"]] <- json_object$get_scalar("initial_sigma2")
+  if (has_field("sigma2_init")) {
+    model_params[["initial_sigma2"]] <- json_object$get_scalar("sigma2_init")
+  } else {
+    model_params[["initial_sigma2"]] <- json_object$get_scalar("initial_sigma2")
+    warning(sprintf(
+      "JSON field 'initial_sigma2' is deprecated; please re-save the model to use 'sigma2_init' (inferred version: %s).",
+      .ver
+    ))
+  }
   model_params[["sample_sigma2_global"]] <- json_object$get_boolean(
     "sample_sigma2_global"
   )
@@ -4756,35 +4772,113 @@ createBCFModelFromJson <- function(json_object) {
     "propensity_covariate"
   )
   model_params[["has_rfx"]] <- json_object$get_boolean("has_rfx")
-  model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
-  model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
+  if (has_field("has_rfx_basis")) {
+    model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
+    model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
+  } else {
+    model_params[["has_rfx_basis"]] <- FALSE
+    model_params[["num_rfx_basis"]] <- 1
+    warning(sprintf(
+      "Fields 'has_rfx_basis' and 'num_rfx_basis' not found in BCF JSON (inferred version: %s). Defaulting to has_rfx_basis=FALSE, num_rfx_basis=1.",
+      .ver
+    ))
+  }
   model_params[["adaptive_coding"]] <- json_object$get_boolean(
     "adaptive_coding"
   )
-  model_params[["sample_tau_0"]] <- json_object$get_boolean("sample_tau_0")
-  model_params[["multivariate_treatment"]] <- json_object$get_boolean(
-    "multivariate_treatment"
-  )
-  model_params[["internal_propensity_model"]] <- json_object$get_boolean(
-    "internal_propensity_model"
-  )
+  if (has_field("sample_tau_0")) {
+    model_params[["sample_tau_0"]] <- json_object$get_boolean("sample_tau_0")
+  } else {
+    model_params[["sample_tau_0"]] <- FALSE
+    warning(sprintf(
+      "Field 'sample_tau_0' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_field("multivariate_treatment")) {
+    model_params[["multivariate_treatment"]] <- json_object$get_boolean(
+      "multivariate_treatment"
+    )
+  } else {
+    model_params[["multivariate_treatment"]] <- FALSE
+    warning(sprintf(
+      "Field 'multivariate_treatment' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_field("internal_propensity_model")) {
+    model_params[["internal_propensity_model"]] <- json_object$get_boolean(
+      "internal_propensity_model"
+    )
+  } else {
+    model_params[["internal_propensity_model"]] <- FALSE
+    warning(sprintf(
+      "Field 'internal_propensity_model' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
   model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
   model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
   model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
   model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
   model_params[["num_covariates"]] <- json_object$get_scalar("num_covariates")
-  model_params[["probit_outcome_model"]] <- json_object$get_boolean(
-    "probit_outcome_model"
-  )
-  outcome_model_outcome <- json_object$get_string("outcome", "outcome_model")
-  outcome_model_link <- json_object$get_string("link", "outcome_model")
+  if (has_field("num_chains")) {
+    model_params[["num_chains"]] <- json_object$get_scalar("num_chains")
+  } else {
+    model_params[["num_chains"]] <- 1
+    warning(sprintf(
+      "Field 'num_chains' not found in BCF JSON (inferred version: %s). Defaulting to 1.",
+      .ver
+    ))
+  }
+  if (has_field("keep_every")) {
+    model_params[["keep_every"]] <- json_object$get_scalar("keep_every")
+  } else {
+    model_params[["keep_every"]] <- 1
+    warning(sprintf(
+      "Field 'keep_every' not found in BCF JSON (inferred version: %s). Defaulting to 1.",
+      .ver
+    ))
+  }
+  if (has_field("probit_outcome_model")) {
+    model_params[["probit_outcome_model"]] <- json_object$get_boolean(
+      "probit_outcome_model"
+    )
+  } else {
+    model_params[["probit_outcome_model"]] <- FALSE
+    warning(sprintf(
+      "Field 'probit_outcome_model' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_subfolder_field("outcome_model", "outcome")) {
+    outcome_model_outcome <- json_object$get_string("outcome", "outcome_model")
+    outcome_model_link <- json_object$get_string("link", "outcome_model")
+  } else {
+    outcome_model_outcome <- "continuous"
+    outcome_model_link <- "identity"
+    warning(sprintf(
+      "Subfolder 'outcome_model' not found in BCF JSON (inferred version: %s). Defaulting to outcome='continuous', link='identity'.",
+      .ver
+    ))
+  }
   model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
-  model_params[["rfx_model_spec"]] <- json_object$get_string(
-    "rfx_model_spec"
-  )
+  if (has_field("rfx_model_spec")) {
+    model_params[["rfx_model_spec"]] <- json_object$get_string(
+      "rfx_model_spec"
+    )
+  } else {
+    model_params[["rfx_model_spec"]] <- ""
+    if (model_params[["has_rfx"]]) {
+      warning(sprintf(
+        "Field 'rfx_model_spec' not found in BCF JSON (inferred version: %s) but has_rfx=TRUE.",
+        .ver
+      ))
+    }
+  }
   output[["model_params"]] <- model_params
 
   # Unpack sampled parameters
@@ -4807,14 +4901,17 @@ createBCFModelFromJson <- function(json_object) {
     )
   }
   if (model_params[["adaptive_coding"]]) {
-    output[["b_1_samples"]] <- json_object$get_vector(
-      "b_1_samples",
-      "parameters"
-    )
-    output[["b_0_samples"]] <- json_object$get_vector(
-      "b_0_samples",
-      "parameters"
-    )
+    if (has_subfolder_field("parameters", "b1_samples")) {
+      output[["b_1_samples"]] <- json_object$get_vector("b1_samples", "parameters")
+      output[["b_0_samples"]] <- json_object$get_vector("b0_samples", "parameters")
+    } else {
+      output[["b_1_samples"]] <- json_object$get_vector("b_1_samples", "parameters")
+      output[["b_0_samples"]] <- json_object$get_vector("b_0_samples", "parameters")
+      warning(sprintf(
+        "JSON fields 'b_1_samples'/'b_0_samples' are deprecated; please re-save the model to use 'b1_samples'/'b0_samples' (inferred version: %s).",
+        .ver
+      ))
+    }
   }
   if (model_params[["sample_tau_0"]]) {
     tau_0_dim <- as.integer(json_object$get_scalar("tau_0_dim"))
@@ -4841,12 +4938,20 @@ createBCFModelFromJson <- function(json_object) {
   }
 
   # Unpack covariate preprocessor
-  preprocessor_metadata_string <- json_object$get_string(
-    "preprocessor_metadata"
-  )
-  output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
-    preprocessor_metadata_string
-  )
+  if (has_field("preprocessor_metadata")) {
+    preprocessor_metadata_string <- json_object$get_string(
+      "preprocessor_metadata"
+    )
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+      preprocessor_metadata_string
+    )
+  } else {
+    output[["train_set_metadata"]] <- NULL
+    warning(sprintf(
+      "Field 'preprocessor_metadata' not found in BCF JSON (inferred version: %s). Preprocessor is unavailable; prediction may fail.",
+      .ver
+    ))
+  }
 
   class(output) <- "bcfmodel"
   return(output)
@@ -4892,6 +4997,13 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   # defer to the first json
   json_object_default <- json_object_list[[1]]
 
+  # Version inference and presence-check helpers
+  .ver <- inferStochtreeJsonVersion(json_object_default)
+  has_field <- function(name) json_contains_field_cpp(json_object_default$json_ptr, name)
+  has_subfolder_field <- function(subfolder, name) {
+    json_contains_field_subfolder_cpp(json_object_default$json_ptr, subfolder, name)
+  }
+
   # Unpack the forests
   output[["forests_mu"]] <- loadForestContainerCombinedJson(
     json_object_list,
@@ -4962,9 +5074,15 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   model_params[["standardize"]] <- json_object_default$get_boolean(
     "standardize"
   )
-  model_params[["initial_sigma2"]] <- json_object_default$get_scalar(
-    "initial_sigma2"
-  )
+  if (has_field("sigma2_init")) {
+    model_params[["initial_sigma2"]] <- json_object_default$get_scalar("sigma2_init")
+  } else {
+    model_params[["initial_sigma2"]] <- json_object_default$get_scalar("initial_sigma2")
+    warning(sprintf(
+      "JSON field 'initial_sigma2' is deprecated; please re-save the model to use 'sigma2_init' (inferred version: %s).",
+      .ver
+    ))
+  }
   model_params[["sample_sigma2_global"]] <- json_object_default$get_boolean(
     "sample_sigma2_global"
   )
@@ -4979,44 +5097,120 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
     "propensity_covariate"
   )
   model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
-  model_params[["has_rfx_basis"]] <- json_object_default$get_boolean(
-    "has_rfx_basis"
-  )
-  model_params[["num_rfx_basis"]] <- json_object_default$get_scalar(
-    "num_rfx_basis"
-  )
+  if (has_field("has_rfx_basis")) {
+    model_params[["has_rfx_basis"]] <- json_object_default$get_boolean(
+      "has_rfx_basis"
+    )
+    model_params[["num_rfx_basis"]] <- json_object_default$get_scalar(
+      "num_rfx_basis"
+    )
+  } else {
+    model_params[["has_rfx_basis"]] <- FALSE
+    model_params[["num_rfx_basis"]] <- 1
+    warning(sprintf(
+      "Fields 'has_rfx_basis' and 'num_rfx_basis' not found in BCF JSON (inferred version: %s). Defaulting to has_rfx_basis=FALSE, num_rfx_basis=1.",
+      .ver
+    ))
+  }
   model_params[["num_covariates"]] <- json_object_default$get_scalar(
     "num_covariates"
   )
-  model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
-  model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
+  if (has_field("num_chains")) {
+    model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
+  } else {
+    model_params[["num_chains"]] <- 1
+    warning(sprintf(
+      "Field 'num_chains' not found in BCF JSON (inferred version: %s). Defaulting to 1.",
+      .ver
+    ))
+  }
+  if (has_field("keep_every")) {
+    model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
+  } else {
+    model_params[["keep_every"]] <- 1
+    warning(sprintf(
+      "Field 'keep_every' not found in BCF JSON (inferred version: %s). Defaulting to 1.",
+      .ver
+    ))
+  }
   model_params[["adaptive_coding"]] <- json_object_default$get_boolean(
     "adaptive_coding"
   )
-  model_params[["sample_tau_0"]] <- json_object_default$get_boolean(
-    "sample_tau_0"
-  )
-  model_params[["multivariate_treatment"]] <- json_object_default$get_boolean(
-    "multivariate_treatment"
-  )
-  model_params[[
-    "internal_propensity_model"
-  ]] <- json_object_default$get_boolean("internal_propensity_model")
-  model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
-    "probit_outcome_model"
-  )
-  outcome_model_outcome <- json_object_default$get_string(
-    "outcome",
-    "outcome_model"
-  )
-  outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+  if (has_field("sample_tau_0")) {
+    model_params[["sample_tau_0"]] <- json_object_default$get_boolean(
+      "sample_tau_0"
+    )
+  } else {
+    model_params[["sample_tau_0"]] <- FALSE
+    warning(sprintf(
+      "Field 'sample_tau_0' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_field("multivariate_treatment")) {
+    model_params[["multivariate_treatment"]] <- json_object_default$get_boolean(
+      "multivariate_treatment"
+    )
+  } else {
+    model_params[["multivariate_treatment"]] <- FALSE
+    warning(sprintf(
+      "Field 'multivariate_treatment' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_field("internal_propensity_model")) {
+    model_params[[
+      "internal_propensity_model"
+    ]] <- json_object_default$get_boolean("internal_propensity_model")
+  } else {
+    model_params[["internal_propensity_model"]] <- FALSE
+    warning(sprintf(
+      "Field 'internal_propensity_model' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_field("probit_outcome_model")) {
+    model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
+      "probit_outcome_model"
+    )
+  } else {
+    model_params[["probit_outcome_model"]] <- FALSE
+    warning(sprintf(
+      "Field 'probit_outcome_model' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_subfolder_field("outcome_model", "outcome")) {
+    outcome_model_outcome <- json_object_default$get_string(
+      "outcome",
+      "outcome_model"
+    )
+    outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+  } else {
+    outcome_model_outcome <- "continuous"
+    outcome_model_link <- "identity"
+    warning(sprintf(
+      "Subfolder 'outcome_model' not found in BCF JSON (inferred version: %s). Defaulting to outcome='continuous', link='identity'.",
+      .ver
+    ))
+  }
   model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
-  model_params[["rfx_model_spec"]] <- json_object_default$get_string(
-    "rfx_model_spec"
-  )
+  if (has_field("rfx_model_spec")) {
+    model_params[["rfx_model_spec"]] <- json_object_default$get_string(
+      "rfx_model_spec"
+    )
+  } else {
+    model_params[["rfx_model_spec"]] <- ""
+    if (model_params[["has_rfx"]]) {
+      warning(sprintf(
+        "Field 'rfx_model_spec' not found in BCF JSON (inferred version: %s) but has_rfx=TRUE.",
+        .ver
+      ))
+    }
+  }
 
   # Combine values that are sample-specific
   for (i in 1:length(json_object_list)) {
@@ -5119,26 +5313,39 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
       }
     }
   }
+  .b_use_new_names <- has_subfolder_field("parameters", "b1_samples")
   if (model_params[["adaptive_coding"]]) {
+    if (!.b_use_new_names) {
+      warning(sprintf(
+        "JSON fields 'b_1_samples'/'b_0_samples' are deprecated; please re-save the model to use 'b1_samples'/'b0_samples' (inferred version: %s).",
+        .ver
+      ))
+    }
     for (i in 1:length(json_object_list)) {
       json_object <- json_object_list[[i]]
       if (i == 1) {
         output[["b_1_samples"]] <- json_object$get_vector(
-          "b_1_samples",
+          if (.b_use_new_names) "b1_samples" else "b_1_samples",
           "parameters"
         )
         output[["b_0_samples"]] <- json_object$get_vector(
-          "b_0_samples",
+          if (.b_use_new_names) "b0_samples" else "b_0_samples",
           "parameters"
         )
       } else {
         output[["b_1_samples"]] <- c(
           output[["b_1_samples"]],
-          json_object$get_vector("b_1_samples", "parameters")
+          json_object$get_vector(
+            if (.b_use_new_names) "b1_samples" else "b_1_samples",
+            "parameters"
+          )
         )
         output[["b_0_samples"]] <- c(
           output[["b_0_samples"]],
-          json_object$get_vector("b_0_samples", "parameters")
+          json_object$get_vector(
+            if (.b_use_new_names) "b0_samples" else "b_0_samples",
+            "parameters"
+          )
         )
       }
     }
@@ -5174,12 +5381,20 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   }
 
   # Unpack covariate preprocessor
-  preprocessor_metadata_string <- json_object_default$get_string(
-    "preprocessor_metadata"
-  )
-  output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
-    preprocessor_metadata_string
-  )
+  if (has_field("preprocessor_metadata")) {
+    preprocessor_metadata_string <- json_object_default$get_string(
+      "preprocessor_metadata"
+    )
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+      preprocessor_metadata_string
+    )
+  } else {
+    output[["train_set_metadata"]] <- NULL
+    warning(sprintf(
+      "Field 'preprocessor_metadata' not found in BCF JSON (inferred version: %s). Preprocessor is unavailable; prediction may fail.",
+      .ver
+    ))
+  }
 
   class(output) <- "bcfmodel"
   return(output)
@@ -5201,7 +5416,10 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
     # Add runtime check for separately serialized propensity models
     # We don't support merging BCF models with independent propensity models
     # this way at the moment
-    if (json_object_list[[i]]$get_boolean("internal_propensity_model")) {
+    if (
+      json_contains_field_cpp(json_object_list[[i]]$json_ptr, "internal_propensity_model") &&
+        json_object_list[[i]]$get_boolean("internal_propensity_model")
+    ) {
       stop(
         "Combining separate BCF models with cached internal propensity models is currently unsupported. To make this work, please first train a propensity model and then pass the propensities as data to the separate BCF models before sampling."
       )
@@ -5211,6 +5429,13 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   # For scalar / preprocessing details which aren't sample-dependent,
   # defer to the first json
   json_object_default <- json_object_list[[1]]
+
+  # Version inference and presence-check helpers
+  .ver <- inferStochtreeJsonVersion(json_object_default)
+  has_field <- function(name) json_contains_field_cpp(json_object_default$json_ptr, name)
+  has_subfolder_field <- function(subfolder, name) {
+    json_contains_field_subfolder_cpp(json_object_default$json_ptr, subfolder, name)
+  }
 
   # Unpack the forests
   output[["forests_mu"]] <- loadForestContainerCombinedJson(
@@ -5282,9 +5507,15 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   model_params[["standardize"]] <- json_object_default$get_boolean(
     "standardize"
   )
-  model_params[["initial_sigma2"]] <- json_object_default$get_scalar(
-    "initial_sigma2"
-  )
+  if (has_field("sigma2_init")) {
+    model_params[["initial_sigma2"]] <- json_object_default$get_scalar("sigma2_init")
+  } else {
+    model_params[["initial_sigma2"]] <- json_object_default$get_scalar("initial_sigma2")
+    warning(sprintf(
+      "JSON field 'initial_sigma2' is deprecated; please re-save the model to use 'sigma2_init' (inferred version: %s).",
+      .ver
+    ))
+  }
   model_params[["sample_sigma2_global"]] <- json_object_default$get_boolean(
     "sample_sigma2_global"
   )
@@ -5299,44 +5530,120 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
     "propensity_covariate"
   )
   model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
-  model_params[["has_rfx_basis"]] <- json_object_default$get_boolean(
-    "has_rfx_basis"
-  )
-  model_params[["num_rfx_basis"]] <- json_object_default$get_scalar(
-    "num_rfx_basis"
-  )
+  if (has_field("has_rfx_basis")) {
+    model_params[["has_rfx_basis"]] <- json_object_default$get_boolean(
+      "has_rfx_basis"
+    )
+    model_params[["num_rfx_basis"]] <- json_object_default$get_scalar(
+      "num_rfx_basis"
+    )
+  } else {
+    model_params[["has_rfx_basis"]] <- FALSE
+    model_params[["num_rfx_basis"]] <- 1
+    warning(sprintf(
+      "Fields 'has_rfx_basis' and 'num_rfx_basis' not found in BCF JSON (inferred version: %s). Defaulting to has_rfx_basis=FALSE, num_rfx_basis=1.",
+      .ver
+    ))
+  }
   model_params[["num_covariates"]] <- json_object_default$get_scalar(
     "num_covariates"
   )
-  model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
-  model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
-  model_params[["multivariate_treatment"]] <- json_object_default$get_boolean(
-    "multivariate_treatment"
-  )
+  if (has_field("num_chains")) {
+    model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
+  } else {
+    model_params[["num_chains"]] <- 1
+    warning(sprintf(
+      "Field 'num_chains' not found in BCF JSON (inferred version: %s). Defaulting to 1.",
+      .ver
+    ))
+  }
+  if (has_field("keep_every")) {
+    model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
+  } else {
+    model_params[["keep_every"]] <- 1
+    warning(sprintf(
+      "Field 'keep_every' not found in BCF JSON (inferred version: %s). Defaulting to 1.",
+      .ver
+    ))
+  }
+  if (has_field("multivariate_treatment")) {
+    model_params[["multivariate_treatment"]] <- json_object_default$get_boolean(
+      "multivariate_treatment"
+    )
+  } else {
+    model_params[["multivariate_treatment"]] <- FALSE
+    warning(sprintf(
+      "Field 'multivariate_treatment' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
   model_params[["adaptive_coding"]] <- json_object_default$get_boolean(
     "adaptive_coding"
   )
-  model_params[["sample_tau_0"]] <- json_object_default$get_boolean(
-    "sample_tau_0"
-  )
-  model_params[[
-    "internal_propensity_model"
-  ]] <- json_object_default$get_boolean("internal_propensity_model")
-  model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
-    "probit_outcome_model"
-  )
-  outcome_model_outcome <- json_object_default$get_string(
-    "outcome",
-    "outcome_model"
-  )
-  outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+  if (has_field("sample_tau_0")) {
+    model_params[["sample_tau_0"]] <- json_object_default$get_boolean(
+      "sample_tau_0"
+    )
+  } else {
+    model_params[["sample_tau_0"]] <- FALSE
+    warning(sprintf(
+      "Field 'sample_tau_0' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_field("internal_propensity_model")) {
+    model_params[[
+      "internal_propensity_model"
+    ]] <- json_object_default$get_boolean("internal_propensity_model")
+  } else {
+    model_params[["internal_propensity_model"]] <- FALSE
+    warning(sprintf(
+      "Field 'internal_propensity_model' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_field("probit_outcome_model")) {
+    model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
+      "probit_outcome_model"
+    )
+  } else {
+    model_params[["probit_outcome_model"]] <- FALSE
+    warning(sprintf(
+      "Field 'probit_outcome_model' not found in BCF JSON (inferred version: %s). Defaulting to FALSE.",
+      .ver
+    ))
+  }
+  if (has_subfolder_field("outcome_model", "outcome")) {
+    outcome_model_outcome <- json_object_default$get_string(
+      "outcome",
+      "outcome_model"
+    )
+    outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+  } else {
+    outcome_model_outcome <- "continuous"
+    outcome_model_link <- "identity"
+    warning(sprintf(
+      "Subfolder 'outcome_model' not found in BCF JSON (inferred version: %s). Defaulting to outcome='continuous', link='identity'.",
+      .ver
+    ))
+  }
   model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
-  model_params[["rfx_model_spec"]] <- json_object_default$get_string(
-    "rfx_model_spec"
-  )
+  if (has_field("rfx_model_spec")) {
+    model_params[["rfx_model_spec"]] <- json_object_default$get_string(
+      "rfx_model_spec"
+    )
+  } else {
+    model_params[["rfx_model_spec"]] <- ""
+    if (model_params[["has_rfx"]]) {
+      warning(sprintf(
+        "Field 'rfx_model_spec' not found in BCF JSON (inferred version: %s) but has_rfx=TRUE.",
+        .ver
+      ))
+    }
+  }
 
   # Combine values that are sample-specific
   for (i in 1:length(json_object_list)) {
@@ -5439,26 +5746,39 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
       }
     }
   }
+  .b_use_new_names <- has_subfolder_field("parameters", "b1_samples")
   if (model_params[["adaptive_coding"]]) {
+    if (!.b_use_new_names) {
+      warning(sprintf(
+        "JSON fields 'b_1_samples'/'b_0_samples' are deprecated; please re-save the model to use 'b1_samples'/'b0_samples' (inferred version: %s).",
+        .ver
+      ))
+    }
     for (i in 1:length(json_object_list)) {
       json_object <- json_object_list[[i]]
       if (i == 1) {
         output[["b_1_samples"]] <- json_object$get_vector(
-          "b_1_samples",
+          if (.b_use_new_names) "b1_samples" else "b_1_samples",
           "parameters"
         )
         output[["b_0_samples"]] <- json_object$get_vector(
-          "b_0_samples",
+          if (.b_use_new_names) "b0_samples" else "b_0_samples",
           "parameters"
         )
       } else {
         output[["b_1_samples"]] <- c(
           output[["b_1_samples"]],
-          json_object$get_vector("b_1_samples", "parameters")
+          json_object$get_vector(
+            if (.b_use_new_names) "b1_samples" else "b_1_samples",
+            "parameters"
+          )
         )
         output[["b_0_samples"]] <- c(
           output[["b_0_samples"]],
-          json_object$get_vector("b_0_samples", "parameters")
+          json_object$get_vector(
+            if (.b_use_new_names) "b0_samples" else "b_0_samples",
+            "parameters"
+          )
         )
       }
     }
@@ -5494,12 +5814,20 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   }
 
   # Unpack covariate preprocessor
-  preprocessor_metadata_string <- json_object_default$get_string(
-    "preprocessor_metadata"
-  )
-  output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
-    preprocessor_metadata_string
-  )
+  if (has_field("preprocessor_metadata")) {
+    preprocessor_metadata_string <- json_object_default$get_string(
+      "preprocessor_metadata"
+    )
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+      preprocessor_metadata_string
+    )
+  } else {
+    output[["train_set_metadata"]] <- NULL
+    warning(sprintf(
+      "Field 'preprocessor_metadata' not found in BCF JSON (inferred version: %s). Preprocessor is unavailable; prediction may fail.",
+      .ver
+    ))
+  }
 
   class(output) <- "bcfmodel"
   return(output)

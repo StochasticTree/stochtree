@@ -847,3 +847,78 @@ test_that("BCF internal propensity model works with data frame covariates", {
   expect_true(!is.null(bcf_model$tau_hat_train))
   expect_true(!is.null(bcf_model$tau_hat_test))
 })
+
+test_that("BCF JSON serialization roundtrip covers all deserialization paths", {
+  skip_on_cran()
+
+  # Generate simulated data
+  set.seed(42)
+  n <- 100
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  mu_x <- pi_x * 5
+  tau_x <- X[, 2] * 2
+  Z <- rbinom(n, 1, pi_x)
+  y <- mu_x + Z * tau_x + rnorm(n, 0, 1)
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_test <- X[test_inds, ]
+  X_train <- X[train_inds, ]
+  pi_test <- pi_x[test_inds]
+  pi_train <- pi_x[train_inds]
+  Z_test <- Z[test_inds]
+  Z_train <- Z[train_inds]
+  y_train <- y[train_inds]
+
+  # Fit model
+  bcf_model <- bcf(
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    num_gfr = 0,
+    num_burnin = 0,
+    num_mcmc = 10
+  )
+  preds_orig <- predict(bcf_model, X_test, Z_test, pi_test)
+  y_hat_orig <- rowMeans(preds_orig[["y_hat"]])
+  tau_hat_orig <- rowMeans(preds_orig[["tau_hat"]])
+
+  # Path 1: in-memory JSON object
+  bcf_json <- saveBCFModelToJson(bcf_model)
+  bcf_rt <- createBCFModelFromJson(bcf_json)
+  preds_rt <- predict(bcf_rt, X_test, Z_test, pi_test)
+  expect_equal(rowMeans(preds_rt[["y_hat"]]), y_hat_orig)
+  expect_equal(rowMeans(preds_rt[["tau_hat"]]), tau_hat_orig)
+
+  # Path 2: JSON string
+  bcf_json_string <- saveBCFModelToJsonString(bcf_model)
+  bcf_rt <- createBCFModelFromJsonString(bcf_json_string)
+  preds_rt <- predict(bcf_rt, X_test, Z_test, pi_test)
+  expect_equal(rowMeans(preds_rt[["y_hat"]]), y_hat_orig)
+  expect_equal(rowMeans(preds_rt[["tau_hat"]]), tau_hat_orig)
+
+  # Path 3: JSON file
+  tmpjson <- tempfile(fileext = ".json")
+  saveBCFModelToJsonFile(bcf_model, tmpjson)
+  bcf_rt <- createBCFModelFromJsonFile(tmpjson)
+  unlink(tmpjson)
+  preds_rt <- predict(bcf_rt, X_test, Z_test, pi_test)
+  expect_equal(rowMeans(preds_rt[["y_hat"]]), y_hat_orig)
+  expect_equal(rowMeans(preds_rt[["tau_hat"]]), tau_hat_orig)
+
+  # Path 4: list of in-memory JSON objects (combined)
+  bcf_rt <- createBCFModelFromCombinedJson(list(bcf_json))
+  preds_rt <- predict(bcf_rt, X_test, Z_test, pi_test)
+  expect_equal(rowMeans(preds_rt[["y_hat"]]), y_hat_orig)
+  expect_equal(rowMeans(preds_rt[["tau_hat"]]), tau_hat_orig)
+
+  # Path 5: list of JSON strings (combined)
+  bcf_rt <- createBCFModelFromCombinedJsonString(list(bcf_json_string))
+  preds_rt <- predict(bcf_rt, X_test, Z_test, pi_test)
+  expect_equal(rowMeans(preds_rt[["y_hat"]]), y_hat_orig)
+  expect_equal(rowMeans(preds_rt[["tau_hat"]]), tau_hat_orig)
+})

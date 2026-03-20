@@ -1,3 +1,4 @@
+import json
 import warnings
 from math import log, floor
 from numbers import Integral
@@ -27,6 +28,8 @@ from .utils import (
     _expand_dims_1d,
     _expand_dims_2d,
     _expand_dims_2d_diag,
+    _get_stochtree_version,
+    _infer_stochtree_version,
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
@@ -2988,7 +2991,8 @@ class BARTModel:
         if self.has_rfx:
             bart_json.add_random_effects(self.rfx_container)
 
-        # Add global parameters
+        # Add version stamp and global parameters
+        bart_json.add_string("stochtree_version", _get_stochtree_version())
         bart_json.add_scalar("outcome_scale", self.y_std)
         bart_json.add_scalar("outcome_mean", self.y_bar)
         bart_json.add_boolean("standardize", self.standardize)
@@ -3049,7 +3053,10 @@ class BARTModel:
         json_string : str
             JSON string representing model metadata (hyperparameters), sampled parameters, and sampled forests
         """
-        # Parse string to a JSON object in C++
+        # Parse string to a JSON object in C++; also keep a plain dict for
+        # optional-field presence checks (JSONSerializer has no contains_field).
+        _raw = json.loads(json_string)
+        _ver = _infer_stochtree_version(json_string)
         bart_json = JSONSerializer()
         bart_json.load_from_json_string(json_string)
 
@@ -3057,8 +3064,19 @@ class BARTModel:
         self.include_mean_forest = bart_json.get_boolean("include_mean_forest")
         self.include_variance_forest = bart_json.get_boolean("include_variance_forest")
         self.has_rfx = bart_json.get_boolean("has_rfx")
-        self.has_rfx_basis = bart_json.get_boolean("has_rfx_basis")
-        self.num_rfx_basis = bart_json.get_scalar("num_rfx_basis")
+
+        if "has_rfx_basis" in _raw:
+            self.has_rfx_basis = bart_json.get_boolean("has_rfx_basis")
+            self.num_rfx_basis = bart_json.get_scalar("num_rfx_basis")
+        else:
+            self.has_rfx_basis = False
+            self.num_rfx_basis = 1
+            warnings.warn(
+                f"Fields 'has_rfx_basis' and 'num_rfx_basis' not found in JSON (model appears to "
+                f"have been serialized under stochtree {_ver}). Defaulting to False / 1. "
+                f"Re-save your model to suppress this warning."
+            )
+
         if self.include_mean_forest:
             # TODO: don't just make this a placeholder that we overwrite
             self.forest_container_mean = ForestContainer(0, 0, False, False)
@@ -3093,16 +3111,60 @@ class BARTModel:
         self.num_gfr = bart_json.get_integer("num_gfr")
         self.num_burnin = bart_json.get_integer("num_burnin")
         self.num_mcmc = bart_json.get_integer("num_mcmc")
-        self.num_chains = bart_json.get_integer("num_chains")
-        self.keep_every = bart_json.get_integer("keep_every")
         self.num_samples = bart_json.get_integer("num_samples")
         self.num_basis = bart_json.get_integer("num_basis")
         self.has_basis = bart_json.get_boolean("requires_basis")
-        self.probit_outcome_model = bart_json.get_boolean("probit_outcome_model")
-        outcome_model_outcome = bart_json.get_string("outcome", "outcome_model")
-        outcome_model_link = bart_json.get_string("link", "outcome_model")
+
+        if "num_chains" in _raw:
+            self.num_chains = bart_json.get_integer("num_chains")
+        else:
+            self.num_chains = 1
+            warnings.warn(
+                f"Field 'num_chains' not found in JSON (model appears to have been serialized "
+                f"under stochtree {_ver}). Defaulting to 1. "
+                f"Re-save your model to suppress this warning."
+            )
+
+        if "keep_every" in _raw:
+            self.keep_every = bart_json.get_integer("keep_every")
+        else:
+            self.keep_every = 1
+            warnings.warn(
+                f"Field 'keep_every' not found in JSON (model appears to have been serialized "
+                f"under stochtree {_ver}). Defaulting to 1. "
+                f"Re-save your model to suppress this warning."
+            )
+
+        if "probit_outcome_model" in _raw:
+            self.probit_outcome_model = bart_json.get_boolean("probit_outcome_model")
+        else:
+            self.probit_outcome_model = False
+
+        _outcome_model_raw = _raw.get("outcome_model", {})
+        if "outcome" in _outcome_model_raw and "link" in _outcome_model_raw:
+            outcome_model_outcome = bart_json.get_string("outcome", "outcome_model")
+            outcome_model_link = bart_json.get_string("link", "outcome_model")
+        else:
+            outcome_model_outcome = "continuous"
+            outcome_model_link = "identity"
+            warnings.warn(
+                f"Fields 'outcome' and 'link' not found under 'outcome_model' in JSON (model "
+                f"appears to have been serialized under stochtree {_ver}). Defaulting to "
+                f"outcome='continuous', link='identity'. "
+                f"Re-save your model to suppress this warning."
+            )
         self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
-        self.rfx_model_spec = bart_json.get_string("rfx_model_spec")
+
+        if "rfx_model_spec" in _raw:
+            self.rfx_model_spec = bart_json.get_string("rfx_model_spec")
+        else:
+            self.rfx_model_spec = ""
+            if self.has_rfx:
+                warnings.warn(
+                    f"Field 'rfx_model_spec' not found in JSON (model appears to have been "
+                    f"serialized under stochtree {_ver}). Defaulting to ''. "
+                    f"Re-save your model to suppress this warning."
+                )
 
         # Unpack parameter samples
         if self.sample_sigma2_global:
@@ -3127,9 +3189,17 @@ class BARTModel:
                     )
 
         # Unpack covariate preprocessor
-        covariate_preprocessor_string = bart_json.get_string("covariate_preprocessor")
-        self._covariate_preprocessor = CovariatePreprocessor()
-        self._covariate_preprocessor.from_json(covariate_preprocessor_string)
+        if "covariate_preprocessor" in _raw:
+            covariate_preprocessor_string = bart_json.get_string("covariate_preprocessor")
+            self._covariate_preprocessor = CovariatePreprocessor()
+            self._covariate_preprocessor.from_json(covariate_preprocessor_string)
+        else:
+            self._covariate_preprocessor = None
+            warnings.warn(
+                f"Field 'covariate_preprocessor' not found in JSON (model appears to have been "
+                f"serialized under stochtree {_ver}). DataFrame covariates will not be supported "
+                f"for prediction. Re-save your model to suppress this warning."
+            )
 
         # Mark the deserialized model as "sampled"
         self.sampled = True
@@ -3153,6 +3223,8 @@ class BARTModel:
 
         # For scalar / preprocessing details which aren't sample-dependent, defer to the first json
         json_object_default = json_object_list[0]
+        _raw = json.loads(json_string_list[0])
+        _ver = _infer_stochtree_version(json_string_list[0])
 
         # Unpack forests
         self.include_mean_forest = json_object_default.get_boolean(
@@ -3200,8 +3272,19 @@ class BARTModel:
 
         # Unpack random effects
         self.has_rfx = json_object_default.get_boolean("has_rfx")
-        self.has_rfx_basis = json_object_default.get_boolean("has_rfx_basis")
-        self.num_rfx_basis = json_object_default.get_scalar("num_rfx_basis")
+
+        if "has_rfx_basis" in _raw:
+            self.has_rfx_basis = json_object_default.get_boolean("has_rfx_basis")
+            self.num_rfx_basis = json_object_default.get_scalar("num_rfx_basis")
+        else:
+            self.has_rfx_basis = False
+            self.num_rfx_basis = 1
+            warnings.warn(
+                f"Fields 'has_rfx_basis' and 'num_rfx_basis' not found in JSON (model appears to "
+                f"have been serialized under stochtree {_ver}). Defaulting to False / 1. "
+                f"Re-save your model to suppress this warning."
+            )
+
         if self.has_rfx:
             self.rfx_container = RandomEffectsContainer()
             for i in range(len(json_object_list)):
@@ -3222,17 +3305,59 @@ class BARTModel:
         self.num_gfr = json_object_default.get_integer("num_gfr")
         self.num_burnin = json_object_default.get_integer("num_burnin")
         self.num_mcmc = json_object_default.get_integer("num_mcmc")
-        self.num_chains = json_object_default.get_integer("num_chains")
-        self.keep_every = json_object_default.get_integer("keep_every")
         self.num_basis = json_object_default.get_integer("num_basis")
         self.has_basis = json_object_default.get_boolean("requires_basis")
-        self.probit_outcome_model = json_object_default.get_boolean(
-            "probit_outcome_model"
-        )
-        outcome_model_outcome = json_object_default.get_string("outcome", "outcome_model")
-        outcome_model_link = json_object_default.get_string("link", "outcome_model")
+
+        if "num_chains" in _raw:
+            self.num_chains = json_object_default.get_integer("num_chains")
+        else:
+            self.num_chains = 1
+            warnings.warn(
+                f"Field 'num_chains' not found in JSON (model appears to have been serialized "
+                f"under stochtree {_ver}). Defaulting to 1. "
+                f"Re-save your model to suppress this warning."
+            )
+
+        if "keep_every" in _raw:
+            self.keep_every = json_object_default.get_integer("keep_every")
+        else:
+            self.keep_every = 1
+            warnings.warn(
+                f"Field 'keep_every' not found in JSON (model appears to have been serialized "
+                f"under stochtree {_ver}). Defaulting to 1. "
+                f"Re-save your model to suppress this warning."
+            )
+
+        if "probit_outcome_model" in _raw:
+            self.probit_outcome_model = json_object_default.get_boolean("probit_outcome_model")
+        else:
+            self.probit_outcome_model = False
+
+        _outcome_model_raw = _raw.get("outcome_model", {})
+        if "outcome" in _outcome_model_raw and "link" in _outcome_model_raw:
+            outcome_model_outcome = json_object_default.get_string("outcome", "outcome_model")
+            outcome_model_link = json_object_default.get_string("link", "outcome_model")
+        else:
+            outcome_model_outcome = "continuous"
+            outcome_model_link = "identity"
+            warnings.warn(
+                f"Fields 'outcome' and 'link' not found under 'outcome_model' in JSON (model "
+                f"appears to have been serialized under stochtree {_ver}). Defaulting to "
+                f"outcome='continuous', link='identity'. "
+                f"Re-save your model to suppress this warning."
+            )
         self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
-        self.rfx_model_spec = json_object_default.get_string("rfx_model_spec")
+
+        if "rfx_model_spec" in _raw:
+            self.rfx_model_spec = json_object_default.get_string("rfx_model_spec")
+        else:
+            self.rfx_model_spec = ""
+            if self.has_rfx:
+                warnings.warn(
+                    f"Field 'rfx_model_spec' not found in JSON (model appears to have been "
+                    f"serialized under stochtree {_ver}). Defaulting to ''. "
+                    f"Re-save your model to suppress this warning."
+                )
 
         # Unpack number of samples
         for i in range(len(json_object_list)):
@@ -3295,11 +3420,19 @@ class BARTModel:
                         )
 
         # Unpack covariate preprocessor
-        covariate_preprocessor_string = json_object_default.get_string(
-            "covariate_preprocessor"
-        )
-        self._covariate_preprocessor = CovariatePreprocessor()
-        self._covariate_preprocessor.from_json(covariate_preprocessor_string)
+        if "covariate_preprocessor" in _raw:
+            covariate_preprocessor_string = json_object_default.get_string(
+                "covariate_preprocessor"
+            )
+            self._covariate_preprocessor = CovariatePreprocessor()
+            self._covariate_preprocessor.from_json(covariate_preprocessor_string)
+        else:
+            self._covariate_preprocessor = None
+            warnings.warn(
+                f"Field 'covariate_preprocessor' not found in JSON (model appears to have been "
+                f"serialized under stochtree {_ver}). DataFrame covariates will not be supported "
+                f"for prediction. Re-save your model to suppress this warning."
+            )
 
         # Mark the deserialized model as "sampled"
         self.sampled = True
