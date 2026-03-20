@@ -4530,7 +4530,7 @@ saveBCFModelToJson <- function(object) {
   jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
   jsonobj$add_scalar("outcome_mean", object$model_params$outcome_mean)
   jsonobj$add_boolean("standardize", object$model_params$standardize)
-  jsonobj$add_scalar("initial_sigma2", object$model_params$initial_sigma2)
+  jsonobj$add_scalar("sigma2_init", object$model_params$initial_sigma2)
   jsonobj$add_boolean(
     "sample_sigma2_global",
     object$model_params$sample_sigma2_global
@@ -4609,8 +4609,8 @@ saveBCFModelToJson <- function(object) {
     )
   }
   if (object$model_params$adaptive_coding) {
-    jsonobj$add_vector("b_1_samples", object$b_1_samples, "parameters")
-    jsonobj$add_vector("b_0_samples", object$b_0_samples, "parameters")
+    jsonobj$add_vector("b1_samples", object$b_1_samples, "parameters")
+    jsonobj$add_vector("b0_samples", object$b_0_samples, "parameters")
   }
   if (object$model_params$sample_tau_0 && !is.null(object$tau_0_samples)) {
     jsonobj$add_scalar("tau_0_dim", nrow(object$tau_0_samples))
@@ -4749,7 +4749,15 @@ createBCFModelFromJson <- function(json_object) {
   model_params[["outcome_scale"]] <- json_object$get_scalar("outcome_scale")
   model_params[["outcome_mean"]] <- json_object$get_scalar("outcome_mean")
   model_params[["standardize"]] <- json_object$get_boolean("standardize")
-  model_params[["initial_sigma2"]] <- json_object$get_scalar("initial_sigma2")
+  if (has_field("sigma2_init")) {
+    model_params[["initial_sigma2"]] <- json_object$get_scalar("sigma2_init")
+  } else {
+    model_params[["initial_sigma2"]] <- json_object$get_scalar("initial_sigma2")
+    warning(sprintf(
+      "JSON field 'initial_sigma2' is deprecated; please re-save the model to use 'sigma2_init' (inferred version: %s).",
+      .ver
+    ))
+  }
   model_params[["sample_sigma2_global"]] <- json_object$get_boolean(
     "sample_sigma2_global"
   )
@@ -4893,14 +4901,17 @@ createBCFModelFromJson <- function(json_object) {
     )
   }
   if (model_params[["adaptive_coding"]]) {
-    output[["b_1_samples"]] <- json_object$get_vector(
-      "b_1_samples",
-      "parameters"
-    )
-    output[["b_0_samples"]] <- json_object$get_vector(
-      "b_0_samples",
-      "parameters"
-    )
+    if (has_subfolder_field("parameters", "b1_samples")) {
+      output[["b_1_samples"]] <- json_object$get_vector("b1_samples", "parameters")
+      output[["b_0_samples"]] <- json_object$get_vector("b0_samples", "parameters")
+    } else {
+      output[["b_1_samples"]] <- json_object$get_vector("b_1_samples", "parameters")
+      output[["b_0_samples"]] <- json_object$get_vector("b_0_samples", "parameters")
+      warning(sprintf(
+        "JSON fields 'b_1_samples'/'b_0_samples' are deprecated; please re-save the model to use 'b1_samples'/'b0_samples' (inferred version: %s).",
+        .ver
+      ))
+    }
   }
   if (model_params[["sample_tau_0"]]) {
     tau_0_dim <- as.integer(json_object$get_scalar("tau_0_dim"))
@@ -5063,9 +5074,15 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   model_params[["standardize"]] <- json_object_default$get_boolean(
     "standardize"
   )
-  model_params[["initial_sigma2"]] <- json_object_default$get_scalar(
-    "initial_sigma2"
-  )
+  if (has_field("sigma2_init")) {
+    model_params[["initial_sigma2"]] <- json_object_default$get_scalar("sigma2_init")
+  } else {
+    model_params[["initial_sigma2"]] <- json_object_default$get_scalar("initial_sigma2")
+    warning(sprintf(
+      "JSON field 'initial_sigma2' is deprecated; please re-save the model to use 'sigma2_init' (inferred version: %s).",
+      .ver
+    ))
+  }
   model_params[["sample_sigma2_global"]] <- json_object_default$get_boolean(
     "sample_sigma2_global"
   )
@@ -5296,26 +5313,39 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
       }
     }
   }
+  .b_use_new_names <- has_subfolder_field("parameters", "b1_samples")
   if (model_params[["adaptive_coding"]]) {
+    if (!.b_use_new_names) {
+      warning(sprintf(
+        "JSON fields 'b_1_samples'/'b_0_samples' are deprecated; please re-save the model to use 'b1_samples'/'b0_samples' (inferred version: %s).",
+        .ver
+      ))
+    }
     for (i in 1:length(json_object_list)) {
       json_object <- json_object_list[[i]]
       if (i == 1) {
         output[["b_1_samples"]] <- json_object$get_vector(
-          "b_1_samples",
+          if (.b_use_new_names) "b1_samples" else "b_1_samples",
           "parameters"
         )
         output[["b_0_samples"]] <- json_object$get_vector(
-          "b_0_samples",
+          if (.b_use_new_names) "b0_samples" else "b_0_samples",
           "parameters"
         )
       } else {
         output[["b_1_samples"]] <- c(
           output[["b_1_samples"]],
-          json_object$get_vector("b_1_samples", "parameters")
+          json_object$get_vector(
+            if (.b_use_new_names) "b1_samples" else "b_1_samples",
+            "parameters"
+          )
         )
         output[["b_0_samples"]] <- c(
           output[["b_0_samples"]],
-          json_object$get_vector("b_0_samples", "parameters")
+          json_object$get_vector(
+            if (.b_use_new_names) "b0_samples" else "b_0_samples",
+            "parameters"
+          )
         )
       }
     }
@@ -5477,9 +5507,15 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   model_params[["standardize"]] <- json_object_default$get_boolean(
     "standardize"
   )
-  model_params[["initial_sigma2"]] <- json_object_default$get_scalar(
-    "initial_sigma2"
-  )
+  if (has_field("sigma2_init")) {
+    model_params[["initial_sigma2"]] <- json_object_default$get_scalar("sigma2_init")
+  } else {
+    model_params[["initial_sigma2"]] <- json_object_default$get_scalar("initial_sigma2")
+    warning(sprintf(
+      "JSON field 'initial_sigma2' is deprecated; please re-save the model to use 'sigma2_init' (inferred version: %s).",
+      .ver
+    ))
+  }
   model_params[["sample_sigma2_global"]] <- json_object_default$get_boolean(
     "sample_sigma2_global"
   )
@@ -5710,26 +5746,39 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
       }
     }
   }
+  .b_use_new_names <- has_subfolder_field("parameters", "b1_samples")
   if (model_params[["adaptive_coding"]]) {
+    if (!.b_use_new_names) {
+      warning(sprintf(
+        "JSON fields 'b_1_samples'/'b_0_samples' are deprecated; please re-save the model to use 'b1_samples'/'b0_samples' (inferred version: %s).",
+        .ver
+      ))
+    }
     for (i in 1:length(json_object_list)) {
       json_object <- json_object_list[[i]]
       if (i == 1) {
         output[["b_1_samples"]] <- json_object$get_vector(
-          "b_1_samples",
+          if (.b_use_new_names) "b1_samples" else "b_1_samples",
           "parameters"
         )
         output[["b_0_samples"]] <- json_object$get_vector(
-          "b_0_samples",
+          if (.b_use_new_names) "b0_samples" else "b_0_samples",
           "parameters"
         )
       } else {
         output[["b_1_samples"]] <- c(
           output[["b_1_samples"]],
-          json_object$get_vector("b_1_samples", "parameters")
+          json_object$get_vector(
+            if (.b_use_new_names) "b1_samples" else "b_1_samples",
+            "parameters"
+          )
         )
         output[["b_0_samples"]] <- c(
           output[["b_0_samples"]],
-          json_object$get_vector("b_0_samples", "parameters")
+          json_object$get_vector(
+            if (.b_use_new_names) "b0_samples" else "b_0_samples",
+            "parameters"
+          )
         )
       }
     }
