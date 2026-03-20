@@ -3672,6 +3672,15 @@ createBARTModelFromJson <- function(json_object) {
   # Initialize the BCF model
   output <- list()
 
+  # Helpers for optional-field presence checks
+  .ver <- inferStochtreeJsonVersion(json_object)
+  has_field <- function(name) {
+    json_contains_field_cpp(json_object$json_ptr, name)
+  }
+  has_subfolder_field <- function(subfolder, name) {
+    json_contains_field_subfolder_cpp(json_object$json_ptr, subfolder, name)
+  }
+
   # Unpack the forests
   include_mean_forest <- json_object$get_boolean("include_mean_forest")
   include_variance_forest <- json_object$get_boolean(
@@ -3750,31 +3759,99 @@ createBARTModelFromJson <- function(json_object) {
   model_params[["include_mean_forest"]] <- include_mean_forest
   model_params[["include_variance_forest"]] <- include_variance_forest
   model_params[["has_rfx"]] <- json_object$get_boolean("has_rfx")
-  model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
-  model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
+
+  if (has_field("has_rfx_basis")) {
+    model_params[["has_rfx_basis"]] <- json_object$get_boolean("has_rfx_basis")
+    model_params[["num_rfx_basis"]] <- json_object$get_scalar("num_rfx_basis")
+  } else {
+    model_params[["has_rfx_basis"]] <- FALSE
+    model_params[["num_rfx_basis"]] <- 1
+    warning(paste0(
+      "Fields 'has_rfx_basis' and 'num_rfx_basis' not found in JSON (model appears to have been ",
+      "serialized under stochtree ",
+      .ver,
+      "). Defaulting to FALSE / 1. ",
+      "Re-save your model to suppress this warning."
+    ))
+  }
+
   model_params[["num_gfr"]] <- json_object$get_scalar("num_gfr")
   model_params[["num_burnin"]] <- json_object$get_scalar("num_burnin")
   model_params[["num_mcmc"]] <- json_object$get_scalar("num_mcmc")
   model_params[["num_samples"]] <- json_object$get_scalar("num_samples")
-  model_params[["num_covariates"]] <- json_object$get_scalar("num_covariates")
+  model_params[["num_covariates"]] <- if (has_field("num_covariates")) {
+    json_object$get_scalar("num_covariates")
+  } else {
+    NA_real_
+  }
   model_params[["num_basis"]] <- json_object$get_scalar("num_basis")
-  model_params[["num_chains"]] <- json_object$get_scalar("num_chains")
-  model_params[["keep_every"]] <- json_object$get_scalar("keep_every")
-  model_params[["requires_basis"]] <- json_object$get_boolean(
-    "requires_basis"
-  )
-  model_params[["probit_outcome_model"]] <- json_object$get_boolean(
-    "probit_outcome_model"
-  )
-  outcome_model_outcome <- json_object$get_string("outcome", "outcome_model")
-  outcome_model_link <- json_object$get_string("link", "outcome_model")
+  model_params[["requires_basis"]] <- json_object$get_boolean("requires_basis")
+
+  if (has_field("num_chains")) {
+    model_params[["num_chains"]] <- json_object$get_scalar("num_chains")
+  } else {
+    model_params[["num_chains"]] <- 1
+    warning(paste0(
+      "Field 'num_chains' not found in JSON (model appears to have been serialized under stochtree ",
+      .ver,
+      "). Defaulting to 1. Re-save your model to suppress this warning."
+    ))
+  }
+
+  if (has_field("keep_every")) {
+    model_params[["keep_every"]] <- json_object$get_scalar("keep_every")
+  } else {
+    model_params[["keep_every"]] <- 1
+    warning(paste0(
+      "Field 'keep_every' not found in JSON (model appears to have been serialized under stochtree ",
+      .ver,
+      "). Defaulting to 1. Re-save your model to suppress this warning."
+    ))
+  }
+
+  model_params[["probit_outcome_model"]] <- if (
+    has_field("probit_outcome_model")
+  ) {
+    json_object$get_boolean("probit_outcome_model")
+  } else {
+    FALSE
+  }
+
+  if (
+    has_subfolder_field("outcome_model", "outcome") &&
+      has_subfolder_field("outcome_model", "link")
+  ) {
+    outcome_model_outcome <- json_object$get_string("outcome", "outcome_model")
+    outcome_model_link <- json_object$get_string("link", "outcome_model")
+  } else {
+    outcome_model_outcome <- "continuous"
+    outcome_model_link <- "identity"
+    warning(paste0(
+      "Fields 'outcome' and 'link' not found under 'outcome_model' in JSON (model appears to have ",
+      "been serialized under stochtree ",
+      .ver,
+      "). Defaulting to outcome='continuous', ",
+      "link='identity'. Re-save your model to suppress this warning."
+    ))
+  }
   model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
-  model_params[["rfx_model_spec"]] <- json_object$get_string(
-    "rfx_model_spec"
-  )
+
+  if (has_field("rfx_model_spec")) {
+    model_params[["rfx_model_spec"]] <- json_object$get_string("rfx_model_spec")
+  } else {
+    model_params[["rfx_model_spec"]] <- ""
+    if (model_params[["has_rfx"]]) {
+      warning(paste0(
+        "Field 'rfx_model_spec' not found in JSON (model appears to have been serialized under ",
+        "stochtree ",
+        .ver,
+        "). Defaulting to ''. Re-save your model to suppress this warning."
+      ))
+    }
+  }
   if (model_params[["outcome_model"]]$link == "cloglog") {
     cloglog_num_categories <- json_object$get_scalar("cloglog_num_categories")
     model_params[["cloglog_num_categories"]] <- cloglog_num_categories
@@ -3824,12 +3901,23 @@ createBARTModelFromJson <- function(json_object) {
   }
 
   # Unpack covariate preprocessor
-  preprocessor_metadata_string <- json_object$get_string(
-    "preprocessor_metadata"
-  )
-  output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
-    preprocessor_metadata_string
-  )
+  if (has_field("preprocessor_metadata")) {
+    preprocessor_metadata_string <- json_object$get_string(
+      "preprocessor_metadata"
+    )
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+      preprocessor_metadata_string
+    )
+  } else {
+    output[["train_set_metadata"]] <- NULL
+    warning(paste0(
+      "Field 'preprocessor_metadata' not found in JSON (model appears to have been serialized ",
+      "under stochtree ",
+      .ver,
+      "). DataFrame covariates will not be supported for prediction. ",
+      "Re-save your model to suppress this warning."
+    ))
+  }
 
   class(output) <- "bartmodel"
   return(output)
@@ -3874,6 +3962,19 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   # For scalar / preprocessing details which aren't sample-dependent,
   # defer to the first json
   json_object_default <- json_object_list[[1]]
+
+  # Helpers for optional-field presence checks
+  .ver <- inferStochtreeJsonVersion(json_object_default)
+  has_field <- function(name) {
+    json_contains_field_cpp(json_object_default$json_ptr, name)
+  }
+  has_subfolder_field <- function(subfolder, name) {
+    json_contains_field_subfolder_cpp(
+      json_object_default$json_ptr,
+      subfolder,
+      name
+    )
+  }
 
   # Unpack the forests
   include_mean_forest <- json_object_default$get_boolean(
@@ -3963,36 +4064,109 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   model_params[["include_mean_forest"]] <- include_mean_forest
   model_params[["include_variance_forest"]] <- include_variance_forest
   model_params[["has_rfx"]] <- json_object_default$get_boolean("has_rfx")
-  model_params[["has_rfx_basis"]] <- json_object_default$get_boolean(
-    "has_rfx_basis"
-  )
-  model_params[["num_rfx_basis"]] <- json_object_default$get_scalar(
-    "num_rfx_basis"
-  )
-  model_params[["num_covariates"]] <- json_object_default$get_scalar(
-    "num_covariates"
-  )
+
+  if (has_field("has_rfx_basis")) {
+    model_params[["has_rfx_basis"]] <- json_object_default$get_boolean(
+      "has_rfx_basis"
+    )
+    model_params[["num_rfx_basis"]] <- json_object_default$get_scalar(
+      "num_rfx_basis"
+    )
+  } else {
+    model_params[["has_rfx_basis"]] <- FALSE
+    model_params[["num_rfx_basis"]] <- 1
+    warning(paste0(
+      "Fields 'has_rfx_basis' and 'num_rfx_basis' not found in JSON (model appears to have been ",
+      "serialized under stochtree ",
+      .ver,
+      "). Defaulting to FALSE / 1. ",
+      "Re-save your model to suppress this warning."
+    ))
+  }
+
+  model_params[["num_covariates"]] <- if (has_field("num_covariates")) {
+    json_object_default$get_scalar("num_covariates")
+  } else {
+    NA_real_
+  }
   model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
   model_params[["requires_basis"]] <- json_object_default$get_boolean(
     "requires_basis"
   )
-  model_params[["probit_outcome_model"]] <- json_object_default$get_boolean(
-    "probit_outcome_model"
-  )
-  outcome_model_outcome <- json_object_default$get_string(
-    "outcome",
-    "outcome_model"
-  )
-  outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+
+  model_params[["probit_outcome_model"]] <- if (
+    has_field("probit_outcome_model")
+  ) {
+    json_object_default$get_boolean("probit_outcome_model")
+  } else {
+    FALSE
+  }
+
+  if (
+    has_subfolder_field("outcome_model", "outcome") &&
+      has_subfolder_field("outcome_model", "link")
+  ) {
+    outcome_model_outcome <- json_object_default$get_string(
+      "outcome",
+      "outcome_model"
+    )
+    outcome_model_link <- json_object_default$get_string(
+      "link",
+      "outcome_model"
+    )
+  } else {
+    outcome_model_outcome <- "continuous"
+    outcome_model_link <- "identity"
+    warning(paste0(
+      "Fields 'outcome' and 'link' not found under 'outcome_model' in JSON (model appears to have ",
+      "been serialized under stochtree ",
+      .ver,
+      "). Defaulting to outcome='continuous', ",
+      "link='identity'. Re-save your model to suppress this warning."
+    ))
+  }
   model_params[["outcome_model"]] <- OutcomeModel(
     outcome = outcome_model_outcome,
     link = outcome_model_link
   )
-  model_params[["rfx_model_spec"]] <- json_object_default$get_string(
-    "rfx_model_spec"
-  )
-  model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
-  model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
+
+  if (has_field("rfx_model_spec")) {
+    model_params[["rfx_model_spec"]] <- json_object_default$get_string(
+      "rfx_model_spec"
+    )
+  } else {
+    model_params[["rfx_model_spec"]] <- ""
+    if (model_params[["has_rfx"]]) {
+      warning(paste0(
+        "Field 'rfx_model_spec' not found in JSON (model appears to have been serialized under ",
+        "stochtree ",
+        .ver,
+        "). Defaulting to ''. Re-save your model to suppress this warning."
+      ))
+    }
+  }
+
+  if (has_field("num_chains")) {
+    model_params[["num_chains"]] <- json_object_default$get_scalar("num_chains")
+  } else {
+    model_params[["num_chains"]] <- 1
+    warning(paste0(
+      "Field 'num_chains' not found in JSON (model appears to have been serialized under stochtree ",
+      .ver,
+      "). Defaulting to 1. Re-save your model to suppress this warning."
+    ))
+  }
+
+  if (has_field("keep_every")) {
+    model_params[["keep_every"]] <- json_object_default$get_scalar("keep_every")
+  } else {
+    model_params[["keep_every"]] <- 1
+    warning(paste0(
+      "Field 'keep_every' not found in JSON (model appears to have been serialized under stochtree ",
+      .ver,
+      "). Defaulting to 1. Re-save your model to suppress this warning."
+    ))
+  }
   if (model_params[["outcome_model"]]$link == "cloglog") {
     cloglog_num_categories <- json_object_default$get_scalar(
       "cloglog_num_categories"
@@ -4343,12 +4517,23 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
   }
 
   # Unpack covariate preprocessor
-  preprocessor_metadata_string <- json_object_default$get_string(
-    "preprocessor_metadata"
-  )
-  output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
-    preprocessor_metadata_string
-  )
+  if (has_field("preprocessor_metadata")) {
+    preprocessor_metadata_string <- json_object_default$get_string(
+      "preprocessor_metadata"
+    )
+    output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
+      preprocessor_metadata_string
+    )
+  } else {
+    output[["train_set_metadata"]] <- NULL
+    warning(paste0(
+      "Field 'preprocessor_metadata' not found in JSON (model appears to have been serialized ",
+      "under stochtree ",
+      .ver,
+      "). DataFrame covariates will not be supported for prediction. ",
+      "Re-save your model to suppress this warning."
+    ))
+  }
 
   class(output) <- "bartmodel"
   return(output)

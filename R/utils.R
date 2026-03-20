@@ -1201,7 +1201,7 @@ getStochtreeVersion <- function() {
 #' @return A character string: the stamp value if \code{stochtree_version} is
 #'   present, otherwise a bracket string such as \code{"<0.4.1"}.
 #' @noRd
-inferStorchtreeJsonVersion <- function(json_object) {
+inferStochtreeJsonVersion <- function(json_object) {
   has_field <- function(name) {
     json_contains_field_cpp(json_object$json_ptr, name)
   }
@@ -1214,8 +1214,10 @@ inferStorchtreeJsonVersion <- function(json_object) {
   }
 
   # outcome/link in outcome_model were added in ~0.4.1
-  if (!has_subfolder_field("outcome_model", "outcome") ||
-      !has_subfolder_field("outcome_model", "link")) {
+  if (
+    !has_subfolder_field("outcome_model", "outcome") ||
+      !has_subfolder_field("outcome_model", "link")
+  ) {
     return("<0.4.1")
   }
 
@@ -1225,7 +1227,9 @@ inferStorchtreeJsonVersion <- function(json_object) {
   }
 
   # internal_propensity_model was added in ~0.3.2 (BCF only)
-  if (has_field("propensity_covariate") && !has_field("internal_propensity_model")) {
+  if (
+    has_field("propensity_covariate") && !has_field("internal_propensity_model")
+  ) {
     return("<0.3.2")
   }
 
