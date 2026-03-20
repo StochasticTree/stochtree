@@ -7,6 +7,8 @@ build/
 .vscode/
 xcode/
 *.json
+!test/R/testthat/fixtures/*.json
+!test/python/fixtures/*.json
 .vs/
 cpp_docs/doxyoutput/html
 cpp_docs/doxyoutput/xml

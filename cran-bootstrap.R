@@ -130,6 +130,10 @@ if (pkgdown_build) {
 # Handle tests separately (move from test/R/ folder to tests/ folder)
 if (include_tests) {
   test_files_src <- list.files("test/R", recursive = TRUE, full.names = TRUE)
+  # Exclude fixture JSON files: large test-only snapshots, not needed on CRAN
+  test_files_src <- test_files_src[!grepl("/fixtures/.*\\.json$", test_files_src)]
+  # Exclude backward-compat tests: they depend on jsonlite and fixture files, not suitable for CRAN
+  test_files_src <- test_files_src[!grepl("test-serialization-compat\\.R$", test_files_src)]
   test_files_dst <- file.path(cran_dir, gsub("test/R", "tests", test_files_src))
   pkg_core_files <- c(pkg_core_files, test_files_src)
   pkg_core_files_dst <- c(pkg_core_files_dst, test_files_dst)

@@ -20,7 +20,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          R -q -e 'pak::pkg_install(c("deps::stochtree_cran", "any::rcmdcheck"), dependencies = TRUE)'
+          R -q -e 'pak::pkg_install(c("deps::stochtree_cran", "any::rcmdcheck", "any::jsonlite"), dependencies = TRUE)'
 
       - uses: r-lib/actions/check-r-package@v2
         with:
