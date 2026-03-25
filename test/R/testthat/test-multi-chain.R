@@ -140,6 +140,35 @@ test_that("BART multi-chain: extractParameter dimensions", {
   expect_equal(dim(yht), c(d$n_train, expected))
 })
 
+test_that("BART multi-chain: predict() shape and finiteness (no GFR)", {
+  skip_on_cran()
+  d <- .make_bart_data()
+  n_chains <- 3; n_mcmc <- 10
+  m <- bart(
+    X_train = d$X_train, y_train = d$y_train, X_test = d$X_test,
+    num_gfr = 0, num_burnin = 0, num_mcmc = n_mcmc,
+    general_params = list(num_chains = n_chains, num_threads = 1)
+  )
+  expected_cols <- n_chains * n_mcmc
+  result <- predict(m, X = d$X_test, terms = "y_hat")
+  expect_equal(dim(result), c(d$n_test, expected_cols))
+  expect_true(all(is.finite(result)))
+})
+
+test_that("BART multi-chain: predict() shape and finiteness (GFR path)", {
+  skip_on_cran()
+  d <- .make_bart_data()
+  n_chains <- 3; n_mcmc <- 10
+  m <- bart(
+    X_train = d$X_train, y_train = d$y_train, X_test = d$X_test,
+    num_gfr = 6, num_burnin = 5, num_mcmc = n_mcmc,
+    general_params = list(num_chains = n_chains, num_threads = 1)
+  )
+  result <- predict(m, X = d$X_test, terms = "y_hat")
+  expect_equal(dim(result), c(d$n_test, n_chains * n_mcmc))
+  expect_true(all(is.finite(result)))
+})
+
 test_that("BART multi-chain: num_gfr < num_chains raises an error", {
   skip_on_cran()
   d <- .make_bart_data()
@@ -277,6 +306,67 @@ test_that("BCF multi-chain: extractParameter dimensions", {
   expect_equal(dim(tau_test), c(d$n_test, expected))
   tau_train <- extractParameter(m, "tau_hat_train")
   expect_equal(dim(tau_train), c(d$n_train, expected))
+})
+
+test_that("BCF multi-chain: predict() shape and finiteness for all forest terms (no GFR)", {
+  skip_on_cran()
+  d <- .make_bcf_data()
+  n_chains <- 3; n_mcmc <- 10
+  m <- bcf(
+    X_train = d$X_train, Z_train = d$Z_train, y_train = d$y_train,
+    propensity_train = d$pi_train,
+    X_test = d$X_test, Z_test = d$Z_test, propensity_test = d$pi_test,
+    num_gfr = 0, num_burnin = 10, num_mcmc = n_mcmc,
+    general_params = list(num_chains = n_chains, num_threads = 1)
+  )
+  expected_cols <- n_chains * n_mcmc
+  for (term in c("y_hat", "cate", "prognostic_function", "mu", "tau")) {
+    result <- predict(m, X = d$X_test, Z = d$Z_test, propensity = d$pi_test, terms = term)
+    expect_equal(dim(result), c(d$n_test, expected_cols),
+                 label = paste0("dim for term='", term, "'"))
+    expect_true(all(is.finite(result)),
+                label = paste0("finiteness for term='", term, "'"))
+  }
+})
+
+test_that("BCF multi-chain: predict() shape and finiteness for all forest terms (GFR path)", {
+  skip_on_cran()
+  d <- .make_bcf_data()
+  n_chains <- 3; n_mcmc <- 10; n_gfr <- 6
+  m <- bcf(
+    X_train = d$X_train, Z_train = d$Z_train, y_train = d$y_train,
+    propensity_train = d$pi_train,
+    X_test = d$X_test, Z_test = d$Z_test, propensity_test = d$pi_test,
+    num_gfr = n_gfr, num_burnin = 5, num_mcmc = n_mcmc,
+    general_params = list(num_chains = n_chains, num_threads = 1)
+  )
+  expected_cols <- n_chains * n_mcmc
+  for (term in c("y_hat", "cate", "prognostic_function", "mu", "tau")) {
+    result <- predict(m, X = d$X_test, Z = d$Z_test, propensity = d$pi_test, terms = term)
+    expect_equal(dim(result), c(d$n_test, expected_cols),
+                 label = paste0("dim for term='", term, "'"))
+    expect_true(all(is.finite(result)),
+                label = paste0("finiteness for term='", term, "'"))
+  }
+})
+
+test_that("BCF multi-chain: predict() shape and positivity for variance forest term", {
+  skip_on_cran()
+  d <- .make_bcf_data()
+  n_chains <- 3; n_mcmc <- 10
+  m <- bcf(
+    X_train = d$X_train, Z_train = d$Z_train, y_train = d$y_train,
+    propensity_train = d$pi_train,
+    X_test = d$X_test, Z_test = d$Z_test, propensity_test = d$pi_test,
+    num_gfr = 0, num_burnin = 10, num_mcmc = n_mcmc,
+    general_params = list(num_chains = n_chains, num_threads = 1),
+    variance_forest_params = list(num_trees = 10)
+  )
+  result <- predict(m, X = d$X_test, Z = d$Z_test, propensity = d$pi_test,
+                    terms = "variance_forest")
+  expect_equal(dim(result), c(d$n_test, n_chains * n_mcmc))
+  expect_true(all(is.finite(result)))
+  expect_true(all(result > 0))
 })
 
 test_that("BCF multi-chain: num_gfr < num_chains raises an error", {

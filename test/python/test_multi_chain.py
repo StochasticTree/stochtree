@@ -162,6 +162,23 @@ class TestBARTMultiChain:
         yht = m.extract_parameter("y_hat_train")
         assert yht.shape == (bart_data["n_train"], n_chains * n_mcmc)
 
+    def test_predict_multi_chain(self, bart_data):
+        """predict() returns correct shape and finite values for multi-chain BART."""
+        n_chains, n_mcmc = self.NUM_CHAINS, self.NUM_MCMC
+        m = _bart(bart_data, num_gfr=0, num_burnin=0, num_mcmc=n_mcmc, num_chains=n_chains)
+        expected_cols = n_chains * n_mcmc
+        n_test = bart_data["n_test"]
+        result = m.predict(X=bart_data["X_test"], terms="y_hat")
+        assert result.shape == (n_test, expected_cols)
+        assert np.all(np.isfinite(result))
+
+    def test_predict_multi_chain_gfr(self, bart_data):
+        """predict() stays finite with GFR warm-start + multiple chains."""
+        m = _bart(bart_data, num_gfr=6, num_burnin=5, num_mcmc=self.NUM_MCMC, num_chains=self.NUM_CHAINS)
+        result = m.predict(X=bart_data["X_test"], terms="y_hat")
+        assert result.shape == (bart_data["n_test"], self.NUM_CHAINS * self.NUM_MCMC)
+        assert np.all(np.isfinite(result))
+
     def test_num_gfr_less_than_num_chains_raises(self, bart_data):
         """num_chains > num_gfr must raise a ValueError."""
         with pytest.raises((ValueError, Exception)):
@@ -257,6 +274,58 @@ class TestBCFMultiChain:
         assert cate.shape == (bcf_data["n_test"], expected)
         prog = m.extract_parameter("prognostic_function_test")
         assert prog.shape == (bcf_data["n_test"], expected)
+
+    def test_predict_terms_multi_chain_no_gfr(self, bcf_data):
+        """predict() returns correct shape and finite values for each forest term (no GFR)."""
+        n_chains, n_mcmc = self.NUM_CHAINS, self.NUM_MCMC
+        m = _bcf(bcf_data, num_gfr=0, num_burnin=10, num_mcmc=n_mcmc, num_chains=n_chains)
+        expected_cols = n_chains * n_mcmc
+        n_test = bcf_data["n_test"]
+        kw = dict(X=bcf_data["X_test"], Z=bcf_data["Z_test"], propensity=bcf_data["pi_test"])
+        for term in ["y_hat", "cate", "prognostic_function", "mu", "tau"]:
+            result = m.predict(**kw, terms=term)
+            assert result.shape == (n_test, expected_cols), f"shape mismatch for term={term!r}"
+            assert np.all(np.isfinite(result)), f"non-finite values for term={term!r}"
+
+    def test_predict_terms_multi_chain_with_gfr(self, bcf_data):
+        """predict() returns correct shape and finite values for each forest term (GFR path)."""
+        n_chains, n_mcmc = self.NUM_CHAINS, self.NUM_MCMC
+        m = _bcf(bcf_data, num_gfr=self.NUM_GFR, num_burnin=5, num_mcmc=n_mcmc, num_chains=n_chains)
+        expected_cols = n_chains * n_mcmc
+        n_test = bcf_data["n_test"]
+        kw = dict(X=bcf_data["X_test"], Z=bcf_data["Z_test"], propensity=bcf_data["pi_test"])
+        for term in ["y_hat", "cate", "prognostic_function", "mu", "tau"]:
+            result = m.predict(**kw, terms=term)
+            assert result.shape == (n_test, expected_cols), f"shape mismatch for term={term!r}"
+            assert np.all(np.isfinite(result)), f"non-finite values for term={term!r}"
+
+    def test_predict_variance_forest_multi_chain(self, bcf_data):
+        """predict() returns correct shape and positive values for variance forest term."""
+        n_chains, n_mcmc = self.NUM_CHAINS, self.NUM_MCMC
+        m = BCFModel()
+        m.sample(
+            X_train=bcf_data["X_train"],
+            Z_train=bcf_data["Z_train"],
+            y_train=bcf_data["y_train"],
+            propensity_train=bcf_data["pi_train"],
+            X_test=bcf_data["X_test"],
+            Z_test=bcf_data["Z_test"],
+            propensity_test=bcf_data["pi_test"],
+            num_gfr=0,
+            num_burnin=10,
+            num_mcmc=n_mcmc,
+            general_params={"num_chains": n_chains, "num_threads": 1},
+            variance_forest_params={"num_trees": 10},
+        )
+        result = m.predict(
+            X=bcf_data["X_test"],
+            Z=bcf_data["Z_test"],
+            propensity=bcf_data["pi_test"],
+            terms="variance_forest",
+        )
+        assert result.shape == (bcf_data["n_test"], n_chains * n_mcmc)
+        assert np.all(np.isfinite(result))
+        assert np.all(result > 0)
 
     def test_num_gfr_less_than_num_chains_raises(self, bcf_data):
         """num_chains > num_gfr must raise an error."""
