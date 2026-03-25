@@ -2552,7 +2552,7 @@ class BCFModel:
                         # Correct residual for tau_0 component of the basis change
                         if self.sample_tau_0:
                             residual_train.add_vector(
-                                -np.squeeze(tau_basis_train - tau_basis_train_old)
+                                -(np.squeeze(tau_basis_train) - np.squeeze(tau_basis_train_old))
                                 * tau_0[0]
                             )
                     # Reset tau_0 to initial value (0) and correct the running residual
@@ -4576,19 +4576,33 @@ class BCFModel:
             else:
                 raise ValueError("This model does not have test set mean function prediction samples")
 
-        if term in ["tau_hat_train"]:
+        if term in ["tau_hat_train", "cate_train"]:
             tht = getattr(self, "tau_hat_train", None)
             if tht is not None:
                 return tht
             else:
                 raise ValueError("This model does not have in-sample treatment effect forest predictions")
 
-        if term in ["tau_hat_test"]:
+        if term in ["tau_hat_test", "cate_test"]:
             tht = getattr(self, "tau_hat_test", None)
             if tht is not None:
                 return tht
             else:
                 raise ValueError("This model does not have test set treatment effect forest predictions")
+
+        if term in ["mu_hat_train", "prognostic_function_train"]:
+            mht = getattr(self, "mu_hat_train", None)
+            if mht is not None:
+                return mht
+            else:
+                raise ValueError("This model does not have in-sample prognostic function predictions")
+
+        if term in ["mu_hat_test", "prognostic_function_test"]:
+            mht = getattr(self, "mu_hat_test", None)
+            if mht is not None:
+                return mht
+            else:
+                raise ValueError("This model does not have test set prognostic function predictions")
 
         if term in ["sigma2_x_train", "var_x_train"]:
             s2x = getattr(self, "sigma2_x_train", None)

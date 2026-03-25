@@ -4369,7 +4369,27 @@ extractParameter.bcfmodel <- function(object, term) {
     }
   }
 
-  if (term %in% c("tau_hat_train")) {
+  if (term %in% c("mu_hat_train", "prognostic_function_train")) {
+    if (!is.null(object$mu_hat_train)) {
+      return(object$mu_hat_train)
+    } else {
+      stop(
+        "This model does not have in-sample prognostic function predictions"
+      )
+    }
+  }
+
+  if (term %in% c("mu_hat_test", "prognostic_function_test")) {
+    if (!is.null(object$mu_hat_test)) {
+      return(object$mu_hat_test)
+    } else {
+      stop(
+        "This model does not have test set prognostic function predictions"
+      )
+    }
+  }
+
+  if (term %in% c("tau_hat_train", "cate_train")) {
     if (!is.null(object$tau_hat_train)) {
       return(object$tau_hat_train)
     } else {
@@ -4379,7 +4399,7 @@ extractParameter.bcfmodel <- function(object, term) {
     }
   }
 
-  if (term %in% c("tau_hat_test")) {
+  if (term %in% c("tau_hat_test", "cate_test")) {
     if (!is.null(object$tau_hat_test)) {
       return(object$tau_hat_test)
     } else {

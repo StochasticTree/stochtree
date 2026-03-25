@@ -253,9 +253,9 @@ class TestBCFMultiChain:
         expected = n_chains * n_mcmc
         s2 = m.extract_parameter("sigma2_global")
         assert s2.shape == (expected,)
-        cate = m.extract_parameter("cate")
+        cate = m.extract_parameter("cate_test")
         assert cate.shape == (bcf_data["n_test"], expected)
-        prog = m.extract_parameter("prognostic_function")
+        prog = m.extract_parameter("prognostic_function_test")
         assert prog.shape == (bcf_data["n_test"], expected)
 
     def test_num_gfr_less_than_num_chains_raises(self, bcf_data):
