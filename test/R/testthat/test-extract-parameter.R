@@ -250,11 +250,25 @@ test_that("extractParameter.bcfmodel", {
   yhtest <- extractParameter(bcf_base, "y_hat_test")
   expect_equal(dim(yhtest), c(n_test, num_mcmc))
 
-  # tau_hat_train and tau_hat_test
+  # mu_hat_train / prognostic_function_train
+  mht <- extractParameter(bcf_base, "mu_hat_train")
+  expect_equal(dim(mht), c(n_train, num_mcmc))
+  expect_equal(mht, extractParameter(bcf_base, "prognostic_function_train"))
+
+  # mu_hat_test / prognostic_function_test
+  mhtest <- extractParameter(bcf_base, "mu_hat_test")
+  expect_equal(dim(mhtest), c(n_test, num_mcmc))
+  expect_equal(mhtest, extractParameter(bcf_base, "prognostic_function_test"))
+
+  # tau_hat_train / cate_train
   tht <- extractParameter(bcf_base, "tau_hat_train")
   expect_equal(dim(tht), c(n_train, num_mcmc))
+  expect_equal(tht, extractParameter(bcf_base, "cate_train"))
+
+  # tau_hat_test / cate_test
   thtest <- extractParameter(bcf_base, "tau_hat_test")
   expect_equal(dim(thtest), c(n_test, num_mcmc))
+  expect_equal(thtest, extractParameter(bcf_base, "cate_test"))
 
   # sigma2_x_train / var_x_train and sigma2_x_test / var_x_test (variance forest)
   bcf_var <- bcf(

@@ -1637,7 +1637,7 @@ class BCFModel:
             else:
                 raise ValueError("sigma2_leaf_mu must be a scalar")
             sigma2_leaf_tau = (
-                np.squeeze(np.var(resid_train) * 0.5) / (num_trees_tau)
+                np.squeeze(0.5 * np.var(resid_train)) / (num_trees_tau)
                 if sigma2_leaf_tau is None
                 else sigma2_leaf_tau
             )
@@ -2306,6 +2306,7 @@ class BCFModel:
                         )
                     # Reset adaptive coding parameters
                     if self.adaptive_coding:
+                        tau_basis_train_old = tau_basis_train.copy()
                         if self.b0_samples is not None:
                             current_b_0 = self.b0_samples[forest_ind]
                         else:
@@ -2325,6 +2326,23 @@ class BCFModel:
                             forest_dataset_test.update_basis(tau_basis_test)
                         forest_sampler_tau.propagate_basis_update(
                             forest_dataset_train, residual_train, active_forest_tau
+                        )
+                        # Correct residual for tau_0 component of the basis change
+                        if self.sample_tau_0:
+                            residual_train.add_vector(
+                                -(np.squeeze(tau_basis_train) - np.squeeze(tau_basis_train_old)) * tau_0[0]
+                            )
+                    # Reset tau_0 intercept and correct the running residual
+                    if self.sample_tau_0:
+                        tau_0_old = tau_0.copy()
+                        tau_0 = self.tau_0_samples[:, forest_ind].copy()
+                        Z_basis_gfr = (
+                            tau_basis_train.reshape(-1, 1)
+                            if tau_basis_train.ndim == 1
+                            else tau_basis_train
+                        )
+                        residual_train.add_vector(
+                            -np.squeeze(Z_basis_gfr @ (tau_0 - tau_0_old))
                         )
                     # Reset random effects terms
                     if self.has_rfx:
@@ -2405,6 +2423,7 @@ class BCFModel:
                         )
                     # Reset adaptive coding parameters
                     if self.adaptive_coding:
+                        tau_basis_train_old = tau_basis_train.copy()
                         if previous_b0_samples is not None:
                             current_b_0 = previous_b0_samples[warmstart_index]
                         if previous_b1_samples is not None:
@@ -2421,6 +2440,26 @@ class BCFModel:
                         forest_sampler_tau.propagate_basis_update(
                             forest_dataset_train, residual_train, active_forest_tau
                         )
+                        # Correct residual for tau_0 component of the basis change
+                        if self.sample_tau_0:
+                            residual_train.add_vector(
+                                -(np.squeeze(tau_basis_train) - np.squeeze(tau_basis_train_old)) * tau_0[0]
+                            )
+                    # Reset tau_0 intercept and correct the running residual
+                    if self.sample_tau_0:
+                        prev_tau_0_samples = getattr(previous_bcf_model, "tau_0_samples", None)
+                        if prev_tau_0_samples is not None:
+                            tau_0_old = tau_0.copy()
+                            # tau_0_samples in previous model are in original scale; convert back
+                            tau_0 = (prev_tau_0_samples[:, warmstart_index] / previous_bcf_model.y_std).copy()
+                            Z_basis_ws = (
+                                tau_basis_train.reshape(-1, 1)
+                                if tau_basis_train.ndim == 1
+                                else tau_basis_train
+                            )
+                            residual_train.add_vector(
+                                -np.squeeze(Z_basis_ws @ (tau_0 - tau_0_old))
+                            )
                     # Reset random effects terms
                     if self.has_rfx:
                         rfx_model.reset(
@@ -2495,6 +2534,7 @@ class BCFModel:
                         )
                     # Reset adaptive coding parameters
                     if self.adaptive_coding:
+                        tau_basis_train_old = tau_basis_train.copy()
                         current_b_0 = b_0
                         current_b_1 = b_1
                         tau_basis_train = (
@@ -2508,6 +2548,24 @@ class BCFModel:
                             forest_dataset_test.update_basis(tau_basis_test)
                         forest_sampler_tau.propagate_basis_update(
                             forest_dataset_train, residual_train, active_forest_tau
+                        )
+                        # Correct residual for tau_0 component of the basis change
+                        if self.sample_tau_0:
+                            residual_train.add_vector(
+                                -(np.squeeze(tau_basis_train) - np.squeeze(tau_basis_train_old))
+                                * tau_0[0]
+                            )
+                    # Reset tau_0 to initial value (0) and correct the running residual
+                    if self.sample_tau_0:
+                        tau_0_old = tau_0.copy()
+                        tau_0 = np.zeros_like(tau_0)
+                        Z_basis_reset = (
+                            tau_basis_train.reshape(-1, 1)
+                            if tau_basis_train.ndim == 1
+                            else tau_basis_train
+                        )
+                        residual_train.add_vector(
+                            -np.squeeze(Z_basis_reset @ (tau_0 - tau_0_old))
                         )
                     # Reset random effects terms
                     if self.has_rfx:
@@ -3351,17 +3409,11 @@ class BCFModel:
             if predict_mu_forest:
                 mu_x = np.mean(mu_x, axis=1)
             if predict_tau_forest:
-                if Z.shape[1] > 1:
-                    tau_x = np.mean(tau_x, axis=2)
-                else:
-                    tau_x = np.mean(tau_x, axis=1)
+                tau_x = np.mean(tau_x, axis=1)
             if predict_prog_function:
                 prognostic_function = np.mean(prognostic_function, axis=1)
             if predict_cate_function:
-                if Z.shape[1] > 1:
-                    cate = np.mean(cate, axis=2)
-                else:
-                    cate = np.mean(cate, axis=1)
+                cate = np.mean(cate, axis=1)
             if predict_rfx:
                 rfx_preds = np.mean(rfx_preds, axis=1)
             if predict_y_hat:
@@ -4524,19 +4576,33 @@ class BCFModel:
             else:
                 raise ValueError("This model does not have test set mean function prediction samples")
 
-        if term in ["tau_hat_train"]:
+        if term in ["tau_hat_train", "cate_train"]:
             tht = getattr(self, "tau_hat_train", None)
             if tht is not None:
                 return tht
             else:
                 raise ValueError("This model does not have in-sample treatment effect forest predictions")
 
-        if term in ["tau_hat_test"]:
+        if term in ["tau_hat_test", "cate_test"]:
             tht = getattr(self, "tau_hat_test", None)
             if tht is not None:
                 return tht
             else:
                 raise ValueError("This model does not have test set treatment effect forest predictions")
+
+        if term in ["mu_hat_train", "prognostic_function_train"]:
+            mht = getattr(self, "mu_hat_train", None)
+            if mht is not None:
+                return mht
+            else:
+                raise ValueError("This model does not have in-sample prognostic function predictions")
+
+        if term in ["mu_hat_test", "prognostic_function_test"]:
+            mht = getattr(self, "mu_hat_test", None)
+            if mht is not None:
+                return mht
+            else:
+                raise ValueError("This model does not have test set prognostic function predictions")
 
         if term in ["sigma2_x_train", "var_x_train"]:
             s2x = getattr(self, "sigma2_x_train", None)

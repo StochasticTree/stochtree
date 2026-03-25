@@ -583,6 +583,11 @@ bcf <- function(
       previous_b_1_samples <- NULL
       previous_b_0_samples <- NULL
     }
+    if (previous_bcf_model$model_params$sample_tau_0) {
+      previous_tau_0_samples <- previous_bcf_model$tau_0_samples
+    } else {
+      previous_tau_0_samples <- NULL
+    }
     previous_model_num_samples <- previous_bcf_model$model_params$num_samples
     if (previous_model_warmstart_sample_num > previous_model_num_samples) {
       stop(
@@ -601,6 +606,7 @@ bcf <- function(
     previous_forest_samples_variance <- NULL
     previous_b_1_samples <- NULL
     previous_b_0_samples <- NULL
+    previous_tau_0_samples <- NULL
   }
 
   # Determine whether conditional variance will be modeled
@@ -2162,6 +2168,7 @@ bcf <- function(
           )
         }
         if (adaptive_coding) {
+          tau_basis_train_old <- tau_basis_train
           current_b_1 <- b_1_samples[forest_ind + 1]
           current_b_0 <- b_0_samples[forest_ind + 1]
           tau_basis_train <- (1 - Z_train) *
@@ -2178,6 +2185,21 @@ bcf <- function(
             forest_dataset_train,
             outcome_train,
             active_forest_tau
+          )
+          # Correct residual for tau_0 component of the basis change
+          if (sample_tau_0) {
+            outcome_train$subtract_vector(
+              as.numeric((tau_basis_train - tau_basis_train_old) * tau_0[1])
+            )
+          }
+        }
+        # Reset tau_0 intercept and correct the running residual
+        if (sample_tau_0) {
+          tau_0_old <- tau_0
+          tau_0 <- tau_0_samples[, forest_ind + 1]
+          Z_basis_gfr <- as.matrix(tau_basis_train)
+          outcome_train$subtract_vector(
+            as.numeric(Z_basis_gfr %*% matrix(tau_0 - tau_0_old, ncol = 1))
           )
         }
         if (sample_sigma2_global) {
@@ -2255,6 +2277,7 @@ bcf <- function(
           )
         }
         if (adaptive_coding) {
+          tau_basis_train_old <- tau_basis_train
           if (!is.null(previous_b_1_samples)) {
             current_b_1 <- previous_b_1_samples[
               warmstart_index
@@ -2279,6 +2302,22 @@ bcf <- function(
             forest_dataset_train,
             outcome_train,
             active_forest_tau
+          )
+          # Correct residual for tau_0 component of the basis change
+          if (sample_tau_0) {
+            outcome_train$subtract_vector(
+              as.numeric((tau_basis_train - tau_basis_train_old) * tau_0[1])
+            )
+          }
+        }
+        # Reset tau_0 intercept and correct the running residual
+        if (sample_tau_0 && !is.null(previous_tau_0_samples)) {
+          tau_0_old <- tau_0
+          # previous model stores tau_0 in original scale; convert to standardized scale
+          tau_0 <- as.numeric(previous_tau_0_samples[, warmstart_index] / previous_y_scale)
+          Z_basis_ws <- as.matrix(tau_basis_train)
+          outcome_train$subtract_vector(
+            as.numeric(Z_basis_ws %*% matrix(tau_0 - tau_0_old, ncol = 1))
           )
         }
         if (has_rfx) {
@@ -2389,6 +2428,7 @@ bcf <- function(
           )
         }
         if (adaptive_coding) {
+          tau_basis_train_old <- tau_basis_train
           current_b_1 <- b_1
           current_b_0 <- b_0
           tau_basis_train <- (1 - Z_train) *
@@ -2405,6 +2445,21 @@ bcf <- function(
             forest_dataset_train,
             outcome_train,
             active_forest_tau
+          )
+          # Correct residual for tau_0 component of the basis change
+          if (sample_tau_0) {
+            outcome_train$subtract_vector(
+              as.numeric((tau_basis_train - tau_basis_train_old) * tau_0[1])
+            )
+          }
+        }
+        # Reset tau_0 to initial value (0) and correct the running residual
+        if (sample_tau_0) {
+          tau_0_old <- tau_0
+          tau_0 <- rep(0.0, p_tau0)
+          Z_basis_reset <- as.matrix(tau_basis_train)
+          outcome_train$subtract_vector(
+            as.numeric(Z_basis_reset %*% matrix(tau_0 - tau_0_old, ncol = 1))
           )
         }
         if (sample_sigma2_global) {
@@ -4314,7 +4369,27 @@ extractParameter.bcfmodel <- function(object, term) {
     }
   }
 
-  if (term %in% c("tau_hat_train")) {
+  if (term %in% c("mu_hat_train", "prognostic_function_train")) {
+    if (!is.null(object$mu_hat_train)) {
+      return(object$mu_hat_train)
+    } else {
+      stop(
+        "This model does not have in-sample prognostic function predictions"
+      )
+    }
+  }
+
+  if (term %in% c("mu_hat_test", "prognostic_function_test")) {
+    if (!is.null(object$mu_hat_test)) {
+      return(object$mu_hat_test)
+    } else {
+      stop(
+        "This model does not have test set prognostic function predictions"
+      )
+    }
+  }
+
+  if (term %in% c("tau_hat_train", "cate_train")) {
     if (!is.null(object$tau_hat_train)) {
       return(object$tau_hat_train)
     } else {
@@ -4324,7 +4399,7 @@ extractParameter.bcfmodel <- function(object, term) {
     }
   }
 
-  if (term %in% c("tau_hat_test")) {
+  if (term %in% c("tau_hat_test", "cate_test")) {
     if (!is.null(object$tau_hat_test)) {
       return(object$tau_hat_test)
     } else {

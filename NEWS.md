@@ -6,6 +6,9 @@
 
 ## Bug Fixes
 
+* Fixed multi-chain BCF bugs with the parametric intercept term in R and Python [#326](https://github.com/StochasticTree/stochtree/pull/326)
+* Fixed indexing bugs for multivariate treatment BCF in Python [#326](https://github.com/StochasticTree/stochtree/pull/326)
+
 ## Documentation and Other Maintenance
 
 # stochtree 0.4.1
