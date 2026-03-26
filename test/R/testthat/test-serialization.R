@@ -193,7 +193,8 @@ test_that("BCF JSON uses canonical field names (sigma2_init, b1_samples, b0_samp
   bcf_model <- bcf(
     X_train = X, Z_train = Z, y_train = y,
     propensity_train = pi_x,
-    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+    general_params = list(adaptive_coding = TRUE)
   )
   json_string <- saveBCFModelToJsonString(bcf_model)
 
@@ -224,7 +225,8 @@ test_that("BCF JSON deserialization handles legacy field names with warnings", {
   bcf_model <- bcf(
     X_train = X, Z_train = Z, y_train = y,
     propensity_train = pi_x,
-    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+    general_params = list(adaptive_coding = TRUE)
   )
   preds_orig <- predict(bcf_model, X_test, Z_test, pi_test)
 
