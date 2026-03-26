@@ -234,7 +234,7 @@ test_that("BCF print method", {
   pi_train <- pi_X[train_inds]; pi_test <- pi_X[test_inds]
   y_train <- y[train_inds]; y_test <- y[test_inds]
 
-  # --- User-provided propensity, binary treatment, adaptive coding (defaults) ---
+  # --- User-provided propensity, binary treatment, default coding (defaults) ---
   bcf_model <- bcf(
     X_train = X_train, y_train = y_train, Z_train = Z_train,
     propensity_train = pi_train,
@@ -249,7 +249,7 @@ test_that("BCF print method", {
   expect_true(any(grepl("prognostic forest", out, fixed = TRUE)))
   expect_true(any(grepl("treatment effect forest", out, fixed = TRUE)))
   expect_true(any(grepl("User-provided propensity scores", out, fixed = TRUE)))
-  expect_true(any(grepl("adaptive coding", out, fixed = TRUE)))
+  expect_true(any(grepl("default coding", out, fixed = TRUE)))
   expect_true(any(grepl("1 chain of", out, fixed = TRUE)))
   expect_true(any(grepl("retaining every iteration", out, fixed = TRUE)))
 
@@ -327,7 +327,7 @@ test_that("BCF summary method", {
     propensity_train = pi_train,
     X_test = X_test, Z_test = Z_test, propensity_test = pi_test,
     num_gfr = 0, num_burnin = 10, num_mcmc = 10,
-    general_params = list(sample_sigma2_global = TRUE),
+    general_params = list(sample_sigma2_global = TRUE, adaptive_coding = TRUE),
     prognostic_forest_params = list(sample_sigma2_leaf = TRUE),
     treatment_effect_forest_params = list(sample_sigma2_leaf = TRUE)
   )

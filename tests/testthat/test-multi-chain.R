@@ -224,7 +224,7 @@ test_that("BCF multi-chain: sample counts with GFR warm-start", {
     propensity_train = d$pi_train,
     X_test = d$X_test, Z_test = d$Z_test, propensity_test = d$pi_test,
     num_gfr = n_gfr, num_burnin = 5, num_mcmc = n_mcmc,
-    general_params = list(num_chains = n_chains, num_threads = 1)
+    general_params = list(num_chains = n_chains, num_threads = 1, adaptive_coding = TRUE)
   )
   expected <- n_chains * n_mcmc
   expect_length(m$sigma2_global_samples, expected)
@@ -279,7 +279,7 @@ test_that("BCF multi-chain: all samples finite with GFR + multiple chains", {
     propensity_train = d$pi_train,
     X_test = d$X_test, Z_test = d$Z_test, propensity_test = d$pi_test,
     num_gfr = 6, num_burnin = 20, num_mcmc = 10,
-    general_params = list(num_chains = 3, num_threads = 1)
+    general_params = list(num_chains = 3, num_threads = 1, adaptive_coding = TRUE)
   )
   expect_true(all(is.finite(m$sigma2_global_samples)),
               label = "sigma2 samples must be finite (no chain-transition blowup)")
