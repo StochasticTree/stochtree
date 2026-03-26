@@ -3508,6 +3508,7 @@ class BARTModel:
         Random effects are handled by a separate `extract_parameter_samples` method attached to the underlying `RandomEffectsContainer` object due to the complexity of the random effects parameters.
         If the requested model term is not found, an error is thrown.
         The following conventions are used for parameter names:
+
         - Global error variance: `"sigma2"`, `"global_error_scale"`, `"sigma2_global"`
         - Leaf scale: `"sigma2_leaf"`, `"leaf_scale"`
         - In-sample mean function predictions: `"y_hat_train"`
