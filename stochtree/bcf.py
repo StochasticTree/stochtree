@@ -4543,6 +4543,7 @@ class BCFModel:
         Random effects are handled by a separate `extract_parameter_samples` method attached to the underlying `RandomEffectsContainer` object due to the complexity of the random effects parameters.
         If the requested model term is not found, an error is thrown.
         The following conventions are used for parameter names:
+
         - Global error variance: `"sigma2"`, `"global_error_scale"`, `"sigma2_global"`
         - Prognostic forest leaf scale: `"sigma2_leaf_mu"`, `"leaf_scale_mu"`, `"mu_leaf_scale"`
         - Treatment effect forest leaf scale: `"sigma2_leaf_tau"`, `"leaf_scale_tau"`, `"tau_leaf_scale"`

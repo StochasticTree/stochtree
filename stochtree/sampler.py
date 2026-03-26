@@ -37,22 +37,10 @@ class ForestSampler:
     ----------
     dataset : Dataset
         `stochtree` dataset object storing covariates / bases / weights
-    feature_types : np.array
-        Array of integer-coded values indicating the column type of each feature in `dataset`.
-        Integer codes map `0` to "numeric" (continuous), `1` to "ordered categorical, and `2` to
-        "unordered categorical".
-    num_trees : int
-        Number of trees in the forest model that this sampler class will fit.
-    num_obs : int
-        Number of observations / "rows" in `dataset`.
-    alpha : float
-        Prior probability of splitting for a tree of depth 0 in a forest model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
-    beta : float
-        Exponent that decreases split probabilities for nodes of depth > 0 in a forest model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
-    min_samples_leaf : int
-        Minimum allowable size of a leaf, in terms of training samples, in a forest model.
-    max_depth : int, optional
-        Maximum depth of any tree in the ensemble in a forest model.
+    global_config : GlobalModelConfig
+        `GlobalModelConfig` object containing global model parameters and settings
+    forest_config : ForestModelConfig
+        `ForestModelConfig` object containing forest model parameters and settings
     """
 
     def __init__(
