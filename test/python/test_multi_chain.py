@@ -215,7 +215,14 @@ class TestBCFMultiChain:
         n_chains = self.NUM_CHAINS
         n_mcmc = self.NUM_MCMC
         n_gfr = self.NUM_GFR
-        m = _bcf(bcf_data, num_gfr=n_gfr, num_burnin=5, num_mcmc=n_mcmc, num_chains=n_chains)
+        m = _bcf(
+            bcf_data,
+            num_gfr=n_gfr,
+            num_burnin=5,
+            num_mcmc=n_mcmc,
+            num_chains=n_chains,
+            adaptive_coding=True,
+        )
         expected = n_chains * n_mcmc
         assert m.global_var_samples.shape == (expected,)
         # BCF-specific samples
@@ -254,6 +261,7 @@ class TestBCFMultiChain:
             num_burnin=20,
             num_mcmc=self.NUM_MCMC,
             num_chains=self.NUM_CHAINS,
+            adaptive_coding=True,
         )
         assert np.all(np.isfinite(m.global_var_samples)), (
             "sigma2 samples contain non-finite values; possible chain-transition blowup."
