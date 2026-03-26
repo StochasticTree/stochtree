@@ -332,7 +332,7 @@ class TestBCFModelStr:
         assert "Empty BCFModel()" in str(BCFModel())
 
     def test_default_model(self, bcf_data):
-        """Binary treatment, user propensity, adaptive coding (defaults): 2 base terms."""
+        """Binary treatment, user propensity, default coding (defaults): 2 base terms."""
         model = BCFModel()
         model.sample(
             X_train=bcf_data["X_train"],
@@ -350,7 +350,7 @@ class TestBCFModelStr:
         assert "BCFModel run with prognostic forest" in s
         assert "treatment effect forest" in s
         assert "User-provided propensity scores" in s
-        assert "adaptive coding" in s
+        assert "default coding" in s
         assert "1 chain" in s
         assert "retaining every iteration" in s
 

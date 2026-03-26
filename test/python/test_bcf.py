@@ -247,6 +247,7 @@ class TestBCF:
         num_mcmc = 10
 
         # Run BCF with test set and propensity score
+        # adaptive_coding=True triggers a UserWarning for non-binary treatment
         with pytest.warns(UserWarning):
             bcf_model = BCFModel()
             variance_forest_params = {"num_trees": 0}
@@ -261,6 +262,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
@@ -304,6 +306,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
@@ -375,6 +378,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
@@ -413,6 +417,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
@@ -452,6 +457,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
@@ -486,6 +492,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
@@ -576,6 +583,7 @@ class TestBCF:
         num_mcmc = 10
 
         # Run BCF with test set and propensity score
+        # adaptive_coding=True triggers a UserWarning for non-binary treatment
         with pytest.warns(UserWarning):
             bcf_model = BCFModel()
             variance_forest_params = {"num_trees": 0}
@@ -590,6 +598,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
@@ -630,6 +639,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
@@ -668,6 +678,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
@@ -682,6 +693,7 @@ class TestBCF:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+                general_params={"adaptive_coding": True},
                 variance_forest_params=variance_forest_params,
             )
 
