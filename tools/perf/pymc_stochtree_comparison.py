@@ -291,12 +291,15 @@ def main():
         )
         
         # Predict on the test set
-        test_preds = bart_model.predict(
-            covariates=covariates_test,
-            basis=basis_test,
+        y_hat_test = bart_model.predict(
+            X=covariates_test,
+            leaf_basis=basis_test,
             rfx_group_ids=rfx_group_ids_test,
-            rfx_basis=rfx_basis_test
+            rfx_basis=rfx_basis_test, 
+            terms = "y_hat", 
+            type = "mean"
         )
+        bart_rmse = np.sqrt(np.mean((y_hat_test - outcome_test) ** 2))
         
         bart_timing = time.time() - start_time
         
@@ -305,16 +308,26 @@ def main():
         
         # Sample BART model
         with pm.Model() as model:
-            μ = pmb.BART("μ", covariates_train, outcome_train)
+            X = pm.Data("X", covariates_train)
+            Y = outcome_train
+            μ = pmb.BART("μ", X, Y)
             σ = pm.HalfNormal("σ", 5)
-            obs = pm.Normal("obs", mu=μ, sigma=σ, observed=outcome_train)
+            obs = pm.Normal("obs", mu=μ, sigma=σ, observed=Y)
             idata = pm.sample(draws=num_mcmc, tune=0, chains=1, cores=num_threads, 
                               compute_convergence_checks=False, random_seed=123, 
                               progressbar=False)
         
+        with model:
+            X.set_value(covariates_test)
+            y_hat_test = pm.sample_posterior_predictive(
+                trace=idata, random_seed=123, var_names=["μ"], 
+            ).posterior_predictive["μ"].values.squeeze().mean(axis = 0)
+        pymc_bart_rmse = np.sqrt(np.mean((y_hat_test - outcome_test) ** 2))
+
         pymc_bart_timing = time.time() - start_time
 
         print(f"Stochtree BART timing: {bart_timing:.2f} seconds; PyMC BART timing: {pymc_bart_timing:.2f} seconds")
+        print(f"Stochtree BART RMSE: {bart_rmse:.2f}; PyMC BART RMSE: {pymc_bart_rmse:.2f}")
 
 
 if __name__ == "__main__":
