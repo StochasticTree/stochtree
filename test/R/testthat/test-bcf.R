@@ -976,4 +976,24 @@ test_that("BCF factor-valued treatment handling", {
     ),
     regexp = "exactly 2 levels"
   )
+
+  # predict.bcfmodel should also handle factor Z, raising a warning
+  suppressMessages(
+    bcf_model <- bcf(
+      X_train = X, y_train = y, Z_train = Z_numeric,
+      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+    )
+  )
+  expect_warning(
+    predict(bcf_model, X, Z_factor_binary, pi_X),
+    regexp = "Z is a factor"
+  )
+  expect_warning(
+    predict(bcf_model, X, Z_factor_logical, pi_X),
+    regexp = "Z is a factor"
+  )
+  expect_error(
+    predict(bcf_model, X, Z_factor_categorical, pi_X),
+    regexp = "exactly 2 levels"
+  )
 })

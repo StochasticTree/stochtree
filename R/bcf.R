@@ -3448,6 +3448,19 @@ predict.bcfmodel <- function(
     stop("X must be a matrix or dataframe")
   }
 
+  # Handle factor-valued treatment before numeric conversion
+  if (is.factor(Z)) {
+    lvls <- levels(Z)
+    if (length(lvls) != 2) {
+      stop("Factor Z must have exactly 2 levels for binary treatment")
+    }
+    warning(
+      "Z is a factor; recoding to 0/1 using level order: ",
+      lvls[1], " = 0, ", lvls[2], " = 1"
+    )
+    Z <- as.integer(Z) - 1L
+  }
+
   # Convert all input data to matrices if not already converted
   if ((is.null(dim(Z))) && (!is.null(Z))) {
     Z <- as.matrix(as.numeric(Z))
