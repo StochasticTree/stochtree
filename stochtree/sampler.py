@@ -3,6 +3,7 @@ from stochtree_cpp import (
     ForestSamplerCpp,
     GlobalVarianceModelCpp,
     LeafVarianceModelCpp,
+    OrdinalSamplerCpp,
     RngCpp,
 )
 
@@ -36,22 +37,10 @@ class ForestSampler:
     ----------
     dataset : Dataset
         `stochtree` dataset object storing covariates / bases / weights
-    feature_types : np.array
-        Array of integer-coded values indicating the column type of each feature in `dataset`.
-        Integer codes map `0` to "numeric" (continuous), `1` to "ordered categorical, and `2` to
-        "unordered categorical".
-    num_trees : int
-        Number of trees in the forest model that this sampler class will fit.
-    num_obs : int
-        Number of observations / "rows" in `dataset`.
-    alpha : float
-        Prior probability of splitting for a tree of depth 0 in a forest model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
-    beta : float
-        Exponent that decreases split probabilities for nodes of depth > 0 in a forest model. Tree split prior combines `alpha` and `beta` via `alpha*(1+node_depth)^-beta`.
-    min_samples_leaf : int
-        Minimum allowable size of a leaf, in terms of training samples, in a forest model.
-    max_depth : int, optional
-        Maximum depth of any tree in the ensemble in a forest model.
+    global_config : GlobalModelConfig
+        `GlobalModelConfig` object containing global model parameters and settings
+    forest_config : ForestModelConfig
+        `ForestModelConfig` object containing forest model parameters and settings
     """
 
     def __init__(
@@ -151,11 +140,19 @@ class ForestSampler:
             )
         if self.forest_sampler_cpp.GetMaxDepth() != forest_config.get_max_depth():
             self.forest_sampler_cpp.SetMaxDepth(forest_config.get_max_depth())
-        
+
         # Unpack sweep update indices (initializing empty numpy array if None)
         sweep_update_indices = forest_config.get_sweep_update_indices()
         if sweep_update_indices is None:
             sweep_update_indices = np.arange(forest_config.get_num_trees(), dtype=int)
+
+        # Use cloglog shape/rate for cloglog leaf models, otherwise variance forest shape/scale
+        if forest_config.get_leaf_model_type() == 4:
+            a_forest = forest_config.get_cloglog_forest_shape()
+            b_forest = forest_config.get_cloglog_forest_rate()
+        else:
+            a_forest = forest_config.get_variance_forest_shape()
+            b_forest = forest_config.get_variance_forest_scale()
 
         # Run the sampler
         self.forest_sampler_cpp.SampleOneIteration(
@@ -169,14 +166,14 @@ class ForestSampler:
             forest_config.get_cutpoint_grid_size(),
             forest_config.get_leaf_model_scale(),
             forest_config.get_variable_weights(),
-            forest_config.get_variance_forest_shape(),
-            forest_config.get_variance_forest_scale(),
+            a_forest,
+            b_forest,
             global_config.get_global_error_variance(),
             forest_config.get_leaf_model_type(),
             forest_config.get_num_features_subsample(),
             keep_forest,
             gfr,
-            num_threads, 
+            num_threads,
         )
 
     def prepare_for_sampler(
@@ -270,7 +267,7 @@ class ForestSampler:
         self.forest_sampler_cpp.PropagateBasisUpdate(
             dataset.dataset_cpp, residual.residual_cpp, forest.forest_cpp
         )
-    
+
     def get_cached_forest_predictions(self) -> np.array:
         """
         Extract an internally-cached prediction of a forest on the training dataset in a sampler.
@@ -401,3 +398,79 @@ class LeafVarianceModel:
         return self.variance_model_cpp.SampleOneIteration(
             forest.forest_cpp, rng.rng_cpp, a, b
         )
+
+
+class OrdinalSampler:
+    """
+    Wrapper around the C++ OrdinalSampler class for sampling ordinal model hyperparameters
+    (latent variables, cutpoint parameters, and cumulative exponential sums).
+    """
+
+    def __init__(self) -> None:
+        self.ordinal_sampler_cpp = OrdinalSamplerCpp()
+
+    def update_latent_variables(
+        self, dataset: Dataset, outcome: Residual, rng: RNG
+    ) -> None:
+        """
+        Update truncated exponential latent variables (Z)
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Forest dataset containing training data and auxiliary data
+        outcome : Residual
+            Outcome data stored as a Residual object
+        rng : RNG
+            Random number generator
+        """
+        self.ordinal_sampler_cpp.UpdateLatentVariables(
+            dataset.dataset_cpp, outcome.residual_cpp, rng.rng_cpp
+        )
+
+    def update_gamma_params(
+        self,
+        dataset: Dataset,
+        outcome: Residual,
+        alpha_gamma: float,
+        beta_gamma: float,
+        gamma_0: float,
+        rng: RNG,
+    ) -> None:
+        """
+        Update gamma cutpoint parameters
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Forest dataset containing training data and auxiliary data
+        outcome : Residual
+            Outcome data stored as a Residual object
+        alpha_gamma : float
+            Shape parameter for log-gamma prior on cutpoints
+        beta_gamma : float
+            Rate parameter for log-gamma prior on cutpoints
+        gamma_0 : float
+            Fixed value for first cutpoint parameter (for identifiability)
+        rng : RNG
+            Random number generator
+        """
+        self.ordinal_sampler_cpp.UpdateGammaParams(
+            dataset.dataset_cpp,
+            outcome.residual_cpp,
+            alpha_gamma,
+            beta_gamma,
+            gamma_0,
+            rng.rng_cpp,
+        )
+
+    def update_cumulative_exp_sums(self, dataset: Dataset) -> None:
+        """
+        Update cumulative exponential sums (seg)
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Forest dataset containing training data and auxiliary data
+        """
+        self.ordinal_sampler_cpp.UpdateCumulativeExpSums(dataset.dataset_cpp)

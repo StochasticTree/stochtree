@@ -2,7 +2,7 @@
 % Please edit documentation in R/model.R
 \name{createForestModel}
 \alias{createForestModel}
-\title{Create a forest model object}
+\title{Create ForestModel Object}
 \usage{
 createForestModel(forest_dataset, forest_model_config, global_model_config)
 }
@@ -18,6 +18,10 @@ createForestModel(forest_dataset, forest_model_config, global_model_config)
 }
 \description{
 Create a forest model object
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \examples{
 num_trees <- 100
@@ -30,10 +34,10 @@ max_depth <- 10
 feature_types <- as.integer(rep(0, p))
 X <- matrix(runif(n*p), ncol = p)
 forest_dataset <- createForestDataset(X)
-forest_model_config <- createForestModelConfig(feature_types=feature_types, 
-                                               num_trees=num_trees, num_features=p, 
-                                               num_observations=n, alpha=alpha, beta=beta, 
-                                               min_samples_leaf=min_samples_leaf, 
+forest_model_config <- createForestModelConfig(feature_types=feature_types,
+                                               num_trees=num_trees, num_features=p,
+                                               num_observations=n, alpha=alpha, beta=beta,
+                                               min_samples_leaf=min_samples_leaf,
                                                max_depth=max_depth, leaf_model_type=1)
 global_model_config <- createGlobalModelConfig(global_error_variance=1.0)
 forest_model <- createForestModel(forest_dataset, forest_model_config, global_model_config)

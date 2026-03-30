@@ -32,7 +32,6 @@
 #include <stochtree/tree.h>
 
 #include <numeric>
-#include <vector>
 
 namespace StochTree {
 
@@ -92,7 +91,6 @@ class ForestTracker {
   int GetNumTrees() {return num_trees_;}
   int GetNumFeatures() {return num_features_;}
   bool Initialized() {return initialized_;}
-
  private:
   /*! \brief Mapper from observations to predicted values summed over every tree in a forest */
   std::vector<double> sum_predictions_;

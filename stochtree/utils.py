@@ -1,6 +1,99 @@
-from typing import Union, Optional
+from typing import Union, Tuple
+import json
+import math
 
 import numpy as np
+
+
+def _get_stochtree_version() -> str:
+    """Return the current stochtree package version, or 'dev' for editable installs."""
+    try:
+        from importlib.metadata import version, PackageNotFoundError
+        return version("stochtree")
+    except Exception:
+        return "dev"
+
+
+def _infer_stochtree_version(json_string: str) -> str:
+    """Infer the stochtree version bracket from the fields present in a JSON string.
+
+    When a JSON was serialized before version stamping was introduced, the version
+    can be approximated by checking which fields are present. The returned string is
+    intended for use in warning messages only, not to gate deserialization behavior.
+
+    Parameters
+    ----------
+    json_string : str
+        Raw JSON string as produced by ``to_json()`` / ``saveBARTModelToJsonString()``.
+
+    Returns
+    -------
+    str
+        The stamp value if ``stochtree_version`` is present, otherwise a bracket
+        string such as ``"<0.4.1"`` indicating the latest version known to be
+        missing the observed fields.
+    """
+    try:
+        d = json.loads(json_string)
+    except Exception:
+        return "unknown"
+
+    if "stochtree_version" in d:
+        return d["stochtree_version"]
+
+    # outcome/link were added in ~0.4.1
+    outcome_model = d.get("outcome_model", {})
+    if "outcome" not in outcome_model or "link" not in outcome_model:
+        return "<0.4.1"
+
+    # has_rfx_basis / num_rfx_basis were added in ~0.4.0
+    if "has_rfx_basis" not in d or "num_rfx_basis" not in d:
+        return "<0.4.0"
+
+    # internal_propensity_model was added in ~0.3.2 (BCF only; absent in BART JSON)
+    # Only flag this if we can confirm it's a BCF JSON by checking a BCF-only field
+    if "propensity_covariate" in d and "internal_propensity_model" not in d:
+        return "<0.3.2"
+
+    # rfx_model_spec and covariate_preprocessor were added in ~0.3.0
+    if "rfx_model_spec" not in d or "covariate_preprocessor" not in d:
+        return "<0.3.0"
+
+    return "unknown"
+
+
+def _set_output_defaults(outcome: str = "continuous", link: str = None) -> Tuple[str, str]:
+    if outcome is None:
+        raise ValueError("Outcome must be specified")
+    if link is None:
+        if outcome == "continuous":
+            link = "identity"
+        elif outcome == "binary":
+            link = "probit"
+        elif outcome == "ordinal":
+            link = "cloglog"
+    return outcome, link
+
+
+def _validate_outcome_model(outcome: str, link: str):
+    if outcome not in ["continuous", "binary", "ordinal"]:
+        raise ValueError("Outcome type must be one of 'continuous', 'binary', or 'ordinal'")
+    if link not in ["identity", "probit", "cloglog"]:
+        raise ValueError("Link function must be one of 'identity', 'probit', or 'cloglog'")
+    if outcome == "continuous" and link != "identity":
+        raise ValueError("Link function must be 'identity' for continuous models")
+    if outcome == "binary" and link not in ["probit", "cloglog"]:
+        raise ValueError("Link function must be 'probit' or 'cloglog' for binary models")
+    if outcome == "ordinal" and link != "cloglog":
+        raise ValueError("Link function must be 'cloglog' for ordinal models")
+
+
+class OutcomeModel:
+    def __init__(self, outcome: str = "continuous", link: str = None):
+        outcome, link = _set_output_defaults(outcome, link)
+        _validate_outcome_model(outcome, link)
+        self.outcome = outcome
+        self.link = link
 
 
 class NotSampledError(ValueError, AttributeError):
@@ -190,17 +283,17 @@ def _check_matrix_square(input: np.ndarray) -> bool:
 
 def _expand_dims_1d(input: Union[int, float, np.array], output_size: int) -> np.array:
     """
-    Convert scalar input to 1D numpy array of dimension `output_size`, 
+    Convert scalar input to 1D numpy array of dimension `output_size`,
     or check that input array is equivalent to a 1D array of dimension `output_size`.
     Single element numpy arrays (i.e. `np.array([2.5])`) are treated as scalars.
-    
+
     Parameters
     ----------
     input : int, float, np.array
         Input to be converted to a 1D array (or passed through as-is)
     output_size : int
         Intended size of the output vector
-        
+
     Returns
     -------
     np.array
@@ -209,30 +302,38 @@ def _expand_dims_1d(input: Union[int, float, np.array], output_size: int) -> np.
     if isinstance(input, np.ndarray):
         input = np.squeeze(input)
         if input.ndim > 1:
-            raise ValueError("`input` must be convertible to a 1D numpy array or scalar")
+            raise ValueError(
+                "`input` must be convertible to a 1D numpy array or scalar"
+            )
         if input.ndim == 0:
             output = np.repeat(input, output_size)
         else:
             if input.shape[0] != output_size:
-                raise ValueError("`input` must be a 1D numpy array with `output_size` elements")
+                raise ValueError(
+                    "`input` must be a 1D numpy array with `output_size` elements"
+                )
             output = input
     elif isinstance(input, (int, float)):
         output = np.repeat(input, output_size)
     else:
-        raise ValueError("`input` must be either a 1D numpy array or a scalar that can be repeated `output_size` times")
+        raise ValueError(
+            "`input` must be either a 1D numpy array or a scalar that can be repeated `output_size` times"
+        )
     return output
 
 
-def _expand_dims_2d(input: Union[int, float, np.array], output_rows: int, output_cols: int) -> np.array:
+def _expand_dims_2d(
+    input: Union[int, float, np.array], output_rows: int, output_cols: int
+) -> np.array:
     """
-    Ensures that input is propagated appropriately to a 2D numpy array of dimension `output_rows` x `output_cols`. 
+    Ensures that input is propagated appropriately to a 2D numpy array of dimension `output_rows` x `output_cols`.
     Handles the following cases:
         1. `input` is a scalar: output is simply a (`output_rows`, `output_cols`) array with `input` repeated for each element
         2. `input` is a 1D array of length `output_rows`: output is a (`output_rows`, `output_cols`) array with `input` broadcast across each of `output_cols` columns
         3. `input` is a 1D array of length `output_cols`: output is a (`output_rows`, `output_cols`) array with `input` broadcast across each of `output_rows` rows
         4. `input` is a 2D array of dimension (`output_rows`, `output_cols`): input is passed through as-is
     All other cases raise a `ValueError`. Single element numpy arrays (i.e. `np.array([2.5])`) are treated as scalars.
-    
+
     Parameters
     ----------
     input : int, float, np.array
@@ -241,7 +342,7 @@ def _expand_dims_2d(input: Union[int, float, np.array], output_rows: int, output
         Intended number of rows in the output array
     output_cols : int
         Intended number of columns in the output array
-        
+
     Returns
     -------
     np.array
@@ -253,9 +354,13 @@ def _expand_dims_2d(input: Union[int, float, np.array], output_rows: int, output
             raise ValueError("`input` must be a 1D or 2D numpy array")
         elif input.ndim == 2:
             if input.shape[0] != output_rows:
-                raise ValueError("If `input` is passed as a 2D numpy array, it must contain `output_rows` rows")
+                raise ValueError(
+                    "If `input` is passed as a 2D numpy array, it must contain `output_rows` rows"
+                )
             if input.shape[1] != output_cols:
-                raise ValueError("If `input` is passed as a 2D numpy array, it must contain `output_cols` columns")
+                raise ValueError(
+                    "If `input` is passed as a 2D numpy array, it must contain `output_cols` columns"
+                )
             output = input
         elif input.ndim == 1:
             if input.shape[0] == output_cols:
@@ -263,7 +368,9 @@ def _expand_dims_2d(input: Union[int, float, np.array], output_rows: int, output
             elif input.shape[0] == output_rows:
                 output = np.tile(input, (output_cols, 1)).T
             else:
-                raise ValueError("If `input` is a 1D numpy array, it must either contain `output_rows` or `output_cols` elements")
+                raise ValueError(
+                    "If `input` is a 1D numpy array, it must either contain `output_rows` or `output_cols` elements"
+                )
         elif input.ndim == 0:
             output = np.tile(input, (output_rows, output_cols))
     elif isinstance(input, (int, float)):
@@ -273,19 +380,21 @@ def _expand_dims_2d(input: Union[int, float, np.array], output_rows: int, output
     return output
 
 
-def _expand_dims_2d_diag(input: Union[int, float, np.array], output_size: int) -> np.array:
+def _expand_dims_2d_diag(
+    input: Union[int, float, np.array], output_size: int
+) -> np.array:
     """
-    Convert scalar input to 2D square numpy array of dimension `output_size` x `output_size` with `input` along the diagonal, 
+    Convert scalar input to 2D square numpy array of dimension `output_size` x `output_size` with `input` along the diagonal,
     or check that input array is equivalent to a 2D square array of dimension `output_size` x `output_size`.
     Single element numpy arrays (i.e. `np.array([2.5])`) are treated as scalars.
-    
+
     Parameters
     ----------
     input : int, float, np.array
         Input to be converted to a 2D square array (or passed through as-is)
     output_size : int
         Intended row and column dimension of the square output matrix
-        
+
     Returns
     -------
     np.array
@@ -294,23 +403,127 @@ def _expand_dims_2d_diag(input: Union[int, float, np.array], output_size: int) -
     if isinstance(input, np.ndarray):
         input = np.squeeze(input)
         if (input.ndim != 2) and (input.ndim != 0):
-            raise ValueError("`input` must be convertible to a 2D numpy array or scalar")
-        if input.ndim == 0:
-            output = np.zeros(
-                (output_size, output_size), dtype=float
+            raise ValueError(
+                "`input` must be convertible to a 2D numpy array or scalar"
             )
+        if input.ndim == 0:
+            output = np.zeros((output_size, output_size), dtype=float)
             np.fill_diagonal(output, input)
         else:
             if input.shape[0] != input.shape[1]:
                 raise ValueError("`input` must be a 2D square numpy array")
             if input.shape[0] != output_size:
-                raise ValueError("`input` must be a 2D square numpy array with exactly `output_size` rows and columns")
+                raise ValueError(
+                    "`input` must be a 2D square numpy array with exactly `output_size` rows and columns"
+                )
             output = input
     elif isinstance(input, (int, float)):
-        output = np.zeros(
-            (output_size, output_size), dtype=float
-        )
+        output = np.zeros((output_size, output_size), dtype=float)
         np.fill_diagonal(output, input)
     else:
-        raise ValueError("`input` must be either a 2D square numpy array or a scalar that can be propagated along the diagonal of a square matrix")
+        raise ValueError(
+            "`input` must be either a 2D square numpy array or a scalar that can be propagated along the diagonal of a square matrix"
+        )
     return output
+
+
+def _posterior_predictive_heuristic_multiplier(
+    num_samples: int, num_observations: int
+) -> int:
+    if num_samples >= 1000:
+        return 1
+    else:
+        return math.ceil(1000 / num_samples)
+
+
+def _summarize_interval(
+    array: np.ndarray, sample_dim: int = 2, level: float = 0.95
+) -> dict:
+    # Check that the array is numeric and at least 2 dimensional
+    if not isinstance(array, np.ndarray):
+        raise ValueError("`array` must be a numpy array")
+    if not _check_array_numeric(array):
+        raise ValueError("`array` must be a numeric numpy array")
+    if not len(array.shape) >= 2:
+        raise ValueError("`array` must be at least a 2-dimensional numpy array")
+    if (
+        not _check_is_int(sample_dim)
+        or (sample_dim < 0)
+        or (sample_dim >= len(array.shape))
+    ):
+        raise ValueError(
+            "`sample_dim` must be an integer between 0 and the number of dimensions of `array` - 1"
+        )
+    if not isinstance(level, float) or (level <= 0) or (level >= 1):
+        raise ValueError("`level` must be a float between 0 and 1")
+
+    # Compute lower and upper quantiles based on the requested interval
+    quantile_lb = (1 - level) / 2
+    quantile_ub = 1 - quantile_lb
+
+    # Calculate the interval
+    result_lb = np.quantile(array, q=quantile_lb, axis=sample_dim)
+    result_ub = np.quantile(array, q=quantile_ub, axis=sample_dim)
+
+    # Return results as a dictionary
+    return {"lower": result_lb, "upper": result_ub}
+
+
+def _class_probs_to_survival_probs(
+    probs: np.ndarray, num_categories: int
+) -> np.ndarray:
+    """Convert class probabilities to survival probabilities P(Y > k).
+
+    Parameters
+    ----------
+    probs : np.ndarray
+        A 3D array of shape (n_obs, num_categories, num_samples) containing
+        class probabilities.
+    num_categories : int
+        The total number of categories.
+
+    Returns
+    -------
+    np.ndarray
+        A 3D array of shape (n_obs, num_categories - 1, num_samples) containing
+        survival probabilities P(Y > k) for k = 1, ..., K-1.
+    """
+    output = np.full(
+        (probs.shape[0], probs.shape[1] - 1, probs.shape[2]), np.nan
+    )
+    for i in range(1, num_categories):
+        output[:, i - 1, :] = np.sum(probs[:, i:num_categories, :], axis=1)
+    return output
+
+
+def _compute_sample_dim(predictions: np.ndarray, num_samples: int) -> int:
+    """Determine which axis of a prediction array corresponds to posterior samples.
+
+    Parameters
+    ----------
+    predictions : np.ndarray
+        Array of predictions (at least 2D).
+    num_samples : int
+        The number of posterior samples in the model.
+
+    Returns
+    -------
+    int
+        The axis index corresponding to the sample dimension.
+    """
+    term_shape = predictions.shape
+    if len(term_shape) <= 1:
+        return 0
+    matches = [i for i, s in enumerate(term_shape) if s == num_samples]
+    if len(matches) > 1:
+        import warnings
+        warnings.warn(
+            "Multiple posterior dimensions matching the number of posterior draws "
+            "found in the array, using the last one as the MCMC index"
+        )
+        return matches[-1]
+    elif len(matches) == 0:
+        raise ValueError(
+            "No posterior dimension was found that matches the number of posterior draws"
+        )
+    return matches[0]

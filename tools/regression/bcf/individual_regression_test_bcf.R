@@ -257,7 +257,7 @@ for (i in 1:n_iter) {
         for (j in 1:nrow(tau_hat_posterior)) {
             tau_hat_covered[j] <- (
                 (treatment_effect_test[j] >= tau_hat_posterior_quantile_025[j]) & 
-                (treatment_effect_test[j] <= tau_hat_posterior_quantile_025[j])
+                (treatment_effect_test[j] <= tau_hat_posterior_quantile_975[j])
             )
         }
     }

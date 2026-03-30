@@ -2,9 +2,13 @@
 % Please edit documentation in R/forest.R
 \name{ForestSamples}
 \alias{ForestSamples}
-\title{Class that stores draws from an random ensemble of decision trees}
+\title{Forest Container C++ Wrapper}
 \description{
-Wrapper around a C++ container of tree ensembles
+Wrapper around a C++ class that stores draws from an random ensemble of decision trees.
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
@@ -37,7 +41,7 @@ Wrapper around a C++ container of tree ensembles
 \item \href{#method-ForestSamples-num_samples}{\code{ForestSamples$num_samples()}}
 \item \href{#method-ForestSamples-num_trees}{\code{ForestSamples$num_trees()}}
 \item \href{#method-ForestSamples-leaf_dimension}{\code{ForestSamples$leaf_dimension()}}
-\item \href{#method-ForestSamples-is_constant_leaf}{\code{ForestSamples$is_constant_leaf()}}
+\item \href{#method-ForestSamples-is_leaf_constant}{\code{ForestSamples$is_leaf_constant()}}
 \item \href{#method-ForestSamples-is_exponentiated}{\code{ForestSamples$is_exponentiated()}}
 \item \href{#method-ForestSamples-add_forest_with_constant_leaves}{\code{ForestSamples$add_forest_with_constant_leaves()}}
 \item \href{#method-ForestSamples-add_numeric_split_tree}{\code{ForestSamples$add_numeric_split_tree()}}
@@ -529,12 +533,12 @@ Leaf node parameter size
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-ForestSamples-is_constant_leaf"></a>}}
-\if{latex}{\out{\hypertarget{method-ForestSamples-is_constant_leaf}{}}}
-\subsection{Method \code{is_constant_leaf()}}{
+\if{html}{\out{<a id="method-ForestSamples-is_leaf_constant"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestSamples-is_leaf_constant}{}}}
+\subsection{Method \code{is_leaf_constant()}}{
 Return constant leaf status of trees in a \code{ForestContainer} object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$is_constant_leaf()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{ForestSamples$is_leaf_constant()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{

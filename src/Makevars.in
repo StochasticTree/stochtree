@@ -4,7 +4,6 @@ PKGROOT=..
 
 STOCHTREE_CPPFLAGS = \
     @STOCHTREE_CPPFLAGS@ \
-    @OPENMP_AVAILABILITY_FLAGS@ \
     -DSTOCHTREE_R_BUILD
 
 PKG_CPPFLAGS = \
@@ -26,6 +25,7 @@ OBJECTS = \
     kernel.o \
     R_data.o \
     R_random_effects.o \
+    R_utils.o \
     sampler.o \
     serialization.o \
     cpp11.o \
@@ -34,6 +34,7 @@ OBJECTS = \
     data.o \
     io.o \
     leaf_model.o \
+    ordinal_sampler.o \
     partition_tracker.o \
     random_effects.o \
     tree.o

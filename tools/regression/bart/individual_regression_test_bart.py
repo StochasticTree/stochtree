@@ -290,8 +290,8 @@ def main():
         
         # Predict on the test set
         test_preds = bart_model.predict(
-            covariates=covariates_test,
-            basis=basis_test,
+            X=covariates_test,
+            leaf_basis=basis_test,
             rfx_group_ids=rfx_group_ids_test,
             rfx_basis=rfx_basis_test
         )

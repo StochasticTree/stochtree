@@ -2,11 +2,15 @@
 % Please edit documentation in R/model.R
 \name{ForestModel}
 \alias{ForestModel}
-\title{Class that defines and samples a forest model}
+\title{Forest Model C++ Wrapper}
 \description{
-Hosts the C++ data structures needed to sample an ensemble of decision
-trees, and exposes functionality to run a forest sampler
+Wraps the C++ data structures needed to sample an ensemble of decision
+trees and exposes functionality to run a forest sampler
 (using either MCMC or the grow-from-root algorithm).
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
@@ -115,7 +119,7 @@ Run a single iteration of the forest sampling algorithm (MCMC or GFR)
 
 \item{\code{global_model_config}}{GlobalModelConfig object containing global model parameters and settings}
 
-\item{\code{num_threads}}{Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to \code{1}, otherwise to the maximum number of available threads.}
+\item{\code{num_threads}}{Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's system, this will default to \code{1}, otherwise to the maximum number of available threads.}
 
 \item{\code{keep_forest}}{(Optional) Whether the updated forest sample should be saved to \code{forest_samples}. Default: \code{TRUE}.}
 

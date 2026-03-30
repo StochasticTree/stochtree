@@ -115,7 +115,7 @@ def _preprocess_bcf_params(params: Optional[Dict[str, Any]] = None) -> Dict[str,
         "sample_sigma_global": True,
         "sample_sigma_leaf_mu": True,
         "sample_sigma_leaf_tau": False,
-        "propensity_covariate": "mu",
+        "propensity_covariate": "prognostic",
         "adaptive_coding": True,
         "b_0": -0.5,
         "b_1": 0.5,
@@ -339,9 +339,9 @@ class CovariatePreprocessor:
         self._onehot_feature_index = np.array(
             [-1 for i in range(self._num_original_features)], dtype=int
         )
-        self._original_feature_types = np.array(
-            ["float" for i in range(self._num_original_features)]
-        )
+        self._original_feature_types = np.array([
+            "float" for i in range(self._num_original_features)
+        ])
 
         # Check whether the array is numeric
         cov_dtype = covariates.dtype
@@ -443,9 +443,9 @@ class CovariatePreprocessor:
             raise ValueError(
                 "Attempting to call transform from a CovariateTransformer that was fit on a dataset with different dimensionality"
             )
-        self._original_feature_indices = np.array(
-            [i for i in range(covariates.shape[1])]
-        )
+        self._original_feature_indices = np.array([
+            i for i in range(covariates.shape[1])
+        ])
         return covariates
 
     def _transform(self, covariates: Union[pd.DataFrame, np.array]) -> np.array:

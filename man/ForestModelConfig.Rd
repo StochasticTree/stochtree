@@ -2,8 +2,7 @@
 % Please edit documentation in R/config.R
 \name{ForestModelConfig}
 \alias{ForestModelConfig}
-\title{Object used to get / set parameters and other model configuration options
-for a forest model in the "low-level" stochtree interface}
+\title{Forest Model Configuration Object}
 \value{
 Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)
 
@@ -33,17 +32,27 @@ Shape parameter for IG leaf models
 
 Scale parameter for IG leaf models
 
+Shape parameter for conditional gamma component of cloglog leaf models
+
+Rate parameter for conditional gamma component of cloglog leaf models
+
 Number of unique cutpoints to consider
 
 Number of features to subsample for the GFR algorithm
 }
 \description{
+Object used to get / set parameters and other model configuration options
+for a forest model in the "low-level" stochtree interface.
 The "low-level" stochtree interface enables a high degreee of sampler
 customization, in which users employ R wrappers around C++ objects
 like ForestDataset, Outcome, CppRng, and ForestModel to run the
 Gibbs sampler of a BART model with custom modifications.
 ForestModelConfig allows users to specify / query the parameters of a
 forest model they wish to run.
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
@@ -78,6 +87,10 @@ forest model they wish to run.
 
 \item{\code{variance_forest_scale}}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3})}
 
+\item{\code{cloglog_forest_shape}}{Shape parameter for conditional gamma component of cloglog leaf models (applicable when \code{leaf_model_type = 4})}
+
+\item{\code{cloglog_forest_rate}}{Rate parameter for conditional gamma component of cloglog leaf models (applicable when \code{leaf_model_type = 4})}
+
 \item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider}
 
 \item{\code{num_features_subsample}}{Number of features to subsample for the GFR algorithm
@@ -99,6 +112,8 @@ Create a new ForestModelConfig object.}
 \item \href{#method-ForestModelConfig-update_leaf_model_scale}{\code{ForestModelConfig$update_leaf_model_scale()}}
 \item \href{#method-ForestModelConfig-update_variance_forest_shape}{\code{ForestModelConfig$update_variance_forest_shape()}}
 \item \href{#method-ForestModelConfig-update_variance_forest_scale}{\code{ForestModelConfig$update_variance_forest_scale()}}
+\item \href{#method-ForestModelConfig-update_cloglog_forest_shape}{\code{ForestModelConfig$update_cloglog_forest_shape()}}
+\item \href{#method-ForestModelConfig-update_cloglog_forest_rate}{\code{ForestModelConfig$update_cloglog_forest_rate()}}
 \item \href{#method-ForestModelConfig-update_cutpoint_grid_size}{\code{ForestModelConfig$update_cutpoint_grid_size()}}
 \item \href{#method-ForestModelConfig-update_num_features_subsample}{\code{ForestModelConfig$update_num_features_subsample()}}
 \item \href{#method-ForestModelConfig-get_feature_types}{\code{ForestModelConfig$get_feature_types()}}
@@ -115,6 +130,8 @@ Create a new ForestModelConfig object.}
 \item \href{#method-ForestModelConfig-get_leaf_model_scale}{\code{ForestModelConfig$get_leaf_model_scale()}}
 \item \href{#method-ForestModelConfig-get_variance_forest_shape}{\code{ForestModelConfig$get_variance_forest_shape()}}
 \item \href{#method-ForestModelConfig-get_variance_forest_scale}{\code{ForestModelConfig$get_variance_forest_scale()}}
+\item \href{#method-ForestModelConfig-get_cloglog_forest_shape}{\code{ForestModelConfig$get_cloglog_forest_shape()}}
+\item \href{#method-ForestModelConfig-get_cloglog_forest_rate}{\code{ForestModelConfig$get_cloglog_forest_rate()}}
 \item \href{#method-ForestModelConfig-get_cutpoint_grid_size}{\code{ForestModelConfig$get_cutpoint_grid_size()}}
 \item \href{#method-ForestModelConfig-get_num_features_subsample}{\code{ForestModelConfig$get_num_features_subsample()}}
 }
@@ -140,6 +157,8 @@ Create a new ForestModelConfig object.}
   leaf_model_scale = NULL,
   variance_forest_shape = 1,
   variance_forest_scale = 1,
+  cloglog_forest_shape = 2,
+  cloglog_forest_rate = 2,
   cutpoint_grid_size = 100,
   num_features_subsample = NULL
 )}\if{html}{\out{</div>}}
@@ -177,6 +196,10 @@ Create a new ForestModelConfig object.}
 \item{\code{variance_forest_shape}}{Shape parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
 
 \item{\code{variance_forest_scale}}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
+
+\item{\code{cloglog_forest_shape}}{Shape parameter for conditional gamma component of cloglog leaf models (applicable when \code{leaf_model_type = 4}). Default: \code{1}.}
+
+\item{\code{cloglog_forest_rate}}{Rate parameter for conditional gamma component of cloglog leaf models (applicable when \code{leaf_model_type = 4}). Default: \code{1}.}
 
 \item{\code{cutpoint_grid_size}}{Number of unique cutpoints to consider (default: \code{100})}
 
@@ -359,6 +382,40 @@ Update scale parameter for IG leaf models
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-update_cloglog_forest_shape"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-update_cloglog_forest_shape}{}}}
+\subsection{Method \code{update_cloglog_forest_shape()}}{
+Update shape parameter for conditional gamma component of cloglog leaf models
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$update_cloglog_forest_shape(cloglog_forest_shape)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{cloglog_forest_shape}}{Shape parameter for conditional gamma component of cloglog leaf models}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-update_cloglog_forest_rate"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-update_cloglog_forest_rate}{}}}
+\subsection{Method \code{update_cloglog_forest_rate()}}{
+Update rate parameter for conditional gamma component of cloglog leaf models
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$update_cloglog_forest_rate(cloglog_forest_rate)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{cloglog_forest_rate}}{Rate parameter for conditional gamma component of cloglog leaf models}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ForestModelConfig-update_cutpoint_grid_size"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestModelConfig-update_cutpoint_grid_size}{}}}
 \subsection{Method \code{update_cutpoint_grid_size()}}{
@@ -529,6 +586,26 @@ Query shape parameter for IG leaf models for this ForestModelConfig object
 Query scale parameter for IG leaf models for this ForestModelConfig object
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_variance_forest_scale()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-get_cloglog_forest_shape"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_cloglog_forest_shape}{}}}
+\subsection{Method \code{get_cloglog_forest_shape()}}{
+Query shape parameter for conditional gamma component of cloglog leaf models for this ForestModelConfig object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_cloglog_forest_shape()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestModelConfig-get_cloglog_forest_rate"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestModelConfig-get_cloglog_forest_rate}{}}}
+\subsection{Method \code{get_cloglog_forest_rate()}}{
+Query rate parameter for conditional gamma component of cloglog leaf models for this ForestModelConfig object
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestModelConfig$get_cloglog_forest_rate()}\if{html}{\out{</div>}}
 }
 
 }

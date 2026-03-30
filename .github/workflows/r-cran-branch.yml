@@ -35,12 +35,12 @@ jobs:
 
       - name: Create CRAN-formatted source package in stochtree_cran subfolder
         run: |
-          Rscript cran-bootstrap.R
+          Rscript cran-bootstrap.R 0 0 1
       
       - name: Deploy to CRAN dev branch
         if: github.event_name != 'pull_request'
         uses: JamesIves/github-pages-deploy-action@v4.5.0
         with:
-          clean: false
+          clean: true
           branch: r-dev
           folder: stochtree_cran

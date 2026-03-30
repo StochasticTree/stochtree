@@ -31,7 +31,11 @@ class Dataset:
             np.expand_dims(covariates, 1) if np.ndim(covariates) == 1 else covariates
         )
         n, p = covariates_.shape
-        covariates_rowmajor = np.ascontiguousarray(covariates)
+        covariates_rowmajor = np.ascontiguousarray(covariates_)
+        # if covariates_.flags.writeable:
+        #     covariates_rowmajor = np.ascontiguousarray(covariates_)
+        # else:
+        #     covariates_rowmajor = np.array(covariates_, order="C", copy=True)
         self.dataset_cpp.AddCovariates(covariates_rowmajor, n, p, True)
 
     def add_basis(self, basis: np.array):
@@ -46,6 +50,10 @@ class Dataset:
         basis_ = np.expand_dims(basis, 1) if np.ndim(basis) == 1 else basis
         n, p = basis_.shape
         basis_rowmajor = np.ascontiguousarray(basis_)
+        # if basis_.flags.writeable:
+        #     basis_rowmajor = np.ascontiguousarray(basis_)
+        # else:
+        #     basis_rowmajor = np.array(basis_, order="C", copy=True)
         self.dataset_cpp.AddBasis(basis_rowmajor, n, p, True)
 
     def update_basis(self, basis: np.array):
@@ -58,9 +66,32 @@ class Dataset:
         basis : np.array
             Numpy array of basis vectors.
         """
-        basis_ = np.expand_dims(basis, 1) if np.ndim(basis) == 1 else basis
+        if not self.has_basis():
+            raise ValueError(
+                "This dataset does not have a basis to update. Please use `add_basis` to create and initialize the values in the Dataset's basis matrix."
+            )
+        if not isinstance(basis, np.ndarray):
+            raise ValueError("basis must be a numpy array.")
+        if np.ndim(basis) == 1:
+            basis_ = np.expand_dims(basis, 1)
+        elif np.ndim(basis) == 2:
+            basis_ = basis
+        else:
+            raise ValueError("basis must be a numpy array with one or two dimension.")
         n, p = basis_.shape
         basis_rowmajor = np.ascontiguousarray(basis_)
+        # if basis_.flags.writeable:
+        #     basis_rowmajor = np.ascontiguousarray(basis_)
+        # else:
+        #     basis_rowmajor = np.array(basis_, order="C", copy=True)
+        if self.num_basis() != p:
+            raise ValueError(
+                f"The number of columns in the new basis ({p}) must match the number of columns in the existing basis ({self.num_basis()})."
+            )
+        if self.num_observations() != n:
+            raise ValueError(
+                f"The number of rows in the new basis ({n}) must match the number of rows in the existing basis ({self.num_observations()})."
+            )
         self.dataset_cpp.UpdateBasis(basis_rowmajor, n, p, True)
 
     def add_variance_weights(self, variance_weights: np.array):
@@ -72,8 +103,53 @@ class Dataset:
         variance_weights : np.array
             Univariate numpy array of variance weights.
         """
-        n = variance_weights.size
-        self.dataset_cpp.AddVarianceWeights(variance_weights, n)
+        if not isinstance(variance_weights, np.ndarray):
+            raise ValueError("variance_weights must be a numpy array.")
+        variance_weights_ = np.squeeze(variance_weights)
+        if variance_weights_.ndim != 1:
+            raise ValueError("variance_weights must be a 1-dimensional numpy array.")
+        # if variance_weights_.flags.writeable:
+        #     variance_weights_passed_ = variance_weights_
+        # else:
+        #     variance_weights_passed_ = variance_weights_.copy()
+        n = variance_weights_.size
+        self.dataset_cpp.AddVarianceWeights(variance_weights_, n)
+        # self.dataset_cpp.AddVarianceWeights(variance_weights_passed_, n)
+
+    def update_variance_weights(
+        self, variance_weights: np.array, exponentiate: bool = False
+    ):
+        """
+        Update variance weights in a dataset. Allows users to build an ensemble that depends on
+        variance weights that are updated throughout the sampler.
+
+        Parameters
+        ----------
+        variance_weights : np.array
+            Univariate numpy array of variance weights.
+        exponentiate : bool
+            Whether to exponentiate the variance weights before storing them in the dataset.
+        """
+        if not self.has_variance_weights():
+            raise ValueError(
+                "This dataset does not have variance weights to update. Please use `add_variance_weights` to create and initialize the values in the Dataset's variance weight vector."
+            )
+        if not isinstance(variance_weights, np.ndarray):
+            raise ValueError("variance_weights must be a numpy array.")
+        variance_weights_ = np.squeeze(variance_weights)
+        n = variance_weights_.size
+        if variance_weights_.ndim != 1:
+            raise ValueError("variance_weights must be a 1-dimensional numpy array.")
+        # if variance_weights_.flags.writeable:
+        #     variance_weights_passed_ = variance_weights_
+        # else:
+        #     variance_weights_passed_ = variance_weights_.copy()
+        if self.num_observations() != n:
+            raise ValueError(
+                f"The number of rows in the new variance_weights vector ({n}) must match the number of rows in the existing vector ({self.num_observations()})."
+            )
+        self.dataset_cpp.UpdateVarianceWeights(variance_weights_, n, exponentiate)
+        # self.dataset_cpp.UpdateVarianceWeights(variance_weights_passed_, n, exponentiate)
 
     def num_observations(self) -> int:
         """
@@ -108,6 +184,39 @@ class Dataset:
         """
         return self.dataset_cpp.NumBasis()
 
+    def get_covariates(self) -> np.array:
+        """
+        Return the covariates in a Dataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            Covariate data
+        """
+        return self.dataset_cpp.GetCovariates()
+
+    def get_basis(self) -> np.array:
+        """
+        Return the bases in a Dataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            Basis data
+        """
+        return self.dataset_cpp.GetBasis()
+
+    def get_variance_weights(self) -> np.array:
+        """
+        Return the variance weights in a Dataset as a numpy array
+
+        Returns
+        -------
+        np.array
+            Variance weights data
+        """
+        return self.dataset_cpp.GetVarianceWeights()
+
     def has_basis(self) -> bool:
         """
         Whether or not a dataset has a basis vector (for leaf regression)
@@ -129,6 +238,66 @@ class Dataset:
             `True` if the dataset has variance weights, `False` otherwise
         """
         return self.dataset_cpp.HasVarianceWeights()
+
+    def add_auxiliary_dimension(self, dim_size: int):
+        """
+        Add an auxiliary data dimension to the dataset
+
+        Parameters
+        ----------
+        dim_size : int
+            Number of elements in the new auxiliary dimension
+        """
+        self.dataset_cpp.AddAuxiliaryDimension(dim_size)
+
+    def set_auxiliary_data_value(self, dim_idx: int, element_idx: int, value: float):
+        """
+        Set a value in the auxiliary data
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension
+        element_idx : int
+            Index of the element within the dimension
+        value : float
+            Value to set
+        """
+        self.dataset_cpp.SetAuxiliaryDataValue(dim_idx, element_idx, value)
+
+    def get_auxiliary_data_value(self, dim_idx: int, element_idx: int) -> float:
+        """
+        Get a value from the auxiliary data
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension
+        element_idx : int
+            Index of the element within the dimension
+
+        Returns
+        -------
+        float
+            The auxiliary data value
+        """
+        return self.dataset_cpp.GetAuxiliaryDataValue(dim_idx, element_idx)
+
+    def get_auxiliary_data_vector(self, dim_idx: int) -> np.array:
+        """
+        Get an auxiliary data vector as a numpy array
+
+        Parameters
+        ----------
+        dim_idx : int
+            Index of the auxiliary dimension
+
+        Returns
+        -------
+        np.array
+            The auxiliary data vector
+        """
+        return self.dataset_cpp.GetAuxiliaryDataVector(dim_idx)
 
 
 class Residual:
@@ -176,3 +345,37 @@ class Residual:
         """
         n = new_vector.size
         self.residual_cpp.ReplaceData(new_vector, n)
+    
+    def add_vector(self, update_vector: np.array) -> None:
+        """
+        Update the current state of the outcome (i.e. partial residual) data by adding each element of `update_vector`
+
+        Parameters
+        ----------
+        update_vector : np.array
+            Univariate numpy array of values to add to the current residual.
+        """
+        if not isinstance(update_vector, np.ndarray):
+            raise ValueError("update_vector must be a numpy array.")
+        update_vector_ = np.squeeze(update_vector)
+        if not update_vector_.ndim == 1:
+            raise ValueError("update_vector must be a 1-dimensional numpy array.")
+        n = update_vector_.size
+        self.residual_cpp.AddToData(update_vector_, n)
+    
+    def subtract_vector(self, update_vector: np.array) -> None:
+        """
+        Update the current state of the outcome (i.e. partial residual) data by subtracting each element of `update_vector`
+
+        Parameters
+        ----------
+        update_vector : np.array
+            Univariate numpy array of values to subtracted from the current residual.
+        """
+        if not isinstance(update_vector, np.ndarray):
+            raise ValueError("update_vector must be a numpy array.")
+        update_vector_ = np.squeeze(update_vector)
+        if not update_vector_.ndim == 1:
+            raise ValueError("update_vector must be a 1-dimensional numpy array.")
+        n = update_vector_.size
+        self.residual_cpp.SubtractFromData(update_vector_, n)

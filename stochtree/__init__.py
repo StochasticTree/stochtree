@@ -8,6 +8,7 @@ from .kernel import (
     compute_forest_leaf_indices, 
     compute_forest_max_leaf_index
 )
+from .plotting import plot_parameter_trace
 from .preprocessing import CovariatePreprocessor
 from .random_effects import (
     RandomEffectsContainer, 
@@ -22,7 +23,12 @@ from .sampler import (
     LeafVarianceModel
 )
 from .serialization import JSONSerializer
+from .sklearn import (
+    StochTreeBARTRegressor,
+    StochTreeBARTBinaryClassifier, 
+)
 from .utils import (
+    OutcomeModel,
     NotSampledError,
     _check_array_integer,
     _check_array_numeric,
@@ -31,14 +37,13 @@ from .utils import (
     _check_matrix_square,
     _standardize_array_to_list,
     _standardize_array_to_np,
-    _expand_dims_1d, 
-    _expand_dims_2d, 
-    _expand_dims_2d_diag
 )
 
 __all__ = [
     "BARTModel",
     "BCFModel",
+    "StochTreeBARTRegressor",
+    "StochTreeBARTBinaryClassifier",
     "Dataset",
     "Residual",
     "ForestContainer",
@@ -55,6 +60,7 @@ __all__ = [
     "ForestModelConfig",
     "GlobalModelConfig",
     "JSONSerializer",
+    "OutcomeModel",
     "NotSampledError",
     "_check_array_integer",
     "_check_array_numeric",
@@ -66,4 +72,5 @@ __all__ = [
     "compute_forest_leaf_indices",
     "compute_forest_max_leaf_index", 
     "calibrate_global_error_variance",
+    "plot_parameter_trace"
 ]

@@ -7,12 +7,16 @@ build/
 .vscode/
 xcode/
 *.json
+!test/R/testthat/fixtures/*.json
+!test/python/fixtures/*.json
 .vs/
 cpp_docs/doxyoutput/html
 cpp_docs/doxyoutput/xml
 cpp_docs/doxyoutput/latex
 stochtree_cran
 *.trace
+*.clangd
+*.claude
 
 ## R gitignore
 

@@ -3,6 +3,7 @@
 #define STOCHTREE_NORMAL_SAMPLER_H_
 
 #include <Eigen/Dense>
+#include <stochtree/distributions.h>
 #include <stochtree/log.h>
 #include <random>
 #include <vector>
@@ -11,19 +12,19 @@ namespace StochTree {
 
 class UnivariateNormalSampler {
  public:
-  UnivariateNormalSampler() {std_normal_dist_ = std::normal_distribution<double>(0.,1.);}
+  UnivariateNormalSampler() {std_normal_dist_ = standard_normal();}
   ~UnivariateNormalSampler() {}
   double Sample(double mean, double variance, std::mt19937& gen) {
     return mean + std::sqrt(variance) * std_normal_dist_(gen);
   }
  private:
   /*! \brief Standard normal distribution */
-  std::normal_distribution<double> std_normal_dist_;
+  standard_normal std_normal_dist_;
 };
 
 class MultivariateNormalSampler {
  public:
-  MultivariateNormalSampler() {std_normal_dist_ = std::normal_distribution<double>(0.,1.);}
+  MultivariateNormalSampler() {std_normal_dist_ = standard_normal();}
   ~MultivariateNormalSampler() {}
   std::vector<double> Sample(Eigen::VectorXd& mean, Eigen::MatrixXd& covariance, std::mt19937& gen) {
     // Dimension extraction and checks
@@ -72,7 +73,7 @@ class MultivariateNormalSampler {
   }
  private:
   /*! \brief Standard normal distribution */
-  std::normal_distribution<double> std_normal_dist_;
+  standard_normal std_normal_dist_;
 };
 
 } // namespace StochTree

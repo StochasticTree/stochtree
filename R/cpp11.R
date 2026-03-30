@@ -36,8 +36,44 @@ forest_dataset_update_basis_cpp <- function(dataset_ptr, basis) {
   invisible(.Call(`_stochtree_forest_dataset_update_basis_cpp`, dataset_ptr, basis))
 }
 
+forest_dataset_update_var_weights_cpp <- function(dataset_ptr, weights, exponentiate) {
+  invisible(.Call(`_stochtree_forest_dataset_update_var_weights_cpp`, dataset_ptr, weights, exponentiate))
+}
+
 forest_dataset_add_weights_cpp <- function(dataset_ptr, weights) {
   invisible(.Call(`_stochtree_forest_dataset_add_weights_cpp`, dataset_ptr, weights))
+}
+
+forest_dataset_get_covariates_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_forest_dataset_get_covariates_cpp`, dataset_ptr)
+}
+
+forest_dataset_get_basis_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_forest_dataset_get_basis_cpp`, dataset_ptr)
+}
+
+forest_dataset_get_variance_weights_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_forest_dataset_get_variance_weights_cpp`, dataset_ptr)
+}
+
+forest_dataset_has_auxiliary_dimension_cpp <- function(dataset_ptr, dim_idx) {
+  .Call(`_stochtree_forest_dataset_has_auxiliary_dimension_cpp`, dataset_ptr, dim_idx)
+}
+
+forest_dataset_add_auxiliary_dimension_cpp <- function(dataset_ptr, dim_size) {
+  invisible(.Call(`_stochtree_forest_dataset_add_auxiliary_dimension_cpp`, dataset_ptr, dim_size))
+}
+
+forest_dataset_get_auxiliary_data_value_cpp <- function(dataset_ptr, dim_idx, element_idx) {
+  .Call(`_stochtree_forest_dataset_get_auxiliary_data_value_cpp`, dataset_ptr, dim_idx, element_idx)
+}
+
+forest_dataset_set_auxiliary_data_value_cpp <- function(dataset_ptr, dim_idx, element_idx, value) {
+  invisible(.Call(`_stochtree_forest_dataset_set_auxiliary_data_value_cpp`, dataset_ptr, dim_idx, element_idx, value))
+}
+
+forest_dataset_get_auxiliary_data_vector_cpp <- function(dataset_ptr, dim_idx) {
+  .Call(`_stochtree_forest_dataset_get_auxiliary_data_vector_cpp`, dataset_ptr, dim_idx)
 }
 
 create_column_vector_cpp <- function(outcome) {
@@ -68,6 +104,22 @@ create_rfx_dataset_cpp <- function() {
   .Call(`_stochtree_create_rfx_dataset_cpp`)
 }
 
+rfx_dataset_update_basis_cpp <- function(dataset_ptr, basis) {
+  invisible(.Call(`_stochtree_rfx_dataset_update_basis_cpp`, dataset_ptr, basis))
+}
+
+rfx_dataset_update_var_weights_cpp <- function(dataset_ptr, weights, exponentiate) {
+  invisible(.Call(`_stochtree_rfx_dataset_update_var_weights_cpp`, dataset_ptr, weights, exponentiate))
+}
+
+rfx_dataset_update_group_labels_cpp <- function(dataset_ptr, group_labels) {
+  invisible(.Call(`_stochtree_rfx_dataset_update_group_labels_cpp`, dataset_ptr, group_labels))
+}
+
+rfx_dataset_num_basis_cpp <- function(dataset) {
+  .Call(`_stochtree_rfx_dataset_num_basis_cpp`, dataset)
+}
+
 rfx_dataset_num_rows_cpp <- function(dataset) {
   .Call(`_stochtree_rfx_dataset_num_rows_cpp`, dataset)
 }
@@ -94,6 +146,18 @@ rfx_dataset_add_basis_cpp <- function(dataset_ptr, basis) {
 
 rfx_dataset_add_weights_cpp <- function(dataset_ptr, weights) {
   invisible(.Call(`_stochtree_rfx_dataset_add_weights_cpp`, dataset_ptr, weights))
+}
+
+rfx_dataset_get_group_labels_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_rfx_dataset_get_group_labels_cpp`, dataset_ptr)
+}
+
+rfx_dataset_get_basis_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_rfx_dataset_get_basis_cpp`, dataset_ptr)
+}
+
+rfx_dataset_get_variance_weights_cpp <- function(dataset_ptr) {
+  .Call(`_stochtree_rfx_dataset_get_variance_weights_cpp`, dataset_ptr)
 }
 
 rfx_container_cpp <- function(num_components, num_groups) {
@@ -230,6 +294,22 @@ reset_rfx_tracker_cpp <- function(tracker, dataset, residual, rfx_model) {
 
 root_reset_rfx_tracker_cpp <- function(tracker, dataset, residual, rfx_model) {
   invisible(.Call(`_stochtree_root_reset_rfx_tracker_cpp`, tracker, dataset, residual, rfx_model))
+}
+
+sum_cpp <- function(x) {
+  .Call(`_stochtree_sum_cpp`, x)
+}
+
+mean_cpp <- function(x) {
+  .Call(`_stochtree_mean_cpp`, x)
+}
+
+var_cpp <- function(x) {
+  .Call(`_stochtree_var_cpp`, x)
+}
+
+sd_cpp <- function(x) {
+  .Call(`_stochtree_sd_cpp`, x)
 }
 
 active_forest_cpp <- function(num_trees, output_dimension, is_leaf_constant, is_exponentiated) {
@@ -646,6 +726,22 @@ get_cached_forest_predictions_cpp <- function(tracker_ptr) {
 
 sample_without_replacement_integer_cpp <- function(population_vector, sampling_probs, sample_size) {
   .Call(`_stochtree_sample_without_replacement_integer_cpp`, population_vector, sampling_probs, sample_size)
+}
+
+ordinal_sampler_cpp <- function() {
+  .Call(`_stochtree_ordinal_sampler_cpp`)
+}
+
+ordinal_sampler_update_latent_variables_cpp <- function(sampler_ptr, data_ptr, outcome_ptr, rng_ptr) {
+  invisible(.Call(`_stochtree_ordinal_sampler_update_latent_variables_cpp`, sampler_ptr, data_ptr, outcome_ptr, rng_ptr))
+}
+
+ordinal_sampler_update_gamma_params_cpp <- function(sampler_ptr, data_ptr, outcome_ptr, alpha_gamma, beta_gamma, gamma_0, rng_ptr) {
+  invisible(.Call(`_stochtree_ordinal_sampler_update_gamma_params_cpp`, sampler_ptr, data_ptr, outcome_ptr, alpha_gamma, beta_gamma, gamma_0, rng_ptr))
+}
+
+ordinal_sampler_update_cumsum_exp_cpp <- function(sampler_ptr, data_ptr) {
+  invisible(.Call(`_stochtree_ordinal_sampler_update_cumsum_exp_cpp`, sampler_ptr, data_ptr))
 }
 
 init_json_cpp <- function() {

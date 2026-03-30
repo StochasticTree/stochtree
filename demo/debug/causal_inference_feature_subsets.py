@@ -44,7 +44,7 @@ s = """\
 bcf_model_a = BCFModel()
 prog_forest_config_a = {"num_trees": 100}
 trt_forest_config_a = {"num_trees": 50}
-bcf_model_a.sample(X_train=X_train, Z_train=Z_train, pi_train=pi_x_train, y_train=y_train, X_test=X_test, Z_test=Z_test, pi_test=pi_x_test, num_gfr=100, num_mcmc=0, prognostic_forest_params=prog_forest_config_a, treatment_effect_forest_params=trt_forest_config_a)
+bcf_model_a.sample(X_train=X_train, Z_train=Z_train, propensity_train=pi_x_train, y_train=y_train, X_test=X_test, Z_test=Z_test, propensity_test=pi_x_test, num_gfr=100, num_mcmc=0, prognostic_forest_params=prog_forest_config_a, treatment_effect_forest_params=trt_forest_config_a)
 """
 timing_no_subsampling = timeit.timeit(stmt=s, number=5, globals=globals())
 print(f"Average runtime, without feature subsampling (p = {p:d}): {timing_no_subsampling:.2f}")
@@ -54,7 +54,7 @@ s = """\
 bcf_model_b = BCFModel()
 prog_forest_config_b = {"num_trees": 100, "num_features_subsample": 5}
 trt_forest_config_b = {"num_trees": 50, "num_features_subsample": 5}
-bcf_model_b.sample(X_train=X_train, Z_train=Z_train, pi_train=pi_x_train, y_train=y_train, X_test=X_test, Z_test=Z_test, pi_test=pi_x_test, num_gfr=100, num_mcmc=0, prognostic_forest_params=prog_forest_config_b, treatment_effect_forest_params=trt_forest_config_b)
+bcf_model_b.sample(X_train=X_train, Z_train=Z_train, propensity_train=pi_x_train, y_train=y_train, X_test=X_test, Z_test=Z_test, propensity_test=pi_x_test, num_gfr=100, num_mcmc=0, prognostic_forest_params=prog_forest_config_b, treatment_effect_forest_params=trt_forest_config_b)
 """
 timing_subsampling = timeit.timeit(stmt=s, number=5, globals=globals())
 print(f"Average runtime, subsampling 5 out of {p:d} features: {timing_subsampling:.2f}")
@@ -63,11 +63,11 @@ print(f"Average runtime, subsampling 5 out of {p:d} features: {timing_subsamplin
 bcf_model_a = BCFModel()
 prog_forest_config_a = {"num_trees": 100}
 trt_forest_config_a = {"num_trees": 50}
-bcf_model_a.sample(X_train=X_train, Z_train=Z_train, pi_train=pi_x_train, y_train=y_train, X_test=X_test, Z_test=Z_test, pi_test=pi_x_test, num_gfr=100, num_mcmc=0, prognostic_forest_params=prog_forest_config_a, treatment_effect_forest_params=trt_forest_config_a)
+bcf_model_a.sample(X_train=X_train, Z_train=Z_train, propensity_train=pi_x_train, y_train=y_train, X_test=X_test, Z_test=Z_test, propensity_test=pi_x_test, num_gfr=100, num_mcmc=0, prognostic_forest_params=prog_forest_config_a, treatment_effect_forest_params=trt_forest_config_a)
 bcf_model_b = BCFModel()
 prog_forest_config_b = {"num_trees": 100, "num_features_subsample": 5}
 trt_forest_config_b = {"num_trees": 50, "num_features_subsample": 5}
-bcf_model_b.sample(X_train=X_train, Z_train=Z_train, pi_train=pi_x_train, y_train=y_train, X_test=X_test, Z_test=Z_test, pi_test=pi_x_test, num_gfr=100, num_mcmc=0, prognostic_forest_params=prog_forest_config_b, treatment_effect_forest_params=trt_forest_config_b)
+bcf_model_b.sample(X_train=X_train, Z_train=Z_train, propensity_train=pi_x_train, y_train=y_train, X_test=X_test, Z_test=Z_test, propensity_test=pi_x_test, num_gfr=100, num_mcmc=0, prognostic_forest_params=prog_forest_config_b, treatment_effect_forest_params=trt_forest_config_b)
 y_hat_test_a = np.squeeze(bcf_model_a.y_hat_test).mean(axis = 1)
 rmse_no_subsampling = np.sqrt(np.mean(np.power(y_test - y_hat_test_a,2)))
 print(f"Test set RMSE, no subsampling (p = {p:d}): {rmse_no_subsampling:.2f}")

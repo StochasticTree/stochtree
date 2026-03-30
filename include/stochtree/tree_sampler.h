@@ -6,6 +6,7 @@
 #include <stochtree/cutpoint_candidates.h>
 #include <stochtree/data.h>
 #include <stochtree/discrete_sampler.h>
+#include <stochtree/distributions.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/leaf_model.h>
 #include <stochtree/openmp_utils.h>
@@ -394,6 +395,40 @@ static inline void UpdateVarModelTree(ForestTracker& tracker, ForestDataset& dat
   }
 }
 
+static inline void UpdateCLogLogModelTree(ForestTracker& tracker, ForestDataset& dataset, ColumnVector& residual, Tree* tree, int tree_num, 
+                                      bool requires_basis, bool tree_new) {
+  data_size_t n = dataset.GetCovariates().rows();
+
+  double pred_value;
+  int32_t leaf_pred;
+  double pred_delta;
+  for (data_size_t i = 0; i < n; i++) {
+    if (tree_new) {
+      // If the tree has been newly sampled or adjusted, we must rerun the prediction 
+      // method and update the SamplePredMapper stored in tracker
+      leaf_pred = tracker.GetNodeId(i, tree_num);
+      if (requires_basis) {
+        pred_value = tree->PredictFromNode(leaf_pred, dataset.GetBasis(), i);
+      } else {
+        pred_value = tree->PredictFromNode(leaf_pred);
+      }
+      pred_delta = pred_value - tracker.GetTreeSamplePrediction(i, tree_num);
+      tracker.SetTreeSamplePrediction(i, tree_num, pred_value);
+      tracker.SetSamplePrediction(i, tracker.GetSamplePrediction(i) + pred_delta);
+      // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num)
+      dataset.SetAuxiliaryDataValue(1, i, tracker.GetSamplePrediction(i) - pred_value);
+    } else {
+      // If the tree has not yet been modified via a sampling step, 
+      // we can query its prediction directly from the SamplePredMapper stored in tracker
+      pred_value = tracker.GetTreeSamplePrediction(i, tree_num);
+      // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num): needed? since tree not changed?
+      double current_lambda_hat = tracker.GetSamplePrediction(i);
+      double lambda_minus = current_lambda_hat - pred_value;
+      dataset.SetAuxiliaryDataValue(1, i, lambda_minus);
+    }
+  }
+}
+
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateProposedSplit(
   ForestDataset& dataset, ForestTracker& tracker, ColumnVector& residual, LeafModel& leaf_model, 
@@ -447,8 +482,10 @@ static inline std::tuple<double, double, data_size_t, data_size_t> EvaluateExist
 
 template <typename LeafModel>
 static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
-                                                 ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
-  if (backfitting) {
+                         ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
+  if constexpr (std::is_same_v<LeafModel, CloglogOrdinalLeafModel>) {
+    UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), false);
+  } else if (backfitting) {
     UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::plus<double>(), false);
   } else {
     // TODO: think about a generic way to store "state" corresponding to the other models?
@@ -458,8 +495,10 @@ static inline void AdjustStateBeforeTreeSampling(ForestTracker& tracker, LeafMod
 
 template <typename LeafModel>
 static inline void AdjustStateAfterTreeSampling(ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, 
-                                                ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
-  if (backfitting) {
+                        ColumnVector& residual, TreePrior& tree_prior, bool backfitting, Tree* tree, int tree_num) {
+  if constexpr (std::is_same_v<LeafModel, CloglogOrdinalLeafModel>) {
+    UpdateCLogLogModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), true);
+  } else if (backfitting) {
     UpdateMeanModelTree(tracker, dataset, residual, tree, tree_num, leaf_model.RequiresBasis(), std::minus<double>(), true);
   } else {
     // TODO: think about a generic way to store "state" corresponding to the other models?
@@ -612,12 +651,10 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
     }
 
     // First, sample a feature according to feature_total_cutpoint_evaluations
-    std::discrete_distribution<data_size_t> feature_dist(feature_total_cutpoint_evaluations.begin(), feature_total_cutpoint_evaluations.end());
-    int feature_chosen = feature_dist(gen);
+    int feature_chosen = sample_discrete_stateless(gen, feature_total_cutpoint_evaluations);
 
     // Then, sample a cutpoint according to feature_cutpoint_evaluations[feature_chosen]
-    std::discrete_distribution<data_size_t> cutpoint_dist(feature_cutpoint_evaluations[feature_chosen].begin(), feature_cutpoint_evaluations[feature_chosen].end());
-    data_size_t cutpoint_chosen = cutpoint_dist(gen);
+    int cutpoint_chosen = sample_discrete_stateless(gen, feature_cutpoint_evaluations[feature_chosen], feature_total_cutpoint_evaluations[feature_chosen]);
     
     if (feature_chosen == p){
       // "No split" sampled, don't split or add any nodes to split queue
@@ -776,6 +813,7 @@ static inline void GFRSampleTreeOneIter(Tree* tree, ForestTracker& tracker, Fore
  * \param backfitting Whether or not the sampler uses "backfitting" (wherein the sampler for a given tree only depends on the other trees via
  * their effect on the residual) or the more general "blocked MCMC" (wherein the state of other trees must be more explicitly considered).
  * \param num_features_subsample How many features to subsample when running the GFR algorithm.
+ * \param num_threads Number of threads to use for split evaluations and other compute-intensive operations.
  * \param leaf_suff_stat_args Any arguments which must be supplied to initialize a `LeafSuffStat` object.
  */
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
@@ -833,7 +871,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
   std::vector<int> leaves = tree->GetLeaves();
   std::vector<double> leaf_weights(num_leaves);
   std::fill(leaf_weights.begin(), leaf_weights.end(), 1.0/num_leaves);
-  std::discrete_distribution<> leaf_dist(leaf_weights.begin(), leaf_weights.end());
+  walker_vose leaf_dist(leaf_weights.begin(), leaf_weights.end());
   int leaf_chosen = leaves[leaf_dist(gen)];
   int leaf_depth = tree->GetDepth(leaf_chosen);
 
@@ -849,7 +887,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
     // Select a split variable at random
     int p = dataset.GetCovariates().cols();
     CHECK_EQ(variable_weights.size(), p);
-    std::discrete_distribution<> var_dist(variable_weights.begin(), variable_weights.end());
+    walker_vose var_dist(variable_weights.begin(), variable_weights.end());
     int var_chosen = var_dist(gen);
 
     // Determine the range of possible cutpoints
@@ -861,8 +899,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
     }
     
     // Split based on var_min to var_max in a given node
-    std::uniform_real_distribution<double> split_point_dist(var_min, var_max);
-    double split_point_chosen = split_point_dist(gen);
+    double split_point_chosen = standard_uniform_draw_53bit(gen) * (var_max - var_min) + var_min;
 
     // Create a split object
     TreeSplit split = TreeSplit(split_point_chosen);
@@ -915,8 +952,7 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
       }
 
       // Draw a uniform random variable and accept/reject the proposal on this basis
-      std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
-      double log_acceptance_prob = std::log(mh_accept(gen));
+      double log_acceptance_prob = std::log(standard_uniform_draw_53bit(gen));
       if (log_acceptance_prob <= log_mh_ratio) {
         accept = true;
         AddSplitToModel(tracker, dataset, tree_prior, split, gen, tree, tree_num, leaf_chosen, var_chosen, false, num_threads);
@@ -932,14 +968,15 @@ static inline void MCMCGrowTreeOneIter(Tree* tree, ForestTracker& tracker, LeafM
 
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>
 static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, LeafModel& leaf_model, ForestDataset& dataset, ColumnVector& residual, 
-                                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, int num_threads, LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
+                                        TreePrior& tree_prior, std::mt19937& gen, int tree_num, double global_variance, int num_threads, 
+                                        LeafSuffStatConstructorArgs&... leaf_suff_stat_args) {
   // Choose a "leaf parent" node at random
   int num_leaves = tree->NumLeaves();
   int num_leaf_parents = tree->NumLeafParents();
   std::vector<int> leaf_parents = tree->GetLeafParents();
   std::vector<double> leaf_parent_weights(num_leaf_parents);
   std::fill(leaf_parent_weights.begin(), leaf_parent_weights.end(), 1.0/num_leaf_parents);
-  std::discrete_distribution<> leaf_parent_dist(leaf_parent_weights.begin(), leaf_parent_weights.end());
+  walker_vose leaf_parent_dist(leaf_parent_weights.begin(), leaf_parent_weights.end());
   int leaf_parent_chosen = leaf_parents[leaf_parent_dist(gen)];
   int leaf_parent_depth = tree->GetDepth(leaf_parent_chosen);
   int left_node = tree->LeftChild(leaf_parent_chosen);
@@ -998,8 +1035,7 @@ static inline void MCMCPruneTreeOneIter(Tree* tree, ForestTracker& tracker, Leaf
 
   // Draw a uniform random variable and accept/reject the proposal on this basis
   bool accept;
-  std::uniform_real_distribution<double> mh_accept(0.0, 1.0);
-  double log_acceptance_prob = std::log(mh_accept(gen));
+  double log_acceptance_prob = std::log(standard_uniform_draw_53bit(gen));
   if (log_acceptance_prob <= log_mh_ratio) {
     accept = true;
     RemoveSplitFromModel(tracker, dataset, tree_prior, gen, tree, tree_num, leaf_parent_chosen, left_node, right_node, false);
@@ -1043,7 +1079,7 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
   } else {
     Log::Fatal("In this tree, neither grow nor prune is possible");
   }
-  std::discrete_distribution<> step_dist(step_probs.begin(), step_probs.end());
+  walker_vose step_dist(step_probs.begin(), step_probs.end());
 
   // Draw a split rule at random
   data_size_t step_chosen = step_dist(gen);
@@ -1085,6 +1121,7 @@ static inline void MCMCSampleTreeOneIter(Tree* tree, ForestTracker& tracker, For
  * \param pre_initialized Whether or not `active_forest` has already been initialized (note: this parameter will be refactored out soon).
  * \param backfitting Whether or not the sampler uses "backfitting" (wherein the sampler for a given tree only depends on the other trees via
  * their effect on the residual) or the more general "blocked MCMC" (wherein the state of other trees must be more explicitly considered).
+ * \param num_threads Number of threads to use for split evaluations and other compute-intensive operations.
  * \param leaf_suff_stat_args Any arguments which must be supplied to initialize a `LeafSuffStat` object.
  */
 template <typename LeafModel, typename LeafSuffStat, typename... LeafSuffStatConstructorArgs>

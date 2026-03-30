@@ -770,8 +770,9 @@ cpp11::writable::integers get_overall_split_counts_active_forest_cpp(cpp11::exte
         StochTree::Tree* tree = active_forest->GetTree(i);
         std::vector<int32_t> split_nodes = tree->GetInternalNodes();
         for (int j = 0; j < split_nodes.size(); j++) {
-            auto split_feature = split_nodes.at(j);
-            output.at(split_feature)++;
+            auto node_id = split_nodes.at(j);
+            auto feature_split = tree->SplitIndex(node_id);
+            output.at(feature_split)++;
         }
     }
     return output;
@@ -786,8 +787,9 @@ cpp11::writable::integers get_granular_split_count_array_active_forest_cpp(cpp11
         StochTree::Tree* tree = active_forest->GetTree(i);
         std::vector<int32_t> split_nodes = tree->GetInternalNodes();
         for (int j = 0; j < split_nodes.size(); j++) {
-            auto split_feature = split_nodes.at(j);
-            output.at(split_feature*num_trees + i)++;
+            auto node_id = split_nodes.at(j);
+            auto feature_split = tree->SplitIndex(node_id);
+            output.at(feature_split*num_trees + i)++;
         }
     }
     return output;
@@ -805,6 +807,7 @@ void initialize_forest_model_active_forest_cpp(cpp11::external_pointer<StochTree
     else if (leaf_model_int == 1) model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
     else if (leaf_model_int == 2) model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
     else if (leaf_model_int == 3) model_type = StochTree::ModelType::kLogLinearVariance;
+    else if (leaf_model_int == 4) model_type = StochTree::ModelType::kCloglogOrdinal;
     else StochTree::Log::Fatal("Invalid model type");
     
     // Unpack initial value
@@ -846,6 +849,11 @@ void initialize_forest_model_active_forest_cpp(cpp11::external_pointer<StochTree
         int n = data->NumObservations();
         std::vector<double> initial_preds(n, init_val);
         data->AddVarianceWeights(initial_preds.data(), n);
+    } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
+        leaf_init_val = init_val / static_cast<double>(num_trees);
+        active_forest->SetLeafValue(leaf_init_val);
+        UpdateResidualEntireForest(*tracker, *data, *residual, active_forest.get(), false, std::minus<double>());
+        tracker->UpdatePredictions(active_forest.get(), *data);
     }
 }
 
