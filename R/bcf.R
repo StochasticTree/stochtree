@@ -923,6 +923,55 @@ bcf <- function(
     X_test <- preprocessPredictionData(X_test, X_train_metadata)
   }
 
+  # Handle factor-valued treatment vectors before any numeric conversion.
+  # as.numeric() on a factor returns level indices (1, 2, ...), not 0/1, so
+  # factors must be explicitly converted to 0/1 first.
+  if (is.factor(Z_train)) {
+    lvls <- levels(Z_train)
+    if (length(lvls) != 2) {
+      stop("Factor Z_train must have exactly 2 levels for binary treatment")
+    }
+    message(
+      "Z_train is a factor; converting to 0/1 using level order: ",
+      lvls[1], " = 0, ", lvls[2], " = 1"
+    )
+    Z_train <- as.integer(Z_train) - 1L
+  }
+  if (!is.null(Z_test) && is.factor(Z_test)) {
+    lvls <- levels(Z_test)
+    if (length(lvls) != 2) {
+      stop("Factor Z_test must have exactly 2 levels for binary treatment")
+    }
+    message(
+      "Z_test is a factor; converting to 0/1 using level order: ",
+      lvls[1], " = 0, ", lvls[2], " = 1"
+    )
+    Z_test <- as.integer(Z_test) - 1L
+  }
+
+  # Check that all inputs are numeric before matrix conversions
+  if (!is.numeric(y_train)) {
+    stop("y_train must be numeric")
+  }
+  if (!is.numeric(Z_train)) {
+    stop("Z_train must be numeric")
+  }
+  if (!is.null(Z_test) && !is.numeric(Z_test)) {
+    stop("Z_test must be numeric")
+  }
+  if (!is.null(propensity_train) && !is.numeric(propensity_train)) {
+    stop("propensity_train must be numeric")
+  }
+  if (!is.null(propensity_test) && !is.numeric(propensity_test)) {
+    stop("propensity_test must be numeric")
+  }
+  if (!is.null(rfx_basis_train) && !is.numeric(rfx_basis_train)) {
+    stop("rfx_basis_train must be numeric")
+  }
+  if (!is.null(rfx_basis_test) && !is.numeric(rfx_basis_test)) {
+    stop("rfx_basis_test must be numeric")
+  }
+
   # Convert all input data to matrices if not already converted
   Z_col <- ifelse(is.null(dim(Z_train)), 1, ncol(Z_train))
   Z_train <- matrix(as.numeric(Z_train), ncol = Z_col)
@@ -940,6 +989,14 @@ bcf <- function(
   }
   if ((is.null(dim(rfx_basis_test))) && (!is.null(rfx_basis_test))) {
     rfx_basis_test <- as.matrix(rfx_basis_test)
+  }
+
+  # Convert y_train to a vector if passed as a one-column matrix
+  if (is.matrix(y_train)) {
+    if (ncol(y_train) > 1) {
+      stop("y_train must be a numeric vector or a one-column matrix")
+    }
+    y_train <- as.numeric(y_train)
   }
 
   # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
@@ -962,17 +1019,6 @@ bcf <- function(
       rfx_group_ids_test <- as.integer(group_ids_factor_test)
       has_rfx_test <- TRUE
     }
-  }
-
-  # Check that outcome and treatment are numeric
-  if (!is.numeric(y_train)) {
-    stop("y_train must be numeric")
-  }
-  if (!is.numeric(Z_train)) {
-    stop("Z_train must be numeric")
-  }
-  if (!is.null(Z_test)) {
-    if (!is.numeric(Z_test)) stop("Z_test must be numeric")
   }
 
   # Data consistency checks
@@ -3400,6 +3446,19 @@ predict.bcfmodel <- function(
   # Make sure covariates are matrix or data frame
   if ((!is.data.frame(X)) && (!is.matrix(X))) {
     stop("X must be a matrix or dataframe")
+  }
+
+  # Handle factor-valued treatment before numeric conversion
+  if (is.factor(Z)) {
+    lvls <- levels(Z)
+    if (length(lvls) != 2) {
+      stop("Factor Z must have exactly 2 levels for binary treatment")
+    }
+    warning(
+      "Z is a factor; recoding to 0/1 using level order: ",
+      lvls[1], " = 0, ", lvls[2], " = 1"
+    )
+    Z <- as.integer(Z) - 1L
   }
 
   # Convert all input data to matrices if not already converted

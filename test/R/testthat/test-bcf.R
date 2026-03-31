@@ -922,3 +922,78 @@ test_that("BCF JSON serialization roundtrip covers all deserialization paths", {
   expect_equal(rowMeans(preds_rt[["y_hat"]]), y_hat_orig)
   expect_equal(rowMeans(preds_rt[["tau_hat"]]), tau_hat_orig)
 })
+
+test_that("BCF factor-valued treatment handling", {
+  skip_on_cran()
+
+  # Shared data: binary treatment DGP
+  n <- 100
+  p <- 5
+  set.seed(42)
+  X <- matrix(runif(n * p), ncol = p)
+  pi_X <- 0.4 + 0.2 * X[, 1]
+  Z_numeric <- rbinom(n, 1, pi_X)
+  tau_X <- 1 + X[, 2]
+  mu_X <- 2 * X[, 3]
+  y <- mu_X + tau_X * Z_numeric + rnorm(n, 0, 1)
+
+  # Binary factor treatment: levels "0" and "1"
+  # Verify the conversion produces 0/1 values identical to the original
+  Z_factor_binary <- factor(Z_numeric)
+  expect_equal(levels(Z_factor_binary), c("0", "1"))
+  expect_equal(as.integer(Z_factor_binary) - 1L, as.integer(Z_numeric))
+
+  # Factor treatment should run without error and emit an informative message
+  expect_message(
+    suppressWarnings(bcf(
+      X_train = X, y_train = y, Z_train = Z_factor_binary,
+      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+    )),
+    regexp = "Z_train is a factor"
+  )
+
+  # Logical treatment converted to factor: levels "FALSE" and "TRUE"
+  # as.factor(logical) sorts alphabetically: "FALSE" = 0, "TRUE" = 1
+  Z_logical <- as.logical(Z_numeric)
+  Z_factor_logical <- as.factor(Z_logical)
+  expect_equal(levels(Z_factor_logical), c("FALSE", "TRUE"))
+  expect_equal(as.integer(Z_factor_logical) - 1L, as.integer(Z_numeric))
+
+  expect_message(
+    suppressWarnings(bcf(
+      X_train = X, y_train = y, Z_train = Z_factor_logical,
+      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+    )),
+    regexp = "Z_train is a factor"
+  )
+
+  # Factor treatment with more than 2 levels should error immediately
+  Z_factor_categorical <- factor(sample(c("A", "B", "C"), n, replace = TRUE))
+  expect_error(
+    bcf(
+      X_train = X, y_train = y, Z_train = Z_factor_categorical,
+      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+    ),
+    regexp = "exactly 2 levels"
+  )
+
+  # predict.bcfmodel should also handle factor Z, raising a warning
+  suppressMessages(
+    bcf_model <- bcf(
+      X_train = X, y_train = y, Z_train = Z_numeric,
+      propensity_train = pi_X, num_gfr = 0, num_burnin = 5, num_mcmc = 5
+    )
+  )
+  expect_warning(
+    predict(bcf_model, X, Z_factor_binary, pi_X),
+    regexp = "Z is a factor"
+  )
+  expect_warning(
+    predict(bcf_model, X, Z_factor_logical, pi_X),
+    regexp = "Z is a factor"
+  )
+  expect_error(
+    predict(bcf_model, X, Z_factor_categorical, pi_X),
+    regexp = "exactly 2 levels"
+  )
+})
