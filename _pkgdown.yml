@@ -1,6 +1,7 @@
-url: https://stochastictree.github.io/stochtree-r/
+url: https://stochtree.ai/
 template:
   bootstrap: 5
+llm-docs: false
 
 reference:
 - title: Supervised learning
@@ -9,6 +10,15 @@ reference:
   contents:
   - bart
   - predict.bartmodel
+  - print.bartmodel
+  - summary.bartmodel
+  - plot.bartmodel
+  - extractParameter.bartmodel
+  - getRandomEffectSamples.bartmodel
+  - computeBARTPosteriorInterval
+  - computeContrastBARTModel
+  - sampleBARTPosteriorPredictive
+  - BARTSerialization
 
 - title: Causal inference
   desc: >
@@ -16,6 +26,15 @@ reference:
   contents:
   - bcf
   - predict.bcfmodel
+  - print.bcfmodel
+  - summary.bcfmodel
+  - plot.bcfmodel
+  - extractParameter.bcfmodel
+  - getRandomEffectSamples.bcfmodel
+  - computeBCFPosteriorInterval
+  - computeContrastBCFModel
+  - sampleBCFPosteriorPredictive
+  - BCFSerialization
 
 - title: Low-level functionality
 
@@ -35,22 +54,6 @@ reference:
   - loadRandomEffectSamplesJson
   - loadRandomEffectSamplesCombinedJson
   - loadRandomEffectSamplesCombinedJsonString
-  - saveBARTModelToJson
-  - saveBARTModelToJsonFile
-  - saveBARTModelToJsonString
-  - createBARTModelFromJson
-  - createBARTModelFromJsonFile
-  - createBARTModelFromJsonString
-  - createBARTModelFromCombinedJson
-  - createBARTModelFromCombinedJsonString
-  - saveBCFModelToJson
-  - saveBCFModelToJsonFile
-  - saveBCFModelToJsonString
-  - createBCFModelFromJsonFile
-  - createBCFModelFromJsonString
-  - createBCFModelFromJson
-  - createBCFModelFromCombinedJson
-  - createBCFModelFromCombinedJsonString
 
 - subtitle: Data
   desc: >
@@ -62,12 +65,7 @@ reference:
   - createOutcome
   - RandomEffectsDataset
   - createRandomEffectsDataset
-  - preprocessTrainData
-  - preprocessPredictionData
-  - convertPreprocessorToJson
-  - savePreprocessorToJsonString
-  - createPreprocessorFromJson
-  - createPreprocessorFromJsonString
+  - DataPreprocessing
 
 - subtitle: Forest
   desc: >
@@ -79,6 +77,7 @@ reference:
   - createForestModel
   - ForestSamples
   - createForestSamples
+  - print.ForestSamples
   - ForestModelConfig
   - createForestModelConfig
   - GlobalModelConfig
@@ -86,11 +85,8 @@ reference:
   - CppRNG
   - createCppRNG
   - calibrateInverseGammaErrorVariance
-  - computeForestMaxLeafIndex
-  - computeForestLeafIndices
-  - computeForestLeafVariances
-  - resetActiveForest
-  - resetForestModel
+  - ForestKernelComputation
+  - ForestStateManagement
 
 - subtitle: Random Effects
   desc: >
@@ -98,19 +94,23 @@ reference:
   contents:
   - RandomEffectSamples
   - createRandomEffectSamples
+  - print.RandomEffectSamples
   - RandomEffectsModel
   - createRandomEffectsModel
   - RandomEffectsTracker
   - createRandomEffectsTracker
   - getRandomEffectSamples
-  - getRandomEffectSamples.bartmodel
-  - getRandomEffectSamples.bcfmodel
   - sampleGlobalErrorVarianceOneIteration
   - sampleLeafVarianceOneIteration
-  - resetRandomEffectsModel
-  - resetRandomEffectsTracker
-  - rootResetRandomEffectsModel
-  - rootResetRandomEffectsTracker
+  - RandomEffectStateManagement
+
+- subtitle: Utilities
+  desc: >
+    Miscellaneous "utility" classes and functions
+  contents:
+  - OutcomeModel
+  - sample_without_replacement
+  - extractParameter
 
 - title: Package info
   desc: >
@@ -125,6 +125,8 @@ articles:
   - BayesianSupervisedLearning
   - CausalInference
   - Heteroskedasticity
+  - ReparameterizedCausalInference
+  - OrdinalOutcome
 
 - title: Advanced Model Interface
   navbar: Advanced Model Interface
@@ -133,6 +135,7 @@ articles:
   - ModelSerialization
   - PriorCalibration
   - EnsembleKernel
+  - Summary
   - TreeInspection
 
 - title: Prototype Interface

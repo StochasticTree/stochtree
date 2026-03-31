@@ -2,9 +2,13 @@
 % Please edit documentation in R/forest.R
 \name{Forest}
 \alias{Forest}
-\title{Class that stores a single ensemble of decision trees (often treated as the "active forest")}
+\title{Forest C++ Wrapper}
 \description{
-Wrapper around a C++ tree ensemble
+Wrapper around a C++ class that stores a single ensemble of decision trees (often treated as the "active forest" / current state of a forest term in a sampling loop in R)
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
@@ -19,6 +23,9 @@ Wrapper around a C++ tree ensemble
 \subsection{Public methods}{
 \itemize{
 \item \href{#method-Forest-new}{\code{Forest$new()}}
+\item \href{#method-Forest-merge_forest}{\code{Forest$merge_forest()}}
+\item \href{#method-Forest-add_constant}{\code{Forest$add_constant()}}
+\item \href{#method-Forest-multiply_constant}{\code{Forest$multiply_constant()}}
 \item \href{#method-Forest-predict}{\code{Forest$predict()}}
 \item \href{#method-Forest-predict_raw}{\code{Forest$predict_raw()}}
 \item \href{#method-Forest-set_root_leaves}{\code{Forest$set_root_leaves()}}
@@ -26,7 +33,7 @@ Wrapper around a C++ tree ensemble
 \item \href{#method-Forest-adjust_residual}{\code{Forest$adjust_residual()}}
 \item \href{#method-Forest-num_trees}{\code{Forest$num_trees()}}
 \item \href{#method-Forest-leaf_dimension}{\code{Forest$leaf_dimension()}}
-\item \href{#method-Forest-is_constant_leaf}{\code{Forest$is_constant_leaf()}}
+\item \href{#method-Forest-is_leaf_constant}{\code{Forest$is_leaf_constant()}}
 \item \href{#method-Forest-is_exponentiated}{\code{Forest$is_exponentiated()}}
 \item \href{#method-Forest-add_numeric_split_tree}{\code{Forest$add_numeric_split_tree()}}
 \item \href{#method-Forest-get_tree_leaves}{\code{Forest$get_tree_leaves()}}
@@ -66,6 +73,57 @@ Create a new Forest object.
 }
 \subsection{Returns}{
 A new \code{Forest} object.
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Forest-merge_forest"></a>}}
+\if{latex}{\out{\hypertarget{method-Forest-merge_forest}{}}}
+\subsection{Method \code{merge_forest()}}{
+Create a larger forest by merging the trees of this forest with those of another forest
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Forest$merge_forest(forest)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{forest}}{Forest to be merged into this forest}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Forest-add_constant"></a>}}
+\if{latex}{\out{\hypertarget{method-Forest-add_constant}{}}}
+\subsection{Method \code{add_constant()}}{
+Add a constant value to every leaf of every tree in an ensemble. If leaves are multi-dimensional, \code{constant_value} will be added to every dimension of the leaves.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Forest$add_constant(constant_value)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{constant_value}}{Value that will be added to every leaf of every tree}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-Forest-multiply_constant"></a>}}
+\if{latex}{\out{\hypertarget{method-Forest-multiply_constant}{}}}
+\subsection{Method \code{multiply_constant()}}{
+Multiply every leaf of every tree by a constant value. If leaves are multi-dimensional, \code{constant_multiple} will be multiplied through every dimension of the leaves.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{Forest$multiply_constant(constant_multiple)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{constant_multiple}}{Value that will be multiplied by every leaf of every tree}
+}
+\if{html}{\out{</div>}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -219,12 +277,12 @@ Leaf node parameter size
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-Forest-is_constant_leaf"></a>}}
-\if{latex}{\out{\hypertarget{method-Forest-is_constant_leaf}{}}}
-\subsection{Method \code{is_constant_leaf()}}{
+\if{html}{\out{<a id="method-Forest-is_leaf_constant"></a>}}
+\if{latex}{\out{\hypertarget{method-Forest-is_leaf_constant}{}}}
+\subsection{Method \code{is_leaf_constant()}}{
 Return constant leaf status of trees in a \code{Forest} object
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{Forest$is_constant_leaf()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{Forest$is_leaf_constant()}\if{html}{\out{</div>}}
 }
 
 \subsection{Returns}{

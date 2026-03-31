@@ -2,14 +2,14 @@
 % Please edit documentation in R/serialization.R
 \name{loadVectorJson}
 \alias{loadVectorJson}
-\title{Load a vector from json}
+\title{Load Vector from JSON}
 \usage{
 loadVectorJson(json_object, json_vector_label, subfolder_name = NULL)
 }
 \arguments{
 \item{json_object}{Object of class \code{CppJson}}
 
-\item{json_vector_label}{Label referring to a particular vector (i.e. "sigma2_samples") in the overall json hierarchy}
+\item{json_vector_label}{Label referring to a particular vector (i.e. "sigma2_global_samples") in the overall json hierarchy}
 
 \item{subfolder_name}{(Optional) Name of the subfolder / hierarchy under which vector sits}
 }
@@ -18,6 +18,10 @@ R vector
 }
 \description{
 Load a vector from json
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \examples{
 example_vec <- runif(10)

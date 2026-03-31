@@ -2,10 +2,11 @@
 % Please edit documentation in R/config.R
 \name{createForestModelConfig}
 \alias{createForestModelConfig}
-\title{Create a forest model config object}
+\title{Create ForestModelConfig Object}
 \usage{
 createForestModelConfig(
   feature_types = NULL,
+  sweep_update_indices = NULL,
   num_trees = NULL,
   num_features = NULL,
   num_observations = NULL,
@@ -19,11 +20,16 @@ createForestModelConfig(
   leaf_model_scale = NULL,
   variance_forest_shape = 1,
   variance_forest_scale = 1,
-  cutpoint_grid_size = 100
+  cloglog_forest_shape = 2,
+  cloglog_forest_rate = 2,
+  cutpoint_grid_size = 100,
+  num_features_subsample = NULL
 )
 }
 \arguments{
 \item{feature_types}{Vector of integer-coded feature types (integers where 0 = numeric, 1 = ordered categorical, 2 = unordered categorical)}
+
+\item{sweep_update_indices}{Vector of (0-indexed) indices of trees to update in a sweep}
 
 \item{num_trees}{Number of trees in the forest being sampled}
 
@@ -51,13 +57,23 @@ createForestModelConfig(
 
 \item{variance_forest_scale}{Scale parameter for IG leaf models (applicable when \code{leaf_model_type = 3}). Default: \code{1}.}
 
+\item{cloglog_forest_shape}{Shape parameter for conditional gamma component of cloglog leaf models (applicable when \code{leaf_model_type = 4}). Default: \code{1}.}
+
+\item{cloglog_forest_rate}{Rate parameter for conditional gamma component of cloglog leaf models (applicable when \code{leaf_model_type = 4}). Default: \code{1}.}
+
 \item{cutpoint_grid_size}{Number of unique cutpoints to consider (default: \code{100})}
+
+\item{num_features_subsample}{Number of features to subsample for the GFR algorithm}
 }
 \value{
 ForestModelConfig object
 }
 \description{
 Create a forest model config object
+
+This function is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \examples{
 config <- createForestModelConfig(num_trees = 10, num_features = 5, num_observations = 100)

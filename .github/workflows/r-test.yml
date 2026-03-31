@@ -22,6 +22,11 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     
     steps:
+      - name: Prevent conversion of line endings on Windows
+        if: startsWith(matrix.os, 'windows')
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      
       - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
@@ -34,7 +39,7 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::testthat, any::decor, any::rcmdcheck
+          extra-packages: any::testthat, any::decor, any::rcmdcheck, any::jsonlite
           needs: check
 
       - name: Create a CRAN-ready version of the R package

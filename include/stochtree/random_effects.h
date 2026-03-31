@@ -17,13 +17,11 @@
 #include <nlohmann/json.hpp>
 #include <Eigen/Dense>
 
-#include <cmath>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <random>
-#include <set>
 #include <string>
-#include <type_traits>
 #include <vector>
 
 namespace StochTree {
@@ -84,12 +82,36 @@ class LabelMapper {
     for (const auto& [key, value] : label_map) keys_.push_back(key);
   }
   ~LabelMapper() {}
+  void LoadFromLabelMap(std::map<int32_t, int32_t> label_map) {
+    label_map_ = label_map;
+    for (const auto& [key, value] : label_map) keys_.push_back(key);
+  }
   bool ContainsLabel(int32_t category_id) {
     auto pos = label_map_.find(category_id);
     return pos != label_map_.end();
   }
   int32_t CategoryNumber(int32_t category_id) {
     return label_map_[category_id];
+  }
+  void SaveToJsonFile(std::string filename) {
+    nlohmann::json model_json = this->to_json();
+    std::ofstream output_file(filename);
+    output_file << model_json << std::endl;
+  }
+  void LoadFromJsonFile(std::string filename) {
+    std::ifstream f(filename);
+    nlohmann::json rfx_label_mapper_json = nlohmann::json::parse(f);
+    this->Reset();
+    this->from_json(rfx_label_mapper_json);
+  }
+  std::string DumpJsonString() {
+    nlohmann::json model_json = this->to_json();
+    return model_json.dump();
+  }
+  void LoadFromJsonString(std::string& json_string) {
+    nlohmann::json rfx_label_mapper_json = nlohmann::json::parse(json_string);
+    this->Reset();
+    this->from_json(rfx_label_mapper_json);
   }
   std::vector<int32_t>& Keys() {return keys_;}
   std::map<int32_t, int32_t>& Map() {return label_map_;}
@@ -275,12 +297,35 @@ class RandomEffectsContainer {
     num_samples_ = 0;
   }
   ~RandomEffectsContainer() {}
+  void SaveToJsonFile(std::string filename) {
+    nlohmann::json model_json = this->to_json();
+    std::ofstream output_file(filename);
+    output_file << model_json << std::endl;
+  }
+  void LoadFromJsonFile(std::string filename) {
+    std::ifstream f(filename);
+    nlohmann::json rfx_container_json = nlohmann::json::parse(f);
+    this->Reset();
+    this->from_json(rfx_container_json);
+  }
+  std::string DumpJsonString() {
+    nlohmann::json model_json = this->to_json();
+    return model_json.dump();
+  }
+  void LoadFromJsonString(std::string& json_string) {
+    nlohmann::json rfx_container_json = nlohmann::json::parse(json_string);
+    this->Reset();
+    this->from_json(rfx_container_json);
+  }
   void AddSample(MultivariateRegressionRandomEffectsModel& model);
   void DeleteSample(int sample_num);
   void Predict(RandomEffectsDataset& dataset, LabelMapper& label_mapper, std::vector<double>& output);
-  int NumSamples() {return num_samples_;}
-  int NumComponents() {return num_components_;}
-  int NumGroups() {return num_groups_;}
+  inline int NumSamples() {return num_samples_;}
+  inline int NumComponents() {return num_components_;}
+  inline int NumGroups() {return num_groups_;}
+  inline void SetNumSamples(int num_samples) {num_samples_ = num_samples;}
+  inline void SetNumComponents(int num_components) {num_components_ = num_components;}
+  inline void SetNumGroups(int num_groups) {num_groups_ = num_groups;}
   void Reset() {
     num_samples_ = 0;
     num_components_ = 0;

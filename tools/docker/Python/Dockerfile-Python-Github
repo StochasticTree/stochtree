@@ -1,0 +1,25 @@
+FROM python:3.12-slim
+
+# System dependencies
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        gcc \
+        g++ \
+        git \
+        libomp-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /workspace
+
+# Python package dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install latest stochtree from github
+RUN pip install --no-cache-dir git+https://github.com/StochasticTree/stochtree.git
+
+# Launch Python process
+CMD ["python"]

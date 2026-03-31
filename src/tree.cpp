@@ -8,9 +8,6 @@
 #include <stochtree/tree.h>
 
 #include <algorithm>
-#include <cmath>
-#include <type_traits>
-#include <sstream>
 
 namespace StochTree {
 
@@ -668,7 +665,6 @@ void Tree::from_json(const json& tree_json) {
   tree_json.at("has_categorical_split").get_to(this->has_categorical_split_);
   tree_json.at("output_dimension").get_to(this->output_dimension_);
   tree_json.at("is_log_scale").get_to(this->is_log_scale_);
-  this->num_deleted_nodes = 0;
   
   // Unpack the array based fields
   JsonToTreeNodeVectors(tree_json, this);

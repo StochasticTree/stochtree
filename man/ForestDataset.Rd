@@ -2,11 +2,16 @@
 % Please edit documentation in R/data.R
 \name{ForestDataset}
 \alias{ForestDataset}
-\title{Dataset used to sample a forest}
+\title{Forest Dataset C++ Wrapper}
 \description{
+Wrapper around a C++ dataset class used to sample a forest.
 A dataset consists of three matrices / vectors: covariates,
 bases, and variance weights. Both the basis vector and variance
 weights are optional.
+
+This class is intended for advanced use cases in which users require detailed control of sampling algorithms and data structures.
+Minimal input validation and error checks are performed -- users are responsible for providing the correct inputs.
+For tutorials on the "proper" usage of the stochtree's advanced workflow, we provide several vignettes at \url{https://stochtree.ai/}
 }
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
@@ -20,11 +25,20 @@ weights are optional.
 \itemize{
 \item \href{#method-ForestDataset-new}{\code{ForestDataset$new()}}
 \item \href{#method-ForestDataset-update_basis}{\code{ForestDataset$update_basis()}}
+\item \href{#method-ForestDataset-update_variance_weights}{\code{ForestDataset$update_variance_weights()}}
 \item \href{#method-ForestDataset-num_observations}{\code{ForestDataset$num_observations()}}
 \item \href{#method-ForestDataset-num_covariates}{\code{ForestDataset$num_covariates()}}
 \item \href{#method-ForestDataset-num_basis}{\code{ForestDataset$num_basis()}}
+\item \href{#method-ForestDataset-get_covariates}{\code{ForestDataset$get_covariates()}}
+\item \href{#method-ForestDataset-get_basis}{\code{ForestDataset$get_basis()}}
+\item \href{#method-ForestDataset-get_variance_weights}{\code{ForestDataset$get_variance_weights()}}
 \item \href{#method-ForestDataset-has_basis}{\code{ForestDataset$has_basis()}}
 \item \href{#method-ForestDataset-has_variance_weights}{\code{ForestDataset$has_variance_weights()}}
+\item \href{#method-ForestDataset-has_auxiliary_dimension}{\code{ForestDataset$has_auxiliary_dimension()}}
+\item \href{#method-ForestDataset-add_auxiliary_dimension}{\code{ForestDataset$add_auxiliary_dimension()}}
+\item \href{#method-ForestDataset-get_auxiliary_data_value}{\code{ForestDataset$get_auxiliary_data_value()}}
+\item \href{#method-ForestDataset-set_auxiliary_data_value}{\code{ForestDataset$set_auxiliary_data_value()}}
+\item \href{#method-ForestDataset-get_auxiliary_data_vector}{\code{ForestDataset$get_auxiliary_data_vector()}}
 }
 }
 \if{html}{\out{<hr>}}
@@ -69,6 +83,25 @@ Update basis matrix in a dataset
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-update_variance_weights"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-update_variance_weights}{}}}
+\subsection{Method \code{update_variance_weights()}}{
+Update variance_weights in a dataset
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$update_variance_weights(variance_weights, exponentiate = F)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{variance_weights}}{Updated vector of variance weights used to define individual variance / case weights}
+
+\item{\code{exponentiate}}{Whether or not input vector should be exponentiated before being written to the Dataset's variance weights. Default: F.}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ForestDataset-num_observations"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestDataset-num_observations}{}}}
 \subsection{Method \code{num_observations()}}{
@@ -108,6 +141,45 @@ Basis count
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_covariates"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_covariates}{}}}
+\subsection{Method \code{get_covariates()}}{
+Return covariates as an R matrix
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_covariates()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Covariate data
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_basis"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_basis}{}}}
+\subsection{Method \code{get_basis()}}{
+Return bases as an R matrix
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_basis()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Basis data
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_variance_weights"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_variance_weights}{}}}
+\subsection{Method \code{get_variance_weights()}}{
+Return variance weights as an R vector
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_variance_weights()}\if{html}{\out{</div>}}
+}
+
+\subsection{Returns}{
+Variance weight data
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-ForestDataset-has_basis"></a>}}
 \if{latex}{\out{\hypertarget{method-ForestDataset-has_basis}{}}}
 \subsection{Method \code{has_basis()}}{
@@ -131,6 +203,112 @@ Whether or not a dataset has variance weights
 
 \subsection{Returns}{
 True if variance weights are loaded, false otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-has_auxiliary_dimension"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-has_auxiliary_dimension}{}}}
+\subsection{Method \code{has_auxiliary_dimension()}}{
+Whether or not a dataset has auxiliary data stored at the dimension indicated
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$has_auxiliary_dimension(dim_idx)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_idx}}{Dimension of auxiliary data}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+True if auxiliary data has been allocated for \code{dim_idx} False otherwise
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-add_auxiliary_dimension"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-add_auxiliary_dimension}{}}}
+\subsection{Method \code{add_auxiliary_dimension()}}{
+Initialize a new dimension / lane of auxiliary data and allocate data in its place
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$add_auxiliary_dimension(dim_size)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_size}}{Size of the new vector of data to allocate}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_auxiliary_data_value"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_auxiliary_data_value}{}}}
+\subsection{Method \code{get_auxiliary_data_value()}}{
+Retrieve auxiliary data value
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_auxiliary_data_value(dim_idx, element_idx)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_idx}}{Dimension from which data value to be retrieved}
+
+\item{\code{element_idx}}{Element to retrieve from dimension \code{dim_idx}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Floating point value stored in the requested auxiliary data space
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-set_auxiliary_data_value"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-set_auxiliary_data_value}{}}}
+\subsection{Method \code{set_auxiliary_data_value()}}{
+Set auxiliary data value
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$set_auxiliary_data_value(dim_idx, element_idx, value)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_idx}}{Dimension in which data value to be set}
+
+\item{\code{element_idx}}{Element to set within dimension \code{dim_idx}}
+
+\item{\code{value}}{Data value to set at auxiliary data dimension \code{dim_idx} and element \code{element_idx}}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+None
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ForestDataset-get_auxiliary_data_vector"></a>}}
+\if{latex}{\out{\hypertarget{method-ForestDataset-get_auxiliary_data_vector}{}}}
+\subsection{Method \code{get_auxiliary_data_vector()}}{
+Retrieve entire auxiliary data vector
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{ForestDataset$get_auxiliary_data_vector(dim_idx)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{dim_idx}}{Dimension to retrieve}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Returns}{
+Vector of all of the auxiliary data stored at dimension \code{dim_idx}
 }
 }
 }

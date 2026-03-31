@@ -44,7 +44,7 @@ resid = (y-y_bar)/y_std
 
 # Test-train split
 sample_inds = np.arange(n)
-train_inds, test_inds = train_test_split(sample_inds, test_size=0.5)
+train_inds, test_inds = train_test_split(sample_inds, test_size=0.2)
 X_train = X[train_inds,:]
 X_test = X[test_inds,:]
 basis_train = W[train_inds,:]
@@ -56,7 +56,7 @@ y_test = y[test_inds]
 
 # Run BART
 bart_model = BARTModel()
-bart_model.sample(X_train=X_train, y_train=y_train, basis_train=basis_train, X_test=X_test, basis_test=basis_test, num_gfr=10, num_mcmc=100)
+bart_model.sample(X_train=X_train, y_train=y_train, leaf_basis_train=basis_train, X_test=X_test, leaf_basis_test=basis_test, num_gfr=10, num_mcmc=100)
 
 # Inspect the MCMC (BART) samples
 forest_preds_y_mcmc = bart_model.y_hat_test
@@ -66,8 +66,8 @@ sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
-sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma^2"])
+sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma^2")
 plt.show()
 
 # Compute the test set RMSE
@@ -89,8 +89,8 @@ sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
-sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma^2"])
+sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma^2")
 plt.show()
 
 # Compute the test set RMSE
@@ -110,8 +110,8 @@ sns.scatterplot(data=y_df_mcmc, x="Average estimated outcome", y="True outcome")
 plt.axline((0, 0), slope=1, color="black", linestyle=(0, (3,3)))
 plt.show()
 
-sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma"])
-sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma")
+sigma_df_mcmc = pd.DataFrame(np.concatenate((np.expand_dims(np.arange(bart_model.num_samples),axis=1), np.expand_dims(bart_model.global_var_samples,axis=1)), axis = 1), columns=["Sample", "Sigma^2"])
+sns.scatterplot(data=sigma_df_mcmc, x="Sample", y="Sigma^2")
 plt.show()
 
 # Compute the test set RMSE

@@ -1,6 +1,7 @@
 /*! Copyright (c) 2024 stochtree authors*/
 #include <stochtree/container.h>
 #include <stochtree/data.h>
+#include <stochtree/distributions.h>
 #include <stochtree/io.h>
 #include <nlohmann/json.hpp>
 #include <stochtree/leaf_model.h>
@@ -44,8 +45,7 @@ void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
-  std::normal_distribution<double> normal_dist(0.,1.);
+  standard_normal normal_dist;
   
   // DGP parameters
   std::vector<double> betas{-10, -5, 5, 10};
@@ -56,11 +56,11 @@ void GenerateDGP1(std::vector<double>& covariates, std::vector<double>& basis, s
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[i*x_cols + j] = standard_uniform_draw(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[i*omega_cols + j] = standard_uniform_draw(gen);
     }
     
     if (rfx_included) {
@@ -150,7 +150,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
 
   // Random number generation
-  std::normal_distribution<double> normal_dist(0., 1.);
+  standard_normal normal_dist;
 
   // Generate a sequence of integers from 0 to num_cells - 1
   std::vector<int32_t> cell_run(num_cells);
@@ -194,7 +194,7 @@ void GenerateDGP2(std::vector<double>& covariates, std::vector<double>& basis, s
   }
   std::vector<double> cell_weights(num_cells, 1./num_cells);
   std::vector<double> cell_indices_sparse(p1 - 1);
-  std::discrete_distribution cell_selector(cell_weights.begin(), cell_weights.end());
+  walker_vose cell_selector(cell_weights.begin(), cell_weights.end());
   for (int i = 0; i < p1-1; i++) {
     cell_indices_sparse.at(i) = cell_selector(gen);
   }
@@ -262,8 +262,7 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
-  std::normal_distribution<double> normal_dist(0.,1.);
+  standard_normal normal_dist;
   
   // DGP parameters
   std::vector<double> betas{-10, -5, 5, 10};
@@ -274,11 +273,11 @@ void GenerateDGP3(std::vector<double>& covariates, std::vector<double>& basis, s
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[i*x_cols + j] = standard_uniform_draw(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[i*omega_cols + j] = standard_uniform_draw(gen);
     }
     
     if (rfx_included) {
@@ -342,8 +341,7 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
   feature_types.resize(x_cols, FeatureType::kNumeric);
   
   // Random number generation
-  std::uniform_real_distribution<double> uniform_dist{0.0,1.0};
-  std::normal_distribution<double> normal_dist(0.,1.);
+  standard_normal normal_dist;
   
   // DGP parameters
   std::vector<double> betas{0.5, 1, 2, 3};
@@ -354,11 +352,11 @@ void GenerateDGP4(std::vector<double>& covariates, std::vector<double>& basis, s
 
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < x_cols; j++) {
-      covariates[i*x_cols + j] = uniform_dist(gen);
+      covariates[i*x_cols + j] = standard_uniform_draw(gen);
     }
     
     for (int j = 0; j < omega_cols; j++) {
-      basis[i*omega_cols + j] = uniform_dist(gen);
+      basis[i*omega_cols + j] = standard_uniform_draw(gen);
     }
     
     if (rfx_included) {
@@ -423,7 +421,7 @@ void OutcomeOffsetScale(ColumnVector& residual, double& outcome_offset, double& 
 void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussian, 
               bool rfx_included = false, int num_gfr = 10, int num_mcmc = 100, int random_seed = -1, 
               std::string dataset_filename = "", int outcome_col = -1, std::string covariate_cols = "",
-              std::string basis_cols = "") {
+              std::string basis_cols = "", int num_threads = -1) {
   // Flag the data as row-major
   bool row_major = true;
 
@@ -668,6 +666,11 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
 
   // Prepare the samplers
   LeafModelVariant leaf_model = leafModelFactory(model_type, leaf_scale, leaf_scale_matrix, a_forest, b_forest);
+  int num_features_subsample = x_cols;
+
+  // Initialize vector of sweep update indices
+  std::vector<int> sweep_indices(num_trees);
+  std::iota(sweep_indices.begin(), sweep_indices.end(), 0);
 
   // Run the GFR sampler
   if (num_gfr > 0) {
@@ -683,13 +686,13 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
 
       // Sample tree ensemble
       if (model_type == ModelType::kConstantLeafGaussian) {
-        GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true, true);
+        GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, sweep_indices, global_variance, feature_types, cutpoint_grid_size, true, true, true, num_features_subsample, num_threads);
       } else if (model_type == ModelType::kUnivariateRegressionLeafGaussian) {
-        GFRSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true, true);
+        GFRSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, sweep_indices, global_variance, feature_types, cutpoint_grid_size, true, true, true, num_features_subsample, num_threads);
       } else if (model_type == ModelType::kMultivariateRegressionLeafGaussian) {
-        GFRSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(active_forest, tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true, true, omega_cols);
+        GFRSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(active_forest, tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, sweep_indices, global_variance, feature_types, cutpoint_grid_size, true, true, true, num_features_subsample, num_threads, omega_cols);
       } else if (model_type == ModelType::kLogLinearVariance) {
-        GFRSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(active_forest, tracker, forest_samples, std::get<LogLinearVarianceLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, feature_types, cutpoint_grid_size, true, true, false);
+        GFRSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(active_forest, tracker, forest_samples, std::get<LogLinearVarianceLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, sweep_indices, global_variance, feature_types, cutpoint_grid_size, true, true, false, num_features_subsample, num_threads);
       }
 
       if (rfx_included) {
@@ -720,13 +723,13 @@ void RunDebug(int dgp_num = 0, const ModelType model_type = kConstantLeafGaussia
 
       // Sample tree ensemble
       if (model_type == ModelType::kConstantLeafGaussian) {
-        MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true, true);
+        MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianConstantLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, sweep_indices, global_variance, true, true, true, num_threads);
       } else if (model_type == ModelType::kUnivariateRegressionLeafGaussian) {
-        MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true, true);
+        MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(active_forest, tracker, forest_samples, std::get<GaussianUnivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, sweep_indices, global_variance, true, true, true, num_threads);
       } else if (model_type == ModelType::kMultivariateRegressionLeafGaussian) {
-        MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(active_forest, tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true, true, omega_cols);
+        MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat, int>(active_forest, tracker, forest_samples, std::get<GaussianMultivariateRegressionLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, sweep_indices, global_variance, true, true, true, num_threads, omega_cols);
       } else if (model_type == ModelType::kLogLinearVariance) {
-        MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(active_forest, tracker, forest_samples, std::get<LogLinearVarianceLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, global_variance, true, true, false);
+        MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(active_forest, tracker, forest_samples, std::get<LogLinearVarianceLeafModel>(leaf_model), dataset, residual, tree_prior, gen, variable_weights, sweep_indices, global_variance, true, true, false, num_threads);
       }
 
       if (rfx_included) {
@@ -799,8 +802,9 @@ int main(int argc, char* argv[]) {
   int outcome_col = std::stoi(argv[8]);
   std::string covariate_cols = argv[9];
   std::string basis_cols = argv[10];
+  int num_threads = std::stoi(argv[11]);
 
   // Run the debug program
   StochTree::RunDebug(dgp_num, model_type, rfx_included, num_gfr, num_mcmc, random_seed,
-                      dataset_filename, outcome_col, covariate_cols, basis_cols);
+                      dataset_filename, outcome_col, covariate_cols, basis_cols, num_threads);
 }

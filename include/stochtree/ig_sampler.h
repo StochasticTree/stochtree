@@ -2,6 +2,7 @@
 #ifndef STOCHTREE_IG_SAMPLER_H_
 #define STOCHTREE_IG_SAMPLER_H_
 
+#include <stochtree/distributions.h>
 #include <random>
 
 namespace StochTree {
@@ -17,12 +18,8 @@ class InverseGammaSampler {
     // Before sampling, we convert ig_scale to a gamma scale parameter by 
     // taking its multiplicative inverse.
     double gamma_scale = scale_param ? 1./b : b;
-    gamma_dist_ = std::gamma_distribution<double>(a, gamma_scale);
-    return (1/gamma_dist_(gen));
+    return (1/sample_gamma(gen, a, gamma_scale));
   }
- private:
-  /*! \brief Standard normal distribution */
-  std::gamma_distribution<double> gamma_dist_;
 };
 
 } // namespace StochTree

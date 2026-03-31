@@ -72,11 +72,77 @@ extern "C" SEXP _stochtree_forest_dataset_update_basis_cpp(SEXP dataset_ptr, SEX
   END_CPP11
 }
 // R_data.cpp
+void forest_dataset_update_var_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles weights, bool exponentiate);
+extern "C" SEXP _stochtree_forest_dataset_update_var_weights_cpp(SEXP dataset_ptr, SEXP weights, SEXP exponentiate) {
+  BEGIN_CPP11
+    forest_dataset_update_var_weights_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(weights), cpp11::as_cpp<cpp11::decay_t<bool>>(exponentiate));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
 void forest_dataset_add_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, cpp11::doubles weights);
 extern "C" SEXP _stochtree_forest_dataset_add_weights_cpp(SEXP dataset_ptr, SEXP weights) {
   BEGIN_CPP11
     forest_dataset_add_weights_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(weights));
     return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles_matrix<> forest_dataset_get_covariates_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr);
+extern "C" SEXP _stochtree_forest_dataset_get_covariates_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_dataset_get_covariates_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles_matrix<> forest_dataset_get_basis_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr);
+extern "C" SEXP _stochtree_forest_dataset_get_basis_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_dataset_get_basis_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles forest_dataset_get_variance_weights_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr);
+extern "C" SEXP _stochtree_forest_dataset_get_variance_weights_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_dataset_get_variance_weights_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
+bool forest_dataset_has_auxiliary_dimension_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx);
+extern "C" SEXP _stochtree_forest_dataset_has_auxiliary_dimension_cpp(SEXP dataset_ptr, SEXP dim_idx) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_dataset_has_auxiliary_dimension_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<int>>(dim_idx)));
+  END_CPP11
+}
+// R_data.cpp
+void forest_dataset_add_auxiliary_dimension_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_size);
+extern "C" SEXP _stochtree_forest_dataset_add_auxiliary_dimension_cpp(SEXP dataset_ptr, SEXP dim_size) {
+  BEGIN_CPP11
+    forest_dataset_add_auxiliary_dimension_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<int>>(dim_size));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+double forest_dataset_get_auxiliary_data_value_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx, int element_idx);
+extern "C" SEXP _stochtree_forest_dataset_get_auxiliary_data_value_cpp(SEXP dataset_ptr, SEXP dim_idx, SEXP element_idx) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_dataset_get_auxiliary_data_value_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<int>>(dim_idx), cpp11::as_cpp<cpp11::decay_t<int>>(element_idx)));
+  END_CPP11
+}
+// R_data.cpp
+void forest_dataset_set_auxiliary_data_value_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx, int element_idx, double value);
+extern "C" SEXP _stochtree_forest_dataset_set_auxiliary_data_value_cpp(SEXP dataset_ptr, SEXP dim_idx, SEXP element_idx, SEXP value) {
+  BEGIN_CPP11
+    forest_dataset_set_auxiliary_data_value_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<int>>(dim_idx), cpp11::as_cpp<cpp11::decay_t<int>>(element_idx), cpp11::as_cpp<cpp11::decay_t<double>>(value));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles forest_dataset_get_auxiliary_data_vector_cpp(cpp11::external_pointer<StochTree::ForestDataset> dataset_ptr, int dim_idx);
+extern "C" SEXP _stochtree_forest_dataset_get_auxiliary_data_vector_cpp(SEXP dataset_ptr, SEXP dim_idx) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(forest_dataset_get_auxiliary_data_vector_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<int>>(dim_idx)));
   END_CPP11
 }
 // R_data.cpp
@@ -133,6 +199,37 @@ extern "C" SEXP _stochtree_create_rfx_dataset_cpp() {
   END_CPP11
 }
 // R_data.cpp
+void rfx_dataset_update_basis_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr, cpp11::doubles_matrix<> basis);
+extern "C" SEXP _stochtree_rfx_dataset_update_basis_cpp(SEXP dataset_ptr, SEXP basis) {
+  BEGIN_CPP11
+    rfx_dataset_update_basis_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(basis));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+void rfx_dataset_update_var_weights_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr, cpp11::doubles weights, bool exponentiate);
+extern "C" SEXP _stochtree_rfx_dataset_update_var_weights_cpp(SEXP dataset_ptr, SEXP weights, SEXP exponentiate) {
+  BEGIN_CPP11
+    rfx_dataset_update_var_weights_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(weights), cpp11::as_cpp<cpp11::decay_t<bool>>(exponentiate));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+void rfx_dataset_update_group_labels_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr, cpp11::integers group_labels);
+extern "C" SEXP _stochtree_rfx_dataset_update_group_labels_cpp(SEXP dataset_ptr, SEXP group_labels) {
+  BEGIN_CPP11
+    rfx_dataset_update_group_labels_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(group_labels));
+    return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+int rfx_dataset_num_basis_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset);
+extern "C" SEXP _stochtree_rfx_dataset_num_basis_cpp(SEXP dataset) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(rfx_dataset_num_basis_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset)));
+  END_CPP11
+}
+// R_data.cpp
 int rfx_dataset_num_rows_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset);
 extern "C" SEXP _stochtree_rfx_dataset_num_rows_cpp(SEXP dataset) {
   BEGIN_CPP11
@@ -182,6 +279,27 @@ extern "C" SEXP _stochtree_rfx_dataset_add_weights_cpp(SEXP dataset_ptr, SEXP we
   BEGIN_CPP11
     rfx_dataset_add_weights_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(weights));
     return R_NilValue;
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::integers rfx_dataset_get_group_labels_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr);
+extern "C" SEXP _stochtree_rfx_dataset_get_group_labels_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(rfx_dataset_get_group_labels_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles_matrix<> rfx_dataset_get_basis_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr);
+extern "C" SEXP _stochtree_rfx_dataset_get_basis_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(rfx_dataset_get_basis_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr)));
+  END_CPP11
+}
+// R_data.cpp
+cpp11::writable::doubles rfx_dataset_get_variance_weights_cpp(cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset_ptr);
+extern "C" SEXP _stochtree_rfx_dataset_get_variance_weights_cpp(SEXP dataset_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(rfx_dataset_get_variance_weights_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::RandomEffectsDataset>>>(dataset_ptr)));
   END_CPP11
 }
 // R_random_effects.cpp
@@ -435,6 +553,34 @@ extern "C" SEXP _stochtree_root_reset_rfx_tracker_cpp(SEXP tracker, SEXP dataset
     return R_NilValue;
   END_CPP11
 }
+// R_utils.cpp
+double sum_cpp(cpp11::doubles x);
+extern "C" SEXP _stochtree_sum_cpp(SEXP x) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(sum_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(x)));
+  END_CPP11
+}
+// R_utils.cpp
+double mean_cpp(cpp11::doubles x);
+extern "C" SEXP _stochtree_mean_cpp(SEXP x) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(mean_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(x)));
+  END_CPP11
+}
+// R_utils.cpp
+double var_cpp(cpp11::doubles x);
+extern "C" SEXP _stochtree_var_cpp(SEXP x) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(var_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(x)));
+  END_CPP11
+}
+// R_utils.cpp
+double sd_cpp(cpp11::doubles x);
+extern "C" SEXP _stochtree_sd_cpp(SEXP x) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(sd_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(x)));
+  END_CPP11
+}
 // forest.cpp
 cpp11::external_pointer<StochTree::TreeEnsemble> active_forest_cpp(int num_trees, int output_dimension, bool is_leaf_constant, bool is_exponentiated);
 extern "C" SEXP _stochtree_active_forest_cpp(SEXP num_trees, SEXP output_dimension, SEXP is_leaf_constant, SEXP is_exponentiated) {
@@ -472,10 +618,58 @@ extern "C" SEXP _stochtree_forest_container_from_json_string_cpp(SEXP json_strin
   END_CPP11
 }
 // forest.cpp
+void forest_merge_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> inbound_forest_ptr, cpp11::external_pointer<StochTree::TreeEnsemble> outbound_forest_ptr);
+extern "C" SEXP _stochtree_forest_merge_cpp(SEXP inbound_forest_ptr, SEXP outbound_forest_ptr) {
+  BEGIN_CPP11
+    forest_merge_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(inbound_forest_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(outbound_forest_ptr));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
+void forest_add_constant_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> forest_ptr, double constant_value);
+extern "C" SEXP _stochtree_forest_add_constant_cpp(SEXP forest_ptr, SEXP constant_value) {
+  BEGIN_CPP11
+    forest_add_constant_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(forest_ptr), cpp11::as_cpp<cpp11::decay_t<double>>(constant_value));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
+void forest_multiply_constant_cpp(cpp11::external_pointer<StochTree::TreeEnsemble> forest_ptr, double constant_multiple);
+extern "C" SEXP _stochtree_forest_multiply_constant_cpp(SEXP forest_ptr, SEXP constant_multiple) {
+  BEGIN_CPP11
+    forest_multiply_constant_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(forest_ptr), cpp11::as_cpp<cpp11::decay_t<double>>(constant_multiple));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
 void forest_container_append_from_json_string_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_sample_ptr, std::string json_string, std::string forest_label);
 extern "C" SEXP _stochtree_forest_container_append_from_json_string_cpp(SEXP forest_sample_ptr, SEXP json_string, SEXP forest_label) {
   BEGIN_CPP11
     forest_container_append_from_json_string_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_sample_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(json_string), cpp11::as_cpp<cpp11::decay_t<std::string>>(forest_label));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
+void combine_forests_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::integers forest_inds);
+extern "C" SEXP _stochtree_combine_forests_forest_container_cpp(SEXP forest_samples, SEXP forest_inds) {
+  BEGIN_CPP11
+    combine_forests_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(forest_inds));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
+void add_to_forest_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_index, double constant_value);
+extern "C" SEXP _stochtree_add_to_forest_forest_container_cpp(SEXP forest_samples, SEXP forest_index, SEXP constant_value) {
+  BEGIN_CPP11
+    add_to_forest_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_index), cpp11::as_cpp<cpp11::decay_t<double>>(constant_value));
+    return R_NilValue;
+  END_CPP11
+}
+// forest.cpp
+void multiply_forest_forest_container_cpp(cpp11::external_pointer<StochTree::ForestContainer> forest_samples, int forest_index, double constant_multiple);
+extern "C" SEXP _stochtree_multiply_forest_forest_container_cpp(SEXP forest_samples, SEXP forest_index, SEXP constant_multiple) {
+  BEGIN_CPP11
+    multiply_forest_forest_container_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<int>>(forest_index), cpp11::as_cpp<cpp11::decay_t<double>>(constant_multiple));
     return R_NilValue;
   END_CPP11
 }
@@ -1028,18 +1222,18 @@ extern "C" SEXP _stochtree_compute_leaf_indices_cpp(SEXP forest_container, SEXP 
   END_CPP11
 }
 // sampler.cpp
-void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, cpp11::external_pointer<StochTree::ForestTracker> tracker, cpp11::external_pointer<StochTree::TreePrior> split_prior, cpp11::external_pointer<std::mt19937> rng, cpp11::integers feature_types, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_model_scale_input, cpp11::doubles variable_weights, double a_forest, double b_forest, double global_variance, int leaf_model_int, bool keep_forest);
-extern "C" SEXP _stochtree_sample_gfr_one_iteration_cpp(SEXP data, SEXP residual, SEXP forest_samples, SEXP active_forest, SEXP tracker, SEXP split_prior, SEXP rng, SEXP feature_types, SEXP cutpoint_grid_size, SEXP leaf_model_scale_input, SEXP variable_weights, SEXP a_forest, SEXP b_forest, SEXP global_variance, SEXP leaf_model_int, SEXP keep_forest) {
+void sample_gfr_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, cpp11::external_pointer<StochTree::ForestTracker> tracker, cpp11::external_pointer<StochTree::TreePrior> split_prior, cpp11::external_pointer<std::mt19937> rng, cpp11::integers sweep_indices, cpp11::integers feature_types, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_model_scale_input, cpp11::doubles variable_weights, double a_forest, double b_forest, double global_variance, int leaf_model_int, bool keep_forest, int num_features_subsample, int num_threads);
+extern "C" SEXP _stochtree_sample_gfr_one_iteration_cpp(SEXP data, SEXP residual, SEXP forest_samples, SEXP active_forest, SEXP tracker, SEXP split_prior, SEXP rng, SEXP sweep_indices, SEXP feature_types, SEXP cutpoint_grid_size, SEXP leaf_model_scale_input, SEXP variable_weights, SEXP a_forest, SEXP b_forest, SEXP global_variance, SEXP leaf_model_int, SEXP keep_forest, SEXP num_features_subsample, SEXP num_threads) {
   BEGIN_CPP11
-    sample_gfr_one_iteration_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(data), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(active_forest), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestTracker>>>(tracker), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(split_prior), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(feature_types), cpp11::as_cpp<cpp11::decay_t<int>>(cutpoint_grid_size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(leaf_model_scale_input), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(variable_weights), cpp11::as_cpp<cpp11::decay_t<double>>(a_forest), cpp11::as_cpp<cpp11::decay_t<double>>(b_forest), cpp11::as_cpp<cpp11::decay_t<double>>(global_variance), cpp11::as_cpp<cpp11::decay_t<int>>(leaf_model_int), cpp11::as_cpp<cpp11::decay_t<bool>>(keep_forest));
+    sample_gfr_one_iteration_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(data), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(active_forest), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestTracker>>>(tracker), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(split_prior), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(sweep_indices), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(feature_types), cpp11::as_cpp<cpp11::decay_t<int>>(cutpoint_grid_size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(leaf_model_scale_input), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(variable_weights), cpp11::as_cpp<cpp11::decay_t<double>>(a_forest), cpp11::as_cpp<cpp11::decay_t<double>>(b_forest), cpp11::as_cpp<cpp11::decay_t<double>>(global_variance), cpp11::as_cpp<cpp11::decay_t<int>>(leaf_model_int), cpp11::as_cpp<cpp11::decay_t<bool>>(keep_forest), cpp11::as_cpp<cpp11::decay_t<int>>(num_features_subsample), cpp11::as_cpp<cpp11::decay_t<int>>(num_threads));
     return R_NilValue;
   END_CPP11
 }
 // sampler.cpp
-void sample_mcmc_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, cpp11::external_pointer<StochTree::ForestTracker> tracker, cpp11::external_pointer<StochTree::TreePrior> split_prior, cpp11::external_pointer<std::mt19937> rng, cpp11::integers feature_types, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_model_scale_input, cpp11::doubles variable_weights, double a_forest, double b_forest, double global_variance, int leaf_model_int, bool keep_forest);
-extern "C" SEXP _stochtree_sample_mcmc_one_iteration_cpp(SEXP data, SEXP residual, SEXP forest_samples, SEXP active_forest, SEXP tracker, SEXP split_prior, SEXP rng, SEXP feature_types, SEXP cutpoint_grid_size, SEXP leaf_model_scale_input, SEXP variable_weights, SEXP a_forest, SEXP b_forest, SEXP global_variance, SEXP leaf_model_int, SEXP keep_forest) {
+void sample_mcmc_one_iteration_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, cpp11::external_pointer<StochTree::ColumnVector> residual, cpp11::external_pointer<StochTree::ForestContainer> forest_samples, cpp11::external_pointer<StochTree::TreeEnsemble> active_forest, cpp11::external_pointer<StochTree::ForestTracker> tracker, cpp11::external_pointer<StochTree::TreePrior> split_prior, cpp11::external_pointer<std::mt19937> rng, cpp11::integers sweep_indices, cpp11::integers feature_types, int cutpoint_grid_size, cpp11::doubles_matrix<> leaf_model_scale_input, cpp11::doubles variable_weights, double a_forest, double b_forest, double global_variance, int leaf_model_int, bool keep_forest, int num_threads);
+extern "C" SEXP _stochtree_sample_mcmc_one_iteration_cpp(SEXP data, SEXP residual, SEXP forest_samples, SEXP active_forest, SEXP tracker, SEXP split_prior, SEXP rng, SEXP sweep_indices, SEXP feature_types, SEXP cutpoint_grid_size, SEXP leaf_model_scale_input, SEXP variable_weights, SEXP a_forest, SEXP b_forest, SEXP global_variance, SEXP leaf_model_int, SEXP keep_forest, SEXP num_threads) {
   BEGIN_CPP11
-    sample_mcmc_one_iteration_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(data), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(active_forest), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestTracker>>>(tracker), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(split_prior), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(feature_types), cpp11::as_cpp<cpp11::decay_t<int>>(cutpoint_grid_size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(leaf_model_scale_input), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(variable_weights), cpp11::as_cpp<cpp11::decay_t<double>>(a_forest), cpp11::as_cpp<cpp11::decay_t<double>>(b_forest), cpp11::as_cpp<cpp11::decay_t<double>>(global_variance), cpp11::as_cpp<cpp11::decay_t<int>>(leaf_model_int), cpp11::as_cpp<cpp11::decay_t<bool>>(keep_forest));
+    sample_mcmc_one_iteration_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(data), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(residual), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestContainer>>>(forest_samples), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreeEnsemble>>>(active_forest), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestTracker>>>(tracker), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(split_prior), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(sweep_indices), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(feature_types), cpp11::as_cpp<cpp11::decay_t<int>>(cutpoint_grid_size), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles_matrix<>>>(leaf_model_scale_input), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(variable_weights), cpp11::as_cpp<cpp11::decay_t<double>>(a_forest), cpp11::as_cpp<cpp11::decay_t<double>>(b_forest), cpp11::as_cpp<cpp11::decay_t<double>>(global_variance), cpp11::as_cpp<cpp11::decay_t<int>>(leaf_model_int), cpp11::as_cpp<cpp11::decay_t<bool>>(keep_forest), cpp11::as_cpp<cpp11::decay_t<int>>(num_threads));
     return R_NilValue;
   END_CPP11
 }
@@ -1104,10 +1298,83 @@ extern "C" SEXP _stochtree_update_max_depth_tree_prior_cpp(SEXP tree_prior_ptr, 
   END_CPP11
 }
 // sampler.cpp
+double get_alpha_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr);
+extern "C" SEXP _stochtree_get_alpha_tree_prior_cpp(SEXP tree_prior_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_alpha_tree_prior_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(tree_prior_ptr)));
+  END_CPP11
+}
+// sampler.cpp
+double get_beta_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr);
+extern "C" SEXP _stochtree_get_beta_tree_prior_cpp(SEXP tree_prior_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_beta_tree_prior_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(tree_prior_ptr)));
+  END_CPP11
+}
+// sampler.cpp
+int get_min_samples_leaf_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr);
+extern "C" SEXP _stochtree_get_min_samples_leaf_tree_prior_cpp(SEXP tree_prior_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_min_samples_leaf_tree_prior_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(tree_prior_ptr)));
+  END_CPP11
+}
+// sampler.cpp
+int get_max_depth_tree_prior_cpp(cpp11::external_pointer<StochTree::TreePrior> tree_prior_ptr);
+extern "C" SEXP _stochtree_get_max_depth_tree_prior_cpp(SEXP tree_prior_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_max_depth_tree_prior_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::TreePrior>>>(tree_prior_ptr)));
+  END_CPP11
+}
+// sampler.cpp
 cpp11::external_pointer<StochTree::ForestTracker> forest_tracker_cpp(cpp11::external_pointer<StochTree::ForestDataset> data, cpp11::integers feature_types, int num_trees, StochTree::data_size_t n);
 extern "C" SEXP _stochtree_forest_tracker_cpp(SEXP data, SEXP feature_types, SEXP num_trees, SEXP n) {
   BEGIN_CPP11
     return cpp11::as_sexp(forest_tracker_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(data), cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(feature_types), cpp11::as_cpp<cpp11::decay_t<int>>(num_trees), cpp11::as_cpp<cpp11::decay_t<StochTree::data_size_t>>(n)));
+  END_CPP11
+}
+// sampler.cpp
+cpp11::writable::doubles get_cached_forest_predictions_cpp(cpp11::external_pointer<StochTree::ForestTracker> tracker_ptr);
+extern "C" SEXP _stochtree_get_cached_forest_predictions_cpp(SEXP tracker_ptr) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(get_cached_forest_predictions_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestTracker>>>(tracker_ptr)));
+  END_CPP11
+}
+// sampler.cpp
+cpp11::writable::integers sample_without_replacement_integer_cpp(cpp11::integers population_vector, cpp11::doubles sampling_probs, int sample_size);
+extern "C" SEXP _stochtree_sample_without_replacement_integer_cpp(SEXP population_vector, SEXP sampling_probs, SEXP sample_size) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(sample_without_replacement_integer_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::integers>>(population_vector), cpp11::as_cpp<cpp11::decay_t<cpp11::doubles>>(sampling_probs), cpp11::as_cpp<cpp11::decay_t<int>>(sample_size)));
+  END_CPP11
+}
+// sampler.cpp
+cpp11::external_pointer<StochTree::OrdinalSampler> ordinal_sampler_cpp();
+extern "C" SEXP _stochtree_ordinal_sampler_cpp() {
+  BEGIN_CPP11
+    return cpp11::as_sexp(ordinal_sampler_cpp());
+  END_CPP11
+}
+// sampler.cpp
+void ordinal_sampler_update_latent_variables_cpp(cpp11::external_pointer<StochTree::OrdinalSampler> sampler_ptr, cpp11::external_pointer<StochTree::ForestDataset> data_ptr, cpp11::external_pointer<StochTree::ColumnVector> outcome_ptr, cpp11::external_pointer<std::mt19937> rng_ptr);
+extern "C" SEXP _stochtree_ordinal_sampler_update_latent_variables_cpp(SEXP sampler_ptr, SEXP data_ptr, SEXP outcome_ptr, SEXP rng_ptr) {
+  BEGIN_CPP11
+    ordinal_sampler_update_latent_variables_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::OrdinalSampler>>>(sampler_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(data_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(outcome_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng_ptr));
+    return R_NilValue;
+  END_CPP11
+}
+// sampler.cpp
+void ordinal_sampler_update_gamma_params_cpp(cpp11::external_pointer<StochTree::OrdinalSampler> sampler_ptr, cpp11::external_pointer<StochTree::ForestDataset> data_ptr, cpp11::external_pointer<StochTree::ColumnVector> outcome_ptr, double alpha_gamma, double beta_gamma, double gamma_0, cpp11::external_pointer<std::mt19937> rng_ptr);
+extern "C" SEXP _stochtree_ordinal_sampler_update_gamma_params_cpp(SEXP sampler_ptr, SEXP data_ptr, SEXP outcome_ptr, SEXP alpha_gamma, SEXP beta_gamma, SEXP gamma_0, SEXP rng_ptr) {
+  BEGIN_CPP11
+    ordinal_sampler_update_gamma_params_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::OrdinalSampler>>>(sampler_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(data_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ColumnVector>>>(outcome_ptr), cpp11::as_cpp<cpp11::decay_t<double>>(alpha_gamma), cpp11::as_cpp<cpp11::decay_t<double>>(beta_gamma), cpp11::as_cpp<cpp11::decay_t<double>>(gamma_0), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<std::mt19937>>>(rng_ptr));
+    return R_NilValue;
+  END_CPP11
+}
+// sampler.cpp
+void ordinal_sampler_update_cumsum_exp_cpp(cpp11::external_pointer<StochTree::OrdinalSampler> sampler_ptr, cpp11::external_pointer<StochTree::ForestDataset> data_ptr);
+extern "C" SEXP _stochtree_ordinal_sampler_update_cumsum_exp_cpp(SEXP sampler_ptr, SEXP data_ptr) {
+  BEGIN_CPP11
+    ordinal_sampler_update_cumsum_exp_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::OrdinalSampler>>>(sampler_ptr), cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<StochTree::ForestDataset>>>(data_ptr));
+    return R_NilValue;
   END_CPP11
 }
 // serialization.cpp
@@ -1420,12 +1687,14 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_add_sample_value_forest_container_cpp",               (DL_FUNC) &_stochtree_add_sample_value_forest_container_cpp,                2},
     {"_stochtree_add_sample_vector_forest_container_cpp",              (DL_FUNC) &_stochtree_add_sample_vector_forest_container_cpp,               2},
     {"_stochtree_add_to_column_vector_cpp",                            (DL_FUNC) &_stochtree_add_to_column_vector_cpp,                             2},
+    {"_stochtree_add_to_forest_forest_container_cpp",                  (DL_FUNC) &_stochtree_add_to_forest_forest_container_cpp,                   3},
     {"_stochtree_adjust_residual_active_forest_cpp",                   (DL_FUNC) &_stochtree_adjust_residual_active_forest_cpp,                    6},
     {"_stochtree_adjust_residual_forest_container_cpp",                (DL_FUNC) &_stochtree_adjust_residual_forest_container_cpp,                 7},
     {"_stochtree_all_roots_active_forest_cpp",                         (DL_FUNC) &_stochtree_all_roots_active_forest_cpp,                          1},
     {"_stochtree_all_roots_forest_container_cpp",                      (DL_FUNC) &_stochtree_all_roots_forest_container_cpp,                       2},
     {"_stochtree_average_max_depth_active_forest_cpp",                 (DL_FUNC) &_stochtree_average_max_depth_active_forest_cpp,                  1},
     {"_stochtree_average_max_depth_forest_container_cpp",              (DL_FUNC) &_stochtree_average_max_depth_forest_container_cpp,               1},
+    {"_stochtree_combine_forests_forest_container_cpp",                (DL_FUNC) &_stochtree_combine_forests_forest_container_cpp,                 2},
     {"_stochtree_compute_leaf_indices_cpp",                            (DL_FUNC) &_stochtree_compute_leaf_indices_cpp,                             3},
     {"_stochtree_create_column_vector_cpp",                            (DL_FUNC) &_stochtree_create_column_vector_cpp,                             1},
     {"_stochtree_create_forest_dataset_cpp",                           (DL_FUNC) &_stochtree_create_forest_dataset_cpp,                            0},
@@ -1438,21 +1707,38 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_ensemble_average_max_depth_forest_container_cpp",     (DL_FUNC) &_stochtree_ensemble_average_max_depth_forest_container_cpp,      2},
     {"_stochtree_ensemble_tree_max_depth_active_forest_cpp",           (DL_FUNC) &_stochtree_ensemble_tree_max_depth_active_forest_cpp,            2},
     {"_stochtree_ensemble_tree_max_depth_forest_container_cpp",        (DL_FUNC) &_stochtree_ensemble_tree_max_depth_forest_container_cpp,         3},
+    {"_stochtree_forest_add_constant_cpp",                             (DL_FUNC) &_stochtree_forest_add_constant_cpp,                              2},
     {"_stochtree_forest_container_append_from_json_cpp",               (DL_FUNC) &_stochtree_forest_container_append_from_json_cpp,                3},
     {"_stochtree_forest_container_append_from_json_string_cpp",        (DL_FUNC) &_stochtree_forest_container_append_from_json_string_cpp,         3},
     {"_stochtree_forest_container_cpp",                                (DL_FUNC) &_stochtree_forest_container_cpp,                                 4},
     {"_stochtree_forest_container_from_json_cpp",                      (DL_FUNC) &_stochtree_forest_container_from_json_cpp,                       2},
     {"_stochtree_forest_container_from_json_string_cpp",               (DL_FUNC) &_stochtree_forest_container_from_json_string_cpp,                2},
     {"_stochtree_forest_container_get_max_leaf_index_cpp",             (DL_FUNC) &_stochtree_forest_container_get_max_leaf_index_cpp,              2},
+    {"_stochtree_forest_dataset_add_auxiliary_dimension_cpp",          (DL_FUNC) &_stochtree_forest_dataset_add_auxiliary_dimension_cpp,           2},
     {"_stochtree_forest_dataset_add_basis_cpp",                        (DL_FUNC) &_stochtree_forest_dataset_add_basis_cpp,                         2},
     {"_stochtree_forest_dataset_add_covariates_cpp",                   (DL_FUNC) &_stochtree_forest_dataset_add_covariates_cpp,                    2},
     {"_stochtree_forest_dataset_add_weights_cpp",                      (DL_FUNC) &_stochtree_forest_dataset_add_weights_cpp,                       2},
+    {"_stochtree_forest_dataset_get_auxiliary_data_value_cpp",         (DL_FUNC) &_stochtree_forest_dataset_get_auxiliary_data_value_cpp,          3},
+    {"_stochtree_forest_dataset_get_auxiliary_data_vector_cpp",        (DL_FUNC) &_stochtree_forest_dataset_get_auxiliary_data_vector_cpp,         2},
+    {"_stochtree_forest_dataset_get_basis_cpp",                        (DL_FUNC) &_stochtree_forest_dataset_get_basis_cpp,                         1},
+    {"_stochtree_forest_dataset_get_covariates_cpp",                   (DL_FUNC) &_stochtree_forest_dataset_get_covariates_cpp,                    1},
+    {"_stochtree_forest_dataset_get_variance_weights_cpp",             (DL_FUNC) &_stochtree_forest_dataset_get_variance_weights_cpp,              1},
+    {"_stochtree_forest_dataset_has_auxiliary_dimension_cpp",          (DL_FUNC) &_stochtree_forest_dataset_has_auxiliary_dimension_cpp,           2},
+    {"_stochtree_forest_dataset_set_auxiliary_data_value_cpp",         (DL_FUNC) &_stochtree_forest_dataset_set_auxiliary_data_value_cpp,          4},
     {"_stochtree_forest_dataset_update_basis_cpp",                     (DL_FUNC) &_stochtree_forest_dataset_update_basis_cpp,                      2},
+    {"_stochtree_forest_dataset_update_var_weights_cpp",               (DL_FUNC) &_stochtree_forest_dataset_update_var_weights_cpp,                3},
+    {"_stochtree_forest_merge_cpp",                                    (DL_FUNC) &_stochtree_forest_merge_cpp,                                     2},
+    {"_stochtree_forest_multiply_constant_cpp",                        (DL_FUNC) &_stochtree_forest_multiply_constant_cpp,                         2},
     {"_stochtree_forest_tracker_cpp",                                  (DL_FUNC) &_stochtree_forest_tracker_cpp,                                   4},
+    {"_stochtree_get_alpha_tree_prior_cpp",                            (DL_FUNC) &_stochtree_get_alpha_tree_prior_cpp,                             1},
+    {"_stochtree_get_beta_tree_prior_cpp",                             (DL_FUNC) &_stochtree_get_beta_tree_prior_cpp,                              1},
+    {"_stochtree_get_cached_forest_predictions_cpp",                   (DL_FUNC) &_stochtree_get_cached_forest_predictions_cpp,                    1},
     {"_stochtree_get_forest_split_counts_forest_container_cpp",        (DL_FUNC) &_stochtree_get_forest_split_counts_forest_container_cpp,         3},
     {"_stochtree_get_granular_split_count_array_active_forest_cpp",    (DL_FUNC) &_stochtree_get_granular_split_count_array_active_forest_cpp,     2},
     {"_stochtree_get_granular_split_count_array_forest_container_cpp", (DL_FUNC) &_stochtree_get_granular_split_count_array_forest_container_cpp,  2},
     {"_stochtree_get_json_string_cpp",                                 (DL_FUNC) &_stochtree_get_json_string_cpp,                                  1},
+    {"_stochtree_get_max_depth_tree_prior_cpp",                        (DL_FUNC) &_stochtree_get_max_depth_tree_prior_cpp,                         1},
+    {"_stochtree_get_min_samples_leaf_tree_prior_cpp",                 (DL_FUNC) &_stochtree_get_min_samples_leaf_tree_prior_cpp,                  1},
     {"_stochtree_get_overall_split_counts_active_forest_cpp",          (DL_FUNC) &_stochtree_get_overall_split_counts_active_forest_cpp,           2},
     {"_stochtree_get_overall_split_counts_forest_container_cpp",       (DL_FUNC) &_stochtree_get_overall_split_counts_forest_container_cpp,        2},
     {"_stochtree_get_residual_cpp",                                    (DL_FUNC) &_stochtree_get_residual_cpp,                                     1},
@@ -1515,6 +1801,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_leaf_values_forest_container_cpp",                    (DL_FUNC) &_stochtree_leaf_values_forest_container_cpp,                     4},
     {"_stochtree_leaves_forest_container_cpp",                         (DL_FUNC) &_stochtree_leaves_forest_container_cpp,                          3},
     {"_stochtree_left_child_node_forest_container_cpp",                (DL_FUNC) &_stochtree_left_child_node_forest_container_cpp,                 4},
+    {"_stochtree_mean_cpp",                                            (DL_FUNC) &_stochtree_mean_cpp,                                             1},
+    {"_stochtree_multiply_forest_forest_container_cpp",                (DL_FUNC) &_stochtree_multiply_forest_forest_container_cpp,                 3},
     {"_stochtree_node_depth_forest_container_cpp",                     (DL_FUNC) &_stochtree_node_depth_forest_container_cpp,                      4},
     {"_stochtree_nodes_forest_container_cpp",                          (DL_FUNC) &_stochtree_nodes_forest_container_cpp,                           3},
     {"_stochtree_num_leaf_parents_forest_container_cpp",               (DL_FUNC) &_stochtree_num_leaf_parents_forest_container_cpp,                3},
@@ -1525,6 +1813,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_num_split_nodes_forest_container_cpp",                (DL_FUNC) &_stochtree_num_split_nodes_forest_container_cpp,                 3},
     {"_stochtree_num_trees_active_forest_cpp",                         (DL_FUNC) &_stochtree_num_trees_active_forest_cpp,                          1},
     {"_stochtree_num_trees_forest_container_cpp",                      (DL_FUNC) &_stochtree_num_trees_forest_container_cpp,                       1},
+    {"_stochtree_ordinal_sampler_cpp",                                 (DL_FUNC) &_stochtree_ordinal_sampler_cpp,                                  0},
+    {"_stochtree_ordinal_sampler_update_cumsum_exp_cpp",               (DL_FUNC) &_stochtree_ordinal_sampler_update_cumsum_exp_cpp,                2},
+    {"_stochtree_ordinal_sampler_update_gamma_params_cpp",             (DL_FUNC) &_stochtree_ordinal_sampler_update_gamma_params_cpp,              7},
+    {"_stochtree_ordinal_sampler_update_latent_variables_cpp",         (DL_FUNC) &_stochtree_ordinal_sampler_update_latent_variables_cpp,          4},
     {"_stochtree_overwrite_column_vector_cpp",                         (DL_FUNC) &_stochtree_overwrite_column_vector_cpp,                          2},
     {"_stochtree_parent_node_forest_container_cpp",                    (DL_FUNC) &_stochtree_parent_node_forest_container_cpp,                     4},
     {"_stochtree_predict_active_forest_cpp",                           (DL_FUNC) &_stochtree_predict_active_forest_cpp,                            2},
@@ -1558,10 +1850,17 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_rfx_dataset_add_basis_cpp",                           (DL_FUNC) &_stochtree_rfx_dataset_add_basis_cpp,                            2},
     {"_stochtree_rfx_dataset_add_group_labels_cpp",                    (DL_FUNC) &_stochtree_rfx_dataset_add_group_labels_cpp,                     2},
     {"_stochtree_rfx_dataset_add_weights_cpp",                         (DL_FUNC) &_stochtree_rfx_dataset_add_weights_cpp,                          2},
+    {"_stochtree_rfx_dataset_get_basis_cpp",                           (DL_FUNC) &_stochtree_rfx_dataset_get_basis_cpp,                            1},
+    {"_stochtree_rfx_dataset_get_group_labels_cpp",                    (DL_FUNC) &_stochtree_rfx_dataset_get_group_labels_cpp,                     1},
+    {"_stochtree_rfx_dataset_get_variance_weights_cpp",                (DL_FUNC) &_stochtree_rfx_dataset_get_variance_weights_cpp,                 1},
     {"_stochtree_rfx_dataset_has_basis_cpp",                           (DL_FUNC) &_stochtree_rfx_dataset_has_basis_cpp,                            1},
     {"_stochtree_rfx_dataset_has_group_labels_cpp",                    (DL_FUNC) &_stochtree_rfx_dataset_has_group_labels_cpp,                     1},
     {"_stochtree_rfx_dataset_has_variance_weights_cpp",                (DL_FUNC) &_stochtree_rfx_dataset_has_variance_weights_cpp,                 1},
+    {"_stochtree_rfx_dataset_num_basis_cpp",                           (DL_FUNC) &_stochtree_rfx_dataset_num_basis_cpp,                            1},
     {"_stochtree_rfx_dataset_num_rows_cpp",                            (DL_FUNC) &_stochtree_rfx_dataset_num_rows_cpp,                             1},
+    {"_stochtree_rfx_dataset_update_basis_cpp",                        (DL_FUNC) &_stochtree_rfx_dataset_update_basis_cpp,                         2},
+    {"_stochtree_rfx_dataset_update_group_labels_cpp",                 (DL_FUNC) &_stochtree_rfx_dataset_update_group_labels_cpp,                  2},
+    {"_stochtree_rfx_dataset_update_var_weights_cpp",                  (DL_FUNC) &_stochtree_rfx_dataset_update_var_weights_cpp,                   3},
     {"_stochtree_rfx_group_ids_from_json_cpp",                         (DL_FUNC) &_stochtree_rfx_group_ids_from_json_cpp,                          2},
     {"_stochtree_rfx_group_ids_from_json_string_cpp",                  (DL_FUNC) &_stochtree_rfx_group_ids_from_json_string_cpp,                   2},
     {"_stochtree_rfx_label_mapper_cpp",                                (DL_FUNC) &_stochtree_rfx_label_mapper_cpp,                                 1},
@@ -1583,10 +1882,12 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_rng_cpp",                                             (DL_FUNC) &_stochtree_rng_cpp,                                              1},
     {"_stochtree_root_reset_active_forest_cpp",                        (DL_FUNC) &_stochtree_root_reset_active_forest_cpp,                         1},
     {"_stochtree_root_reset_rfx_tracker_cpp",                          (DL_FUNC) &_stochtree_root_reset_rfx_tracker_cpp,                           4},
-    {"_stochtree_sample_gfr_one_iteration_cpp",                        (DL_FUNC) &_stochtree_sample_gfr_one_iteration_cpp,                        16},
-    {"_stochtree_sample_mcmc_one_iteration_cpp",                       (DL_FUNC) &_stochtree_sample_mcmc_one_iteration_cpp,                       16},
+    {"_stochtree_sample_gfr_one_iteration_cpp",                        (DL_FUNC) &_stochtree_sample_gfr_one_iteration_cpp,                        19},
+    {"_stochtree_sample_mcmc_one_iteration_cpp",                       (DL_FUNC) &_stochtree_sample_mcmc_one_iteration_cpp,                       18},
     {"_stochtree_sample_sigma2_one_iteration_cpp",                     (DL_FUNC) &_stochtree_sample_sigma2_one_iteration_cpp,                      5},
     {"_stochtree_sample_tau_one_iteration_cpp",                        (DL_FUNC) &_stochtree_sample_tau_one_iteration_cpp,                         4},
+    {"_stochtree_sample_without_replacement_integer_cpp",              (DL_FUNC) &_stochtree_sample_without_replacement_integer_cpp,               3},
+    {"_stochtree_sd_cpp",                                              (DL_FUNC) &_stochtree_sd_cpp,                                               1},
     {"_stochtree_set_leaf_value_active_forest_cpp",                    (DL_FUNC) &_stochtree_set_leaf_value_active_forest_cpp,                     2},
     {"_stochtree_set_leaf_value_forest_container_cpp",                 (DL_FUNC) &_stochtree_set_leaf_value_forest_container_cpp,                  2},
     {"_stochtree_set_leaf_vector_active_forest_cpp",                   (DL_FUNC) &_stochtree_set_leaf_vector_active_forest_cpp,                    2},
@@ -1595,12 +1896,14 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_split_index_forest_container_cpp",                    (DL_FUNC) &_stochtree_split_index_forest_container_cpp,                     4},
     {"_stochtree_split_theshold_forest_container_cpp",                 (DL_FUNC) &_stochtree_split_theshold_forest_container_cpp,                  4},
     {"_stochtree_subtract_from_column_vector_cpp",                     (DL_FUNC) &_stochtree_subtract_from_column_vector_cpp,                      2},
+    {"_stochtree_sum_cpp",                                             (DL_FUNC) &_stochtree_sum_cpp,                                              1},
     {"_stochtree_sum_leaves_squared_ensemble_forest_container_cpp",    (DL_FUNC) &_stochtree_sum_leaves_squared_ensemble_forest_container_cpp,     2},
     {"_stochtree_tree_prior_cpp",                                      (DL_FUNC) &_stochtree_tree_prior_cpp,                                       4},
     {"_stochtree_update_alpha_tree_prior_cpp",                         (DL_FUNC) &_stochtree_update_alpha_tree_prior_cpp,                          2},
     {"_stochtree_update_beta_tree_prior_cpp",                          (DL_FUNC) &_stochtree_update_beta_tree_prior_cpp,                           2},
     {"_stochtree_update_max_depth_tree_prior_cpp",                     (DL_FUNC) &_stochtree_update_max_depth_tree_prior_cpp,                      2},
     {"_stochtree_update_min_samples_leaf_tree_prior_cpp",              (DL_FUNC) &_stochtree_update_min_samples_leaf_tree_prior_cpp,               2},
+    {"_stochtree_var_cpp",                                             (DL_FUNC) &_stochtree_var_cpp,                                              1},
     {NULL, NULL, 0}
 };
 }

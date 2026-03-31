@@ -9,7 +9,6 @@
 #include <stochtree/io.h>
 #include <stochtree/log.h>
 #include <stochtree/meta.h>
-#include <memory>
 
 namespace StochTree {
 
@@ -470,6 +469,32 @@ class ForestDataset {
     if (exponentiate) var_weights_.SetElement(row_id, std::exp(new_value));
     else var_weights_.SetElement(row_id, new_value);
   }
+  /*! 
+   * \brief Auxiliary data management methods 
+   * Methods to initialize, get, and set auxiliary data for BART models with more structure than the ``classic`` conjugate-Gaussian leaf BART model
+   */
+  void AddAuxiliaryDimension(int dim_size) {
+    if (!has_auxiliary_data_) has_auxiliary_data_ = true;
+    auxiliary_data_.resize(num_auxiliary_dims_ + 1);
+    auxiliary_data_[num_auxiliary_dims_].resize(dim_size);
+    num_auxiliary_dims_++;
+  }
+  double GetAuxiliaryDataValue(int dim_idx, data_size_t element_idx) {
+    return auxiliary_data_[dim_idx][element_idx];
+  }
+  void SetAuxiliaryDataValue(int dim_idx, data_size_t element_idx, double value) {
+    auxiliary_data_[dim_idx][element_idx] = value;
+  }
+  std::vector<double>& GetAuxiliaryDataVector(int dim_idx) {
+    return auxiliary_data_[dim_idx];
+  }
+  const std::vector<double>& GetAuxiliaryDataVectorConst(int dim_idx) {
+    return auxiliary_data_[dim_idx];
+  }
+  bool HasAuxiliaryDimension(int dim_idx) {
+    return (num_auxiliary_dims_ > dim_idx) & (dim_idx >= 0);
+  }
+
  private:
   ColumnMatrix covariates_;
   ColumnMatrix basis_;
@@ -480,6 +505,13 @@ class ForestDataset {
   bool has_covariates_{false};
   bool has_basis_{false};
   bool has_var_weights_{false};
+
+  /*! 
+  * \brief Vector of vectors to track (potentially jagged) auxiliary data for complex BART models
+  */
+  std::vector<std::vector<double>> auxiliary_data_;
+  int num_auxiliary_dims_{0};
+  bool has_auxiliary_data_{false};
 };
 
 /*! \brief API for loading and accessing data used to sample (additive) random effects */
@@ -498,6 +530,7 @@ class RandomEffectsDataset {
    */
    void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
     basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
+    num_basis_ = num_col;
     has_basis_ = true;
   }
   /*!
@@ -511,6 +544,64 @@ class RandomEffectsDataset {
     has_var_weights_ = true;
   }
   /*!
+   * \brief Update the data in the internal basis matrix to new values stored in a raw double array
+   * 
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a basis matrix
+   * \param num_row Number of rows in the basis matrix
+   * \param num_col Number of columns in the basis matrix
+   * \param is_row_major Whether or not the data in `data_ptr` are organized in a row-major or column-major fashion
+   */
+  void UpdateBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+    CHECK(has_basis_);
+    CHECK_EQ(num_col, num_basis_);
+    // Copy data from R / Python process memory to Eigen matrix
+    double temp_value;
+    for (data_size_t i = 0; i < num_row; ++i) {
+      for (int j = 0; j < num_col; ++j) {
+        if (is_row_major){
+          // Numpy 2-d arrays are stored in "row major" order
+          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
+        } else {
+          // R matrices are stored in "column major" order
+          temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_row) * j + i));
+        }
+        basis_.SetElement(i, j, temp_value);
+      }
+    }
+  }
+  /*!
+   * \brief Update the data in the internal variance weight vector to new values stored in a raw double array
+   *
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a weight vector
+   * \param num_row Number of rows in the weight vector
+   * \param exponentiate Whether or not inputs should be exponentiated before being saved to var weight vector
+   */
+  void UpdateVarWeights(double* data_ptr, data_size_t num_row, bool exponentiate = true) {
+    CHECK(has_var_weights_);
+    // Copy data from R / Python process memory to Eigen vector
+    double temp_value;
+    for (data_size_t i = 0; i < num_row; ++i) {
+      if (exponentiate) temp_value = std::exp(static_cast<double>(*(data_ptr + i)));
+      else temp_value = static_cast<double>(*(data_ptr + i));
+      var_weights_.SetElement(i, temp_value);
+    }
+  }
+  /*!
+   * \brief Update a RandomEffectsDataset's group indices
+   *
+   * \param data_ptr Pointer to first element of a contiguous array of data storing a weight vector
+   * \param num_row Number of rows in the weight vector
+   * \param exponentiate Whether or not inputs should be exponentiated before being saved to var weight vector
+   */
+  void UpdateGroupLabels(std::vector<int32_t>& group_labels, data_size_t num_row) {
+    CHECK(has_group_labels_);
+    CHECK_EQ(this->NumObservations(), num_row)
+    // Copy data from R / Python process memory to internal vector
+    for (data_size_t i = 0; i < num_row; ++i) {
+      group_labels_[i] = group_labels[i];
+    }
+  }
+  /*!
    * \brief Copy / load group indices for random effects
    * 
    * \param group_labels Vector of integers with as many elements as `num_row` in the basis matrix, 
@@ -522,6 +613,8 @@ class RandomEffectsDataset {
   }
   /*! \brief Number of observations (rows) in the dataset */
   inline data_size_t NumObservations() {return basis_.NumRows();}
+  /*! \brief Number of columns of the basis vector in the dataset */
+  inline int NumBases() {return basis_.NumCols();}
   /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded basis data */
   inline bool HasBasis() {return has_basis_;}
   /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded variance weights */
@@ -569,6 +662,7 @@ class RandomEffectsDataset {
   ColumnMatrix basis_;
   ColumnVector var_weights_;
   std::vector<int32_t> group_labels_;
+  int num_basis_{0};
   bool has_basis_{false};
   bool has_var_weights_{false};
   bool has_group_labels_{false};

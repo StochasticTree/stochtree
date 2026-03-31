@@ -225,7 +225,7 @@ bart_preds_reload <- predict(bart_model_reload, X_train)
 plot(rowMeans(bart_model$y_hat_train), rowMeans(bart_preds_reload$y_hat), 
      xlab = "Original", ylab = "Deserialized", main = "Conditional Mean Estimates")
 abline(0,1,col="red",lwd=3,lty=3)
-plot(rowMeans(bart_model$sigma_x_hat_train), rowMeans(bart_preds_reload$variance_forest_predictions), 
+plot(rowMeans(bart_model$sigma2_x_hat_train), rowMeans(bart_preds_reload$variance_forest_predictions), 
      xlab = "Original", ylab = "Deserialized", main = "Conditional Variance Estimates")
 abline(0,1,col="red",lwd=3,lty=3)
 ```
