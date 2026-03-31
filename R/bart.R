@@ -88,6 +88,11 @@ NULL
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
+#' @param observation_weights (Optional) Numeric vector of observation weights of length `nrow(X_train)`. Weights are
+#'   applied as `y_i | - ~ N(mu(X_i), sigma^2 / w_i)`, so larger weights increase an observation's influence on the fit.
+#'   All weights must be non-negative. Default: `NULL` (all observations equally weighted). Compatible with Gaussian
+#'   (continuous/identity) and probit outcome models; not compatible with cloglog link functions. Note: these are
+#'   referred to internally in the C++ layer as "variance weights" (`var_weights`), since they scale the residual variance.
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
@@ -189,6 +194,7 @@ bart <- function(
   leaf_basis_test = NULL,
   rfx_group_ids_test = NULL,
   rfx_basis_test = NULL,
+  observation_weights = NULL,
   num_gfr = 5,
   num_burnin = 0,
   num_mcmc = 100,
@@ -507,6 +513,20 @@ bart <- function(
     include_mean_forest = FALSE
   }
 
+  # observation_weights compatibility checks
+  if (!is.null(observation_weights)) {
+    if (link_is_cloglog) {
+      stop(
+        "observation_weights are not compatible with cloglog link functions."
+      )
+    }
+    if (include_variance_forest) {
+      warning(
+        "Results may be unreliable when observation_weights are deployed alongside a variance forest model."
+      )
+    }
+  }
+
   # Set the variance forest priors if not set
   if (include_variance_forest) {
     if (is.null(a_forest)) {
@@ -529,6 +549,26 @@ bart <- function(
   }
   if (any(variable_weights < 0)) {
     stop("variable_weights cannot have any negative weights")
+  }
+
+  # Observation weight validation
+  if (!is.null(observation_weights)) {
+    if (!is.numeric(observation_weights)) {
+      stop("observation_weights must be a numeric vector")
+    }
+    if (length(observation_weights) != nrow(X_train)) {
+      stop("length(observation_weights) must equal nrow(X_train)")
+    }
+    if (any(observation_weights < 0)) {
+      stop("observation_weights cannot have any negative values")
+    }
+    if (all(observation_weights == 0) && num_gfr > 0) {
+      stop(
+        "observation_weights are all zero (prior sampling mode) but num_gfr > 0. ",
+        "GFR warm-start is data-dependent and ill-defined with zero weights. ",
+        "Set num_gfr = 0 when using all-zero observation_weights."
+      )
+    }
   }
 
   # Check covariates are matrix or dataframe
@@ -1217,13 +1257,20 @@ bart <- function(
 
   # Data
   if (leaf_regression) {
-    forest_dataset_train <- createForestDataset(X_train, leaf_basis_train)
+    forest_dataset_train <- createForestDataset(
+      X_train,
+      leaf_basis_train,
+      observation_weights
+    )
     if (has_test) {
       forest_dataset_test <- createForestDataset(X_test, leaf_basis_test)
     }
     requires_basis <- TRUE
   } else {
-    forest_dataset_train <- createForestDataset(X_train)
+    forest_dataset_train <- createForestDataset(
+      X_train,
+      variance_weights = observation_weights
+    )
     if (has_test) {
       forest_dataset_test <- createForestDataset(X_test)
     }
@@ -4460,7 +4507,10 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
       "outcome",
       "outcome_model"
     )
-    outcome_model_link <- json_object_default$get_string("link", "outcome_model")
+    outcome_model_link <- json_object_default$get_string(
+      "link",
+      "outcome_model"
+    )
   } else {
     outcome_model_outcome <- "continuous"
     outcome_model_link <- "identity"
