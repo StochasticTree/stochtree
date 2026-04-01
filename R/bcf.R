@@ -74,6 +74,8 @@ NULL
 #' @param Z_train Vector of (continuous or binary) treatment assignments.
 #' @param y_train Outcome to be modeled by the ensemble.
 #' @param propensity_train (Optional) Vector of propensity scores. If not provided, this will be estimated from the data.
+#'   If `NULL` and `previous_model_json` is provided with an internally estimated propensity model, that model's
+#'   propensity estimates are re-used rather than re-fitted.
 #' @param rfx_group_ids_train (Optional) Group labels used for an additive random effects model.
 #' @param rfx_basis_train (Optional) Basis for "random-slope" regression in an additive random effects model.
 #' If `rfx_group_ids_train` is provided with a regression basis, an intercept-only random effects model
@@ -95,7 +97,12 @@ NULL
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
-#' @param previous_model_json (Optional) JSON string containing a previous BCF model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: `NULL`.
+#' @param previous_model_json (Optional) JSON string containing a previous BCF model. This can be used to "continue" a
+#'   sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest
+#'   samples. If the previous model used an internally estimated propensity score (i.e. `propensity_train` was not
+#'   supplied to that run), the fitted propensity model is carried forward and re-used rather than being re-estimated.
+#'   This ensures that multi-chain warm-starts remain consistent with the propensity scores used in the initial run.
+#'   Default: `NULL`.
 #' @param previous_model_warmstart_sample_num (Optional) Sample number from `previous_model_json` that will be used to warmstart this BCF sampler. One-indexed (so that the first sample is used for warm-start by setting `previous_model_warmstart_sample_num = 1`). Default: `NULL`. If `num_chains` in the `general_params` list is > 1, then each successive chain will be initialized from a different sample, counting backwards from `previous_model_warmstart_sample_num`. That is, if `previous_model_warmstart_sample_num = 10` and `num_chains = 4`, then chain 1 will be initialized from sample 10, chain 2 from sample 9, chain 3 from sample 8, and chain 4 from sample 7. If `previous_model_json` is provided but `previous_model_warmstart_sample_num` is NULL, the last sample in the previous model will be used to initialize the first chain, counting backwards as noted before. If more chains are requested than there are samples in `previous_model_json`, a warning will be raised and only the last sample will be used.
 #' @param general_params (Optional) A list of general (non-forest-specific) model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -1282,26 +1289,67 @@ bcf <- function(
   internal_propensity_model <- FALSE
   if ((is.null(propensity_train)) && (propensity_covariate != "none")) {
     internal_propensity_model <- TRUE
-    # Estimate using the last of several iterations of GFR BART
-    num_gfr_propensity <- 10
-    num_burnin_propensity <- 0
-    num_mcmc_propensity <- 10
-    bart_model_propensity <- bart(
-      X_train = X_train,
-      y_train = as.numeric(Z_train),
-      X_test = X_test,
-      num_gfr = num_gfr_propensity,
-      num_burnin = num_burnin_propensity,
-      num_mcmc = num_mcmc_propensity
-    )
-    propensity_train <- rowMeans(bart_model_propensity$y_hat_train)
-    if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
-      propensity_train <- as.matrix(propensity_train)
-    }
-    if (has_test) {
-      propensity_test <- rowMeans(bart_model_propensity$y_hat_test)
-      if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
-        propensity_test <- as.matrix(propensity_test)
+    if (
+      has_prev_model &&
+        previous_bcf_model$model_params$internal_propensity_model
+    ) {
+      # Reuse the propensity model from the warm-started BCF model rather than
+      # re-fitting from scratch. Training propensities come from the previous
+      # model's stored predictions; test propensities are re-predicted on the
+      # (potentially new) test set.
+      bart_model_propensity <- previous_bcf_model$bart_propensity_model
+      propensity_train <- predict(
+        bart_model_propensity,
+        X = X_train,
+        terms = "y_hat",
+        type = "mean"
+      )
+      if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
+        propensity_train <- as.matrix(propensity_train)
+      }
+      if (has_test) {
+        propensity_test <- predict(
+          bart_model_propensity,
+          X = X_test,
+          terms = "y_hat",
+          type = "mean"
+        )
+        if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
+          propensity_test <- as.matrix(propensity_test)
+        }
+      }
+    } else {
+      # Estimate using the last of several iterations of GFR BART
+      num_gfr_propensity <- 10
+      num_burnin_propensity <- 0
+      num_mcmc_propensity <- 10
+      bart_model_propensity <- bart(
+        X_train = X_train,
+        y_train = as.numeric(Z_train),
+        X_test = X_test,
+        num_gfr = num_gfr_propensity,
+        num_burnin = num_burnin_propensity,
+        num_mcmc = num_mcmc_propensity
+      )
+      propensity_train <- predict(
+        bart_model_propensity,
+        X = X_train,
+        terms = "y_hat",
+        type = "mean"
+      )
+      if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
+        propensity_train <- as.matrix(propensity_train)
+      }
+      if (has_test) {
+        propensity_test <- predict(
+          bart_model_propensity,
+          X = X_test,
+          terms = "y_hat",
+          type = "mean"
+        )
+        if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
+          propensity_test <- as.matrix(propensity_test)
+        }
       }
     }
   }
