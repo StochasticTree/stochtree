@@ -121,6 +121,8 @@ class BCFModel:
             Outcome to be modeled by the ensemble.
         propensity_train : np.array
             Optional vector of propensity scores. If not provided, this will be estimated from the data.
+            If ``None`` and ``previous_model_json`` is provided with an internally estimated propensity
+            model, that model's propensity estimates are re-used rather than re-fitted.
         rfx_group_ids_train : np.array, optional
             Optional group labels used for an additive random effects model.
         rfx_basis_train : np.array, optional
@@ -172,6 +174,11 @@ class BCFModel:
             JSON string containing a previous BCF model. This can be used to
             "continue" a sampler interactively after inspecting the samples or
             to run parallel chains "warm-started" from existing forest samples.
+            If the previous model used an internally estimated propensity score
+            (i.e. ``propensity_train`` was not supplied to that run), the fitted
+            propensity model is carried forward and re-used rather than being
+            re-estimated. This ensures that multi-chain warm-starts remain
+            consistent with the propensity scores used in the initial run.
             Defaults to `None`.
         previous_model_warmstart_sample_num : int, optional
             Sample number from `previous_model_json` that will be used to
@@ -1486,23 +1493,33 @@ class BCFModel:
                 num_gfr_propensity = 10
                 num_burnin_propensity = 0
                 num_mcmc_propensity = 10
-                self.bart_propensity_model.sample(
-                    X_train=X_train_processed,
-                    y_train=Z_train,
-                    num_gfr=num_gfr_propensity,
-                    num_burnin=num_burnin_propensity,
-                    num_mcmc=num_mcmc_propensity,
-                    general_params={"random_seed": random_seed},
-                )
-                propensity_train = np.expand_dims(
-                    self.bart_propensity_model.predict(X=X_train_processed, terms="y_hat", type="mean"),
-                    1,
-                )
                 if self.has_test:
+                    self.bart_propensity_model.sample(
+                        X_train=X_train_processed,
+                        y_train=Z_train,
+                        X_test=X_test_processed,
+                        num_gfr=num_gfr_propensity,
+                        num_burnin=num_burnin_propensity,
+                        num_mcmc=num_mcmc_propensity,
+                        general_params={"random_seed": random_seed},
+                    )
                     propensity_test = np.expand_dims(
                         self.bart_propensity_model.predict(X=X_test_processed, terms="y_hat", type="mean"),
                         1,
                     )
+                else:
+                    self.bart_propensity_model.sample(
+                        X_train=X_train_processed,
+                        y_train=Z_train,
+                        num_gfr=num_gfr_propensity,
+                        num_burnin=num_burnin_propensity,
+                        num_mcmc=num_mcmc_propensity,
+                        general_params={"random_seed": random_seed},
+                    )
+                propensity_train = np.expand_dims(
+                    self.bart_propensity_model.predict(X=X_train_processed, terms="y_hat", type="mean"),
+                    1,
+                )
                 self.internal_propensity_model = True
         else:
             self.internal_propensity_model = False
