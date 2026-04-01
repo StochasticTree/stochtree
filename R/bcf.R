@@ -1282,26 +1282,67 @@ bcf <- function(
   internal_propensity_model <- FALSE
   if ((is.null(propensity_train)) && (propensity_covariate != "none")) {
     internal_propensity_model <- TRUE
-    # Estimate using the last of several iterations of GFR BART
-    num_gfr_propensity <- 10
-    num_burnin_propensity <- 0
-    num_mcmc_propensity <- 10
-    bart_model_propensity <- bart(
-      X_train = X_train,
-      y_train = as.numeric(Z_train),
-      X_test = X_test,
-      num_gfr = num_gfr_propensity,
-      num_burnin = num_burnin_propensity,
-      num_mcmc = num_mcmc_propensity
-    )
-    propensity_train <- rowMeans(bart_model_propensity$y_hat_train)
-    if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
-      propensity_train <- as.matrix(propensity_train)
-    }
-    if (has_test) {
-      propensity_test <- rowMeans(bart_model_propensity$y_hat_test)
-      if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
-        propensity_test <- as.matrix(propensity_test)
+    if (
+      has_prev_model &&
+        previous_bcf_model$model_params$internal_propensity_model
+    ) {
+      # Reuse the propensity model from the warm-started BCF model rather than
+      # re-fitting from scratch. Training propensities come from the previous
+      # model's stored predictions; test propensities are re-predicted on the
+      # (potentially new) test set.
+      bart_model_propensity <- previous_bcf_model$bart_propensity_model
+      propensity_train <- predict(
+        bart_model_propensity,
+        X = X_train,
+        terms = "y_hat",
+        type = "mean"
+      )
+      if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
+        propensity_train <- as.matrix(propensity_train)
+      }
+      if (has_test) {
+        propensity_test <- predict(
+          bart_model_propensity,
+          X = X_test,
+          terms = "y_hat",
+          type = "mean"
+        )
+        if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
+          propensity_test <- as.matrix(propensity_test)
+        }
+      }
+    } else {
+      # Estimate using the last of several iterations of GFR BART
+      num_gfr_propensity <- 10
+      num_burnin_propensity <- 0
+      num_mcmc_propensity <- 10
+      bart_model_propensity <- bart(
+        X_train = X_train,
+        y_train = as.numeric(Z_train),
+        X_test = X_test,
+        num_gfr = num_gfr_propensity,
+        num_burnin = num_burnin_propensity,
+        num_mcmc = num_mcmc_propensity
+      )
+      propensity_train <- predict(
+        bart_model_propensity,
+        X = X_train,
+        terms = "y_hat",
+        type = "mean"
+      )
+      if ((is.null(dim(propensity_train))) && (!is.null(propensity_train))) {
+        propensity_train <- as.matrix(propensity_train)
+      }
+      if (has_test) {
+        propensity_test <- predict(
+          bart_model_propensity,
+          X = X_test,
+          terms = "y_hat",
+          type = "mean"
+        )
+        if ((is.null(dim(propensity_test))) && (!is.null(propensity_test))) {
+          propensity_test <- as.matrix(propensity_test)
+        }
       }
     }
   }

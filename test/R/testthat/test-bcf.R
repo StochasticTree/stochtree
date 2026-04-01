@@ -997,3 +997,55 @@ test_that("BCF factor-valued treatment handling", {
     regexp = "exactly 2 levels"
   )
 })
+
+test_that("Warmstart BCF reuses internal propensity model", {
+  skip_on_cran()
+
+  set.seed(42)
+  n <- 100
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  pi_X <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_X)
+  y <- pi_X * 3 + X[, 2] * Z + rnorm(n, 0, 1)
+  n_test <- 20
+  n_train <- n - n_test
+  train_inds <- 1:n_train
+  test_inds <- (n_train + 1):n
+
+  X_train <- X[train_inds, ]
+  X_test  <- X[test_inds, ]
+  Z_train <- Z[train_inds]
+  Z_test  <- Z[test_inds]
+  y_train <- y[train_inds]
+
+  # Fit first model without propensity — triggers internal propensity BART
+  m1 <- bcf(
+    X_train = X_train, Z_train = Z_train, y_train = y_train,
+    X_test = X_test, Z_test = Z_test,
+    num_gfr = 5, num_burnin = 0, num_mcmc = 10
+  )
+  expect_true(m1$model_params$internal_propensity_model)
+
+  # Propensity predictions from the first model's propensity BART
+  pi_train_m1 <- predict(m1$bart_propensity_model, X = X_train, terms = "y_hat", type = "mean")
+
+  # Warm-start second model from first — propensity model should be reused
+  m1_json <- saveBCFModelToJsonString(m1)
+  m2 <- bcf(
+    X_train = X_train, Z_train = Z_train, y_train = y_train,
+    X_test = X_test, Z_test = Z_test,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+    previous_model_json = m1_json,
+    previous_model_warmstart_sample_num = 10L
+  )
+  expect_true(m2$model_params$internal_propensity_model)
+
+  # Propensity model reused: predictions on train set should be identical
+  pi_train_m2 <- predict(m2$bart_propensity_model, X = X_train, terms = "y_hat", type = "mean")
+  expect_equal(pi_train_m1, pi_train_m2)
+
+  # Output shapes should be correct
+  expect_equal(dim(m2$y_hat_train), c(n_train, 10))
+  expect_equal(dim(m2$y_hat_test),  c(n_test, 10))
+})
