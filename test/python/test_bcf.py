@@ -1068,3 +1068,49 @@ class TestBCF:
         assert bcf_model.y_hat_test is not None
         assert bcf_model.tau_hat_train is not None
         assert bcf_model.tau_hat_test is not None
+
+    def test_warmstart_reuses_internal_propensity(self):
+        # When a BCF model fitted without user-supplied propensities is used to
+        # warm-start a new run, the second run should reuse the internal
+        # propensity model rather than re-fitting it from scratch.
+        rng = np.random.default_rng(7)
+        n = 100
+        X = rng.uniform(0, 1, (n, 5))
+        pi_X = 0.25 + 0.5 * X[:, 0]
+        Z = rng.binomial(1, pi_X, n).astype(float)
+        y = pi_X * 3 + X[:, 1] * Z + rng.normal(0, 1, n)
+        n_train = 80
+        X_train, X_test = X[:n_train], X[n_train:]
+        Z_train, Z_test = Z[:n_train], Z[n_train:]
+        y_train = y[:n_train]
+
+        # Fit first model — no propensity provided, so internal model is fitted
+        m1 = BCFModel()
+        m1.sample(
+            X_train=X_train, Z_train=Z_train, y_train=y_train,
+            X_test=X_test, Z_test=Z_test,
+            num_gfr=5, num_burnin=0, num_mcmc=10,
+            general_params={"random_seed": 1},
+        )
+        assert m1.internal_propensity_model
+        # Propensity predictions from the first model (via predict, which is
+        # what the warm-start path uses after JSON round-trip)
+        pi_train_m1 = m1.bart_propensity_model.predict(X=X_train, terms="y_hat", type="mean")
+
+        # Warm-start a second model from the first — propensity should be reused
+        m2 = BCFModel()
+        m2.sample(
+            X_train=X_train, Z_train=Z_train, y_train=y_train,
+            X_test=X_test, Z_test=Z_test,
+            num_gfr=0, num_burnin=0, num_mcmc=10,
+            previous_model_json=m1.to_json(),
+            previous_model_warmstart_sample_num=9,
+            general_params={"random_seed": 2},
+        )
+        assert m2.internal_propensity_model
+        # Propensities used in m2 should match those from the reused propensity model
+        pi_train_m2 = m2.bart_propensity_model.predict(X_train, terms="y_hat", type="mean")
+        np.testing.assert_array_equal(pi_train_m1, pi_train_m2)
+        # Output shapes should be correct
+        assert m2.y_hat_train.shape == (n_train, 10)
+        assert m2.y_hat_test.shape == (n - n_train, 10)

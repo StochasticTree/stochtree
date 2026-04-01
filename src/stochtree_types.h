@@ -8,9 +8,3 @@
 #include <stochtree/partition_tracker.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
-
-enum ForestLeafModel {
-    kConstant, 
-    kUnivariateRegression, 
-    kMultivariateRegression
-};
