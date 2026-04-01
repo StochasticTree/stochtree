@@ -40,7 +40,9 @@ that the column is ordered categorical).}
 
 \item{y_train}{Outcome to be modeled by the ensemble.}
 
-\item{propensity_train}{(Optional) Vector of propensity scores. If not provided, this will be estimated from the data.}
+\item{propensity_train}{(Optional) Vector of propensity scores. If not provided, this will be estimated from the data.
+If \code{NULL} and \code{previous_model_json} is provided with an internally estimated propensity model, that model's
+propensity estimates are re-used rather than re-fitted.}
 
 \item{rfx_group_ids_train}{(Optional) Group labels used for an additive random effects model.}
 
@@ -74,7 +76,12 @@ not compatible with cloglog link functions.}
 
 \item{num_mcmc}{Number of "retained" iterations of the MCMC sampler. Default: 100.}
 
-\item{previous_model_json}{(Optional) JSON string containing a previous BCF model. This can be used to "continue" a sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest samples. Default: \code{NULL}.}
+\item{previous_model_json}{(Optional) JSON string containing a previous BCF model. This can be used to "continue" a
+sampler interactively after inspecting the samples or to run parallel chains "warm-started" from existing forest
+samples. If the previous model used an internally estimated propensity score (i.e. \code{propensity_train} was not
+supplied to that run), the fitted propensity model is carried forward and re-used rather than being re-estimated.
+This ensures that multi-chain warm-starts remain consistent with the propensity scores used in the initial run.
+Default: \code{NULL}.}
 
 \item{previous_model_warmstart_sample_num}{(Optional) Sample number from \code{previous_model_json} that will be used to warmstart this BCF sampler. One-indexed (so that the first sample is used for warm-start by setting \code{previous_model_warmstart_sample_num = 1}). Default: \code{NULL}. If \code{num_chains} in the \code{general_params} list is > 1, then each successive chain will be initialized from a different sample, counting backwards from \code{previous_model_warmstart_sample_num}. That is, if \code{previous_model_warmstart_sample_num = 10} and \code{num_chains = 4}, then chain 1 will be initialized from sample 10, chain 2 from sample 9, chain 3 from sample 8, and chain 4 from sample 7. If \code{previous_model_json} is provided but \code{previous_model_warmstart_sample_num} is NULL, the last sample in the previous model will be used to initialize the first chain, counting backwards as noted before. If more chains are requested than there are samples in \code{previous_model_json}, a warning will be raised and only the last sample will be used.}
 
