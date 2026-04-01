@@ -21,12 +21,6 @@
 namespace py = pybind11;
 using data_size_t = StochTree::data_size_t;
 
-enum ForestLeafModel {
-    kConstant, 
-    kUnivariateRegression, 
-    kMultivariateRegression
-};
-
 class ForestSamplerCpp;
 
 class ForestDatasetCpp {
