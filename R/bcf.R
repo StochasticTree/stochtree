@@ -1475,7 +1475,9 @@ bcf <- function(
   # Handle standardization, prior calibration, and initialization of forest
   # differently for binary and continuous outcomes
   if (link_is_probit) {
-    # Compute a probit-scale offset and fix scale to 1
+    # Probit-scale intercept: center the forest on the population-average latent mean.
+    # The forest predicts mu(X) and y_bar_train is added back at prediction time.
+    # The latent z sampling uses y_bar_train to set the correct truncated normal mean and to center z before the residual update.
     y_bar_train <- qnorm(mean_cpp(as.numeric(y_train)))
     y_std_train <- 1
 
@@ -1948,6 +1950,10 @@ bcf <- function(
 
       if (link_is_probit) {
         # Sample latent probit variable, z | -
+        # outcome_pred is the centered forest prediction (not including y_bar_train).
+        # The truncated normal mean is outcome_pred + y_bar_train (the full eta on the probit scale).
+        # The residual stored is z - y_bar_train - outcome_pred so the forest sees a
+        # zero-centered signal and the prior shrinkage toward 0 is well-calibrated.
         mu_forest_pred <- active_forest_mu$predict(forest_dataset_train)
         tau_forest_pred <- active_forest_tau$predict(
           forest_dataset_train
@@ -1960,15 +1966,16 @@ bcf <- function(
           )
           outcome_pred <- outcome_pred + rfx_pred
         }
-        mu0 <- outcome_pred[y_train == 0]
-        mu1 <- outcome_pred[y_train == 1]
+        eta_pred <- outcome_pred + y_bar_train
+        mu0 <- eta_pred[y_train == 0]
+        mu1 <- eta_pred[y_train == 1]
         u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
         u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
         resid_train[y_train == 0] <- mu0 + qnorm(u0)
         resid_train[y_train == 1] <- mu1 + qnorm(u1)
 
-        # Update outcome
-        outcome_train$update_data(resid_train - outcome_pred)
+        # Update outcome: center z by y_bar_train before passing to forests
+        outcome_train$update_data(resid_train - y_bar_train - outcome_pred)
       }
 
       # Sample the prognostic forest
@@ -2028,7 +2035,14 @@ bcf <- function(
         Z_basis_mat <- as.matrix(tau_basis_train)
         # tau(X) * basis contribution per observation
         tau_x_full <- rowSums(Z_basis_mat * as.matrix(tau_x_raw_tau0))
-        partial_resid_tau0 <- resid_train -
+        # For probit, resid_train holds the full-scale latent z; center it so that
+        # tau_0 does not absorb the probit intercept y_bar_train.
+        resid_for_tau0 <- if (link_is_probit) {
+          resid_train - y_bar_train
+        } else {
+          resid_train
+        }
+        partial_resid_tau0 <- resid_for_tau0 -
           as.numeric(mu_x_raw_tau0) -
           tau_x_full
         if (has_rfx) {
@@ -2087,7 +2101,14 @@ bcf <- function(
         tau_x_raw_train <- active_forest_tau$predict_raw(
           forest_dataset_train
         )
-        partial_resid_mu_train <- resid_train - mu_x_raw_train
+        # For probit, resid_train holds full-scale z; center it so b_0/b_1 do not
+        # absorb the probit intercept y_bar_train.
+        resid_for_coding <- if (link_is_probit) {
+          resid_train - y_bar_train
+        } else {
+          resid_train
+        }
+        partial_resid_mu_train <- resid_for_coding - mu_x_raw_train
         if (has_rfx) {
           rfx_preds_train <- rfx_model$predict(
             rfx_dataset_train,
@@ -2698,15 +2719,16 @@ bcf <- function(
             )
             outcome_pred <- outcome_pred + rfx_pred
           }
-          mu0 <- outcome_pred[y_train == 0]
-          mu1 <- outcome_pred[y_train == 1]
+          eta_pred <- outcome_pred + y_bar_train
+          mu0 <- eta_pred[y_train == 0]
+          mu1 <- eta_pred[y_train == 1]
           u0 <- runif(sum(y_train == 0), 0, pnorm(0 - mu0))
           u1 <- runif(sum(y_train == 1), pnorm(0 - mu1), 1)
           resid_train[y_train == 0] <- mu0 + qnorm(u0)
           resid_train[y_train == 1] <- mu1 + qnorm(u1)
 
-          # Update outcome
-          outcome_train$update_data(resid_train - outcome_pred)
+          # Update outcome: center z by y_bar_train before passing to forests
+          outcome_train$update_data(resid_train - y_bar_train - outcome_pred)
         }
 
         # Sample the prognostic forest
@@ -2768,7 +2790,14 @@ bcf <- function(
           Z_basis_mat <- as.matrix(tau_basis_train)
           # tau(X) * basis contribution per observation
           tau_x_full <- rowSums(Z_basis_mat * as.matrix(tau_x_raw_tau0))
-          partial_resid_tau0 <- resid_train -
+          # For probit, resid_train holds the full-scale latent z; center it so that
+          # tau_0 does not absorb the probit intercept y_bar_train.
+          resid_for_tau0 <- if (link_is_probit) {
+            resid_train - y_bar_train
+          } else {
+            resid_train
+          }
+          partial_resid_tau0 <- resid_for_tau0 -
             as.numeric(mu_x_raw_tau0) -
             tau_x_full
           if (has_rfx) {
@@ -2827,7 +2856,14 @@ bcf <- function(
           tau_x_raw_train <- active_forest_tau$predict_raw(
             forest_dataset_train
           )
-          partial_resid_mu_train <- resid_train - mu_x_raw_train
+          # For probit, resid_train holds full-scale z; center it so b_0/b_1 do not
+          # absorb the probit intercept y_bar_train.
+          resid_for_coding <- if (link_is_probit) {
+            resid_train - y_bar_train
+          } else {
+            resid_train
+          }
+          partial_resid_mu_train <- resid_for_coding - mu_x_raw_train
           if (has_rfx) {
             rfx_preds_train <- rfx_model$predict(
               rfx_dataset_train,
