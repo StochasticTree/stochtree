@@ -1560,8 +1560,10 @@ class BARTModel:
                         if self.has_rfx:
                             rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
                             outcome_pred = outcome_pred + rfx_pred
-                        mu0 = outcome_pred[y_train[:, 0] == 0]
-                        mu1 = outcome_pred[y_train[:, 0] == 1]
+                        # Full probit-scale predictor: forest learns z - y_bar, so add y_bar back
+                        eta_pred = outcome_pred + self.y_bar
+                        mu0 = eta_pred[y_train[:, 0] == 0]
+                        mu1 = eta_pred[y_train[:, 0] == 1]
                         n0 = np.sum(y_train[:, 0] == 0)
                         n1 = np.sum(y_train[:, 0] == 1)
                         u0 = self.rng.uniform(
@@ -1577,8 +1579,8 @@ class BARTModel:
                         resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
                         resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
-                        # Update outcome
-                        new_outcome = np.squeeze(resid_train) - outcome_pred
+                        # Update outcome: center z by y_bar before passing to forest
+                        new_outcome = np.squeeze(resid_train) - self.y_bar - outcome_pred
                         residual_train.update_data(new_outcome)
 
                     # Sample the mean forest
@@ -1885,8 +1887,10 @@ class BARTModel:
                                     rfx_dataset_train, rfx_tracker
                                 )
                                 outcome_pred = outcome_pred + rfx_pred
-                            mu0 = outcome_pred[y_train[:, 0] == 0]
-                            mu1 = outcome_pred[y_train[:, 0] == 1]
+                            # Full probit-scale predictor: forest learns z - y_bar, so add y_bar back
+                            eta_pred = outcome_pred + self.y_bar
+                            mu0 = eta_pred[y_train[:, 0] == 0]
+                            mu1 = eta_pred[y_train[:, 0] == 1]
                             n0 = np.sum(y_train[:, 0] == 0)
                             n1 = np.sum(y_train[:, 0] == 1)
                             u0 = self.rng.uniform(
@@ -1902,8 +1906,8 @@ class BARTModel:
                             resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
                             resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
-                            # Update outcome
-                            new_outcome = np.squeeze(resid_train) - outcome_pred
+                            # Update outcome: center z by y_bar before passing to forest
+                            new_outcome = np.squeeze(resid_train) - self.y_bar - outcome_pred
                             residual_train.update_data(new_outcome)
 
                         # Sample the mean forest

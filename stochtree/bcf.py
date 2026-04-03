@@ -2121,14 +2121,19 @@ class BCFModel:
 
                 if link_is_probit:
                     # Sample latent probit variable z | -
+                    # outcome_pred is the centered forest prediction (not including y_bar_train).
+                    # The truncated normal mean is outcome_pred + y_bar_train (the full eta on the probit scale).
+                    # The residual stored is z - y_bar_train - outcome_pred so the forest sees a
+                    # zero-centered signal and the prior shrinkage toward 0 is well-calibrated.
                     forest_pred_mu = active_forest_mu.predict(forest_dataset_train)
                     forest_pred_tau = active_forest_tau.predict(forest_dataset_train)
                     outcome_pred = forest_pred_mu + forest_pred_tau
                     if self.has_rfx:
                         rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
                         outcome_pred = outcome_pred + rfx_pred
-                    mu0 = outcome_pred[y_train[:, 0] == 0]
-                    mu1 = outcome_pred[y_train[:, 0] == 1]
+                    eta_pred = outcome_pred + self.y_bar
+                    mu0 = eta_pred[y_train[:, 0] == 0]
+                    mu1 = eta_pred[y_train[:, 0] == 1]
                     n0 = np.sum(y_train[:, 0] == 0)
                     n1 = np.sum(y_train[:, 0] == 1)
                     u0 = self.rng.uniform(
@@ -2144,8 +2149,8 @@ class BCFModel:
                     resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
                     resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
-                    # Update outcome
-                    new_outcome = np.squeeze(resid_train) - outcome_pred
+                    # Update outcome: center z by y_bar before passing to forests
+                    new_outcome = (np.squeeze(resid_train) - self.y_bar) - outcome_pred
                     residual_train.update_data(new_outcome)
 
                 # Sample the prognostic forest
@@ -2195,7 +2200,9 @@ class BCFModel:
                     Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
                     tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
                     tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
-                    partial_resid_tau0 = np.squeeze(resid_train) - mu_x_tau0 - tau_x_full
+                    # Center z by y_bar so tau_0 does not absorb the probit intercept
+                    resid_for_tau0 = (np.squeeze(resid_train) - self.y_bar) if link_is_probit else np.squeeze(resid_train)
+                    partial_resid_tau0 = resid_for_tau0 - mu_x_tau0 - tau_x_full
                     if self.has_rfx:
                         partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
                             rfx_model.predict(rfx_dataset_train, rfx_tracker)
@@ -2234,7 +2241,9 @@ class BCFModel:
                     tau_x = np.squeeze(
                         active_forest_tau.predict_raw(forest_dataset_train)
                     )
-                    partial_resid_train = np.squeeze(resid_train - mu_x)
+                    # Center z by y_bar so coding regression does not absorb the probit intercept
+                    resid_for_coding = (resid_train - self.y_bar) if link_is_probit else resid_train
+                    partial_resid_train = np.squeeze(resid_for_coding - mu_x)
                     if self.has_rfx:
                         rfx_pred = np.squeeze(
                             rfx_model.predict(rfx_dataset_train, rfx_tracker)
@@ -2697,8 +2706,10 @@ class BCFModel:
                         if self.has_rfx:
                             rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
                             outcome_pred = outcome_pred + rfx_pred
-                        mu0 = outcome_pred[y_train[:, 0] == 0]
-                        mu1 = outcome_pred[y_train[:, 0] == 1]
+                        # Full probit-scale predictor: forests learn z - y_bar, so add y_bar back
+                        eta_pred = outcome_pred + self.y_bar
+                        mu0 = eta_pred[y_train[:, 0] == 0]
+                        mu1 = eta_pred[y_train[:, 0] == 1]
                         n0 = np.sum(y_train[:, 0] == 0)
                         n1 = np.sum(y_train[:, 0] == 1)
                         u0 = self.rng.uniform(
@@ -2714,8 +2725,8 @@ class BCFModel:
                         resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
                         resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
-                        # Update outcome
-                        new_outcome = np.squeeze(resid_train) - outcome_pred
+                        # Update outcome: center z by y_bar before passing to forests
+                        new_outcome = np.squeeze(resid_train) - self.y_bar - outcome_pred
                         residual_train.update_data(new_outcome)
 
                     # Sample the prognostic forest
@@ -2765,7 +2776,9 @@ class BCFModel:
                         Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
                         tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
                         tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
-                        partial_resid_tau0 = np.squeeze(resid_train) - mu_x_tau0 - tau_x_full
+                        # Center z by y_bar so tau_0 does not absorb the probit intercept
+                        resid_for_tau0 = (np.squeeze(resid_train) - self.y_bar) if link_is_probit else np.squeeze(resid_train)
+                        partial_resid_tau0 = resid_for_tau0 - mu_x_tau0 - tau_x_full
                         if self.has_rfx:
                             partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
                                 rfx_model.predict(rfx_dataset_train, rfx_tracker)
@@ -2804,7 +2817,9 @@ class BCFModel:
                         tau_x = np.squeeze(
                             active_forest_tau.predict_raw(forest_dataset_train)
                         )
-                        partial_resid_train = np.squeeze(resid_train - mu_x)
+                        # Center z by y_bar so coding regression does not absorb the probit intercept
+                        resid_for_coding = (resid_train - self.y_bar) if link_is_probit else resid_train
+                        partial_resid_train = np.squeeze(resid_for_coding - mu_x)
                         if self.has_rfx:
                             rfx_pred = np.squeeze(
                                 rfx_model.predict(rfx_dataset_train, rfx_tracker)
