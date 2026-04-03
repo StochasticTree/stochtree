@@ -1055,6 +1055,213 @@ bart <- function(
     }
   }
 
+  # ── Stage 1 C++ dispatch fast path ────────────────────────────────────────
+  # Eligible when: identity or probit link, constant-leaf mean forest, no variance
+  # forest, no RFX, no warm-start.  BARTFit handles standardization, prior
+  # calibration, and all sampling internally.  R is a thin marshaling layer.
+  use_cpp_dispatch <- (isTRUE(getOption("stochtree.use_cpp_dispatch", TRUE)) &&
+    (link_is_linear || link_is_probit) &&
+    include_mean_forest &&
+    !has_basis &&
+    !include_variance_forest &&
+    !has_rfx &&
+    is.null(previous_model_json))
+  if (use_cpp_dispatch) {
+    sampler_cfg_r <- list(
+      num_gfr = as.integer(num_gfr),
+      num_burnin = as.integer(num_burnin),
+      num_mcmc = as.integer(num_mcmc),
+      num_chains = as.integer(num_chains),
+      keep_every = as.integer(keep_every),
+      keep_gfr = keep_gfr,
+      keep_burnin = keep_burnin,
+      standardize = standardize,
+      random_seed = as.integer(random_seed),
+      num_threads = as.integer(num_threads),
+      sigma2_global_shape = as.numeric(a_global),
+      sigma2_global_scale = as.numeric(b_global),
+      # Probit: sigma2 is fixed at 1 (Albert-Chib); override init and disable sampling.
+      sigma2_global_init = if (link_is_probit) 1.0 else sigma2_init,
+      sample_sigma2_global = if (link_is_probit) {
+        FALSE
+      } else {
+        sample_sigma2_global
+      },
+      link_function = if (link_is_probit) "probit" else "identity"
+    )
+    mean_forest_cfg_r <- list(
+      num_trees = as.integer(num_trees_mean),
+      alpha = as.numeric(alpha_mean),
+      beta = as.numeric(beta_mean),
+      min_samples_leaf = as.integer(min_samples_leaf_mean),
+      max_depth = as.integer(max_depth_mean),
+      sample_sigma2_leaf = sample_sigma2_leaf,
+      sigma2_leaf_shape = as.numeric(a_leaf),
+      sigma2_leaf_scale = b_leaf, # NULL → sentinel -1 in C++
+      sigma2_leaf_init = sigma2_leaf_init, # NULL → sentinel -1 in C++
+      variable_weights = as.numeric(variable_weights_mean)
+    )
+
+    result_ptr <- bart_fit_cpp(
+      sampler_cfg = sampler_cfg_r,
+      mean_forest_cfg = mean_forest_cfg_r,
+      X_train_r = as.matrix(X_train),
+      y_train_r = as.numeric(y_train),
+      X_test_r = if (has_test) as.matrix(X_test) else NULL,
+      feature_types_r = as.integer(feature_types),
+      weights_r = observation_weights
+    )
+
+    # Unpack result metadata
+    num_retained_samples <- bart_result_num_samples_cpp(result_ptr)
+    y_bar_train <- bart_result_y_bar_cpp(result_ptr)
+    y_std_train <- bart_result_y_std_cpp(result_ptr)
+
+    # Unpack predictions (flat column-major vector → n × S matrix)
+    y_hat_train <- matrix(
+      bart_result_y_hat_train_cpp(result_ptr),
+      nrow = nrow(X_train),
+      ncol = num_retained_samples
+    )
+    if (has_test) {
+      y_hat_test <- matrix(
+        bart_result_y_hat_test_cpp(result_ptr),
+        nrow = nrow(X_test),
+        ncol = num_retained_samples
+      )
+    }
+
+    # Variance samples
+    if (sample_sigma2_global) {
+      sigma2_global_samples <- bart_result_sigma2_global_samples_cpp(result_ptr)
+    }
+    if (sample_sigma2_leaf) {
+      tau_samples <- bart_result_leaf_scale_samples_cpp(result_ptr)
+    }
+
+    # Wrap stolen ForestContainer in a ForestSamples R6 object.
+    # ForestSamples$new() creates a small temporary container which is
+    # immediately replaced by the transferred pointer (O(1), no copy).
+    forest_samples_mean <- ForestSamples$new(
+      num_trees_mean,
+      1L,
+      TRUE,
+      FALSE
+    )
+    forest_samples_mean$forest_container_ptr <-
+      bart_result_steal_forest_samples_cpp(result_ptr)
+
+    # Drop GFR samples from all outputs if keep_gfr = FALSE (default).
+    # C++ always stores GFR samples in columns 0..num_gfr-1.
+    if (!keep_gfr && num_gfr > 0) {
+      gfr_cols <- seq_len(num_gfr)
+      y_hat_train <- y_hat_train[, -gfr_cols, drop = FALSE]
+      if (has_test) {
+        y_hat_test <- y_hat_test[, -gfr_cols, drop = FALSE]
+      }
+      if (sample_sigma2_global) {
+        sigma2_global_samples <- sigma2_global_samples[-gfr_cols]
+      }
+      if (sample_sigma2_leaf) {
+        tau_samples <- tau_samples[-gfr_cols]
+      }
+      # Delete GFR forests in reverse order (0-indexed) to avoid index shift.
+      for (i in rev(gfr_cols)) {
+        forest_samples_mean$delete_sample(i - 1L)
+      }
+      num_retained_samples <- num_retained_samples - num_gfr
+    }
+
+    # Serialization requires sigma2_init to be a scalar double, not NULL.
+    # Probit: fixed at 1. Identity: compute from data the same way the R slow path does.
+    if (link_is_probit) {
+      sigma2_init <- 1.0
+    } else if (is.null(sigma2_init)) {
+      y_numeric_calib <- as.numeric(y_train)
+      if (standardize) {
+        y_bar_calib <- mean_cpp(y_numeric_calib)
+        y_std_calib <- sd_cpp(y_numeric_calib)
+        sigma2_init <- var_cpp((y_numeric_calib - y_bar_calib) / y_std_calib)
+      } else {
+        sigma2_init <- var_cpp(y_numeric_calib)
+      }
+    }
+
+    # Build model_params to match the structure expected by predict,
+    # print, summary, extractParameter, and serialization helpers.
+    model_params <- list(
+      "num_trees" = num_trees_mean,
+      "alpha" = alpha_mean,
+      "beta" = beta_mean,
+      "min_samples_leaf" = min_samples_leaf_mean,
+      "max_depth" = max_depth_mean,
+      "a_leaf" = a_leaf,
+      "b_leaf" = b_leaf,
+      "sigma2_leaf_init" = sigma2_leaf_init,
+      "a_global" = a_global,
+      "b_global" = b_global,
+      "sigma2_init" = sigma2_init,
+      "a_forest" = NULL,
+      "b_forest" = NULL,
+      "outcome_mean" = y_bar_train,
+      "outcome_scale" = y_std_train,
+      "standardize" = standardize,
+      "leaf_dimension" = 1L,
+      "is_leaf_constant" = TRUE,
+      "leaf_regression" = FALSE,
+      "requires_basis" = FALSE,
+      "num_covariates" = num_cov_orig,
+      "num_basis" = 0L,
+      "num_samples" = num_retained_samples,
+      "num_gfr" = num_gfr,
+      "num_burnin" = num_burnin,
+      "num_mcmc" = num_mcmc,
+      "keep_every" = keep_every,
+      "num_chains" = num_chains,
+      "has_basis" = FALSE,
+      "has_rfx" = FALSE,
+      "has_rfx_basis" = FALSE,
+      "num_rfx_basis" = 0L,
+      "sample_sigma2_global" = sample_sigma2_global,
+      "sample_sigma2_leaf" = sample_sigma2_leaf,
+      "include_mean_forest" = TRUE,
+      "include_variance_forest" = FALSE,
+      "outcome_model" = outcome_model,
+      "probit_outcome_model" = link_is_probit,
+      "cloglog_num_categories" = 0L,
+      "rfx_model_spec" = rfx_model_spec
+    )
+
+    result <- list(
+      "model_params" = model_params,
+      "train_set_metadata" = X_train_metadata,
+      "mean_forests" = forest_samples_mean,
+      "y_hat_train" = y_hat_train
+    )
+    if (has_test) {
+      result[["y_hat_test"]] <- y_hat_test
+    }
+    if (sample_sigma2_global) {
+      result[["sigma2_global_samples"]] <- sigma2_global_samples
+    }
+    if (sample_sigma2_leaf) {
+      result[["sigma2_leaf_samples"]] <- tau_samples
+    }
+    class(result) <- "bartmodel"
+
+    # Restore function-scoped RNG state
+    if (custom_rng) {
+      if (has_existing_random_seed) {
+        assign(".Random.seed", original_global_seed, envir = .GlobalEnv)
+      } else {
+        rm(".Random.seed", envir = .GlobalEnv)
+      }
+    }
+
+    return(result)
+  }
+  # ── End Stage 1 C++ dispatch fast path ────────────────────────────────────
+
   # Handle standardization, prior calibration, and initialization of forest
   # differently for binary and continuous outcomes
   if (link_is_probit) {

@@ -135,6 +135,7 @@ file(
   src/container.cpp
   src/cutpoint_candidates.cpp
   src/data.cpp
+  src/bart.cpp
   src/io.cpp
   src/json11.cpp
   src/leaf_model.cpp
@@ -209,17 +210,17 @@ if(BUILD_TEST)
   gtest_discover_tests(teststochtree)
 endif()
 
-# Standalone C++ Program for Debugging
+# Standalone C++ Programs (smoke-testing and profiling)
 if(BUILD_DEBUG_TARGETS)
-  # Build test suite
-  add_executable(debugstochtree debug/api_debug.cpp)
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug)
+
+  add_executable(debug_bart debug/bart.cpp)
   if(USE_OPENMP)
-    target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
-    target_link_libraries(debugstochtree PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
+    target_include_directories(debug_bart PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+    target_link_libraries(debug_bart PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
   else()
-    target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
-    target_link_libraries(debugstochtree PRIVATE stochtree_objs)
+    target_include_directories(debug_bart PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+    target_link_libraries(debug_bart PRIVATE stochtree_objs)
   endif()
 endif()
 

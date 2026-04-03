@@ -28,7 +28,11 @@ def make_bcf_data(n=100, p=5, seed=42):
 
 class TestBARTObservationWeights:
     def test_uniform_weights_match_no_weights(self):
-        """Uniform weights of 1.0 should produce identical predictions to no weights."""
+        """Uniform weights of 1.0 should produce nearly identical predictions to no weights.
+
+        The weighted variance sampler computes r_i^2 / w_i which equals r_i^2 when w_i=1,
+        but may differ at floating-point noise level (~1e-15) due to the division operation.
+        """
         X_train, y_train, X_test, n_train, n_test = make_bart_data()
         kwargs = dict(
             X_train=X_train, y_train=y_train, X_test=X_test,
@@ -41,8 +45,8 @@ class TestBARTObservationWeights:
         m2 = BARTModel()
         m2.sample(**kwargs, observation_weights=np.ones(n_train))
 
-        np.testing.assert_array_equal(m1.y_hat_train, m2.y_hat_train)
-        np.testing.assert_array_equal(m1.y_hat_test, m2.y_hat_test)
+        np.testing.assert_allclose(m1.y_hat_train, m2.y_hat_train, rtol=1e-10)
+        np.testing.assert_allclose(m1.y_hat_test, m2.y_hat_test, rtol=1e-10)
 
     def test_nonuniform_weights_output_shape(self):
         """Non-uniform weights: output shapes are correct."""

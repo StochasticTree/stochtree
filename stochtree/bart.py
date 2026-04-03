@@ -1050,6 +1050,120 @@ class BARTModel:
                 )
                 sample_sigma2_global = False
 
+        # ── RFC 0004 Stage 1 fast path ─────────────────────────────────────────
+        # Identity-link or probit-link, constant-leaf, no basis, no variance forest, no RFX,
+        # no previous-model warm-start: delegate entirely to BARTFit in C++.
+        _no_rfx = rfx_group_ids_train is None
+        _no_zero_weights = not (observation_weights is not None and np.all(observation_weights == 0))
+        if (link_is_linear
+                and not self.has_basis
+                and not self.include_variance_forest
+                and _no_rfx
+                and _no_zero_weights
+                and not has_prev_model):
+            from stochtree_cpp import BARTConfig as _CppBARTConfig, BARTResultCpp as _CppBARTResult, bart_fit as _bart_fit
+
+            cfg = _CppBARTConfig()
+            cfg.num_trees             = num_trees_mean
+            cfg.num_gfr               = num_gfr
+            cfg.num_burnin            = num_burnin
+            cfg.num_mcmc              = num_mcmc
+            cfg.num_chains            = num_chains
+            cfg.keep_every            = keep_every
+            cfg.keep_gfr              = keep_gfr
+            cfg.keep_burnin           = keep_burnin
+            cfg.alpha                 = alpha_mean
+            cfg.beta                  = beta_mean
+            cfg.min_samples_leaf      = min_samples_leaf_mean
+            cfg.max_depth             = max_depth_mean
+            cfg.a_global              = a_global if a_global is not None else 0.0
+            cfg.b_global              = b_global if b_global is not None else 0.0
+            cfg.a_leaf                = a_leaf
+            cfg.b_leaf                = b_leaf if b_leaf is not None else -1.0
+            cfg.sigma2_init           = sigma2_init if sigma2_init is not None else -1.0
+            cfg.sample_sigma2_global  = sample_sigma2_global
+            cfg.sample_sigma2_leaf    = sample_sigma2_leaf
+            cfg.standardize           = self.standardize
+            cfg.cutpoint_grid_size    = cutpoint_grid_size
+            cfg.random_seed           = random_seed if random_seed is not None else -1
+            cfg.num_threads           = num_threads if num_threads is not None else -1
+            cfg.variable_weights_mean = variable_weights_mean.tolist()
+
+            X_arr = np.asfortranarray(X_train_processed.astype(np.float64))
+            y_arr = np.asarray(np.squeeze(y_train), dtype=np.float64)
+            X_test_arr  = np.asfortranarray(X_test_processed.astype(np.float64)) if self.has_test else None
+            weights_arr = observation_weights_ if observation_weights is not None else None
+            ft_arr      = feature_types.astype(np.int32) if feature_types is not None else None
+
+            # Python/R own the result from the start; BARTFit writes into it.
+            _result = _CppBARTResult()
+            _bart_fit(_result, cfg, X_arr, y_arr,
+                      X_test=X_test_arr,
+                      weights=weights_arr,
+                      feature_types=ft_arr)
+
+            # Unpack metadata
+            self.y_bar        = _result.y_bar
+            self.y_std        = _result.y_std
+            self.num_gfr      = num_gfr
+            self.num_burnin   = num_burnin
+            self.num_mcmc     = num_mcmc
+            self.num_chains   = num_chains
+            self.keep_every   = keep_every
+            self.num_samples  = _result.num_total_samples
+            self.num_basis    = 0
+            self.include_mean_forest     = True
+            self.include_variance_forest = False
+            self.has_rfx      = False
+            self.has_rfx_basis = False
+            self.num_rfx_basis = 0
+            self.sample_sigma2_global = sample_sigma2_global
+            self.sample_sigma2_leaf   = sample_sigma2_leaf
+            self.sigma2_init  = _result.sigma2_global_samples[0] / (_result.y_std ** 2) if sample_sigma2_global else 1.0
+
+            # Variance samples
+            if sample_sigma2_global:
+                self.global_var_samples = np.array(_result.sigma2_global_samples)
+            if sample_sigma2_leaf:
+                self.leaf_scale_samples = np.array(_result.leaf_scale_samples)
+
+            # Predictions: result is column-major flat → (n_train, num_samples)
+            self.y_hat_train = np.array(_result.y_hat_train).reshape(
+                (self.n_train, _result.num_total_samples), order='F'
+            )
+            if self.has_test:
+                self.y_hat_test = np.array(_result.y_hat_test).reshape(
+                    (self.n_test, _result.num_total_samples), order='F'
+                )
+
+            # Extract the forest (one pointer swap — no JSON roundtrip).
+            _fc_cpp = _result.steal_forest_container()
+            self.forest_container_mean = ForestContainer.__new__(ForestContainer)
+            self.forest_container_mean.forest_container_cpp = _fc_cpp
+            self.forest_container_mean.num_trees       = num_trees_mean
+            self.forest_container_mean.output_dimension = 1
+            self.forest_container_mean.leaf_constant    = True
+            self.forest_container_mean.is_exponentiated = False
+
+            # Mirror the old Python path: trim GFR columns when keep_gfr=False and
+            # there are MCMC samples (GFR was used only as warm-start).
+            if not keep_gfr and num_gfr > 0 and num_mcmc > 0:
+                self.y_hat_train = self.y_hat_train[:, num_gfr:]
+                if self.has_test:
+                    self.y_hat_test = self.y_hat_test[:, num_gfr:]
+                if sample_sigma2_global:
+                    self.global_var_samples = self.global_var_samples[num_gfr:]
+                if sample_sigma2_leaf:
+                    self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
+                for _ in range(num_gfr):
+                    self.forest_container_mean.delete_sample(0)
+                self.num_samples -= num_gfr
+
+            self.rfx_model_spec = "none"
+            self.sampled = True
+            return self
+        # ── End RFC 0004 fast path ─────────────────────────────────────────────
+
         # Handle standardization, prior calibration, and initialization of forest
         # differently for binary and continuous outcomes
         if link_is_probit:

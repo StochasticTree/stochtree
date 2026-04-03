@@ -23,12 +23,14 @@ PKG_LIBS = \
 OBJECTS = \
     forest.o \
     kernel.o \
+    R_bart.o \
     R_data.o \
     R_random_effects.o \
     R_utils.o \
     sampler.o \
     serialization.o \
     cpp11.o \
+    bart.o \
     container.o \
     cutpoint_candidates.o \
     data.o \

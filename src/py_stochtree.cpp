@@ -11,6 +11,8 @@
 #include <stochtree/tree_sampler.h>
 #include <stochtree/ordinal_sampler.h>
 #include <stochtree/variance_model.h>
+#include <stochtree/bart.h>
+#include <stochtree/log.h>
 #include <functional>
 #include <memory>
 #include <string>
@@ -253,7 +255,19 @@ class ForestContainerCpp {
     is_leaf_constant_ = is_leaf_constant;
     is_exponentiated_ = is_exponentiated;
   }
-  ~ForestContainerCpp() {}
+
+  // Construct by taking ownership of an existing ForestContainer (zero-copy).
+  explicit ForestContainerCpp(std::unique_ptr<StochTree::ForestContainer> fc) {
+    num_trees_        = fc->NumTrees();
+    output_dimension_ = fc->OutputDimension();
+    is_leaf_constant_ = fc->IsLeafConstant();
+    is_exponentiated_ = fc->IsExponentiated();
+    forest_samples_   = std::move(fc);
+  }
+
+  ForestContainerCpp(ForestContainerCpp&&) = default;
+  ForestContainerCpp& operator=(ForestContainerCpp&&) = default;
+  ~ForestContainerCpp() = default;
 
   void CombineForests(py::array_t<int> forest_inds) {
     int num_forests = forest_inds.size();
@@ -746,6 +760,95 @@ class ForestContainerCpp {
   int output_dimension_;
   bool is_leaf_constant_;
   bool is_exponentiated_;
+};
+
+// ── BARTResultCpp ──────────────────────────────────────────────────────────
+// Python/R-facing wrapper around StochTree::BARTResult.
+//
+// C-like ownership convention: Python/R create BARTResultCpp (which allocates
+// the BARTResult on the heap), then pass a raw pointer to BARTFit, which writes
+// all predictions, samples, and the fitted ForestContainer into it.  Nothing
+// is moved or returned — the caller has owned the memory from the start.
+//
+// This maps directly to a future opaque-handle C API:
+//   bart_result_t h = bart_result_create();
+//   bart_fit(h, &config, &data);
+//   double* yhat = bart_result_get_y_hat_train(h, &n);
+//   bart_result_destroy(h);
+
+class BARTResultCpp {
+ public:
+  // Default constructor: allocate the result struct that BARTFit will populate.
+  BARTResultCpp() : result_(std::make_unique<StochTree::BARTResult>()) {}
+  BARTResultCpp(BARTResultCpp&&) = default;
+  BARTResultCpp& operator=(BARTResultCpp&&) = default;
+  ~BARTResultCpp() = default;
+
+  // Raw pointer handed to BARTFit (the C++ sampling function writes through it).
+  StochTree::BARTResult* Get() { return result_.get(); }
+
+  // ── Out-of-sample prediction (no ForestContainerCpp needed) ──────────
+  py::array_t<double> Predict(ForestDatasetCpp& dataset) {
+    StochTree::ForestContainer* fc = result_->forest_container.get();
+    data_size_t n = dataset.NumRows();
+    int num_samples = fc->NumSamples();
+    std::vector<double> output_raw = fc->Predict(*dataset.GetDataset());
+    auto out = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, num_samples}));
+    auto acc = out.mutable_unchecked<2>();
+    for (size_t i = 0; i < (size_t)n; i++)
+      for (int j = 0; j < num_samples; j++)
+        acc(i, j) = output_raw[j * n + i];
+    return out;
+  }
+
+  py::array_t<double> PredictRaw(ForestDatasetCpp& dataset) {
+    StochTree::ForestContainer* fc = result_->forest_container.get();
+    data_size_t n = dataset.NumRows();
+    int num_samples = fc->NumSamples();
+    int output_dim  = fc->OutputDimension();
+    std::vector<double> output_raw = fc->PredictRaw(*dataset.GetDataset());
+    auto out = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, num_samples, output_dim}));
+    auto acc = out.mutable_unchecked<3>();
+    for (size_t i = 0; i < (size_t)n; i++)
+      for (int j = 0; j < output_dim; j++)
+        for (int k = 0; k < num_samples; k++)
+          acc(i, k, j) = output_raw[k * (output_dim * n) + i * output_dim + j];
+    return out;
+  }
+
+  // ── Forest management ────────────────────────────────────────────────
+  int  NumSamples()        { return result_->forest_container->NumSamples(); }
+  void DeleteSample(int i) { result_->forest_container->DeleteSample(i); }
+
+  // ── One-shot forest extraction ────────────────────────────────────────
+  // Moves the unique_ptr<ForestContainer> into a new ForestContainerCpp.
+  // Called once per sample() invocation; after this the forest lives in the
+  // returned ForestContainerCpp and BARTResultCpp no longer holds it.
+  ForestContainerCpp StealForestContainer() {
+    if (!result_->forest_container)
+      StochTree::Log::Fatal("BARTResultCpp: forest container has already been taken");
+    return ForestContainerCpp(std::move(result_->forest_container));
+  }
+
+  // ── Serialization support ────────────────────────────────────────────
+  nlohmann::json ForestToJson() { return result_->forest_container->to_json(); }
+
+  // ── Scalar sample arrays ─────────────────────────────────────────────
+  std::vector<double> GetYHatTrain()            { return result_->y_hat_train; }
+  std::vector<double> GetYHatTest()             { return result_->y_hat_test; }
+  std::vector<double> GetSigma2GlobalSamples()  { return result_->sigma2_global_samples; }
+  std::vector<double> GetLeafScaleSamples()     { return result_->leaf_scale_samples; }
+
+  // ── Metadata ─────────────────────────────────────────────────────────
+  int    num_total_samples() { return result_->num_total_samples; }
+  int    num_chains()        { return result_->num_chains; }
+  int    n_train()           { return result_->n_train; }
+  int    n_test()            { return result_->n_test; }
+  double y_bar()             { return result_->y_bar; }
+  double y_std()             { return result_->y_std; }
+
+ private:
+  std::unique_ptr<StochTree::BARTResult> result_;
 };
 
 class ForestCpp {
@@ -1773,6 +1876,14 @@ class JsonCpp {
     return forest_label;
   }
 
+  std::string AddForestFromResult(BARTResultCpp& result) {
+    int forest_num = json_->at("num_forests");
+    std::string forest_label = "forest_" + std::to_string(forest_num);
+    json_->at("forests").emplace(forest_label, result.ForestToJson());
+    json_->at("num_forests") = forest_num + 1;
+    return forest_label;
+  }
+
   std::string AddRandomEffectsContainer(RandomEffectsContainerCpp& rfx_samples) {
     int rfx_num = json_->at("num_random_effects");
     std::string rfx_label = "random_effect_container_" + std::to_string(rfx_num);
@@ -2274,6 +2385,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("AddStringVector", &JsonCpp::AddStringVector)
     .def("AddStringVectorSubfolder", &JsonCpp::AddStringVectorSubfolder)
     .def("AddForest", &JsonCpp::AddForest)
+    .def("AddForestFromResult", &JsonCpp::AddForestFromResult)
     .def("AddRandomEffectsContainer", &JsonCpp::AddRandomEffectsContainer)
     .def("AddRandomEffectsLabelMapper", &JsonCpp::AddRandomEffectsLabelMapper)
     .def("AddRandomEffectsGroupIDs", &JsonCpp::AddRandomEffectsGroupIDs)
@@ -2522,6 +2634,119 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("UpdateLatentVariables", &OrdinalSamplerCpp::UpdateLatentVariables)
     .def("UpdateGammaParams", &OrdinalSamplerCpp::UpdateGammaParams)
     .def("UpdateCumulativeExpSums", &OrdinalSamplerCpp::UpdateCumulativeExpSums);
+
+  // ── High-level BARTFit API (RFC 0004) ────────────────────────────────────
+
+  py::class_<StochTree::BARTConfig>(m, "BARTConfig")
+    .def(py::init<>())
+    .def_readwrite("num_trees",             &StochTree::BARTConfig::num_trees)
+    .def_readwrite("num_gfr",               &StochTree::BARTConfig::num_gfr)
+    .def_readwrite("num_burnin",            &StochTree::BARTConfig::num_burnin)
+    .def_readwrite("num_mcmc",              &StochTree::BARTConfig::num_mcmc)
+    .def_readwrite("num_chains",            &StochTree::BARTConfig::num_chains)
+    .def_readwrite("keep_every",            &StochTree::BARTConfig::keep_every)
+    .def_readwrite("keep_gfr",              &StochTree::BARTConfig::keep_gfr)
+    .def_readwrite("keep_burnin",           &StochTree::BARTConfig::keep_burnin)
+    .def_readwrite("alpha",                 &StochTree::BARTConfig::alpha)
+    .def_readwrite("beta",                  &StochTree::BARTConfig::beta)
+    .def_readwrite("min_samples_leaf",      &StochTree::BARTConfig::min_samples_leaf)
+    .def_readwrite("max_depth",             &StochTree::BARTConfig::max_depth)
+    .def_readwrite("a_global",              &StochTree::BARTConfig::a_global)
+    .def_readwrite("b_global",              &StochTree::BARTConfig::b_global)
+    .def_readwrite("a_leaf",                &StochTree::BARTConfig::a_leaf)
+    .def_readwrite("b_leaf",                &StochTree::BARTConfig::b_leaf)
+    .def_readwrite("leaf_scale",            &StochTree::BARTConfig::leaf_scale)
+    .def_readwrite("sigma2_init",           &StochTree::BARTConfig::sigma2_init)
+    .def_readwrite("sample_sigma2_global",  &StochTree::BARTConfig::sample_sigma2_global)
+    .def_readwrite("sample_sigma2_leaf",    &StochTree::BARTConfig::sample_sigma2_leaf)
+    .def_readwrite("standardize",           &StochTree::BARTConfig::standardize)
+    .def_readwrite("cutpoint_grid_size",    &StochTree::BARTConfig::cutpoint_grid_size)
+    .def_readwrite("num_threads",           &StochTree::BARTConfig::num_threads)
+    .def_readwrite("random_seed",           &StochTree::BARTConfig::random_seed)
+    .def_readwrite("variable_weights_mean", &StochTree::BARTConfig::variable_weights_mean);
+
+  py::class_<BARTResultCpp>(m, "BARTResultCpp")
+    .def(py::init<>())
+    .def("predict",     &BARTResultCpp::Predict,
+         "Predict from the fitted forest on a ForestDatasetCpp.")
+    .def("predict_raw", &BARTResultCpp::PredictRaw,
+         "Predict raw leaf values from the fitted forest on a ForestDatasetCpp.")
+    .def("num_samples",             &BARTResultCpp::NumSamples)
+    .def("delete_sample",           &BARTResultCpp::DeleteSample, py::arg("i"))
+    .def("steal_forest_container",  &BARTResultCpp::StealForestContainer,
+         "Move the fitted ForestContainer into a ForestContainerCpp (one-shot).")
+    .def_property_readonly("y_hat_train",           &BARTResultCpp::GetYHatTrain)
+    .def_property_readonly("y_hat_test",            &BARTResultCpp::GetYHatTest)
+    .def_property_readonly("sigma2_global_samples", &BARTResultCpp::GetSigma2GlobalSamples)
+    .def_property_readonly("leaf_scale_samples",    &BARTResultCpp::GetLeafScaleSamples)
+    .def_property_readonly("num_total_samples",     &BARTResultCpp::num_total_samples)
+    .def_property_readonly("num_chains",            &BARTResultCpp::num_chains)
+    .def_property_readonly("n_train",               &BARTResultCpp::n_train)
+    .def_property_readonly("n_test",                &BARTResultCpp::n_test)
+    .def_property_readonly("y_bar",                 &BARTResultCpp::y_bar)
+    .def_property_readonly("y_std",                 &BARTResultCpp::y_std);
+
+  // bart_fit: caller-owned BARTResultCpp passed by reference; BARTFit writes
+  // into it in-place.  numpy arrays are kept alive for the duration of the call.
+  m.def("bart_fit",
+    [](BARTResultCpp& result,
+       const StochTree::BARTConfig& config,
+       py::array_t<double, py::array::f_style | py::array::forcecast> X_train,
+       py::array_t<double> y_train,
+       py::object X_test_obj,
+       py::object weights_obj,
+       py::object feature_types_obj,
+       const std::string& previous_model_json) {
+
+      StochTree::BARTData data;
+
+      // Training covariates
+      auto X_tr_buf = X_train.request();
+      data.X_train = static_cast<const double*>(X_tr_buf.ptr);
+      data.n_train  = static_cast<int>(X_tr_buf.shape[0]);
+      data.p        = static_cast<int>(X_tr_buf.shape[1]);
+
+      // Training outcome
+      auto y_buf = y_train.request();
+      data.y_train = static_cast<const double*>(y_buf.ptr);
+
+      // Optional: test covariates
+      py::array_t<double, py::array::f_style | py::array::forcecast> X_test_arr;
+      if (!X_test_obj.is_none()) {
+        X_test_arr = X_test_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+        auto X_te_buf = X_test_arr.request();
+        data.X_test = static_cast<const double*>(X_te_buf.ptr);
+        data.n_test  = static_cast<int>(X_te_buf.shape[0]);
+      }
+
+      // Optional: observation weights
+      py::array_t<double> weights_arr;
+      if (!weights_obj.is_none()) {
+        weights_arr = weights_obj.cast<py::array_t<double>>();
+        data.weights = static_cast<const double*>(weights_arr.request().ptr);
+      }
+
+      // Optional: feature types
+      py::array_t<int> feature_types_arr;
+      if (!feature_types_obj.is_none()) {
+        feature_types_arr = feature_types_obj.cast<py::array_t<int>>();
+        data.feature_types = static_cast<const int*>(feature_types_arr.request().ptr);
+      }
+
+      StochTree::BARTFit(result.Get(), config, data, previous_model_json);
+    },
+    py::arg("result"),
+    py::arg("config"),
+    py::arg("X_train"),
+    py::arg("y_train"),
+    py::arg("X_test")              = py::none(),
+    py::arg("weights")             = py::none(),
+    py::arg("feature_types")       = py::none(),
+    py::arg("previous_model_json") = "",
+    "Fit a BART model (RFC 0004 C++ dispatch API). "
+    "Writes into a caller-owned BARTResultCpp. "
+    "X_train and X_test must be column-major (Fortran-order) float64 arrays."
+  );
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

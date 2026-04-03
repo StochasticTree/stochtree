@@ -1,3 +1,4 @@
+#include "R_bart.h"
 #include <stochtree/container.h>
 #include <stochtree/data.h>
 #include <stochtree/discrete_sampler.h>
