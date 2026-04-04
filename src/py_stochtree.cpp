@@ -838,6 +838,17 @@ class BARTResultCpp {
   std::vector<double> GetYHatTest()             { return result_->y_hat_test; }
   std::vector<double> GetSigma2GlobalSamples()  { return result_->sigma2_global_samples; }
   std::vector<double> GetLeafScaleSamples()     { return result_->leaf_scale_samples; }
+  std::vector<double> GetSigma2XHatTrain()      { return result_->sigma2_x_hat_train; }
+  std::vector<double> GetSigma2XHatTest()       { return result_->sigma2_x_hat_test; }
+
+  // ── Variance forest extraction ────────────────────────────────────────
+  bool HasVarianceForest() { return result_->variance_forest_container != nullptr; }
+
+  ForestContainerCpp StealVarianceForestContainer() {
+    if (!result_->variance_forest_container)
+      StochTree::Log::Fatal("BARTResultCpp: variance forest container has already been taken or was not allocated");
+    return ForestContainerCpp(std::move(result_->variance_forest_container));
+  }
 
   // ── Metadata ─────────────────────────────────────────────────────────
   int    num_total_samples() { return result_->num_total_samples; }
@@ -2663,7 +2674,17 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def_readwrite("cutpoint_grid_size",    &StochTree::BARTConfig::cutpoint_grid_size)
     .def_readwrite("num_threads",           &StochTree::BARTConfig::num_threads)
     .def_readwrite("random_seed",           &StochTree::BARTConfig::random_seed)
-    .def_readwrite("variable_weights_mean", &StochTree::BARTConfig::variable_weights_mean);
+    .def_readwrite("variable_weights_mean",       &StochTree::BARTConfig::variable_weights_mean)
+    .def_readwrite("include_variance_forest",     &StochTree::BARTConfig::include_variance_forest)
+    .def_readwrite("num_trees_variance",          &StochTree::BARTConfig::num_trees_variance)
+    .def_readwrite("alpha_variance",              &StochTree::BARTConfig::alpha_variance)
+    .def_readwrite("beta_variance",               &StochTree::BARTConfig::beta_variance)
+    .def_readwrite("min_samples_leaf_variance",   &StochTree::BARTConfig::min_samples_leaf_variance)
+    .def_readwrite("max_depth_variance",          &StochTree::BARTConfig::max_depth_variance)
+    .def_readwrite("a_forest",                    &StochTree::BARTConfig::a_forest)
+    .def_readwrite("b_forest",                    &StochTree::BARTConfig::b_forest)
+    .def_readwrite("variance_forest_leaf_init",   &StochTree::BARTConfig::variance_forest_leaf_init)
+    .def_readwrite("variable_weights_variance",   &StochTree::BARTConfig::variable_weights_variance);
 
   py::class_<BARTResultCpp>(m, "BARTResultCpp")
     .def(py::init<>())
@@ -2679,6 +2700,11 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def_property_readonly("y_hat_test",            &BARTResultCpp::GetYHatTest)
     .def_property_readonly("sigma2_global_samples", &BARTResultCpp::GetSigma2GlobalSamples)
     .def_property_readonly("leaf_scale_samples",    &BARTResultCpp::GetLeafScaleSamples)
+    .def_property_readonly("sigma2_x_hat_train",    &BARTResultCpp::GetSigma2XHatTrain)
+    .def_property_readonly("sigma2_x_hat_test",     &BARTResultCpp::GetSigma2XHatTest)
+    .def("has_variance_forest",               &BARTResultCpp::HasVarianceForest)
+    .def("steal_variance_forest_container",   &BARTResultCpp::StealVarianceForestContainer,
+         "Move the fitted variance ForestContainer into a ForestContainerCpp (one-shot).")
     .def_property_readonly("num_total_samples",     &BARTResultCpp::num_total_samples)
     .def_property_readonly("num_chains",            &BARTResultCpp::num_chains)
     .def_property_readonly("n_train",               &BARTResultCpp::n_train)

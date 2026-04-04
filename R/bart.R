@@ -1056,14 +1056,15 @@ bart <- function(
   }
 
   # ── Stage 1 C++ dispatch fast path ────────────────────────────────────────
-  # Eligible when: identity or probit link, constant-leaf mean forest, no variance
-  # forest, no RFX, no warm-start.  BARTFit handles standardization, prior
-  # calibration, and all sampling internally.  R is a thin marshaling layer.
+  # Eligible when: identity or probit link, constant-leaf mean forest,
+  # no RFX, no warm-start.  Variance forests are supported for identity link
+  # only (probit + variance forest is not a supported combination).
+  # BARTFit handles standardization, prior calibration, and all sampling
+  # internally.  R is a thin marshaling layer.
   use_cpp_dispatch <- (isTRUE(getOption("stochtree.use_cpp_dispatch", TRUE)) &&
-    (link_is_linear || link_is_probit) &&
+    (link_is_linear || (link_is_probit && !include_variance_forest)) &&
     include_mean_forest &&
     !has_basis &&
-    !include_variance_forest &&
     !has_rfx &&
     is.null(previous_model_json))
   if (use_cpp_dispatch) {
@@ -1101,10 +1102,23 @@ bart <- function(
       sigma2_leaf_init = sigma2_leaf_init, # NULL → sentinel -1 in C++
       variable_weights = as.numeric(variable_weights_mean)
     )
+    variance_forest_cfg_r <- list(
+      include_variance_forest = include_variance_forest,
+      num_trees = as.integer(num_trees_variance),
+      alpha = as.numeric(alpha_variance),
+      beta = as.numeric(beta_variance),
+      min_samples_leaf = as.integer(min_samples_leaf_variance),
+      max_depth = as.integer(max_depth_variance),
+      a_forest = a_forest,          # NULL → sentinel -1 in C++
+      b_forest = b_forest,          # NULL → sentinel -1 in C++
+      var_forest_leaf_init = variance_forest_init,  # NULL → sentinel -1 in C++
+      variable_weights = if (include_variance_forest) as.numeric(variable_weights_variance) else NULL
+    )
 
     result_ptr <- bart_fit_cpp(
       sampler_cfg = sampler_cfg_r,
       mean_forest_cfg = mean_forest_cfg_r,
+      variance_forest_cfg = variance_forest_cfg_r,
       X_train_r = as.matrix(X_train),
       y_train_r = as.numeric(y_train),
       X_test_r = if (has_test) as.matrix(X_test) else NULL,
@@ -1151,25 +1165,28 @@ bart <- function(
     forest_samples_mean$forest_container_ptr <-
       bart_result_steal_forest_samples_cpp(result_ptr)
 
-    # Drop GFR samples from all outputs if keep_gfr = FALSE (default).
-    # C++ always stores GFR samples in columns 0..num_gfr-1.
-    if (!keep_gfr && num_gfr > 0) {
-      gfr_cols <- seq_len(num_gfr)
-      y_hat_train <- y_hat_train[, -gfr_cols, drop = FALSE]
+    # Variance forest — unpack if present.
+    if (include_variance_forest && bart_result_has_variance_forest_cpp(result_ptr)) {
+      sigma2_x_hat_train <- matrix(
+        bart_result_sigma2_x_hat_train_cpp(result_ptr),
+        nrow = nrow(X_train),
+        ncol = num_retained_samples
+      )
       if (has_test) {
-        y_hat_test <- y_hat_test[, -gfr_cols, drop = FALSE]
+        sigma2_x_hat_test <- matrix(
+          bart_result_sigma2_x_hat_test_cpp(result_ptr),
+          nrow = nrow(X_test),
+          ncol = num_retained_samples
+        )
       }
-      if (sample_sigma2_global) {
-        sigma2_global_samples <- sigma2_global_samples[-gfr_cols]
-      }
-      if (sample_sigma2_leaf) {
-        tau_samples <- tau_samples[-gfr_cols]
-      }
-      # Delete GFR forests in reverse order (0-indexed) to avoid index shift.
-      for (i in rev(gfr_cols)) {
-        forest_samples_mean$delete_sample(i - 1L)
-      }
-      num_retained_samples <- num_retained_samples - num_gfr
+      forest_samples_variance <- ForestSamples$new(
+        num_trees_variance,
+        1L,
+        TRUE,
+        TRUE
+      )
+      forest_samples_variance$forest_container_ptr <-
+        bart_result_steal_variance_forest_samples_cpp(result_ptr)
     }
 
     # Serialization requires sigma2_init to be a scalar double, not NULL.
@@ -1201,8 +1218,8 @@ bart <- function(
       "a_global" = a_global,
       "b_global" = b_global,
       "sigma2_init" = sigma2_init,
-      "a_forest" = NULL,
-      "b_forest" = NULL,
+      "a_forest" = if (include_variance_forest) a_forest else NULL,
+      "b_forest" = if (include_variance_forest) b_forest else NULL,
       "outcome_mean" = y_bar_train,
       "outcome_scale" = y_std_train,
       "standardize" = standardize,
@@ -1225,7 +1242,7 @@ bart <- function(
       "sample_sigma2_global" = sample_sigma2_global,
       "sample_sigma2_leaf" = sample_sigma2_leaf,
       "include_mean_forest" = TRUE,
-      "include_variance_forest" = FALSE,
+      "include_variance_forest" = include_variance_forest,
       "outcome_model" = outcome_model,
       "probit_outcome_model" = link_is_probit,
       "cloglog_num_categories" = 0L,
@@ -1246,6 +1263,11 @@ bart <- function(
     }
     if (sample_sigma2_leaf) {
       result[["sigma2_leaf_samples"]] <- tau_samples
+    }
+    if (include_variance_forest) {
+      result[["variance_forests"]] <- forest_samples_variance
+      result[["sigma2_x_hat_train"]] <- sigma2_x_hat_train
+      if (has_test) result[["sigma2_x_hat_test"]] <- sigma2_x_hat_test
     }
     class(result) <- "bartmodel"
 

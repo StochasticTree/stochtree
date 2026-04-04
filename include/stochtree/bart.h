@@ -186,12 +186,13 @@ struct BARTData {
  * Sample array layout (column-major):
  *   shape: n_obs × num_total_samples
  * where:
- *   num_total_samples = num_gfr + num_chains × (num_burnin_kept + num_mcmc)
+ *   num_total_samples = num_stored_gfr + num_chains × num_mcmc
+ *   num_stored_gfr    = num_gfr if keep_gfr (or num_mcmc==0), else 0
  *
  * Column ordering:
- *   [GFR samples 0..num_gfr-1]
- *   [chain 0: burnin (if keep_burnin), then MCMC]
- *   [chain 1: burnin (if keep_burnin), then MCMC]
+ *   [GFR samples 0..num_gfr-1]  (only present when keep_gfr=true or num_mcmc==0)
+ *   [chain 0: MCMC]
+ *   [chain 1: MCMC]
  *   ...
  *
  * Scalar sample arrays (sigma2, leaf_scale) follow the same column order

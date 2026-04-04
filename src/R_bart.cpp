@@ -24,7 +24,8 @@ static double nullable_dbl(SEXP x, double sentinel = -1.0) {
 
 static StochTree::BARTConfig bart_config_from_r(
     cpp11::list sampler_cfg,
-    cpp11::list mean_forest_cfg
+    cpp11::list mean_forest_cfg,
+    cpp11::list variance_forest_cfg
 ) {
     StochTree::BARTConfig cfg;
 
@@ -70,6 +71,22 @@ static StochTree::BARTConfig bart_config_from_r(
         cfg.variable_weights_mean.assign(vw_r.begin(), vw_r.end());
     }
 
+    // ── Variance forest params ─────────────────────────────────────────────
+    cfg.include_variance_forest   = cpp11::as_cpp<bool>(variance_forest_cfg["include_variance_forest"]);
+    cfg.num_trees_variance        = cpp11::as_cpp<int>(variance_forest_cfg["num_trees"]);
+    cfg.alpha_variance            = cpp11::as_cpp<double>(variance_forest_cfg["alpha"]);
+    cfg.beta_variance             = cpp11::as_cpp<double>(variance_forest_cfg["beta"]);
+    cfg.min_samples_leaf_variance = cpp11::as_cpp<int>(variance_forest_cfg["min_samples_leaf"]);
+    cfg.max_depth_variance        = cpp11::as_cpp<int>(variance_forest_cfg["max_depth"]);
+    cfg.a_forest                  = nullable_dbl(variance_forest_cfg["a_forest"]);
+    cfg.b_forest                  = nullable_dbl(variance_forest_cfg["b_forest"]);
+    cfg.variance_forest_leaf_init = nullable_dbl(variance_forest_cfg["var_forest_leaf_init"]);
+    SEXP vwv = variance_forest_cfg["variable_weights"];
+    if (vwv != R_NilValue) {
+        cpp11::doubles vwv_r(vwv);
+        cfg.variable_weights_variance.assign(vwv_r.begin(), vwv_r.end());
+    }
+
     return cfg;
 }
 
@@ -86,13 +103,14 @@ static cpp11::doubles vec_to_r(const std::vector<double>& v) {
 cpp11::external_pointer<BARTResultR> bart_fit_cpp(
     cpp11::list             sampler_cfg,
     cpp11::list             mean_forest_cfg,
+    cpp11::list             variance_forest_cfg,
     cpp11::doubles_matrix<> X_train_r,
     cpp11::doubles          y_train_r,
     SEXP                    X_test_r,
     SEXP                    feature_types_r,
     SEXP                    weights_r
 ) {
-    StochTree::BARTConfig config = bart_config_from_r(sampler_cfg, mean_forest_cfg);
+    StochTree::BARTConfig config = bart_config_from_r(sampler_cfg, mean_forest_cfg, variance_forest_cfg);
 
     StochTree::BARTData data;
     data.n_train = X_train_r.nrow();
@@ -179,5 +197,30 @@ cpp11::external_pointer<StochTree::ForestContainer> bart_result_steal_forest_sam
     cpp11::external_pointer<BARTResultR> ptr
 ) {
     StochTree::ForestContainer* fc = ptr->result->forest_container.release();
+    return cpp11::external_pointer<StochTree::ForestContainer>(fc);
+}
+
+// ── Variance forest accessors ─────────────────────────────────────────────────
+
+[[cpp11::register]]
+bool bart_result_has_variance_forest_cpp(cpp11::external_pointer<BARTResultR> ptr) {
+    return ptr->result->variance_forest_container != nullptr;
+}
+
+[[cpp11::register]]
+cpp11::doubles bart_result_sigma2_x_hat_train_cpp(cpp11::external_pointer<BARTResultR> ptr) {
+    return vec_to_r(ptr->result->sigma2_x_hat_train);
+}
+
+[[cpp11::register]]
+cpp11::doubles bart_result_sigma2_x_hat_test_cpp(cpp11::external_pointer<BARTResultR> ptr) {
+    return vec_to_r(ptr->result->sigma2_x_hat_test);
+}
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::ForestContainer> bart_result_steal_variance_forest_samples_cpp(
+    cpp11::external_pointer<BARTResultR> ptr
+) {
+    StochTree::ForestContainer* fc = ptr->result->variance_forest_container.release();
     return cpp11::external_pointer<StochTree::ForestContainer>(fc);
 }

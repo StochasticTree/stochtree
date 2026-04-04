@@ -254,9 +254,12 @@ void BARTFit(BARTResult*        result_ptr,
   int num_chains = config.num_chains;
   int keep_every = std::max(1, config.keep_every);
 
-  // GFR samples are always included (first num_gfr columns), matching Python
+  // When keep_gfr=false and MCMC samples exist, GFR columns are omitted from
+  // the result arrays (GFR forests are still stored temporarily for chain seeding
+  // and are deleted after the MCMC loop below).
   int num_mcmc_per_chain = num_mcmc;
-  int num_total = num_gfr + num_chains * num_mcmc_per_chain;
+  int num_stored_gfr = (config.keep_gfr || num_mcmc == 0) ? num_gfr : 0;
+  int num_total = num_stored_gfr + num_chains * num_mcmc_per_chain;
 
   // Reference alias so all `result.X` accesses below are unchanged.
   BARTResult& result = *result_ptr;
@@ -366,6 +369,11 @@ void BARTFit(BARTResult*        result_ptr,
         active_forest_variance, dataset_train, residual, /*is_mean_model=*/false);
   }
 
+  // When keep_gfr=false and there are MCMC samples, GFR forests are still
+  // needed to seed the chains, but we skip writing their predictions or scalar
+  // samples into the result arrays (num_stored_gfr == 0 in that case).
+  bool store_gfr = (num_stored_gfr > 0);
+
   // ── GFR loop ───────────────────────────────────────────────────────
   for (int i = 0; i < num_gfr; i++) {
     if (has_mean_forest) {
@@ -386,11 +394,13 @@ void BARTFit(BARTResult*        result_ptr,
           config.num_threads);
     }
 
-    // Cache mean predictions (column i).
+    // Cache mean predictions (column i) only when storing GFR samples.
     // For probit, predictions are on the probit scale (forest_pred + y_bar).
     // When num_trees == 0, fills y_bar (no mean forest).
-    cache_train_predictions(i);
-    cache_test_predictions(i);
+    if (store_gfr) {
+      cache_train_predictions(i);
+      cache_test_predictions(i);
+    }
 
     // Sample variance forest (GFR step), then update per-obs variance weights.
     if (has_variance_forest) {
@@ -406,8 +416,10 @@ void BARTFit(BARTResult*        result_ptr,
           /*backfitting=*/false,  // variance model: update VarWeights, not residual
           num_features_subsample,
           config.num_threads);
-      cache_sigma2x_train(i);
-      cache_sigma2x_test(i);
+      if (store_gfr) {
+        cache_sigma2x_train(i);
+        cache_sigma2x_test(i);
+      }
     }
 
     // Sample scalar variance parameters (mean forest only).
@@ -422,12 +434,14 @@ void BARTFit(BARTResult*        result_ptr,
         current_sigma2 = global_var_model.SampleVarianceParameter(
             residual.GetData(), a_global, b_global, rng);
       }
-      result.sigma2_global_samples[i] = current_sigma2 * y_std * y_std;
+      if (store_gfr)
+        result.sigma2_global_samples[i] = current_sigma2 * y_std * y_std;
     }
     if (has_mean_forest && config.sample_sigma2_leaf) {
       leaf_scale = leaf_var_model.SampleVarianceParameter(
           &active_forest, a_leaf, b_leaf, rng);
-      result.leaf_scale_samples[i] = leaf_scale;
+      if (store_gfr)
+        result.leaf_scale_samples[i] = leaf_scale;
     }
   }
 
@@ -525,7 +539,8 @@ void BARTFit(BARTResult*        result_ptr,
               &active_forest, a_leaf, b_leaf, rng);
 
         if (is_kept) {
-          int col = num_gfr + chain * num_mcmc_per_chain + mcmc_kept;
+          int gfr_offset = store_gfr ? num_gfr : 0;
+          int col = gfr_offset + chain * num_mcmc_per_chain + mcmc_kept;
           cache_train_predictions(col);
           cache_test_predictions(col);
           if (has_variance_forest) {
@@ -539,6 +554,19 @@ void BARTFit(BARTResult*        result_ptr,
           mcmc_kept++;
         }
       }
+    }
+  }
+
+  // ── Post-MCMC GFR cleanup ──────────────────────────────────────────
+  // When keep_gfr=false and num_mcmc > 0, GFR forests were kept in
+  // forest_container only to seed the MCMC chains. Delete them now so
+  // the container holds only MCMC samples (indices 0..num_mcmc*num_chains-1).
+  if (!store_gfr && num_gfr > 0 && num_mcmc > 0) {
+    for (int i = num_gfr - 1; i >= 0; i--)
+      forest_container.DeleteSample(i);
+    if (has_variance_forest) {
+      for (int i = num_gfr - 1; i >= 0; i--)
+        result.variance_forest_container->DeleteSample(i);
     }
   }
 

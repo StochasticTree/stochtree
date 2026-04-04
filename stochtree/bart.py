@@ -1057,7 +1057,6 @@ class BARTModel:
         _no_zero_weights = not (observation_weights is not None and np.all(observation_weights == 0))
         if (link_is_linear
                 and not self.has_basis
-                and not self.include_variance_forest
                 and _no_rfx
                 and _no_zero_weights
                 and not has_prev_model):
@@ -1089,6 +1088,19 @@ class BARTModel:
             cfg.num_threads           = num_threads if num_threads is not None else -1
             cfg.variable_weights_mean = variable_weights_mean.tolist()
 
+            # Variance forest params
+            cfg.include_variance_forest   = self.include_variance_forest
+            cfg.num_trees_variance        = num_trees_variance
+            cfg.alpha_variance            = alpha_variance
+            cfg.beta_variance             = beta_variance
+            cfg.min_samples_leaf_variance = min_samples_leaf_variance
+            cfg.max_depth_variance        = max_depth_variance
+            cfg.a_forest                  = a_forest if a_forest is not None else -1.0
+            cfg.b_forest                  = b_forest if b_forest is not None else -1.0
+            cfg.variance_forest_leaf_init = variance_forest_leaf_init if variance_forest_leaf_init is not None else -1.0
+            if self.include_variance_forest:
+                cfg.variable_weights_variance = variable_weights_variance.tolist()
+
             X_arr = np.asfortranarray(X_train_processed.astype(np.float64))
             y_arr = np.asarray(np.squeeze(y_train), dtype=np.float64)
             X_test_arr  = np.asfortranarray(X_test_processed.astype(np.float64)) if self.has_test else None
@@ -1113,7 +1125,7 @@ class BARTModel:
             self.num_samples  = _result.num_total_samples
             self.num_basis    = 0
             self.include_mean_forest     = True
-            self.include_variance_forest = False
+            # include_variance_forest was already set from variance_forest_params earlier
             self.has_rfx      = False
             self.has_rfx_basis = False
             self.num_rfx_basis = 0
@@ -1136,7 +1148,7 @@ class BARTModel:
                     (self.n_test, _result.num_total_samples), order='F'
                 )
 
-            # Extract the forest (one pointer swap — no JSON roundtrip).
+            # Extract the mean forest (one pointer swap — no JSON roundtrip).
             _fc_cpp = _result.steal_forest_container()
             self.forest_container_mean = ForestContainer.__new__(ForestContainer)
             self.forest_container_mean.forest_container_cpp = _fc_cpp
@@ -1145,19 +1157,22 @@ class BARTModel:
             self.forest_container_mean.leaf_constant    = True
             self.forest_container_mean.is_exponentiated = False
 
-            # Mirror the old Python path: trim GFR columns when keep_gfr=False and
-            # there are MCMC samples (GFR was used only as warm-start).
-            if not keep_gfr and num_gfr > 0 and num_mcmc > 0:
-                self.y_hat_train = self.y_hat_train[:, num_gfr:]
+            # Variance forest results
+            if self.include_variance_forest:
+                self.sigma2_x_hat_train = np.array(_result.sigma2_x_hat_train).reshape(
+                    (self.n_train, _result.num_total_samples), order='F'
+                )
                 if self.has_test:
-                    self.y_hat_test = self.y_hat_test[:, num_gfr:]
-                if sample_sigma2_global:
-                    self.global_var_samples = self.global_var_samples[num_gfr:]
-                if sample_sigma2_leaf:
-                    self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
-                for _ in range(num_gfr):
-                    self.forest_container_mean.delete_sample(0)
-                self.num_samples -= num_gfr
+                    self.sigma2_x_hat_test = np.array(_result.sigma2_x_hat_test).reshape(
+                        (self.n_test, _result.num_total_samples), order='F'
+                    )
+                _vfc_cpp = _result.steal_variance_forest_container()
+                self.forest_container_variance = ForestContainer.__new__(ForestContainer)
+                self.forest_container_variance.forest_container_cpp = _vfc_cpp
+                self.forest_container_variance.num_trees        = num_trees_variance
+                self.forest_container_variance.output_dimension = 1
+                self.forest_container_variance.leaf_constant    = True
+                self.forest_container_variance.is_exponentiated = True
 
             self.rfx_model_spec = "none"
             self.sampled = True
