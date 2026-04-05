@@ -1050,13 +1050,15 @@ class BARTModel:
                 )
                 sample_sigma2_global = False
 
-        # ── RFC 0004 Stage 1 fast path ─────────────────────────────────────────
-        # Identity-link or probit-link, constant-leaf, no basis, no variance forest, no RFX,
-        # no previous-model warm-start: delegate entirely to BARTFit in C++.
+        # ── RFC 0004 Stage 1/2 fast path ───────────────────────────────────────
+        # Identity or probit link, constant-leaf mean forest, no basis, no RFX,
+        # no warm-start.  Probit + variance forest is not a supported combination.
+        # BARTFit handles standardization, prior calibration, and all sampling.
         _no_rfx = rfx_group_ids_train is None
         _no_zero_weights = not (observation_weights is not None and np.all(observation_weights == 0))
-        if (link_is_linear
+        if ((link_is_linear or link_is_probit)
                 and not self.has_basis
+                and not (link_is_probit and self.include_variance_forest)
                 and _no_rfx
                 and _no_zero_weights
                 and not has_prev_model):
@@ -1079,8 +1081,10 @@ class BARTModel:
             cfg.b_global              = b_global if b_global is not None else 0.0
             cfg.a_leaf                = a_leaf
             cfg.b_leaf                = b_leaf if b_leaf is not None else -1.0
-            cfg.sigma2_init           = sigma2_init if sigma2_init is not None else -1.0
-            cfg.sample_sigma2_global  = sample_sigma2_global
+            cfg.link_function         = "probit" if link_is_probit else "identity"
+            # Probit: Albert-Chib fixes sigma2 at 1 and disables global variance sampling.
+            cfg.sample_sigma2_global  = False if link_is_probit else sample_sigma2_global
+            cfg.sigma2_init           = 1.0 if link_is_probit else (sigma2_init if sigma2_init is not None else -1.0)
             cfg.sample_sigma2_leaf    = sample_sigma2_leaf
             cfg.standardize           = self.standardize
             cfg.cutpoint_grid_size    = cutpoint_grid_size
@@ -1129,9 +1133,11 @@ class BARTModel:
             self.has_rfx      = False
             self.has_rfx_basis = False
             self.num_rfx_basis = 0
-            self.sample_sigma2_global = sample_sigma2_global
+            self.sample_sigma2_global = False if link_is_probit else sample_sigma2_global
             self.sample_sigma2_leaf   = sample_sigma2_leaf
-            self.sigma2_init  = _result.sigma2_global_samples[0] / (_result.y_std ** 2) if sample_sigma2_global else 1.0
+            self.sigma2_init  = 1.0 if link_is_probit else (
+                _result.sigma2_global_samples[0] / (_result.y_std ** 2) if sample_sigma2_global else 1.0
+            )
 
             # Variance samples
             if sample_sigma2_global:

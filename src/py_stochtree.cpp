@@ -2670,6 +2670,19 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def_readwrite("sigma2_init",           &StochTree::BARTConfig::sigma2_init)
     .def_readwrite("sample_sigma2_global",  &StochTree::BARTConfig::sample_sigma2_global)
     .def_readwrite("sample_sigma2_leaf",    &StochTree::BARTConfig::sample_sigma2_leaf)
+    .def_property("link_function",
+        [](const StochTree::BARTConfig& c) -> std::string {
+            switch (c.link_function) {
+                case StochTree::LinkFunction::Probit:  return "probit";
+                case StochTree::LinkFunction::Cloglog: return "cloglog";
+                default:                               return "identity";
+            }
+        },
+        [](StochTree::BARTConfig& c, const std::string& s) {
+            if      (s == "probit")  c.link_function = StochTree::LinkFunction::Probit;
+            else if (s == "cloglog") c.link_function = StochTree::LinkFunction::Cloglog;
+            else                     c.link_function = StochTree::LinkFunction::Identity;
+        })
     .def_readwrite("standardize",           &StochTree::BARTConfig::standardize)
     .def_readwrite("cutpoint_grid_size",    &StochTree::BARTConfig::cutpoint_grid_size)
     .def_readwrite("num_threads",           &StochTree::BARTConfig::num_threads)
