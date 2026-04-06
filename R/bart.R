@@ -1056,17 +1056,31 @@ bart <- function(
   }
 
   # ── Stage 1 C++ dispatch fast path ────────────────────────────────────────
-  # Eligible when: identity or probit link, constant-leaf mean forest,
-  # no RFX, no warm-start.  Variance forests are supported for identity link
-  # only (probit + variance forest is not a supported combination).
+  # Eligible when: identity, probit, or cloglog link; mean forest present;
+  # no warm-start.  Variance forests are supported for identity link only
+  # (probit/cloglog + variance forest is not a supported combination).
+  # Random effects (intercept-only and custom) are supported for all links.
   # BARTFit handles standardization, prior calibration, and all sampling
   # internally.  R is a thin marshaling layer.
   use_cpp_dispatch <- (isTRUE(getOption("stochtree.use_cpp_dispatch", TRUE)) &&
-    (link_is_linear || (link_is_probit && !include_variance_forest)) &&
+    (link_is_linear || (link_is_probit && !include_variance_forest) || link_is_cloglog) &&
     include_mean_forest &&
-    !has_rfx &&
     is.null(previous_model_json))
   if (use_cpp_dispatch) {
+    # Cloglog: remap y to 0-indexed categories; compute K.
+    if (link_is_cloglog) {
+      y_cloglog_min <- min(as.integer(y_train))
+      y_for_dispatch <- as.numeric(as.integer(y_train) - y_cloglog_min)
+      cloglog_num_categories_dispatch <- as.integer(max(y_for_dispatch) + 1L)
+    } else {
+      y_for_dispatch <- as.numeric(y_train)
+      cloglog_num_categories_dispatch <- 0L
+    }
+
+    # Sigma2 init and sampling: fixed at 1 and disabled for probit/cloglog.
+    sigma2_global_init_dispatch <- if (link_is_probit || link_is_cloglog) 1.0 else sigma2_init
+    sample_sigma2_global_dispatch <- if (link_is_probit || link_is_cloglog) FALSE else sample_sigma2_global
+
     sampler_cfg_r <- list(
       num_gfr = as.integer(num_gfr),
       num_burnin = as.integer(num_burnin),
@@ -1080,14 +1094,13 @@ bart <- function(
       num_threads = as.integer(num_threads),
       sigma2_global_shape = as.numeric(a_global),
       sigma2_global_scale = as.numeric(b_global),
-      # Probit: sigma2 is fixed at 1 (Albert-Chib); override init and disable sampling.
-      sigma2_global_init = if (link_is_probit) 1.0 else sigma2_init,
-      sample_sigma2_global = if (link_is_probit) {
-        FALSE
-      } else {
-        sample_sigma2_global
-      },
-      link_function = if (link_is_probit) "probit" else "identity"
+      sigma2_global_init = sigma2_global_init_dispatch,
+      sample_sigma2_global = sample_sigma2_global_dispatch,
+      link_function = if (link_is_probit) "probit" else if (link_is_cloglog) "cloglog" else "identity",
+      cloglog_num_categories = cloglog_num_categories_dispatch,
+      cloglog_forest_shape = 2.0,
+      cloglog_forest_rate = 2.0,
+      cloglog_cutpoint_0 = 0.0
     )
     mean_forest_cfg_r <- list(
       num_trees = as.integer(num_trees_mean),
@@ -1116,17 +1129,38 @@ bart <- function(
       variable_weights = if (include_variance_forest) as.numeric(variable_weights_variance) else NULL
     )
 
+    # RFX config: scalar init values derived from user-supplied prior params.
+    rfx_alpha_init_dispatch <- if (is.null(rfx_working_parameter_prior_mean)) 0.0 else as.numeric(rfx_working_parameter_prior_mean)[1]
+    rfx_xi_init_dispatch    <- rfx_alpha_init_dispatch
+    rfx_sigma_alpha_dispatch <- if (is.null(rfx_working_parameter_prior_cov)) 1.0 else as.numeric(rfx_working_parameter_prior_cov)[1]
+    rfx_sigma_xi_dispatch    <- if (is.null(rfx_group_parameter_prior_cov))   1.0 else as.numeric(rfx_group_parameter_prior_cov)[1]
+    rfx_cfg_r <- list(
+      rfx_model_spec           = if (has_rfx) rfx_model_spec else "none",
+      rfx_num_components       = if (has_rfx) as.integer(num_rfx_components) else 1L,
+      rfx_alpha_init           = rfx_alpha_init_dispatch,
+      rfx_xi_init              = rfx_xi_init_dispatch,
+      rfx_sigma_alpha_init     = rfx_sigma_alpha_dispatch,
+      rfx_sigma_xi_init        = rfx_sigma_xi_dispatch,
+      rfx_variance_prior_shape = as.numeric(rfx_variance_prior_shape),
+      rfx_variance_prior_scale = as.numeric(rfx_variance_prior_scale)
+    )
+
     result_ptr <- bart_fit_cpp(
-      sampler_cfg = sampler_cfg_r,
-      mean_forest_cfg = mean_forest_cfg_r,
-      variance_forest_cfg = variance_forest_cfg_r,
-      X_train_r = as.matrix(X_train),
-      y_train_r = as.numeric(y_train),
-      X_test_r = if (has_test) as.matrix(X_test) else NULL,
-      feature_types_r = as.integer(feature_types),
-      weights_r = observation_weights,
-      basis_train_r = if (has_basis) as.matrix(leaf_basis_train) else NULL,
-      basis_test_r  = if (has_test && has_basis) as.matrix(leaf_basis_test) else NULL
+      sampler_cfg          = sampler_cfg_r,
+      mean_forest_cfg      = mean_forest_cfg_r,
+      variance_forest_cfg  = variance_forest_cfg_r,
+      rfx_cfg              = rfx_cfg_r,
+      X_train_r            = as.matrix(X_train),
+      y_train_r            = y_for_dispatch,
+      X_test_r             = if (has_test) as.matrix(X_test) else NULL,
+      feature_types_r      = as.integer(feature_types),
+      weights_r            = observation_weights,
+      basis_train_r        = if (has_basis) as.matrix(leaf_basis_train) else NULL,
+      basis_test_r         = if (has_test && has_basis) as.matrix(leaf_basis_test) else NULL,
+      rfx_groups_train_r   = if (has_rfx) as.integer(rfx_group_ids_train) else NULL,
+      rfx_basis_train_r    = if (has_rfx) as.matrix(rfx_basis_train) else NULL,
+      rfx_groups_test_r    = if (has_rfx_test) as.integer(rfx_group_ids_test) else NULL,
+      rfx_basis_test_r     = if (has_rfx && has_rfx_test) as.matrix(rfx_basis_test) else NULL
     )
 
     # Unpack result metadata
@@ -1192,9 +1226,29 @@ bart <- function(
         bart_result_steal_variance_forest_samples_cpp(result_ptr)
     }
 
+    # Cloglog cutpoint samples: (K-1) × num_retained_samples matrix.
+    if (link_is_cloglog) {
+      cloglog_cutpoint_samples_fast <- matrix(
+        bart_result_cloglog_cutpoint_samples_cpp(result_ptr),
+        nrow = cloglog_num_categories_dispatch - 1L,
+        ncol = num_retained_samples
+      )
+    }
+
+    # RFX: steal container and build LabelMapper from sorted unique group IDs.
+    if (has_rfx && bart_result_has_rfx_cpp(result_ptr)) {
+      rfx_group_ids_result <- bart_result_rfx_group_ids_cpp(result_ptr)
+      rfx_samples_fast <- RandomEffectSamples$new()
+      rfx_samples_fast$rfx_container_ptr <-
+        bart_result_steal_rfx_container_cpp(result_ptr)
+      rfx_samples_fast$label_mapper_ptr <-
+        rfx_label_mapper_from_group_ids_cpp(rfx_group_ids_result)
+      rfx_samples_fast$training_group_ids <- rfx_group_ids_result
+    }
+
     # Serialization requires sigma2_init to be a scalar double, not NULL.
-    # Probit: fixed at 1. Identity: compute from data the same way the R slow path does.
-    if (link_is_probit) {
+    # Probit/cloglog: fixed at 1. Identity: compute from data same as slow path.
+    if (link_is_probit || link_is_cloglog) {
       sigma2_init <- 1.0
     } else if (is.null(sigma2_init)) {
       y_numeric_calib <- as.numeric(y_train)
@@ -1238,17 +1292,17 @@ bart <- function(
       "num_mcmc" = num_mcmc,
       "keep_every" = keep_every,
       "num_chains" = num_chains,
-      "has_basis" = FALSE,
-      "has_rfx" = FALSE,
-      "has_rfx_basis" = FALSE,
-      "num_rfx_basis" = 0L,
+      "has_basis" = has_basis,
+      "has_rfx" = has_rfx,
+      "has_rfx_basis" = has_rfx && (rfx_model_spec == "custom"),
+      "num_rfx_basis" = if (has_rfx) as.integer(num_rfx_components) else 0L,
       "sample_sigma2_global" = sample_sigma2_global,
       "sample_sigma2_leaf" = sample_sigma2_leaf,
       "include_mean_forest" = TRUE,
       "include_variance_forest" = include_variance_forest,
       "outcome_model" = outcome_model,
       "probit_outcome_model" = link_is_probit,
-      "cloglog_num_categories" = 0L,
+      "cloglog_num_categories" = cloglog_num_categories_dispatch,
       "rfx_model_spec" = rfx_model_spec
     )
 
@@ -1271,6 +1325,20 @@ bart <- function(
       result[["variance_forests"]] <- forest_samples_variance
       result[["sigma2_x_hat_train"]] <- sigma2_x_hat_train
       if (has_test) result[["sigma2_x_hat_test"]] <- sigma2_x_hat_test
+    }
+    if (link_is_cloglog) {
+      result[["cloglog_num_categories"]] <- cloglog_num_categories_dispatch
+      # Match slow path: only store cutpoints for ordinal (K>2); binary gamma[0] is
+      # fixed to 0 for identifiability and is not informative.
+      if (outcome_is_ordinal) {
+        result[["cloglog_cutpoint_samples"]] <- cloglog_cutpoint_samples_fast
+      }
+    }
+    if (has_rfx) {
+      result[["rfx_samples"]] <- rfx_samples_fast
+      # Serialization and predict() both expect a character vector of unique group IDs
+      # (same format as levels(factor(...)) from the slow path).
+      result[["rfx_unique_group_ids"]] <- as.character(rfx_group_ids_result)
     }
     class(result) <- "bartmodel"
 

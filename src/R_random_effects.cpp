@@ -335,10 +335,21 @@ void reset_rfx_tracker_cpp(cpp11::external_pointer<StochTree::RandomEffectsTrack
 }
 
 [[cpp11::register]]
-void root_reset_rfx_tracker_cpp(cpp11::external_pointer<StochTree::RandomEffectsTracker> tracker, 
-                                cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset, 
-                                cpp11::external_pointer<StochTree::ColumnVector> residual, 
+void root_reset_rfx_tracker_cpp(cpp11::external_pointer<StochTree::RandomEffectsTracker> tracker,
+                                cpp11::external_pointer<StochTree::RandomEffectsDataset> dataset,
+                                cpp11::external_pointer<StochTree::ColumnVector> residual,
                                 cpp11::external_pointer<StochTree::MultivariateRegressionRandomEffectsModel> rfx_model) {
     // Reset the RFX tracker from root
     tracker->RootReset(*rfx_model, *dataset, *residual);
+}
+
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::LabelMapper> rfx_label_mapper_from_group_ids_cpp(cpp11::integers group_ids) {
+    // Build a LabelMapper from sorted unique group IDs (as returned by
+    // bart_result_rfx_group_ids_cpp).  The map is: group_ids[i] -> i.
+    std::map<int32_t, int32_t> label_map;
+    for (R_xlen_t i = 0; i < static_cast<R_xlen_t>(group_ids.size()); ++i)
+        label_map[static_cast<int32_t>(group_ids[i])] = static_cast<int32_t>(i);
+    auto ptr = std::make_unique<StochTree::LabelMapper>(label_map);
+    return cpp11::external_pointer<StochTree::LabelMapper>(ptr.release());
 }

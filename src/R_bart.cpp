@@ -1,16 +1,19 @@
 /*!
  * cpp11 R binding for the C++ BART dispatch API (RFC 0004).
  *
- * Stage 1 scope: continuous outcome, identity link, constant leaf, no variance
- * forest, no RFX.  The fast path in R/bart.R calls bart_fit_cpp() and unpacks
- * the result with the accessor functions below.
+ * Supports all BARTFit models: identity, probit, cloglog/ordinal,
+ * variance forest, leaf regression, and random effects (intercept-only
+ * and custom).
  */
 
 #include "R_bart.h"
 #include <cpp11.hpp>
 #include <stochtree/container.h>
+#include <stochtree/random_effects.h>
 
 #include <algorithm>
+#include <cstdint>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -25,7 +28,8 @@ static double nullable_dbl(SEXP x, double sentinel = -1.0) {
 static StochTree::BARTConfig bart_config_from_r(
     cpp11::list sampler_cfg,
     cpp11::list mean_forest_cfg,
-    cpp11::list variance_forest_cfg
+    cpp11::list variance_forest_cfg,
+    cpp11::list rfx_cfg
 ) {
     StochTree::BARTConfig cfg;
 
@@ -52,6 +56,12 @@ static StochTree::BARTConfig bart_config_from_r(
         else if (lf == "cloglog")  cfg.link_function = StochTree::LinkFunction::Cloglog;
         else                       cfg.link_function = StochTree::LinkFunction::Identity;
     }
+
+    // ── Cloglog / ordinal params ──────────────────────────────────────────
+    cfg.cloglog_num_categories = cpp11::as_cpp<int>(sampler_cfg["cloglog_num_categories"]);
+    cfg.cloglog_forest_shape   = cpp11::as_cpp<double>(sampler_cfg["cloglog_forest_shape"]);
+    cfg.cloglog_forest_rate    = cpp11::as_cpp<double>(sampler_cfg["cloglog_forest_rate"]);
+    cfg.cloglog_cutpoint_0     = cpp11::as_cpp<double>(sampler_cfg["cloglog_cutpoint_0"]);
 
     // ── Mean forest params ────────────────────────────────────────────────
     cfg.num_trees            = cpp11::as_cpp<int>(mean_forest_cfg["num_trees"]);
@@ -91,6 +101,21 @@ static StochTree::BARTConfig bart_config_from_r(
         cfg.variable_weights_variance.assign(vwv_r.begin(), vwv_r.end());
     }
 
+    // ── Random effects config ─────────────────────────────────────────────
+    {
+        std::string spec = cpp11::as_cpp<std::string>(rfx_cfg["rfx_model_spec"]);
+        if      (spec == "intercept_only") cfg.rfx_model_spec = StochTree::RFXModelSpec::InterceptOnly;
+        else if (spec == "custom")         cfg.rfx_model_spec = StochTree::RFXModelSpec::Custom;
+        else                               cfg.rfx_model_spec = StochTree::RFXModelSpec::None;
+    }
+    cfg.rfx_num_components       = cpp11::as_cpp<int>(rfx_cfg["rfx_num_components"]);
+    cfg.rfx_alpha_init           = cpp11::as_cpp<double>(rfx_cfg["rfx_alpha_init"]);
+    cfg.rfx_xi_init              = cpp11::as_cpp<double>(rfx_cfg["rfx_xi_init"]);
+    cfg.rfx_sigma_alpha_init     = cpp11::as_cpp<double>(rfx_cfg["rfx_sigma_alpha_init"]);
+    cfg.rfx_sigma_xi_init        = cpp11::as_cpp<double>(rfx_cfg["rfx_sigma_xi_init"]);
+    cfg.rfx_variance_prior_shape = cpp11::as_cpp<double>(rfx_cfg["rfx_variance_prior_shape"]);
+    cfg.rfx_variance_prior_scale = cpp11::as_cpp<double>(rfx_cfg["rfx_variance_prior_scale"]);
+
     return cfg;
 }
 
@@ -108,22 +133,27 @@ cpp11::external_pointer<BARTResultR> bart_fit_cpp(
     cpp11::list             sampler_cfg,
     cpp11::list             mean_forest_cfg,
     cpp11::list             variance_forest_cfg,
+    cpp11::list             rfx_cfg,
     cpp11::doubles_matrix<> X_train_r,
     cpp11::doubles          y_train_r,
     SEXP                    X_test_r,
     SEXP                    feature_types_r,
     SEXP                    weights_r,
     SEXP                    basis_train_r,
-    SEXP                    basis_test_r
+    SEXP                    basis_test_r,
+    SEXP                    rfx_groups_train_r,
+    SEXP                    rfx_basis_train_r,
+    SEXP                    rfx_groups_test_r,
+    SEXP                    rfx_basis_test_r
 ) {
-    StochTree::BARTConfig config = bart_config_from_r(sampler_cfg, mean_forest_cfg, variance_forest_cfg);
+    StochTree::BARTConfig config = bart_config_from_r(
+        sampler_cfg, mean_forest_cfg, variance_forest_cfg, rfx_cfg);
 
     StochTree::BARTData data;
     data.n_train = X_train_r.nrow();
     data.p       = X_train_r.ncol();
 
-    // Input objects are on the R protection stack for the call duration;
-    // PROTECT/UNPROTECT here follows the defensive style of R_data.cpp.
+    // Input objects are on the R protection stack for the call duration.
     int nprotect = 0;
     data.X_train = REAL(PROTECT(static_cast<SEXP>(X_train_r))); ++nprotect;
     data.y_train = REAL(PROTECT(static_cast<SEXP>(y_train_r))); ++nprotect;
@@ -156,6 +186,25 @@ cpp11::external_pointer<BARTResultR> bart_fit_cpp(
         data.basis_test = REAL(PROTECT(basis_test_r)); ++nprotect;
     }
 
+    // Optional RFX data (group labels as int, basis as column-major double)
+    std::vector<int> rfx_groups_train_storage, rfx_groups_test_storage;
+    if (rfx_groups_train_r != R_NilValue) {
+        cpp11::integers g(rfx_groups_train_r);
+        rfx_groups_train_storage.assign(g.begin(), g.end());
+        data.rfx_groups = rfx_groups_train_storage.data();
+    }
+    if (rfx_basis_train_r != R_NilValue) {
+        data.rfx_basis_train = REAL(PROTECT(rfx_basis_train_r)); ++nprotect;
+    }
+    if (rfx_groups_test_r != R_NilValue) {
+        cpp11::integers g(rfx_groups_test_r);
+        rfx_groups_test_storage.assign(g.begin(), g.end());
+        data.rfx_groups_test = rfx_groups_test_storage.data();
+    }
+    if (rfx_basis_test_r != R_NilValue) {
+        data.rfx_basis_test = REAL(PROTECT(rfx_basis_test_r)); ++nprotect;
+    }
+
     // Run BART
     auto res = std::make_unique<StochTree::BARTResult>();
     StochTree::BARTFit(res.get(), config, data);
@@ -166,7 +215,7 @@ cpp11::external_pointer<BARTResultR> bart_fit_cpp(
     return cpp11::external_pointer<BARTResultR>(wrapper.release());
 }
 
-// ── Accessors ─────────────────────────────────────────────────────────────────
+// ── Scalar accessors ──────────────────────────────────────────────────────────
 
 [[cpp11::register]]
 int bart_result_num_samples_cpp(cpp11::external_pointer<BARTResultR> ptr) {
@@ -203,10 +252,16 @@ cpp11::doubles bart_result_leaf_scale_samples_cpp(cpp11::external_pointer<BARTRe
     return vec_to_r(ptr->result->leaf_scale_samples);
 }
 
-// Transfers ownership of the ForestContainer out of BARTResult.
-// After this call, ptr->result->forest_container is null.
-// The returned external_pointer owns the ForestContainer; wrap it in a
-// ForestSamples R6 object on the R side to tie its lifetime to that object.
+// ── Cloglog accessors ─────────────────────────────────────────────────────────
+
+[[cpp11::register]]
+cpp11::doubles bart_result_cloglog_cutpoint_samples_cpp(cpp11::external_pointer<BARTResultR> ptr) {
+    return vec_to_r(ptr->result->cloglog_cutpoint_samples);
+}
+
+// ── Forest accessors ──────────────────────────────────────────────────────────
+
+// Transfers ownership of the ForestContainer out of BARTResult (one-shot).
 [[cpp11::register]]
 cpp11::external_pointer<StochTree::ForestContainer> bart_result_steal_forest_samples_cpp(
     cpp11::external_pointer<BARTResultR> ptr
@@ -238,4 +293,41 @@ cpp11::external_pointer<StochTree::ForestContainer> bart_result_steal_variance_f
 ) {
     StochTree::ForestContainer* fc = ptr->result->variance_forest_container.release();
     return cpp11::external_pointer<StochTree::ForestContainer>(fc);
+}
+
+// ── Random effects accessors ──────────────────────────────────────────────────
+
+[[cpp11::register]]
+bool bart_result_has_rfx_cpp(cpp11::external_pointer<BARTResultR> ptr) {
+    return ptr->result->rfx_container != nullptr;
+}
+
+[[cpp11::register]]
+int bart_result_rfx_num_groups_cpp(cpp11::external_pointer<BARTResultR> ptr) {
+    return ptr->result->rfx_num_groups;
+}
+
+[[cpp11::register]]
+int bart_result_rfx_num_components_cpp(cpp11::external_pointer<BARTResultR> ptr) {
+    return ptr->result->rfx_num_components;
+}
+
+[[cpp11::register]]
+cpp11::integers bart_result_rfx_group_ids_cpp(cpp11::external_pointer<BARTResultR> ptr) {
+    const auto& ids = ptr->result->rfx_group_ids;
+    cpp11::writable::integers out(static_cast<R_xlen_t>(ids.size()));
+    for (R_xlen_t i = 0; i < static_cast<R_xlen_t>(ids.size()); ++i)
+        out[i] = static_cast<int>(ids[i]);
+    return out;
+}
+
+// Transfers ownership of the RandomEffectsContainer out of BARTResult (one-shot).
+[[cpp11::register]]
+cpp11::external_pointer<StochTree::RandomEffectsContainer> bart_result_steal_rfx_container_cpp(
+    cpp11::external_pointer<BARTResultR> ptr
+) {
+    if (!ptr->result->rfx_container)
+        StochTree::Log::Fatal("BARTResult: rfx_container is null or already taken");
+    StochTree::RandomEffectsContainer* raw = ptr->result->rfx_container.release();
+    return cpp11::external_pointer<StochTree::RandomEffectsContainer>(raw);
 }

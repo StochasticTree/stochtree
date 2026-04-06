@@ -1050,15 +1050,14 @@ class BARTModel:
                 )
                 sample_sigma2_global = False
 
-        # ── RFC 0004 Stage 1/2 fast path ───────────────────────────────────────
-        # Identity or probit link, constant-leaf mean forest, no basis, no RFX,
-        # no warm-start.  Probit + variance forest is not a supported combination.
+        # ── RFC 0004 Stage 1/2/3 fast path ────────────────────────────────────
+        # Identity, probit, or cloglog link; mean forest required; no warm-start.
+        # Probit + variance forest is not a supported combination.
+        # Random effects (intercept-only and custom) are supported for all links.
         # BARTFit handles standardization, prior calibration, and all sampling.
-        _no_rfx = rfx_group_ids_train is None
         _no_zero_weights = not (observation_weights is not None and np.all(observation_weights == 0))
-        if ((link_is_linear or link_is_probit)
+        if ((link_is_linear or link_is_probit or link_is_cloglog)
                 and not (link_is_probit and self.include_variance_forest)
-                and _no_rfx
                 and _no_zero_weights
                 and not has_prev_model):
             from stochtree_cpp import BARTConfig as _CppBARTConfig, BARTResultCpp as _CppBARTResult, bart_fit as _bart_fit
@@ -1087,16 +1086,31 @@ class BARTModel:
                 cfg.leaf_model = "multivariate_regression"
             else:
                 cfg.leaf_model = "univariate_regression"
-            cfg.link_function         = "probit" if link_is_probit else "identity"
-            # Probit: Albert-Chib fixes sigma2 at 1 and disables global variance sampling.
-            cfg.sample_sigma2_global  = False if link_is_probit else sample_sigma2_global
-            cfg.sigma2_init           = 1.0 if link_is_probit else (sigma2_init if sigma2_init is not None else -1.0)
-            cfg.sample_sigma2_leaf    = sample_sigma2_leaf
-            cfg.standardize           = self.standardize
-            cfg.cutpoint_grid_size    = cutpoint_grid_size
-            cfg.random_seed           = random_seed if random_seed is not None else -1
-            cfg.num_threads           = num_threads if num_threads is not None else -1
+            # Link function; sigma2 is fixed at 1 for probit/cloglog.
+            _link_fixed_sigma2 = link_is_probit or link_is_cloglog
+            cfg.link_function        = ("probit" if link_is_probit else
+                                        "cloglog" if link_is_cloglog else "identity")
+            cfg.sample_sigma2_global = False if _link_fixed_sigma2 else sample_sigma2_global
+            cfg.sigma2_init          = 1.0 if _link_fixed_sigma2 else (sigma2_init if sigma2_init is not None else -1.0)
+            cfg.sample_sigma2_leaf   = sample_sigma2_leaf
+            cfg.standardize          = self.standardize
+            cfg.cutpoint_grid_size   = cutpoint_grid_size
+            cfg.random_seed          = random_seed if random_seed is not None else -1
+            cfg.num_threads          = num_threads if num_threads is not None else -1
             cfg.variable_weights_mean = variable_weights_mean.tolist()
+
+            # Cloglog / ordinal params
+            if link_is_cloglog:
+                _y_cloglog_min = int(np.min(y_train))
+                _y_0idx = (np.squeeze(y_train).astype(int) - _y_cloglog_min).astype(np.float64)
+                _cloglog_K = int(np.max(_y_0idx)) + 1
+            else:
+                _y_0idx = None
+                _cloglog_K = 0
+            cfg.cloglog_num_categories = _cloglog_K
+            cfg.cloglog_forest_shape   = 2.0
+            cfg.cloglog_forest_rate    = 2.0
+            cfg.cloglog_cutpoint_0     = 0.0
 
             # Variance forest params
             cfg.include_variance_forest   = self.include_variance_forest
@@ -1111,13 +1125,42 @@ class BARTModel:
             if self.include_variance_forest:
                 cfg.variable_weights_variance = variable_weights_variance.tolist()
 
+            # RFX config and data
+            _has_rfx_fast = rfx_group_ids_train is not None
+            if _has_rfx_fast:
+                _rfx_basis_fast = rfx_basis_train
+                if self.rfx_model_spec == "intercept_only" and _rfx_basis_fast is None:
+                    _rfx_basis_fast = np.ones((rfx_group_ids_train.shape[0], 1))
+                _num_rfx_comp = _rfx_basis_fast.shape[1]
+                _rfx_alpha = float(np.asarray(rfx_working_parameter_prior_mean).flat[0]) if rfx_working_parameter_prior_mean is not None else 0.0
+                _rfx_xi    = _rfx_alpha
+                _rfx_sa    = float(np.asarray(rfx_working_parameter_prior_cov).flat[0]) if rfx_working_parameter_prior_cov is not None else 1.0
+                _rfx_sxi   = float(np.asarray(rfx_group_parameter_prior_cov).flat[0]) if rfx_group_parameter_prior_cov is not None else 1.0
+                cfg.rfx_model_spec           = self.rfx_model_spec
+                cfg.rfx_num_components       = _num_rfx_comp
+                cfg.rfx_alpha_init           = _rfx_alpha
+                cfg.rfx_xi_init              = _rfx_xi
+                cfg.rfx_sigma_alpha_init     = _rfx_sa
+                cfg.rfx_sigma_xi_init        = _rfx_sxi
+                cfg.rfx_variance_prior_shape = float(rfx_variance_prior_shape)
+                cfg.rfx_variance_prior_scale = float(rfx_variance_prior_scale)
+            else:
+                _rfx_basis_fast = None
+                _num_rfx_comp   = 0
+
             X_arr = np.asfortranarray(X_train_processed.astype(np.float64))
-            y_arr = np.asarray(np.squeeze(y_train), dtype=np.float64)
+            y_arr = _y_0idx if link_is_cloglog else np.asarray(np.squeeze(y_train), dtype=np.float64)
             X_test_arr  = np.asfortranarray(X_test_processed.astype(np.float64)) if self.has_test else None
             weights_arr = observation_weights_ if observation_weights is not None else None
             ft_arr      = feature_types.astype(np.int32) if feature_types is not None else None
             basis_train_arr = np.asfortranarray(leaf_basis_train.astype(np.float64)) if self.has_basis else None
             basis_test_arr  = np.asfortranarray(leaf_basis_test.astype(np.float64)) if (self.has_test and self.has_basis) else None
+            rfx_groups_arr      = rfx_group_ids_train.astype(np.int32) if _has_rfx_fast else None
+            rfx_basis_arr       = np.asfortranarray(_rfx_basis_fast.astype(np.float64)) if _has_rfx_fast else None
+            _has_rfx_test_fast  = _has_rfx_fast and rfx_group_ids_test is not None
+            rfx_groups_test_arr = rfx_group_ids_test.astype(np.int32) if _has_rfx_test_fast else None
+            rfx_basis_test_arr  = (np.asfortranarray(rfx_basis_test.astype(np.float64))
+                                   if (_has_rfx_test_fast and rfx_basis_test is not None) else None)
 
             # Python/R own the result from the start; BARTFit writes into it.
             _result = _CppBARTResult()
@@ -1126,7 +1169,11 @@ class BARTModel:
                       weights=weights_arr,
                       feature_types=ft_arr,
                       basis_train=basis_train_arr,
-                      basis_test=basis_test_arr)
+                      basis_test=basis_test_arr,
+                      rfx_groups_train=rfx_groups_arr,
+                      rfx_basis_train=rfx_basis_arr,
+                      rfx_groups_test=rfx_groups_test_arr,
+                      rfx_basis_test=rfx_basis_test_arr)
 
             # Unpack metadata
             self.y_bar        = _result.y_bar
@@ -1138,14 +1185,15 @@ class BARTModel:
             self.keep_every   = keep_every
             self.num_samples  = _result.num_total_samples
             # self.num_basis already set from leaf_basis_train earlier in sample()
-            self.include_mean_forest     = True
+            self.include_mean_forest = True
             # include_variance_forest was already set from variance_forest_params earlier
-            self.has_rfx      = False
-            self.has_rfx_basis = False
-            self.num_rfx_basis = 0
-            self.sample_sigma2_global = False if link_is_probit else sample_sigma2_global
+            _link_fixed_sigma2_unpack = link_is_probit or link_is_cloglog
+            self.has_rfx       = _has_rfx_fast
+            self.has_rfx_basis = _has_rfx_fast
+            self.num_rfx_basis = _num_rfx_comp
+            self.sample_sigma2_global = False if _link_fixed_sigma2_unpack else sample_sigma2_global
             self.sample_sigma2_leaf   = sample_sigma2_leaf
-            self.sigma2_init  = 1.0 if link_is_probit else (
+            self.sigma2_init  = 1.0 if _link_fixed_sigma2_unpack else (
                 _result.sigma2_global_samples[0] / (_result.y_std ** 2) if sample_sigma2_global else 1.0
             )
 
@@ -1190,7 +1238,29 @@ class BARTModel:
                 self.forest_container_variance.leaf_constant    = True
                 self.forest_container_variance.is_exponentiated = True
 
-            self.rfx_model_spec = "none"
+            # Cloglog cutpoint samples: flat (K-1)*S vector → (K-1, S) array.
+            # Match slow path: only store cutpoints for ordinal (K>2); binary cutpoint
+            # gamma[0] is fixed to 0 for identifiability and is not informative.
+            if link_is_cloglog:
+                self.cloglog_num_categories = _cloglog_K
+                if _cloglog_K > 2:
+                    _cuts_flat = np.array(_result.cloglog_cutpoint_samples)
+                    self.cloglog_cutpoint_samples = _cuts_flat.reshape(
+                        (_cloglog_K - 1, _result.num_total_samples), order='F'
+                    )
+
+            # RFX container and label mapper
+            if _has_rfx_fast and _result.has_rfx():
+                from stochtree_cpp import RandomEffectsContainerCpp, RandomEffectsLabelMapperCpp
+                from stochtree.random_effects import RandomEffectsContainer
+                self.rfx_container = RandomEffectsContainer()
+                self.rfx_container.rfx_container_cpp = _result.steal_rfx_container()
+                _rfx_gids = _result.rfx_group_ids
+                self.rfx_container.rfx_label_mapper_cpp = RandomEffectsLabelMapperCpp()
+                self.rfx_container.rfx_label_mapper_cpp.LoadFromGroupIds(_rfx_gids)
+                self.rfx_container.rfx_group_ids = _rfx_gids
+
+            self.rfx_model_spec = self.rfx_model_spec if _has_rfx_fast else "none"
             self.sampled = True
             return self
         # ── End RFC 0004 fast path ─────────────────────────────────────────────
