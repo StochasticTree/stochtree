@@ -19,6 +19,7 @@
 #include <stochtree/bart.h>
 
 #include <stochtree/container.h>
+#include <stochtree/random_effects.h>
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/leaf_model.h>
@@ -75,11 +76,12 @@ void BARTFit(BARTResult*        result_ptr,
     Log::Fatal("BARTFit: leaf scale sampling is not supported for multivariate leaf regression.");
   if (config.include_variance_forest && config.num_trees_variance <= 0)
     Log::Fatal("BARTFit: include_variance_forest=true requires num_trees_variance > 0.");
-  if (config.num_trees <= 0 && !config.include_variance_forest)
-    Log::Fatal("BARTFit: at least one of num_trees > 0 or include_variance_forest=true "
-               "must be specified.");
-  if (config.rfx_model_spec != RFXModelSpec::None)
-    Log::Fatal("BARTFit: random effects are not yet supported in the C++ dispatch layer.");
+  if (config.num_trees <= 0 && !config.include_variance_forest
+      && config.rfx_model_spec == RFXModelSpec::None)
+    Log::Fatal("BARTFit: at least one of num_trees > 0, include_variance_forest=true, "
+               "or rfx_model_spec != None must be specified.");
+  if (config.rfx_model_spec == RFXModelSpec::Custom && config.rfx_num_components < 1)
+    Log::Fatal("BARTFit: rfx_num_components must be >= 1 for Custom RFX.");
   if (!previous_model_json.empty())
     Log::Fatal("BARTFit: warm-start from previous_model_json is not yet supported "
                "in the C++ dispatch layer.");
@@ -108,6 +110,14 @@ void BARTFit(BARTResult*        result_ptr,
       Log::Fatal("BARTFit: basis_train and basis_dim > 0 required for leaf regression.");
   }
 
+  // ── RFX data validation ────────────────────────────────────────────
+  if (config.rfx_model_spec != RFXModelSpec::None) {
+    if (data.rfx_groups == nullptr)
+      Log::Fatal("BARTFit: rfx_groups must not be null when rfx_model_spec != None.");
+    if (config.rfx_model_spec == RFXModelSpec::Custom && data.rfx_basis_train == nullptr)
+      Log::Fatal("BARTFit: rfx_basis_train required for Custom rfx_model_spec.");
+  }
+
   int n_train  = data.n_train;
   int p        = data.p;
   int n_test   = data.n_test;
@@ -117,6 +127,9 @@ void BARTFit(BARTResult*        result_ptr,
   bool has_variance_forest = config.include_variance_forest && config.num_trees_variance > 0;
   bool has_mean_forest     = (config.num_trees > 0);
   int  num_trees_variance  = config.num_trees_variance;
+  bool has_rfx             = (config.rfx_model_spec != RFXModelSpec::None);
+  int  rfx_num_components  = (config.rfx_model_spec == RFXModelSpec::InterceptOnly)
+                               ? 1 : config.rfx_num_components;
 
   // ── Standardize y (or set probit-scale intercept) ──────────────────
   double y_bar = 0.0, y_std = 1.0;
@@ -245,6 +258,77 @@ void BARTFit(BARTResult*        result_ptr,
   // ── Residual ───────────────────────────────────────────────────────
   ColumnVector residual(resid_vec.data(), n_train);
 
+  // ── RFX data setup ─────────────────────────────────────────────────
+  // Persistent storage for InterceptOnly bases and group label vectors.
+  std::vector<double>  rfx_ones_train;
+  std::vector<double>  rfx_ones_test;
+  std::vector<int32_t> rfx_groups_train_vec;
+  std::vector<int32_t> rfx_groups_test_vec;
+
+  std::unique_ptr<RandomEffectsDataset>                     rfx_dataset_train;
+  std::unique_ptr<RandomEffectsDataset>                     rfx_dataset_test;
+  std::unique_ptr<RandomEffectsTracker>                     rfx_tracker;
+  std::unique_ptr<MultivariateRegressionRandomEffectsModel> rfx_model;
+
+  // rfx_num_groups is determined by the training data; 0 when no RFX.
+  int rfx_num_groups = 0;
+  bool has_rfx_test  = false;  // set below when test group labels are supplied
+
+  if (has_rfx) {
+    // Copy group labels (raw int*) into a std::vector<int32_t>.
+    rfx_groups_train_vec.resize(n_train);
+    for (int i = 0; i < n_train; i++)
+      rfx_groups_train_vec[i] = static_cast<int32_t>(data.rfx_groups[i]);
+
+    rfx_dataset_train = std::make_unique<RandomEffectsDataset>();
+    if (config.rfx_model_spec == RFXModelSpec::InterceptOnly) {
+      rfx_ones_train.assign(n_train, 1.0);
+      rfx_dataset_train->AddBasis(rfx_ones_train.data(), n_train, 1, /*row_major=*/false);
+    } else {
+      rfx_dataset_train->AddBasis(
+          const_cast<double*>(data.rfx_basis_train), n_train, rfx_num_components, /*row_major=*/false);
+    }
+    rfx_dataset_train->AddGroupLabels(rfx_groups_train_vec);
+
+    rfx_tracker     = std::make_unique<RandomEffectsTracker>(rfx_groups_train_vec);
+    rfx_num_groups  = rfx_tracker->NumCategories();
+
+    rfx_model = std::make_unique<MultivariateRegressionRandomEffectsModel>(
+        rfx_num_components, rfx_num_groups);
+
+    // Initialize model parameters from config.
+    Eigen::VectorXd alpha_init = Eigen::VectorXd::Constant(rfx_num_components, config.rfx_alpha_init);
+    rfx_model->SetWorkingParameter(alpha_init);
+    Eigen::MatrixXd xi_init = Eigen::MatrixXd::Constant(rfx_num_components, rfx_num_groups, config.rfx_xi_init);
+    rfx_model->SetGroupParameters(xi_init);
+    Eigen::MatrixXd Sigma_alpha = Eigen::MatrixXd::Identity(rfx_num_components, rfx_num_components)
+                                  * config.rfx_sigma_alpha_init;
+    rfx_model->SetWorkingParameterCovariance(Sigma_alpha);
+    Eigen::MatrixXd Sigma_xi = Eigen::MatrixXd::Identity(rfx_num_components, rfx_num_components)
+                               * config.rfx_sigma_xi_init;
+    rfx_model->SetGroupParameterCovariance(Sigma_xi);
+    rfx_model->SetVariancePriorShape(config.rfx_variance_prior_shape);
+    rfx_model->SetVariancePriorScale(config.rfx_variance_prior_scale);
+
+    // Optional test dataset (only when test group labels are supplied).
+    has_rfx_test = has_test && (data.rfx_groups_test != nullptr);
+    if (has_rfx_test) {
+      rfx_groups_test_vec.resize(n_test);
+      for (int i = 0; i < n_test; i++)
+        rfx_groups_test_vec[i] = static_cast<int32_t>(data.rfx_groups_test[i]);
+
+      rfx_dataset_test = std::make_unique<RandomEffectsDataset>();
+      if (config.rfx_model_spec == RFXModelSpec::InterceptOnly) {
+        rfx_ones_test.assign(n_test, 1.0);
+        rfx_dataset_test->AddBasis(rfx_ones_test.data(), n_test, 1, /*row_major=*/false);
+      } else {
+        rfx_dataset_test->AddBasis(
+            const_cast<double*>(data.rfx_basis_test), n_test, rfx_num_components, /*row_major=*/false);
+      }
+      rfx_dataset_test->AddGroupLabels(rfx_groups_test_vec);
+    }
+  }
+
   // ── Sampler objects ────────────────────────────────────────────────
   int num_trees = config.num_trees;
   int cutpoint_grid_size = config.cutpoint_grid_size > 0
@@ -293,6 +377,8 @@ void BARTFit(BARTResult*        result_ptr,
   result.n_test = n_test;
   result.y_bar = y_bar;
   result.y_std = y_std;
+  if (has_rfx)
+    result.rfx_container = std::make_unique<RandomEffectsContainer>(rfx_num_components, rfx_num_groups);
 
   result.y_hat_train.resize(static_cast<size_t>(n_train) * num_total, 0.0);
   if (has_test)
@@ -313,9 +399,15 @@ void BARTFit(BARTResult*        result_ptr,
   // When num_trees == 0 (variance-only model) the mean prediction is y_bar.
   auto cache_train_predictions = [&](int col) {
     double* dst = result.y_hat_train.data() + static_cast<size_t>(col) * n_train;
-    if (has_mean_forest) {
+    if (has_mean_forest && has_rfx) {
+      for (int j = 0; j < n_train; j++)
+        dst[j] = (tracker.GetSamplePrediction(j) + rfx_tracker->GetPrediction(j)) * y_std + y_bar;
+    } else if (has_mean_forest) {
       for (int j = 0; j < n_train; j++)
         dst[j] = tracker.GetSamplePrediction(j) * y_std + y_bar;
+    } else if (has_rfx) {
+      for (int j = 0; j < n_train; j++)
+        dst[j] = rfx_tracker->GetPrediction(j) * y_std + y_bar;
     } else {
       std::fill(dst, dst + n_train, y_bar);
     }
@@ -323,13 +415,18 @@ void BARTFit(BARTResult*        result_ptr,
   auto cache_test_predictions = [&](int col) {
     if (!has_test) return;
     double* dst = result.y_hat_test.data() + static_cast<size_t>(col) * n_test;
+    // Compute current RFX test predictions using the current model state.
+    std::vector<double> rfx_test_preds(n_test, 0.0);
+    if (has_rfx && has_rfx_test)
+      rfx_model->PredictInplace(*rfx_dataset_test, *rfx_tracker, rfx_test_preds);
     if (has_mean_forest && forest_container.NumSamples() > 0) {
       int last = forest_container.NumSamples() - 1;
       std::vector<double> test_preds = forest_container.PredictRaw(dataset_test, last);
       for (int j = 0; j < n_test; j++)
-        dst[j] = test_preds[j] * y_std + y_bar;
+        dst[j] = (test_preds[j] + rfx_test_preds[j]) * y_std + y_bar;
     } else {
-      std::fill(dst, dst + n_test, y_bar);
+      for (int j = 0; j < n_test; j++)
+        dst[j] = rfx_test_preds[j] * y_std + y_bar;
     }
   };
 
@@ -424,6 +521,14 @@ void BARTFit(BARTResult*        result_ptr,
       ? (use_gfr_scratch ? gfr_var_scratch.get() : result.variance_forest_container.get())
       : nullptr;
 
+  // GFR RFX scratch container (analogous to gfr_mean_scratch / gfr_var_scratch).
+  std::unique_ptr<RandomEffectsContainer> gfr_rfx_scratch;
+  if (use_gfr_scratch && has_rfx)
+    gfr_rfx_scratch = std::make_unique<RandomEffectsContainer>(rfx_num_components, rfx_num_groups);
+  RandomEffectsContainer* gfr_rfx_fc = has_rfx
+      ? (use_gfr_scratch ? gfr_rfx_scratch.get() : result.rfx_container.get())
+      : nullptr;
+
   // Scalar seed buffers: always populated during GFR when num_mcmc > 0 so that
   // chain seeding can restore the correct sigma2 / leaf_scale state even when
   // keep_gfr=false (i.e. when the result arrays have no GFR-indexed slots).
@@ -473,14 +578,6 @@ void BARTFit(BARTResult*        result_ptr,
       }
     }
 
-    // Cache mean predictions (column i) only when storing GFR samples.
-    // For probit, predictions are on the probit scale (forest_pred + y_bar).
-    // When num_trees == 0, fills y_bar (no mean forest).
-    if (store_gfr) {
-      cache_train_predictions(i);
-      cache_test_predictions(i);
-    }
-
     // Sample variance forest (GFR step), then update per-obs variance weights.
     if (has_variance_forest) {
       LogLinearVarianceLeafModel var_leaf_model(a_forest, b_forest);
@@ -499,6 +596,19 @@ void BARTFit(BARTResult*        result_ptr,
         cache_sigma2x_train(i);
         cache_sigma2x_test(i);
       }
+    }
+
+    // Sample random effects (GFR step).
+    if (has_rfx) {
+      rfx_model->SampleRandomEffects(*rfx_dataset_train, residual, *rfx_tracker, current_sigma2, rng);
+      gfr_rfx_fc->AddSample(*rfx_model);
+    }
+
+    // Cache combined predictions (mean forest + RFX) only when storing GFR samples.
+    // Placed here, after all components are sampled, so RFX contributions are included.
+    if (store_gfr) {
+      cache_train_predictions(i);
+      cache_test_predictions(i);
     }
 
     // Sample scalar variance parameters (mean forest only).
@@ -555,6 +665,17 @@ void BARTFit(BARTResult*        result_ptr,
           variance_tracker.ReconstituteFromForest(
               active_forest_variance, dataset_train, residual, /*is_mean_model=*/false);
         }
+        // Seed RFX model and tracker from the chosen GFR sample.
+        // The working parameter covariance (sigma_alpha) is not stored in the
+        // container — reset it to its initial value, matching the R interface.
+        if (has_rfx) {
+          rfx_model->ResetFromSample(*gfr_rfx_fc, forest_ind);
+          Eigen::MatrixXd Sigma_alpha =
+              Eigen::MatrixXd::Identity(rfx_num_components, rfx_num_components)
+              * config.rfx_sigma_alpha_init;
+          rfx_model->SetWorkingParameterCovariance(Sigma_alpha);
+          rfx_tracker->ResetFromSample(*rfx_model, *rfx_dataset_train, residual);
+        }
       } else {
         // No GFR: reset every tree to a single root stump, then seed the tracker.
         if (has_mean_forest) {
@@ -573,6 +694,24 @@ void BARTFit(BARTResult*        result_ptr,
           active_forest_variance.SetLeafValue(var_leaf_init);
           variance_tracker.ReconstituteFromForest(
               active_forest_variance, dataset_train, residual, /*is_mean_model=*/false);
+        }
+        // Reset RFX model to initial state and zero the tracker predictions.
+        // RootReset adds back the current RFX predictions to the residual (undoing
+        // the previous chain's RFX contribution) and sets tracker predictions to 0.
+        if (has_rfx) {
+          Eigen::VectorXd alpha_init = Eigen::VectorXd::Constant(rfx_num_components, config.rfx_alpha_init);
+          rfx_model->SetWorkingParameter(alpha_init);
+          Eigen::MatrixXd xi_init = Eigen::MatrixXd::Constant(rfx_num_components, rfx_num_groups, config.rfx_xi_init);
+          rfx_model->SetGroupParameters(xi_init);
+          Eigen::MatrixXd Sigma_alpha =
+              Eigen::MatrixXd::Identity(rfx_num_components, rfx_num_components)
+              * config.rfx_sigma_alpha_init;
+          rfx_model->SetWorkingParameterCovariance(Sigma_alpha);
+          Eigen::MatrixXd Sigma_xi =
+              Eigen::MatrixXd::Identity(rfx_num_components, rfx_num_components)
+              * config.rfx_sigma_xi_init;
+          rfx_model->SetGroupParameterCovariance(Sigma_xi);
+          rfx_tracker->RootReset(*rfx_model, *rfx_dataset_train, residual);
         }
       }
 
@@ -629,6 +768,10 @@ void BARTFit(BARTResult*        result_ptr,
               config.num_threads);
         }
 
+        // Sample random effects (MCMC step).
+        if (has_rfx)
+          rfx_model->SampleRandomEffects(*rfx_dataset_train, residual, *rfx_tracker, chain_sigma2, rng);
+
         // Probit: sigma2 fixed at 1, skip global variance sampling.
         if (has_mean_forest && !is_probit && config.sample_sigma2_global) {
           if (dataset_train.HasVarWeights()) {
@@ -652,6 +795,8 @@ void BARTFit(BARTResult*        result_ptr,
             cache_sigma2x_train(col);
             cache_sigma2x_test(col);
           }
+          if (has_rfx)
+            result.rfx_container->AddSample(*rfx_model);
           if (has_mean_forest && !is_probit && config.sample_sigma2_global)
             result.sigma2_global_samples[col] = chain_sigma2 * y_std * y_std;
           if (has_mean_forest && config.sample_sigma2_leaf)
@@ -660,6 +805,15 @@ void BARTFit(BARTResult*        result_ptr,
         }
       }
     }
+  }
+
+  // ── RFX result metadata ────────────────────────────────────────────
+  if (has_rfx) {
+    result.rfx_num_groups     = rfx_num_groups;
+    result.rfx_num_components = rfx_num_components;
+    // The label map (ordered std::map<int32_t, int32_t>) gives sorted group IDs.
+    for (const auto& kv : rfx_tracker->GetLabelMap())
+      result.rfx_group_ids.push_back(kv.first);
   }
 
 }

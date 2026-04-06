@@ -1196,4 +1196,343 @@ TEST(BARTFit, NoMeanForest_VarianceOnly_MultiChain) {
   EXPECT_TRUE(AllFinite(result.sigma2_x_hat_train));
 }
 
+// ── Random effects helpers ─────────────────────────────────────────────────
+
+struct SyntheticRFXData {
+  int n_train, n_test, p, n_groups;
+  std::vector<double> X_train;      // column-major, n_train × p
+  std::vector<double> y_train;      // n_train
+  std::vector<int>    groups_train; // n_train  (1-indexed group labels)
+  std::vector<double> X_test;       // column-major, n_test × p
+  std::vector<int>    groups_test;  // n_test
+};
+
+// DGP: y_i = 2*x_i0 - x_i1 + gamma_{g(i)} + eps,
+//      gamma_g ~ N(0, 1) (group effects), eps ~ N(0, 0.5)
+// Group labels: 1..n_groups uniformly assigned.
+static SyntheticRFXData MakeRFXData(int n_train, int n_test, int p, int n_groups, unsigned seed) {
+  SyntheticRFXData d;
+  d.n_train  = n_train;
+  d.n_test   = n_test;
+  d.p        = p;
+  d.n_groups = n_groups;
+
+  std::mt19937 rng(seed);
+  std::normal_distribution<double> norm(0.0, 1.0);
+  std::normal_distribution<double> eps(0.0, 0.5);
+  std::uniform_int_distribution<int> grp(1, n_groups);
+
+  // Group effects
+  std::vector<double> gamma(n_groups + 1);  // 1-indexed
+  for (int g = 1; g <= n_groups; g++) gamma[g] = norm(rng);
+
+  int n_total = n_train + n_test;
+  std::vector<double> X_all(static_cast<size_t>(n_total) * p);
+  std::vector<int>    grp_all(n_total);
+
+  for (int j = 0; j < p; j++)
+    for (int i = 0; i < n_total; i++)
+      X_all[j * n_total + i] = norm(rng);
+
+  for (int i = 0; i < n_total; i++) grp_all[i] = grp(rng);
+
+  // Training set
+  d.X_train.resize(static_cast<size_t>(n_train) * p);
+  d.y_train.resize(n_train);
+  d.groups_train.resize(n_train);
+  for (int j = 0; j < p; j++)
+    for (int i = 0; i < n_train; i++)
+      d.X_train[j * n_train + i] = X_all[j * n_total + i];
+  for (int i = 0; i < n_train; i++) {
+    double sig = 2.0 * X_all[0 * n_total + i];
+    if (p > 1) sig -= X_all[1 * n_total + i];
+    d.y_train[i]     = sig + gamma[grp_all[i]] + eps(rng);
+    d.groups_train[i] = grp_all[i];
+  }
+
+  // Test set (only groups already present in training)
+  d.X_test.resize(static_cast<size_t>(n_test) * p);
+  d.groups_test.resize(n_test);
+  for (int j = 0; j < p; j++)
+    for (int i = 0; i < n_test; i++)
+      d.X_test[j * n_test + i] = X_all[j * n_total + n_train + i];
+  for (int i = 0; i < n_test; i++) {
+    // Assign test obs to training groups (modulo ensures subset constraint)
+    d.groups_test[i] = ((grp_all[n_train + i] - 1) % n_groups) + 1;
+  }
+
+  return d;
+}
+
+// ── Random effects tests ──────────────────────────────────────────────────
+
+TEST(BARTFit, RFX_InterceptOnly_GFROnly_Shape_Finite) {
+  auto d = MakeRFXData(150, 0, 5, 4, 11);
+
+  StochTree::BARTConfig config;
+  config.num_trees     = 20;
+  config.num_gfr       = 10;
+  config.num_burnin    = 0;
+  config.num_mcmc      = 0;
+  config.keep_gfr      = true;
+  config.rfx_model_spec = StochTree::RFXModelSpec::InterceptOnly;
+  config.sample_sigma2_global = false;
+  config.sample_sigma2_leaf   = false;
+  config.random_seed   = 11;
+
+  StochTree::BARTData data;
+  data.X_train     = d.X_train.data(); data.n_train = d.n_train; data.p = d.p;
+  data.y_train     = d.y_train.data();
+  data.rfx_groups  = d.groups_train.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 10;  // GFR only, keep_gfr=true
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), d.n_train * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_EQ(result.rfx_num_groups,     d.n_groups);
+  EXPECT_EQ(result.rfx_num_components, 1);
+  EXPECT_EQ(static_cast<int>(result.rfx_group_ids.size()), d.n_groups);
+  EXPECT_NE(result.rfx_container, nullptr);
+  EXPECT_EQ(result.rfx_container->NumSamples(), num_total);
+}
+
+TEST(BARTFit, RFX_InterceptOnly_GFR_Plus_MCMC_Shape_Finite) {
+  auto d = MakeRFXData(150, 0, 5, 4, 22);
+
+  StochTree::BARTConfig config;
+  config.num_trees      = 20;
+  config.num_gfr        = 5;
+  config.num_burnin     = 2;
+  config.num_mcmc       = 20;
+  config.num_chains     = 1;
+  config.rfx_model_spec = StochTree::RFXModelSpec::InterceptOnly;
+  config.sample_sigma2_global = true;
+  config.sample_sigma2_leaf   = false;
+  config.random_seed    = 22;
+
+  StochTree::BARTData data;
+  data.X_train    = d.X_train.data(); data.n_train = d.n_train; data.p = d.p;
+  data.y_train    = d.y_train.data();
+  data.rfx_groups = d.groups_train.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 20;  // keep_gfr=false → only MCMC samples
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), d.n_train * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_NE(result.rfx_container, nullptr);
+  EXPECT_EQ(result.rfx_container->NumSamples(), num_total);
+  EXPECT_EQ(static_cast<int>(result.sigma2_global_samples.size()), num_total);
+  EXPECT_TRUE(AllFinite(result.sigma2_global_samples));
+}
+
+TEST(BARTFit, RFX_InterceptOnly_WithTestSet) {
+  auto d = MakeRFXData(150, 50, 5, 3, 33);
+
+  StochTree::BARTConfig config;
+  config.num_trees      = 20;
+  config.num_gfr        = 5;
+  config.num_mcmc       = 15;
+  config.num_chains     = 1;
+  config.rfx_model_spec = StochTree::RFXModelSpec::InterceptOnly;
+  config.sample_sigma2_global = false;
+  config.sample_sigma2_leaf   = false;
+  config.random_seed    = 33;
+
+  StochTree::BARTData data;
+  data.X_train       = d.X_train.data(); data.n_train = d.n_train; data.p = d.p;
+  data.y_train       = d.y_train.data();
+  data.X_test        = d.X_test.data();  data.n_test  = d.n_test;
+  data.rfx_groups    = d.groups_train.data();
+  data.rfx_groups_test = d.groups_test.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 15;
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), d.n_train * num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_test.size()),  d.n_test  * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_TRUE(AllFinite(result.y_hat_test));
+}
+
+TEST(BARTFit, RFX_InterceptOnly_MultiChain) {
+  auto d = MakeRFXData(150, 0, 5, 5, 44);
+
+  StochTree::BARTConfig config;
+  config.num_trees      = 20;
+  config.num_gfr        = 5;
+  config.num_burnin     = 2;
+  config.num_mcmc       = 10;
+  config.num_chains     = 3;
+  config.rfx_model_spec = StochTree::RFXModelSpec::InterceptOnly;
+  config.sample_sigma2_global = false;
+  config.sample_sigma2_leaf   = false;
+  config.random_seed    = 44;
+
+  StochTree::BARTData data;
+  data.X_train    = d.X_train.data(); data.n_train = d.n_train; data.p = d.p;
+  data.y_train    = d.y_train.data();
+  data.rfx_groups = d.groups_train.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 3 * 10;
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), d.n_train * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_NE(result.rfx_container, nullptr);
+  EXPECT_EQ(result.rfx_container->NumSamples(), num_total);
+}
+
+TEST(BARTFit, RFX_Custom_Basis_Shape_Finite) {
+  auto d = MakeRFXData(150, 0, 5, 4, 55);
+  int n = d.n_train;
+  int n_components = 2;
+  // Custom basis: [1, x_0] for each observation (2 components)
+  std::vector<double> basis(static_cast<size_t>(n) * n_components);
+  for (int i = 0; i < n; i++) {
+    basis[0 * n + i] = 1.0;
+    basis[1 * n + i] = d.X_train[0 * n + i];  // first covariate as second basis
+  }
+
+  StochTree::BARTConfig config;
+  config.num_trees        = 20;
+  config.num_gfr          = 5;
+  config.num_mcmc         = 10;
+  config.num_chains       = 1;
+  config.rfx_model_spec   = StochTree::RFXModelSpec::Custom;
+  config.rfx_num_components = n_components;
+  config.sample_sigma2_global = false;
+  config.sample_sigma2_leaf   = false;
+  config.random_seed      = 55;
+
+  StochTree::BARTData data;
+  data.X_train         = d.X_train.data(); data.n_train = n; data.p = d.p;
+  data.y_train         = d.y_train.data();
+  data.rfx_groups      = d.groups_train.data();
+  data.rfx_basis_train = basis.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 10;
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_EQ(result.rfx_num_components, n_components);
+  EXPECT_NE(result.rfx_container, nullptr);
+  EXPECT_EQ(result.rfx_container->NumSamples(), num_total);
+}
+
+TEST(BARTFit, RFX_Only_No_Mean_Forest) {
+  // RFX with no mean forest (num_trees=0) — pure random effects model.
+  auto d = MakeRFXData(150, 0, 5, 4, 66);
+
+  StochTree::BARTConfig config;
+  config.num_trees      = 0;
+  config.num_gfr        = 0;
+  config.num_mcmc       = 20;
+  config.num_chains     = 1;
+  config.rfx_model_spec = StochTree::RFXModelSpec::InterceptOnly;
+  config.sample_sigma2_global = false;
+  config.sample_sigma2_leaf   = false;
+  config.random_seed    = 66;
+
+  StochTree::BARTData data;
+  data.X_train    = d.X_train.data(); data.n_train = d.n_train; data.p = d.p;
+  data.y_train    = d.y_train.data();
+  data.rfx_groups = d.groups_train.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 20;
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), d.n_train * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_NE(result.rfx_container, nullptr);
+  EXPECT_EQ(result.rfx_container->NumSamples(), num_total);
+}
+
+TEST(BARTFit, RFX_Reproducibility_SameSeed) {
+  auto d = MakeRFXData(120, 40, 4, 3, 77);
+
+  auto run = [&]() {
+    StochTree::BARTConfig config;
+    config.num_trees      = 20;
+    config.num_gfr        = 5;
+    config.num_mcmc       = 15;
+    config.num_chains     = 1;
+    config.rfx_model_spec = StochTree::RFXModelSpec::InterceptOnly;
+    config.sample_sigma2_global = false;
+    config.sample_sigma2_leaf   = false;
+    config.random_seed    = 77;
+
+    StochTree::BARTData data;
+    data.X_train         = d.X_train.data(); data.n_train = d.n_train; data.p = d.p;
+    data.y_train         = d.y_train.data();
+    data.X_test          = d.X_test.data();  data.n_test  = d.n_test;
+    data.rfx_groups      = d.groups_train.data();
+    data.rfx_groups_test = d.groups_test.data();
+
+    StochTree::BARTResult result;
+    StochTree::BARTFit(&result, config, data);
+    return result;
+  };
+
+  auto r1 = run();
+  auto r2 = run();
+
+  EXPECT_EQ(r1.y_hat_train, r2.y_hat_train);
+  EXPECT_EQ(r1.y_hat_test,  r2.y_hat_test);
+}
+
+TEST(BARTFit, RFX_ValidationErrors) {
+  auto d = MakeRFXData(100, 0, 4, 3, 88);
+
+  // Missing rfx_groups
+  {
+    StochTree::BARTConfig config;
+    config.num_trees      = 20;
+    config.num_gfr        = 5;
+    config.num_mcmc       = 5;
+    config.rfx_model_spec = StochTree::RFXModelSpec::InterceptOnly;
+
+    StochTree::BARTData data;
+    data.X_train = d.X_train.data(); data.n_train = d.n_train; data.p = d.p;
+    data.y_train = d.y_train.data();
+    // rfx_groups intentionally null
+
+    StochTree::BARTResult result;
+    EXPECT_THROW(StochTree::BARTFit(&result, config, data), std::runtime_error);
+  }
+
+  // Custom RFX but missing basis
+  {
+    StochTree::BARTConfig config;
+    config.num_trees        = 20;
+    config.num_gfr          = 5;
+    config.num_mcmc         = 5;
+    config.rfx_model_spec   = StochTree::RFXModelSpec::Custom;
+    config.rfx_num_components = 1;
+
+    StochTree::BARTData data;
+    data.X_train    = d.X_train.data(); data.n_train = d.n_train; data.p = d.p;
+    data.y_train    = d.y_train.data();
+    data.rfx_groups = d.groups_train.data();
+    // rfx_basis_train intentionally null
+
+    StochTree::BARTResult result;
+    EXPECT_THROW(StochTree::BARTFit(&result, config, data), std::runtime_error);
+  }
+}
+
 } // namespace

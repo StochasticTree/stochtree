@@ -16,6 +16,7 @@
 #define STOCHTREE_BART_H_
 
 #include <stochtree/container.h>
+#include <stochtree/random_effects.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -116,13 +117,14 @@ struct BARTConfig {
   double cloglog_cutpoint_0     = 0.0;
 
   // ── Random effects ────────────────────────────────────────────────
-  RFXModelSpec rfx_model_spec = RFXModelSpec::None;
-  int    rfx_num_components   = 1;
-  double rfx_alpha_init       = 1.0;
-  double rfx_xi_init          = 1.0;
-  double rfx_sigma_alpha_init = 1.0;
-  std::vector<double> rfx_group_parameter_prior_mean;
-  std::vector<double> rfx_group_parameter_prior_cov;
+  RFXModelSpec rfx_model_spec       = RFXModelSpec::None;
+  int    rfx_num_components         = 1;     ///< Ignored for InterceptOnly (forced to 1)
+  double rfx_alpha_init             = 1.0;   ///< Initial working parameter (scalar, all components)
+  double rfx_xi_init                = 1.0;   ///< Initial group parameters (scalar, all groups/components)
+  double rfx_sigma_alpha_init       = 1.0;   ///< Initial working parameter variance (diagonal)
+  double rfx_sigma_xi_init          = 1.0;   ///< Initial group parameter variance (diagonal)
+  double rfx_variance_prior_shape   = 1.0;   ///< IG prior shape for σ²_ξ
+  double rfx_variance_prior_scale   = 1.0;   ///< IG prior scale for σ²_ξ
 
   // ── Standardization ───────────────────────────────────────────────
   bool standardize = true;  ///< Center and scale y; un-standardize predictions before return
@@ -173,9 +175,10 @@ struct BARTData {
 
   // ── Random effects (optional) ─────────────────────────────────────
   // Required when rfx_model_spec != None.
-  const int*    rfx_groups      = nullptr; ///< Length n_train; 0-indexed group labels
-  const double* rfx_basis_train = nullptr; ///< Column-major, n_train × rfx_num_components
-  const double* rfx_basis_test  = nullptr; ///< Column-major, n_test × rfx_num_components
+  const int*    rfx_groups      = nullptr; ///< Length n_train; arbitrary integer group labels
+  const double* rfx_basis_train = nullptr; ///< Column-major, n_train × rfx_num_components (Custom only)
+  const int*    rfx_groups_test  = nullptr; ///< Length n_test; test group labels (subset of train labels)
+  const double* rfx_basis_test  = nullptr; ///< Column-major, n_test × rfx_num_components (Custom only)
 };
 
 // ── Result struct ──────────────────────────────────────────────────────────
@@ -215,22 +218,25 @@ struct BARTResult {
   // shape: (num_categories - 1) × num_total_samples
   std::vector<double> cloglog_cutpoint_samples;
 
-  // ── Random effects (empty if rfx_model_spec == None) ─────────────
-  // shape: n_groups × rfx_num_components × num_total_samples
-  std::vector<double> rfx_samples;
-  std::vector<int>    rfx_group_ids;
+  // ── Random effects (null if rfx_model_spec == None) ──────────────
+  // Container holds alpha_, xi_, beta_, sigma_xi_ sample arrays.
+  // Analogous to forest_container for tree ensembles.
+  std::unique_ptr<RandomEffectsContainer> rfx_container;
+  std::vector<int32_t> rfx_group_ids;  ///< Sorted unique training group labels
 
   // ── Fitted forests ───────────────────────────────────────────────
   std::unique_ptr<ForestContainer> forest_container;          ///< Mean forest samples
   std::unique_ptr<ForestContainer> variance_forest_container; ///< Variance forest samples (empty if not used)
 
   // ── Metadata ─────────────────────────────────────────────────────
-  int num_total_samples = 0;
-  int num_chains        = 1;
-  int n_train           = 0;
-  int n_test            = 0;
-  double y_bar          = 0.0; ///< Stored for un-standardization in predict
-  double y_std          = 1.0;
+  int num_total_samples  = 0;
+  int num_chains         = 1;
+  int n_train            = 0;
+  int n_test             = 0;
+  int rfx_num_groups     = 0;   ///< 0 when no RFX
+  int rfx_num_components = 0;   ///< 0 when no RFX
+  double y_bar           = 0.0; ///< Stored for un-standardization in predict
+  double y_std           = 1.0;
 };
 
 // ── Entry points ───────────────────────────────────────────────────────────
