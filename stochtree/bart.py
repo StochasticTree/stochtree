@@ -1,4 +1,5 @@
 import json
+import os
 import warnings
 from math import log, floor
 from numbers import Integral
@@ -1056,7 +1057,9 @@ class BARTModel:
         # Random effects (intercept-only and custom) are supported for all links.
         # BARTFit handles standardization, prior calibration, and all sampling.
         _no_zero_weights = not (observation_weights is not None and np.all(observation_weights == 0))
-        if ((link_is_linear or link_is_probit or link_is_cloglog)
+        _use_cpp_dispatch = os.environ.get("STOCHTREE_USE_CPP_DISPATCH", "1") != "0"
+        if (_use_cpp_dispatch
+                and (link_is_linear or link_is_probit or link_is_cloglog)
                 and not (link_is_probit and self.include_variance_forest)
                 and _no_zero_weights
                 and not has_prev_model):
