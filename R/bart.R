@@ -1064,7 +1064,6 @@ bart <- function(
   use_cpp_dispatch <- (isTRUE(getOption("stochtree.use_cpp_dispatch", TRUE)) &&
     (link_is_linear || (link_is_probit && !include_variance_forest)) &&
     include_mean_forest &&
-    !has_basis &&
     !has_rfx &&
     is.null(previous_model_json))
   if (use_cpp_dispatch) {
@@ -1100,7 +1099,9 @@ bart <- function(
       sigma2_leaf_shape = as.numeric(a_leaf),
       sigma2_leaf_scale = b_leaf, # NULL → sentinel -1 in C++
       sigma2_leaf_init = sigma2_leaf_init, # NULL → sentinel -1 in C++
-      variable_weights = as.numeric(variable_weights_mean)
+      variable_weights = as.numeric(variable_weights_mean),
+      # 0 = constant, 1 = univariate regression, 2 = multivariate regression
+      leaf_model = if (!has_basis) 0L else if (ncol(as.matrix(leaf_basis_train)) > 1L) 2L else 1L
     )
     variance_forest_cfg_r <- list(
       include_variance_forest = include_variance_forest,
@@ -1123,7 +1124,9 @@ bart <- function(
       y_train_r = as.numeric(y_train),
       X_test_r = if (has_test) as.matrix(X_test) else NULL,
       feature_types_r = as.integer(feature_types),
-      weights_r = observation_weights
+      weights_r = observation_weights,
+      basis_train_r = if (has_basis) as.matrix(leaf_basis_train) else NULL,
+      basis_test_r  = if (has_test && has_basis) as.matrix(leaf_basis_test) else NULL
     )
 
     # Unpack result metadata
@@ -1223,12 +1226,12 @@ bart <- function(
       "outcome_mean" = y_bar_train,
       "outcome_scale" = y_std_train,
       "standardize" = standardize,
-      "leaf_dimension" = 1L,
-      "is_leaf_constant" = TRUE,
-      "leaf_regression" = FALSE,
-      "requires_basis" = FALSE,
+      "leaf_dimension" = if (has_basis) ncol(as.matrix(leaf_basis_train)) else 1L,
+      "is_leaf_constant" = !has_basis,
+      "leaf_regression" = has_basis,
+      "requires_basis" = has_basis,
       "num_covariates" = num_cov_orig,
-      "num_basis" = 0L,
+      "num_basis" = if (has_basis) ncol(as.matrix(leaf_basis_train)) else 0L,
       "num_samples" = num_retained_samples,
       "num_gfr" = num_gfr,
       "num_burnin" = num_burnin,

@@ -71,9 +71,8 @@ void BARTFit(BARTResult*        result_ptr,
   // ── Feature gates (stubs for unsupported features) ────────────────
   if (config.link_function == LinkFunction::Cloglog)
     Log::Fatal("BARTFit: cloglog link is not yet supported in the C++ dispatch layer.");
-  if (config.leaf_model != LeafModel::Constant)
-    Log::Fatal("BARTFit: only LeafModel::Constant is supported in this version. "
-               "Leaf regression will be added in a subsequent stage.");
+  if (config.leaf_model == LeafModel::MultivariateRegression && config.sample_sigma2_leaf)
+    Log::Fatal("BARTFit: leaf scale sampling is not supported for multivariate leaf regression.");
   if (config.include_variance_forest && config.num_trees_variance <= 0)
     Log::Fatal("BARTFit: include_variance_forest=true requires num_trees_variance > 0.");
   if (config.rfx_model_spec != RFXModelSpec::None)
@@ -98,9 +97,18 @@ void BARTFit(BARTResult*        result_ptr,
       static_cast<int>(config.variable_weights_mean.size()) != data.p)
     Log::Fatal("BARTFit: variable_weights_mean length must equal p.");
 
+  // ── Leaf regression validation ─────────────────────────────────────
+  bool is_leaf_regression  = (config.leaf_model != LeafModel::Constant);
+  bool is_multivariate     = (config.leaf_model == LeafModel::MultivariateRegression);
+  if (is_leaf_regression) {
+    if (data.basis_train == nullptr || data.basis_dim <= 0)
+      Log::Fatal("BARTFit: basis_train and basis_dim > 0 required for leaf regression.");
+  }
+
   int n_train  = data.n_train;
   int p        = data.p;
   int n_test   = data.n_test;
+  int basis_dim = data.basis_dim;
   bool has_test          = (n_test > 0 && data.X_test != nullptr);
   bool is_probit         = (config.link_function == LinkFunction::Probit);
   bool has_variance_forest = config.include_variance_forest && config.num_trees_variance > 0;
@@ -222,6 +230,15 @@ void BARTFit(BARTResult*        result_ptr,
     dataset_test.AddCovariates(
         const_cast<double*>(data.X_test), n_test, p, /*row_major=*/false);
 
+  // ── Leaf regression basis ──────────────────────────────────────────
+  if (is_leaf_regression) {
+    dataset_train.AddBasis(
+        const_cast<double*>(data.basis_train), n_train, basis_dim, /*row_major=*/false);
+    if (has_test && data.basis_test != nullptr)
+      dataset_test.AddBasis(
+          const_cast<double*>(data.basis_test), n_test, basis_dim, /*row_major=*/false);
+  }
+
   // ── Residual ───────────────────────────────────────────────────────
   ColumnVector residual(resid_vec.data(), n_train);
 
@@ -233,19 +250,16 @@ void BARTFit(BARTResult*        result_ptr,
 
   // Use size-1 dummies when num_trees == 0 (variance-only model); the objects
   // are never touched because all mean-forest code paths are guarded by has_mean_forest.
-  int mean_ctor_trees = has_mean_forest ? num_trees : 1;
-  TreeEnsemble  active_forest(mean_ctor_trees, 1, true, false);
+  int mean_ctor_trees  = has_mean_forest ? num_trees : 1;
+  // Leaf regression: output_dim = basis_dim (multivariate) or 1 (univariate/constant).
+  int mean_output_dim  = is_multivariate ? basis_dim : 1;
+  bool mean_leaf_const = !is_leaf_regression;
+  TreeEnsemble  active_forest(mean_ctor_trees, mean_output_dim, mean_leaf_const, false);
   ForestTracker tracker(dataset_train.GetCovariates(), feature_types, mean_ctor_trees, n_train);
   TreePrior     tree_prior(config.alpha, config.beta, config.min_samples_leaf, config.max_depth);
 
   GlobalHomoskedasticVarianceModel    global_var_model;
   LeafNodeHomoskedasticVarianceModel  leaf_var_model;
-
-  // ── Leaf model (rebuilt each iteration when leaf_scale changes) ────
-  // GaussianConstantLeafModel takes tau (leaf prior variance) directly.
-  auto make_leaf_model = [](double tau) {
-    return GaussianConstantLeafModel(tau);
-  };
 
   // ── Sample counts and result allocation ────────────────────────────
   int num_gfr    = config.num_gfr;
@@ -265,7 +279,7 @@ void BARTFit(BARTResult*        result_ptr,
   BARTResult& result = *result_ptr;
   // ForestContainer size-1 dummy when num_trees == 0 (variance-only model).
   result.forest_container = std::make_unique<ForestContainer>(
-      mean_ctor_trees, 1, /*is_leaf_constant=*/true, /*is_exponentiated=*/false);
+      mean_ctor_trees, mean_output_dim, mean_leaf_const, /*is_exponentiated=*/false);
   ForestContainer& forest_container = *result.forest_container;
   if (has_variance_forest)
     result.variance_forest_container = std::make_unique<ForestContainer>(
@@ -347,13 +361,19 @@ void BARTFit(BARTResult*        result_ptr,
 
   // ── Initialize mean forest ─────────────────────────────────────────
   // Skipped when num_trees == 0 (variance-only model).
-  double init_val = has_mean_forest
+  // Leaf regression: initialize all params to 0 (constant uses mean/num_trees).
+  double init_val = (has_mean_forest && !is_leaf_regression)
       ? VecMean(resid_vec.data(), n_train) / num_trees : 0.0;
   if (has_mean_forest) {
-    active_forest.SetLeafValue(init_val);
+    if (is_multivariate) {
+      std::vector<double> zero_leaf(basis_dim, 0.0);
+      active_forest.SetLeafVector(zero_leaf);
+    } else {
+      active_forest.SetLeafValue(init_val);
+    }
     UpdateResidualEntireForest(
         tracker, dataset_train, residual, &active_forest,
-        /*requires_basis=*/false, std::minus<double>());
+        /*requires_basis=*/is_leaf_regression, std::minus<double>());
   }
 
   // ── Initialize variance forest ─────────────────────────────────────
@@ -381,17 +401,35 @@ void BARTFit(BARTResult*        result_ptr,
       if (is_probit)
         sample_probit_latent_outcome(residual, tracker, y_int.data(), n_train, y_bar, rng);
 
-      auto leaf_model = make_leaf_model(leaf_scale);
-      GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
-          active_forest, tracker, forest_container, leaf_model,
-          dataset_train, residual, tree_prior, rng,
-          variable_weights, sweep_indices, current_sigma2,
-          feature_types, cutpoint_grid_size,
-          /*keep_forest=*/true,
-          /*pre_initialized=*/true,
-          /*backfitting=*/true,
-          num_features_subsample,
-          config.num_threads);
+      if (config.leaf_model == LeafModel::UnivariateRegression) {
+        auto lm = GaussianUnivariateRegressionLeafModel(leaf_scale);
+        GFRSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(
+            active_forest, tracker, forest_container, lm,
+            dataset_train, residual, tree_prior, rng,
+            variable_weights, sweep_indices, current_sigma2,
+            feature_types, cutpoint_grid_size,
+            /*keep_forest=*/true, /*pre_initialized=*/true, /*backfitting=*/true,
+            num_features_subsample, config.num_threads);
+      } else if (config.leaf_model == LeafModel::MultivariateRegression) {
+        Eigen::MatrixXd Sigma_0 = Eigen::MatrixXd::Identity(basis_dim, basis_dim) * leaf_scale;
+        auto lm = GaussianMultivariateRegressionLeafModel(Sigma_0);
+        GFRSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat>(
+            active_forest, tracker, forest_container, lm,
+            dataset_train, residual, tree_prior, rng,
+            variable_weights, sweep_indices, current_sigma2,
+            feature_types, cutpoint_grid_size,
+            /*keep_forest=*/true, /*pre_initialized=*/true, /*backfitting=*/true,
+            num_features_subsample, config.num_threads, basis_dim);
+      } else {
+        auto lm = GaussianConstantLeafModel(leaf_scale);
+        GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
+            active_forest, tracker, forest_container, lm,
+            dataset_train, residual, tree_prior, rng,
+            variable_weights, sweep_indices, current_sigma2,
+            feature_types, cutpoint_grid_size,
+            /*keep_forest=*/true, /*pre_initialized=*/true, /*backfitting=*/true,
+            num_features_subsample, config.num_threads);
+      }
     }
 
     // Cache mean predictions (column i) only when storing GFR samples.
@@ -476,7 +514,12 @@ void BARTFit(BARTResult*        result_ptr,
         // No GFR: reset every tree to a single root stump, then seed the tracker.
         if (has_mean_forest) {
           active_forest.ResetRoot();
-          active_forest.SetLeafValue(init_val);
+          if (is_multivariate) {
+            std::vector<double> zero_leaf(basis_dim, 0.0);
+            active_forest.SetLeafVector(zero_leaf);
+          } else {
+            active_forest.SetLeafValue(init_val);
+          }
           tracker.ReconstituteFromForest(
               active_forest, dataset_train, residual, /*is_mean_model=*/true);
         }
@@ -499,15 +542,32 @@ void BARTFit(BARTResult*        result_ptr,
           if (is_probit)
             sample_probit_latent_outcome(residual, tracker, y_int.data(), n_train, y_bar, rng);
 
-          auto leaf_model = make_leaf_model(chain_leaf_scale);
-          MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
-              active_forest, tracker, forest_container, leaf_model,
-              dataset_train, residual, tree_prior, rng,
-              variable_weights, sweep_indices, chain_sigma2,
-              /*keep_forest=*/is_kept,
-              /*pre_initialized=*/true,
-              /*backfitting=*/true,
-              config.num_threads);
+          if (config.leaf_model == LeafModel::UnivariateRegression) {
+            auto lm = GaussianUnivariateRegressionLeafModel(chain_leaf_scale);
+            MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(
+                active_forest, tracker, forest_container, lm,
+                dataset_train, residual, tree_prior, rng,
+                variable_weights, sweep_indices, chain_sigma2,
+                /*keep_forest=*/is_kept, /*pre_initialized=*/true, /*backfitting=*/true,
+                config.num_threads);
+          } else if (config.leaf_model == LeafModel::MultivariateRegression) {
+            Eigen::MatrixXd Sigma_0 = Eigen::MatrixXd::Identity(basis_dim, basis_dim) * chain_leaf_scale;
+            auto lm = GaussianMultivariateRegressionLeafModel(Sigma_0);
+            MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat>(
+                active_forest, tracker, forest_container, lm,
+                dataset_train, residual, tree_prior, rng,
+                variable_weights, sweep_indices, chain_sigma2,
+                /*keep_forest=*/is_kept, /*pre_initialized=*/true, /*backfitting=*/true,
+                config.num_threads, basis_dim);
+          } else {
+            auto lm = GaussianConstantLeafModel(chain_leaf_scale);
+            MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
+                active_forest, tracker, forest_container, lm,
+                dataset_train, residual, tree_prior, rng,
+                variable_weights, sweep_indices, chain_sigma2,
+                /*keep_forest=*/is_kept, /*pre_initialized=*/true, /*backfitting=*/true,
+                config.num_threads);
+          }
         }
 
         // Sample variance forest (MCMC step), then update per-obs variance weights.

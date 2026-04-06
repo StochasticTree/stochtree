@@ -2670,6 +2670,19 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def_readwrite("sigma2_init",           &StochTree::BARTConfig::sigma2_init)
     .def_readwrite("sample_sigma2_global",  &StochTree::BARTConfig::sample_sigma2_global)
     .def_readwrite("sample_sigma2_leaf",    &StochTree::BARTConfig::sample_sigma2_leaf)
+    .def_property("leaf_model",
+        [](const StochTree::BARTConfig& c) -> std::string {
+            switch (c.leaf_model) {
+                case StochTree::LeafModel::UnivariateRegression:   return "univariate_regression";
+                case StochTree::LeafModel::MultivariateRegression: return "multivariate_regression";
+                default:                                           return "constant";
+            }
+        },
+        [](StochTree::BARTConfig& c, const std::string& s) {
+            if      (s == "univariate_regression")   c.leaf_model = StochTree::LeafModel::UnivariateRegression;
+            else if (s == "multivariate_regression") c.leaf_model = StochTree::LeafModel::MultivariateRegression;
+            else                                     c.leaf_model = StochTree::LeafModel::Constant;
+        })
     .def_property("link_function",
         [](const StochTree::BARTConfig& c) -> std::string {
             switch (c.link_function) {
@@ -2735,6 +2748,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
        py::object X_test_obj,
        py::object weights_obj,
        py::object feature_types_obj,
+       py::object basis_train_obj,
+       py::object basis_test_obj,
        const std::string& previous_model_json) {
 
       StochTree::BARTData data;
@@ -2772,6 +2787,20 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         data.feature_types = static_cast<const int*>(feature_types_arr.request().ptr);
       }
 
+      // Optional: leaf regression basis (column-major float64)
+      py::array_t<double, py::array::f_style | py::array::forcecast> basis_train_arr;
+      if (!basis_train_obj.is_none()) {
+        basis_train_arr = basis_train_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+        auto bt_buf = basis_train_arr.request();
+        data.basis_train = static_cast<const double*>(bt_buf.ptr);
+        data.basis_dim   = static_cast<int>(bt_buf.shape[1]);
+      }
+      py::array_t<double, py::array::f_style | py::array::forcecast> basis_test_arr;
+      if (!basis_test_obj.is_none()) {
+        basis_test_arr = basis_test_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+        data.basis_test = static_cast<const double*>(basis_test_arr.request().ptr);
+      }
+
       StochTree::BARTFit(result.Get(), config, data, previous_model_json);
     },
     py::arg("result"),
@@ -2781,6 +2810,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     py::arg("X_test")              = py::none(),
     py::arg("weights")             = py::none(),
     py::arg("feature_types")       = py::none(),
+    py::arg("basis_train")         = py::none(),
+    py::arg("basis_test")          = py::none(),
     py::arg("previous_model_json") = "",
     "Fit a BART model (RFC 0004 C++ dispatch API). "
     "Writes into a caller-owned BARTResultCpp. "

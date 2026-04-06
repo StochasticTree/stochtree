@@ -62,7 +62,7 @@ struct BARTConfig {
   int num_mcmc    = 100;
   int num_chains  = 1;
   int keep_every  = 1;    ///< Thinning: retain one MCMC draw per keep_every iters
-  bool keep_gfr   = false;
+  bool keep_gfr   = true;
   bool keep_burnin = false;
 
   // ── Tree prior ────────────────────────────────────────────────────

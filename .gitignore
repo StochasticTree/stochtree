@@ -4,6 +4,7 @@
 *.DS_Store
 lib/
 build/
+build_test/
 .vscode/
 xcode/
 *.json

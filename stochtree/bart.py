@@ -1057,7 +1057,6 @@ class BARTModel:
         _no_rfx = rfx_group_ids_train is None
         _no_zero_weights = not (observation_weights is not None and np.all(observation_weights == 0))
         if ((link_is_linear or link_is_probit)
-                and not self.has_basis
                 and not (link_is_probit and self.include_variance_forest)
                 and _no_rfx
                 and _no_zero_weights
@@ -1081,6 +1080,13 @@ class BARTModel:
             cfg.b_global              = b_global if b_global is not None else 0.0
             cfg.a_leaf                = a_leaf
             cfg.b_leaf                = b_leaf if b_leaf is not None else -1.0
+            # Leaf model type
+            if not self.has_basis:
+                cfg.leaf_model = "constant"
+            elif self.num_basis > 1:
+                cfg.leaf_model = "multivariate_regression"
+            else:
+                cfg.leaf_model = "univariate_regression"
             cfg.link_function         = "probit" if link_is_probit else "identity"
             # Probit: Albert-Chib fixes sigma2 at 1 and disables global variance sampling.
             cfg.sample_sigma2_global  = False if link_is_probit else sample_sigma2_global
@@ -1110,13 +1116,17 @@ class BARTModel:
             X_test_arr  = np.asfortranarray(X_test_processed.astype(np.float64)) if self.has_test else None
             weights_arr = observation_weights_ if observation_weights is not None else None
             ft_arr      = feature_types.astype(np.int32) if feature_types is not None else None
+            basis_train_arr = np.asfortranarray(leaf_basis_train.astype(np.float64)) if self.has_basis else None
+            basis_test_arr  = np.asfortranarray(leaf_basis_test.astype(np.float64)) if (self.has_test and self.has_basis) else None
 
             # Python/R own the result from the start; BARTFit writes into it.
             _result = _CppBARTResult()
             _bart_fit(_result, cfg, X_arr, y_arr,
                       X_test=X_test_arr,
                       weights=weights_arr,
-                      feature_types=ft_arr)
+                      feature_types=ft_arr,
+                      basis_train=basis_train_arr,
+                      basis_test=basis_test_arr)
 
             # Unpack metadata
             self.y_bar        = _result.y_bar
@@ -1127,7 +1137,7 @@ class BARTModel:
             self.num_chains   = num_chains
             self.keep_every   = keep_every
             self.num_samples  = _result.num_total_samples
-            self.num_basis    = 0
+            # self.num_basis already set from leaf_basis_train earlier in sample()
             self.include_mean_forest     = True
             # include_variance_forest was already set from variance_forest_params earlier
             self.has_rfx      = False

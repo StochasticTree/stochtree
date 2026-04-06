@@ -377,7 +377,7 @@ TEST(BARTFit, TrainingRMSE_BetterThanIntercept) {
       << "BART RMSE (" << rmse_bart << ") should be less than null RMSE (" << rmse_null << ")";
 }
 
-// Error cases: verify clear error messages for unsupported features.
+// Error cases: verify clear error messages for unsupported configurations.
 TEST(BARTFit, UnsupportedFeatures_ThrowClear) {
   auto d = MakeSyntheticData(50, 3);
 
@@ -386,20 +386,6 @@ TEST(BARTFit, UnsupportedFeatures_ThrowClear) {
   data.n_train = d.n;
   data.p       = d.p;
   data.y_train = d.y.data();
-
-  // Leaf regression not yet supported
-  {
-    StochTree::BARTConfig config;
-    config.leaf_model = StochTree::LeafModel::UnivariateRegression;
-    { StochTree::BARTResult _r; EXPECT_THROW(StochTree::BARTFit(&_r, config, data), std::runtime_error); }
-  }
-
-  // Variance forest not yet supported
-  {
-    StochTree::BARTConfig config;
-    config.include_variance_forest = true;
-    { StochTree::BARTResult _r; EXPECT_THROW(StochTree::BARTFit(&_r, config, data), std::runtime_error); }
-  }
 
   // num_gfr = 0 and num_mcmc = 0
   {
@@ -416,6 +402,19 @@ TEST(BARTFit, UnsupportedFeatures_ThrowClear) {
     config.num_mcmc   = 10;
     config.num_chains = 5;
     { StochTree::BARTResult _r; EXPECT_THROW(StochTree::BARTFit(&_r, config, data), std::runtime_error); }
+  }
+
+  // MultivariateRegression + sample_sigma2_leaf is not supported
+  {
+    std::vector<double> basis(50, 1.0);
+    std::vector<double> basis2(100, 1.0);  // 50 x 2, column-major
+    StochTree::BARTConfig config;
+    config.leaf_model       = StochTree::LeafModel::MultivariateRegression;
+    config.sample_sigma2_leaf = true;
+    StochTree::BARTData d2 = data;
+    d2.basis_train = basis2.data();
+    d2.basis_dim   = 2;
+    { StochTree::BARTResult _r; EXPECT_THROW(StochTree::BARTFit(&_r, config, d2), std::runtime_error); }
   }
 }
 
@@ -743,6 +742,283 @@ TEST(BARTFit, ProbitBART_Sanity_BetterThanIntercept) {
   EXPECT_LT(ll_bart, ll_null)
       << "Probit BART log-loss (" << ll_bart
       << ") should be less than intercept log-loss (" << ll_null << ")";
+}
+
+// ── Leaf regression helpers ────────────────────────────────────────────────
+
+// Extends SyntheticData with a leaf-regression basis (column-major).
+// DGP: y_i = sum_j(X[i,0] * B[i,j]) + eps, linking the first covariate
+// to each basis column.  The exact form doesn't matter for shape tests.
+struct SyntheticDataWithBasis {
+  SyntheticData base;
+  int basis_dim;
+  std::vector<double> basis_train;  // column-major n × basis_dim
+  std::vector<double> basis_test;   // column-major n_test × basis_dim (may be empty)
+};
+
+SyntheticDataWithBasis MakeLeafRegressionData(
+    int n_train, int n_test, int p, int q, unsigned seed = 42) {
+  SyntheticDataWithBasis d;
+  d.base = MakeSyntheticData(n_train, p, seed);
+  d.basis_dim = q;
+
+  std::mt19937 rng(seed + 1000);
+  std::normal_distribution<double> norm(0.0, 1.0);
+  std::normal_distribution<double> eps(0.0, 0.3);
+
+  // Basis for training set (column-major)
+  d.basis_train.resize(static_cast<size_t>(n_train) * q);
+  for (int j = 0; j < q; j++)
+    for (int i = 0; i < n_train; i++)
+      d.basis_train[j * n_train + i] = norm(rng);
+
+  // Rewrite y to depend on the basis interaction: y_i = x0_i * b0_i + eps
+  for (int i = 0; i < n_train; i++)
+    d.base.y[i] = d.base.X[0 * n_train + i] * d.basis_train[0 * n_train + i] + eps(rng);
+
+  // Basis for test set (column-major, independent of training X)
+  if (n_test > 0) {
+    d.basis_test.resize(static_cast<size_t>(n_test) * q);
+    for (int j = 0; j < q; j++)
+      for (int i = 0; i < n_test; i++)
+        d.basis_test[j * n_test + i] = norm(rng);
+  }
+
+  return d;
+}
+
+// ── Leaf regression tests ──────────────────────────────────────────────────
+
+// Univariate basis, GFR-only: verify output shape and finite values.
+TEST(BARTFit, LeafRegression_Univariate_GFROnly_Shape_Finite) {
+  int n = 150, p = 5, q = 1;
+  auto d = MakeLeafRegressionData(n, 0, p, q);
+
+  StochTree::BARTConfig config;
+  config.num_trees           = 20;
+  config.num_gfr             = 15;
+  config.num_burnin          = 0;
+  config.num_mcmc            = 0;
+  config.leaf_model          = StochTree::LeafModel::UnivariateRegression;
+  config.sample_sigma2_leaf  = false;
+  config.random_seed         = 20;
+
+  StochTree::BARTData data;
+  data.X_train    = d.base.X.data();
+  data.n_train    = n;
+  data.p          = p;
+  data.y_train    = d.base.y.data();
+  data.basis_train = d.basis_train.data();
+  data.basis_dim   = q;
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  EXPECT_EQ(result.num_total_samples, 15);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n * 15);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_TRUE(result.y_hat_test.empty());
+}
+
+// Univariate basis, GFR + MCMC warm-start: standard workflow.
+TEST(BARTFit, LeafRegression_Univariate_GFR_Plus_MCMC_Shape_Finite) {
+  int n = 200, p = 5, q = 1;
+  auto d = MakeLeafRegressionData(n, 0, p, q, 43);
+
+  StochTree::BARTConfig config;
+  config.num_trees           = 30;
+  config.num_gfr             = 5;
+  config.num_burnin          = 5;
+  config.num_mcmc            = 50;
+  config.num_chains          = 1;
+  config.leaf_model          = StochTree::LeafModel::UnivariateRegression;
+  config.sample_sigma2_leaf  = false;
+  config.random_seed         = 21;
+
+  StochTree::BARTData data;
+  data.X_train    = d.base.X.data();
+  data.n_train    = n;
+  data.p          = p;
+  data.y_train    = d.base.y.data();
+  data.basis_train = d.basis_train.data();
+  data.basis_dim   = q;
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 5 + 50;  // GFR + MCMC
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+}
+
+// Univariate basis, with test set: y_hat_test must have correct shape.
+TEST(BARTFit, LeafRegression_Univariate_WithTestSet_Shape_Finite) {
+  int n_train = 200, n_test = 50, p = 5, q = 1;
+  auto d = MakeLeafRegressionData(n_train, n_test, p, q, 44);
+  auto d_test_base = MakeSyntheticData(n_test, p, 45);
+
+  StochTree::BARTConfig config;
+  config.num_trees           = 20;
+  config.num_gfr             = 5;
+  config.num_mcmc            = 30;
+  config.num_chains          = 1;
+  config.leaf_model          = StochTree::LeafModel::UnivariateRegression;
+  config.sample_sigma2_leaf  = false;
+  config.random_seed         = 22;
+
+  StochTree::BARTData data;
+  data.X_train     = d.base.X.data();
+  data.n_train     = n_train;
+  data.p           = p;
+  data.y_train     = d.base.y.data();
+  data.basis_train = d.basis_train.data();
+  data.basis_dim   = q;
+  data.X_test      = d_test_base.X.data();
+  data.n_test      = n_test;
+  data.basis_test  = d.basis_test.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 5 + 30;
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n_train * num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_test.size()),  n_test  * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_TRUE(AllFinite(result.y_hat_test));
+}
+
+// Univariate basis, leaf scale sampling enabled (sample_sigma2_leaf = true).
+TEST(BARTFit, LeafRegression_Univariate_LeafScaleSampling) {
+  int n = 150, p = 5, q = 1;
+  auto d = MakeLeafRegressionData(n, 0, p, q, 46);
+
+  StochTree::BARTConfig config;
+  config.num_trees           = 20;
+  config.num_gfr             = 5;
+  config.num_mcmc            = 30;
+  config.num_chains          = 1;
+  config.leaf_model          = StochTree::LeafModel::UnivariateRegression;
+  config.sample_sigma2_leaf  = true;
+  config.random_seed         = 23;
+
+  StochTree::BARTData data;
+  data.X_train    = d.base.X.data();
+  data.n_train    = n;
+  data.p          = p;
+  data.y_train    = d.base.y.data();
+  data.basis_train = d.basis_train.data();
+  data.basis_dim   = q;
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 5 + 30;
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  // leaf_scale_samples must be populated
+  EXPECT_EQ(static_cast<int>(result.leaf_scale_samples.size()), num_total);
+  EXPECT_TRUE(AllFinite(result.leaf_scale_samples));
+}
+
+// Multivariate basis (q=3), GFR + MCMC: shape and finiteness.
+TEST(BARTFit, LeafRegression_Multivariate_Shape_Finite) {
+  int n = 200, p = 5, q = 3;
+  auto d = MakeLeafRegressionData(n, 0, p, q, 47);
+
+  StochTree::BARTConfig config;
+  config.num_trees           = 20;
+  config.num_gfr             = 5;
+  config.num_mcmc            = 30;
+  config.num_chains          = 1;
+  config.leaf_model          = StochTree::LeafModel::MultivariateRegression;
+  config.sample_sigma2_leaf  = false;  // not supported for multivariate
+  config.random_seed         = 24;
+
+  StochTree::BARTData data;
+  data.X_train    = d.base.X.data();
+  data.n_train    = n;
+  data.p          = p;
+  data.y_train    = d.base.y.data();
+  data.basis_train = d.basis_train.data();
+  data.basis_dim   = q;
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 5 + 30;
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+}
+
+// Multivariate basis with test set.
+TEST(BARTFit, LeafRegression_Multivariate_WithTestSet_Shape_Finite) {
+  int n_train = 200, n_test = 50, p = 5, q = 2;
+  auto d = MakeLeafRegressionData(n_train, n_test, p, q, 48);
+  auto d_test_base = MakeSyntheticData(n_test, p, 49);
+
+  StochTree::BARTConfig config;
+  config.num_trees           = 20;
+  config.num_gfr             = 5;
+  config.num_mcmc            = 20;
+  config.num_chains          = 1;
+  config.leaf_model          = StochTree::LeafModel::MultivariateRegression;
+  config.sample_sigma2_leaf  = false;
+  config.random_seed         = 25;
+
+  StochTree::BARTData data;
+  data.X_train     = d.base.X.data();
+  data.n_train     = n_train;
+  data.p           = p;
+  data.y_train     = d.base.y.data();
+  data.basis_train = d.basis_train.data();
+  data.basis_dim   = q;
+  data.X_test      = d_test_base.X.data();
+  data.n_test      = n_test;
+  data.basis_test  = d.basis_test.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 5 + 20;
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n_train * num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_test.size()),  n_test  * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_TRUE(AllFinite(result.y_hat_test));
+}
+
+// Reproducibility: leaf regression with same seed → bit-identical predictions.
+TEST(BARTFit, LeafRegression_Univariate_Reproducibility) {
+  int n = 150, p = 5, q = 1;
+  auto d = MakeLeafRegressionData(n, 0, p, q, 50);
+
+  StochTree::BARTConfig config;
+  config.num_trees           = 20;
+  config.num_gfr             = 5;
+  config.num_mcmc            = 20;
+  config.leaf_model          = StochTree::LeafModel::UnivariateRegression;
+  config.sample_sigma2_leaf  = false;
+  config.random_seed         = 42;
+
+  StochTree::BARTData data;
+  data.X_train    = d.base.X.data();
+  data.n_train    = n;
+  data.p          = p;
+  data.y_train    = d.base.y.data();
+  data.basis_train = d.basis_train.data();
+  data.basis_dim   = q;
+
+  StochTree::BARTResult r1, r2;
+  StochTree::BARTFit(&r1, config, data);
+  StochTree::BARTFit(&r2, config, data);
+
+  ASSERT_EQ(r1.y_hat_train.size(), r2.y_hat_train.size());
+  for (size_t i = 0; i < r1.y_hat_train.size(); i++)
+    EXPECT_DOUBLE_EQ(r1.y_hat_train[i], r2.y_hat_train[i]) << "mismatch at i=" << i;
 }
 
 } // namespace

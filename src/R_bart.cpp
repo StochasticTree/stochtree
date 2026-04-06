@@ -64,6 +64,10 @@ static StochTree::BARTConfig bart_config_from_r(
     cfg.b_leaf               = nullable_dbl(mean_forest_cfg["sigma2_leaf_scale"]);
     cfg.leaf_scale           = nullable_dbl(mean_forest_cfg["sigma2_leaf_init"]);
 
+    // Leaf model type (0 = constant, 1 = univariate regression, 2 = multivariate regression)
+    cfg.leaf_model = static_cast<StochTree::LeafModel>(
+        cpp11::as_cpp<int>(mean_forest_cfg["leaf_model"]));
+
     // Optional variable weights (empty = uniform 1/p)
     SEXP vw = mean_forest_cfg["variable_weights"];
     if (vw != R_NilValue) {
@@ -108,7 +112,9 @@ cpp11::external_pointer<BARTResultR> bart_fit_cpp(
     cpp11::doubles          y_train_r,
     SEXP                    X_test_r,
     SEXP                    feature_types_r,
-    SEXP                    weights_r
+    SEXP                    weights_r,
+    SEXP                    basis_train_r,
+    SEXP                    basis_test_r
 ) {
     StochTree::BARTConfig config = bart_config_from_r(sampler_cfg, mean_forest_cfg, variance_forest_cfg);
 
@@ -139,6 +145,15 @@ cpp11::external_pointer<BARTResultR> bart_fit_cpp(
     // Optional observation weights
     if (weights_r != R_NilValue) {
         data.weights = REAL(PROTECT(weights_r)); ++nprotect;
+    }
+
+    // Optional leaf regression basis (column-major matrix)
+    if (basis_train_r != R_NilValue) {
+        data.basis_train = REAL(PROTECT(basis_train_r)); ++nprotect;
+        data.basis_dim   = Rf_ncols(basis_train_r);
+    }
+    if (basis_test_r != R_NilValue) {
+        data.basis_test = REAL(PROTECT(basis_test_r)); ++nprotect;
     }
 
     // Run BART
