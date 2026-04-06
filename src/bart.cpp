@@ -29,6 +29,7 @@
 #include <stochtree/prior.h>
 #include <stochtree/probit.h>
 #include <stochtree/tree_sampler.h>
+#include <stochtree/ordinal_sampler.h>
 #include <stochtree/variance_model.h>
 
 #include <Eigen/Dense>
@@ -70,10 +71,18 @@ void BARTFit(BARTResult*        result_ptr,
     Log::Fatal("BARTFit: result pointer must not be null.");
 
   // ── Feature gates (stubs for unsupported features) ────────────────
-  if (config.link_function == LinkFunction::Cloglog)
-    Log::Fatal("BARTFit: cloglog link is not yet supported in the C++ dispatch layer.");
   if (config.leaf_model == LeafModel::MultivariateRegression && config.sample_sigma2_leaf)
     Log::Fatal("BARTFit: leaf scale sampling is not supported for multivariate leaf regression.");
+  if (config.link_function == LinkFunction::Cloglog) {
+    if (config.num_trees <= 0)
+      Log::Fatal("BARTFit: cloglog link requires num_trees > 0.");
+    if (config.include_variance_forest)
+      Log::Fatal("BARTFit: variance forest is not supported with cloglog link.");
+    if (config.leaf_model != LeafModel::Constant)
+      Log::Fatal("BARTFit: leaf basis regression is not supported with cloglog link.");
+    if (config.cloglog_num_categories < 2)
+      Log::Fatal("BARTFit: cloglog_num_categories must be >= 2.");
+  }
   if (config.include_variance_forest && config.num_trees_variance <= 0)
     Log::Fatal("BARTFit: include_variance_forest=true requires num_trees_variance > 0.");
   if (config.num_trees <= 0 && !config.include_variance_forest
@@ -124,8 +133,10 @@ void BARTFit(BARTResult*        result_ptr,
   int basis_dim = data.basis_dim;
   bool has_test          = (n_test > 0 && data.X_test != nullptr);
   bool is_probit         = (config.link_function == LinkFunction::Probit);
+  bool is_cloglog        = (config.link_function == LinkFunction::Cloglog);
   bool has_variance_forest = config.include_variance_forest && config.num_trees_variance > 0;
   bool has_mean_forest     = (config.num_trees > 0);
+  int  K = is_cloglog ? config.cloglog_num_categories : 0;  // ordinal category count
   int  num_trees_variance  = config.num_trees_variance;
   bool has_rfx             = (config.rfx_model_spec != RFXModelSpec::None);
   int  rfx_num_components  = (config.rfx_model_spec == RFXModelSpec::InterceptOnly)
@@ -142,6 +153,17 @@ void BARTFit(BARTResult*        result_ptr,
     y_std = 1.0;
     for (int i = 0; i < n_train; i++)
       resid_vec[i] = data.y_train[i] - mean_y;
+  } else if (is_cloglog) {
+    // Cloglog / ordinal: no standardization; y_bar=0, y_std=1.
+    // Remap outcomes to 0-indexed integer category labels stored as doubles.
+    double y_min = *std::min_element(data.y_train, data.y_train + n_train);
+    y_bar = 0.0; y_std = 1.0;
+    for (int i = 0; i < n_train; i++)
+      resid_vec[i] = data.y_train[i] - y_min;
+    // Allow K to be inferred from data when config value is 2 (default placeholder).
+    // Use config value if it's > max(data), otherwise infer.
+    int K_data = static_cast<int>(*std::max_element(resid_vec.begin(), resid_vec.end())) + 1;
+    K = std::max(K, K_data);
   } else if (config.standardize) {
     y_bar = VecMean(data.y_train, n_train);
     double v = VecVar(data.y_train, n_train, y_bar);
@@ -159,12 +181,12 @@ void BARTFit(BARTResult*        result_ptr,
   double a_global = config.a_global >= 0.0 ? config.a_global : 0.0;
   double b_global = config.b_global >= 0.0 ? config.b_global : 0.0;
   double a_leaf   = config.a_leaf;
-  // Probit: sigma2 is fixed at 1 (Albert-Chib model); use 1/num_trees as the
-  // leaf calibration reference instead of data-driven resid_var.
-  double leaf_ref   = is_probit ? 1.0 : resid_var;
-  double b_leaf     = config.b_leaf    > 0.0 ? config.b_leaf    : leaf_ref / config.num_trees;
-  double leaf_scale = config.leaf_scale > 0.0 ? config.leaf_scale : leaf_ref / config.num_trees;
-  double current_sigma2 = is_probit ? 1.0 :
+  // Probit/cloglog: sigma2 is fixed at 1; use 2/num_trees (cloglog) or
+  // 1/num_trees (probit) as the leaf calibration reference.
+  double leaf_ref   = is_probit ? 1.0 : (is_cloglog ? 2.0 : resid_var);
+  double b_leaf     = config.b_leaf    > 0.0 ? config.b_leaf    : leaf_ref / std::max(1, config.num_trees);
+  double leaf_scale = config.leaf_scale > 0.0 ? config.leaf_scale : leaf_ref / std::max(1, config.num_trees);
+  double current_sigma2 = (is_probit || is_cloglog) ? 1.0 :
       (config.sigma2_init > 0.0 ? config.sigma2_init : resid_var);
 
   // ── Variance forest prior calibration ─────────────────────────────
@@ -257,6 +279,24 @@ void BARTFit(BARTResult*        result_ptr,
 
   // ── Residual ───────────────────────────────────────────────────────
   ColumnVector residual(resid_vec.data(), n_train);
+
+  // ── Cloglog auxiliary data setup ───────────────────────────────────
+  // ForestDataset auxiliary dimensions (4 slots):
+  //   [0] Latent Z       (n_train elements)      — truncated-exponential latents
+  //   [1] Forest λ̂      (n_train elements)      — current forest predictions
+  //   [2] Cutpoints γ   (K-1 elements)           — log-scale gamma parameters
+  //   [3] Cumsum exp(γ)  (K elements)             — seg_k = Σ_{j<k} exp(γ_j)
+  OrdinalSampler ordinal_sampler;
+  if (is_cloglog) {
+    dataset_train.AddAuxiliaryDimension(n_train);    // slot 0: Z
+    for (int i = 0; i < n_train; i++) dataset_train.SetAuxiliaryDataValue(0, i, 0.0);
+    dataset_train.AddAuxiliaryDimension(n_train);    // slot 1: λ̂
+    for (int i = 0; i < n_train; i++) dataset_train.SetAuxiliaryDataValue(1, i, 0.0);
+    dataset_train.AddAuxiliaryDimension(K - 1);     // slot 2: γ
+    for (int k = 0; k < K - 1; k++) dataset_train.SetAuxiliaryDataValue(2, k, 0.0);
+    dataset_train.AddAuxiliaryDimension(K);         // slot 3: seg
+    ordinal_sampler.UpdateCumulativeExpSums(dataset_train);
+  }
 
   // ── RFX data setup ─────────────────────────────────────────────────
   // Persistent storage for InterceptOnly bases and group label vectors.
@@ -383,11 +423,15 @@ void BARTFit(BARTResult*        result_ptr,
   result.y_hat_train.resize(static_cast<size_t>(n_train) * num_total, 0.0);
   if (has_test)
     result.y_hat_test.resize(static_cast<size_t>(n_test) * num_total, 0.0);
-  // Probit fixes sigma2 at 1 (Albert-Chib); never allocate the sample array.
-  if (!is_probit && config.sample_sigma2_global)
+  // Probit/cloglog fix sigma2 at 1; never allocate the global variance sample array.
+  if (!is_probit && !is_cloglog && config.sample_sigma2_global)
     result.sigma2_global_samples.resize(num_total, 0.0);
-  if (config.sample_sigma2_leaf)
+  // Cloglog does not sample leaf scale.
+  if (!is_cloglog && config.sample_sigma2_leaf)
     result.leaf_scale_samples.resize(num_total, 0.0);
+  // Cloglog cutpoint samples: (K-1) × num_total, column-major.
+  if (is_cloglog)
+    result.cloglog_cutpoint_samples.resize(static_cast<size_t>(K - 1) * num_total, 0.0);
   if (has_variance_forest) {
     result.sigma2_x_hat_train.resize(static_cast<size_t>(n_train) * num_total, 0.0);
     if (has_test)
@@ -471,9 +515,17 @@ void BARTFit(BARTResult*        result_ptr,
     } else {
       active_forest.SetLeafValue(init_val);
     }
-    UpdateResidualEntireForest(
-        tracker, dataset_train, residual, &active_forest,
-        /*requires_basis=*/is_leaf_regression, std::minus<double>());
+    if (!is_cloglog) {
+      // Backfitting models: subtract initial forest predictions from the
+      // residual and sync the tracker.
+      UpdateResidualEntireForest(
+          tracker, dataset_train, residual, &active_forest,
+          /*requires_basis=*/is_leaf_regression, std::minus<double>());
+    }
+    // Cloglog is a blocked-Gibbs model (like variance forests): the residual
+    // holds integer category labels, not a partial residual, so it must never
+    // be modified by forest predictions.  ForestTracker is already zero-
+    // initialized by its constructor, so no explicit tracker sync is needed.
   }
 
   // ── Initialize variance forest ─────────────────────────────────────
@@ -535,9 +587,13 @@ void BARTFit(BARTResult*        result_ptr,
   // These are internal only and are not exposed in BARTResult.
   std::vector<double> gfr_sigma2_seeds;
   std::vector<double> gfr_leaf_scale_seeds;
+  // Cloglog cutpoint seed buffer: (K-1) × num_gfr, needed for chain seeding.
+  std::vector<double> gfr_cloglog_cutpoint_seeds;
   if (num_mcmc > 0 && num_gfr > 0) {
     gfr_sigma2_seeds.resize(num_gfr, current_sigma2);
     gfr_leaf_scale_seeds.resize(num_gfr, leaf_scale);
+    if (is_cloglog)
+      gfr_cloglog_cutpoint_seeds.resize(static_cast<size_t>(K - 1) * num_gfr, 0.0);
   }
 
   // ── GFR loop ───────────────────────────────────────────────────────
@@ -566,6 +622,15 @@ void BARTFit(BARTResult*        result_ptr,
             feature_types, cutpoint_grid_size,
             /*keep_forest=*/true, /*pre_initialized=*/true, /*backfitting=*/true,
             num_features_subsample, config.num_threads, basis_dim);
+      } else if (is_cloglog) {
+        auto lm = CloglogOrdinalLeafModel(config.cloglog_forest_shape, config.cloglog_forest_rate);
+        GFRSampleOneIter<CloglogOrdinalLeafModel, CloglogOrdinalSuffStat>(
+            active_forest, tracker, gfr_mean_fc, lm,
+            dataset_train, residual, tree_prior, rng,
+            variable_weights, sweep_indices, current_sigma2,
+            feature_types, cutpoint_grid_size,
+            /*keep_forest=*/true, /*pre_initialized=*/true, /*backfitting=*/false,
+            num_features_subsample, config.num_threads);
       } else {
         auto lm = GaussianConstantLeafModel(leaf_scale);
         GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
@@ -575,6 +640,28 @@ void BARTFit(BARTResult*        result_ptr,
             feature_types, cutpoint_grid_size,
             /*keep_forest=*/true, /*pre_initialized=*/true, /*backfitting=*/true,
             num_features_subsample, config.num_threads);
+      }
+    }
+
+    // Cloglog Gibbs steps: update forest predictions slot, sample latent Z,
+    // sample cutpoints gamma, update cumulative exp sums.
+    // Must run BEFORE prediction caching so slot 1 is current.
+    if (is_cloglog) {
+      for (int j = 0; j < n_train; j++)
+        dataset_train.SetAuxiliaryDataValue(1, j, tracker.GetSamplePrediction(j));
+      ordinal_sampler.UpdateLatentVariables(dataset_train, residual.GetData(), rng);
+      ordinal_sampler.UpdateGammaParams(dataset_train, residual.GetData(),
+          config.cloglog_forest_shape, config.cloglog_forest_rate,
+          config.cloglog_cutpoint_0, rng);
+      ordinal_sampler.UpdateCumulativeExpSums(dataset_train);
+      // Store cutpoint draw (slot 2) into result or seed buffer.
+      if (store_gfr) {
+        double* dst = result.cloglog_cutpoint_samples.data() + static_cast<size_t>(i) * (K - 1);
+        for (int k = 0; k < K - 1; k++) dst[k] = dataset_train.GetAuxiliaryDataValue(2, k);
+      }
+      if (!gfr_cloglog_cutpoint_seeds.empty()) {
+        double* dst = gfr_cloglog_cutpoint_seeds.data() + static_cast<size_t>(i) * (K - 1);
+        for (int k = 0; k < K - 1; k++) dst[k] = dataset_train.GetAuxiliaryDataValue(2, k);
       }
     }
 
@@ -615,7 +702,7 @@ void BARTFit(BARTResult*        result_ptr,
     // Probit: sigma2 is fixed at 1 (Albert-Chib); skip global variance sampling.
     // Under the identity model y_i ~ N(mu_i, sigma^2/w_i), the posterior for
     // sigma^2 uses weighted residuals when observation weights are present.
-    if (has_mean_forest && !is_probit && config.sample_sigma2_global) {
+    if (has_mean_forest && !is_probit && !is_cloglog && config.sample_sigma2_global) {
       if (dataset_train.HasVarWeights()) {
         current_sigma2 = global_var_model.SampleVarianceParameter(
             residual.GetData(), dataset_train.GetVarWeights(), a_global, b_global, rng);
@@ -628,7 +715,7 @@ void BARTFit(BARTResult*        result_ptr,
       if (!gfr_sigma2_seeds.empty())
         gfr_sigma2_seeds[i] = current_sigma2;
     }
-    if (has_mean_forest && config.sample_sigma2_leaf) {
+    if (has_mean_forest && !is_cloglog && config.sample_sigma2_leaf) {
       leaf_scale = leaf_var_model.SampleVarianceParameter(
           &active_forest, a_leaf, b_leaf, rng);
       if (store_gfr)
@@ -657,6 +744,21 @@ void BARTFit(BARTResult*        result_ptr,
             chain_sigma2 = gfr_sigma2_seeds[forest_ind];
           if (config.sample_sigma2_leaf && !gfr_leaf_scale_seeds.empty())
             chain_leaf_scale = gfr_leaf_scale_seeds[forest_ind];
+          // Cloglog: ReconstituteFromForest corrupts the category labels stored
+          // in the residual; restore them and sync the auxiliary data state.
+          if (is_cloglog) {
+            for (int j = 0; j < n_train; j++) residual.SetElement(j, resid_vec[j]);
+            // Restore cutpoints from seed buffer, update cumsum.
+            const double* csrc = gfr_cloglog_cutpoint_seeds.data()
+                                 + static_cast<size_t>(forest_ind) * (K - 1);
+            for (int k = 0; k < K - 1; k++) dataset_train.SetAuxiliaryDataValue(2, k, csrc[k]);
+            ordinal_sampler.UpdateCumulativeExpSums(dataset_train);
+            // Update slot 1 with reconstituted forest predictions; reset latent Z.
+            for (int j = 0; j < n_train; j++)
+              dataset_train.SetAuxiliaryDataValue(1, j, tracker.GetSamplePrediction(j));
+            for (int j = 0; j < n_train; j++)
+              dataset_train.SetAuxiliaryDataValue(0, j, 0.0);
+          }
         }
         // Restore variance forest state from the same GFR sample.
         if (has_variance_forest) {
@@ -688,6 +790,14 @@ void BARTFit(BARTResult*        result_ptr,
           }
           tracker.ReconstituteFromForest(
               active_forest, dataset_train, residual, /*is_mean_model=*/true);
+          // Cloglog: restore category labels and reset all auxiliary state.
+          if (is_cloglog) {
+            for (int j = 0; j < n_train; j++) residual.SetElement(j, resid_vec[j]);
+            for (int k = 0; k < K - 1; k++) dataset_train.SetAuxiliaryDataValue(2, k, 0.0);
+            ordinal_sampler.UpdateCumulativeExpSums(dataset_train);
+            for (int j = 0; j < n_train; j++) dataset_train.SetAuxiliaryDataValue(1, j, 0.0);
+            for (int j = 0; j < n_train; j++) dataset_train.SetAuxiliaryDataValue(0, j, 0.0);
+          }
         }
         if (has_variance_forest) {
           active_forest_variance.ResetRoot();
@@ -743,6 +853,14 @@ void BARTFit(BARTResult*        result_ptr,
                 variable_weights, sweep_indices, chain_sigma2,
                 /*keep_forest=*/is_kept, /*pre_initialized=*/true, /*backfitting=*/true,
                 config.num_threads, basis_dim);
+          } else if (is_cloglog) {
+            auto lm = CloglogOrdinalLeafModel(config.cloglog_forest_shape, config.cloglog_forest_rate);
+            MCMCSampleOneIter<CloglogOrdinalLeafModel, CloglogOrdinalSuffStat>(
+                active_forest, tracker, forest_container, lm,
+                dataset_train, residual, tree_prior, rng,
+                variable_weights, sweep_indices, chain_sigma2,
+                /*keep_forest=*/is_kept, /*pre_initialized=*/true, /*backfitting=*/false,
+                config.num_threads);
           } else {
             auto lm = GaussianConstantLeafModel(chain_leaf_scale);
             MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
@@ -752,6 +870,17 @@ void BARTFit(BARTResult*        result_ptr,
                 /*keep_forest=*/is_kept, /*pre_initialized=*/true, /*backfitting=*/true,
                 config.num_threads);
           }
+        }
+
+        // Cloglog Gibbs steps (MCMC).
+        if (is_cloglog) {
+          for (int j = 0; j < n_train; j++)
+            dataset_train.SetAuxiliaryDataValue(1, j, tracker.GetSamplePrediction(j));
+          ordinal_sampler.UpdateLatentVariables(dataset_train, residual.GetData(), rng);
+          ordinal_sampler.UpdateGammaParams(dataset_train, residual.GetData(),
+              config.cloglog_forest_shape, config.cloglog_forest_rate,
+              config.cloglog_cutpoint_0, rng);
+          ordinal_sampler.UpdateCumulativeExpSums(dataset_train);
         }
 
         // Sample variance forest (MCMC step), then update per-obs variance weights.
@@ -772,8 +901,8 @@ void BARTFit(BARTResult*        result_ptr,
         if (has_rfx)
           rfx_model->SampleRandomEffects(*rfx_dataset_train, residual, *rfx_tracker, chain_sigma2, rng);
 
-        // Probit: sigma2 fixed at 1, skip global variance sampling.
-        if (has_mean_forest && !is_probit && config.sample_sigma2_global) {
+        // Probit/cloglog: sigma2 fixed at 1, skip global variance sampling.
+        if (has_mean_forest && !is_probit && !is_cloglog && config.sample_sigma2_global) {
           if (dataset_train.HasVarWeights()) {
             chain_sigma2 = global_var_model.SampleVarianceParameter(
                 residual.GetData(), dataset_train.GetVarWeights(), a_global, b_global, rng);
@@ -782,7 +911,7 @@ void BARTFit(BARTResult*        result_ptr,
                 residual.GetData(), a_global, b_global, rng);
           }
         }
-        if (has_mean_forest && config.sample_sigma2_leaf)
+        if (has_mean_forest && !is_cloglog && config.sample_sigma2_leaf)
           chain_leaf_scale = leaf_var_model.SampleVarianceParameter(
               &active_forest, a_leaf, b_leaf, rng);
 
@@ -797,9 +926,13 @@ void BARTFit(BARTResult*        result_ptr,
           }
           if (has_rfx)
             result.rfx_container->AddSample(*rfx_model);
-          if (has_mean_forest && !is_probit && config.sample_sigma2_global)
+          if (is_cloglog) {
+            double* cdst = result.cloglog_cutpoint_samples.data() + static_cast<size_t>(col) * (K - 1);
+            for (int k = 0; k < K - 1; k++) cdst[k] = dataset_train.GetAuxiliaryDataValue(2, k);
+          }
+          if (has_mean_forest && !is_probit && !is_cloglog && config.sample_sigma2_global)
             result.sigma2_global_samples[col] = chain_sigma2 * y_std * y_std;
-          if (has_mean_forest && config.sample_sigma2_leaf)
+          if (has_mean_forest && !is_cloglog && config.sample_sigma2_leaf)
             result.leaf_scale_samples[col] = chain_leaf_scale;
           mcmc_kept++;
         }

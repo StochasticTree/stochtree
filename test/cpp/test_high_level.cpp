@@ -1535,4 +1535,246 @@ TEST(BARTFit, RFX_ValidationErrors) {
   }
 }
 
+// ── Cloglog tests ──────────────────────────────────────────────────────────
+
+// Generate ordinal outcome data with K categories (labels 0..K-1).
+// True linear predictor drives a cloglog model with K-1 uniform cutpoints.
+struct OrdinalData {
+  int n, p, K;
+  std::vector<double> X;  // column-major n × p
+  std::vector<double> y;  // category labels as double (0.0, 1.0, ...)
+};
+
+OrdinalData MakeOrdinalData(int n, int p, int K, unsigned seed = 99) {
+  OrdinalData d;
+  d.n = n; d.p = p; d.K = K;
+  d.X.resize(static_cast<size_t>(n) * p);
+  d.y.resize(n);
+
+  std::mt19937 rng(seed);
+  std::normal_distribution<double> norm(0.0, 1.0);
+  std::uniform_real_distribution<double> unif(0.0, 1.0);
+
+  for (int j = 0; j < p; j++)
+    for (int i = 0; i < n; i++)
+      d.X[j * n + i] = norm(rng);
+
+  // Uniform cutpoints in (-2, 2).
+  std::vector<double> cuts(K - 1);
+  for (int k = 0; k < K - 1; k++)
+    cuts[k] = -2.0 + 4.0 * (k + 1.0) / K;
+
+  for (int i = 0; i < n; i++) {
+    double eta = d.X[0 * n + i];
+    if (p > 1) eta -= 0.5 * d.X[1 * n + i];
+    // cloglog F(x) = 1 - exp(-exp(x))
+    double u = unif(rng);
+    int cat = 0;
+    for (int k = 0; k < K - 1; k++) {
+      double p_cum = 1.0 - std::exp(-std::exp(eta - cuts[k]));
+      if (u < p_cum) break;
+      cat = k + 1;
+    }
+    d.y[i] = static_cast<double>(cat);
+  }
+  return d;
+}
+
+// Binary cloglog (K=2): GFR + MCMC, check shape and finite values.
+TEST(BARTFitCloglog, Binary_GFR_MCMC_Shape_Finite) {
+  auto d = MakeOrdinalData(200, 5, 2);
+
+  StochTree::BARTConfig config;
+  config.num_trees              = 20;
+  config.num_gfr                = 5;
+  config.num_burnin             = 0;
+  config.num_mcmc               = 50;
+  config.num_chains             = 1;
+  config.link_function          = StochTree::LinkFunction::Cloglog;
+  config.cloglog_num_categories = 2;
+  config.cloglog_forest_shape   = 2.0;
+  config.cloglog_forest_rate    = 2.0;
+  config.random_seed            = 10;
+
+  StochTree::BARTData data;
+  data.X_train = d.X.data();
+  data.n_train = d.n;
+  data.p       = d.p;
+  data.y_train = d.y.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 50;  // 0 gfr stored + 1*50 mcmc
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(result.n_train, 200);
+  EXPECT_EQ(result.n_test,  0);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 200 * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+
+  // K=2: one cutpoint per sample
+  EXPECT_EQ(static_cast<int>(result.cloglog_cutpoint_samples.size()), 1 * num_total);
+  EXPECT_TRUE(AllFinite(result.cloglog_cutpoint_samples));
+  // No sigma2 or leaf_scale for cloglog
+  EXPECT_TRUE(result.sigma2_global_samples.empty());
+  EXPECT_TRUE(result.leaf_scale_samples.empty());
+  // No variance forest
+  EXPECT_TRUE(result.sigma2_x_hat_train.empty());
+}
+
+// Multi-category cloglog (K=3): GFR + MCMC, check shape and finite values.
+TEST(BARTFitCloglog, Ordinal3_GFR_MCMC_Shape_Finite) {
+  auto d = MakeOrdinalData(200, 5, 3, 77);
+
+  StochTree::BARTConfig config;
+  config.num_trees              = 20;
+  config.num_gfr                = 5;
+  config.num_burnin             = 0;
+  config.num_mcmc               = 50;
+  config.num_chains             = 1;
+  config.link_function          = StochTree::LinkFunction::Cloglog;
+  config.cloglog_num_categories = 3;
+  config.random_seed            = 11;
+
+  StochTree::BARTData data;
+  data.X_train = d.X.data();
+  data.n_train = d.n;
+  data.p       = d.p;
+  data.y_train = d.y.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 50;
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 200 * num_total);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  // K=3: two cutpoints per sample
+  EXPECT_EQ(static_cast<int>(result.cloglog_cutpoint_samples.size()), 2 * num_total);
+  EXPECT_TRUE(AllFinite(result.cloglog_cutpoint_samples));
+  EXPECT_TRUE(result.sigma2_global_samples.empty());
+  EXPECT_TRUE(result.leaf_scale_samples.empty());
+}
+
+// Cloglog with keep_gfr=true: GFR samples also stored in cutpoint_samples.
+TEST(BARTFitCloglog, Binary_KeepGFR) {
+  auto d = MakeOrdinalData(150, 4, 2, 55);
+
+  StochTree::BARTConfig config;
+  config.num_trees              = 20;
+  config.num_gfr                = 5;
+  config.num_burnin             = 0;
+  config.num_mcmc               = 20;
+  config.num_chains             = 1;
+  config.keep_gfr               = true;
+  config.link_function          = StochTree::LinkFunction::Cloglog;
+  config.cloglog_num_categories = 2;
+  config.random_seed            = 12;
+
+  StochTree::BARTData data;
+  data.X_train = d.X.data();
+  data.n_train = d.n;
+  data.p       = d.p;
+  data.y_train = d.y.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 5 + 20;  // 5 gfr + 20 mcmc
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 150 * num_total);
+  EXPECT_EQ(static_cast<int>(result.cloglog_cutpoint_samples.size()), 1 * num_total);
+  EXPECT_TRUE(AllFinite(result.cloglog_cutpoint_samples));
+}
+
+// Multi-chain cloglog: two chains, check total samples and finite values.
+TEST(BARTFitCloglog, Binary_MultiChain) {
+  auto d = MakeOrdinalData(200, 5, 2, 33);
+
+  StochTree::BARTConfig config;
+  config.num_trees              = 20;
+  config.num_gfr                = 4;
+  config.num_burnin             = 0;
+  config.num_mcmc               = 30;
+  config.num_chains             = 2;
+  config.link_function          = StochTree::LinkFunction::Cloglog;
+  config.cloglog_num_categories = 2;
+  config.random_seed            = 13;
+
+  StochTree::BARTData data;
+  data.X_train = d.X.data();
+  data.n_train = d.n;
+  data.p       = d.p;
+  data.y_train = d.y.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 0 + 2 * 30;  // 0 gfr stored + 2 chains * 30 mcmc
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 200 * num_total);
+  EXPECT_EQ(static_cast<int>(result.cloglog_cutpoint_samples.size()), 1 * num_total);
+  EXPECT_TRUE(AllFinite(result.cloglog_cutpoint_samples));
+}
+
+// Cloglog validation: combining with variance forest should throw.
+TEST(BARTFitCloglog, Validation_Errors) {
+  auto d = MakeOrdinalData(100, 3, 2);
+
+  // Cloglog + variance forest is not supported
+  {
+    StochTree::BARTConfig config;
+    config.num_trees              = 20;
+    config.num_gfr                = 5;
+    config.num_mcmc               = 10;
+    config.link_function          = StochTree::LinkFunction::Cloglog;
+    config.cloglog_num_categories = 2;
+    config.include_variance_forest = true;
+    config.num_trees_variance     = 10;
+
+    StochTree::BARTData data;
+    data.X_train = d.X.data(); data.n_train = d.n; data.p = d.p;
+    data.y_train = d.y.data();
+
+    StochTree::BARTResult result;
+    EXPECT_THROW(StochTree::BARTFit(&result, config, data), std::runtime_error);
+  }
+
+  // Cloglog + non-constant leaf model should throw
+  {
+    StochTree::BARTConfig config;
+    config.num_trees              = 20;
+    config.num_gfr                = 5;
+    config.num_mcmc               = 10;
+    config.link_function          = StochTree::LinkFunction::Cloglog;
+    config.cloglog_num_categories = 2;
+    config.leaf_model             = StochTree::LeafModel::UnivariateRegression;
+
+    StochTree::BARTData data;
+    data.X_train = d.X.data(); data.n_train = d.n; data.p = d.p;
+    data.y_train = d.y.data();
+    data.basis_dim = 1;
+
+    StochTree::BARTResult result;
+    EXPECT_THROW(StochTree::BARTFit(&result, config, data), std::runtime_error);
+  }
+
+  // Cloglog + fewer than 2 categories should throw
+  {
+    StochTree::BARTConfig config;
+    config.num_trees              = 20;
+    config.num_gfr                = 5;
+    config.num_mcmc               = 10;
+    config.link_function          = StochTree::LinkFunction::Cloglog;
+    config.cloglog_num_categories = 1;
+
+    StochTree::BARTData data;
+    data.X_train = d.X.data(); data.n_train = d.n; data.p = d.p;
+    data.y_train = d.y.data();
+
+    StochTree::BARTResult result;
+    EXPECT_THROW(StochTree::BARTFit(&result, config, data), std::runtime_error);
+  }
+}
+
 } // namespace
