@@ -1077,6 +1077,15 @@ bart <- function(
       cloglog_num_categories_dispatch <- 0L
     }
 
+    # Match slow-path behavior: warn and disable leaf scale sampling for
+    # multivariate leaf regression (C++ BARTFit does not support it yet).
+    if (has_basis && ncol(as.matrix(leaf_basis_train)) > 1L && sample_sigma2_leaf) {
+      warning(
+        "Sampling leaf scale not yet supported for multivariate leaf models, so the leaf scale parameter will not be sampled in this model."
+      )
+      sample_sigma2_leaf <- FALSE
+    }
+
     # Sigma2 init and sampling: fixed at 1 and disabled for probit/cloglog.
     sigma2_global_init_dispatch <- if (link_is_probit || link_is_cloglog) 1.0 else sigma2_init
     sample_sigma2_global_dispatch <- if (link_is_probit || link_is_cloglog) FALSE else sample_sigma2_global
