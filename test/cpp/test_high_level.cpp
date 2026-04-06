@@ -416,6 +416,13 @@ TEST(BARTFit, UnsupportedFeatures_ThrowClear) {
     d2.basis_dim   = 2;
     { StochTree::BARTResult _r; EXPECT_THROW(StochTree::BARTFit(&_r, config, d2), std::runtime_error); }
   }
+
+  // num_trees=0 without a variance forest: nothing to sample
+  {
+    StochTree::BARTConfig config;
+    config.num_trees = 0;
+    { StochTree::BARTResult _r; EXPECT_THROW(StochTree::BARTFit(&_r, config, data), std::runtime_error); }
+  }
 }
 
 // ── Variance forest tests ──────────────────────────────────────────────────
@@ -1019,6 +1026,174 @@ TEST(BARTFit, LeafRegression_Univariate_Reproducibility) {
   ASSERT_EQ(r1.y_hat_train.size(), r2.y_hat_train.size());
   for (size_t i = 0; i < r1.y_hat_train.size(); i++)
     EXPECT_DOUBLE_EQ(r1.y_hat_train[i], r2.y_hat_train[i]) << "mismatch at i=" << i;
+}
+
+// ── No-mean-forest tests ───────────────────────────────────────────────────
+//
+// These tests verify that BARTFit works correctly when num_trees=0 (i.e. no
+// mean forest).  A variance forest must be present to give the sampler
+// something to do; the mean prediction is a constant y_bar for every sample.
+
+// GFR-only with variance forest (no mean forest).
+TEST(BARTFit, NoMeanForest_VarianceOnly_GFROnly) {
+  int n = 150, p = 5;
+  auto d = MakeHeteroskedData(n, p, 60);
+
+  StochTree::BARTConfig config;
+  config.num_trees               = 0;
+  config.num_gfr                 = 15;
+  config.num_burnin              = 0;
+  config.num_mcmc                = 0;
+  config.include_variance_forest  = true;
+  config.num_trees_variance       = 15;
+  config.sample_sigma2_global     = false;
+  config.sample_sigma2_leaf       = false;
+  config.random_seed              = 60;
+
+  StochTree::BARTData data;
+  data.X_train = d.X.data(); data.n_train = n; data.p = p;
+  data.y_train = d.y.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  // GFR-only: all 15 samples kept regardless of keep_gfr.
+  EXPECT_EQ(result.num_total_samples, 15);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()),        n * 15);
+  EXPECT_EQ(static_cast<int>(result.sigma2_x_hat_train.size()), n * 15);
+  EXPECT_TRUE(AllFinite(result.y_hat_train));
+  EXPECT_TRUE(AllFinite(result.sigma2_x_hat_train));
+  // Mean predictions must all equal y_bar (no mean forest).
+  double y_bar = result.y_bar;
+  for (double v : result.y_hat_train)
+    EXPECT_DOUBLE_EQ(v, y_bar);
+}
+
+// MCMC-only with variance forest (no GFR warm-start, no mean forest).
+TEST(BARTFit, NoMeanForest_VarianceOnly_MCMCOnly) {
+  int n = 150, p = 5;
+  auto d = MakeHeteroskedData(n, p, 61);
+
+  StochTree::BARTConfig config;
+  config.num_trees               = 0;
+  config.num_gfr                 = 0;
+  config.num_burnin              = 5;
+  config.num_mcmc                = 20;
+  config.include_variance_forest  = true;
+  config.num_trees_variance       = 15;
+  config.sample_sigma2_global     = false;
+  config.sample_sigma2_leaf       = false;
+  config.random_seed              = 61;
+
+  StochTree::BARTData data;
+  data.X_train = d.X.data(); data.n_train = n; data.p = p;
+  data.y_train = d.y.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  EXPECT_EQ(result.num_total_samples, 20);
+  EXPECT_EQ(static_cast<int>(result.sigma2_x_hat_train.size()), n * 20);
+  EXPECT_TRUE(AllFinite(result.sigma2_x_hat_train));
+  for (double v : result.sigma2_x_hat_train)
+    EXPECT_GT(v, 0.0);
+}
+
+// GFR + MCMC with variance forest, keep_gfr=true: verify GFR samples included.
+TEST(BARTFit, NoMeanForest_VarianceOnly_KeepGFR) {
+  int n = 150, p = 5;
+  auto d = MakeHeteroskedData(n, p, 62);
+
+  StochTree::BARTConfig config;
+  config.num_trees               = 0;
+  config.num_gfr                 = 5;
+  config.num_mcmc                = 20;
+  config.keep_gfr                = true;
+  config.include_variance_forest  = true;
+  config.num_trees_variance       = 15;
+  config.sample_sigma2_global     = false;
+  config.sample_sigma2_leaf       = false;
+  config.random_seed              = 62;
+
+  StochTree::BARTData data;
+  data.X_train = d.X.data(); data.n_train = n; data.p = p;
+  data.y_train = d.y.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 5 + 20;  // keep_gfr=true: GFR + MCMC
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.sigma2_x_hat_train.size()), n * num_total);
+  EXPECT_TRUE(AllFinite(result.sigma2_x_hat_train));
+}
+
+// GFR + MCMC with variance forest, with test set (no mean forest).
+TEST(BARTFit, NoMeanForest_VarianceOnly_WithTestSet) {
+  int n_train = 200, n_test = 50, p = 5;
+  auto d_train = MakeHeteroskedData(n_train, p, 63);
+  auto d_test  = MakeHeteroskedData(n_test,  p, 64);
+
+  StochTree::BARTConfig config;
+  config.num_trees               = 0;
+  config.num_gfr                 = 5;
+  config.num_mcmc                = 20;
+  config.include_variance_forest  = true;
+  config.num_trees_variance       = 15;
+  config.sample_sigma2_global     = false;
+  config.sample_sigma2_leaf       = false;
+  config.random_seed              = 63;
+
+  StochTree::BARTData data;
+  data.X_train = d_train.X.data(); data.n_train = n_train; data.p = p;
+  data.y_train = d_train.y.data();
+  data.X_test  = d_test.X.data();  data.n_test  = n_test;
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 20;  // keep_gfr=false (default): MCMC only
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.sigma2_x_hat_train.size()), n_train * num_total);
+  EXPECT_EQ(static_cast<int>(result.sigma2_x_hat_test.size()),  n_test  * num_total);
+  EXPECT_TRUE(AllFinite(result.sigma2_x_hat_train));
+  EXPECT_TRUE(AllFinite(result.sigma2_x_hat_test));
+  for (double v : result.sigma2_x_hat_test)
+    EXPECT_GT(v, 0.0);
+  // y_hat_test must all equal y_bar
+  double y_bar = result.y_bar;
+  for (double v : result.y_hat_test)
+    EXPECT_DOUBLE_EQ(v, y_bar);
+}
+
+// Multi-chain with variance forest (no mean forest).
+TEST(BARTFit, NoMeanForest_VarianceOnly_MultiChain) {
+  int n = 150, p = 5;
+  auto d = MakeHeteroskedData(n, p, 65);
+
+  StochTree::BARTConfig config;
+  config.num_trees               = 0;
+  config.num_gfr                 = 3;
+  config.num_burnin              = 2;
+  config.num_mcmc                = 15;
+  config.num_chains              = 3;
+  config.include_variance_forest  = true;
+  config.num_trees_variance       = 10;
+  config.sample_sigma2_global     = false;
+  config.sample_sigma2_leaf       = false;
+  config.random_seed              = 65;
+
+  StochTree::BARTData data;
+  data.X_train = d.X.data(); data.n_train = n; data.p = p;
+  data.y_train = d.y.data();
+
+  StochTree::BARTResult result;
+  StochTree::BARTFit(&result, config, data);
+
+  int num_total = 3 * 15;  // 3 chains × 15 MCMC, keep_gfr=false
+  EXPECT_EQ(result.num_total_samples, num_total);
+  EXPECT_EQ(static_cast<int>(result.sigma2_x_hat_train.size()), n * num_total);
+  EXPECT_TRUE(AllFinite(result.sigma2_x_hat_train));
 }
 
 } // namespace

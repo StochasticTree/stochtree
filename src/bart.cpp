@@ -75,6 +75,9 @@ void BARTFit(BARTResult*        result_ptr,
     Log::Fatal("BARTFit: leaf scale sampling is not supported for multivariate leaf regression.");
   if (config.include_variance_forest && config.num_trees_variance <= 0)
     Log::Fatal("BARTFit: include_variance_forest=true requires num_trees_variance > 0.");
+  if (config.num_trees <= 0 && !config.include_variance_forest)
+    Log::Fatal("BARTFit: at least one of num_trees > 0 or include_variance_forest=true "
+               "must be specified.");
   if (config.rfx_model_spec != RFXModelSpec::None)
     Log::Fatal("BARTFit: random effects are not yet supported in the C++ dispatch layer.");
   if (!previous_model_json.empty())
@@ -404,17 +407,19 @@ void BARTFit(BARTResult*        result_ptr,
 
   std::unique_ptr<ForestContainer> gfr_mean_scratch;
   std::unique_ptr<ForestContainer> gfr_var_scratch;
-  if (use_gfr_scratch) {
+  if (use_gfr_scratch && has_mean_forest)
     gfr_mean_scratch = std::make_unique<ForestContainer>(
         mean_ctor_trees, mean_output_dim, mean_leaf_const, /*is_exponentiated=*/false);
-    if (has_variance_forest)
-      gfr_var_scratch = std::make_unique<ForestContainer>(
-          num_trees_variance, 1, /*is_leaf_constant=*/true, /*is_exponentiated=*/true);
-  }
+  if (use_gfr_scratch && has_variance_forest)
+    gfr_var_scratch = std::make_unique<ForestContainer>(
+        num_trees_variance, 1, /*is_leaf_constant=*/true, /*is_exponentiated=*/true);
 
   // Reference aliases: GFR loops write to scratch; when keep_gfr=true they
   // write directly to the result containers (no scratch needed).
-  ForestContainer& gfr_mean_fc = use_gfr_scratch ? *gfr_mean_scratch : forest_container;
+  // When !has_mean_forest, gfr_mean_fc is never accessed — the fallback to
+  // forest_container is just a harmless placeholder.
+  ForestContainer& gfr_mean_fc = (use_gfr_scratch && has_mean_forest)
+      ? *gfr_mean_scratch : forest_container;
   ForestContainer* gfr_var_fc  = has_variance_forest
       ? (use_gfr_scratch ? gfr_var_scratch.get() : result.variance_forest_container.get())
       : nullptr;
