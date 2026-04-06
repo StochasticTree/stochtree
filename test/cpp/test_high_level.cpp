@@ -186,9 +186,9 @@ TEST(BARTFit, GFR_Plus_MCMC_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  // num_total = 5 (GFR) + 1 * 100 (MCMC) = 105
-  EXPECT_EQ(result.num_total_samples, 105);
-  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 200 * 105);
+  // keep_gfr=false (default): num_total = 1 * 100 (MCMC only)
+  EXPECT_EQ(result.num_total_samples, 100);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 200 * 100);
   EXPECT_TRUE(AllFinite(result.y_hat_train));
   EXPECT_TRUE(AllFinite(result.sigma2_global_samples));
   EXPECT_TRUE(AllFinite(result.leaf_scale_samples));
@@ -215,9 +215,9 @@ TEST(BARTFit, MultiChain_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  // num_total = 5 (GFR) + 3 chains * 50 (MCMC) = 155
-  EXPECT_EQ(result.num_total_samples, 155);
-  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 150 * 155);
+  // keep_gfr=false (default): num_total = 3 chains * 50 (MCMC only) = 150
+  EXPECT_EQ(result.num_total_samples, 150);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 150 * 150);
   EXPECT_TRUE(AllFinite(result.y_hat_train));
 }
 
@@ -245,7 +245,7 @@ TEST(BARTFit, WithTestSet_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  int num_total = 5 + 50;  // GFR + MCMC
+  int num_total = 50;  // keep_gfr=false (default): MCMC only
   EXPECT_EQ(result.num_total_samples, num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n_train * num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_test.size()),  n_test  * num_total);
@@ -470,7 +470,7 @@ TEST(BARTFit, VarianceForest_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  int num_total = 5 + 20;
+  int num_total = 20;  // keep_gfr=false (default): MCMC only
   EXPECT_EQ(result.num_total_samples, num_total);
   EXPECT_EQ(static_cast<int>(result.sigma2_x_hat_train.size()), n_train * num_total);
   EXPECT_EQ(static_cast<int>(result.sigma2_x_hat_test.size()),  n_test  * num_total);
@@ -528,7 +528,7 @@ TEST(BARTFit, VarianceForest_WithMeanForest_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  int num_total = 5 + 30;
+  int num_total = 30;  // keep_gfr=false (default): MCMC only
   EXPECT_EQ(result.num_total_samples, num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_train.size()),        n_train * num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_test.size()),         n_test  * num_total);
@@ -595,16 +595,16 @@ TEST(BARTFit, ProbitBART_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  // num_total = 5 (GFR) + 30 (MCMC) = 35
-  EXPECT_EQ(result.num_total_samples, 35);
-  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 200 * 35);
+  // keep_gfr=false (default): num_total = 30 (MCMC only)
+  EXPECT_EQ(result.num_total_samples, 30);
+  EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), 200 * 30);
   EXPECT_TRUE(AllFinite(result.y_hat_train));
   EXPECT_TRUE(result.y_hat_test.empty());
 
   // sigma2_global must be absent for probit
   EXPECT_TRUE(result.sigma2_global_samples.empty());
   // leaf_scale is still sampled
-  EXPECT_EQ(static_cast<int>(result.leaf_scale_samples.size()), 35);
+  EXPECT_EQ(static_cast<int>(result.leaf_scale_samples.size()), 30);
   EXPECT_TRUE(AllFinite(result.leaf_scale_samples));
 }
 
@@ -661,7 +661,7 @@ TEST(BARTFit, ProbitBART_WithTestSet_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  int num_total = 5 + 30;
+  int num_total = 30;  // keep_gfr=false (default): MCMC only
   EXPECT_EQ(result.num_total_samples, num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n_train * num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_test.size()),  n_test  * num_total);
@@ -846,7 +846,7 @@ TEST(BARTFit, LeafRegression_Univariate_GFR_Plus_MCMC_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  int num_total = 5 + 50;  // GFR + MCMC
+  int num_total = 50;  // keep_gfr=false (default): MCMC only
   EXPECT_EQ(result.num_total_samples, num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n * num_total);
   EXPECT_TRUE(AllFinite(result.y_hat_train));
@@ -881,7 +881,7 @@ TEST(BARTFit, LeafRegression_Univariate_WithTestSet_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  int num_total = 5 + 30;
+  int num_total = 30;  // keep_gfr=false (default): MCMC only
   EXPECT_EQ(result.num_total_samples, num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n_train * num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_test.size()),  n_test  * num_total);
@@ -914,7 +914,7 @@ TEST(BARTFit, LeafRegression_Univariate_LeafScaleSampling) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  int num_total = 5 + 30;
+  int num_total = 30;  // keep_gfr=false (default): MCMC only
   EXPECT_EQ(result.num_total_samples, num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n * num_total);
   EXPECT_TRUE(AllFinite(result.y_hat_train));
@@ -948,7 +948,7 @@ TEST(BARTFit, LeafRegression_Multivariate_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  int num_total = 5 + 30;
+  int num_total = 30;  // keep_gfr=false (default): MCMC only
   EXPECT_EQ(result.num_total_samples, num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n * num_total);
   EXPECT_TRUE(AllFinite(result.y_hat_train));
@@ -983,7 +983,7 @@ TEST(BARTFit, LeafRegression_Multivariate_WithTestSet_Shape_Finite) {
   StochTree::BARTResult result;
   StochTree::BARTFit(&result, config, data);
 
-  int num_total = 5 + 20;
+  int num_total = 20;  // keep_gfr=false (default): MCMC only
   EXPECT_EQ(result.num_total_samples, num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_train.size()), n_train * num_total);
   EXPECT_EQ(static_cast<int>(result.y_hat_test.size()),  n_test  * num_total);

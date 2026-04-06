@@ -394,6 +394,17 @@ void BARTFit(BARTResult*        result_ptr,
   // samples into the result arrays (num_stored_gfr == 0 in that case).
   bool store_gfr = (num_stored_gfr > 0);
 
+  // Scalar seed buffers: always populated during GFR when num_mcmc > 0 so that
+  // chain seeding can restore the correct sigma2 / leaf_scale state even when
+  // keep_gfr=false (i.e. when the result arrays have no GFR-indexed slots).
+  // These are internal only and are not exposed in BARTResult.
+  std::vector<double> gfr_sigma2_seeds;
+  std::vector<double> gfr_leaf_scale_seeds;
+  if (num_mcmc > 0 && num_gfr > 0) {
+    gfr_sigma2_seeds.resize(num_gfr, current_sigma2);
+    gfr_leaf_scale_seeds.resize(num_gfr, leaf_scale);
+  }
+
   // ── GFR loop ───────────────────────────────────────────────────────
   for (int i = 0; i < num_gfr; i++) {
     if (has_mean_forest) {
@@ -474,12 +485,16 @@ void BARTFit(BARTResult*        result_ptr,
       }
       if (store_gfr)
         result.sigma2_global_samples[i] = current_sigma2 * y_std * y_std;
+      if (!gfr_sigma2_seeds.empty())
+        gfr_sigma2_seeds[i] = current_sigma2;
     }
     if (has_mean_forest && config.sample_sigma2_leaf) {
       leaf_scale = leaf_var_model.SampleVarianceParameter(
           &active_forest, a_leaf, b_leaf, rng);
       if (store_gfr)
         result.leaf_scale_samples[i] = leaf_scale;
+      if (!gfr_leaf_scale_seeds.empty())
+        gfr_leaf_scale_seeds[i] = leaf_scale;
     }
   }
 
@@ -497,11 +512,13 @@ void BARTFit(BARTResult*        result_ptr,
               *forest_container.GetEnsemble(forest_ind));
           tracker.ReconstituteFromForest(
               active_forest, dataset_train, residual, /*is_mean_model=*/true);
-          // Restore scalar variance state from GFR sample.
-          if (config.sample_sigma2_global && !result.sigma2_global_samples.empty())
-            chain_sigma2 = result.sigma2_global_samples[forest_ind] / (y_std * y_std);
-          if (config.sample_sigma2_leaf && !result.leaf_scale_samples.empty())
-            chain_leaf_scale = result.leaf_scale_samples[forest_ind];
+          // Restore scalar variance state from GFR seed buffers.
+          // These are always populated during GFR (regardless of keep_gfr), so
+          // chain seeding is correct even when result.*_samples have no GFR slots.
+          if (config.sample_sigma2_global && !gfr_sigma2_seeds.empty())
+            chain_sigma2 = gfr_sigma2_seeds[forest_ind];
+          if (config.sample_sigma2_leaf && !gfr_leaf_scale_seeds.empty())
+            chain_leaf_scale = gfr_leaf_scale_seeds[forest_ind];
         }
         // Restore variance forest state from the same GFR sample.
         if (has_variance_forest) {
