@@ -394,6 +394,31 @@ void BARTFit(BARTResult*        result_ptr,
   // samples into the result arrays (num_stored_gfr == 0 in that case).
   bool store_gfr = (num_stored_gfr > 0);
 
+  // ── GFR scratch buffers ────────────────────────────────────────────
+  // When keep_gfr=false (store_gfr=false) and num_mcmc > 0, GFR samples are
+  // only needed to seed the MCMC chains.  Rather than appending them to the
+  // result containers and deleting afterwards, we route them into private
+  // scratch containers that are discarded once seeding is complete.
+  // This mirrors how gfr_sigma2_seeds / gfr_leaf_scale_seeds work for scalars.
+  bool use_gfr_scratch = (!store_gfr && num_mcmc > 0 && num_gfr > 0);
+
+  std::unique_ptr<ForestContainer> gfr_mean_scratch;
+  std::unique_ptr<ForestContainer> gfr_var_scratch;
+  if (use_gfr_scratch) {
+    gfr_mean_scratch = std::make_unique<ForestContainer>(
+        mean_ctor_trees, mean_output_dim, mean_leaf_const, /*is_exponentiated=*/false);
+    if (has_variance_forest)
+      gfr_var_scratch = std::make_unique<ForestContainer>(
+          num_trees_variance, 1, /*is_leaf_constant=*/true, /*is_exponentiated=*/true);
+  }
+
+  // Reference aliases: GFR loops write to scratch; when keep_gfr=true they
+  // write directly to the result containers (no scratch needed).
+  ForestContainer& gfr_mean_fc = use_gfr_scratch ? *gfr_mean_scratch : forest_container;
+  ForestContainer* gfr_var_fc  = has_variance_forest
+      ? (use_gfr_scratch ? gfr_var_scratch.get() : result.variance_forest_container.get())
+      : nullptr;
+
   // Scalar seed buffers: always populated during GFR when num_mcmc > 0 so that
   // chain seeding can restore the correct sigma2 / leaf_scale state even when
   // keep_gfr=false (i.e. when the result arrays have no GFR-indexed slots).
@@ -415,7 +440,7 @@ void BARTFit(BARTResult*        result_ptr,
       if (config.leaf_model == LeafModel::UnivariateRegression) {
         auto lm = GaussianUnivariateRegressionLeafModel(leaf_scale);
         GFRSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(
-            active_forest, tracker, forest_container, lm,
+            active_forest, tracker, gfr_mean_fc, lm,
             dataset_train, residual, tree_prior, rng,
             variable_weights, sweep_indices, current_sigma2,
             feature_types, cutpoint_grid_size,
@@ -425,7 +450,7 @@ void BARTFit(BARTResult*        result_ptr,
         Eigen::MatrixXd Sigma_0 = Eigen::MatrixXd::Identity(basis_dim, basis_dim) * leaf_scale;
         auto lm = GaussianMultivariateRegressionLeafModel(Sigma_0);
         GFRSampleOneIter<GaussianMultivariateRegressionLeafModel, GaussianMultivariateRegressionSuffStat>(
-            active_forest, tracker, forest_container, lm,
+            active_forest, tracker, gfr_mean_fc, lm,
             dataset_train, residual, tree_prior, rng,
             variable_weights, sweep_indices, current_sigma2,
             feature_types, cutpoint_grid_size,
@@ -434,7 +459,7 @@ void BARTFit(BARTResult*        result_ptr,
       } else {
         auto lm = GaussianConstantLeafModel(leaf_scale);
         GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
-            active_forest, tracker, forest_container, lm,
+            active_forest, tracker, gfr_mean_fc, lm,
             dataset_train, residual, tree_prior, rng,
             variable_weights, sweep_indices, current_sigma2,
             feature_types, cutpoint_grid_size,
@@ -456,7 +481,7 @@ void BARTFit(BARTResult*        result_ptr,
       LogLinearVarianceLeafModel var_leaf_model(a_forest, b_forest);
       GFRSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
           active_forest_variance, variance_tracker,
-          *result.variance_forest_container, var_leaf_model,
+          *gfr_var_fc, var_leaf_model,
           dataset_train, residual, variance_prior, rng,
           variable_weights_variance, variance_sweep_indices, current_sigma2,
           feature_types, cutpoint_grid_size,
@@ -509,12 +534,10 @@ void BARTFit(BARTResult*        result_ptr,
         int forest_ind = num_gfr - chain - 1;
         if (has_mean_forest) {
           active_forest.ReconstituteFromForest(
-              *forest_container.GetEnsemble(forest_ind));
+              *gfr_mean_fc.GetEnsemble(forest_ind));
           tracker.ReconstituteFromForest(
               active_forest, dataset_train, residual, /*is_mean_model=*/true);
           // Restore scalar variance state from GFR seed buffers.
-          // These are always populated during GFR (regardless of keep_gfr), so
-          // chain seeding is correct even when result.*_samples have no GFR slots.
           if (config.sample_sigma2_global && !gfr_sigma2_seeds.empty())
             chain_sigma2 = gfr_sigma2_seeds[forest_ind];
           if (config.sample_sigma2_leaf && !gfr_leaf_scale_seeds.empty())
@@ -523,7 +546,7 @@ void BARTFit(BARTResult*        result_ptr,
         // Restore variance forest state from the same GFR sample.
         if (has_variance_forest) {
           active_forest_variance.ReconstituteFromForest(
-              *result.variance_forest_container->GetEnsemble(forest_ind));
+              *gfr_var_fc->GetEnsemble(forest_ind));
           variance_tracker.ReconstituteFromForest(
               active_forest_variance, dataset_train, residual, /*is_mean_model=*/false);
         }
@@ -634,19 +657,7 @@ void BARTFit(BARTResult*        result_ptr,
     }
   }
 
-  // ── Post-MCMC GFR cleanup ──────────────────────────────────────────
-  // When keep_gfr=false and num_mcmc > 0, GFR forests were kept in
-  // forest_container only to seed the MCMC chains. Delete them now so
-  // the container holds only MCMC samples (indices 0..num_mcmc*num_chains-1).
-  if (!store_gfr && num_gfr > 0 && num_mcmc > 0) {
-    for (int i = num_gfr - 1; i >= 0; i--)
-      forest_container.DeleteSample(i);
-    if (has_variance_forest) {
-      for (int i = num_gfr - 1; i >= 0; i--)
-        result.variance_forest_container->DeleteSample(i);
-    }
-  }
-
 }
+
 
 } // namespace StochTree
