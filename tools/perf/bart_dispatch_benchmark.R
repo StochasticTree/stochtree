@@ -7,7 +7,7 @@
 #
 # Usage:
 #   Rscript tools/perf/bart_dispatch_benchmark.R
-#   Rscript tools/perf/bart_dispatch_benchmark.R identity probit rfx
+#   Rscript tools/perf/bart_dispatch_benchmark.R identity probit identity_rfx cloglog_binary cloglog_ordinal
 #
 # If scenario names are given as arguments only those are run, otherwise all
 # scenarios are run.  Available scenario names (print with --list):
