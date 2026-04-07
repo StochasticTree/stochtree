@@ -19,7 +19,13 @@ from .random_effects import (
     RandomEffectsModel,
     RandomEffectsTracker,
 )
-from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel, OrdinalSampler
+from .sampler import (
+    RNG,
+    ForestSampler,
+    GlobalVarianceModel,
+    LeafVarianceModel,
+    OrdinalSampler,
+)
 from .serialization import JSONSerializer
 from .utils import (
     OutcomeModel,
@@ -33,6 +39,13 @@ from .utils import (
     _infer_stochtree_version,
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
+)
+from stochtree_cpp import (
+    RandomEffectsContainerCpp,
+    RandomEffectsLabelMapperCpp,
+    BARTConfig as _CppBARTConfig,
+    BARTResultCpp as _CppBARTResult,
+    bart_fit as _bart_fit,
 )
 
 
@@ -250,7 +263,7 @@ class BARTModel:
             "keep_gfr": False,
             "keep_every": 1,
             "num_chains": 1,
-            "outcome_model": OutcomeModel(outcome = "continuous", link = "identity"),
+            "outcome_model": OutcomeModel(outcome="continuous", link="identity"),
             "probit_outcome_model": False,
             "num_threads": -1,
         }
@@ -381,12 +394,12 @@ class BARTModel:
         if self.probit_outcome_model:
             warnings.warn(
                 "Specifying a probit link through `general_params = {'probit_outcome_model': True}` is deprecated and will be removed in a future version. Please use `general_params = {outcome_model = OutcomeModel(outcome = 'binary', link = 'probit')}` instead.",
-                DeprecationWarning
+                DeprecationWarning,
             )
         # TODO: think about validation and deprecation flow for probit_outcome_model
         # outcome_model_specified = True if "outcome_model" in general_params.keys() and general_params["outcome_model"] else False
         # probit_specified = True if "probit_outcome_model" in general_params.keys() and general_params["probit_outcome_model"] else False
-        
+
         # Unpack outcome model details
         link_is_linear = False
         link_is_probit = False
@@ -394,20 +407,34 @@ class BARTModel:
         outcome_is_continuous = False
         outcome_is_binary = False
         outcome_is_ordinal = False
-        if self.outcome_model.outcome == "continuous" and self.outcome_model.link == "identity":
+        if (
+            self.outcome_model.outcome == "continuous"
+            and self.outcome_model.link == "identity"
+        ):
             link_is_linear = True
             outcome_is_continuous = True
-        elif self.outcome_model.outcome == "binary" and self.outcome_model.link == "probit":
+        elif (
+            self.outcome_model.outcome == "binary"
+            and self.outcome_model.link == "probit"
+        ):
             link_is_probit = True
             outcome_is_binary = True
-        elif self.outcome_model.outcome == "binary" and self.outcome_model.link == "cloglog":
+        elif (
+            self.outcome_model.outcome == "binary"
+            and self.outcome_model.link == "cloglog"
+        ):
             link_is_cloglog = True
             outcome_is_binary = True
-        elif self.outcome_model.outcome == "ordinal" and self.outcome_model.link == "cloglog":
+        elif (
+            self.outcome_model.outcome == "ordinal"
+            and self.outcome_model.link == "cloglog"
+        ):
             link_is_cloglog = True
             outcome_is_ordinal = True
         else:
-            raise ValueError(f"Invalid outcome model specification, outcome = {self.outcome_model.outcome}, link = {self.outcome_model.link}")
+            raise ValueError(
+                f"Invalid outcome model specification, outcome = {self.outcome_model.outcome}, link = {self.outcome_model.link}"
+            )
 
         # Check random effects specification
         if not isinstance(self.rfx_model_spec, str):
@@ -488,7 +515,9 @@ class BARTModel:
                 raise ValueError("observation_weights must be a numpy array")
             observation_weights_ = np.squeeze(observation_weights)
             if observation_weights_.ndim != 1:
-                raise ValueError("observation_weights must be a 1-dimensional numpy array")
+                raise ValueError(
+                    "observation_weights must be a 1-dimensional numpy array"
+                )
             if np.any(observation_weights_ < 0):
                 raise ValueError("observation_weights cannot have any negative values")
 
@@ -558,7 +587,7 @@ class BARTModel:
                 raise ValueError(
                     "X_test and leaf_basis_test must have the same number of rows"
                 )
-        
+
         # Check that there is at least enough data to create two leaves of size `min_samples_leaf`
         if num_trees_mean > 0 or num_trees_variance > 0:
             if num_trees_mean > 0 and num_trees_variance == 0:
@@ -575,7 +604,11 @@ class BARTModel:
         # Raise a warning if the data have ties and only GFR is being run
         if (num_gfr > 0) and (num_burnin == 0) and (num_mcmc == 0):
             num_values, num_cov_orig = X_train.shape
-            max_grid_size = floor(num_values / cutpoint_grid_size) if num_values > cutpoint_grid_size else 1
+            max_grid_size = (
+                floor(num_values / cutpoint_grid_size)
+                if num_values > cutpoint_grid_size
+                else 1
+            )
             x_is_df = isinstance(X_train, pd.DataFrame)
             covs_warning_1 = []
             covs_warning_2 = []
@@ -585,9 +618,9 @@ class BARTModel:
                 # Skip check for variables that are treated as categorical
                 x_numeric = True
                 if x_is_df:
-                    if isinstance(X_train.iloc[:,i].dtype, pd.CategoricalDtype):
+                    if isinstance(X_train.iloc[:, i].dtype, pd.CategoricalDtype):
                         x_numeric = False
-                
+
                 if x_numeric:
                     # Determine the number of unique covariate values and a name for the covariate
                     if isinstance(X_train, np.ndarray):
@@ -1008,7 +1041,7 @@ class BARTModel:
                 raise ValueError(
                     "We do not support heteroskedasticity with a probit link"
                 )
-        
+
         # Preliminary runtime checks for cloglog link
         if not self.include_mean_forest:
             link_is_cloglog = False
@@ -1029,9 +1062,13 @@ class BARTModel:
                     "You specified a cloglog link, but supplied an integer outcome that is not a sequence of consecutive integers"
                 )
             if self.include_variance_forest:
-                raise ValueError("We do not support heteroskedasticity with a cloglog link")
+                raise ValueError(
+                    "We do not support heteroskedasticity with a cloglog link"
+                )
             if self.has_basis:
-                raise ValueError("We do not support leaf basis regression with a cloglog link")
+                raise ValueError(
+                    "We do not support leaf basis regression with a cloglog link"
+                )
             if sample_sigma2_global:
                 warnings.warn(
                     "Global error variance will not be sampled with a cloglog link"
@@ -1056,32 +1093,34 @@ class BARTModel:
         # Probit + variance forest is not a supported combination.
         # Random effects (intercept-only and custom) are supported for all links.
         # BARTFit handles standardization, prior calibration, and all sampling.
-        _no_zero_weights = not (observation_weights is not None and np.all(observation_weights == 0))
+        _no_zero_weights = not (
+            observation_weights is not None and np.all(observation_weights == 0)
+        )
         _use_cpp_dispatch = os.environ.get("STOCHTREE_USE_CPP_DISPATCH", "1") != "0"
-        if (_use_cpp_dispatch
-                and (link_is_linear or link_is_probit or link_is_cloglog)
-                and not (link_is_probit and self.include_variance_forest)
-                and _no_zero_weights
-                and not has_prev_model):
-            from stochtree_cpp import BARTConfig as _CppBARTConfig, BARTResultCpp as _CppBARTResult, bart_fit as _bart_fit
-
+        if (
+            _use_cpp_dispatch
+            and (link_is_linear or link_is_probit or link_is_cloglog)
+            and not (link_is_probit and self.include_variance_forest)
+            and _no_zero_weights
+            and not has_prev_model
+        ):
             cfg = _CppBARTConfig()
-            cfg.num_trees             = num_trees_mean
-            cfg.num_gfr               = num_gfr
-            cfg.num_burnin            = num_burnin
-            cfg.num_mcmc              = num_mcmc
-            cfg.num_chains            = num_chains
-            cfg.keep_every            = keep_every
-            cfg.keep_gfr              = keep_gfr
-            cfg.keep_burnin           = keep_burnin
-            cfg.alpha                 = alpha_mean
-            cfg.beta                  = beta_mean
-            cfg.min_samples_leaf      = min_samples_leaf_mean
-            cfg.max_depth             = max_depth_mean
-            cfg.a_global              = a_global if a_global is not None else 0.0
-            cfg.b_global              = b_global if b_global is not None else 0.0
-            cfg.a_leaf                = a_leaf
-            cfg.b_leaf                = b_leaf if b_leaf is not None else -1.0
+            cfg.num_trees = num_trees_mean
+            cfg.num_gfr = num_gfr
+            cfg.num_burnin = num_burnin
+            cfg.num_mcmc = num_mcmc
+            cfg.num_chains = num_chains
+            cfg.keep_every = keep_every
+            cfg.keep_gfr = keep_gfr
+            cfg.keep_burnin = keep_burnin
+            cfg.alpha = alpha_mean
+            cfg.beta = beta_mean
+            cfg.min_samples_leaf = min_samples_leaf_mean
+            cfg.max_depth = max_depth_mean
+            cfg.a_global = a_global if a_global is not None else 0.0
+            cfg.b_global = b_global if b_global is not None else 0.0
+            cfg.a_leaf = a_leaf
+            cfg.b_leaf = b_leaf if b_leaf is not None else -1.0
             # Leaf model type
             if not self.has_basis:
                 cfg.leaf_model = "constant"
@@ -1091,40 +1130,57 @@ class BARTModel:
                 cfg.leaf_model = "univariate_regression"
             # Link function; sigma2 is fixed at 1 for probit/cloglog.
             _link_fixed_sigma2 = link_is_probit or link_is_cloglog
-            cfg.link_function        = ("probit" if link_is_probit else
-                                        "cloglog" if link_is_cloglog else "identity")
-            cfg.sample_sigma2_global = False if _link_fixed_sigma2 else sample_sigma2_global
-            cfg.sigma2_init          = 1.0 if _link_fixed_sigma2 else (sigma2_init if sigma2_init is not None else -1.0)
-            cfg.sample_sigma2_leaf   = sample_sigma2_leaf
-            cfg.standardize          = self.standardize
-            cfg.cutpoint_grid_size   = cutpoint_grid_size
-            cfg.random_seed          = random_seed if random_seed is not None else -1
-            cfg.num_threads          = num_threads if num_threads is not None else -1
+            cfg.link_function = (
+                "probit"
+                if link_is_probit
+                else "cloglog"
+                if link_is_cloglog
+                else "identity"
+            )
+            cfg.sample_sigma2_global = (
+                False if _link_fixed_sigma2 else sample_sigma2_global
+            )
+            cfg.sigma2_init = (
+                1.0
+                if _link_fixed_sigma2
+                else (sigma2_init if sigma2_init is not None else -1.0)
+            )
+            cfg.sample_sigma2_leaf = sample_sigma2_leaf
+            cfg.standardize = self.standardize
+            cfg.cutpoint_grid_size = cutpoint_grid_size
+            cfg.random_seed = random_seed if random_seed is not None else -1
+            cfg.num_threads = num_threads if num_threads is not None else -1
             cfg.variable_weights_mean = variable_weights_mean.tolist()
 
             # Cloglog / ordinal params
             if link_is_cloglog:
                 _y_cloglog_min = int(np.min(y_train))
-                _y_0idx = (np.squeeze(y_train).astype(int) - _y_cloglog_min).astype(np.float64)
+                _y_0idx = (np.squeeze(y_train).astype(int) - _y_cloglog_min).astype(
+                    np.float64
+                )
                 _cloglog_K = int(np.max(_y_0idx)) + 1
             else:
                 _y_0idx = None
                 _cloglog_K = 0
             cfg.cloglog_num_categories = _cloglog_K
-            cfg.cloglog_forest_shape   = 2.0
-            cfg.cloglog_forest_rate    = 2.0
-            cfg.cloglog_cutpoint_0     = 0.0
+            cfg.cloglog_forest_shape = 2.0
+            cfg.cloglog_forest_rate = 2.0
+            cfg.cloglog_cutpoint_0 = 0.0
 
             # Variance forest params
-            cfg.include_variance_forest   = self.include_variance_forest
-            cfg.num_trees_variance        = num_trees_variance
-            cfg.alpha_variance            = alpha_variance
-            cfg.beta_variance             = beta_variance
+            cfg.include_variance_forest = self.include_variance_forest
+            cfg.num_trees_variance = num_trees_variance
+            cfg.alpha_variance = alpha_variance
+            cfg.beta_variance = beta_variance
             cfg.min_samples_leaf_variance = min_samples_leaf_variance
-            cfg.max_depth_variance        = max_depth_variance
-            cfg.a_forest                  = a_forest if a_forest is not None else -1.0
-            cfg.b_forest                  = b_forest if b_forest is not None else -1.0
-            cfg.variance_forest_leaf_init = variance_forest_leaf_init if variance_forest_leaf_init is not None else -1.0
+            cfg.max_depth_variance = max_depth_variance
+            cfg.a_forest = a_forest if a_forest is not None else -1.0
+            cfg.b_forest = b_forest if b_forest is not None else -1.0
+            cfg.variance_forest_leaf_init = (
+                variance_forest_leaf_init
+                if variance_forest_leaf_init is not None
+                else -1.0
+            )
             if self.include_variance_forest:
                 cfg.variable_weights_variance = variable_weights_variance.tolist()
 
@@ -1135,69 +1191,125 @@ class BARTModel:
                 if self.rfx_model_spec == "intercept_only" and _rfx_basis_fast is None:
                     _rfx_basis_fast = np.ones((rfx_group_ids_train.shape[0], 1))
                 _num_rfx_comp = _rfx_basis_fast.shape[1]
-                _rfx_alpha = float(np.asarray(rfx_working_parameter_prior_mean).flat[0]) if rfx_working_parameter_prior_mean is not None else 0.0
-                _rfx_xi    = _rfx_alpha
-                _rfx_sa    = float(np.asarray(rfx_working_parameter_prior_cov).flat[0]) if rfx_working_parameter_prior_cov is not None else 1.0
-                _rfx_sxi   = float(np.asarray(rfx_group_parameter_prior_cov).flat[0]) if rfx_group_parameter_prior_cov is not None else 1.0
-                cfg.rfx_model_spec           = self.rfx_model_spec
-                cfg.rfx_num_components       = _num_rfx_comp
-                cfg.rfx_alpha_init           = _rfx_alpha
-                cfg.rfx_xi_init              = _rfx_xi
-                cfg.rfx_sigma_alpha_init     = _rfx_sa
-                cfg.rfx_sigma_xi_init        = _rfx_sxi
+                _rfx_alpha = (
+                    float(np.asarray(rfx_working_parameter_prior_mean).flat[0])
+                    if rfx_working_parameter_prior_mean is not None
+                    else 0.0
+                )
+                _rfx_xi = _rfx_alpha
+                _rfx_sa = (
+                    float(np.asarray(rfx_working_parameter_prior_cov).flat[0])
+                    if rfx_working_parameter_prior_cov is not None
+                    else 1.0
+                )
+                _rfx_sxi = (
+                    float(np.asarray(rfx_group_parameter_prior_cov).flat[0])
+                    if rfx_group_parameter_prior_cov is not None
+                    else 1.0
+                )
+                cfg.rfx_model_spec = self.rfx_model_spec
+                cfg.rfx_num_components = _num_rfx_comp
+                cfg.rfx_alpha_init = _rfx_alpha
+                cfg.rfx_xi_init = _rfx_xi
+                cfg.rfx_sigma_alpha_init = _rfx_sa
+                cfg.rfx_sigma_xi_init = _rfx_sxi
                 cfg.rfx_variance_prior_shape = float(rfx_variance_prior_shape)
                 cfg.rfx_variance_prior_scale = float(rfx_variance_prior_scale)
             else:
                 _rfx_basis_fast = None
-                _num_rfx_comp   = 0
+                _num_rfx_comp = 0
 
             X_arr = np.asfortranarray(X_train_processed.astype(np.float64))
-            y_arr = _y_0idx if link_is_cloglog else np.asarray(np.squeeze(y_train), dtype=np.float64)
-            X_test_arr  = np.asfortranarray(X_test_processed.astype(np.float64)) if self.has_test else None
-            weights_arr = observation_weights_ if observation_weights is not None else None
-            ft_arr      = feature_types.astype(np.int32) if feature_types is not None else None
-            basis_train_arr = np.asfortranarray(leaf_basis_train.astype(np.float64)) if self.has_basis else None
-            basis_test_arr  = np.asfortranarray(leaf_basis_test.astype(np.float64)) if (self.has_test and self.has_basis) else None
-            rfx_groups_arr      = rfx_group_ids_train.astype(np.int32) if _has_rfx_fast else None
-            rfx_basis_arr       = np.asfortranarray(_rfx_basis_fast.astype(np.float64)) if _has_rfx_fast else None
-            _has_rfx_test_fast  = _has_rfx_fast and rfx_group_ids_test is not None
-            rfx_groups_test_arr = rfx_group_ids_test.astype(np.int32) if _has_rfx_test_fast else None
-            rfx_basis_test_arr  = (np.asfortranarray(rfx_basis_test.astype(np.float64))
-                                   if (_has_rfx_test_fast and rfx_basis_test is not None) else None)
+            y_arr = (
+                _y_0idx
+                if link_is_cloglog
+                else np.asarray(np.squeeze(y_train), dtype=np.float64)
+            )
+            X_test_arr = (
+                np.asfortranarray(X_test_processed.astype(np.float64))
+                if self.has_test
+                else None
+            )
+            weights_arr = (
+                observation_weights_ if observation_weights is not None else None
+            )
+            ft_arr = (
+                feature_types.astype(np.int32) if feature_types is not None else None
+            )
+            basis_train_arr = (
+                np.asfortranarray(leaf_basis_train.astype(np.float64))
+                if self.has_basis
+                else None
+            )
+            basis_test_arr = (
+                np.asfortranarray(leaf_basis_test.astype(np.float64))
+                if (self.has_test and self.has_basis)
+                else None
+            )
+            rfx_groups_arr = (
+                rfx_group_ids_train.astype(np.int32) if _has_rfx_fast else None
+            )
+            rfx_basis_arr = (
+                np.asfortranarray(_rfx_basis_fast.astype(np.float64))
+                if _has_rfx_fast
+                else None
+            )
+            _has_rfx_test_fast = _has_rfx_fast and rfx_group_ids_test is not None
+            rfx_groups_test_arr = (
+                rfx_group_ids_test.astype(np.int32) if _has_rfx_test_fast else None
+            )
+            rfx_basis_test_arr = (
+                np.asfortranarray(rfx_basis_test.astype(np.float64))
+                if (_has_rfx_test_fast and rfx_basis_test is not None)
+                else None
+            )
 
             # Python/R own the result from the start; BARTFit writes into it.
             _result = _CppBARTResult()
-            _bart_fit(_result, cfg, X_arr, y_arr,
-                      X_test=X_test_arr,
-                      weights=weights_arr,
-                      feature_types=ft_arr,
-                      basis_train=basis_train_arr,
-                      basis_test=basis_test_arr,
-                      rfx_groups_train=rfx_groups_arr,
-                      rfx_basis_train=rfx_basis_arr,
-                      rfx_groups_test=rfx_groups_test_arr,
-                      rfx_basis_test=rfx_basis_test_arr)
+            _bart_fit(
+                _result,
+                cfg,
+                X_arr,
+                y_arr,
+                X_test=X_test_arr,
+                weights=weights_arr,
+                feature_types=ft_arr,
+                basis_train=basis_train_arr,
+                basis_test=basis_test_arr,
+                rfx_groups_train=rfx_groups_arr,
+                rfx_basis_train=rfx_basis_arr,
+                rfx_groups_test=rfx_groups_test_arr,
+                rfx_basis_test=rfx_basis_test_arr,
+            )
 
             # Unpack metadata
-            self.y_bar        = _result.y_bar
-            self.y_std        = _result.y_std
-            self.num_gfr      = num_gfr
-            self.num_burnin   = num_burnin
-            self.num_mcmc     = num_mcmc
-            self.num_chains   = num_chains
-            self.keep_every   = keep_every
-            self.num_samples  = _result.num_total_samples
+            self.y_bar = _result.y_bar
+            self.y_std = _result.y_std
+            self.num_gfr = num_gfr
+            self.num_burnin = num_burnin
+            self.num_mcmc = num_mcmc
+            self.num_chains = num_chains
+            self.keep_every = keep_every
+            self.num_samples = _result.num_total_samples
             # self.num_basis already set from leaf_basis_train earlier in sample()
             self.include_mean_forest = True
             # include_variance_forest was already set from variance_forest_params earlier
             _link_fixed_sigma2_unpack = link_is_probit or link_is_cloglog
-            self.has_rfx       = _has_rfx_fast
+            self.has_rfx = _has_rfx_fast
             self.has_rfx_basis = _has_rfx_fast
             self.num_rfx_basis = _num_rfx_comp
-            self.sample_sigma2_global = False if _link_fixed_sigma2_unpack else sample_sigma2_global
-            self.sample_sigma2_leaf   = sample_sigma2_leaf
-            self.sigma2_init  = 1.0 if _link_fixed_sigma2_unpack else (
-                _result.sigma2_global_samples[0] / (_result.y_std ** 2) if sample_sigma2_global else 1.0
+            self.sample_sigma2_global = (
+                False if _link_fixed_sigma2_unpack else sample_sigma2_global
+            )
+            self.sample_sigma2_leaf = sample_sigma2_leaf
+            self.sigma2_init = (
+                1.0
+                if _link_fixed_sigma2_unpack
+                else (
+                    _result.sigma2_global_samples[0] / (_result.y_std**2)
+                    if sample_sigma2_global
+                    else 1.0
+                )
             )
 
             # Variance samples
@@ -1208,37 +1320,39 @@ class BARTModel:
 
             # Predictions: result is column-major flat → (n_train, num_samples)
             self.y_hat_train = np.array(_result.y_hat_train).reshape(
-                (self.n_train, _result.num_total_samples), order='F'
+                (self.n_train, _result.num_total_samples), order="F"
             )
             if self.has_test:
                 self.y_hat_test = np.array(_result.y_hat_test).reshape(
-                    (self.n_test, _result.num_total_samples), order='F'
+                    (self.n_test, _result.num_total_samples), order="F"
                 )
 
             # Extract the mean forest (one pointer swap — no JSON roundtrip).
             _fc_cpp = _result.steal_forest_container()
             self.forest_container_mean = ForestContainer.__new__(ForestContainer)
             self.forest_container_mean.forest_container_cpp = _fc_cpp
-            self.forest_container_mean.num_trees       = num_trees_mean
+            self.forest_container_mean.num_trees = num_trees_mean
             self.forest_container_mean.output_dimension = 1
-            self.forest_container_mean.leaf_constant    = True
+            self.forest_container_mean.leaf_constant = True
             self.forest_container_mean.is_exponentiated = False
 
             # Variance forest results
             if self.include_variance_forest:
                 self.sigma2_x_hat_train = np.array(_result.sigma2_x_hat_train).reshape(
-                    (self.n_train, _result.num_total_samples), order='F'
+                    (self.n_train, _result.num_total_samples), order="F"
                 )
                 if self.has_test:
-                    self.sigma2_x_hat_test = np.array(_result.sigma2_x_hat_test).reshape(
-                        (self.n_test, _result.num_total_samples), order='F'
-                    )
+                    self.sigma2_x_hat_test = np.array(
+                        _result.sigma2_x_hat_test
+                    ).reshape((self.n_test, _result.num_total_samples), order="F")
                 _vfc_cpp = _result.steal_variance_forest_container()
-                self.forest_container_variance = ForestContainer.__new__(ForestContainer)
+                self.forest_container_variance = ForestContainer.__new__(
+                    ForestContainer
+                )
                 self.forest_container_variance.forest_container_cpp = _vfc_cpp
-                self.forest_container_variance.num_trees        = num_trees_variance
+                self.forest_container_variance.num_trees = num_trees_variance
                 self.forest_container_variance.output_dimension = 1
-                self.forest_container_variance.leaf_constant    = True
+                self.forest_container_variance.leaf_constant = True
                 self.forest_container_variance.is_exponentiated = True
 
             # Cloglog cutpoint samples: flat (K-1)*S vector → (K-1, S) array.
@@ -1249,13 +1363,11 @@ class BARTModel:
                 if _cloglog_K > 2:
                     _cuts_flat = np.array(_result.cloglog_cutpoint_samples)
                     self.cloglog_cutpoint_samples = _cuts_flat.reshape(
-                        (_cloglog_K - 1, _result.num_total_samples), order='F'
+                        (_cloglog_K - 1, _result.num_total_samples), order="F"
                     )
 
             # RFX container and label mapper
             if _has_rfx_fast and _result.has_rfx():
-                from stochtree_cpp import RandomEffectsContainerCpp, RandomEffectsLabelMapperCpp
-                from stochtree.random_effects import RandomEffectsContainer
                 self.rfx_container = RandomEffectsContainer()
                 self.rfx_container.rfx_container_cpp = _result.steal_rfx_container()
                 _rfx_gids = _result.rfx_group_ids
@@ -1634,7 +1746,7 @@ class BARTModel:
         else:
             leaf_model_mean_forest = 2
             leaf_dimension_mean = self.num_basis
-            
+
         # Sampling data structures
         global_model_config = GlobalModelConfig(global_error_variance=current_sigma2)
         if self.include_mean_forest:
@@ -1655,7 +1767,9 @@ class BARTModel:
                 num_features_subsample=num_features_subsample_mean,
             )
             if link_is_cloglog:
-                forest_model_config_mean.update_cloglog_forest_shape(cloglog_forest_shape)
+                forest_model_config_mean.update_cloglog_forest_shape(
+                    cloglog_forest_shape
+                )
                 forest_model_config_mean.update_cloglog_forest_rate(cloglog_forest_rate)
             forest_sampler_mean = ForestSampler(
                 forest_dataset_train,
@@ -1873,9 +1987,13 @@ class BARTModel:
                 # Cloglog Gibbs updates
                 if link_is_cloglog:
                     # Update auxiliary data slot 1 with current forest predictions
-                    forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
+                    forest_pred_current = (
+                        forest_sampler_mean.get_cached_forest_predictions()
+                    )
                     for j in range(train_size):
-                        forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
+                        forest_dataset_train.set_auxiliary_data_value(
+                            1, j, forest_pred_current[j]
+                        )
 
                     # Sample latent z_i's using truncated exponential
                     ordinal_sampler.update_latent_variables(
@@ -1917,13 +2035,11 @@ class BARTModel:
                         )
                         # Reset leaf scale
                         if sample_sigma2_leaf:
-                                leaf_scale_double = self.leaf_scale_samples[
-                                    forest_ind
-                                ]
-                                current_leaf_scale[0, 0] = leaf_scale_double
-                                forest_model_config_mean.update_leaf_model_scale(
-                                    leaf_scale_double
-                                )
+                            leaf_scale_double = self.leaf_scale_samples[forest_ind]
+                            current_leaf_scale[0, 0] = leaf_scale_double
+                            forest_model_config_mean.update_leaf_model_scale(
+                                leaf_scale_double
+                            )
                     # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset(
@@ -1941,23 +2057,40 @@ class BARTModel:
                         global_model_config.update_global_error_variance(current_sigma2)
                     # Reset random effects
                     if self.has_rfx:
-                        rfx_model.reset(self.rfx_container, forest_ind, sigma_alpha_init)
-                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                        rfx_model.reset(
+                            self.rfx_container, forest_ind, sigma_alpha_init
+                        )
+                        rfx_tracker.reset(
+                            rfx_model,
+                            rfx_dataset_train,
+                            residual_train,
+                            self.rfx_container,
+                        )
                     # Reset cloglog auxiliary data
                     if link_is_cloglog:
                         # Reset cutpoints from saved GFR samples
                         current_cutpoints = cloglog_cutpoint_samples[:, forest_ind]
                         for j in range(len(current_cutpoints)):
-                            forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
+                            forest_dataset_train.set_auxiliary_data_value(
+                                2, j, current_cutpoints[j]
+                            )
                         ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
                         # Reset forest predictions by re-predicting from active forest
-                        active_forest_preds = active_forest_mean.predict(forest_dataset_train)
+                        active_forest_preds = active_forest_mean.predict(
+                            forest_dataset_train
+                        )
                         for j in range(train_size):
-                            forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
+                            forest_dataset_train.set_auxiliary_data_value(
+                                1, j, active_forest_preds[j]
+                            )
                             # Latent variables must be reset to 0 and burnt in
                             forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
                 elif has_prev_model:
-                    warmstart_index = previous_model_warmstart_sample_num - chain_num if previous_model_decrement else previous_model_warmstart_sample_num
+                    warmstart_index = (
+                        previous_model_warmstart_sample_num - chain_num
+                        if previous_model_decrement
+                        else previous_model_warmstart_sample_num
+                    )
                     # Reset mean forest
                     if self.include_mean_forest:
                         active_forest_mean.reset(
@@ -1993,27 +2126,44 @@ class BARTModel:
                         )
                     # Reset global error scale
                     if self.sample_sigma2_global:
-                        current_sigma2 = previous_global_var_samples[
-                            warmstart_index
-                        ]
+                        current_sigma2 = previous_global_var_samples[warmstart_index]
                         global_model_config.update_global_error_variance(current_sigma2)
                     # Reset random effects
                     if self.has_rfx:
-                        rfx_model.reset(previous_bart_model.rfx_container, warmstart_index, sigma_alpha_init)
-                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, previous_bart_model.rfx_container)
+                        rfx_model.reset(
+                            previous_bart_model.rfx_container,
+                            warmstart_index,
+                            sigma_alpha_init,
+                        )
+                        rfx_tracker.reset(
+                            rfx_model,
+                            rfx_dataset_train,
+                            residual_train,
+                            previous_bart_model.rfx_container,
+                        )
                     # Reset cloglog auxiliary data from previous model
                     if link_is_cloglog:
                         previous_cloglog_cutpoint_samples = getattr(
                             previous_bart_model, "cloglog_cutpoint_samples", None
                         )
                         if previous_cloglog_cutpoint_samples is not None:
-                            current_cutpoints = previous_cloglog_cutpoint_samples[:, warmstart_index]
+                            current_cutpoints = previous_cloglog_cutpoint_samples[
+                                :, warmstart_index
+                            ]
                             for j in range(len(current_cutpoints)):
-                                forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
-                            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
-                        active_forest_preds = active_forest_mean.predict(forest_dataset_train)
+                                forest_dataset_train.set_auxiliary_data_value(
+                                    2, j, current_cutpoints[j]
+                                )
+                            ordinal_sampler.update_cumulative_exp_sums(
+                                forest_dataset_train
+                            )
+                        active_forest_preds = active_forest_mean.predict(
+                            forest_dataset_train
+                        )
                         for j in range(train_size):
-                            forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
+                            forest_dataset_train.set_auxiliary_data_value(
+                                1, j, active_forest_preds[j]
+                            )
                             # Latent variables must be reset to 0 and burnt in
                             forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
                 else:
@@ -2049,12 +2199,12 @@ class BARTModel:
                             initial_gamma = np.zeros(cloglog_num_categories - 1)
                             for j in range(cloglog_num_categories - 1):
                                 forest_dataset_train.set_auxiliary_data_value(
-                                    2,
-                                    j,
-                                    initial_gamma[j]
+                                    2, j, initial_gamma[j]
                                 )
                             # Convert to cumulative exponentiated cutpoints
-                            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+                            ordinal_sampler.update_cumulative_exp_sums(
+                                forest_dataset_train
+                            )
                     # Reset variance forest
                     if self.include_variance_forest:
                         active_forest_variance.reset_root()
@@ -2073,8 +2223,20 @@ class BARTModel:
                         global_model_config.update_global_error_variance(current_sigma2)
                     # Reset random effects terms
                     if self.has_rfx:
-                        rfx_model.root_reset(alpha_init, xi_init, sigma_alpha_init, sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
-                        rfx_tracker.root_reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                        rfx_model.root_reset(
+                            alpha_init,
+                            xi_init,
+                            sigma_alpha_init,
+                            sigma_xi_init,
+                            sigma_xi_shape,
+                            sigma_xi_scale,
+                        )
+                        rfx_tracker.root_reset(
+                            rfx_model,
+                            rfx_dataset_train,
+                            residual_train,
+                            self.rfx_container,
+                        )
                 # Sample MCMC and burnin for each chain
                 for i in range(self.num_gfr, num_temp_samples):
                     is_mcmc = i + 1 > num_gfr + num_burnin
@@ -2198,9 +2360,13 @@ class BARTModel:
                     # Cloglog Gibbs updates
                     if link_is_cloglog:
                         # Update auxiliary data slot 1 with current forest predictions
-                        forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
+                        forest_pred_current = (
+                            forest_sampler_mean.get_cached_forest_predictions()
+                        )
                         for j in range(train_size):
-                            forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
+                            forest_dataset_train.set_auxiliary_data_value(
+                                1, j, forest_pred_current[j]
+                            )
 
                         # Sample latent z_i's using truncated exponential
                         ordinal_sampler.update_latent_variables(
@@ -2362,9 +2528,18 @@ class BARTModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability", "class"]:
             raise ValueError("scale must either be 'linear', 'probability', or 'class'")
-        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
-        is_binary_cloglog = self.outcome_model.link == "cloglog" and self.outcome_model.outcome == "binary"
-        is_ordinal_cloglog = self.outcome_model.link == "cloglog" and self.outcome_model.outcome == "ordinal"
+        is_probit = (
+            self.outcome_model.link == "probit"
+            and self.outcome_model.outcome == "binary"
+        )
+        is_binary_cloglog = (
+            self.outcome_model.link == "cloglog"
+            and self.outcome_model.outcome == "binary"
+        )
+        is_ordinal_cloglog = (
+            self.outcome_model.link == "cloglog"
+            and self.outcome_model.outcome == "ordinal"
+        )
         is_cloglog = is_binary_cloglog or is_ordinal_cloglog
         if (scale == "probability") and (not (is_probit or is_cloglog)):
             raise ValueError(
@@ -2384,7 +2559,9 @@ class BARTModel:
             raise ValueError("type must either be 'mean' or 'posterior'")
         predict_mean = type == "mean"
         if predict_mean and class_scale:
-            raise ValueError("Posterior mean predictions are not supported for scale = 'class'")
+            raise ValueError(
+                "Posterior mean predictions are not supported for scale = 'class'"
+            )
 
         # Handle prediction terms
         if not isinstance(terms, str) and not isinstance(terms, list):
@@ -2456,17 +2633,13 @@ class BARTModel:
             raise NotSampledError(msg)
 
         # Data checks
-        if not isinstance(X, pd.DataFrame) and not isinstance(
-            X, np.ndarray
-        ):
+        if not isinstance(X, pd.DataFrame) and not isinstance(X, np.ndarray):
             raise ValueError("X must be a pandas dataframe or numpy array")
         if leaf_basis is not None:
             if not isinstance(leaf_basis, np.ndarray):
                 raise ValueError("leaf_basis must be a numpy array")
             if leaf_basis.shape[0] != X.shape[0]:
-                raise ValueError(
-                    "X and leaf_basis must have the same number of rows"
-                )
+                raise ValueError("X and leaf_basis must have the same number of rows")
 
         # Convert everything to standard shape (2-dimensional)
         if isinstance(X, np.ndarray):
@@ -2490,9 +2663,9 @@ class BARTModel:
                     "This BART model has not run any covariate preprocessing routines. We will attempt to predict on the raw covariate values, but this will trigger an error with non-numeric columns. Please refit your model by passing non-numeric covariate data a a Pandas dataframe.",
                     RuntimeWarning,
                 )
-                if not np.issubdtype(
-                    X.dtype, np.floating
-                ) and not np.issubdtype(X.dtype, np.integer):
+                if not np.issubdtype(X.dtype, np.floating) and not np.issubdtype(
+                    X.dtype, np.integer
+                ):
                     raise ValueError(
                         "Prediction cannot proceed on a non-numeric numpy array, since the BART model was not fit with a covariate preprocessor. Please refit your model by passing non-numeric covariate data as a Pandas dataframe."
                     )
@@ -2541,19 +2714,21 @@ class BARTModel:
                 "Random effect group labels (rfx_group_ids) must be provided for this model"
             )
         if predict_rfx and rfx_basis is None and not rfx_intercept:
-            raise ValueError("Random effects basis (rfx_basis) must be provided for this model")
+            raise ValueError(
+                "Random effects basis (rfx_basis) must be provided for this model"
+            )
         if self.num_rfx_basis > 0 and not rfx_intercept:
             if rfx_basis.shape[1] != self.num_rfx_basis:
                 raise ValueError(
                     "Random effects basis has a different dimension than the basis used to train this model"
                 )
-        
+
         # Convert rfx_group_ids to their corresponding array position indices in the random effects parameter sample arrays
         if rfx_group_ids is not None:
             rfx_group_id_indices = self.rfx_container.map_group_ids_to_array_indices(
                 rfx_group_ids
             )
-        
+
         # Random effects predictions
         if predict_rfx or predict_rfx_intermediate:
             if rfx_basis is not None:
@@ -2596,7 +2771,9 @@ class BARTModel:
                     y_hat = norm.cdf(mean_forest_predictions)
                 elif predict_y_hat and has_rfx:
                     y_hat = norm.cdf(rfx_predictions)
-                if (predict_mean_forest or predict_mean_forest_intermediate) and has_mean_forest:
+                if (
+                    predict_mean_forest or predict_mean_forest_intermediate
+                ) and has_mean_forest:
                     mean_forest_predictions = norm.cdf(mean_forest_predictions)
                 if (predict_rfx or predict_rfx_intermediate) and has_rfx:
                     rfx_predictions = norm.cdf(rfx_predictions)
@@ -2610,14 +2787,18 @@ class BARTModel:
                 n_obs = X.shape[0] if isinstance(X, np.ndarray) else X.shape[0]
                 num_samples = self.num_samples
                 # Compute category probabilities: (n_obs, n_categories, n_samples)
-                mean_forest_probabilities = np.empty(
-                    (n_obs, cloglog_num_categories, num_samples)
-                )
+                mean_forest_probabilities = np.empty((
+                    n_obs,
+                    cloglog_num_categories,
+                    num_samples,
+                ))
                 for j in range(cloglog_num_categories):
                     if j == 0:
                         # P(Y=1) = 1 - exp(-exp(eta + gamma_1))
                         mean_forest_probabilities[:, j, :] = 1.0 - np.exp(
-                            -np.exp(mean_forest_predictions + cloglog_cutpoint_samples[j, :])
+                            -np.exp(
+                                mean_forest_predictions + cloglog_cutpoint_samples[j, :]
+                            )
                         )
                     elif j == cloglog_num_categories - 1:
                         # P(Y=K) = 1 - sum(P(Y=1),...,P(Y=K-1))
@@ -2627,10 +2808,19 @@ class BARTModel:
                     else:
                         # P(Y=j) = exp(-exp(eta + gamma_{j-1})) * (1 - exp(-exp(eta + gamma_j)))
                         mean_forest_probabilities[:, j, :] = np.exp(
-                            -np.exp(mean_forest_predictions + cloglog_cutpoint_samples[j - 1, :])
-                        ) * (1.0 - np.exp(
-                            -np.exp(mean_forest_predictions + cloglog_cutpoint_samples[j, :])
-                        ))
+                            -np.exp(
+                                mean_forest_predictions
+                                + cloglog_cutpoint_samples[j - 1, :]
+                            )
+                        ) * (
+                            1.0
+                            - np.exp(
+                                -np.exp(
+                                    mean_forest_predictions
+                                    + cloglog_cutpoint_samples[j, :]
+                                )
+                            )
+                        )
                 if predict_y_hat:
                     y_hat = mean_forest_probabilities
                 mean_forest_predictions = mean_forest_probabilities
@@ -2789,13 +2979,9 @@ class BARTModel:
             raise NotSampledError(msg)
 
         # Data checks
-        if not isinstance(X_0, pd.DataFrame) and not isinstance(
-            X_0, np.ndarray
-        ):
+        if not isinstance(X_0, pd.DataFrame) and not isinstance(X_0, np.ndarray):
             raise ValueError("X_0 must be a pandas dataframe or numpy array")
-        if not isinstance(X_1, pd.DataFrame) and not isinstance(
-            X_1, np.ndarray
-        ):
+        if not isinstance(X_1, pd.DataFrame) and not isinstance(X_1, np.ndarray):
             raise ValueError("X_1 must be a pandas dataframe or numpy array")
         if leaf_basis_0 is not None:
             if not isinstance(leaf_basis_0, np.ndarray):
@@ -2940,9 +3126,7 @@ class BARTModel:
                 raise ValueError(
                     "'X' must be provided in order to compute the requested intervals"
                 )
-            if not isinstance(X, np.ndarray) and not isinstance(
-                X, pd.DataFrame
-            ):
+            if not isinstance(X, np.ndarray) and not isinstance(X, pd.DataFrame):
                 raise ValueError("'X' must be a matrix or data frame")
         needs_basis = needs_covariates and self.has_basis
         if needs_basis:
@@ -3072,9 +3256,7 @@ class BARTModel:
                 raise ValueError(
                     "'X' must be provided in order to compute the requested intervals"
                 )
-            if not isinstance(X, np.ndarray) and not isinstance(
-                X, pd.DataFrame
-            ):
+            if not isinstance(X, np.ndarray) and not isinstance(X, pd.DataFrame):
                 raise ValueError("'X' must be a matrix or data frame")
         needs_basis = needs_covariates and self.has_basis
         if needs_basis:
@@ -3140,7 +3322,9 @@ class BARTModel:
                 ppd_variance = bart_preds["variance_forest_predictions"]
             else:
                 if samples_global_variance:
-                    ppd_variance = np.tile(self.global_var_samples, (num_observations, 1))
+                    ppd_variance = np.tile(
+                        self.global_var_samples, (num_observations, 1)
+                    )
                 else:
                     ppd_variance = self.sigma2_init
 
@@ -3191,13 +3375,13 @@ class BARTModel:
 
             # Reshape data
             if ppd_draw_multiplier > 1:
-                ppd_array = ppd_vector.reshape(
-                    (num_observations, num_posterior_draws, ppd_draw_multiplier)
-                )
+                ppd_array = ppd_vector.reshape((
+                    num_observations,
+                    num_posterior_draws,
+                    ppd_draw_multiplier,
+                ))
             else:
-                ppd_array = ppd_vector.reshape(
-                    (num_observations, num_posterior_draws)
-                )
+                ppd_array = ppd_vector.reshape((num_observations, num_posterior_draws))
         elif is_ordinal_cloglog:
             # Compute posterior probability samples
             # bart_preds shape: (n_obs, n_categories, n_samples)
@@ -3240,9 +3424,7 @@ class BARTModel:
             if ppd_draw_multiplier > 1:
                 ppd_array = ppd_list
             else:
-                ppd_array = ppd_list.reshape(
-                    (num_observations, num_posterior_draws)
-                )
+                ppd_array = ppd_list.reshape((num_observations, num_posterior_draws))
 
         return ppd_array
 
@@ -3438,7 +3620,9 @@ class BARTModel:
                 f"outcome='continuous', link='identity'. "
                 f"Re-save your model to suppress this warning."
             )
-        self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
+        self.outcome_model = OutcomeModel(
+            outcome=outcome_model_outcome, link=outcome_model_link
+        )
 
         if "rfx_model_spec" in _raw:
             self.rfx_model_spec = bart_json.get_string("rfx_model_spec")
@@ -3463,7 +3647,9 @@ class BARTModel:
 
         # Unpack cloglog parameters (num_categories always, cutpoints only for ordinal)
         if self.outcome_model.link == "cloglog":
-            self.cloglog_num_categories = bart_json.get_integer("cloglog_num_categories")
+            self.cloglog_num_categories = bart_json.get_integer(
+                "cloglog_num_categories"
+            )
             if self.outcome_model.outcome == "ordinal":
                 self.cloglog_cutpoint_samples = np.full(
                     (self.cloglog_num_categories - 1, self.num_samples), np.nan
@@ -3475,7 +3661,9 @@ class BARTModel:
 
         # Unpack covariate preprocessor
         if "covariate_preprocessor" in _raw:
-            covariate_preprocessor_string = bart_json.get_string("covariate_preprocessor")
+            covariate_preprocessor_string = bart_json.get_string(
+                "covariate_preprocessor"
+            )
             self._covariate_preprocessor = CovariatePreprocessor()
             self._covariate_preprocessor.from_json(covariate_preprocessor_string)
         else:
@@ -3614,13 +3802,17 @@ class BARTModel:
             )
 
         if "probit_outcome_model" in _raw:
-            self.probit_outcome_model = json_object_default.get_boolean("probit_outcome_model")
+            self.probit_outcome_model = json_object_default.get_boolean(
+                "probit_outcome_model"
+            )
         else:
             self.probit_outcome_model = False
 
         _outcome_model_raw = _raw.get("outcome_model", {})
         if "outcome" in _outcome_model_raw and "link" in _outcome_model_raw:
-            outcome_model_outcome = json_object_default.get_string("outcome", "outcome_model")
+            outcome_model_outcome = json_object_default.get_string(
+                "outcome", "outcome_model"
+            )
             outcome_model_link = json_object_default.get_string("link", "outcome_model")
         else:
             outcome_model_outcome = "continuous"
@@ -3631,7 +3823,9 @@ class BARTModel:
                 f"outcome='continuous', link='identity'. "
                 f"Re-save your model to suppress this warning."
             )
-        self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
+        self.outcome_model = OutcomeModel(
+            outcome=outcome_model_outcome, link=outcome_model_link
+        )
 
         if "rfx_model_spec" in _raw:
             self.rfx_model_spec = json_object_default.get_string("rfx_model_spec")
@@ -3758,10 +3952,10 @@ class BARTModel:
             return True
         else:
             return False
-    
+
     def extract_parameter(self, term: str) -> np.array:
         """
-        Extract a vector, matrix or array of parameter samples from a BART model by name. 
+        Extract a vector, matrix or array of parameter samples from a BART model by name.
         Random effects are handled by a separate `extract_parameter_samples` method attached to the underlying `RandomEffectsContainer` object due to the complexity of the random effects parameters.
         If the requested model term is not found, an error is thrown.
         The following conventions are used for parameter names:
@@ -3773,7 +3967,7 @@ class BARTModel:
         - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
         - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
         - Ordinal model cutpoints (valid only for ordinal cloglog models): `"cloglog_cutpoints"`, `"cutpoints"`
-        
+
         Parameters
         ----------
         term : str
@@ -3790,44 +3984,59 @@ class BARTModel:
             if self.sample_sigma2_global:
                 return self.global_var_samples
             else:
-                raise ValueError("This model does not have global variance parameter samples")
+                raise ValueError(
+                    "This model does not have global variance parameter samples"
+                )
 
         if term in ["sigma2_leaf", "leaf_scale"]:
             if self.sample_sigma2_leaf:
                 return self.leaf_scale_samples
             else:
-                raise ValueError("This model does not have leaf variance parameter samples")
+                raise ValueError(
+                    "This model does not have leaf variance parameter samples"
+                )
 
         if term in ["y_hat_train"]:
             yht = getattr(self, "y_hat_train", None)
             if yht is not None:
                 return yht
             else:
-                raise ValueError("This model does not have in-sample mean function prediction samples")
+                raise ValueError(
+                    "This model does not have in-sample mean function prediction samples"
+                )
 
         if term in ["y_hat_test"]:
             yht = getattr(self, "y_hat_test", None)
             if yht is not None:
                 return yht
             else:
-                raise ValueError("This model does not have test set mean function prediction samples")
+                raise ValueError(
+                    "This model does not have test set mean function prediction samples"
+                )
 
         if term in ["sigma2_x_train", "var_x_train"]:
             s2x = getattr(self, "sigma2_x_train", None)
             if s2x is not None:
                 return s2x
             else:
-                raise ValueError("This model does not have in-sample variance forest predictions")
+                raise ValueError(
+                    "This model does not have in-sample variance forest predictions"
+                )
 
         if term in ["sigma2_x_test", "var_x_test"]:
             s2x = getattr(self, "sigma2_x_test", None)
             if s2x is not None:
                 return s2x
             else:
-                raise ValueError("This model does not have test set variance forest predictions")
+                raise ValueError(
+                    "This model does not have test set variance forest predictions"
+                )
 
         if term in ["cloglog_cutpoints", "cutpoints"]:
-            if self.outcome_model.outcome == "ordinal" and self.outcome_model.link == "cloglog":
+            if (
+                self.outcome_model.outcome == "ordinal"
+                and self.outcome_model.link == "cloglog"
+            ):
                 return self.cloglog_cutpoint_samples
             else:
                 raise ValueError("This model does not have ordinal cutpoint samples")
@@ -3839,7 +4048,7 @@ class BARTModel:
         Summarize a BART fit with a description of the model that was fit and numeric summaries of any sampled quantities
 
         Prints summary directly to the console with no return type.
-        
+
         Returns
         -------
         None
@@ -3863,7 +4072,7 @@ class BARTModel:
             output_str += f"Summary of sigma^2 posterior: "
             output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
             for p, q in zip(probs, quantiles_sigma2):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Leaf scale
         if self.sample_sigma2_leaf:
@@ -3875,7 +4084,7 @@ class BARTModel:
             output_str += f"Summary of leaf scale posterior: "
             output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
             for p, q in zip(probs, quantiles_sigma2):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # In-sample predictions
         yht = getattr(self, "y_hat_train", None)
@@ -3887,7 +4096,7 @@ class BARTModel:
             quantiles_y_hat_train = np.quantile(y_hat_train_mean, probs)
             output_str += f"Summary of in-sample posterior mean predictions: \n{n_y_hat_train} observations, mean = {mean_y_hat_train:.3f}, standard deviation = {sd_y_hat_train:.3f}, quantiles:\n"
             for p, q in zip(probs, quantiles_y_hat_train):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Test-set predictions
         yht = getattr(self, "y_hat_test", None)
@@ -3899,12 +4108,12 @@ class BARTModel:
             quantiles_y_hat_test = np.quantile(y_hat_test_mean, probs)
             output_str += f"Summary of test-set posterior mean predictions: \n{n_y_hat_test} observations, mean = {mean_y_hat_test:.3f}, standard deviation = {sd_y_hat_test:.3f}, quantiles:\n"
             for p, q in zip(probs, quantiles_y_hat_test):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Random effects
         if self.has_rfx:
             rfx_samples = self.rfx_container.extract_parameter_samples()
-            rfx_beta_samples = rfx_samples['beta_samples']
+            rfx_beta_samples = rfx_samples["beta_samples"]
             if rfx_beta_samples.ndim > 2:
                 reduce_axes = tuple(range(1, rfx_beta_samples.ndim))
                 rfx_component_means = np.mean(rfx_beta_samples, axis=reduce_axes)
@@ -3914,23 +4123,23 @@ class BARTModel:
                 output_str += "Random effects summary of variance components across groups and posterior draws:\n"
                 output_str += f"Variance component means: {means_str}\n"
                 output_str += f"Variance component standard deviations: {sds_str}\n"
-                rfx_quantiles = np.quantile(
-                    rfx_beta_samples, probs, axis=reduce_axes
-                ).T
+                rfx_quantiles = np.quantile(rfx_beta_samples, probs, axis=reduce_axes).T
                 output_str += "Variance component quantiles:\n"
                 for i in range(rfx_quantiles.shape[0]):
-                    output_str += f"  Component {i+1}:\n"
+                    output_str += f"  Component {i + 1}:\n"
                     for p, q in zip(probs, rfx_quantiles[i, :]):
-                        output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                        output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
             else:
                 rfx_component_means = np.mean(rfx_beta_samples)
                 rfx_component_sds = np.std(rfx_beta_samples)
-                output_str += f"Random effects overall mean: {rfx_component_means:.3f}\n"
+                output_str += (
+                    f"Random effects overall mean: {rfx_component_means:.3f}\n"
+                )
                 output_str += f"Random effects overall standard deviation: {rfx_component_sds:.3f}\n"
                 output_str += "Random effects overall quantiles:\n"
                 rfx_quantiles = np.quantile(rfx_beta_samples, probs)
                 for p, q in zip(probs, rfx_quantiles):
-                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                    output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
         print(output_str)
 
     def __str__(self) -> str:
@@ -3949,7 +4158,7 @@ class BARTModel:
             if self.sample_sigma2_leaf:
                 model_terms.append("mean forest leaf scale model")
             if len(model_terms) > 2:
-                output_str = f"BARTModel run with {', '.join(model_terms[:-1])}, and {model_terms[-1]}"  
+                output_str = f"BARTModel run with {', '.join(model_terms[:-1])}, and {model_terms[-1]}"
             elif len(model_terms) == 2:
                 output_str = f"BARTModel run with {model_terms[0]} and {model_terms[1]}"
             else:
@@ -3974,9 +4183,7 @@ class BARTModel:
                 )
             # Standardization details
             if self.standardize:
-                output_str += (
-                    f"\nOutcome was standardized"
-                )
+                output_str += f"\nOutcome was standardized"
             # Random effects details
             if self.has_rfx:
                 if self.rfx_model_spec == "custom":
@@ -3984,9 +4191,7 @@ class BARTModel:
                         f"\nRandom effects were fit with a user-supplied basis"
                     )
                 elif self.rfx_model_spec == "intercept_only":
-                    output_str += (
-                        f"\nRandom effects were fit with an 'intercept-only' parameterization"
-                    )
+                    output_str += f"\nRandom effects were fit with an 'intercept-only' parameterization"
             # Sampler details
             output_str += (
                 f"\nThe sampler was run for {self.num_gfr} GFR iterations, with {self.num_chains} "
@@ -3997,5 +4202,5 @@ class BARTModel:
             # Append newline
             output_str += "\n"
         return output_str
-      
+
     __repr__ = __str__

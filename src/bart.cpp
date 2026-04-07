@@ -681,7 +681,7 @@ void BARTFit(BARTResult*        result_ptr,
           config.num_threads);
       if (store_gfr) {
         cache_sigma2x_train(i);
-        cache_sigma2x_test(i);
+        // cache_sigma2x_test deferred to post-sampling batch pass
       }
     }
 
@@ -691,11 +691,11 @@ void BARTFit(BARTResult*        result_ptr,
       gfr_rfx_fc->AddSample(*rfx_model);
     }
 
-    // Cache combined predictions (mean forest + RFX) only when storing GFR samples.
-    // Placed here, after all components are sampled, so RFX contributions are included.
+    // Cache training predictions only; test predictions are deferred to a
+    // single batch pass after all sampling to avoid cache thrashing.
     if (store_gfr) {
       cache_train_predictions(i);
-      cache_test_predictions(i);
+      // cache_test_predictions deferred to post-sampling batch pass
     }
 
     // Sample scalar variance parameters (mean forest only).
@@ -919,10 +919,10 @@ void BARTFit(BARTResult*        result_ptr,
           int gfr_offset = store_gfr ? num_gfr : 0;
           int col = gfr_offset + chain * num_mcmc_per_chain + mcmc_kept;
           cache_train_predictions(col);
-          cache_test_predictions(col);
+          // cache_test_predictions deferred to post-sampling batch pass
           if (has_variance_forest) {
             cache_sigma2x_train(col);
-            cache_sigma2x_test(col);
+            // cache_sigma2x_test deferred to post-sampling batch pass
           }
           if (has_rfx)
             result.rfx_container->AddSample(*rfx_model);
@@ -936,6 +936,69 @@ void BARTFit(BARTResult*        result_ptr,
             result.leaf_scale_samples[col] = chain_leaf_scale;
           mcmc_kept++;
         }
+      }
+    }
+  }
+
+  // ── Deferred test predictions ─────────────────────────────────────
+  // Computing test predictions inside the sampling loop interleaves test-set
+  // memory access with training-set memory access, evicting training data from
+  // cache on every kept sample.  Deferring to a single batch call after all
+  // sampling is functionally identical and keeps the test dataset warm in
+  // cache throughout the entire prediction pass.
+  //
+  // ForestContainer::Predict (not PredictRaw) is used because it computes the
+  // correct dot-product-with-basis for multivariate leaf models and applies the
+  // is_exponentiated transform for variance forests.
+  // Output layout of Predict: output[col * n + j] = prediction for obs j, sample col.
+  if (has_test && num_total > 0) {
+    // Mean forest batch (all num_total samples in one call).
+    // result.rfx_container holds exactly num_total stored samples:
+    //  - store_gfr=true  → GFR RFX via gfr_rfx_fc (= result.rfx_container alias),
+    //                       MCMC RFX appended to the same container.
+    //  - store_gfr=false → only MCMC RFX; no GFR-indexed result columns.
+    std::vector<double> yhat_raw;
+    if (has_mean_forest)
+      yhat_raw = forest_container.Predict(dataset_test);
+
+    std::vector<double> rfx_batch;
+    if (has_rfx && has_rfx_test) {
+      LabelMapper test_label_mapper;
+      test_label_mapper.LoadFromLabelMap(rfx_tracker->GetLabelMap());
+      rfx_batch.resize(static_cast<size_t>(n_test) * num_total, 0.0);
+      result.rfx_container->Predict(*rfx_dataset_test, test_label_mapper, rfx_batch);
+    }
+
+    for (int col = 0; col < num_total; col++) {
+      double* dst = result.y_hat_test.data() + static_cast<size_t>(col) * n_test;
+      bool have_forest = has_mean_forest && !yhat_raw.empty();
+      bool have_rfx    = has_rfx && has_rfx_test;
+      if (have_forest && have_rfx) {
+        const double* fc = yhat_raw.data()  + static_cast<size_t>(col) * n_test;
+        const double* rc = rfx_batch.data() + static_cast<size_t>(col) * n_test;
+        for (int j = 0; j < n_test; j++)
+          dst[j] = (fc[j] + rc[j]) * y_std + y_bar;
+      } else if (have_forest) {
+        const double* fc = yhat_raw.data() + static_cast<size_t>(col) * n_test;
+        for (int j = 0; j < n_test; j++)
+          dst[j] = fc[j] * y_std + y_bar;
+      } else if (have_rfx) {
+        const double* rc = rfx_batch.data() + static_cast<size_t>(col) * n_test;
+        for (int j = 0; j < n_test; j++)
+          dst[j] = rc[j] * y_std + y_bar;
+      } else {
+        std::fill(dst, dst + n_test, y_bar);
+      }
+    }
+
+    // Variance forest: Predict() applies exp() internally (is_exponentiated=true).
+    if (has_variance_forest) {
+      std::vector<double> vhat_raw = result.variance_forest_container->Predict(dataset_test);
+      for (int col = 0; col < num_total; col++) {
+        const double* vc = vhat_raw.data() + static_cast<size_t>(col) * n_test;
+        double* dst = result.sigma2_x_hat_test.data() + static_cast<size_t>(col) * n_test;
+        for (int j = 0; j < n_test; j++)
+          dst[j] = vc[j] * y_std * y_std;
       }
     }
   }
