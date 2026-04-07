@@ -296,6 +296,8 @@ void BARTFit(BARTResult*        result_ptr,
     for (int k = 0; k < K - 1; k++) dataset_train.SetAuxiliaryDataValue(2, k, 0.0);
     dataset_train.AddAuxiliaryDimension(K);         // slot 3: seg
     ordinal_sampler.UpdateCumulativeExpSums(dataset_train);
+    dataset_train.AddAuxiliaryDimension(n_train);    // slot 4: exp(λ_minus), precomputed cache
+    for (int i = 0; i < n_train; i++) dataset_train.SetAuxiliaryDataValue(4, i, 1.0);  // exp(0)
   }
 
   // ── RFX data setup ─────────────────────────────────────────────────

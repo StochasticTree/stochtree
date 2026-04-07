@@ -323,6 +323,9 @@ def _cloglog_ord_run(d):
             "outcome_model": OutcomeModel(outcome="ordinal", link="cloglog"),
             "sample_sigma2_global": False,
         },
+        mean_forest_params={
+            "sample_sigma2_leaf": False,
+        },
     )
     return m
 

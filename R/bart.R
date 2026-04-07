@@ -1915,6 +1915,9 @@ bart <- function(
     # It has cloglog_num_categories elements instead of cloglog_num_categories - 1 because
     # even the largest categorical index has a valid value of sum_{j < i} exp(gamma_j)
     forest_dataset_train$add_auxiliary_dimension(cloglog_num_categories)
+    # exp(lambda_minus) cache (slot 4) — precomputed in UpdateCLogLogModelTree to avoid
+    # redundant exp() calls during split evaluation and leaf parameter sampling
+    forest_dataset_train$add_auxiliary_dimension(train_size)
 
     ## Set initial values for auxiliary data
     # Initialize latent variables to zero (slot 0)
@@ -1924,6 +1927,10 @@ bart <- function(
     # Initialize forest predictions to zero (slot 1)
     for (i in 1:train_size) {
       forest_dataset_train$set_auxiliary_data_value(1, i - 1, 0.0)
+    }
+    # Initialize exp(lambda_minus) cache to exp(0) = 1.0 (slot 4)
+    for (i in 1:train_size) {
+      forest_dataset_train$set_auxiliary_data_value(4, i - 1, 1.0)
     }
     # Initialize log-scale cutpoints to 0
     initial_gamma <- rep(0.0, cloglog_num_categories - 1)

@@ -1862,11 +1862,14 @@ class BARTModel:
             forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories - 1)
             # Slot 3: Cumulative exp cutpoints seg (size cloglog_num_categories)
             forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories)
+            # Slot 4: exp(lambda_minus) cache (size n_train) — precomputed in UpdateCLogLogModelTree
+            forest_dataset_train.add_auxiliary_dimension(train_size)
 
-            # Initialize all slots to 0
+            # Initialize all slots to 0 (slot 4 initializes to exp(0) = 1.0)
             for j in range(train_size):
                 forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
                 forest_dataset_train.set_auxiliary_data_value(1, j, 0.0)
+                forest_dataset_train.set_auxiliary_data_value(4, j, 1.0)
             for j in range(cloglog_num_categories - 1):
                 forest_dataset_train.set_auxiliary_data_value(2, j, 0.0)
 

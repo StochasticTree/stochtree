@@ -416,15 +416,20 @@ static inline void UpdateCLogLogModelTree(ForestTracker& tracker, ForestDataset&
       tracker.SetTreeSamplePrediction(i, tree_num, pred_value);
       tracker.SetSamplePrediction(i, tracker.GetSamplePrediction(i) + pred_delta);
       // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num)
-      dataset.SetAuxiliaryDataValue(1, i, tracker.GetSamplePrediction(i) - pred_value);
+      double lambda_minus_new = tracker.GetSamplePrediction(i) - pred_value;
+      dataset.SetAuxiliaryDataValue(1, i, lambda_minus_new);
+      // Cache exp(lambda_minus) in slot 4 to avoid redundant exp() calls during split evaluation
+      if (dataset.HasAuxiliaryDimension(4))
+        dataset.SetAuxiliaryDataValue(4, i, std::exp(lambda_minus_new));
     } else {
-      // If the tree has not yet been modified via a sampling step, 
+      // If the tree has not yet been modified via a sampling step,
       // we can query its prediction directly from the SamplePredMapper stored in tracker
       pred_value = tracker.GetTreeSamplePrediction(i, tree_num);
-      // Set auxiliary data slot 1 to forest predictions excluding the current tree (tree_num): needed? since tree not changed?
-      double current_lambda_hat = tracker.GetSamplePrediction(i);
-      double lambda_minus = current_lambda_hat - pred_value;
+      double lambda_minus = tracker.GetSamplePrediction(i) - pred_value;
       dataset.SetAuxiliaryDataValue(1, i, lambda_minus);
+      // Cache exp(lambda_minus) in slot 4 to avoid redundant exp() calls during split evaluation
+      if (dataset.HasAuxiliaryDimension(4))
+        dataset.SetAuxiliaryDataValue(4, i, std::exp(lambda_minus));
     }
   }
 }
@@ -554,6 +559,9 @@ static inline void SampleSplitRule(Tree* tree, ForestTracker& tracker, LeafModel
     if (num_threads == -1) {
       num_threads = GetOptimalThreadCount(static_cast<int>(covariates.cols() * covariates.rows()));
     }
+    // Cap threads to number of features: over-threading with few features causes more
+    // synchronization overhead than benefit (e.g. 10 features with 16 threads is wasteful)
+    num_threads = std::min(num_threads, static_cast<int>(covariates.cols()));
 
     // Initialize cutpoint grid container
     CutpointGridContainer cutpoint_grid_container(covariates, outcome, cutpoint_grid_size);
