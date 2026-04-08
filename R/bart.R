@@ -2012,6 +2012,7 @@ bart <- function(
           rng = rng,
           forest_model_config = forest_model_config_variance,
           global_model_config = global_model_config,
+          num_threads = num_threads,
           keep_forest = keep_sample,
           gfr = TRUE
         )
@@ -2473,6 +2474,7 @@ bart <- function(
             rng = rng,
             forest_model_config = forest_model_config_mean,
             global_model_config = global_model_config,
+            num_threads = num_threads,
             keep_forest = keep_sample,
             gfr = FALSE
           )
@@ -2539,6 +2541,7 @@ bart <- function(
             rng = rng,
             forest_model_config = forest_model_config_variance,
             global_model_config = global_model_config,
+            num_threads = num_threads,
             keep_forest = keep_sample,
             gfr = FALSE
           )

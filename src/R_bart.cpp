@@ -198,6 +198,7 @@ cpp11::list bart_sampler_fit_r_cpp(
     cfg.rfx_sigma_xi_init          = rfx_sigma_xi_init;
     cfg.rfx_variance_prior_shape   = rfx_variance_prior_shape;
     cfg.rfx_variance_prior_scale   = rfx_variance_prior_scale;
+    cfg.profile_phases             = false;  // never emit profiling output via R path
 
     // Variable weights
     if (variable_weights_mean_r.size() > 0) {

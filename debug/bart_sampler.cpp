@@ -627,23 +627,139 @@ static void run_rfx_smoke_test()
               << "  ForestContainer samples: " << result.forest_container->NumSamples() << "\n";
 }
 
+// ── Phase-profiling utility ───────────────────────────────────────────────────
+
+// Runs one config through BARTSampler, timing constructor / GFR / MCMC phases
+// and printing the breakdown.  config.profile_phases is set internally so
+// run_mcmc() also emits its internal sub-phase breakdown to stderr.
+static void run_phase_profile(const std::string& label,
+                               StochTree::BARTConfig cfg,
+                               const StochTree::BARTData& data,
+                               int n_gfr, int n_mcmc, int reps = 3)
+{
+    cfg.num_gfr    = n_gfr;
+    cfg.num_burnin = 0;
+    cfg.num_mcmc   = n_mcmc;
+    cfg.num_chains = 1;
+    cfg.num_threads = 1;
+    cfg.keep_gfr   = false;
+    cfg.keep_burnin = false;
+    cfg.profile_phases = true;
+
+    // Accumulators over reps
+    double acc_ctor = 0, acc_gfr = 0, acc_mcmc = 0;
+
+    for (int r = 0; r < reps; ++r) {
+        auto t0 = Clock::now();
+        StochTree::BARTSampler sampler(cfg, data);
+        acc_ctor += elapsed_ms(t0);
+
+        t0 = Clock::now();
+        sampler.run_gfr(n_gfr);
+        acc_gfr += elapsed_ms(t0);
+
+        StochTree::BARTResult result;
+        t0 = Clock::now();
+        sampler.run_mcmc(n_mcmc, &result);
+        acc_mcmc += elapsed_ms(t0);
+    }
+
+    double t_ctor = acc_ctor / reps;
+    double t_gfr  = acc_gfr  / reps;
+    double t_mcmc = acc_mcmc / reps;
+    double total  = t_ctor + t_gfr + t_mcmc;
+
+    std::cout << "\n── " << label << " (avg over " << reps << " reps) ──\n"
+              << std::fixed << std::setprecision(2)
+              << "  BARTSampler ctor: " << std::setw(8) << t_ctor
+              << " ms  (" << std::setprecision(1) << t_ctor / total * 100 << "%)\n"
+              << "  run_gfr (" << n_gfr << " iters): " << std::setprecision(2)
+              << std::setw(8) << t_gfr
+              << " ms  (" << std::setprecision(1) << t_gfr / total * 100 << "%)\n"
+              << "  run_mcmc (" << n_mcmc << " iters): " << std::setprecision(2)
+              << std::setw(8) << t_mcmc
+              << " ms  (" << std::setprecision(1) << t_mcmc / total * 100 << "%)\n"
+              << "  TOTAL:             " << std::setprecision(2)
+              << std::setw(8) << total << " ms\n"
+              << "  (run_mcmc sub-phase breakdown printed above by run_mcmc)\n";
+}
+
+static void run_varforest_profile()
+{
+    constexpr int n = 500, p = 5;
+    constexpr int n_gfr = 5, n_mcmc = 100;
+    constexpr int num_var_trees = 50, num_mean_trees = 200;
+
+    std::vector<double> X, y, s_true;
+    make_heterosked_data(n, p, X, y, s_true);
+
+    // ── Varforest-only config ──────────────────────────────────────────
+    StochTree::BARTConfig cfg_var;
+    cfg_var.num_trees          = 0;
+    cfg_var.include_variance_forest  = true;
+    cfg_var.num_trees_variance = num_var_trees;
+    cfg_var.sample_sigma2_global = false;
+    cfg_var.sample_sigma2_leaf   = false;
+    cfg_var.random_seed = 42;
+
+    StochTree::BARTData data_var;
+    data_var.X_train = X.data(); data_var.n_train = n; data_var.p = p;
+    data_var.y_train = y.data();
+
+    // ── Identity (mean-only) config for reference ─────────────────────
+    std::vector<double> X_id, y_id, X_test_id;
+    make_continuous_data(n, 100, p, X_id, y_id, X_test_id);
+
+    StochTree::BARTConfig cfg_id;
+    cfg_id.num_trees          = num_mean_trees;
+    cfg_id.sample_sigma2_global = true;
+    cfg_id.sample_sigma2_leaf   = true;
+    cfg_id.random_seed = 42;
+
+    StochTree::BARTData data_id;
+    data_id.X_train = X_id.data(); data_id.n_train = n; data_id.p = p;
+    data_id.y_train = y_id.data();
+
+    std::cout << "\n=== Phase profiling: varforest vs identity ===\n"
+              << "  n=" << n << "  p=" << p
+              << "  n_gfr=" << n_gfr << "  n_mcmc=" << n_mcmc << "\n"
+              << "  varforest: T_var=" << num_var_trees << "  (no mean forest)\n"
+              << "  identity:  T_mean=" << num_mean_trees << "\n"
+              << "\nSub-phase output from run_mcmc goes to stderr.\n";
+
+    run_phase_profile("varforest (T_var=50, no mean forest)",
+                      cfg_var, data_var, n_gfr, n_mcmc);
+    run_phase_profile("identity  (T_mean=200, no var forest)",
+                      cfg_id,  data_id,  n_gfr, n_mcmc);
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 int main(int argc, char* argv[])
 {
     std::string model = "all";
+    bool profile_mode = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--model" && i + 1 < argc) {
             model = argv[++i];
+        } else if (arg == "--profile") {
+            profile_mode = true;
         } else if (arg == "--help" || arg == "-h") {
             std::cout <<
-                "Usage: debug_bart_sampler [--model <name>]\n"
+                "Usage: debug_bart_sampler [--model <name>] [--profile]\n"
                 "Models: identity probit varforest cloglog ordinal\n"
-                "        mean+varforest leaf-reg leaf-reg-mv rfx all\n";
+                "        mean+varforest leaf-reg leaf-reg-mv rfx all\n"
+                "--profile: run per-phase timing for varforest vs identity\n";
             return 0;
         }
+    }
+
+    if (profile_mode) {
+        run_varforest_profile();
+        std::cout << "\nDone.\n";
+        return 0;
     }
 
     auto run = [&](const std::string& name) {

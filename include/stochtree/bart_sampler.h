@@ -51,9 +51,9 @@ namespace StochTree {
  *   - Caller owns BARTData buffers (must remain live for the sampler's lifetime)
  *   - Caller owns BARTResult and passes it to run_mcmc()
  *
- * NOTE: BARTSampler is not move-safe (ColumnVector may hold a pointer into
- * resid_vec_).  Create on the heap or keep in a fixed location.
  */
+struct ChainState;  // defined in bart_sampler.cpp
+
 class BARTSampler {
  public:
   /*!
@@ -139,6 +139,11 @@ class BARTSampler {
   // ── RNG ───────────────────────────────────────────────────────────────
   std::mt19937 rng_;
 
+  // ── Raw data pointers (for per-chain dataset reconstruction) ─────────
+  const double* X_train_ptr_     = nullptr;
+  const double* basis_train_ptr_ = nullptr;
+  const double* weights_ptr_     = nullptr;
+
   // ── Datasets (non-owning views into caller data) ─────────────────────
   ForestDataset dataset_train_;
   ForestDataset dataset_test_;
@@ -183,29 +188,26 @@ class BARTSampler {
   std::vector<double> gfr_cloglog_cutpoint_seeds_;        // (K-1)*n_gfr cutpoint seeds
   int n_gfr_stored_ = 0;   // number of GFR iterations stored (0 = no GFR run yet)
 
-  // ── Per-iteration helpers ─────────────────────────────────────────────
-  void run_gfr_one_iter_(int i,
-                         double& current_sigma2,
-                         double& leaf_scale,
-                         ForestContainer& mean_fc,
-                         ForestContainer* var_fc,
-                         RandomEffectsContainer* rfx_fc,
-                         bool store_result,
-                         BARTResult* result);
+  // ── Per-chain helpers ─────────────────────────────────────────────────
 
-  void run_mcmc_one_iter_(bool is_kept,
-                          double& sigma2,
-                          double& leaf_scale,
-                          ForestContainer& forest_container,
-                          BARTResult* result,
-                          int col);
+  // Allocate and seed per-chain mutable state from GFR snapshots (or from
+  // root stumps when n_gfr = 0).  Called serially before the parallel loop.
+  // alloc_chain_containers: true for multi-chain (each chain needs its own
+  // ForestContainer buffers); false for single-chain (write directly to result).
+  std::unique_ptr<ChainState> make_chain_state_(int chain_idx,
+                                                bool alloc_chain_containers);
 
-  void seed_chain_from_gfr_(int forest_ind,
-                             double& chain_sigma2,
-                             double& chain_leaf_scale);
-
-  void cache_train_predictions_(BARTResult* result, int col,
-                                double sigma2, double leaf_scale);
+  // Run burnin + MCMC iterations for one chain.  Writes scalar samples and
+  // y_hat_train directly into result (non-overlapping column offsets).
+  // Forest/RFX samples are written into mean_fc / var_fc / rfx_fc, which are
+  // either per-chain buffers (multi-chain) or the result containers directly
+  // (single-chain, to avoid a redundant copy).
+  void run_chain_iters_(ChainState& cs, int chain_idx,
+                        int n_mcmc, int keep_every, int num_burnin,
+                        int num_threads, BARTResult* result,
+                        ForestContainer& mean_fc,
+                        ForestContainer* var_fc,
+                        RandomEffectsContainer* rfx_fc);
 
   void alloc_result_(BARTResult* result, int n_mcmc, int keep_every) const;
 };

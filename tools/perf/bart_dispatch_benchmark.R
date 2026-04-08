@@ -108,7 +108,11 @@ run_scenario <- function(label, n, p, num_trees, num_gfr, num_mcmc, num_chains =
   }
 
   # Shared bart() arguments
-  general_params <- list(num_chains = num_chains)
+  # num_threads = 1 for all scenarios so that within-tree OpenMP parallelism
+  # does not confound the chain-level parallelism comparison.  The multi-chain
+  # fast path already enforces 1 thread per chain internally; single-chain slow
+  # and fast paths must also be pinned to 1 thread to make the comparison fair.
+  general_params <- list(num_chains = num_chains, num_threads = 1L)
   if (link == "probit") {
     general_params$outcome_model <- OutcomeModel("binary", "probit")
   } else if (link == "cloglog") {

@@ -63,8 +63,9 @@ struct BARTConfig {
   int num_mcmc    = 100;
   int num_chains  = 1;
   int keep_every  = 1;    ///< Thinning: retain one MCMC draw per keep_every iters
-  bool keep_gfr   = false;
+  bool keep_gfr    = false;
   bool keep_burnin = false;
+  bool profile_phases = false;  ///< When true, run_mcmc() prints per-phase wall times to stderr.
 
   // ── Tree prior ────────────────────────────────────────────────────
   double alpha         = 0.95;

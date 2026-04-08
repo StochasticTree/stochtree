@@ -13,11 +13,58 @@
 #include <stochtree/probit.h>
 #include <stochtree/tree_sampler.h>
 
+#include <chrono>
+#include <iomanip>
+#include <iostream>
+
 #include <algorithm>
 #include <cmath>
 #include <numeric>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 namespace StochTree {
+
+// ── ChainState ────────────────────────────────────────────────────────────
+//
+// All mutable state needed by one MCMC chain.  Allocated on the heap via
+// unique_ptr so the address of resid_vec never changes (safe for ColumnVector).
+
+struct ChainState {
+  // Per-chain forests and trackers
+  std::unique_ptr<TreeEnsemble>  forest;
+  std::unique_ptr<ForestTracker> tracker;
+  std::unique_ptr<TreeEnsemble>  forest_variance;
+  std::unique_ptr<ForestTracker> variance_tracker;
+  // Per-chain RFX
+  std::unique_ptr<MultivariateRegressionRandomEffectsModel> rfx_model;
+  std::unique_ptr<RandomEffectsTracker>                     rfx_tracker;
+  // Per-chain residual (owned Eigen copy)
+  ColumnVector residual;
+  // Per-chain dataset (needed for variance-forest and cloglog aux slots)
+  ForestDataset dataset;
+  // Per-chain cloglog sampler
+  OrdinalSampler ordinal_sampler;
+  // Per-chain RNG
+  std::mt19937 rng;
+  // Per-chain current scalar parameters
+  double sigma2     = 0.0;
+  double leaf_scale = 0.0;
+  // Per-chain result containers (merged into BARTResult after parallel section)
+  std::unique_ptr<ForestContainer>        chain_fc;
+  std::unique_ptr<ForestContainer>        chain_var_fc;
+  std::unique_ptr<RandomEffectsContainer> chain_rfx_fc;
+
+  ChainState() = default;
+  // Non-copyable, non-movable (ColumnVector owns Eigen data; ForestDataset
+  // may hold raw pointers from the caller; unique_ptrs would need rebinding).
+  ChainState(const ChainState&)            = delete;
+  ChainState& operator=(const ChainState&) = delete;
+  ChainState(ChainState&&)                 = delete;
+  ChainState& operator=(ChainState&&)      = delete;
+};
 
 // ── Internal helpers ───────────────────────────────────────────────────────
 
@@ -38,6 +85,10 @@ static double VecVarS(const double* data, int n, double mean) {
 BARTSampler::BARTSampler(const BARTConfig& config, const BARTData& data)
     : config_(config)
 {
+  X_train_ptr_     = data.X_train;
+  basis_train_ptr_ = data.basis_train;
+  weights_ptr_     = data.weights;
+
   // ── Feature gates (stubs for unsupported features) ────────────────
   if (config_.leaf_model == LeafModel::MultivariateRegression && config_.sample_sigma2_leaf)
     Log::Fatal("BARTSampler: leaf scale sampling is not supported for multivariate leaf regression.");
@@ -457,44 +508,296 @@ void BARTSampler::run_gfr(int n_gfr)
   n_gfr_stored_ = n_gfr;
 }
 
-// ── seed_chain_from_gfr_ ──────────────────────────────────────────────────
+// ── make_chain_state_ ────────────────────────────────────────────────────
 
-void BARTSampler::seed_chain_from_gfr_(int forest_ind,
-                                        double& chain_sigma2,
-                                        double& chain_leaf_scale)
+std::unique_ptr<ChainState> BARTSampler::make_chain_state_(int chain_idx,
+                                                             bool alloc_chain_containers)
 {
-  if (has_mean_forest_) {
-    active_forest_->ReconstituteFromForest(*gfr_mean_fc_->GetEnsemble(forest_ind));
-    tracker_->ReconstituteFromForest(
-        *active_forest_, dataset_train_, residual_, /*is_mean_model=*/true);
-    if (config_.sample_sigma2_global && !gfr_sigma2_seeds_.empty())
-      chain_sigma2 = gfr_sigma2_seeds_[forest_ind];
-    if (config_.sample_sigma2_leaf && !gfr_leaf_scale_seeds_.empty())
-      chain_leaf_scale = gfr_leaf_scale_seeds_[forest_ind];
-    if (is_cloglog_) {
-      for (int j = 0; j < n_train_; j++) residual_.SetElement(j, resid_vec_[j]);
-      const double* csrc = gfr_cloglog_cutpoint_seeds_.data()
-                           + static_cast<size_t>(forest_ind) * (K_ - 1);
-      for (int k = 0; k < K_ - 1; k++) dataset_train_.SetAuxiliaryDataValue(2, k, csrc[k]);
-      ordinal_sampler_.UpdateCumulativeExpSums(dataset_train_);
-      for (int j = 0; j < n_train_; j++)
-        dataset_train_.SetAuxiliaryDataValue(1, j, tracker_->GetSamplePrediction(j));
-      for (int j = 0; j < n_train_; j++)
-        dataset_train_.SetAuxiliaryDataValue(0, j, 0.0);
+  auto cs = std::make_unique<ChainState>();
+
+  int mean_ctor_trees  = has_mean_forest_ ? num_trees_ : 1;
+  int mean_output_dim  = is_multivariate_ ? basis_dim_ : 1;
+  bool mean_leaf_const = !is_leaf_regression_;
+
+  // ── Per-chain residual (deep copy into Eigen) ─────────────────────
+  cs->residual.LoadData(const_cast<double*>(resid_vec_.data()), n_train_);
+
+  // ── Per-chain dataset ─────────────────────────────────────────────
+  // Reconstruct from stored raw pointers so each chain can independently
+  // mutate variance weights (variance forest) and aux slots (cloglog).
+  cs->dataset.AddCovariates(const_cast<double*>(X_train_ptr_), n_train_, p_, false);
+  if (is_leaf_regression_ && basis_train_ptr_)
+    cs->dataset.AddBasis(const_cast<double*>(basis_train_ptr_), n_train_, basis_dim_, false);
+  if (weights_ptr_)
+    cs->dataset.AddVarianceWeights(const_cast<double*>(weights_ptr_), n_train_);
+  if (has_variance_forest_) {
+    std::vector<double> ones(n_train_, 1.0);
+    cs->dataset.AddVarianceWeights(ones.data(), n_train_);
+  }
+  if (is_cloglog_) {
+    cs->dataset.AddAuxiliaryDimension(n_train_);  // slot 0: Z
+    for (int i = 0; i < n_train_; i++) cs->dataset.SetAuxiliaryDataValue(0, i, 0.0);
+    cs->dataset.AddAuxiliaryDimension(n_train_);  // slot 1: λ̂
+    for (int i = 0; i < n_train_; i++) cs->dataset.SetAuxiliaryDataValue(1, i, 0.0);
+    cs->dataset.AddAuxiliaryDimension(K_ - 1);    // slot 2: γ (cutpoints)
+    for (int k = 0; k < K_ - 1; k++) cs->dataset.SetAuxiliaryDataValue(2, k, 0.0);
+    cs->dataset.AddAuxiliaryDimension(K_);        // slot 3: seg
+    cs->ordinal_sampler.UpdateCumulativeExpSums(cs->dataset);
+    cs->dataset.AddAuxiliaryDimension(n_train_);  // slot 4: exp(λ_minus) cache
+    for (int i = 0; i < n_train_; i++) cs->dataset.SetAuxiliaryDataValue(4, i, 1.0);
+  }
+
+  // ── Per-chain forests and trackers ────────────────────────────────
+  cs->forest  = std::make_unique<TreeEnsemble>(mean_ctor_trees, mean_output_dim, mean_leaf_const, false);
+  cs->tracker = std::make_unique<ForestTracker>(
+      cs->dataset.GetCovariates(), feature_types_, mean_ctor_trees, n_train_);
+  if (has_variance_forest_) {
+    cs->forest_variance = std::make_unique<TreeEnsemble>(num_trees_variance_, 1, true, true);
+    cs->variance_tracker = std::make_unique<ForestTracker>(
+        cs->dataset.GetCovariates(), feature_types_, num_trees_variance_, n_train_);
+  }
+
+  // ── Per-chain RFX ─────────────────────────────────────────────────
+  if (has_rfx_) {
+    cs->rfx_model = std::make_unique<MultivariateRegressionRandomEffectsModel>(
+        rfx_num_components_, rfx_num_groups_);
+    Eigen::VectorXd alpha0 = Eigen::VectorXd::Constant(rfx_num_components_, config_.rfx_alpha_init);
+    cs->rfx_model->SetWorkingParameter(alpha0);
+    Eigen::MatrixXd xi0 = Eigen::MatrixXd::Constant(rfx_num_components_, rfx_num_groups_, config_.rfx_xi_init);
+    cs->rfx_model->SetGroupParameters(xi0);
+    Eigen::MatrixXd Sigma_a0 = Eigen::MatrixXd::Identity(rfx_num_components_, rfx_num_components_) * config_.rfx_sigma_alpha_init;
+    cs->rfx_model->SetWorkingParameterCovariance(Sigma_a0);
+    Eigen::MatrixXd Sigma_xi0 = Eigen::MatrixXd::Identity(rfx_num_components_, rfx_num_components_) * config_.rfx_sigma_xi_init;
+    cs->rfx_model->SetGroupParameterCovariance(Sigma_xi0);
+    cs->rfx_model->SetVariancePriorShape(config_.rfx_variance_prior_shape);
+    cs->rfx_model->SetVariancePriorScale(config_.rfx_variance_prior_scale);
+    cs->rfx_tracker = std::make_unique<RandomEffectsTracker>(rfx_groups_train_vec_);
+  }
+
+  // ── Per-chain RNG (different seed per chain) ──────────────────────
+  unsigned base_seed = (config_.random_seed >= 0)
+      ? static_cast<unsigned>(config_.random_seed)
+      : std::random_device{}();
+  cs->rng = std::mt19937(base_seed + static_cast<unsigned>(chain_idx) + 1u);
+
+  // ── Seed from GFR or initialize from root stumps ──────────────────
+  cs->sigma2     = sigma2_init_;
+  cs->leaf_scale = leaf_scale_init_;
+
+  if (n_gfr_stored_ > 0) {
+    int forest_ind = n_gfr_stored_ - chain_idx - 1;
+
+    if (has_mean_forest_) {
+      cs->forest->ReconstituteFromForest(*gfr_mean_fc_->GetEnsemble(forest_ind));
+      cs->tracker->ReconstituteFromForest(*cs->forest, cs->dataset, cs->residual, true);
+      if (!gfr_sigma2_seeds_.empty())    cs->sigma2     = gfr_sigma2_seeds_[forest_ind];
+      if (!gfr_leaf_scale_seeds_.empty()) cs->leaf_scale = gfr_leaf_scale_seeds_[forest_ind];
+      if (is_cloglog_) {
+        for (int j = 0; j < n_train_; j++) cs->residual.SetElement(j, resid_vec_[j]);
+        const double* csrc = gfr_cloglog_cutpoint_seeds_.data()
+                             + static_cast<size_t>(forest_ind) * (K_ - 1);
+        for (int k = 0; k < K_ - 1; k++) cs->dataset.SetAuxiliaryDataValue(2, k, csrc[k]);
+        cs->ordinal_sampler.UpdateCumulativeExpSums(cs->dataset);
+        for (int j = 0; j < n_train_; j++)
+          cs->dataset.SetAuxiliaryDataValue(1, j, cs->tracker->GetSamplePrediction(j));
+        for (int j = 0; j < n_train_; j++) cs->dataset.SetAuxiliaryDataValue(0, j, 0.0);
+      }
+    }
+    if (has_variance_forest_) {
+      cs->forest_variance->ReconstituteFromForest(*gfr_var_fc_->GetEnsemble(forest_ind));
+      cs->variance_tracker->ReconstituteFromForest(
+          *cs->forest_variance, cs->dataset, cs->residual, false);
+    }
+    if (has_rfx_) {
+      cs->rfx_model->ResetFromSample(*gfr_rfx_fc_, forest_ind);
+      Eigen::MatrixXd Sigma_a_gfr = Eigen::MatrixXd::Identity(rfx_num_components_, rfx_num_components_)
+                                    * config_.rfx_sigma_alpha_init;
+      cs->rfx_model->SetWorkingParameterCovariance(Sigma_a_gfr);
+      cs->rfx_tracker->ResetFromSample(*cs->rfx_model, *rfx_dataset_train_, cs->residual);
+    }
+  } else {
+    // No GFR: initialize from root stumps.
+    if (has_mean_forest_) {
+      cs->forest->ResetRoot();
+      if (is_multivariate_) {
+        std::vector<double> zero_leaf(basis_dim_, 0.0);
+        cs->forest->SetLeafVector(zero_leaf);
+      } else {
+        cs->forest->SetLeafValue(init_val_);
+      }
+      cs->tracker->ReconstituteFromForest(*cs->forest, cs->dataset, cs->residual, true);
+      if (is_cloglog_) {
+        for (int j = 0; j < n_train_; j++) cs->residual.SetElement(j, resid_vec_[j]);
+        for (int k = 0; k < K_ - 1; k++) cs->dataset.SetAuxiliaryDataValue(2, k, 0.0);
+        cs->ordinal_sampler.UpdateCumulativeExpSums(cs->dataset);
+        for (int j = 0; j < n_train_; j++) cs->dataset.SetAuxiliaryDataValue(1, j, 0.0);
+        for (int j = 0; j < n_train_; j++) cs->dataset.SetAuxiliaryDataValue(0, j, 0.0);
+      }
+    }
+    if (has_variance_forest_) {
+      cs->forest_variance->ResetRoot();
+      cs->forest_variance->SetLeafValue(var_leaf_init_);
+      cs->variance_tracker->ReconstituteFromForest(
+          *cs->forest_variance, cs->dataset, cs->residual, false);
+    }
+    if (has_rfx_) {
+      cs->rfx_tracker->RootReset(*cs->rfx_model, *rfx_dataset_train_, cs->residual);
     }
   }
-  if (has_variance_forest_) {
-    active_forest_variance_->ReconstituteFromForest(*gfr_var_fc_->GetEnsemble(forest_ind));
-    variance_tracker_->ReconstituteFromForest(
-        *active_forest_variance_, dataset_train_, residual_, /*is_mean_model=*/false);
+
+  // ── Per-chain result containers (multi-chain only) ───────────────
+  // For single-chain runs the caller passes the result containers directly,
+  // so we skip this allocation to avoid a redundant copy on merge.
+  if (alloc_chain_containers) {
+    cs->chain_fc = std::make_unique<ForestContainer>(
+        mean_ctor_trees, mean_output_dim, mean_leaf_const, false);
+    if (has_variance_forest_)
+      cs->chain_var_fc = std::make_unique<ForestContainer>(num_trees_variance_, 1, true, true);
+    if (has_rfx_)
+      cs->chain_rfx_fc = std::make_unique<RandomEffectsContainer>(
+          rfx_num_components_, rfx_num_groups_);
   }
-  if (has_rfx_) {
-    rfx_model_->ResetFromSample(*gfr_rfx_fc_, forest_ind);
-    Eigen::MatrixXd Sigma_alpha =
-        Eigen::MatrixXd::Identity(rfx_num_components_, rfx_num_components_)
-        * config_.rfx_sigma_alpha_init;
-    rfx_model_->SetWorkingParameterCovariance(Sigma_alpha);
-    rfx_tracker_->ResetFromSample(*rfx_model_, *rfx_dataset_train_, residual_);
+
+  return cs;
+}
+
+// ── run_chain_iters_ ─────────────────────────────────────────────────────
+
+void BARTSampler::run_chain_iters_(ChainState& cs, int chain_idx,
+                                    int n_mcmc, int keep_every, int num_burnin,
+                                    int num_threads, BARTResult* result,
+                                    ForestContainer& mean_fc,
+                                    ForestContainer* var_fc,
+                                    RandomEffectsContainer* rfx_fc)
+{
+  int total_iters = num_burnin + n_mcmc * keep_every;
+  int mcmc_kept   = 0;
+
+  for (int i = 0; i < total_iters; i++) {
+    bool is_burnin = (i < num_burnin);
+    bool is_kept   = !is_burnin && ((i - num_burnin) % keep_every == 0);
+
+    // ── Mean forest MCMC step ────────────────────────────────────────
+    if (has_mean_forest_) {
+      if (is_probit_)
+        sample_probit_latent_outcome(cs.residual, *cs.tracker,
+                                     y_int_.data(), n_train_, y_bar_, cs.rng);
+
+      if (config_.leaf_model == LeafModel::UnivariateRegression) {
+        auto lm = GaussianUnivariateRegressionLeafModel(cs.leaf_scale);
+        MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel,
+                          GaussianUnivariateRegressionSuffStat>(
+            *cs.forest, *cs.tracker, mean_fc, lm,
+            cs.dataset, cs.residual, *tree_prior_, cs.rng,
+            variable_weights_, sweep_indices_, cs.sigma2,
+            is_kept, true, true, num_threads);
+      } else if (config_.leaf_model == LeafModel::MultivariateRegression) {
+        Eigen::MatrixXd Sigma_0 =
+            Eigen::MatrixXd::Identity(basis_dim_, basis_dim_) * cs.leaf_scale;
+        auto lm = GaussianMultivariateRegressionLeafModel(Sigma_0);
+        MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel,
+                          GaussianMultivariateRegressionSuffStat>(
+            *cs.forest, *cs.tracker, mean_fc, lm,
+            cs.dataset, cs.residual, *tree_prior_, cs.rng,
+            variable_weights_, sweep_indices_, cs.sigma2,
+            is_kept, true, true, num_threads, basis_dim_);
+      } else if (is_cloglog_) {
+        auto lm = CloglogOrdinalLeafModel(config_.cloglog_forest_shape, config_.cloglog_forest_rate);
+        MCMCSampleOneIter<CloglogOrdinalLeafModel, CloglogOrdinalSuffStat>(
+            *cs.forest, *cs.tracker, mean_fc, lm,
+            cs.dataset, cs.residual, *tree_prior_, cs.rng,
+            variable_weights_, sweep_indices_, cs.sigma2,
+            is_kept, true, false, num_threads);
+      } else {
+        auto lm = GaussianConstantLeafModel(cs.leaf_scale);
+        MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
+            *cs.forest, *cs.tracker, mean_fc, lm,
+            cs.dataset, cs.residual, *tree_prior_, cs.rng,
+            variable_weights_, sweep_indices_, cs.sigma2,
+            is_kept, true, true, num_threads);
+      }
+    }
+
+    // ── Cloglog Gibbs steps ──────────────────────────────────────────
+    if (is_cloglog_) {
+      for (int j = 0; j < n_train_; j++)
+        cs.dataset.SetAuxiliaryDataValue(1, j, cs.tracker->GetSamplePrediction(j));
+      cs.ordinal_sampler.UpdateLatentVariables(cs.dataset, cs.residual.GetData(), cs.rng);
+      cs.ordinal_sampler.UpdateGammaParams(cs.dataset, cs.residual.GetData(),
+          config_.cloglog_forest_shape, config_.cloglog_forest_rate,
+          config_.cloglog_cutpoint_0, cs.rng);
+      cs.ordinal_sampler.UpdateCumulativeExpSums(cs.dataset);
+    }
+
+    // ── Variance forest MCMC step ────────────────────────────────────
+    if (has_variance_forest_) {
+      LogLinearVarianceLeafModel var_lm(a_forest_, b_forest_);
+      MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
+          *cs.forest_variance, *cs.variance_tracker, *var_fc, var_lm,
+          cs.dataset, cs.residual, *variance_prior_, cs.rng,
+          variable_weights_variance_, variance_sweep_indices_, cs.sigma2,
+          is_kept, true, false, num_threads);
+    }
+
+    // ── RFX MCMC step ────────────────────────────────────────────────
+    if (has_rfx_)
+      cs.rfx_model->SampleRandomEffects(
+          *rfx_dataset_train_, cs.residual, *cs.rfx_tracker, cs.sigma2, cs.rng);
+
+    // ── Scalar variance sampling ──────────────────────────────────────
+    if (has_mean_forest_ && !is_probit_ && !is_cloglog_ && config_.sample_sigma2_global) {
+      if (cs.dataset.HasVarWeights()) {
+        cs.sigma2 = global_var_model_.SampleVarianceParameter(
+            cs.residual.GetData(), cs.dataset.GetVarWeights(), a_global_, b_global_, cs.rng);
+      } else {
+        cs.sigma2 = global_var_model_.SampleVarianceParameter(
+            cs.residual.GetData(), a_global_, b_global_, cs.rng);
+      }
+    }
+    if (has_mean_forest_ && !is_cloglog_ && config_.sample_sigma2_leaf)
+      cs.leaf_scale = leaf_var_model_.SampleVarianceParameter(
+          cs.forest.get(), a_leaf_, b_leaf_, cs.rng);
+
+    // ── Write kept sample ─────────────────────────────────────────────
+    if (is_kept) {
+      int col = chain_idx * n_mcmc + mcmc_kept;
+
+      // Training predictions (non-overlapping column writes → thread-safe)
+      double* dst = result->y_hat_train.data() + static_cast<size_t>(col) * n_train_;
+      if (has_mean_forest_ && has_rfx_) {
+        for (int j = 0; j < n_train_; j++)
+          dst[j] = (cs.tracker->GetSamplePrediction(j)
+                    + cs.rfx_tracker->GetPrediction(j)) * y_std_ + y_bar_;
+      } else if (has_mean_forest_) {
+        for (int j = 0; j < n_train_; j++)
+          dst[j] = cs.tracker->GetSamplePrediction(j) * y_std_ + y_bar_;
+      } else if (has_rfx_) {
+        for (int j = 0; j < n_train_; j++)
+          dst[j] = cs.rfx_tracker->GetPrediction(j) * y_std_ + y_bar_;
+      } else {
+        std::fill(dst, dst + n_train_, y_bar_);
+      }
+
+      if (has_variance_forest_) {
+        double* vdst = result->sigma2_x_hat_train.data() + static_cast<size_t>(col) * n_train_;
+        for (int j = 0; j < n_train_; j++)
+          vdst[j] = std::exp(cs.variance_tracker->GetSamplePrediction(j)) * y_std_ * y_std_;
+      }
+      if (has_rfx_)
+        rfx_fc->AddSample(*cs.rfx_model);
+      if (is_cloglog_) {
+        double* cdst = result->cloglog_cutpoint_samples.data()
+                       + static_cast<size_t>(col) * (K_ - 1);
+        for (int k = 0; k < K_ - 1; k++)
+          cdst[k] = cs.dataset.GetAuxiliaryDataValue(2, k);
+      }
+      if (has_mean_forest_ && !is_probit_ && !is_cloglog_ && config_.sample_sigma2_global)
+        result->sigma2_global_samples[col] = cs.sigma2 * y_std_ * y_std_;
+      if (has_mean_forest_ && !is_cloglog_ && config_.sample_sigma2_leaf)
+        result->leaf_scale_samples[col] = cs.leaf_scale;
+
+      mcmc_kept++;
+    }
   }
 }
 
@@ -555,203 +858,102 @@ void BARTSampler::run_mcmc(int n_mcmc, BARTResult* result, int keep_every)
   int num_chains = config_.num_chains;
   int num_burnin = config_.num_burnin;
 
-  // Allocate result arrays.
+  using Clock = std::chrono::high_resolution_clock;
+  using Ms    = std::chrono::duration<double, std::milli>;
+  auto ms_since = [](Clock::time_point t0) {
+    return Ms(Clock::now() - t0).count();
+  };
+  Clock::time_point tp;
+
+  // Allocate result arrays (forest containers start empty; filled below).
+  tp = Clock::now();
   alloc_result_(result, n_mcmc, keep_every);
+  double t_alloc = ms_since(tp);
 
-  ForestContainer& forest_container = *result->forest_container;
+  bool multi_chain = (num_chains > 1);
 
-  // Helper: cache training predictions into result column `col`.
-  auto cache_train_preds = [&](int col, double chain_sigma2) {
-    double* dst = result->y_hat_train.data() + static_cast<size_t>(col) * n_train_;
-    if (has_mean_forest_ && has_rfx_) {
-      for (int j = 0; j < n_train_; j++)
-        dst[j] = (tracker_->GetSamplePrediction(j) + rfx_tracker_->GetPrediction(j)) * y_std_ + y_bar_;
-    } else if (has_mean_forest_) {
-      for (int j = 0; j < n_train_; j++)
-        dst[j] = tracker_->GetSamplePrediction(j) * y_std_ + y_bar_;
-    } else if (has_rfx_) {
-      for (int j = 0; j < n_train_; j++)
-        dst[j] = rfx_tracker_->GetPrediction(j) * y_std_ + y_bar_;
-    } else {
-      std::fill(dst, dst + n_train_, y_bar_);
+  // Build per-chain state in parallel. All reads are from GFR snapshots /
+  // class members that are const at this point; each chain writes only into
+  // its own freshly-allocated ChainState, so there are no data races.
+  // For single-chain runs, skip allocating per-chain forest buffers — the
+  // chain writes directly into the result containers (no merge needed).
+  tp = Clock::now();
+  std::vector<std::unique_ptr<ChainState>> chains(num_chains);
+  #pragma omp parallel for schedule(static, 1) num_threads(num_chains)
+  for (int c = 0; c < num_chains; c++)
+    chains[c] = make_chain_state_(c, multi_chain);
+  double t_chain_setup = ms_since(tp);
+
+  // When running parallel chains, disable within-tree OpenMP so we don't
+  // over-subscribe.  Single-chain runs keep the configured thread count.
+  int chain_threads = multi_chain ? 1 : config_.num_threads;
+
+  // ── Parallel chain loop ─────────────────────────────────────────────
+  // Scalar samples and y_hat_train use non-overlapping column offsets per
+  // chain — safe to write in parallel.
+  // Multi-chain: each chain writes forests into its own chain_fc buffer.
+  // Single-chain: write forests directly into the result containers.
+  tp = Clock::now();
+  #pragma omp parallel for schedule(static, 1) num_threads(num_chains)
+  for (int c = 0; c < num_chains; c++) {
+    ForestContainer* mean_target = multi_chain
+        ? chains[c]->chain_fc.get()
+        : result->forest_container.get();
+    ForestContainer* var_target = (has_variance_forest_ && multi_chain)
+        ? chains[c]->chain_var_fc.get()
+        : result->variance_forest_container.get();
+    RandomEffectsContainer* rfx_target = (has_rfx_ && multi_chain)
+        ? chains[c]->chain_rfx_fc.get()
+        : result->rfx_container.get();
+    run_chain_iters_(*chains[c], c, n_mcmc, keep_every, num_burnin,
+                     chain_threads, result,
+                     *mean_target, var_target, rfx_target);
+  }
+  double t_chain_iters = ms_since(tp);
+
+  // ── Merge per-chain forest containers (multi-chain only) ────────────
+  tp = Clock::now();
+  if (multi_chain) {
+    ForestContainer& mean_fc = *result->forest_container;
+    for (int c = 0; c < num_chains; c++) {
+      auto& cfc = *chains[c]->chain_fc;
+      for (int s = 0; s < cfc.NumSamples(); s++)
+        mean_fc.AddSample(*cfc.GetEnsemble(s));
     }
-  };
-
-  auto cache_sigma2x_train = [&](int col) {
-    if (!has_variance_forest_) return;
-    double* dst = result->sigma2_x_hat_train.data() + static_cast<size_t>(col) * n_train_;
-    for (int j = 0; j < n_train_; j++)
-      dst[j] = std::exp(variance_tracker_->GetSamplePrediction(j)) * y_std_ * y_std_;
-  };
-
-  // ── Chain loop ─────────────────────────────────────────────────────
-  for (int chain = 0; chain < num_chains; chain++) {
-    double chain_sigma2     = sigma2_init_;
-    double chain_leaf_scale = leaf_scale_init_;
-
-    if (n_gfr_stored_ > 0) {
-      int forest_ind = n_gfr_stored_ - chain - 1;
-      seed_chain_from_gfr_(forest_ind, chain_sigma2, chain_leaf_scale);
-    } else {
-      // No GFR: reset to root stumps.
-      if (has_mean_forest_) {
-        active_forest_->ResetRoot();
-        if (is_multivariate_) {
-          std::vector<double> zero_leaf(basis_dim_, 0.0);
-          active_forest_->SetLeafVector(zero_leaf);
-        } else {
-          active_forest_->SetLeafValue(init_val_);
-        }
-        tracker_->ReconstituteFromForest(
-            *active_forest_, dataset_train_, residual_, true);
-        if (is_cloglog_) {
-          for (int j = 0; j < n_train_; j++) residual_.SetElement(j, resid_vec_[j]);
-          for (int k = 0; k < K_ - 1; k++) dataset_train_.SetAuxiliaryDataValue(2, k, 0.0);
-          ordinal_sampler_.UpdateCumulativeExpSums(dataset_train_);
-          for (int j = 0; j < n_train_; j++) dataset_train_.SetAuxiliaryDataValue(1, j, 0.0);
-          for (int j = 0; j < n_train_; j++) dataset_train_.SetAuxiliaryDataValue(0, j, 0.0);
-        }
-      }
-      if (has_variance_forest_) {
-        active_forest_variance_->ResetRoot();
-        active_forest_variance_->SetLeafValue(var_leaf_init_);
-        variance_tracker_->ReconstituteFromForest(
-            *active_forest_variance_, dataset_train_, residual_, false);
-      }
-      if (has_rfx_) {
-        Eigen::VectorXd alpha_init = Eigen::VectorXd::Constant(rfx_num_components_, config_.rfx_alpha_init);
-        rfx_model_->SetWorkingParameter(alpha_init);
-        Eigen::MatrixXd xi_init_m = Eigen::MatrixXd::Constant(rfx_num_components_, rfx_num_groups_, config_.rfx_xi_init);
-        rfx_model_->SetGroupParameters(xi_init_m);
-        Eigen::MatrixXd Sigma_alpha = Eigen::MatrixXd::Identity(rfx_num_components_, rfx_num_components_)
-                                      * config_.rfx_sigma_alpha_init;
-        rfx_model_->SetWorkingParameterCovariance(Sigma_alpha);
-        Eigen::MatrixXd Sigma_xi = Eigen::MatrixXd::Identity(rfx_num_components_, rfx_num_components_)
-                                   * config_.rfx_sigma_xi_init;
-        rfx_model_->SetGroupParameterCovariance(Sigma_xi);
-        rfx_tracker_->RootReset(*rfx_model_, *rfx_dataset_train_, residual_);
+    if (has_variance_forest_) {
+      ForestContainer& var_fc = *result->variance_forest_container;
+      for (int c = 0; c < num_chains; c++) {
+        auto& cfc = *chains[c]->chain_var_fc;
+        for (int s = 0; s < cfc.NumSamples(); s++)
+          var_fc.AddSample(*cfc.GetEnsemble(s));
       }
     }
-
-    // ── Burnin + MCMC iterations ─────────────────────────────────────
-    int mcmc_kept        = 0;
-    int total_iters      = num_burnin + n_mcmc * keep_every;
-
-    for (int i = 0; i < total_iters; i++) {
-      bool is_burnin = (i < num_burnin);
-      bool is_kept   = !is_burnin && ((i - num_burnin) % keep_every == 0);
-
-      // ── Mean forest MCMC step ──────────────────────────────────
-      if (has_mean_forest_) {
-        if (is_probit_)
-          sample_probit_latent_outcome(residual_, *tracker_, y_int_.data(), n_train_, y_bar_, rng_);
-
-        if (config_.leaf_model == LeafModel::UnivariateRegression) {
-          auto lm = GaussianUnivariateRegressionLeafModel(chain_leaf_scale);
-          MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel,
-                            GaussianUnivariateRegressionSuffStat>(
-              *active_forest_, *tracker_, forest_container, lm,
-              dataset_train_, residual_, *tree_prior_, rng_,
-              variable_weights_, sweep_indices_, chain_sigma2,
-              is_kept, true, true, config_.num_threads);
-        } else if (config_.leaf_model == LeafModel::MultivariateRegression) {
-          Eigen::MatrixXd Sigma_0 = Eigen::MatrixXd::Identity(basis_dim_, basis_dim_) * chain_leaf_scale;
-          auto lm = GaussianMultivariateRegressionLeafModel(Sigma_0);
-          MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel,
-                            GaussianMultivariateRegressionSuffStat>(
-              *active_forest_, *tracker_, forest_container, lm,
-              dataset_train_, residual_, *tree_prior_, rng_,
-              variable_weights_, sweep_indices_, chain_sigma2,
-              is_kept, true, true, config_.num_threads, basis_dim_);
-        } else if (is_cloglog_) {
-          auto lm = CloglogOrdinalLeafModel(config_.cloglog_forest_shape, config_.cloglog_forest_rate);
-          MCMCSampleOneIter<CloglogOrdinalLeafModel, CloglogOrdinalSuffStat>(
-              *active_forest_, *tracker_, forest_container, lm,
-              dataset_train_, residual_, *tree_prior_, rng_,
-              variable_weights_, sweep_indices_, chain_sigma2,
-              is_kept, true, false, config_.num_threads);
-        } else {
-          auto lm = GaussianConstantLeafModel(chain_leaf_scale);
-          MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
-              *active_forest_, *tracker_, forest_container, lm,
-              dataset_train_, residual_, *tree_prior_, rng_,
-              variable_weights_, sweep_indices_, chain_sigma2,
-              is_kept, true, true, config_.num_threads);
-        }
-      }
-
-      // ── Cloglog Gibbs steps ─────────────────────────────────────
-      if (is_cloglog_) {
-        for (int j = 0; j < n_train_; j++)
-          dataset_train_.SetAuxiliaryDataValue(1, j, tracker_->GetSamplePrediction(j));
-        ordinal_sampler_.UpdateLatentVariables(dataset_train_, residual_.GetData(), rng_);
-        ordinal_sampler_.UpdateGammaParams(dataset_train_, residual_.GetData(),
-            config_.cloglog_forest_shape, config_.cloglog_forest_rate,
-            config_.cloglog_cutpoint_0, rng_);
-        ordinal_sampler_.UpdateCumulativeExpSums(dataset_train_);
-      }
-
-      // ── Variance forest MCMC step ───────────────────────────────
-      if (has_variance_forest_) {
-        LogLinearVarianceLeafModel var_lm(a_forest_, b_forest_);
-        MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
-            *active_forest_variance_, *variance_tracker_,
-            *result->variance_forest_container, var_lm,
-            dataset_train_, residual_, *variance_prior_, rng_,
-            variable_weights_variance_, variance_sweep_indices_, chain_sigma2,
-            is_kept, true, false, config_.num_threads);
-      }
-
-      // ── RFX MCMC step ───────────────────────────────────────────
-      if (has_rfx_)
-        rfx_model_->SampleRandomEffects(
-            *rfx_dataset_train_, residual_, *rfx_tracker_, chain_sigma2, rng_);
-
-      // ── Scalar variance sampling ────────────────────────────────
-      if (has_mean_forest_ && !is_probit_ && !is_cloglog_ && config_.sample_sigma2_global) {
-        if (dataset_train_.HasVarWeights()) {
-          chain_sigma2 = global_var_model_.SampleVarianceParameter(
-              residual_.GetData(), dataset_train_.GetVarWeights(), a_global_, b_global_, rng_);
-        } else {
-          chain_sigma2 = global_var_model_.SampleVarianceParameter(
-              residual_.GetData(), a_global_, b_global_, rng_);
-        }
-      }
-      if (has_mean_forest_ && !is_cloglog_ && config_.sample_sigma2_leaf)
-        chain_leaf_scale = leaf_var_model_.SampleVarianceParameter(
-            active_forest_.get(), a_leaf_, b_leaf_, rng_);
-
-      // ── Write kept sample into result ───────────────────────────
-      if (is_kept) {
-        int col = chain * n_mcmc + mcmc_kept;
-        cache_train_preds(col, chain_sigma2);
-        if (has_variance_forest_) cache_sigma2x_train(col);
-        if (has_rfx_)
-          result->rfx_container->AddSample(*rfx_model_);
-        if (is_cloglog_) {
-          double* cdst = result->cloglog_cutpoint_samples.data() + static_cast<size_t>(col) * (K_ - 1);
-          for (int k = 0; k < K_ - 1; k++) cdst[k] = dataset_train_.GetAuxiliaryDataValue(2, k);
-        }
-        if (has_mean_forest_ && !is_probit_ && !is_cloglog_ && config_.sample_sigma2_global)
-          result->sigma2_global_samples[col] = chain_sigma2 * y_std_ * y_std_;
-        if (has_mean_forest_ && !is_cloglog_ && config_.sample_sigma2_leaf)
-          result->leaf_scale_samples[col] = chain_leaf_scale;
-        mcmc_kept++;
+    if (has_rfx_) {
+      // Merge by directly appending flat arrays (avoids serialisation round-trip).
+      RandomEffectsContainer& dst_rfx = *result->rfx_container;
+      for (int c = 0; c < num_chains; c++) {
+        auto& src = *chains[c]->chain_rfx_fc;
+        auto& sb = src.GetBeta();   dst_rfx.GetBeta().insert(  dst_rfx.GetBeta().end(),   sb.begin(), sb.end());
+        auto& sa = src.GetAlpha();  dst_rfx.GetAlpha().insert( dst_rfx.GetAlpha().end(),  sa.begin(), sa.end());
+        auto& sx = src.GetXi();     dst_rfx.GetXi().insert(    dst_rfx.GetXi().end(),     sx.begin(), sx.end());
+        auto& ss = src.GetSigma();  dst_rfx.GetSigma().insert( dst_rfx.GetSigma().end(),  ss.begin(), ss.end());
+        dst_rfx.SetNumSamples(dst_rfx.NumSamples() + src.NumSamples());
       }
     }
   }
 
-  // ── Deferred test predictions (batch pass) ─────────────────────────
-  int num_total = config_.num_chains * n_mcmc;
+  // ── Deferred test predictions (batch pass, serial) ──────────────────
+  int num_total = num_chains * n_mcmc;
   if (has_test_ && num_total > 0) {
     std::vector<double> yhat_raw;
     if (has_mean_forest_)
-      yhat_raw = forest_container.Predict(dataset_test_);
+      yhat_raw = result->forest_container->Predict(dataset_test_);
 
     std::vector<double> rfx_batch;
     if (has_rfx_ && has_rfx_test_) {
+      // Use label map from any chain's rfx_tracker (all are identical).
       LabelMapper test_label_mapper;
-      test_label_mapper.LoadFromLabelMap(rfx_tracker_->GetLabelMap());
+      test_label_mapper.LoadFromLabelMap(chains[0]->rfx_tracker->GetLabelMap());
       rfx_batch.resize(static_cast<size_t>(n_test_) * num_total, 0.0);
       result->rfx_container->Predict(*rfx_dataset_test_, test_label_mapper, rfx_batch);
     }
@@ -774,23 +976,45 @@ void BARTSampler::run_mcmc(int n_mcmc, BARTResult* result, int keep_every)
         std::fill(dst, dst + n_test_, y_bar_);
       }
     }
-
     if (has_variance_forest_) {
       std::vector<double> vhat_raw = result->variance_forest_container->Predict(dataset_test_);
       for (int col = 0; col < num_total; col++) {
         const double* vc = vhat_raw.data() + static_cast<size_t>(col) * n_test_;
-        double* dst = result->sigma2_x_hat_test.data() + static_cast<size_t>(col) * n_test_;
-        for (int j = 0; j < n_test_; j++) dst[j] = vc[j] * y_std_ * y_std_;
+        double* vdst = result->sigma2_x_hat_test.data() + static_cast<size_t>(col) * n_test_;
+        for (int j = 0; j < n_test_; j++) vdst[j] = vc[j] * y_std_ * y_std_;
       }
     }
   }
+
+  double t_merge_post = ms_since(tp);
 
   // ── RFX result metadata ────────────────────────────────────────────
   if (has_rfx_) {
     result->rfx_num_groups     = rfx_num_groups_;
     result->rfx_num_components = rfx_num_components_;
-    for (const auto& kv : rfx_tracker_->GetLabelMap())
+    for (const auto& kv : chains[0]->rfx_tracker->GetLabelMap())
       result->rfx_group_ids.push_back(kv.first);
+  }
+
+  // ── Phase timing report ────────────────────────────────────────────
+  if (config_.profile_phases) {
+    double total = t_alloc + t_chain_setup + t_chain_iters + t_merge_post;
+    std::cerr << std::fixed << std::setprecision(2)
+      << "[profile run_mcmc]"
+      << "  n=" << n_train_
+      << "  T=" << num_trees_ << "+" << num_trees_variance_
+      << "  S=" << n_mcmc << "x" << num_chains << "\n"
+      << "  alloc_result:    " << std::setw(8) << t_alloc        << " ms\n"
+      << "  make_chain_state:" << std::setw(8) << t_chain_setup  << " ms"
+      << "  (" << std::setprecision(1) << t_chain_setup / total * 100 << "%)\n"
+      << "  run_chain_iters: " << std::setprecision(2)
+      <<                          std::setw(8) << t_chain_iters  << " ms"
+      << "  (" << std::setprecision(1) << t_chain_iters / total * 100 << "%)\n"
+      << "  merge+post:      " << std::setprecision(2)
+      <<                          std::setw(8) << t_merge_post   << " ms"
+      << "  (" << std::setprecision(1) << t_merge_post / total * 100 << "%)\n"
+      << "  TOTAL run_mcmc:  " << std::setprecision(2)
+      <<                          std::setw(8) << total          << " ms\n";
   }
 }
 
