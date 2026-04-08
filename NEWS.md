@@ -7,7 +7,8 @@
 
 ## Bug Fixes
 
-* Fixed probit offset bug R and Python [#337](https://github.com/StochasticTree/stochtree/pull/337)
+* Fixed num_threads pass-through bug in R BART [#339](https://github.com/StochasticTree/stochtree/pull/339)
+* Fixed probit offset bug in R and Python [#337](https://github.com/StochasticTree/stochtree/pull/337)
 * Standardized multi-chain BCF handling of internal propensity models [#334](https://github.com/StochasticTree/stochtree/pull/334)
 * Fixed multi-chain BCF bugs with the parametric intercept term in R and Python [#326](https://github.com/StochasticTree/stochtree/pull/326)
 * Fixed indexing bugs for multivariate treatment BCF in Python [#326](https://github.com/StochasticTree/stochtree/pull/326)
