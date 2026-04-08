@@ -5,10 +5,24 @@
 #include <Eigen/Dense>
 #include <stochtree/distributions.h>
 #include <stochtree/log.h>
+#include <boost/math/special_functions/erf.hpp>
+#include <cmath>
 #include <random>
 #include <vector>
 
 namespace StochTree {
+
+// --- Normal CDF / quantile via boost error functions ---
+// Phi(x)      = 0.5 * erfc(-x / sqrt(2))
+// Phi^{-1}(p) = -sqrt(2) * erfc_inv(2p)
+
+inline double norm_cdf(double x) {
+  return 0.5 * boost::math::erfc(-x / std::sqrt(2.0));
+}
+
+inline double norm_inv_cdf(double p) {
+  return -std::sqrt(2.0) * boost::math::erfc_inv(2.0 * p);
+}
 
 class UnivariateNormalSampler {
  public:

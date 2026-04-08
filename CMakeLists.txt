@@ -130,13 +130,13 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
 
 # Aggregate the source files underpinning the implementation in the C++ library
 file(
-  GLOB 
+  GLOB
   SOURCES
+  src/bart_sampler.cpp
   src/container.cpp
   src/cutpoint_candidates.cpp
   src/data.cpp
   src/io.cpp
-  src/json11.cpp
   src/leaf_model.cpp
   src/ordinal_sampler.cpp
   src/partition_tracker.cpp
@@ -211,15 +211,28 @@ endif()
 
 # Standalone C++ Program for Debugging
 if(BUILD_DEBUG_TARGETS)
-  # Build test suite
-  add_executable(debugstochtree debug/api_debug.cpp)
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug)
+
+  # Original API debug program
+  add_executable(debugstochtree debug/api_debug.cpp)
   if(USE_OPENMP)
     target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
     target_link_libraries(debugstochtree PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
   else()
     target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
     target_link_libraries(debugstochtree PRIVATE stochtree_objs)
+  endif()
+
+  # BARTSampler smoke tests (RFC 0005 / stateful sampler)
+  if(EXISTS ${PROJECT_SOURCE_DIR}/debug/bart_sampler.cpp)
+    add_executable(debug_bart_sampler debug/bart_sampler.cpp)
+    if(USE_OPENMP)
+      target_include_directories(debug_bart_sampler PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+      target_link_libraries(debug_bart_sampler PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
+    else()
+      target_include_directories(debug_bart_sampler PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+      target_link_libraries(debug_bart_sampler PRIVATE stochtree_objs)
+    endif()
   endif()
 endif()
 

@@ -23,7 +23,8 @@ bart(
   general_params = list(),
   mean_forest_params = list(),
   variance_forest_params = list(),
-  random_effects_params = list()
+  random_effects_params = list(),
+  fast_path = FALSE
 )
 }
 \arguments{
@@ -138,6 +139,8 @@ referred to internally in the C++ layer as "variance weights" (\code{var_weights
 \item \code{variance_prior_shape} Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 \item \code{variance_prior_scale} Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 }}
+
+\item{fast_path}{Whether or not to sample a model in a pure-C++ loop}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).

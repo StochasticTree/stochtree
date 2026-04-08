@@ -1,19 +1,25 @@
 # Debugging
 
-This subdirectory contains a debug program for the C++ codebase.
-The program takes several command line arguments (in order):
+This subdirectory contains two standalone C++ debug programs.
 
-1. Which data-generating process (DGP) to run (integer-coded, see below for a detailed description)
-2. Which leaf model to sample (integer-coded, see below for a detailed description)
+---
+
+## `debugstochtree` — low-level API smoke tests
+
+Exercises the low-level forest sampling API directly (no high-level dispatch).
+Takes several command line arguments (in order):
+
+1. Which data-generating process (DGP) to run (integer-coded, see below)
+2. Which leaf model to sample (integer-coded, see below)
 3. Whether or not to include random effects (0 = no, 1 = yes)
 4. Number of grow-from-root (GFR) samples
 5. Number of MCMC samples
-6. Seed for random number generator (-1 means we defer to C++ `std::random_device`)
-7. [Optional] name of data file to load for training, instead of simulating data (leave this blank as `""` if simulated data is desired)
-8. [Optional] index of outcome column in data file (leave this blank as `0`)
-9. [Optional] comma-delimited string of column indices of covariates (leave this blank as `""`)
-10. [Optional] comma-delimited string of column indices of leaf regression bases (leave this blank as `""`)
-11. [Optional] number of threads to use in the GFR sampler (leave this blank as `-1`)
+6. Seed for random number generator (-1 = defer to `std::random_device`)
+7. [Optional] name of data file to load for training instead of simulating data (`""` = simulate)
+8. [Optional] index of outcome column in data file (`0` = none)
+9. [Optional] comma-delimited string of column indices of covariates (`""` = none)
+10. [Optional] comma-delimited string of column indices of leaf regression bases (`""` = none)
+11. [Optional] number of threads to use in the GFR sampler (`-1` = default)
 
 The DGPs are numbered as follows:
 
@@ -29,8 +35,36 @@ The models are numbered as follows:
 2. "Multivariate basis" leaf regression model
 3. Log linear heteroskedastic variance model
 
-For an example of how to run this progam for DGP 0, leaf model 1, no random effects, 10 GFR samples, 100 MCMC samples and a default seed (`-1`), run
+Example — DGP 0, leaf model 1, no random effects, 10 GFR samples, 100 MCMC samples, default seed:
 
-`./build/debugstochtree 0 1 0 10 100 -1 "" 0 "" "" -1`
+```
+./build/debugstochtree 0 1 0 10 100 -1 "" 0 "" "" -1
+```
 
-from the main `stochtree` project directory after building with `BUILD_DEBUG_TARGETS` set to `ON`.
+Build target: `debugstochtree`
+
+---
+
+## `debug_bart_sampler` — high-level dispatch smoke tests
+
+Exercises `BARTSamplerFit()` across all model types supported by the C++ dispatch API.
+Prints pass/fail for basic sanity checks (finite predictions, correct sample counts, etc.).
+
+```
+./build/debug_bart_sampler                    # run all smoke tests
+./build/debug_bart_sampler --model identity   # run a single model
+./build/debug_bart_sampler --help             # list available model names
+```
+
+Available model names: `identity`, `probit`, `varforest`, `cloglog`, `ordinal`,
+`mean+varforest`, `leaf-reg`, `leaf-reg-mv`, `rfx`, `all` (default).
+
+Build target: `debug_bart_sampler`
+
+---
+
+Both programs are built when `BUILD_DEBUG_TARGETS=ON` (the default):
+
+```
+cmake -DBUILD_DEBUG_TARGETS=ON -B build && cmake --build build
+```

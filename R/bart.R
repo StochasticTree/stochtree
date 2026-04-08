@@ -157,6 +157,8 @@ NULL
 #'   - `variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'   - `variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'
+#' @param fast_path Whether or not to sample a model in a pure-C++ loop
+#'
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
 #'
@@ -203,7 +205,8 @@ bart <- function(
   general_params = list(),
   mean_forest_params = list(),
   variance_forest_params = list(),
-  random_effects_params = list()
+  random_effects_params = list(),
+  fast_path = FALSE
 ) {
   # Update general BART parameters
   general_params_default <- list(
@@ -1256,6 +1259,320 @@ bart <- function(
     is_leaf_constant = TRUE
     leaf_regression = FALSE
   }
+
+  # ── C++ fast path (BARTSamplerFit) ──────────────────────────────────────────
+  # Conditions: fast_path requested, MCMC samples needed, no previous model
+  # warm-start, and no non-default RFX priors (unsupported by BARTSamplerFit).
+  if (
+    fast_path &&
+      (num_gfr > 0 || num_mcmc > 0) &&
+      is.null(previous_model_json) &&
+      is.null(rfx_working_parameter_prior_mean) &&
+      is.null(rfx_group_parameter_prior_mean) &&
+      is.null(rfx_working_parameter_prior_cov) &&
+      is.null(rfx_group_parameter_prior_cov)
+  ) {
+    # Map link function to string expected by C++
+    if (link_is_probit) {
+      fp_link <- "probit"
+    } else if (link_is_cloglog) {
+      fp_link <- "cloglog"
+    } else {
+      fp_link <- "identity"
+    }
+
+    # Map leaf model type to string
+    if (leaf_regression && leaf_dimension > 1) {
+      fp_leaf_model <- "multivariate_regression"
+    } else if (leaf_regression) {
+      fp_leaf_model <- "univariate_regression"
+    } else {
+      fp_leaf_model <- "constant"
+    }
+
+    # RFX model spec string and component count
+    if (!has_rfx) {
+      fp_rfx_spec <- "none"
+      fp_rfx_num_components <- 0L
+    } else if (rfx_model_spec == "intercept_only") {
+      fp_rfx_spec <- "intercept_only"
+      fp_rfx_num_components <- 1L
+    } else {
+      fp_rfx_spec <- "custom"
+      fp_rfx_num_components <- as.integer(num_rfx_components)
+    }
+
+    # Call C++ BARTSamplerFit; sigma2_init = b_leaf = variance_forest_leaf_init = -1
+    # signals auto-calibration inside C++.
+    cpp_result <- bart_sampler_fit_r_cpp(
+      X_train_r = as.matrix(X_train),
+      y_train_r = as.numeric(y_train),
+      X_test_r = if (has_test) as.matrix(X_test) else NULL,
+      weights_r = observation_weights,
+      feature_types_r = as.integer(feature_types),
+      basis_train_r = if (has_basis) as.matrix(leaf_basis_train) else NULL,
+      basis_test_r = if (has_basis && has_test) {
+        as.matrix(leaf_basis_test)
+      } else {
+        NULL
+      },
+      rfx_group_ids_train_r = if (has_rfx) {
+        as.integer(rfx_group_ids_train)
+      } else {
+        NULL
+      },
+      rfx_group_ids_test_r = if (has_rfx_test) {
+        as.integer(rfx_group_ids_test)
+      } else {
+        NULL
+      },
+      rfx_basis_train_r = if (has_rfx && has_basis_rfx) {
+        as.matrix(rfx_basis_train)
+      } else {
+        NULL
+      },
+      rfx_basis_test_r = if (has_rfx_test && has_basis_rfx) {
+        as.matrix(rfx_basis_test)
+      } else {
+        NULL
+      },
+      num_trees = as.integer(num_trees_mean),
+      num_gfr = as.integer(num_gfr),
+      num_burnin = as.integer(num_burnin),
+      num_mcmc = as.integer(num_mcmc),
+      num_chains = as.integer(num_chains),
+      keep_every = as.integer(keep_every),
+      keep_gfr = isTRUE(keep_gfr),
+      keep_burnin = isTRUE(keep_burnin),
+      alpha_mean = as.double(alpha_mean),
+      beta_mean = as.double(beta_mean),
+      min_samples_leaf_mean = as.integer(min_samples_leaf_mean),
+      max_depth_mean = as.integer(max_depth_mean),
+      sample_sigma2_global = isTRUE(sample_sigma2_global),
+      sample_sigma2_leaf = isTRUE(sample_sigma2_leaf),
+      standardize = isTRUE(standardize),
+      cutpoint_grid_size = as.integer(cutpoint_grid_size),
+      a_global = as.double(a_global),
+      b_global = as.double(b_global),
+      a_leaf = as.double(a_leaf),
+      b_leaf = -1.0,
+      sigma2_init = -1.0,
+      link_function_str = fp_link,
+      leaf_model_str = fp_leaf_model,
+      cloglog_num_categories = as.integer(
+        if (link_is_cloglog) cloglog_num_categories else 0L
+      ),
+      include_variance_forest = isTRUE(include_variance_forest),
+      num_trees_variance = as.integer(num_trees_variance),
+      alpha_variance = as.double(alpha_variance),
+      beta_variance = as.double(beta_variance),
+      min_samples_leaf_variance = as.integer(min_samples_leaf_variance),
+      max_depth_variance = as.integer(max_depth_variance),
+      a_forest = as.double(a_forest),
+      b_forest = as.double(b_forest),
+      variance_forest_leaf_init = -1.0,
+      rfx_model_spec_str = fp_rfx_spec,
+      rfx_num_components = fp_rfx_num_components,
+      rfx_alpha_init = 0.0,
+      rfx_xi_init = 0.0,
+      rfx_sigma_alpha_init = 1.0,
+      rfx_sigma_xi_init = 1.0,
+      rfx_variance_prior_shape = as.double(rfx_variance_prior_shape),
+      rfx_variance_prior_scale = as.double(rfx_variance_prior_scale),
+      variable_weights_mean_r = as.numeric(variable_weights_mean),
+      variable_weights_variance_r = as.numeric(variable_weights_variance),
+      random_seed = as.integer(random_seed),
+      num_threads = as.integer(num_threads)
+    )
+
+    # ── Wrap C++ result into bartmodel format ──────────────────────────────────
+    fp_y_bar <- cpp_result$y_bar
+    fp_y_std <- cpp_result$y_std
+    fp_n_samples <- cpp_result$num_total_samples
+    fp_n_train <- nrow(X_train)
+    fp_n_test <- if (has_test) nrow(X_test) else 0L
+
+    # Mean forest ForestSamples wrapper
+    fp_mean_forests <- NULL
+    fp_y_hat_train <- NULL
+    fp_y_hat_test <- NULL
+    if (include_mean_forest && !is.null(cpp_result$forest_container_ptr)) {
+      fp_mean_forests <- ForestSamples$new(
+        num_trees_mean,
+        leaf_dimension,
+        is_leaf_constant,
+        FALSE
+      )
+      fp_mean_forests$forest_container_ptr <- cpp_result$forest_container_ptr
+      fp_y_hat_train <- matrix(
+        cpp_result$y_hat_train,
+        nrow = fp_n_train,
+        ncol = fp_n_samples
+      )
+      if (fp_n_test > 0L && length(cpp_result$y_hat_test) > 0L) {
+        fp_y_hat_test <- matrix(
+          cpp_result$y_hat_test,
+          nrow = fp_n_test,
+          ncol = fp_n_samples
+        )
+      }
+    }
+
+    # Variance forest ForestSamples wrapper
+    fp_variance_forests <- NULL
+    fp_sigma2x_train <- NULL
+    fp_sigma2x_test <- NULL
+    if (
+      include_variance_forest &&
+        !is.null(cpp_result$variance_forest_container_ptr)
+    ) {
+      fp_variance_forests <- ForestSamples$new(
+        num_trees_variance,
+        1L,
+        TRUE,
+        TRUE
+      )
+      fp_variance_forests$forest_container_ptr <- cpp_result$variance_forest_container_ptr
+      fp_sigma2x_train <- matrix(
+        cpp_result$sigma2_x_hat_train,
+        nrow = fp_n_train,
+        ncol = fp_n_samples
+      )
+      if (fp_n_test > 0L && length(cpp_result$sigma2_x_hat_test) > 0L) {
+        fp_sigma2x_test <- matrix(
+          cpp_result$sigma2_x_hat_test,
+          nrow = fp_n_test,
+          ncol = fp_n_samples
+        )
+      }
+    }
+
+    # RandomEffectSamples wrapper
+    fp_rfx_samples <- NULL
+    if (has_rfx && !is.null(cpp_result$rfx_container_ptr)) {
+      fp_rfx_samples <- RandomEffectSamples$new()
+      fp_rfx_samples$rfx_container_ptr <- cpp_result$rfx_container_ptr
+      fp_rfx_samples$label_mapper_ptr <- cpp_result$rfx_label_mapper_ptr
+      fp_rfx_samples$training_group_ids <- cpp_result$rfx_group_ids
+    }
+
+    # Build model_params list (mirrors slow-path structure)
+    fp_model_params <- list(
+      "sigma2_init" = -1.0,
+      "sigma2_leaf_init" = sigma2_leaf_init,
+      "a_global" = a_global,
+      "b_global" = b_global,
+      "a_leaf" = a_leaf,
+      "b_leaf" = -1.0,
+      "a_forest" = a_forest,
+      "b_forest" = b_forest,
+      "outcome_mean" = fp_y_bar,
+      "outcome_scale" = fp_y_std,
+      "standardize" = standardize,
+      "leaf_dimension" = leaf_dimension,
+      "is_leaf_constant" = is_leaf_constant,
+      "leaf_regression" = leaf_regression,
+      "requires_basis" = leaf_regression,
+      "num_covariates" = num_cov_orig,
+      "num_basis" = ifelse(
+        is.null(leaf_basis_train),
+        0L,
+        ncol(leaf_basis_train)
+      ),
+      "num_samples" = fp_n_samples,
+      "num_gfr" = num_gfr,
+      "num_burnin" = num_burnin,
+      "num_mcmc" = num_mcmc,
+      "keep_every" = keep_every,
+      "num_chains" = num_chains,
+      "has_basis" = has_basis,
+      "has_rfx" = has_rfx,
+      "has_rfx_basis" = has_basis_rfx,
+      "num_rfx_basis" = num_basis_rfx,
+      "sample_sigma2_global" = sample_sigma2_global,
+      "sample_sigma2_leaf" = sample_sigma2_leaf,
+      "include_mean_forest" = include_mean_forest,
+      "include_variance_forest" = include_variance_forest,
+      "outcome_model" = outcome_model,
+      "probit_outcome_model" = probit_outcome_model,
+      "cloglog_num_categories" = ifelse(
+        link_is_cloglog,
+        as.integer(cloglog_num_categories),
+        0L
+      ),
+      "rfx_model_spec" = rfx_model_spec
+    )
+
+    fp_result <- list(
+      "model_params" = fp_model_params,
+      "train_set_metadata" = X_train_metadata
+    )
+
+    if (include_mean_forest && !is.null(fp_mean_forests)) {
+      fp_result[["mean_forests"]] <- fp_mean_forests
+      fp_result[["y_hat_train"]] <- fp_y_hat_train
+      if (!is.null(fp_y_hat_test)) {
+        fp_result[["y_hat_test"]] <- fp_y_hat_test
+      }
+      if (link_is_cloglog && !outcome_is_binary) {
+        n_cuts <- as.integer(cloglog_num_categories) - 1L
+        if (n_cuts > 0L && length(cpp_result$cloglog_cutpoint_samples) > 0L) {
+          fp_result[["cloglog_cutpoint_samples"]] <- matrix(
+            cpp_result$cloglog_cutpoint_samples,
+            nrow = n_cuts,
+            ncol = fp_n_samples
+          )
+        }
+      }
+    }
+
+    if (include_variance_forest && !is.null(fp_variance_forests)) {
+      fp_result[["variance_forests"]] <- fp_variance_forests
+      fp_result[["sigma2_x_hat_train"]] <- fp_sigma2x_train
+      if (!is.null(fp_sigma2x_test)) {
+        fp_result[["sigma2_x_hat_test"]] <- fp_sigma2x_test
+      }
+    }
+
+    if (sample_sigma2_global && length(cpp_result$sigma2_global_samples) > 0L) {
+      fp_result[["sigma2_global_samples"]] <- cpp_result$sigma2_global_samples
+    }
+
+    if (sample_sigma2_leaf && length(cpp_result$leaf_scale_samples) > 0L) {
+      fp_result[["sigma2_leaf_samples"]] <- cpp_result$leaf_scale_samples
+    }
+
+    if (has_rfx && !is.null(fp_rfx_samples)) {
+      fp_result[["rfx_samples"]] <- fp_rfx_samples
+      fp_result[["rfx_preds_train"]] <- fp_rfx_samples$predict(
+        rfx_group_ids_train,
+        rfx_basis_train
+      ) *
+        fp_y_std
+      fp_result[["rfx_unique_group_ids"]] <- levels(group_ids_factor)
+      if (has_rfx_test && fp_n_test > 0L) {
+        fp_result[["rfx_preds_test"]] <- fp_rfx_samples$predict(
+          rfx_group_ids_test,
+          rfx_basis_test
+        ) *
+          fp_y_std
+      }
+    }
+
+    class(fp_result) <- "bartmodel"
+
+    # Restore global RNG state if a random seed was provided
+    if (custom_rng) {
+      if (has_existing_random_seed) {
+        .Random.seed <- original_global_seed
+      } else {
+        rm(".Random.seed", envir = .GlobalEnv)
+      }
+    }
+
+    return(fp_result)
+  }
+  # ── End C++ fast path ────────────────────────────────────────────────────────
 
   # Data
   if (leaf_regression) {

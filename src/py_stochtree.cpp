@@ -253,7 +253,20 @@ class ForestContainerCpp {
     is_leaf_constant_ = is_leaf_constant;
     is_exponentiated_ = is_exponentiated;
   }
-  ~ForestContainerCpp() {}
+
+  // Construct by taking ownership of an existing ForestContainer (zero-copy).
+  // Used by BARTResultCpp::StealForestContainer().
+  explicit ForestContainerCpp(std::unique_ptr<StochTree::ForestContainer> fc) {
+    num_trees_        = fc->NumTrees();
+    output_dimension_ = fc->OutputDimension();
+    is_leaf_constant_ = fc->IsLeafConstant();
+    is_exponentiated_ = fc->IsExponentiated();
+    forest_samples_   = std::move(fc);
+  }
+
+  ForestContainerCpp(ForestContainerCpp&&) = default;
+  ForestContainerCpp& operator=(ForestContainerCpp&&) = default;
+  ~ForestContainerCpp() = default;
 
   void CombineForests(py::array_t<int> forest_inds) {
     int num_forests = forest_inds.size();
@@ -1483,6 +1496,11 @@ class RandomEffectsContainerCpp {
   RandomEffectsContainerCpp() {
     rfx_container_ = std::make_unique<StochTree::RandomEffectsContainer>();
   }
+  // Construct by taking ownership of an existing container (used by BARTResultCpp::StealRfxContainer).
+  explicit RandomEffectsContainerCpp(std::unique_ptr<StochTree::RandomEffectsContainer> c)
+    : rfx_container_(std::move(c)) {}
+  RandomEffectsContainerCpp(RandomEffectsContainerCpp&&) = default;
+  RandomEffectsContainerCpp& operator=(RandomEffectsContainerCpp&&) = default;
   ~RandomEffectsContainerCpp() {}
   void SetComponentsAndGroups(int num_components, int num_groups) {
     rfx_container_->SetNumComponents(num_components);
@@ -1622,6 +1640,16 @@ class RandomEffectsLabelMapperCpp {
   void LoadFromTracker(RandomEffectsTrackerCpp& rfx_tracker) {
     StochTree::RandomEffectsTracker* internal_tracker = rfx_tracker.GetTracker();
     rfx_label_mapper_->LoadFromLabelMap(internal_tracker->GetLabelMap());
+  }
+  // Build label mapper directly from a sorted list of unique group IDs.
+  // group_ids[i] maps to array index i.
+  void LoadFromGroupIds(py::array_t<int> group_ids) {
+    rfx_label_mapper_->Reset();
+    std::map<int32_t, int32_t> label_map;
+    auto buf = group_ids.unchecked<1>();
+    for (int i = 0; i < static_cast<int>(buf.size()); ++i)
+      label_map[static_cast<int32_t>(buf(i))] = static_cast<int32_t>(i);
+    rfx_label_mapper_->LoadFromLabelMap(label_map);
   }
   void SaveToJsonFile(std::string json_filename) {
     rfx_label_mapper_->SaveToJsonFile(json_filename);
@@ -2249,6 +2277,93 @@ void RandomEffectsTrackerCpp::RootReset(RandomEffectsModelCpp& rfx_model, Random
   rfx_tracker_->RootReset(*rfx_model.GetModel(), *rfx_dataset.GetDataset(), *residual.GetData());
 }
 
+// ── BARTResultCpp ──────────────────────────────────────────────────────────
+// Python-facing wrapper around StochTree::BARTResult.
+//
+// Defined here (after both ForestContainerCpp and RandomEffectsContainerCpp)
+// so no forward declarations are needed.
+
+#include <stochtree/bart.h>
+#include <stochtree/bart_sampler.h>
+
+class BARTResultCpp {
+ public:
+  BARTResultCpp() : result_(std::make_unique<StochTree::BARTResult>()) {}
+  BARTResultCpp(BARTResultCpp&&) = default;
+  BARTResultCpp& operator=(BARTResultCpp&&) = default;
+  ~BARTResultCpp() = default;
+
+  StochTree::BARTResult* Get() { return result_.get(); }
+
+  // ── Forest management ────────────────────────────────────────────────
+  int  NumSamples()        { return result_->forest_container->NumSamples(); }
+  void DeleteSample(int i) { result_->forest_container->DeleteSample(i); }
+
+  ForestContainerCpp StealForestContainer() {
+    if (!result_->forest_container)
+      StochTree::Log::Fatal("BARTResultCpp: forest container has already been taken");
+    return ForestContainerCpp(std::move(result_->forest_container));
+  }
+
+  nlohmann::json ForestToJson() { return result_->forest_container->to_json(); }
+
+  // ── Scalar sample arrays ─────────────────────────────────────────────
+  std::vector<double> GetYHatTrain()            { return result_->y_hat_train; }
+  std::vector<double> GetYHatTest()             { return result_->y_hat_test; }
+  std::vector<double> GetSigma2GlobalSamples()  { return result_->sigma2_global_samples; }
+  std::vector<double> GetLeafScaleSamples()     { return result_->leaf_scale_samples; }
+  std::vector<double> GetSigma2XHatTrain()      { return result_->sigma2_x_hat_train; }
+  std::vector<double> GetSigma2XHatTest()       { return result_->sigma2_x_hat_test; }
+
+  // ── Variance forest ───────────────────────────────────────────────────
+  bool HasVarianceForest() { return result_->variance_forest_container != nullptr; }
+
+  ForestContainerCpp StealVarianceForestContainer() {
+    if (!result_->variance_forest_container)
+      StochTree::Log::Fatal("BARTResultCpp: variance forest container has already been taken or was not allocated");
+    return ForestContainerCpp(std::move(result_->variance_forest_container));
+  }
+
+  // ── Cloglog ───────────────────────────────────────────────────────────
+  py::array_t<double> GetCloglogCutpointSamples() {
+    const auto& v = result_->cloglog_cutpoint_samples;
+    auto out = py::array_t<double>(static_cast<py::ssize_t>(v.size()));
+    std::copy(v.begin(), v.end(), out.mutable_data());
+    return out;
+  }
+
+  // ── RFX ───────────────────────────────────────────────────────────────
+  bool HasRfx()             { return result_->rfx_container != nullptr; }
+  int  RfxNumGroups()       { return result_->rfx_num_groups; }
+  int  RfxNumComponents()   { return result_->rfx_num_components; }
+
+  py::array_t<int32_t> GetRfxGroupIds() {
+    const auto& ids = result_->rfx_group_ids;
+    auto out = py::array_t<int32_t>(static_cast<py::ssize_t>(ids.size()));
+    int32_t* ptr = out.mutable_data();
+    for (size_t i = 0; i < ids.size(); ++i) ptr[i] = ids[i];
+    return out;
+  }
+
+  RandomEffectsContainerCpp StealRfxContainer() {
+    if (!result_->rfx_container)
+      StochTree::Log::Fatal("BARTResultCpp: rfx container has already been taken or was not allocated");
+    return RandomEffectsContainerCpp(std::move(result_->rfx_container));
+  }
+
+  // ── Metadata ─────────────────────────────────────────────────────────
+  int    num_total_samples() { return result_->num_total_samples; }
+  int    num_chains()        { return result_->num_chains; }
+  int    n_train()           { return result_->n_train; }
+  int    n_test()            { return result_->n_test; }
+  double y_bar()             { return result_->y_bar; }
+  double y_std()             { return result_->y_std; }
+
+ private:
+  std::unique_ptr<StochTree::BARTResult> result_;
+};
+
+
 PYBIND11_MODULE(stochtree_cpp, m) {
   m.def("cppComputeForestContainerLeafIndices", &cppComputeForestContainerLeafIndices, "Compute leaf indices of the forests in a forest container");
   m.def("cppComputeForestMaxLeafIndex", &cppComputeForestMaxLeafIndex, "Compute max leaf index of a forest in a forest container");
@@ -2487,6 +2602,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   py::class_<RandomEffectsLabelMapperCpp>(m, "RandomEffectsLabelMapperCpp")
     .def(py::init<>())
     .def("LoadFromTracker", &RandomEffectsLabelMapperCpp::LoadFromTracker)
+    .def("LoadFromGroupIds", &RandomEffectsLabelMapperCpp::LoadFromGroupIds)
     .def("SaveToJsonFile", &RandomEffectsLabelMapperCpp::SaveToJsonFile)
     .def("LoadFromJsonFile", &RandomEffectsLabelMapperCpp::LoadFromJsonFile)
     .def("DumpJsonString", &RandomEffectsLabelMapperCpp::DumpJsonString)
@@ -2522,6 +2638,238 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("UpdateLatentVariables", &OrdinalSamplerCpp::UpdateLatentVariables)
     .def("UpdateGammaParams", &OrdinalSamplerCpp::UpdateGammaParams)
     .def("UpdateCumulativeExpSums", &OrdinalSamplerCpp::UpdateCumulativeExpSums);
+
+  // ── High-level BARTSamplerFit API ────────────────────────────────────────
+
+  py::class_<StochTree::BARTConfig>(m, "BARTConfig")
+    .def(py::init<>())
+    .def_readwrite("num_trees",             &StochTree::BARTConfig::num_trees)
+    .def_readwrite("num_gfr",               &StochTree::BARTConfig::num_gfr)
+    .def_readwrite("num_burnin",            &StochTree::BARTConfig::num_burnin)
+    .def_readwrite("num_mcmc",              &StochTree::BARTConfig::num_mcmc)
+    .def_readwrite("num_chains",            &StochTree::BARTConfig::num_chains)
+    .def_readwrite("keep_every",            &StochTree::BARTConfig::keep_every)
+    .def_readwrite("keep_gfr",              &StochTree::BARTConfig::keep_gfr)
+    .def_readwrite("keep_burnin",           &StochTree::BARTConfig::keep_burnin)
+    .def_readwrite("alpha",                 &StochTree::BARTConfig::alpha)
+    .def_readwrite("beta",                  &StochTree::BARTConfig::beta)
+    .def_readwrite("min_samples_leaf",      &StochTree::BARTConfig::min_samples_leaf)
+    .def_readwrite("max_depth",             &StochTree::BARTConfig::max_depth)
+    .def_readwrite("a_global",              &StochTree::BARTConfig::a_global)
+    .def_readwrite("b_global",              &StochTree::BARTConfig::b_global)
+    .def_readwrite("a_leaf",                &StochTree::BARTConfig::a_leaf)
+    .def_readwrite("b_leaf",                &StochTree::BARTConfig::b_leaf)
+    .def_readwrite("leaf_scale",            &StochTree::BARTConfig::leaf_scale)
+    .def_readwrite("sigma2_init",           &StochTree::BARTConfig::sigma2_init)
+    .def_readwrite("sample_sigma2_global",  &StochTree::BARTConfig::sample_sigma2_global)
+    .def_readwrite("sample_sigma2_leaf",    &StochTree::BARTConfig::sample_sigma2_leaf)
+    .def_property("leaf_model",
+        [](const StochTree::BARTConfig& c) -> std::string {
+            switch (c.leaf_model) {
+                case StochTree::LeafModel::UnivariateRegression:   return "univariate_regression";
+                case StochTree::LeafModel::MultivariateRegression: return "multivariate_regression";
+                default:                                           return "constant";
+            }
+        },
+        [](StochTree::BARTConfig& c, const std::string& s) {
+            if      (s == "univariate_regression")   c.leaf_model = StochTree::LeafModel::UnivariateRegression;
+            else if (s == "multivariate_regression") c.leaf_model = StochTree::LeafModel::MultivariateRegression;
+            else                                     c.leaf_model = StochTree::LeafModel::Constant;
+        })
+    .def_property("link_function",
+        [](const StochTree::BARTConfig& c) -> std::string {
+            switch (c.link_function) {
+                case StochTree::LinkFunction::Probit:  return "probit";
+                case StochTree::LinkFunction::Cloglog: return "cloglog";
+                default:                               return "identity";
+            }
+        },
+        [](StochTree::BARTConfig& c, const std::string& s) {
+            if      (s == "probit")  c.link_function = StochTree::LinkFunction::Probit;
+            else if (s == "cloglog") c.link_function = StochTree::LinkFunction::Cloglog;
+            else                     c.link_function = StochTree::LinkFunction::Identity;
+        })
+    .def_readwrite("standardize",           &StochTree::BARTConfig::standardize)
+    .def_readwrite("cutpoint_grid_size",    &StochTree::BARTConfig::cutpoint_grid_size)
+    .def_readwrite("num_threads",           &StochTree::BARTConfig::num_threads)
+    .def_readwrite("random_seed",           &StochTree::BARTConfig::random_seed)
+    .def_readwrite("variable_weights_mean",       &StochTree::BARTConfig::variable_weights_mean)
+    .def_readwrite("include_variance_forest",     &StochTree::BARTConfig::include_variance_forest)
+    .def_readwrite("num_trees_variance",          &StochTree::BARTConfig::num_trees_variance)
+    .def_readwrite("alpha_variance",              &StochTree::BARTConfig::alpha_variance)
+    .def_readwrite("beta_variance",               &StochTree::BARTConfig::beta_variance)
+    .def_readwrite("min_samples_leaf_variance",   &StochTree::BARTConfig::min_samples_leaf_variance)
+    .def_readwrite("max_depth_variance",          &StochTree::BARTConfig::max_depth_variance)
+    .def_readwrite("a_forest",                    &StochTree::BARTConfig::a_forest)
+    .def_readwrite("b_forest",                    &StochTree::BARTConfig::b_forest)
+    .def_readwrite("variance_forest_leaf_init",   &StochTree::BARTConfig::variance_forest_leaf_init)
+    .def_readwrite("variable_weights_variance",   &StochTree::BARTConfig::variable_weights_variance)
+    .def_readwrite("cloglog_num_categories",  &StochTree::BARTConfig::cloglog_num_categories)
+    .def_readwrite("cloglog_forest_shape",    &StochTree::BARTConfig::cloglog_forest_shape)
+    .def_readwrite("cloglog_forest_rate",     &StochTree::BARTConfig::cloglog_forest_rate)
+    .def_readwrite("cloglog_cutpoint_0",      &StochTree::BARTConfig::cloglog_cutpoint_0)
+    .def_readwrite("rfx_num_components",       &StochTree::BARTConfig::rfx_num_components)
+    .def_readwrite("rfx_alpha_init",           &StochTree::BARTConfig::rfx_alpha_init)
+    .def_readwrite("rfx_xi_init",              &StochTree::BARTConfig::rfx_xi_init)
+    .def_readwrite("rfx_sigma_alpha_init",     &StochTree::BARTConfig::rfx_sigma_alpha_init)
+    .def_readwrite("rfx_sigma_xi_init",        &StochTree::BARTConfig::rfx_sigma_xi_init)
+    .def_readwrite("rfx_variance_prior_shape", &StochTree::BARTConfig::rfx_variance_prior_shape)
+    .def_readwrite("rfx_variance_prior_scale", &StochTree::BARTConfig::rfx_variance_prior_scale)
+    .def_property("rfx_model_spec",
+        [](const StochTree::BARTConfig& c) -> std::string {
+            switch (c.rfx_model_spec) {
+                case StochTree::RFXModelSpec::InterceptOnly: return "intercept_only";
+                case StochTree::RFXModelSpec::Custom:        return "custom";
+                default:                                     return "none";
+            }
+        },
+        [](StochTree::BARTConfig& c, const std::string& s) {
+            if      (s == "intercept_only") c.rfx_model_spec = StochTree::RFXModelSpec::InterceptOnly;
+            else if (s == "custom")         c.rfx_model_spec = StochTree::RFXModelSpec::Custom;
+            else                            c.rfx_model_spec = StochTree::RFXModelSpec::None;
+        });
+
+  py::class_<BARTResultCpp>(m, "BARTResultCpp")
+    .def(py::init<>())
+    .def("num_samples",             &BARTResultCpp::NumSamples)
+    .def("delete_sample",           &BARTResultCpp::DeleteSample, py::arg("i"))
+    .def("steal_forest_container",  &BARTResultCpp::StealForestContainer)
+    .def_property_readonly("y_hat_train",           &BARTResultCpp::GetYHatTrain)
+    .def_property_readonly("y_hat_test",            &BARTResultCpp::GetYHatTest)
+    .def_property_readonly("sigma2_global_samples", &BARTResultCpp::GetSigma2GlobalSamples)
+    .def_property_readonly("leaf_scale_samples",    &BARTResultCpp::GetLeafScaleSamples)
+    .def_property_readonly("sigma2_x_hat_train",    &BARTResultCpp::GetSigma2XHatTrain)
+    .def_property_readonly("sigma2_x_hat_test",     &BARTResultCpp::GetSigma2XHatTest)
+    .def("has_variance_forest",               &BARTResultCpp::HasVarianceForest)
+    .def("steal_variance_forest_container",   &BARTResultCpp::StealVarianceForestContainer)
+    .def_property_readonly("cloglog_cutpoint_samples", &BARTResultCpp::GetCloglogCutpointSamples)
+    .def("has_rfx",                  &BARTResultCpp::HasRfx)
+    .def_property_readonly("rfx_num_groups",     &BARTResultCpp::RfxNumGroups)
+    .def_property_readonly("rfx_num_components", &BARTResultCpp::RfxNumComponents)
+    .def_property_readonly("rfx_group_ids",      &BARTResultCpp::GetRfxGroupIds)
+    .def("steal_rfx_container",      &BARTResultCpp::StealRfxContainer)
+    .def_property_readonly("num_total_samples",     &BARTResultCpp::num_total_samples)
+    .def_property_readonly("num_chains",            &BARTResultCpp::num_chains)
+    .def_property_readonly("n_train",               &BARTResultCpp::n_train)
+    .def_property_readonly("n_test",                &BARTResultCpp::n_test)
+    .def_property_readonly("y_bar",                 &BARTResultCpp::y_bar)
+    .def_property_readonly("y_std",                 &BARTResultCpp::y_std);
+
+  // Lambda for data marshaling used by bart_sampler_fit.
+  auto do_bart_fit = [](BARTResultCpp& result,
+                        const StochTree::BARTConfig& config,
+                        py::array_t<double, py::array::f_style | py::array::forcecast> X_train,
+                        py::array_t<double> y_train,
+                        py::object X_test_obj,
+                        py::object weights_obj,
+                        py::object feature_types_obj,
+                        py::object basis_train_obj,
+                        py::object basis_test_obj,
+                        py::object rfx_groups_train_obj,
+                        py::object rfx_basis_train_obj,
+                        py::object rfx_groups_test_obj,
+                        py::object rfx_basis_test_obj,
+                        const std::string& previous_model_json) {
+    auto X_tr_buf = X_train.request();
+    auto y_buf    = y_train.request();
+
+    py::array_t<double, py::array::f_style | py::array::forcecast> X_test_arr;
+    bool have_test = !X_test_obj.is_none();
+    if (have_test) X_test_arr = X_test_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+
+    py::array_t<double> weights_arr;
+    bool have_weights = !weights_obj.is_none();
+    if (have_weights) weights_arr = weights_obj.cast<py::array_t<double>>();
+
+    py::array_t<int> feature_types_arr;
+    bool have_ft = !feature_types_obj.is_none();
+    if (have_ft) feature_types_arr = feature_types_obj.cast<py::array_t<int>>();
+
+    py::array_t<double, py::array::f_style | py::array::forcecast> basis_train_arr;
+    bool have_bt = !basis_train_obj.is_none();
+    if (have_bt) basis_train_arr = basis_train_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+
+    py::array_t<double, py::array::f_style | py::array::forcecast> basis_test_arr;
+    bool have_bte = !basis_test_obj.is_none();
+    if (have_bte) basis_test_arr = basis_test_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+
+    py::array_t<int> rfx_groups_train_arr;
+    std::vector<int> rfx_groups_train_vec;
+    bool have_rfx_tr = !rfx_groups_train_obj.is_none();
+    if (have_rfx_tr) {
+      rfx_groups_train_arr = rfx_groups_train_obj.cast<py::array_t<int>>();
+      auto buf = rfx_groups_train_arr.request();
+      const int* ptr = static_cast<const int*>(buf.ptr);
+      rfx_groups_train_vec.assign(ptr, ptr + buf.shape[0]);
+    }
+
+    py::array_t<double, py::array::f_style | py::array::forcecast> rfx_basis_train_arr;
+    bool have_rfx_bt = !rfx_basis_train_obj.is_none();
+    if (have_rfx_bt) rfx_basis_train_arr = rfx_basis_train_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+
+    py::array_t<int> rfx_groups_test_arr;
+    std::vector<int> rfx_groups_test_vec;
+    bool have_rfx_te = !rfx_groups_test_obj.is_none();
+    if (have_rfx_te) {
+      rfx_groups_test_arr = rfx_groups_test_obj.cast<py::array_t<int>>();
+      auto buf = rfx_groups_test_arr.request();
+      const int* ptr = static_cast<const int*>(buf.ptr);
+      rfx_groups_test_vec.assign(ptr, ptr + buf.shape[0]);
+    }
+
+    py::array_t<double, py::array::f_style | py::array::forcecast> rfx_basis_test_arr;
+    bool have_rfx_bte = !rfx_basis_test_obj.is_none();
+    if (have_rfx_bte) rfx_basis_test_arr = rfx_basis_test_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+
+    StochTree::BARTData data;
+    data.X_train  = static_cast<const double*>(X_tr_buf.ptr);
+    data.n_train  = static_cast<int>(X_tr_buf.shape[0]);
+    data.p        = static_cast<int>(X_tr_buf.shape[1]);
+    data.y_train  = static_cast<const double*>(y_buf.ptr);
+    if (have_test) {
+      auto b = X_test_arr.request();
+      data.X_test = static_cast<const double*>(b.ptr);
+      data.n_test  = static_cast<int>(b.shape[0]);
+    }
+    if (have_weights) data.weights       = static_cast<const double*>(weights_arr.request().ptr);
+    if (have_ft)      data.feature_types = static_cast<const int*>(feature_types_arr.request().ptr);
+    if (have_bt) {
+      auto b = basis_train_arr.request();
+      data.basis_train = static_cast<const double*>(b.ptr);
+      data.basis_dim   = static_cast<int>(b.shape[1]);
+    }
+    if (have_bte)     data.basis_test      = static_cast<const double*>(basis_test_arr.request().ptr);
+    if (have_rfx_tr)  data.rfx_groups      = rfx_groups_train_vec.data();
+    if (have_rfx_bt)  data.rfx_basis_train = static_cast<const double*>(rfx_basis_train_arr.request().ptr);
+    if (have_rfx_te)  data.rfx_groups_test = rfx_groups_test_vec.data();
+    if (have_rfx_bte) data.rfx_basis_test  = static_cast<const double*>(rfx_basis_test_arr.request().ptr);
+
+    StochTree::BARTSamplerFit(result.Get(), config, data, previous_model_json);
+  };
+
+  m.def("bart_sampler_fit",
+    [do_bart_fit](BARTResultCpp& result,
+       const StochTree::BARTConfig& config,
+       py::array_t<double, py::array::f_style | py::array::forcecast> X_train,
+       py::array_t<double> y_train,
+       py::object X_test_obj, py::object weights_obj, py::object feature_types_obj,
+       py::object basis_train_obj, py::object basis_test_obj,
+       py::object rfx_groups_train_obj, py::object rfx_basis_train_obj,
+       py::object rfx_groups_test_obj, py::object rfx_basis_test_obj,
+       const std::string& previous_model_json) {
+      do_bart_fit(result, config, X_train, y_train, X_test_obj, weights_obj,
+                  feature_types_obj, basis_train_obj, basis_test_obj,
+                  rfx_groups_train_obj, rfx_basis_train_obj,
+                  rfx_groups_test_obj, rfx_basis_test_obj,
+                  previous_model_json);
+    },
+    py::arg("result"), py::arg("config"), py::arg("X_train"), py::arg("y_train"),
+    py::arg("X_test") = py::none(), py::arg("weights") = py::none(),
+    py::arg("feature_types") = py::none(), py::arg("basis_train") = py::none(),
+    py::arg("basis_test") = py::none(), py::arg("rfx_groups_train") = py::none(),
+    py::arg("rfx_basis_train") = py::none(), py::arg("rfx_groups_test") = py::none(),
+    py::arg("rfx_basis_test") = py::none(), py::arg("previous_model_json") = "",
+    "Fit a BART model using the stateful BARTSampler (RFC 0005).");
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

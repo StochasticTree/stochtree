@@ -1017,19 +1017,23 @@ class CloglogOrdinalSuffStat {
 
     // Get auxiliary data from tracker (assuming types: 0=latents Z, 1=forest predictions, 2=cutpoints gamma, 3=cumsum exp of gamma)
     double Z = dataset.GetAuxiliaryDataValue(0, row_idx);  // latent variables Z
-    double lambda_minus = dataset.GetAuxiliaryDataValue(1, row_idx);  // forest predictions excluding current tree
+
+    // Use precomputed exp(lambda_minus) from slot 4 if available; otherwise compute on the fly
+    double exp_lambda_minus = dataset.HasAuxiliaryDimension(4)
+        ? dataset.GetAuxiliaryDataValue(4, row_idx)
+        : std::exp(dataset.GetAuxiliaryDataValue(1, row_idx));
 
     // Get cutpoints gamma and cumulative sum of exp(gamma)
     const std::vector<double>& gamma = dataset.GetAuxiliaryDataVectorConst(2);  // cutpoints gamma
     const std::vector<double>& seg = dataset.GetAuxiliaryDataVectorConst(3);    // cumsum exp of gamma
-    
+
     int K = gamma.size() + 1;  // Number of ordinal categories
 
     if (y == K - 1) {
-      other_sum += std::exp(lambda_minus) * seg[y];  // checked and it's correct
+      other_sum += exp_lambda_minus * seg[y];
     } else {
       sum_Y_less_K += 1.0;
-      other_sum += std::exp(lambda_minus) * (Z * std::exp(gamma[y]) + seg[y]); // checked and it's correct
+      other_sum += exp_lambda_minus * (Z * std::exp(gamma[y]) + seg[y]);
     }
   }
 
