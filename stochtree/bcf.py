@@ -22,6 +22,16 @@ from .random_effects import (
 )
 from .sampler import RNG, ForestSampler, GlobalVarianceModel, LeafVarianceModel
 from .serialization import JSONSerializer
+
+try:
+    from stochtree_cpp import (
+        BCFConfig as _CppBCFConfig,
+        BCFResultCpp as _CppBCFResult,
+        bcf_sampler_fit as _bcf_sampler_fit,
+    )
+    _BCF_FAST_PATH_AVAILABLE = True
+except ImportError:
+    _BCF_FAST_PATH_AVAILABLE = False
 from .utils import (
     OutcomeModel,
     NotSampledError,
@@ -107,6 +117,7 @@ class BCFModel:
         treatment_effect_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
         random_effects_params: Optional[Dict[str, Any]] = None,
+        fast_path: bool = False,
     ) -> None:
         """Runs a BCF sampler on provided training set. Outcome predictions and estimates of the prognostic and treatment effect functions
         will be cached for the training set and (if provided) the test set.
@@ -1963,6 +1974,202 @@ class BCFModel:
             # Auto-calibrate prior variance if not provided
             if tau_0_prior_var is None:
                 tau_0_prior_var = np.var(resid_train)
+
+        # ── C++ fast path ────────────────────────────────────────────────────────
+        # Conditions: fast_path requested, identity link, no RFX, no previous model.
+        # By this point X_train_processed already has pi_hat appended (if applicable)
+        # and variable_weights_{mu,tau} already encode the propensity routing.
+        if (
+            fast_path and
+            _BCF_FAST_PATH_AVAILABLE and
+            link_is_linear and
+            (num_gfr > 0 or num_mcmc > 0) and
+            rfx_group_ids_train is None and
+            previous_model_json is None
+        ):
+            cfg = _CppBCFConfig()
+            cfg.num_gfr    = num_gfr
+            cfg.num_burnin = num_burnin
+            cfg.num_mcmc   = num_mcmc
+            cfg.num_chains = num_chains
+            cfg.keep_every = keep_every
+            cfg.keep_gfr    = keep_gfr
+            cfg.keep_burnin = keep_burnin
+
+            cfg.a_global             = float(a_global)
+            cfg.b_global             = float(b_global)
+            cfg.sigma2_init          = -1.0   # auto-calibrate
+            cfg.sample_sigma2_global = sample_sigma2_global
+
+            cfg.mu_forest.num_trees          = num_trees_mu
+            cfg.mu_forest.alpha              = float(alpha_mu)
+            cfg.mu_forest.beta               = float(beta_mu)
+            cfg.mu_forest.min_samples_leaf   = int(min_samples_leaf_mu)
+            cfg.mu_forest.max_depth          = int(max_depth_mu)
+            cfg.mu_forest.sample_sigma2_leaf = sample_sigma2_leaf_mu
+            cfg.mu_forest.a_leaf             = float(a_leaf_mu)
+            cfg.mu_forest.b_leaf             = float(b_leaf_mu)
+            cfg.mu_forest.leaf_scale         = float(np.squeeze(current_leaf_scale_mu))
+            cfg.mu_forest.variable_weights   = list(variable_weights_mu.astype(float))
+
+            cfg.tau_forest.num_trees          = num_trees_tau
+            cfg.tau_forest.alpha              = float(alpha_tau)
+            cfg.tau_forest.beta               = float(beta_tau)
+            cfg.tau_forest.min_samples_leaf   = int(min_samples_leaf_tau)
+            cfg.tau_forest.max_depth          = int(max_depth_tau)
+            cfg.tau_forest.sample_sigma2_leaf = sample_sigma2_leaf_tau
+            cfg.tau_forest.a_leaf             = float(a_leaf_tau)
+            cfg.tau_forest.b_leaf             = float(b_leaf_tau)
+            cfg.tau_forest.leaf_scale         = float(current_leaf_scale_tau.flat[0])
+            cfg.tau_forest.variable_weights   = list(variable_weights_tau.astype(float))
+
+            # propensity already appended to X_train_processed — pass "none"
+            cfg.propensity_covariate = "none"
+            cfg.adaptive_coding       = self.adaptive_coding
+            cfg.b0_init               = float(b_0)
+            cfg.b1_init               = float(b_1)
+            cfg.coding_prior_var      = 0.5
+            cfg.sample_intercept      = self.sample_tau_0
+            cfg.tau_0_prior_var       = float(tau_0_prior_var) if (self.sample_tau_0 and tau_0_prior_var is not None) else -1.0
+
+            cfg.include_variance_forest = self.include_variance_forest
+            if self.include_variance_forest:
+                cfg.num_trees_variance         = int(num_trees_variance)
+                cfg.alpha_variance             = float(alpha_variance)
+                cfg.beta_variance              = float(beta_variance)
+                cfg.min_samples_leaf_variance  = int(min_samples_leaf_variance)
+                cfg.max_depth_variance         = int(max_depth_variance)
+                cfg.a_forest                   = float(a_forest)
+                cfg.b_forest                   = float(b_forest)
+                cfg.variance_forest_leaf_init  = float(variance_forest_leaf_init) if variance_forest_leaf_init is not None else -1.0
+                cfg.variable_weights_variance  = list(variable_weights_variance.astype(float))
+
+            cfg.sigma2_init  = float(sigma2_init)
+            cfg.standardize  = self.standardize
+            cfg.random_seed  = int(random_seed) if random_seed is not None else -1
+            cfg.num_threads  = int(num_threads)
+
+            X_arr    = np.asfortranarray(X_train_processed.astype(np.float64))
+            y_arr    = y_train.flatten().astype(np.float64)
+            Z_arr    = np.asfortranarray(Z_train.astype(np.float64))
+            X_te_arr = np.asfortranarray(X_test_processed.astype(np.float64)) if self.has_test else None
+            Z_te_arr = np.asfortranarray(Z_test.astype(np.float64)) if self.has_test else None
+            wt_arr   = observation_weights_.astype(np.float64) if observation_weights is not None else None
+            ft_arr   = feature_types.astype(np.int32) if feature_types is not None else None
+
+            _result = _CppBCFResult()
+            _bcf_sampler_fit(
+                _result, cfg, X_arr, y_arr, Z_arr,
+                X_test=X_te_arr, Z_test=Z_te_arr,
+                weights=wt_arr, feature_types=ft_arr,
+            )
+
+            # Unpack metadata
+            self.y_bar   = _result.y_bar
+            self.y_std   = _result.y_std
+            self.num_gfr      = num_gfr
+            self.num_burnin   = num_burnin
+            self.num_mcmc     = num_mcmc
+            self.num_chains   = num_chains
+            self.keep_every   = keep_every
+            self.num_samples  = _result.num_total_samples
+            self.sample_sigma2_global   = sample_sigma2_global
+            self.sample_sigma2_leaf_mu  = sample_sigma2_leaf_mu
+            self.sample_sigma2_leaf_tau = sample_sigma2_leaf_tau
+            S = self.num_samples
+
+            # Sigma2 init
+            _s2_samps = _result.sigma2_global_samples
+            self.sigma2_init = (
+                _s2_samps[0] / (self.y_std ** 2)
+                if (sample_sigma2_global and len(_s2_samps) > 0) else 1.0
+            )
+
+            # Forest containers
+            _mu_fc_cpp = _result.steal_mu_forest_container()
+            self.forest_container_mu = ForestContainer.__new__(ForestContainer)
+            self.forest_container_mu.forest_container_cpp = _mu_fc_cpp
+            self.forest_container_mu.num_trees = num_trees_mu
+            self.forest_container_mu.output_dimension = 1
+            self.forest_container_mu.leaf_constant = True
+            self.forest_container_mu.is_exponentiated = False
+
+            _tau_fc_cpp = _result.steal_tau_forest_container()
+            self.forest_container_tau = ForestContainer.__new__(ForestContainer)
+            self.forest_container_tau.forest_container_cpp = _tau_fc_cpp
+            self.forest_container_tau.num_trees = num_trees_tau
+            self.forest_container_tau.output_dimension = self.treatment_dim
+            self.forest_container_tau.leaf_constant = False
+            self.forest_container_tau.is_exponentiated = False
+
+            if _result.has_variance_forest():
+                _vfc_cpp = _result.steal_variance_forest_container()
+                self.forest_container_variance = ForestContainer.__new__(ForestContainer)
+                self.forest_container_variance.forest_container_cpp = _vfc_cpp
+                self.forest_container_variance.num_trees = num_trees_variance
+                self.forest_container_variance.output_dimension = 1
+                self.forest_container_variance.leaf_constant = True
+                self.forest_container_variance.is_exponentiated = True
+
+            # mu_hat: C++ stores mu_pred*y_std (without y_bar) → add y_bar
+            self.mu_hat_train = np.array(_result.mu_hat_train).reshape(
+                (self.n_train, S), order="F"
+            ) + self.y_bar
+            self.y_hat_train = np.array(_result.y_hat_train).reshape(
+                (self.n_train, S), order="F"
+            )
+            # tau_hat: compute via PredictRaw to match slow-path semantic (τ(X)*y_std)
+            _ds_train = Dataset()
+            _ds_train.add_covariates(X_arr)
+            _ds_train.add_basis(Z_arr)
+            tau_raw_train = self.forest_container_tau.forest_container_cpp.PredictRaw(
+                _ds_train.dataset_cpp
+            )
+            self.tau_hat_train = np.squeeze(tau_raw_train * self.y_std)
+
+            if _result.has_variance_forest():
+                self.sigma2_x_hat_train = np.array(_result.sigma2_x_hat_train).reshape(
+                    (self.n_train, S), order="F"
+                )
+
+            if self.has_test:
+                self.mu_hat_test = np.array(_result.mu_hat_test).reshape(
+                    (self.n_test, S), order="F"
+                ) + self.y_bar
+                self.y_hat_test = np.array(_result.y_hat_test).reshape(
+                    (self.n_test, S), order="F"
+                )
+                _ds_test = Dataset()
+                _ds_test.add_covariates(X_te_arr)
+                _ds_test.add_basis(Z_te_arr)
+                tau_raw_test = self.forest_container_tau.forest_container_cpp.PredictRaw(
+                    _ds_test.dataset_cpp
+                )
+                self.tau_hat_test = np.squeeze(tau_raw_test * self.y_std)
+                if _result.has_variance_forest():
+                    self.sigma2_x_hat_test = np.array(_result.sigma2_x_hat_test).reshape(
+                        (self.n_test, S), order="F"
+                    )
+
+            # Scalar sample arrays
+            if sample_sigma2_global:
+                self.global_var_samples = np.array(_result.sigma2_global_samples)
+            if sample_sigma2_leaf_mu:
+                self.leaf_scale_mu_samples = np.array(_result.leaf_scale_mu_samples)
+            if sample_sigma2_leaf_tau:
+                self.leaf_scale_tau_samples = np.array(_result.leaf_scale_tau_samples)
+            if self.sample_tau_0:
+                p_tau0 = Z_train.shape[1] if Z_train.ndim > 1 else 1
+                self.tau_0_samples = np.array(_result.tau_0_samples).reshape(
+                    (p_tau0, S), order="F"
+                )
+            if self.adaptive_coding:
+                self.b0_samples = np.array(_result.b0_samples)
+                self.b1_samples = np.array(_result.b1_samples)
+
+            self.has_rfx = False
+            return self
+        # ── End C++ fast path ────────────────────────────────────────────────────
 
         # Prognostic Forest Dataset (covariates)
         forest_dataset_train = Dataset()

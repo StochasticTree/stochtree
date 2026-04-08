@@ -11,6 +11,8 @@
 #include <stochtree/tree_sampler.h>
 #include <stochtree/ordinal_sampler.h>
 #include <stochtree/variance_model.h>
+#include <stochtree/bcf.h>
+#include <stochtree/bcf_sampler.h>
 #include <functional>
 #include <memory>
 #include <string>
@@ -2286,6 +2288,65 @@ void RandomEffectsTrackerCpp::RootReset(RandomEffectsModelCpp& rfx_model, Random
 #include <stochtree/bart.h>
 #include <stochtree/bart_sampler.h>
 
+class BCFResultCpp {
+ public:
+  BCFResultCpp() : result_(std::make_unique<StochTree::BCFResult>()) {}
+  BCFResultCpp(BCFResultCpp&&) = default;
+  BCFResultCpp& operator=(BCFResultCpp&&) = default;
+  ~BCFResultCpp() = default;
+
+  StochTree::BCFResult* Get() { return result_.get(); }
+
+  // ── Forest management ────────────────────────────────────────────────
+  ForestContainerCpp StealMuForestContainer() {
+    if (!result_->mu_forest_container)
+      StochTree::Log::Fatal("BCFResultCpp: mu forest container has already been taken");
+    return ForestContainerCpp(std::move(result_->mu_forest_container));
+  }
+  ForestContainerCpp StealTauForestContainer() {
+    if (!result_->tau_forest_container)
+      StochTree::Log::Fatal("BCFResultCpp: tau forest container has already been taken");
+    return ForestContainerCpp(std::move(result_->tau_forest_container));
+  }
+  bool HasVarianceForest() { return result_->variance_forest_container != nullptr; }
+  ForestContainerCpp StealVarianceForestContainer() {
+    if (!result_->variance_forest_container)
+      StochTree::Log::Fatal("BCFResultCpp: variance forest container has already been taken or was not allocated");
+    return ForestContainerCpp(std::move(result_->variance_forest_container));
+  }
+
+  // ── Prediction arrays ────────────────────────────────────────────────
+  std::vector<double> GetYHatTrain()          { return result_->y_hat_train; }
+  std::vector<double> GetYHatTest()           { return result_->y_hat_test; }
+  std::vector<double> GetMuHatTrain()         { return result_->mu_hat_train; }
+  std::vector<double> GetMuHatTest()          { return result_->mu_hat_test; }
+  std::vector<double> GetTauHatTrain()        { return result_->tau_hat_train; }
+  std::vector<double> GetTauHatTest()         { return result_->tau_hat_test; }
+  std::vector<double> GetSigma2XHatTrain()    { return result_->sigma2_x_hat_train; }
+  std::vector<double> GetSigma2XHatTest()     { return result_->sigma2_x_hat_test; }
+
+  // ── Scalar sample arrays ─────────────────────────────────────────────
+  std::vector<double> GetSigma2GlobalSamples()  { return result_->sigma2_global_samples; }
+  std::vector<double> GetLeafScaleMuSamples()   { return result_->leaf_scale_mu_samples; }
+  std::vector<double> GetLeafScaleTauSamples()  { return result_->leaf_scale_tau_samples; }
+  std::vector<double> GetTau0Samples()          { return result_->tau_0_samples; }
+  std::vector<double> GetB0Samples()            { return result_->b0_samples; }
+  std::vector<double> GetB1Samples()            { return result_->b1_samples; }
+
+  // ── Metadata ─────────────────────────────────────────────────────────
+  int    num_total_samples() { return result_->num_total_samples; }
+  int    num_chains()        { return result_->num_chains; }
+  int    n_train()           { return result_->n_train; }
+  int    n_test()            { return result_->n_test; }
+  int    treatment_dim()     { return result_->treatment_dim; }
+  double y_bar()             { return result_->y_bar; }
+  double y_std()             { return result_->y_std; }
+
+ private:
+  std::unique_ptr<StochTree::BCFResult> result_;
+};
+
+
 class BARTResultCpp {
  public:
   BARTResultCpp() : result_(std::make_unique<StochTree::BARTResult>()) {}
@@ -2869,7 +2930,155 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     py::arg("basis_test") = py::none(), py::arg("rfx_groups_train") = py::none(),
     py::arg("rfx_basis_train") = py::none(), py::arg("rfx_groups_test") = py::none(),
     py::arg("rfx_basis_test") = py::none(), py::arg("previous_model_json") = "",
-    "Fit a BART model using the stateful BARTSampler (RFC 0005).");
+    "Fit a BART model using the stateful BARTSampler (RFC 0004).");
+
+  // ── High-level BCFSamplerFit API ────────────────────────────────────────
+
+  py::class_<StochTree::BCFForestConfig>(m, "BCFForestConfig")
+    .def(py::init<>())
+    .def_readwrite("num_trees",             &StochTree::BCFForestConfig::num_trees)
+    .def_readwrite("alpha",                 &StochTree::BCFForestConfig::alpha)
+    .def_readwrite("beta",                  &StochTree::BCFForestConfig::beta)
+    .def_readwrite("min_samples_leaf",      &StochTree::BCFForestConfig::min_samples_leaf)
+    .def_readwrite("max_depth",             &StochTree::BCFForestConfig::max_depth)
+    .def_readwrite("a_leaf",                &StochTree::BCFForestConfig::a_leaf)
+    .def_readwrite("b_leaf",                &StochTree::BCFForestConfig::b_leaf)
+    .def_readwrite("leaf_scale",            &StochTree::BCFForestConfig::leaf_scale)
+    .def_readwrite("sample_sigma2_leaf",    &StochTree::BCFForestConfig::sample_sigma2_leaf)
+    .def_readwrite("variable_weights",      &StochTree::BCFForestConfig::variable_weights)
+    .def_readwrite("cutpoint_grid_size",    &StochTree::BCFForestConfig::cutpoint_grid_size)
+    .def_readwrite("num_features_subsample",&StochTree::BCFForestConfig::num_features_subsample);
+
+  py::class_<StochTree::BCFConfig>(m, "BCFConfig")
+    .def(py::init<>())
+    .def_readwrite("num_gfr",               &StochTree::BCFConfig::num_gfr)
+    .def_readwrite("num_burnin",            &StochTree::BCFConfig::num_burnin)
+    .def_readwrite("num_mcmc",              &StochTree::BCFConfig::num_mcmc)
+    .def_readwrite("num_chains",            &StochTree::BCFConfig::num_chains)
+    .def_readwrite("keep_every",            &StochTree::BCFConfig::keep_every)
+    .def_readwrite("keep_gfr",              &StochTree::BCFConfig::keep_gfr)
+    .def_readwrite("keep_burnin",           &StochTree::BCFConfig::keep_burnin)
+    .def_readwrite("a_global",              &StochTree::BCFConfig::a_global)
+    .def_readwrite("b_global",              &StochTree::BCFConfig::b_global)
+    .def_readwrite("sigma2_init",           &StochTree::BCFConfig::sigma2_init)
+    .def_readwrite("sample_sigma2_global",  &StochTree::BCFConfig::sample_sigma2_global)
+    .def_readwrite("mu_forest",             &StochTree::BCFConfig::mu_forest)
+    .def_readwrite("tau_forest",            &StochTree::BCFConfig::tau_forest)
+    .def_readwrite("propensity_covariate",  &StochTree::BCFConfig::propensity_covariate)
+    .def_readwrite("adaptive_coding",       &StochTree::BCFConfig::adaptive_coding)
+    .def_readwrite("b0_init",               &StochTree::BCFConfig::b0_init)
+    .def_readwrite("b1_init",               &StochTree::BCFConfig::b1_init)
+    .def_readwrite("coding_prior_var",      &StochTree::BCFConfig::coding_prior_var)
+    .def_readwrite("sample_intercept",      &StochTree::BCFConfig::sample_intercept)
+    .def_readwrite("tau_0_prior_var",       &StochTree::BCFConfig::tau_0_prior_var)
+    .def_readwrite("include_variance_forest",     &StochTree::BCFConfig::include_variance_forest)
+    .def_readwrite("num_trees_variance",          &StochTree::BCFConfig::num_trees_variance)
+    .def_readwrite("alpha_variance",              &StochTree::BCFConfig::alpha_variance)
+    .def_readwrite("beta_variance",               &StochTree::BCFConfig::beta_variance)
+    .def_readwrite("min_samples_leaf_variance",   &StochTree::BCFConfig::min_samples_leaf_variance)
+    .def_readwrite("max_depth_variance",          &StochTree::BCFConfig::max_depth_variance)
+    .def_readwrite("a_forest",                    &StochTree::BCFConfig::a_forest)
+    .def_readwrite("b_forest",                    &StochTree::BCFConfig::b_forest)
+    .def_readwrite("variance_forest_leaf_init",   &StochTree::BCFConfig::variance_forest_leaf_init)
+    .def_readwrite("variable_weights_variance",   &StochTree::BCFConfig::variable_weights_variance)
+    .def_readwrite("standardize",           &StochTree::BCFConfig::standardize)
+    .def_readwrite("num_threads",           &StochTree::BCFConfig::num_threads)
+    .def_readwrite("random_seed",           &StochTree::BCFConfig::random_seed);
+
+  py::class_<BCFResultCpp>(m, "BCFResultCpp")
+    .def(py::init<>())
+    .def("steal_mu_forest_container",       &BCFResultCpp::StealMuForestContainer)
+    .def("steal_tau_forest_container",      &BCFResultCpp::StealTauForestContainer)
+    .def("has_variance_forest",             &BCFResultCpp::HasVarianceForest)
+    .def("steal_variance_forest_container", &BCFResultCpp::StealVarianceForestContainer)
+    .def_property_readonly("y_hat_train",           &BCFResultCpp::GetYHatTrain)
+    .def_property_readonly("y_hat_test",            &BCFResultCpp::GetYHatTest)
+    .def_property_readonly("mu_hat_train",          &BCFResultCpp::GetMuHatTrain)
+    .def_property_readonly("mu_hat_test",           &BCFResultCpp::GetMuHatTest)
+    .def_property_readonly("tau_hat_train",         &BCFResultCpp::GetTauHatTrain)
+    .def_property_readonly("tau_hat_test",          &BCFResultCpp::GetTauHatTest)
+    .def_property_readonly("sigma2_x_hat_train",    &BCFResultCpp::GetSigma2XHatTrain)
+    .def_property_readonly("sigma2_x_hat_test",     &BCFResultCpp::GetSigma2XHatTest)
+    .def_property_readonly("sigma2_global_samples", &BCFResultCpp::GetSigma2GlobalSamples)
+    .def_property_readonly("leaf_scale_mu_samples", &BCFResultCpp::GetLeafScaleMuSamples)
+    .def_property_readonly("leaf_scale_tau_samples",&BCFResultCpp::GetLeafScaleTauSamples)
+    .def_property_readonly("tau_0_samples",         &BCFResultCpp::GetTau0Samples)
+    .def_property_readonly("b0_samples",            &BCFResultCpp::GetB0Samples)
+    .def_property_readonly("b1_samples",            &BCFResultCpp::GetB1Samples)
+    .def_property_readonly("num_total_samples",     &BCFResultCpp::num_total_samples)
+    .def_property_readonly("num_chains",            &BCFResultCpp::num_chains)
+    .def_property_readonly("n_train",               &BCFResultCpp::n_train)
+    .def_property_readonly("n_test",                &BCFResultCpp::n_test)
+    .def_property_readonly("treatment_dim",         &BCFResultCpp::treatment_dim)
+    .def_property_readonly("y_bar",                 &BCFResultCpp::y_bar)
+    .def_property_readonly("y_std",                 &BCFResultCpp::y_std);
+
+  m.def("bcf_sampler_fit",
+    [](BCFResultCpp& result,
+       const StochTree::BCFConfig& config,
+       py::array_t<double, py::array::f_style | py::array::forcecast> X_train,
+       py::array_t<double> y_train,
+       py::array_t<double, py::array::f_style | py::array::forcecast> Z_train,
+       py::object X_test_obj,
+       py::object Z_test_obj,
+       py::object pi_hat_train_obj,
+       py::object pi_hat_test_obj,
+       py::object weights_obj,
+       py::object feature_types_obj) {
+      auto X_tr_buf = X_train.request();
+      auto y_buf    = y_train.request();
+      auto Z_tr_buf = Z_train.request();
+
+      py::array_t<double, py::array::f_style | py::array::forcecast> X_test_arr;
+      bool have_test = !X_test_obj.is_none();
+      if (have_test) X_test_arr = X_test_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+
+      py::array_t<double, py::array::f_style | py::array::forcecast> Z_test_arr;
+      bool have_z_test = !Z_test_obj.is_none();
+      if (have_z_test) Z_test_arr = Z_test_obj.cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+
+      py::array_t<double> pi_hat_train_arr;
+      bool have_pi = !pi_hat_train_obj.is_none();
+      if (have_pi) pi_hat_train_arr = pi_hat_train_obj.cast<py::array_t<double>>();
+
+      py::array_t<double> pi_hat_test_arr;
+      bool have_pi_test = !pi_hat_test_obj.is_none();
+      if (have_pi_test) pi_hat_test_arr = pi_hat_test_obj.cast<py::array_t<double>>();
+
+      py::array_t<double> weights_arr;
+      bool have_weights = !weights_obj.is_none();
+      if (have_weights) weights_arr = weights_obj.cast<py::array_t<double>>();
+
+      py::array_t<int> feature_types_arr;
+      bool have_ft = !feature_types_obj.is_none();
+      if (have_ft) feature_types_arr = feature_types_obj.cast<py::array_t<int>>();
+
+      StochTree::BCFData data;
+      data.X_train      = static_cast<const double*>(X_tr_buf.ptr);
+      data.n_train      = static_cast<int>(X_tr_buf.shape[0]);
+      data.p            = static_cast<int>(X_tr_buf.shape[1]);
+      data.y_train      = static_cast<const double*>(y_buf.ptr);
+      data.Z_train      = static_cast<const double*>(Z_tr_buf.ptr);
+      data.treatment_dim = (Z_tr_buf.ndim == 1) ? 1 : static_cast<int>(Z_tr_buf.shape[1]);
+      if (have_test) {
+        auto b = X_test_arr.request();
+        data.X_test = static_cast<const double*>(b.ptr);
+        data.n_test = static_cast<int>(b.shape[0]);
+      }
+      if (have_z_test)   data.Z_test        = static_cast<const double*>(Z_test_arr.request().ptr);
+      if (have_pi)       data.pi_hat_train  = static_cast<const double*>(pi_hat_train_arr.request().ptr);
+      if (have_pi_test)  data.pi_hat_test   = static_cast<const double*>(pi_hat_test_arr.request().ptr);
+      if (have_weights)  data.weights       = static_cast<const double*>(weights_arr.request().ptr);
+      if (have_ft)       data.feature_types = static_cast<const int*>(feature_types_arr.request().ptr);
+
+      StochTree::BCFSamplerFit(result.Get(), config, data);
+    },
+    py::arg("result"), py::arg("config"),
+    py::arg("X_train"), py::arg("y_train"), py::arg("Z_train"),
+    py::arg("X_test") = py::none(), py::arg("Z_test") = py::none(),
+    py::arg("pi_hat_train") = py::none(), py::arg("pi_hat_test") = py::none(),
+    py::arg("weights") = py::none(), py::arg("feature_types") = py::none(),
+    "Fit a BCF model using the stateful BCFSampler.");
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

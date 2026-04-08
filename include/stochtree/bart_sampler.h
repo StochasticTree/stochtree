@@ -1,7 +1,7 @@
 /*!
  * Copyright (c) 2026 stochtree authors. All rights reserved.
  *
- * Stateful BART sampler (RFC 0005).
+ * Stateful BART sampler (RFC 0004).
  *
  * BARTSampler owns all mutable sampling state and exposes a phased API:
  *

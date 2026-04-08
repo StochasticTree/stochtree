@@ -259,7 +259,8 @@ bcf <- function(
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
   variance_forest_params = list(),
-  random_effects_params = list()
+  random_effects_params = list(),
+  fast_path = FALSE
 ) {
   # Update general BCF parameters
   general_params_default <- list(
@@ -1771,6 +1772,209 @@ bcf <- function(
     }
     prior_var_tau0 <- diag(p_tau0) * tau_0_prior_var
   }
+
+  # ── C++ fast path ─────────────────────────────────────────────────────────
+  # Conditions: fast_path requested, identity link, no RFX, no previous model.
+  if (
+    fast_path &&
+      link_is_linear &&
+      (num_gfr > 0 || num_mcmc > 0) &&
+      !has_rfx &&
+      is.null(previous_model_json)
+  ) {
+    # Build Z matrix (n_train x treatment_dim) — must be double for C++ binding
+    Z_train_mat <- matrix(as.double(Z_train), nrow = nrow(as.matrix(Z_train)))
+    Z_test_mat  <- if (has_test) matrix(as.double(Z_test), nrow = nrow(as.matrix(Z_test))) else NULL
+
+    # Calibrate tau_0_prior_var if not set (mirror R slow path)
+    fp_tau_0_prior_var <- if (is.null(tau_0_prior_var)) {
+      var(as.numeric(resid_train))
+    } else {
+      as.double(tau_0_prior_var)
+    }
+
+    cpp_result <- bcf_sampler_fit_r_cpp(
+      X_train_r         = as.matrix(X_train),
+      y_train_r         = as.numeric(y_train),
+      Z_train_r         = Z_train_mat,
+      pi_hat_train_r    = NULL,   # already appended to X_train above
+      X_test_r          = if (has_test) as.matrix(X_test) else NULL,
+      Z_test_r          = Z_test_mat,
+      pi_hat_test_r     = NULL,   # already appended to X_test above
+      weights_r         = observation_weights,
+      feature_types_r   = as.integer(feature_types),
+      num_gfr           = as.integer(num_gfr),
+      num_burnin        = as.integer(num_burnin),
+      num_mcmc          = as.integer(num_mcmc),
+      num_chains        = as.integer(num_chains),
+      keep_every        = as.integer(keep_every),
+      keep_gfr          = isTRUE(keep_gfr),
+      keep_burnin       = isTRUE(keep_burnin),
+      sample_sigma2_global     = isTRUE(sample_sigma2_global),
+      a_global          = as.double(a_global),
+      b_global          = as.double(b_global),
+      sigma2_init       = as.double(current_sigma2),
+      num_trees_mu      = as.integer(num_trees_mu),
+      alpha_mu          = as.double(alpha_mu),
+      beta_mu           = as.double(beta_mu),
+      min_samples_leaf_mu      = as.integer(min_samples_leaf_mu),
+      max_depth_mu      = as.integer(max_depth_mu),
+      sample_sigma2_leaf_mu    = isTRUE(sample_sigma2_leaf_mu),
+      a_leaf_mu         = as.double(a_leaf_mu),
+      b_leaf_mu         = as.double(b_leaf_mu),
+      leaf_scale_mu     = as.double(current_leaf_scale_mu[1, 1]),
+      variable_weights_mu_r    = as.numeric(variable_weights_mu),
+      num_trees_tau     = as.integer(num_trees_tau),
+      alpha_tau         = as.double(alpha_tau),
+      beta_tau          = as.double(beta_tau),
+      min_samples_leaf_tau     = as.integer(min_samples_leaf_tau),
+      max_depth_tau     = as.integer(max_depth_tau),
+      sample_sigma2_leaf_tau   = isTRUE(sample_sigma2_leaf_tau),
+      a_leaf_tau        = as.double(a_leaf_tau),
+      b_leaf_tau        = as.double(b_leaf_tau),
+      leaf_scale_tau    = as.double(current_leaf_scale_tau[1, 1]),
+      variable_weights_tau_r   = as.numeric(variable_weights_tau),
+      sample_intercept  = isTRUE(sample_tau_0),
+      tau_0_prior_var   = fp_tau_0_prior_var,
+      adaptive_coding   = isTRUE(adaptive_coding),
+      b0_init           = as.double(b_0),
+      b1_init           = as.double(b_1),
+      coding_prior_var  = 0.5,
+      propensity_covariate     = "none",   # pi_hat already appended to X_train/X_test above
+      include_variance_forest  = isTRUE(include_variance_forest),
+      num_trees_variance       = as.integer(num_trees_variance),
+      alpha_variance    = as.double(alpha_variance),
+      beta_variance     = as.double(beta_variance),
+      min_samples_leaf_variance = as.integer(min_samples_leaf_variance),
+      max_depth_variance = as.integer(max_depth_variance),
+      a_forest          = as.double(a_forest),
+      b_forest          = as.double(b_forest),
+      variance_forest_leaf_init = -1.0,   # C++ uses 0.0; GFR will adjust quickly
+      standardize       = isTRUE(standardize),
+      random_seed       = as.integer(if (is.null(random_seed)) -1L else random_seed),
+      num_threads       = as.integer(num_threads)
+    )
+
+    fp_y_bar    <- cpp_result$y_bar
+    fp_y_std    <- cpp_result$y_std
+    fp_n_samples <- cpp_result$num_total_samples
+    fp_n_train  <- nrow(X_train)
+    fp_n_test   <- if (has_test) nrow(X_test) else 0L
+
+    # Wrap mu forest
+    fp_mu_forests <- ForestSamples$new(num_trees_mu, 1L, TRUE, FALSE)
+    fp_mu_forests$forest_container_ptr <- cpp_result$mu_forest_container_ptr
+
+    # Wrap tau forest
+    fp_tau_forests <- ForestSamples$new(num_trees_tau, ncol(Z_train_mat), FALSE, FALSE)
+    fp_tau_forests$forest_container_ptr <- cpp_result$tau_forest_container_ptr
+
+    fp_y_hat_train <- matrix(cpp_result$y_hat_train,
+                             nrow = fp_n_train, ncol = fp_n_samples)
+    # mu_hat_train from C++ = mu_pred * y_std (without y_bar); add y_bar to match slow path
+    fp_mu_hat_train <- matrix(cpp_result$mu_hat_train,
+                              nrow = fp_n_train, ncol = fp_n_samples) + fp_y_bar
+    # tau_hat_train: compute via predict_raw to match slow-path semantic (τ(X)*y_std)
+    fp_tau_ds_train <- createForestDataset(as.matrix(X_train), Z_train_mat, NULL)
+    fp_tau_hat_train <- fp_tau_forests$predict_raw(fp_tau_ds_train) * fp_y_std
+
+    fp_model_params <- list(
+      "outcome_mean"          = fp_y_bar,
+      "outcome_scale"         = fp_y_std,
+      "standardize"           = standardize,
+      "num_samples"           = fp_n_samples,
+      "num_gfr"               = num_gfr,
+      "num_burnin"            = num_burnin,
+      "num_mcmc"              = num_mcmc,
+      "keep_every"            = keep_every,
+      "num_chains"            = num_chains,
+      "sample_sigma2_global"  = sample_sigma2_global,
+      "sample_sigma2_leaf_mu" = sample_sigma2_leaf_mu,
+      "sample_sigma2_leaf_tau"= sample_sigma2_leaf_tau,
+      "adaptive_coding"       = adaptive_coding,
+      "initial_b_0"           = b_0,
+      "initial_b_1"           = b_1,
+      "sample_tau_0"          = sample_tau_0,
+      "tau_0_prior_var"       = if (sample_tau_0) fp_tau_0_prior_var else NULL,
+      "include_variance_forest" = include_variance_forest,
+      "num_covariates"        = num_cov_orig,
+      "num_prognostic_covariates"  = sum(variable_weights_mu > 0),
+      "num_treatment_covariates"   = sum(variable_weights_tau > 0),
+      "num_variance_covariates"    = if (include_variance_forest) sum(variable_weights_variance > 0) else 0L,
+      "treatment_dim"         = ncol(Z_train_mat),
+      "propensity_covariate"  = propensity_covariate,
+      "binary_treatment"      = binary_treatment,
+      "multivariate_treatment"= (ncol(Z_train_mat) > 1L),
+      "has_rfx"               = FALSE,
+      "has_rfx_basis"         = FALSE,
+      "num_rfx_basis"         = 0L,
+      "rfx_model_spec"        = "custom",
+      "internal_propensity_model" = internal_propensity_model,
+      "probit_outcome_model"  = FALSE,
+      "outcome_model"         = outcome_model,
+      "a_global"              = a_global,
+      "b_global"              = b_global,
+      "a_leaf_mu"             = a_leaf_mu,
+      "b_leaf_mu"             = b_leaf_mu,
+      "a_leaf_tau"            = a_leaf_tau,
+      "b_leaf_tau"            = b_leaf_tau,
+      "a_forest"              = a_forest,
+      "b_forest"              = b_forest
+    )
+
+    fp_result <- list(
+      "model_params"      = fp_model_params,
+      "train_set_metadata" = X_train_metadata,
+      "forests_mu"        = fp_mu_forests,
+      "forests_tau"       = fp_tau_forests,
+      "y_hat_train"       = fp_y_hat_train,
+      "tau_hat_train"     = fp_tau_hat_train,
+      "mu_hat_train"      = fp_mu_hat_train
+    )
+
+    if (fp_n_test > 0L) {
+      fp_result[["y_hat_test"]]   <- matrix(cpp_result$y_hat_test,
+                                            nrow = fp_n_test, ncol = fp_n_samples)
+      fp_result[["mu_hat_test"]]  <- matrix(cpp_result$mu_hat_test,
+                                            nrow = fp_n_test, ncol = fp_n_samples) + fp_y_bar
+      # tau_hat_test: compute via predict_raw to match slow-path semantic
+      fp_tau_ds_test <- createForestDataset(as.matrix(X_test), Z_test_mat, NULL)
+      fp_result[["tau_hat_test"]] <- fp_tau_forests$predict_raw(fp_tau_ds_test) * fp_y_std
+    }
+
+    if (include_variance_forest &&
+        !is.null(cpp_result$variance_forest_container_ptr)) {
+      fp_var_forests <- ForestSamples$new(num_trees_variance, 1L, TRUE, TRUE)
+      fp_var_forests$forest_container_ptr <- cpp_result$variance_forest_container_ptr
+      fp_result[["forests_variance"]] <- fp_var_forests
+      fp_result[["sigma2_x_hat_train"]] <- matrix(
+        cpp_result$sigma2_x_hat_train, nrow = fp_n_train, ncol = fp_n_samples)
+      if (fp_n_test > 0L && length(cpp_result$sigma2_x_hat_test) > 0L) {
+        fp_result[["sigma2_x_hat_test"]] <- matrix(
+          cpp_result$sigma2_x_hat_test, nrow = fp_n_test, ncol = fp_n_samples)
+      }
+    }
+
+    if (sample_sigma2_global && length(cpp_result$sigma2_global_samples) > 0L)
+      fp_result[["sigma2_global_samples"]] <- cpp_result$sigma2_global_samples
+    if (sample_sigma2_leaf_mu && length(cpp_result$leaf_scale_mu_samples) > 0L)
+      fp_result[["sigma2_leaf_mu_samples"]] <- cpp_result$leaf_scale_mu_samples
+    if (sample_sigma2_leaf_tau && length(cpp_result$leaf_scale_tau_samples) > 0L)
+      fp_result[["sigma2_leaf_tau_samples"]] <- cpp_result$leaf_scale_tau_samples
+    if (sample_tau_0 && length(cpp_result$tau_0_samples) > 0L)
+      fp_result[["tau_0_samples"]] <- matrix(cpp_result$tau_0_samples,
+                                             nrow = p_tau0, ncol = fp_n_samples)
+    if (adaptive_coding) {
+      if (length(cpp_result$b0_samples) > 0L)
+        fp_result[["b_0_samples"]] <- cpp_result$b0_samples
+      if (length(cpp_result$b1_samples) > 0L)
+        fp_result[["b_1_samples"]] <- cpp_result$b1_samples
+    }
+
+    class(fp_result) <- "bcfmodel"
+    return(fp_result)
+  }
+  # ── End C++ fast path ──────────────────────────────────────────────────────
 
   # Data
   forest_dataset_train <- createForestDataset(

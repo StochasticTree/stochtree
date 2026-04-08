@@ -133,6 +133,7 @@ file(
   GLOB
   SOURCES
   src/bart_sampler.cpp
+  src/bcf_sampler.cpp
   src/container.cpp
   src/cutpoint_candidates.cpp
   src/data.cpp
@@ -223,7 +224,7 @@ if(BUILD_DEBUG_TARGETS)
     target_link_libraries(debugstochtree PRIVATE stochtree_objs)
   endif()
 
-  # BARTSampler smoke tests (RFC 0005 / stateful sampler)
+  # BARTSampler smoke tests (RFC 0004 / stateful sampler)
   if(EXISTS ${PROJECT_SOURCE_DIR}/debug/bart_sampler.cpp)
     add_executable(debug_bart_sampler debug/bart_sampler.cpp)
     if(USE_OPENMP)

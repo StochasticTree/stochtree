@@ -1,7 +1,7 @@
 /*!
  * Copyright (c) 2026 stochtree authors. All rights reserved.
  *
- * Implementation of the stateful BARTSampler (RFC 0005).
+ * Implementation of the stateful BARTSampler (RFC 0004).
  *
  * The constructor performs one-time setup (standardization, prior calibration,
  * dataset and tree initialization).  run_gfr() runs the GFR warm-start loop

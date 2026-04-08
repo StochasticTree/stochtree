@@ -10,7 +10,7 @@
  *   3. Call BARTSamplerFit
  *   4. Unpack BARTResult into language-native objects
  *
- * See RFC 0005 (stateful_sampler_design.md) for the full design.
+ * See RFC 0004 for the full design.
  */
 #ifndef STOCHTREE_BART_H_
 #define STOCHTREE_BART_H_
