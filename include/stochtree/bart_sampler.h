@@ -205,7 +205,7 @@ class BARTSampler {
   void run_chain_iters_(ChainState& cs, int chain_idx,
                         int n_mcmc, int keep_every, int num_burnin,
                         int num_threads, BARTResult* result,
-                        ForestContainer& mean_fc,
+                        ForestContainer* mean_fc,
                         ForestContainer* var_fc,
                         RandomEffectsContainer* rfx_fc);
 

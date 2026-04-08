@@ -330,26 +330,28 @@ BARTSampler::BARTSampler(const BARTConfig& config, const BARTData& data)
   }
 
   // ── Sampler objects ────────────────────────────────────────────────
-  int mean_ctor_trees = has_mean_forest_ ? num_trees_ : 1;
   int mean_output_dim = is_multivariate_ ? basis_dim_ : 1;
   bool mean_leaf_const = !is_leaf_regression_;
 
-  active_forest_ = std::make_unique<TreeEnsemble>(
-      mean_ctor_trees, mean_output_dim, mean_leaf_const, false);
-  tracker_ = std::make_unique<ForestTracker>(
-      dataset_train_.GetCovariates(), feature_types_, mean_ctor_trees, n_train_);
-  tree_prior_ = std::make_unique<TreePrior>(
-      config_.alpha, config_.beta, config_.min_samples_leaf, config_.max_depth);
+  if (has_mean_forest_) {
+    active_forest_ = std::make_unique<TreeEnsemble>(
+        num_trees_, mean_output_dim, mean_leaf_const, false);
+    tracker_ = std::make_unique<ForestTracker>(
+        dataset_train_.GetCovariates(), feature_types_, num_trees_, n_train_);
+    tree_prior_ = std::make_unique<TreePrior>(
+        config_.alpha, config_.beta, config_.min_samples_leaf, config_.max_depth);
+  }
 
   // Variance forest
-  int var_ctor_trees = has_variance_forest_ ? num_trees_variance_ : 1;
-  active_forest_variance_ = std::make_unique<TreeEnsemble>(
-      var_ctor_trees, 1, true, /*is_exponentiated=*/true);
-  variance_tracker_ = std::make_unique<ForestTracker>(
-      dataset_train_.GetCovariates(), feature_types_, var_ctor_trees, n_train_);
-  variance_prior_ = std::make_unique<TreePrior>(
-      config_.alpha_variance, config_.beta_variance,
-      config_.min_samples_leaf_variance, config_.max_depth_variance);
+  if (has_variance_forest_) {
+    active_forest_variance_ = std::make_unique<TreeEnsemble>(
+        num_trees_variance_, 1, true, /*is_exponentiated=*/true);
+    variance_tracker_ = std::make_unique<ForestTracker>(
+        dataset_train_.GetCovariates(), feature_types_, num_trees_variance_, n_train_);
+    variance_prior_ = std::make_unique<TreePrior>(
+        config_.alpha_variance, config_.beta_variance,
+        config_.min_samples_leaf_variance, config_.max_depth_variance);
+  }
 
   // ── Initialize mean forest ─────────────────────────────────────────
   init_val_ = (has_mean_forest_ && !is_leaf_regression_)
@@ -390,12 +392,12 @@ void BARTSampler::run_gfr(int n_gfr)
                "to seed each chain independently.");
 
   // Allocate GFR snapshot containers.
-  int mean_ctor_trees = has_mean_forest_ ? num_trees_ : 1;
   int mean_output_dim = is_multivariate_ ? basis_dim_ : 1;
   bool mean_leaf_const = !is_leaf_regression_;
 
-  gfr_mean_fc_ = std::make_unique<ForestContainer>(
-      mean_ctor_trees, mean_output_dim, mean_leaf_const, /*is_exponentiated=*/false);
+  if (has_mean_forest_)
+    gfr_mean_fc_ = std::make_unique<ForestContainer>(
+        num_trees_, mean_output_dim, mean_leaf_const, /*is_exponentiated=*/false);
   if (has_variance_forest_)
     gfr_var_fc_ = std::make_unique<ForestContainer>(
         num_trees_variance_, 1, true, /*is_exponentiated=*/true);
@@ -515,7 +517,6 @@ std::unique_ptr<ChainState> BARTSampler::make_chain_state_(int chain_idx,
 {
   auto cs = std::make_unique<ChainState>();
 
-  int mean_ctor_trees  = has_mean_forest_ ? num_trees_ : 1;
   int mean_output_dim  = is_multivariate_ ? basis_dim_ : 1;
   bool mean_leaf_const = !is_leaf_regression_;
 
@@ -548,9 +549,11 @@ std::unique_ptr<ChainState> BARTSampler::make_chain_state_(int chain_idx,
   }
 
   // ── Per-chain forests and trackers ────────────────────────────────
-  cs->forest  = std::make_unique<TreeEnsemble>(mean_ctor_trees, mean_output_dim, mean_leaf_const, false);
-  cs->tracker = std::make_unique<ForestTracker>(
-      cs->dataset.GetCovariates(), feature_types_, mean_ctor_trees, n_train_);
+  if (has_mean_forest_) {
+    cs->forest  = std::make_unique<TreeEnsemble>(num_trees_, mean_output_dim, mean_leaf_const, false);
+    cs->tracker = std::make_unique<ForestTracker>(
+        cs->dataset.GetCovariates(), feature_types_, num_trees_, n_train_);
+  }
   if (has_variance_forest_) {
     cs->forest_variance = std::make_unique<TreeEnsemble>(num_trees_variance_, 1, true, true);
     cs->variance_tracker = std::make_unique<ForestTracker>(
@@ -649,8 +652,9 @@ std::unique_ptr<ChainState> BARTSampler::make_chain_state_(int chain_idx,
   // For single-chain runs the caller passes the result containers directly,
   // so we skip this allocation to avoid a redundant copy on merge.
   if (alloc_chain_containers) {
-    cs->chain_fc = std::make_unique<ForestContainer>(
-        mean_ctor_trees, mean_output_dim, mean_leaf_const, false);
+    if (has_mean_forest_)
+      cs->chain_fc = std::make_unique<ForestContainer>(
+          num_trees_, mean_output_dim, mean_leaf_const, false);
     if (has_variance_forest_)
       cs->chain_var_fc = std::make_unique<ForestContainer>(num_trees_variance_, 1, true, true);
     if (has_rfx_)
@@ -666,7 +670,7 @@ std::unique_ptr<ChainState> BARTSampler::make_chain_state_(int chain_idx,
 void BARTSampler::run_chain_iters_(ChainState& cs, int chain_idx,
                                     int n_mcmc, int keep_every, int num_burnin,
                                     int num_threads, BARTResult* result,
-                                    ForestContainer& mean_fc,
+                                    ForestContainer* mean_fc,
                                     ForestContainer* var_fc,
                                     RandomEffectsContainer* rfx_fc)
 {
@@ -687,7 +691,7 @@ void BARTSampler::run_chain_iters_(ChainState& cs, int chain_idx,
         auto lm = GaussianUnivariateRegressionLeafModel(cs.leaf_scale);
         MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel,
                           GaussianUnivariateRegressionSuffStat>(
-            *cs.forest, *cs.tracker, mean_fc, lm,
+            *cs.forest, *cs.tracker, *mean_fc, lm,
             cs.dataset, cs.residual, *tree_prior_, cs.rng,
             variable_weights_, sweep_indices_, cs.sigma2,
             is_kept, true, true, num_threads);
@@ -697,21 +701,21 @@ void BARTSampler::run_chain_iters_(ChainState& cs, int chain_idx,
         auto lm = GaussianMultivariateRegressionLeafModel(Sigma_0);
         MCMCSampleOneIter<GaussianMultivariateRegressionLeafModel,
                           GaussianMultivariateRegressionSuffStat>(
-            *cs.forest, *cs.tracker, mean_fc, lm,
+            *cs.forest, *cs.tracker, *mean_fc, lm,
             cs.dataset, cs.residual, *tree_prior_, cs.rng,
             variable_weights_, sweep_indices_, cs.sigma2,
             is_kept, true, true, num_threads, basis_dim_);
       } else if (is_cloglog_) {
         auto lm = CloglogOrdinalLeafModel(config_.cloglog_forest_shape, config_.cloglog_forest_rate);
         MCMCSampleOneIter<CloglogOrdinalLeafModel, CloglogOrdinalSuffStat>(
-            *cs.forest, *cs.tracker, mean_fc, lm,
+            *cs.forest, *cs.tracker, *mean_fc, lm,
             cs.dataset, cs.residual, *tree_prior_, cs.rng,
             variable_weights_, sweep_indices_, cs.sigma2,
             is_kept, true, false, num_threads);
       } else {
         auto lm = GaussianConstantLeafModel(cs.leaf_scale);
         MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
-            *cs.forest, *cs.tracker, mean_fc, lm,
+            *cs.forest, *cs.tracker, *mean_fc, lm,
             cs.dataset, cs.residual, *tree_prior_, cs.rng,
             variable_weights_, sweep_indices_, cs.sigma2,
             is_kept, true, true, num_threads);
@@ -807,13 +811,13 @@ void BARTSampler::alloc_result_(BARTResult* result, int n_mcmc, int keep_every) 
 {
   int num_chains          = config_.num_chains;
   int num_total           = num_chains * n_mcmc;
-  int mean_ctor_trees     = has_mean_forest_ ? num_trees_ : 1;
   int mean_output_dim     = is_multivariate_ ? basis_dim_ : 1;
   bool mean_leaf_const    = !is_leaf_regression_;
 
   // Allocate forest containers.
-  result->forest_container = std::make_unique<ForestContainer>(
-      mean_ctor_trees, mean_output_dim, mean_leaf_const, false);
+  if (has_mean_forest_)
+    result->forest_container = std::make_unique<ForestContainer>(
+        num_trees_, mean_output_dim, mean_leaf_const, false);
   if (has_variance_forest_)
     result->variance_forest_container = std::make_unique<ForestContainer>(
         num_trees_variance_, 1, true, /*is_exponentiated=*/true);
@@ -907,18 +911,20 @@ void BARTSampler::run_mcmc(int n_mcmc, BARTResult* result, int keep_every)
         : result->rfx_container.get();
     run_chain_iters_(*chains[c], c, n_mcmc, keep_every, num_burnin,
                      chain_threads, result,
-                     *mean_target, var_target, rfx_target);
+                     mean_target, var_target, rfx_target);
   }
   double t_chain_iters = ms_since(tp);
 
   // ── Merge per-chain forest containers (multi-chain only) ────────────
   tp = Clock::now();
   if (multi_chain) {
-    ForestContainer& mean_fc = *result->forest_container;
-    for (int c = 0; c < num_chains; c++) {
-      auto& cfc = *chains[c]->chain_fc;
-      for (int s = 0; s < cfc.NumSamples(); s++)
-        mean_fc.AddSample(*cfc.GetEnsemble(s));
+    if (has_mean_forest_) {
+      ForestContainer& mean_fc = *result->forest_container;
+      for (int c = 0; c < num_chains; c++) {
+        auto& cfc = *chains[c]->chain_fc;
+        for (int s = 0; s < cfc.NumSamples(); s++)
+          mean_fc.AddSample(*cfc.GetEnsemble(s));
+      }
     }
     if (has_variance_forest_) {
       ForestContainer& var_fc = *result->variance_forest_container;
