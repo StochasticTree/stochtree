@@ -98,29 +98,36 @@ void run_bart_sampler(int n, int p, int num_trees, int num_gfr, int num_mcmc,
                       StochTree::ForestDataset& dataset,
                       StochTree::ColumnVector& residual, std::mt19937& rng,
                       PostIterFn post_iter, ReportFn report_results) {
+  // Single-threaded with default cutpoint grid size (for now)
   constexpr int num_threads = 1;
   constexpr int cutpoint_grid_size = 100;
 
+  // Model parameters for split rule selection and tree sweeps
   std::vector<StochTree::FeatureType> feature_types(p, StochTree::FeatureType::kNumeric);
   std::vector<double> var_weights(p, 1.0 / p);
   std::vector<int> sweep_indices(num_trees);
   std::iota(sweep_indices.begin(), sweep_indices.end(), 0);
 
+  // Ephemeral sampler state
   StochTree::TreePrior tree_prior(0.95, 2.0, /*min_samples_leaf=*/5);
   StochTree::ForestContainer forest_samples(num_trees, /*output_dim=*/1, /*leaf_constant=*/true, /*exponentiated=*/false);
   StochTree::TreeEnsemble active_forest(num_trees, 1, true, false);
   StochTree::ForestTracker tracker(dataset.GetCovariates(), feature_types, num_trees, n);
 
+  // Initialize forest and tracker predictions to 0 (after standardization, this is the best initial guess)
   active_forest.SetLeafValue(0.0);
   UpdateResidualEntireForest(tracker, dataset, residual, &active_forest, false, std::minus<double>());
   tracker.UpdatePredictions(&active_forest, dataset);
 
+  // Initialize leaf model and global variance for sampling iterations
   StochTree::GaussianConstantLeafModel leaf_model(1.0 / num_trees);
   double global_variance = 1.0;
 
+  // Run GFR
   std::cout << "[GFR]  " << num_gfr << " warmup iterations...\n";
   bool pre_initialized = true;
   for (int i = 0; i < num_gfr; i++) {
+    // Sample forest
     StochTree::GFRSampleOneIter<
         StochTree::GaussianConstantLeafModel,
         StochTree::GaussianConstantSuffStat>(
@@ -129,11 +136,15 @@ void run_bart_sampler(int n, int p, int num_trees, int num_gfr, int num_mcmc,
         var_weights, sweep_indices, global_variance, feature_types,
         cutpoint_grid_size, /*keep_forest=*/false, pre_initialized,
         /*backfitting=*/true, /*num_features_subsample=*/p, num_threads);
+
+    // Sample other model parameters (e.g. global variance, probit data augmentation, etc.)
     post_iter(tracker, global_variance);
   }
 
+  // Run MCMC
   std::cout << "[MCMC] " << num_mcmc << " sampling iterations...\n";
   for (int i = 0; i < num_mcmc; i++) {
+    // Sample forest
     StochTree::MCMCSampleOneIter<
         StochTree::GaussianConstantLeafModel,
         StochTree::GaussianConstantSuffStat>(
@@ -142,16 +153,19 @@ void run_bart_sampler(int n, int p, int num_trees, int num_gfr, int num_mcmc,
         var_weights, sweep_indices, global_variance,
         /*keep_forest=*/true, /*pre_initialized=*/true,
         /*backfitting=*/true, num_threads);
+
+    // Sample other model parameters (e.g. global variance, probit data augmentation, etc.)
     post_iter(tracker, global_variance);
   }
 
-  // Posterior predictions: column-major, element [j*n + i] = sample j, obs i
+  // Analyze posterior predictions (column-major, element [j*n + i] = sample j, obs i)
   report_results(forest_samples.Predict(dataset), global_variance);
 }
 
 // ---- Scenario 0: homoskedastic constant-leaf BART -------------------
 
 void run_scenario_0(int n, int p, int num_trees, int num_gfr, int num_mcmc, int seed = 1234) {
+  // Allow seed to be non-deterministic if set to sentinel value of -1
   int rng_seed;
   if (seed == -1) {
     std::random_device rd;
@@ -161,22 +175,27 @@ void run_scenario_0(int n, int p, int num_trees, int num_gfr, int num_mcmc, int 
   }
   std::mt19937 rng(rng_seed);
 
+  // Generate data
   RegressionDataset data = generate_constant_leaf_regression_data(n, p, rng);
   double y_bar = data.y.mean();
   double y_std = std::sqrt((data.y.array() - y_bar).square().sum() / (data.y.size() - 1));
   Eigen::VectorXd resid_vec = (data.y.array() - y_bar) / y_std;  // standardize
 
+  // Initialize dataset and residual vector for sampler
   StochTree::ForestDataset dataset;
   dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/true);
   StochTree::ColumnVector residual(resid_vec.data(), n);
 
+  // Initialize global error variance model
   constexpr double a_sigma = 0.0, b_sigma = 0.0;  // non-informative IG prior
   StochTree::GlobalHomoskedasticVarianceModel var_model;
 
+  // Lambda function for sampling global error variance after each forest sample
   auto post_iter = [&](StochTree::ForestTracker&, double& global_variance) {
     global_variance = var_model.SampleVarianceParameter(residual.GetData(), a_sigma, b_sigma, rng);
   };
 
+  // Lambda function for reporting RMSE and last draw of global error variance model
   auto report = [&](const std::vector<double>& preds, double global_variance) {
     double rmse_sum = 0.0;
     for (int i = 0; i < n; i++) {
@@ -192,12 +211,14 @@ void run_scenario_0(int n, int p, int num_trees, int num_gfr, int num_mcmc, int 
               << "  sigma (truth):       1.0\n";
   };
 
+  // Dispatch BART sampler
   run_bart_sampler(n, p, num_trees, num_gfr, num_mcmc, dataset, residual, rng, post_iter, report);
 }
 
 // ---- Scenario 1: constant-leaf probit BART -------------------
 
 void run_scenario_1(int n, int p, int num_trees, int num_gfr, int num_mcmc, int seed = 1234) {
+  // Allow seed to be non-deterministic if set to sentinel value of -1
   int rng_seed;
   if (seed == -1) {
     std::random_device rd;
@@ -207,21 +228,24 @@ void run_scenario_1(int n, int p, int num_trees, int num_gfr, int num_mcmc, int 
   }
   std::mt19937 rng(rng_seed);
 
+  // Generate data
   ProbitDataset data = generate_probit_data(n, p, rng);
   double y_bar = StochTree::norm_cdf(data.y.mean());
   Eigen::VectorXd y_vec = data.y.array();
   Eigen::VectorXd Z_vec = (data.y.array() - y_bar);
 
+  // Initialize dataset and residual vector for sampler
   StochTree::ForestDataset dataset;
   dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/true);
   StochTree::ColumnVector residual(Z_vec.data(), n);
 
-  // Data augmentation: sample latent Z given current forest predictions
+  // Lambda function for probit data augmentation sampling step (after each forest sample)
   auto post_iter = [&](StochTree::ForestTracker& tracker, double&) {
     StochTree::sample_probit_latent_outcome(
         rng, y_vec.data(), tracker.GetSumPredictions(), residual.GetData().data(), y_bar, n);
   };
 
+  // Lambda function for reporting RMSE
   auto report = [&](const std::vector<double>& preds, double global_variance) {
     double rmse_sum = 0.0;
     for (int i = 0; i < n; i++) {
@@ -236,6 +260,7 @@ void run_scenario_1(int n, int p, int num_trees, int num_gfr, int num_mcmc, int 
               << "  sigma (truth):       1.0\n";
   };
 
+  // Dispatch BART sampler
   run_bart_sampler(n, p, num_trees, num_gfr, num_mcmc, dataset, residual, rng, post_iter, report);
 }
 
