@@ -1,7 +1,9 @@
 /*
- * BART debug driver. The first CLI argument selects the scenario (default: 0).
+ * BART debug program. The first CLI argument selects the scenario (default: 0).
  *
- * Usage: bart_debug [scenario]
+ * Usage: bart_debug [--scenario N] [--n N] [--p N] [--num_trees N]
+ *                   [--num_gfr N] [--num_mcmc N] [--seed N]
+ *
  *   0  Homoskedastic constant-leaf BART
  *      DGP: y = sin(2*pi*x1) + 0.5*x2 - 1.5*x3 + eps, eps ~ N(0,1)
  *

@@ -1,7 +1,9 @@
 /*
- * BCF debug driver. The first CLI argument selects the scenario (default: 0).
+ * BCF debug program
  *
- * Usage: bcf_debug [scenario]
+ * Usage: bcf_debug [--scenario N] [--n N] [--p N] [--num_trees_mu N] [--num_trees_tau N]
+ *                  [--num_gfr N] [--num_mcmc N] [--seed N]
+ *
  *   0  Two-forest BCF: constant-leaf mu, univariate-leaf tau (Z as basis)
  *      DGP: mu(x) = 2*sin(pi*x1) + 0.5*x2
  *           tau(x) = 1 + x3
@@ -10,18 +12,6 @@
  *
  * Add scenarios here as the BCFSampler API develops (heteroskedastic,
  * random effects, propensity weighting, etc.).
- *
- * Algorithm overview
- * ------------------
- * Both forests share a single ColumnVector residual. Alternating GFR/MCMC
- * steps for mu and tau each run backfitting, so the residual after each
- * step correctly reflects the other forest's current contribution:
- *
- *   After mu step:  residual ≈ y - y_bar - mu_hat
- *   After tau step: residual ≈ y - y_bar - mu_hat - tau_hat*z
- *
- * The tau forest uses z as a univariate basis (AddBasis), so its prediction
- * for observation i is  tau_leaf(i) * z(i), and backfitting is z-aware.
  */
 
 #include <stochtree/container.h>
@@ -35,6 +25,7 @@
 #include <Eigen/Dense>
 #include <cmath>
 #include <iostream>
+#include <numeric>
 #include <random>
 #include <string>
 #include <vector>
@@ -76,156 +67,245 @@ BCFDataset generate_data(int n, int p, std::mt19937& rng) {
   return d;
 }
 
-// ---- Scenario 0: constant-leaf mu + univariate-leaf tau (Z basis) ---
+// ---- Shared sampler loop --------------------------------------------
+//
+// Runs alternating mu/tau GFR warmup then MCMC, sharing a single residual.
+// The two scenario-specific hooks are:
+//
+//   post_iter(mu_tracker, global_variance) — called after each full mu+tau
+//       iteration (e.g. sample global variance).
+//
+//   report_results(mu_preds, tau_preds, global_variance) — called once after
+//       all samples are collected; receives column-major prediction matrices
+//       and the final global variance value.
 
-void run_scenario_0(int n, int p, int num_trees, int num_gfr, int num_mcmc) {
+using PostIterFn = std::function<void(StochTree::ForestTracker&, double&)>;
+using BCFReportFn = std::function<void(const std::vector<double>&, const std::vector<double>&, double)>;
+
+void run_bcf_sampler(int n, int p, int num_trees_mu, int num_trees_tau, int num_gfr, int num_mcmc,
+                     StochTree::ForestDataset& dataset,
+                     StochTree::ColumnVector& residual, std::mt19937& rng,
+                     PostIterFn post_iter, BCFReportFn report_results) {
+  // Single-threaded with default cutpoint grid size (for now)
   constexpr int num_threads = 1;
   constexpr int cutpoint_grid_size = 100;
-  std::mt19937 rng(42);
 
+  // Model parameters for split rule selection and tree sweeps
+  std::vector<StochTree::FeatureType> feature_types(p, StochTree::FeatureType::kNumeric);
+  std::vector<double> var_weights(p, 1.0 / p);
+  std::vector<int> sweep_indices_mu(num_trees_mu);
+  std::iota(sweep_indices_mu.begin(), sweep_indices_mu.end(), 0);
+  std::vector<int> sweep_indices_tau(num_trees_tau);
+  std::iota(sweep_indices_tau.begin(), sweep_indices_tau.end(), 0);
+
+  // Ephemeral sampler state
+  // Mu forest: constant-leaf
+  StochTree::TreePrior mu_tree_prior(0.95, 2.0, /*min_samples_leaf=*/5);
+  StochTree::ForestContainer mu_samples(num_trees_mu, /*output_dim=*/1, /*leaf_constant=*/true, /*exponentiated=*/false);
+  StochTree::TreeEnsemble mu_forest(num_trees_mu, 1, true, false);
+  StochTree::ForestTracker mu_tracker(dataset.GetCovariates(), feature_types, num_trees_mu, n);
+  StochTree::GaussianConstantLeafModel mu_leaf_model(1.0 / num_trees_mu);
+
+  // Tau forest: univariate regression leaf (prediction = leaf_param * z)
+  StochTree::TreePrior tau_tree_prior(0.5, 2.0, /*min_samples_leaf=*/5);
+  StochTree::ForestContainer tau_samples(num_trees_tau, /*output_dim=*/1, /*leaf_constant=*/false, /*exponentiated=*/false);
+  StochTree::TreeEnsemble tau_forest(num_trees_tau, 1, false, false);
+  StochTree::ForestTracker tau_tracker(dataset.GetCovariates(), feature_types, num_trees_tau, n);
+  StochTree::GaussianUnivariateRegressionLeafModel tau_leaf_model(1.0 / num_trees_tau);
+
+  // Initialize mu forest and tracker predictions to 0
+  mu_forest.SetLeafValue(0.0);
+  UpdateResidualEntireForest(mu_tracker, dataset, residual, &mu_forest, false, std::minus<double>());
+  mu_tracker.UpdatePredictions(&mu_forest, dataset);
+
+  // Initial tau forest and tracker predictions to 0
+  tau_forest.SetLeafValue(0.0);
+  UpdateResidualEntireForest(tau_tracker, dataset, residual, &tau_forest, false, std::minus<double>());
+  tau_tracker.UpdatePredictions(&tau_forest, dataset);
+
+  // Initialize global error variance to 1 (output is standardized)
+  double global_variance = 1.0;
+
+  // Run GFR
+  std::cout << "[GFR]  " << num_gfr << " warmup iterations...\n";
+  bool pre_initialized = true;
+  for (int i = 0; i < num_gfr; i++) {
+    // Sample mu forest
+    StochTree::GFRSampleOneIter<
+        StochTree::GaussianConstantLeafModel,
+        StochTree::GaussianConstantSuffStat>(
+        mu_forest, mu_tracker, mu_samples, mu_leaf_model,
+        dataset, residual, mu_tree_prior, rng,
+        var_weights, sweep_indices_mu, global_variance, feature_types,
+        cutpoint_grid_size, /*keep_forest=*/false, pre_initialized,
+        /*backfitting=*/true, /*num_features_subsample=*/p, num_threads);
+
+    // Sample tau forest
+    StochTree::GFRSampleOneIter<
+        StochTree::GaussianUnivariateRegressionLeafModel,
+        StochTree::GaussianUnivariateRegressionSuffStat>(
+        tau_forest, tau_tracker, tau_samples, tau_leaf_model,
+        dataset, residual, tau_tree_prior, rng,
+        var_weights, sweep_indices_tau, global_variance, feature_types,
+        cutpoint_grid_size, /*keep_forest=*/false, pre_initialized,
+        /*backfitting=*/true, /*num_features_subsample=*/p, num_threads);
+
+    // Sample other model parameters (e.g. global variance, probit data augmentation, etc.)
+    post_iter(mu_tracker, global_variance);
+  }
+
+  // Run MCMC
+  std::cout << "[MCMC] " << num_mcmc << " sampling iterations...\n";
+  for (int i = 0; i < num_mcmc; i++) {
+    // Sample mu forest
+    StochTree::MCMCSampleOneIter<
+        StochTree::GaussianConstantLeafModel,
+        StochTree::GaussianConstantSuffStat>(
+        mu_forest, mu_tracker, mu_samples, mu_leaf_model,
+        dataset, residual, mu_tree_prior, rng,
+        var_weights, sweep_indices_mu, global_variance,
+        /*keep_forest=*/true, /*pre_initialized=*/true,
+        /*backfitting=*/true, num_threads);
+
+    // Sample tau forest
+    StochTree::MCMCSampleOneIter<
+        StochTree::GaussianUnivariateRegressionLeafModel,
+        StochTree::GaussianUnivariateRegressionSuffStat>(
+        tau_forest, tau_tracker, tau_samples, tau_leaf_model,
+        dataset, residual, tau_tree_prior, rng,
+        var_weights, sweep_indices_tau, global_variance,
+        /*keep_forest=*/true, /*pre_initialized=*/true,
+        /*backfitting=*/true, num_threads);
+
+    // Sample other model parameters (e.g. global variance, probit data augmentation, etc.)
+    post_iter(mu_tracker, global_variance);
+  }
+
+  // Analyze posterior predictions (column-major, element [j*n + i] = sample j, obs i)
+  report_results(mu_samples.Predict(dataset), tau_samples.Predict(dataset), global_variance);
+}
+
+// ---- Scenario 0: constant-leaf mu + univariate-leaf tau (Z basis) ---
+
+void run_scenario_0(int n, int p, int num_trees_mu, int num_trees_tau, int num_gfr, int num_mcmc, int seed = 42) {
+  // Allow seed to be non-deterministic if set to sentinel value of -1
+  int rng_seed;
+  if (seed == -1) {
+    std::random_device rd;
+    rng_seed = rd();
+  } else {
+    rng_seed = seed;
+  }
+  std::mt19937 rng(rng_seed);
+
+  // Generate data and standardize outcome
   BCFDataset data = generate_data(n, p, rng);
   double y_bar = data.y.mean();
-  Eigen::VectorXd resid_vec = data.y.array() - y_bar;
+  double y_std = std::sqrt((data.y.array() - y_bar).square().mean());
+  Eigen::VectorXd resid_vec = (data.y.array() - y_bar) / y_std;  // standardize
 
-  // Mu dataset: X covariates only
-  StochTree::ForestDataset dataset_mu;
-  dataset_mu.AddCovariates(data.X.data(), n, p, /*row_major=*/true);
-
-  // Tau dataset: X covariates + Z as univariate basis
-  StochTree::ForestDataset dataset_tau;
-  dataset_tau.AddCovariates(data.X.data(), n, p, true);
-  dataset_tau.AddBasis(data.z.data(), n, /*num_col=*/1, /*row_major=*/false);
+  // Shared dataset: only tau forest uses the Z basis for leaf regression
+  StochTree::ForestDataset dataset;
+  dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/true);
+  dataset.AddBasis(data.z.data(), n, /*num_col=*/1, /*row_major=*/false);
 
   // Shared residual
   StochTree::ColumnVector residual(resid_vec.data(), n);
 
-  std::vector<StochTree::FeatureType> feature_types(p, StochTree::FeatureType::kNumeric);
-  std::vector<double> var_weights(p, 1.0 / p);
-  std::vector<int> sweep_indices;
-
-  StochTree::TreePrior tree_prior(0.95, 2.0, /*min_samples_leaf=*/5);
-
-  // Mu forest: constant-leaf
-  StochTree::ForestContainer mu_samples(num_trees, 1, /*leaf_constant=*/true, /*exponentiated=*/false);
-  StochTree::TreeEnsemble mu_forest(num_trees, 1, true, false);
-  StochTree::ForestTracker mu_tracker(dataset_mu.GetCovariates(), feature_types, num_trees, n);
-  double mu_leaf_scale = 1.0 / num_trees;
-  StochTree::GaussianConstantLeafModel mu_leaf_model(mu_leaf_scale);
-
-  // Tau forest: univariate regression leaf (prediction = leaf_param * z)
-  StochTree::ForestContainer tau_samples(num_trees, 1, /*leaf_constant=*/false, /*exponentiated=*/false);
-  StochTree::TreeEnsemble tau_forest(num_trees, 1, false, false);
-  StochTree::ForestTracker tau_tracker(dataset_tau.GetCovariates(), feature_types, num_trees, n);
-  double tau_leaf_scale = 1.0 / num_trees;
-  StochTree::GaussianUnivariateRegressionLeafModel tau_leaf_model(tau_leaf_scale);
-
-  double global_variance = 1.0;
+  // Global error variance model
   constexpr double a_sigma = 0.0, b_sigma = 0.0;  // non-informative IG prior
   StochTree::GlobalHomoskedasticVarianceModel var_model;
 
-  // GFR warmup — no samples stored
-  std::cout << "[GFR]  " << num_gfr << " warmup iterations...\n";
-  bool pre_mu = false, pre_tau = false;
-  for (int i = 0; i < num_gfr; i++) {
-    StochTree::GFRSampleOneIter<
-        StochTree::GaussianConstantLeafModel,
-        StochTree::GaussianConstantSuffStat>(
-        mu_forest, mu_tracker, mu_samples, mu_leaf_model,
-        dataset_mu, residual, tree_prior, rng,
-        var_weights, sweep_indices, global_variance, feature_types,
-        cutpoint_grid_size, /*keep_forest=*/false, pre_mu,
-        /*backfitting=*/true, /*num_features_subsample=*/-1, num_threads);
-    pre_mu = true;
+  // Lambda function for sampling global error variance after each mu+tau step
+  auto post_iter = [&](StochTree::ForestTracker&, double& global_variance) {
+    global_variance = var_model.SampleVarianceParameter(residual.GetData(), a_sigma, b_sigma, rng);
+  };
 
-    StochTree::GFRSampleOneIter<
-        StochTree::GaussianUnivariateRegressionLeafModel,
-        StochTree::GaussianUnivariateRegressionSuffStat>(
-        tau_forest, tau_tracker, tau_samples, tau_leaf_model,
-        dataset_tau, residual, tree_prior, rng,
-        var_weights, sweep_indices, global_variance, feature_types,
-        cutpoint_grid_size, false, pre_tau,
-        true, -1, num_threads);
-    pre_tau = true;
+  // Lambda function for reporting mu/tau RMSE and last draw of global error variance
+  auto report = [&](const std::vector<double>& mu_preds, const std::vector<double>& tau_preds,
+                    double global_variance) {
+    double mu_rmse_sum = 0.0, tau_rmse_sum = 0.0, y_rmse_sum = 0.0;
+    int n_treated = 0;
 
-    global_variance = var_model.SampleVarianceParameter(
-        residual.GetData(), a_sigma, b_sigma, rng);
-  }
+    for (int i = 0; i < n; i++) {
+      double y_hat = 0.0;
+      double mu_hat = 0.0;
+      for (int j = 0; j < num_mcmc; j++)
+        mu_hat += mu_preds[static_cast<std::size_t>(j * n + i)] / num_mcmc;
+      mu_rmse_sum += (mu_hat * y_std + y_bar - data.mu_true(i)) * (mu_hat * y_std + y_bar - data.mu_true(i));
+      y_hat += mu_hat * y_std + y_bar;
 
-  // MCMC — store samples
-  std::cout << "[MCMC] " << num_mcmc << " sampling iterations...\n";
-  for (int i = 0; i < num_mcmc; i++) {
-    StochTree::MCMCSampleOneIter<
-        StochTree::GaussianConstantLeafModel,
-        StochTree::GaussianConstantSuffStat>(
-        mu_forest, mu_tracker, mu_samples, mu_leaf_model,
-        dataset_mu, residual, tree_prior, rng,
-        var_weights, sweep_indices, global_variance,
-        /*keep_forest=*/true, /*pre_initialized=*/true,
-        /*backfitting=*/true, num_threads);
-
-    StochTree::MCMCSampleOneIter<
-        StochTree::GaussianUnivariateRegressionLeafModel,
-        StochTree::GaussianUnivariateRegressionSuffStat>(
-        tau_forest, tau_tracker, tau_samples, tau_leaf_model,
-        dataset_tau, residual, tree_prior, rng,
-        var_weights, sweep_indices, global_variance,
-        true, true, true, num_threads);
-
-    global_variance = var_model.SampleVarianceParameter(
-        residual.GetData(), a_sigma, b_sigma, rng);
-  }
-
-  // Posterior predictions
-  // mu_preds[j*n + i] = mu_hat for sample j, obs i  (column-major)
-  // tau_preds[j*n + i] = tau_hat(i)*z(i)  (since basis is z)
-  std::vector<double> mu_preds  = mu_samples.Predict(dataset_mu);
-  std::vector<double> tau_preds = tau_samples.Predict(dataset_tau);
-
-  double mu_rmse_sum = 0.0;
-  double tau_rmse_sum = 0.0;
-  int n_treated = 0;
-
-  for (int i = 0; i < n; i++) {
-    double mu_hat = y_bar;
-    for (int j = 0; j < num_mcmc; j++)
-      mu_hat += mu_preds[static_cast<std::size_t>(j * n + i)] / num_mcmc;
-    double mu_err = mu_hat - data.mu_true(i);
-    mu_rmse_sum += mu_err * mu_err;
-
-    // For z=1: tau_preds = tau_hat * 1 = tau_hat, so we can evaluate CATE
-    if (data.z(i) > 0.5) {
+      // For z=1: tau_preds = tau_hat * 1 = tau_hat, so we can evaluate CATE directly
       double tau_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
         tau_hat += tau_preds[static_cast<std::size_t>(j * n + i)] / num_mcmc;
-      double tau_err = tau_hat - data.tau_true(i);
-      tau_rmse_sum += tau_err * tau_err;
-      n_treated++;
+      tau_rmse_sum += (tau_hat * y_std - data.tau_true(i)) * (tau_hat * y_std - data.tau_true(i));
+      y_hat += tau_hat * data.z(i) * y_std;
+      y_rmse_sum += (y_hat - data.y(i)) * (y_hat - data.y(i));
     }
-  }
 
-  std::cout << "\nScenario 0 (BCF: constant mu + univariate tau with Z basis):\n"
-            << "  mu RMSE:             " << std::sqrt(mu_rmse_sum / n) << "\n"
-            << "  tau RMSE (treated):  "
-            << (n_treated > 0 ? std::sqrt(tau_rmse_sum / n_treated) : 0.0) << "\n"
-            << "  sigma (last sample): " << std::sqrt(global_variance) << "\n"
-            << "  sigma (truth):       0.5\n";
+    std::cout << "\nScenario 0 (BCF: constant mu + univariate tau with Z basis):\n"
+              << "  mu RMSE:             " << std::sqrt(mu_rmse_sum / n) << "\n"
+              << "  tau RMSE (treated):  " << std::sqrt(tau_rmse_sum / n) << "\n"
+              << "  y RMSE:              " << std::sqrt(y_rmse_sum / n) << "\n"
+              << "  sigma (last sample): " << std::sqrt(global_variance) * y_std << "\n"
+              << "  sigma (truth):       0.5\n";
+  };
+
+  // Dispatch BCF sampler
+  run_bcf_sampler(n, p, num_trees_mu, num_trees_tau, num_gfr, num_mcmc, dataset, residual, rng,
+                  post_iter, report);
 }
 
 // ---- Main -----------------------------------------------------------
 
 int main(int argc, char** argv) {
   int scenario = 0;
-  if (argc > 1) scenario = std::stoi(argv[1]);
+  int n = 500;
+  int p = 5;
+  int num_trees_mu = 200;
+  int num_trees_tau = 50;
+  int num_gfr = 20;
+  int num_mcmc = 100;
+  int seed = 1234;
 
-  constexpr int n = 200, p = 5, num_trees = 200, num_gfr = 20, num_mcmc = 100;
+  for (int i = 1; i < argc; ++i) {
+    std::string arg = argv[i];
+    if ((arg == "--scenario" || arg == "--n" || arg == "--p" ||
+         arg == "--num_trees_mu" || arg == "--num_trees_tau" || arg == "--num_gfr" || arg == "--num_mcmc" || arg == "--seed") &&
+        i + 1 < argc) {
+      int val = std::stoi(argv[++i]);
+      if (arg == "--scenario")
+        scenario = val;
+      else if (arg == "--n")
+        n = val;
+      else if (arg == "--p")
+        p = val;
+      else if (arg == "--num_trees_mu")
+        num_trees_mu = val;
+      else if (arg == "--num_trees_tau")
+        num_trees_tau = val;
+      else if (arg == "--num_gfr")
+        num_gfr = val;
+      else if (arg == "--num_mcmc")
+        num_mcmc = val;
+      else if (arg == "--seed")
+        seed = val;
+    } else {
+      std::cerr << "Unknown or incomplete argument: " << arg << "\n"
+                << "Usage: bcf_debug [--scenario N] [--n N] [--p N]"
+                   " [--num_trees_mu N] [--num_trees_tau N] [--num_gfr N] [--num_mcmc N] [--seed N]\n";
+      return 1;
+    }
+  }
 
   switch (scenario) {
     case 0:
-      run_scenario_0(n, p, num_trees, num_gfr, num_mcmc);
+      run_scenario_0(n, p, num_trees_mu, num_trees_tau, num_gfr, num_mcmc, seed);
       break;
     default:
       std::cerr << "Unknown scenario " << scenario
-                << ". Available scenarios: 0 (BasicBCF)\n";
+                << ". Available scenarios: 0 (BCF: constant mu + univariate tau)\n";
       return 1;
   }
   return 0;
