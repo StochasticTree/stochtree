@@ -1,0 +1,113 @@
+/*!
+ * Copyright (c) 2026 stochtree authors. All rights reserved.
+ * Licensed under the MIT License. See LICENSE file in the project root for license information.
+ */
+#ifndef STOCHTREE_BART_H_
+#define STOCHTREE_BART_H_
+
+#include <memory>
+#include <vector>
+#include "stochtree/container.h"
+
+namespace StochTree {
+
+struct BARTData {
+  // Train set covariates
+  const double* X_train;
+  int n_train = 0;
+  int p = 0;
+
+  // Test set covariates
+  const double* X_test;
+  int n_test = 0;
+
+  // Train set outcome
+  const double* y_train;
+
+  // Basis for leaf regression
+  const double* basis_train;
+  const double* basis_test;
+  int basis_dim = 0;
+
+  // Observation weights
+  const double* obs_weights_train;
+  const double* obs_weights_test;
+
+  // Random effects
+  const int* rfx_group_ids_train;
+  const int* rfx_group_ids_test;
+  const double* rfx_basis_train;
+  const double* rfx_basis_test;
+  int rfx_num_groups = 0;
+  int rfx_basis_dim = 0;
+
+  // Feature types encoded as integers (e.g. 0 = continuous, 1 = categorical, etc.)
+  const int* feature_types;
+};
+
+struct BARTConfig {
+  // High level parameters
+  bool standardize_outcome = true;  // whether to standardize the outcome before fitting and unstandardize predictions after
+  int num_threads = 1;              // number of threads to use for sampling
+
+  // Global error variance parameters
+  double a_sigma2_global = 0.0;     // shape parameter for inverse gamma prior on global error variance
+  double b_sigma2_global = 0.0;     // scale parameter for inverse gamma prior on global error variance
+  double sigma2_global_init = 1.0;  // initial value for global error variance
+
+  // Mean forest parameters
+  int num_trees_mean = 200;              // number of trees in the mean forest
+  double alpha_mean = 0.95;              // alpha parameter for mean forest tree prior
+  double beta_mean = 2.0;                // beta parameter for mean forest tree prior
+  int min_samples_leaf_mean = 5;         // minimum number of samples per leaf for mean forest
+  bool leaf_constant_mean = true;        // whether to use constant leaf model for mean forest
+  bool exponentiated_leaf_mean = false;  // whether to exponentiate leaf predictions for mean forest
+  int num_features_subsample_mean = 0;   // number of features to subsample for each mean forest split (0 means no subsampling)
+  double a_sigma2_mean = 3.0;            // shape parameter for inverse gamma prior on mean forest leaf scale
+  double b_sigma2_mean = -1.0;           // scale parameter for inverse gamma prior on mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
+
+  // Variance forest parameters
+  int num_trees_variance = 0;               // number of trees in the variance forest
+  double alpha_variance = 0.5;              // alpha parameter for variance forest tree prior
+  double beta_variance = 2.0;               // beta parameter for variance forest tree prior
+  int min_samples_leaf_variance = 5;        // minimum number of samples per leaf for variance forest
+  bool leaf_constant_variance = true;       // whether to use constant leaf model for variance forest
+  bool exponentiated_leaf_variance = true;  // whether to exponentiate leaf predictions for variance forest
+  int num_features_subsample_variance = 0;  // number of features to subsample for each variance forest split (0 means no subsampling)
+
+  // TODO: Random effects parameters ...
+
+  // TODO: Other parameters ...
+};
+
+struct BARTSamples {
+  // Posterior samples of training set mean forest predictions (num_samples x n_train, stored column-major)
+  std::vector<double> mean_forest_predictions_train;
+
+  // Posterior samples of training set variance forest predictions (num_samples x n_train, stored column-major)
+  std::vector<double> variance_forest_predictions_train;
+
+  // Posterior samples of test set mean forest predictions (num_samples x n_test, stored column-major)
+  std::vector<double> mean_forest_predictions_test;
+
+  // Posterior samples of test set variance forest predictions (num_samples x n_test, stored column-major)
+  std::vector<double> variance_forest_predictions_test;
+
+  // Posterior samples of global error variance (num_samples)
+  std::vector<double> global_error_variance_samples;
+
+  // Posterior samples of leaf scale (num_samples)
+  std::vector<double> leaf_scale_samples;
+
+  // Pointer to sampled mean forests
+  std::unique_ptr<ForestContainer> mean_forests;
+
+  // Pointer to sampled variance forests
+  std::unique_ptr<ForestContainer> variance_forests;
+
+  // TODO: Pointer to random effects samples ...
+};
+
+}  // namespace StochTree
+
+#endif  // STOCHTREE_BART_H_
