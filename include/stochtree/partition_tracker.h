@@ -87,6 +87,7 @@ class ForestTracker {
   SampleNodeMapper* GetSampleNodeMapper() { return sample_node_mapper_.get(); }
   UnsortedNodeSampleTracker* GetUnsortedNodeSampleTracker() { return unsorted_node_sample_tracker_.get(); }
   SortedNodeSampleTracker* GetSortedNodeSampleTracker() { return sorted_node_sample_tracker_.get(); }
+  double* GetSumPredictions() { return sum_predictions_.data(); }
   int GetNumObservations() { return num_observations_; }
   int GetNumTrees() { return num_trees_; }
   int GetNumFeatures() { return num_features_; }
