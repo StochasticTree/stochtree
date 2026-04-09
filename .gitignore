@@ -4,6 +4,7 @@
 *.DS_Store
 lib/
 build/
+build-release*/
 .vscode/positron/
 xcode/
 *.json

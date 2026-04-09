@@ -42,6 +42,19 @@
       }
     },
     {
+      "name": "release-drivers",
+      "displayName": "Release (with debug drivers)",
+      "description": "Optimized release build that also compiles the debug driver executables",
+      "binaryDir": "${sourceDir}/build-release-drivers",
+      "cacheVariables": {
+        "USE_DEBUG": "OFF",
+        "BUILD_DEBUG_TARGETS": "ON",
+        "BUILD_TEST": "OFF",
+        "BUILD_PYTHON": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "OFF"
+      }
+    },
+    {
       "name": "sanitizer",
       "displayName": "Sanitizer (ASAN + UBSAN)",
       "description": "Debug build with address and undefined-behavior sanitizers",
@@ -74,6 +87,12 @@
       "name": "release",
       "displayName": "Release",
       "configurePreset": "release",
+      "jobs": 0
+    },
+    {
+      "name": "release-drivers",
+      "displayName": "Release (with debug drivers)",
+      "configurePreset": "release-drivers",
       "jobs": 0
     },
     {

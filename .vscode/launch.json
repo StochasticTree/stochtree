@@ -6,7 +6,7 @@
       "type": "lldb",
       "request": "launch",
       "program": "${workspaceFolder}/build/bart_debug",
-      "args": ["0"],
+      "args": ["--scenario", "0", "--n", "500", "--p", "5", "--num_trees", "200", "--num_gfr", "20", "--num_mcmc", "100", "--seed", "1234"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "CMake: Build (dev-quick)"
     },
@@ -33,7 +33,7 @@
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/build/bart_debug",
-      "args": ["0"],
+      "args": ["--scenario", "0", "--n", "500", "--p", "5", "--num_trees", "200", "--num_gfr", "20", "--num_mcmc", "100", "--seed", "1234"],
       "cwd": "${workspaceFolder}",
       "MIMode": "gdb",
       "preLaunchTask": "CMake: Build (dev-quick)"
@@ -57,6 +57,25 @@
       "cwd": "${workspaceFolder}",
       "MIMode": "gdb",
       "preLaunchTask": "CMake: Build (dev)"
+    },
+    {
+      "name": "bart_debug (macOS, Release)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-release-drivers/bart_debug",
+      "args": ["--scenario", "0", "--n", "500", "--p", "5", "--num_trees", "200", "--num_gfr", "20", "--num_mcmc", "100", "--seed", "101"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake: Build (release-drivers)"
+    },
+    {
+      "name": "bart_debug (Linux/Container, Release)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-release-drivers/bart_debug",
+      "args": ["--scenario", "0", "--n", "500", "--p", "5", "--num_trees", "200", "--num_gfr", "20", "--num_mcmc", "100", "--seed", "101"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "CMake: Build (release-drivers)"
     },
     {
       "name": "Python Debugger: Current File",
