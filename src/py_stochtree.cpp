@@ -34,7 +34,7 @@ class ForestDatasetCpp {
   void AddCovariates(py::array_t<double> covariate_matrix, data_size_t num_row, int num_col, bool row_major) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(covariate_matrix.mutable_data());
-    
+
     // Load covariates
     dataset_->AddCovariates(data_ptr, num_row, num_col, row_major);
   }
@@ -42,7 +42,7 @@ class ForestDatasetCpp {
   void AddBasis(py::array_t<double> basis_matrix, data_size_t num_row, int num_col, bool row_major) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(basis_matrix.mutable_data());
-    
+
     // Load covariates
     dataset_->AddBasis(data_ptr, num_row, num_col, row_major);
   }
@@ -50,7 +50,7 @@ class ForestDatasetCpp {
   void UpdateBasis(py::array_t<double> basis_matrix, data_size_t num_row, int num_col, bool row_major) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(basis_matrix.mutable_data());
-    
+
     // Load covariates
     dataset_->UpdateBasis(data_ptr, num_row, num_col, row_major);
   }
@@ -58,7 +58,7 @@ class ForestDatasetCpp {
   void AddVarianceWeights(py::array_t<double> weight_vector, data_size_t num_row) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(weight_vector.mutable_data());
-    
+
     // Load covariates
     dataset_->AddVarianceWeights(data_ptr, num_row);
   }
@@ -66,7 +66,7 @@ class ForestDatasetCpp {
   void UpdateVarianceWeights(py::array_t<double> weight_vector, data_size_t num_row, bool exponentiate) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(weight_vector.mutable_data());
-    
+
     // Load covariates
     dataset_->UpdateVarWeights(data_ptr, num_row, exponentiate);
   }
@@ -79,7 +79,7 @@ class ForestDatasetCpp {
     auto accessor = result.mutable_unchecked<2>();
     for (size_t i = 0; i < n; i++) {
       for (int j = 0; j < num_covariates; j++) {
-        accessor(i,j) = dataset_->CovariateValue(i,j);
+        accessor(i, j) = dataset_->CovariateValue(i, j);
       }
     }
 
@@ -94,7 +94,7 @@ class ForestDatasetCpp {
     auto accessor = result.mutable_unchecked<2>();
     for (size_t i = 0; i < n; i++) {
       for (int j = 0; j < num_basis; j++) {
-        accessor(i,j) = dataset_->BasisValue(i,j);
+        accessor(i, j) = dataset_->BasisValue(i, j);
       }
     }
 
@@ -169,7 +169,7 @@ class ResidualCpp {
   ResidualCpp(py::array_t<double> residual_array, data_size_t num_row) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(residual_array.mutable_data());
-    
+
     // Initialize pointer to C++ ColumnVector class
     residual_ = std::make_unique<StochTree::ColumnVector>(data_ptr, num_row);
   }
@@ -182,13 +182,13 @@ class ResidualCpp {
   py::array_t<double> GetResidualArray() {
     // Obtain a reference to the underlying Eigen::VectorXd
     Eigen::VectorXd& resid_vector = residual_->GetData();
-    
+
     // Initialize n x 1 numpy array to store the residual
     data_size_t n = residual_->NumRows();
     auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n, 1}));
     auto accessor = result.mutable_unchecked<2>();
     for (size_t i = 0; i < n; i++) {
-      accessor(i,0) = resid_vector(i);
+      accessor(i, 0) = resid_vector(i);
     }
 
     return result;
@@ -311,7 +311,7 @@ class ForestContainerCpp {
     for (size_t i = 0; i < n; i++) {
       for (int j = 0; j < num_samples; j++) {
         // NOTE: converting from "column-major" to "row-major" here
-        accessor(i,j) = output_raw[j*n + i];
+        accessor(i, j) = output_raw[j * n + i];
         // ptr[i*num_samples + j] = output_raw[j*n + i];
       }
     }
@@ -335,7 +335,7 @@ class ForestContainerCpp {
     for (size_t i = 0; i < n; i++) {
       for (int j = 0; j < output_dim; j++) {
         for (int k = 0; k < num_samples; k++) {
-          accessor(i,k,j) = output_raw[k*(output_dim*n) + i*output_dim + j];
+          accessor(i, k, j) = output_raw[k * (output_dim * n) + i * output_dim + j];
           // ptr[i*(output_dim*num_samples) + j*output_dim + k] = output_raw[k*(output_dim*n) + i*output_dim + j];
         }
       }
@@ -359,7 +359,7 @@ class ForestContainerCpp {
     // double *ptr = static_cast<double *>(buf.ptr);
     for (size_t i = 0; i < n; i++) {
       for (int j = 0; j < output_dim; j++) {
-        accessor(i,j) = output_raw[i*output_dim + j];
+        accessor(i, j) = output_raw[i * output_dim + j];
         // ptr[i*output_dim + j] = output_raw[i*output_dim + j];
       }
     }
@@ -382,7 +382,7 @@ class ForestContainerCpp {
     // double *ptr = static_cast<double *>(buf.ptr);
     for (size_t i = 0; i < n; i++) {
       for (int j = 0; j < output_dim; j++) {
-        accessor(i,j) = output_raw[i*output_dim + j];
+        accessor(i, j) = output_raw[i * output_dim + j];
         // ptr[i*output_dim + j] = output_raw[i*output_dim + j];
       }
     }
@@ -397,7 +397,7 @@ class ForestContainerCpp {
   void SetRootVector(int forest_num, py::array_t<double>& leaf_vector, int leaf_size) {
     std::vector<double> leaf_vector_converted(leaf_size);
     for (int i = 0; i < leaf_size; i++) {
-        leaf_vector_converted[i] = leaf_vector.at(i);
+      leaf_vector_converted[i] = leaf_vector.at(i);
     }
     forest_samples_->InitializeRoot(leaf_vector_converted);
   }
@@ -453,8 +453,8 @@ class ForestContainerCpp {
     StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(num_samples);
     int num_trees = ensemble->NumTrees();
     for (int i = 0; i < num_trees; i++) {
-        StochTree::Tree* tree = ensemble->GetTree(i);
-        tree->SetLeaf(0, leaf_value);
+      StochTree::Tree* tree = ensemble->GetTree(i);
+      tree->SetLeaf(0, leaf_value);
     }
   }
 
@@ -469,13 +469,13 @@ class ForestContainerCpp {
     StochTree::TreeEnsemble* ensemble = forest_samples_->GetEnsemble(num_samples);
     int num_trees = ensemble->NumTrees();
     for (int i = 0; i < num_trees; i++) {
-        StochTree::Tree* tree = ensemble->GetTree(i);
-        tree->SetLeafVector(0, leaf_vector_cast);
+      StochTree::Tree* tree = ensemble->GetTree(i);
+      tree->SetLeafVector(0, leaf_vector_cast);
     }
   }
 
-  void AddNumericSplitVector(int forest_num, int tree_num, int leaf_num, int feature_num, 
-                             double split_threshold, py::array_t<double> left_leaf_vector, 
+  void AddNumericSplitVector(int forest_num, int tree_num, int leaf_num, int feature_num,
+                             double split_threshold, py::array_t<double> left_leaf_vector,
                              py::array_t<double> right_leaf_vector) {
     if (forest_samples_->OutputDimension() != left_leaf_vector.size()) {
       StochTree::Log::Fatal("left_leaf_vector must match forest leaf dimension");
@@ -495,8 +495,8 @@ class ForestContainerCpp {
     tree->ExpandNode(leaf_num, feature_num, split_threshold, left_leaf_vector_cast, right_leaf_vector_cast);
   }
 
-  void AddNumericSplitValue(int forest_num, int tree_num, int leaf_num, int feature_num, 
-                             double split_threshold, double left_leaf_value, double right_leaf_value) {
+  void AddNumericSplitValue(int forest_num, int tree_num, int leaf_num, int feature_num,
+                            double split_threshold, double left_leaf_value, double right_leaf_value) {
     if (forest_samples_->OutputDimension() != 1) {
       StochTree::Log::Fatal("left_leaf_value must match forest leaf dimension");
     }
@@ -534,9 +534,9 @@ class ForestContainerCpp {
     StochTree::Tree* tree = ensemble->GetTree(tree_num);
     std::vector<int32_t> split_nodes = tree->GetInternalNodes();
     for (int i = 0; i < split_nodes.size(); i++) {
-        auto node_id = split_nodes.at(i);
-        auto split_feature = tree->SplitIndex(node_id);
-        accessor(split_feature)++;
+      auto node_id = split_nodes.at(i);
+      auto split_feature = tree->SplitIndex(node_id);
+      accessor(split_feature)++;
     }
     return result;
   }
@@ -587,12 +587,12 @@ class ForestContainerCpp {
   py::array_t<int> GetGranularSplitCounts(int num_features) {
     int num_samples = forest_samples_->NumSamples();
     int num_trees = forest_samples_->NumTrees();
-    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_samples,num_trees,num_features}));
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_samples, num_trees, num_features}));
     auto accessor = result.mutable_unchecked<3>();
     for (int i = 0; i < num_samples; i++) {
       for (int j = 0; j < num_trees; j++) {
         for (int k = 0; k < num_features; k++) {
-          accessor(i,j,k) = 0;
+          accessor(i, j, k) = 0;
         }
       }
     }
@@ -604,7 +604,7 @@ class ForestContainerCpp {
         for (int k = 0; k < split_nodes.size(); k++) {
           auto node_id = split_nodes.at(k);
           auto split_feature = tree->SplitIndex(node_id);
-          accessor(i,j,split_feature)++;
+          accessor(i, j, split_feature)++;
         }
       }
     }
@@ -760,7 +760,7 @@ class ForestCpp {
   }
   ~ForestCpp() {}
 
-  StochTree::TreeEnsemble* GetForestPtr() {return forest_.get();}
+  StochTree::TreeEnsemble* GetForestPtr() { return forest_.get(); }
 
   void MergeForest(ForestCpp& outbound_forest) {
     forest_->MergeForest(*outbound_forest.GetForestPtr());
@@ -813,7 +813,7 @@ class ForestCpp {
     auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({n}));
     auto accessor = result.mutable_unchecked<1>();
     for (size_t i = 0; i < n; i++) {
-        accessor(i) = output_raw[i];
+      accessor(i) = output_raw[i];
     }
 
     return result;
@@ -831,7 +831,7 @@ class ForestCpp {
     auto accessor = result.mutable_unchecked<2>();
     for (size_t i = 0; i < n; i++) {
       for (int j = 0; j < output_dim; j++) {
-          accessor(i,j) = output_raw[i*output_dim + j];
+        accessor(i, j) = output_raw[i * output_dim + j];
       }
     }
 
@@ -845,7 +845,7 @@ class ForestCpp {
   void SetRootVector(py::array_t<double>& leaf_vector, int leaf_size) {
     std::vector<double> leaf_vector_converted(leaf_size);
     for (int i = 0; i < leaf_size; i++) {
-        leaf_vector_converted[i] = leaf_vector.at(i);
+      leaf_vector_converted[i] = leaf_vector.at(i);
     }
     forest_->SetLeafVector(leaf_vector_converted);
   }
@@ -856,7 +856,7 @@ class ForestCpp {
     return forest_.get();
   }
 
-  void AddNumericSplitValue(int tree_num, int leaf_num, int feature_num, double split_threshold, 
+  void AddNumericSplitValue(int tree_num, int leaf_num, int feature_num, double split_threshold,
                             double left_leaf_value, double right_leaf_value) {
     if (forest_->OutputDimension() != 1) {
       StochTree::Log::Fatal("left_leaf_value must match forest leaf dimension");
@@ -872,7 +872,7 @@ class ForestCpp {
     tree->ExpandNode(leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value);
   }
 
-  void AddNumericSplitVector(int tree_num, int leaf_num, int feature_num, double split_threshold, 
+  void AddNumericSplitVector(int tree_num, int leaf_num, int feature_num, double split_threshold,
                              py::array_t<double> left_leaf_vector, py::array_t<double> right_leaf_vector) {
     if (forest_->OutputDimension() != left_leaf_vector.size()) {
       StochTree::Log::Fatal("left_leaf_vector must match forest leaf dimension");
@@ -913,9 +913,9 @@ class ForestCpp {
     StochTree::Tree* tree = forest_->GetTree(tree_num);
     std::vector<int32_t> split_nodes = tree->GetInternalNodes();
     for (int i = 0; i < split_nodes.size(); i++) {
-        auto node_id = split_nodes.at(i);
-        auto split_feature = tree->SplitIndex(node_id);
-        accessor(split_feature)++;
+      auto node_id = split_nodes.at(i);
+      auto split_feature = tree->SplitIndex(node_id);
+      accessor(split_feature)++;
     }
     return result;
   }
@@ -941,11 +941,11 @@ class ForestCpp {
 
   py::array_t<int> GetGranularSplitCounts(int num_features) {
     int num_trees = forest_->NumTrees();
-    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_trees,num_features}));
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({num_trees, num_features}));
     auto accessor = result.mutable_unchecked<2>();
     for (int i = 0; i < num_trees; i++) {
       for (int j = 0; j < num_features; j++) {
-        accessor(i,j) = 0;
+        accessor(i, j) = 0;
       }
     }
     for (int i = 0; i < num_trees; i++) {
@@ -954,7 +954,7 @@ class ForestCpp {
       for (int j = 0; j < split_nodes.size(); j++) {
         auto node_id = split_nodes.at(i);
         auto split_feature = tree->SplitIndex(node_id);
-        accessor(i,split_feature)++;
+        accessor(i, split_feature)++;
       }
     }
     return result;
@@ -1086,9 +1086,9 @@ class ForestSamplerCpp {
     // Convert vector of integers to std::vector of enum FeatureType
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
     for (int i = 0; i < feature_types.size(); i++) {
-        feature_types_[i] = static_cast<StochTree::FeatureType>(feature_types.at(i));
+      feature_types_[i] = static_cast<StochTree::FeatureType>(feature_types.at(i));
     }
-    
+
     // Initialize pointer to C++ ForestTracker and TreePrior classes
     StochTree::ForestDataset* dataset_ptr = dataset.GetDataset();
     tracker_ = std::make_unique<StochTree::ForestTracker>(dataset_ptr->GetCovariates(), feature_types_, num_trees, num_obs);
@@ -1096,75 +1096,80 @@ class ForestSamplerCpp {
   }
   ~ForestSamplerCpp() {}
 
-  StochTree::ForestTracker* GetTracker() {return tracker_.get();}
+  StochTree::ForestTracker* GetTracker() { return tracker_.get(); }
 
   void ReconstituteTrackerFromForest(ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, bool is_mean_model) {
     // Extract raw pointer to the forest and dataset
     StochTree::TreeEnsemble* forest_ptr = forest.GetEnsemble();
     StochTree::ForestDataset* data_ptr = dataset.GetDataset();
     StochTree::ColumnVector* residual_ptr = residual.GetData();
-    
+
     // Reset forest tracker using the forest held at index forest_num
     tracker_->ReconstituteFromForest(*forest_ptr, *data_ptr, *residual_ptr, is_mean_model);
   }
 
-  void SampleOneIteration(ForestContainerCpp& forest_samples, ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng, 
-                          py::array_t<int> feature_types, py::array_t<int> sweep_update_indices, int cutpoint_grid_size, py::array_t<double> leaf_model_scale_input, 
-                          py::array_t<double> variable_weights, double a_forest, double b_forest, double global_variance, 
+  void SampleOneIteration(ForestContainerCpp& forest_samples, ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng,
+                          py::array_t<int> feature_types, py::array_t<int> sweep_update_indices, int cutpoint_grid_size, py::array_t<double> leaf_model_scale_input,
+                          py::array_t<double> variable_weights, double a_forest, double b_forest, double global_variance,
                           int leaf_model_int, int num_features_subsample, bool keep_forest = true, bool gfr = true, int num_threads = -1) {
     // Refactoring completely out of the Python interface.
     // Intention to refactor out of the C++ interface in the future.
     bool pre_initialized = true;
-    
+
     // Unpack feature types
     std::vector<StochTree::FeatureType> feature_types_(feature_types.size());
     for (int i = 0; i < feature_types.size(); i++) {
       feature_types_[i] = static_cast<StochTree::FeatureType>(feature_types.at(i));
     }
-    
+
     // Unpack sweep indices
     std::vector<int> sweep_update_indices_;
     if (sweep_update_indices.size() > 0) {
-        sweep_update_indices_.resize(sweep_update_indices.size());
-        for (int i = 0; i < sweep_update_indices.size(); i++) {
-            sweep_update_indices_[i] = sweep_update_indices.at(i);
-        }
+      sweep_update_indices_.resize(sweep_update_indices.size());
+      for (int i = 0; i < sweep_update_indices.size(); i++) {
+        sweep_update_indices_[i] = sweep_update_indices.at(i);
+      }
     }
 
     // Convert leaf model type to enum
     StochTree::ModelType model_type;
-    if (leaf_model_int == 0) model_type = StochTree::ModelType::kConstantLeafGaussian;
-    else if (leaf_model_int == 1) model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
-    else if (leaf_model_int == 2) model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
-    else if (leaf_model_int == 3) model_type = StochTree::ModelType::kLogLinearVariance;
-    else if (leaf_model_int == 4) model_type = StochTree::ModelType::kCloglogOrdinal;
+    if (leaf_model_int == 0)
+      model_type = StochTree::ModelType::kConstantLeafGaussian;
+    else if (leaf_model_int == 1)
+      model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
+    else if (leaf_model_int == 2)
+      model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
+    else if (leaf_model_int == 3)
+      model_type = StochTree::ModelType::kLogLinearVariance;
+    else if (leaf_model_int == 4)
+      model_type = StochTree::ModelType::kCloglogOrdinal;
 
     // Unpack leaf model parameters
     double leaf_scale;
     Eigen::MatrixXd leaf_scale_matrix;
     if ((model_type == StochTree::ModelType::kConstantLeafGaussian) ||
         (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian)) {
-        leaf_scale = leaf_model_scale_input.at(0,0);
+      leaf_scale = leaf_model_scale_input.at(0, 0);
     } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
-        int num_row = leaf_model_scale_input.shape(0);
-        int num_col = leaf_model_scale_input.shape(1);
-        leaf_scale_matrix.resize(num_row, num_col);
-        for (int i = 0; i < num_row; i++) {
-            for (int j = 0; j < num_col; j++) {
-                leaf_scale_matrix(i,j) = leaf_model_scale_input.at(i,j);
-            }
+      int num_row = leaf_model_scale_input.shape(0);
+      int num_col = leaf_model_scale_input.shape(1);
+      leaf_scale_matrix.resize(num_row, num_col);
+      for (int i = 0; i < num_row; i++) {
+        for (int j = 0; j < num_col; j++) {
+          leaf_scale_matrix(i, j) = leaf_model_scale_input.at(i, j);
         }
+      }
     }
 
     // Convert variable weights to std::vector
     std::vector<double> var_weights_vector(variable_weights.size());
     for (int i = 0; i < variable_weights.size(); i++) {
-        var_weights_vector[i] = variable_weights.at(i);
+      var_weights_vector[i] = variable_weights.at(i);
     }
 
     // Prepare the samplers
     StochTree::LeafModelVariant leaf_model = StochTree::leafModelFactory(model_type, leaf_scale, leaf_scale_matrix, a_forest, b_forest);
-    
+
     // Run one iteration of the sampler
     StochTree::ForestContainer* forest_sample_ptr = forest_samples.GetContainer();
     StochTree::TreeEnsemble* active_forest_ptr = forest.GetEnsemble();
@@ -1199,16 +1204,22 @@ class ForestSamplerCpp {
     }
   }
 
-  void InitializeForestModel(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestCpp& forest, 
+  void InitializeForestModel(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestCpp& forest,
                              int leaf_model_int, py::array_t<double> initial_values) {
     // Convert leaf model type to enum
     StochTree::ModelType model_type;
-    if (leaf_model_int == 0) model_type = StochTree::ModelType::kConstantLeafGaussian;
-    else if (leaf_model_int == 1) model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
-    else if (leaf_model_int == 2) model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
-    else if (leaf_model_int == 3) model_type = StochTree::ModelType::kLogLinearVariance;
-    else if (leaf_model_int == 4) model_type = StochTree::ModelType::kCloglogOrdinal;
-    else StochTree::Log::Fatal("Invalid model type");
+    if (leaf_model_int == 0)
+      model_type = StochTree::ModelType::kConstantLeafGaussian;
+    else if (leaf_model_int == 1)
+      model_type = StochTree::ModelType::kUnivariateRegressionLeafGaussian;
+    else if (leaf_model_int == 2)
+      model_type = StochTree::ModelType::kMultivariateRegressionLeafGaussian;
+    else if (leaf_model_int == 3)
+      model_type = StochTree::ModelType::kLogLinearVariance;
+    else if (leaf_model_int == 4)
+      model_type = StochTree::ModelType::kCloglogOrdinal;
+    else
+      StochTree::Log::Fatal("Invalid model type");
 
     // Unpack initial value
     StochTree::TreeEnsemble* forest_ptr = forest.GetEnsemble();
@@ -1221,43 +1232,43 @@ class ForestSamplerCpp {
         (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) ||
         (model_type == StochTree::ModelType::kLogLinearVariance) ||
         (model_type == StochTree::ModelType::kCloglogOrdinal)) {
-        init_val = initial_values.at(0);
+      init_val = initial_values.at(0);
     } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
-        int leaf_dim = initial_values.size();
-        init_value_vector.resize(leaf_dim);
-        for (int i = 0; i < leaf_dim; i++) {
-            init_value_vector[i] = initial_values.at(i) / static_cast<double>(num_trees);
-        }
+      int leaf_dim = initial_values.size();
+      init_value_vector.resize(leaf_dim);
+      for (int i = 0; i < leaf_dim; i++) {
+        init_value_vector[i] = initial_values.at(i) / static_cast<double>(num_trees);
+      }
     }
-    
+
     // Initialize the models accordingly
     double leaf_init_val;
     if (model_type == StochTree::ModelType::kConstantLeafGaussian) {
-        leaf_init_val = init_val / static_cast<double>(num_trees);
-        forest_ptr->SetLeafValue(leaf_init_val);
-        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, false, std::minus<double>());
-        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
+      leaf_init_val = init_val / static_cast<double>(num_trees);
+      forest_ptr->SetLeafValue(leaf_init_val);
+      StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, false, std::minus<double>());
+      tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
     } else if (model_type == StochTree::ModelType::kUnivariateRegressionLeafGaussian) {
-        leaf_init_val = init_val / static_cast<double>(num_trees);
-        forest_ptr->SetLeafValue(leaf_init_val);
-        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, true, std::minus<double>());
-        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
+      leaf_init_val = init_val / static_cast<double>(num_trees);
+      forest_ptr->SetLeafValue(leaf_init_val);
+      StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, true, std::minus<double>());
+      tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
     } else if (model_type == StochTree::ModelType::kMultivariateRegressionLeafGaussian) {
-        forest_ptr->SetLeafVector(init_value_vector);
-        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, true, std::minus<double>());
-        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
+      forest_ptr->SetLeafVector(init_value_vector);
+      StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, true, std::minus<double>());
+      tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
     } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
-        leaf_init_val = std::log(init_val) / static_cast<double>(num_trees);
-        forest_ptr->SetLeafValue(leaf_init_val);
-        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
-        int n = forest_data_ptr->NumObservations();
-        std::vector<double> initial_preds(n, init_val);
-        forest_data_ptr->AddVarianceWeights(initial_preds.data(), n);
+      leaf_init_val = std::log(init_val) / static_cast<double>(num_trees);
+      forest_ptr->SetLeafValue(leaf_init_val);
+      tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
+      int n = forest_data_ptr->NumObservations();
+      std::vector<double> initial_preds(n, init_val);
+      forest_data_ptr->AddVarianceWeights(initial_preds.data(), n);
     } else if (model_type == StochTree::ModelType::kCloglogOrdinal) {
-        leaf_init_val = init_val / static_cast<double>(num_trees);
-        forest_ptr->SetLeafValue(leaf_init_val);
-        StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, false, std::minus<double>());
-        tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
+      leaf_init_val = init_val / static_cast<double>(num_trees);
+      forest_ptr->SetLeafValue(leaf_init_val);
+      StochTree::UpdateResidualEntireForest(*tracker_, *forest_data_ptr, *residual_data_ptr, forest_ptr, false, std::minus<double>());
+      tracker_->UpdatePredictions(forest_ptr, *forest_data_ptr);
     }
   }
 
@@ -1331,7 +1342,7 @@ class GlobalVarianceModelCpp {
     StochTree::ColumnVector* residual_ptr = residual.GetData();
     std::mt19937* rng_ptr = rng.GetRng();
     return var_model_.SampleVarianceParameter(residual_ptr->GetData(), a, b, *rng_ptr);
-  }  
+  }
 
  private:
   StochTree::GlobalHomoskedasticVarianceModel var_model_;
@@ -1391,7 +1402,7 @@ class OrdinalSamplerCpp {
 
 class RandomEffectsDatasetCpp {
  public:
- RandomEffectsDatasetCpp() {
+  RandomEffectsDatasetCpp() {
     rfx_dataset_ = std::make_unique<StochTree::RandomEffectsDataset>();
   }
   ~RandomEffectsDatasetCpp() {}
@@ -1443,7 +1454,7 @@ class RandomEffectsDatasetCpp {
     auto accessor = result.mutable_unchecked<2>();
     for (py::ssize_t i = 0; i < num_row; i++) {
       for (int j = 0; j < num_col; j++) {
-        accessor(i,j) = rfx_dataset_->BasisValue(i,j);
+        accessor(i, j) = rfx_dataset_->BasisValue(i, j);
       }
     }
     return result;
@@ -1466,9 +1477,9 @@ class RandomEffectsDatasetCpp {
     }
     return result;
   }
-  bool HasGroupLabels() {return rfx_dataset_->HasGroupLabels();}
-  bool HasBasis() {return rfx_dataset_->HasBasis();}
-  bool HasVarianceWeights() {return rfx_dataset_->HasVarWeights();}
+  bool HasGroupLabels() { return rfx_dataset_->HasGroupLabels(); }
+  bool HasBasis() { return rfx_dataset_->HasBasis(); }
+  bool HasVarianceWeights() { return rfx_dataset_->HasVarWeights(); }
 
  private:
   std::unique_ptr<StochTree::RandomEffectsDataset> rfx_dataset_;
@@ -1508,7 +1519,7 @@ class RandomEffectsContainerCpp {
     for (int i = 0; i < num_components; i++) {
       for (int j = 0; j < num_groups; j++) {
         for (int k = 0; k < num_samples; k++) {
-          accessor(i,j,k) = beta_raw[k*num_groups*num_components + j*num_components + i];
+          accessor(i, j, k) = beta_raw[k * num_groups * num_components + j * num_components + i];
         }
       }
     }
@@ -1524,7 +1535,7 @@ class RandomEffectsContainerCpp {
     for (int i = 0; i < num_components; i++) {
       for (int j = 0; j < num_groups; j++) {
         for (int k = 0; k < num_samples; k++) {
-          accessor(i,j,k) = xi_raw[k*num_groups*num_components + j*num_components + i];
+          accessor(i, j, k) = xi_raw[k * num_groups * num_components + j * num_components + i];
         }
       }
     }
@@ -1538,7 +1549,7 @@ class RandomEffectsContainerCpp {
     auto accessor = result.mutable_unchecked<2>();
     for (int i = 0; i < num_components; i++) {
       for (int j = 0; j < num_samples; j++) {
-        accessor(i,j) = alpha_raw[j*num_components + i];
+        accessor(i, j) = alpha_raw[j * num_components + i];
       }
     }
     return result;
@@ -1551,7 +1562,7 @@ class RandomEffectsContainerCpp {
     auto accessor = result.mutable_unchecked<2>();
     for (int i = 0; i < num_components; i++) {
       for (int j = 0; j < num_samples; j++) {
-        accessor(i,j) = sigma_raw[j*num_components + i];
+        accessor(i, j) = sigma_raw[j * num_components + i];
       }
     }
     return result;
@@ -1577,7 +1588,7 @@ class RandomEffectsContainerCpp {
   StochTree::RandomEffectsContainer* GetRandomEffectsContainer() {
     return rfx_container_.get();
   }
- 
+
  private:
   std::unique_ptr<StochTree::RandomEffectsContainer> rfx_container_;
 };
@@ -1665,8 +1676,8 @@ class RandomEffectsModelCpp {
   StochTree::MultivariateRegressionRandomEffectsModel* GetModel() {
     return rfx_model_.get();
   }
-  void SampleRandomEffects(RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual, 
-                           RandomEffectsTrackerCpp& rfx_tracker, RandomEffectsContainerCpp& rfx_container, 
+  void SampleRandomEffects(RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual,
+                           RandomEffectsTrackerCpp& rfx_tracker, RandomEffectsContainerCpp& rfx_container,
                            bool keep_sample, double global_variance, RngCpp& rng);
   py::array_t<double> Predict(RandomEffectsDatasetCpp& rfx_dataset, RandomEffectsTrackerCpp& rfx_tracker) {
     std::vector<double> output = rfx_model_->Predict(*rfx_dataset.GetDataset(), *rfx_tracker.GetTracker());
@@ -1691,7 +1702,7 @@ class RandomEffectsModelCpp {
     Eigen::MatrixXd group_params_eigen(nrow, ncol);
     for (py::ssize_t i = 0; i < nrow; i++) {
       for (int j = 0; j < ncol; j++) {
-        group_params_eigen(i,j) = group_params.at(i,j);
+        group_params_eigen(i, j) = group_params.at(i, j);
       }
     }
     rfx_model_->SetGroupParameters(group_params_eigen);
@@ -1702,7 +1713,7 @@ class RandomEffectsModelCpp {
     Eigen::MatrixXd working_param_cov_eigen(nrow, ncol);
     for (int i = 0; i < nrow; i++) {
       for (int j = 0; j < ncol; j++) {
-        working_param_cov_eigen(i,j) = working_param_cov.at(i,j);
+        working_param_cov_eigen(i, j) = working_param_cov.at(i, j);
       }
     }
     rfx_model_->SetWorkingParameterCovariance(working_param_cov_eigen);
@@ -1713,7 +1724,7 @@ class RandomEffectsModelCpp {
     Eigen::MatrixXd group_param_cov_eigen(nrow, ncol);
     for (int i = 0; i < nrow; i++) {
       for (int j = 0; j < ncol; j++) {
-        group_param_cov_eigen(i,j) = group_param_cov.at(i,j);
+        group_param_cov_eigen(i, j) = group_param_cov.at(i, j);
       }
     }
     rfx_model_->SetGroupParameterCovariance(group_param_cov_eigen);
@@ -1795,7 +1806,7 @@ class JsonCpp {
     nlohmann::json groupids_json = nlohmann::json::array();
     for (int i = 0; i < rfx_group_ids.size(); i++) {
       groupids_json.emplace_back(rfx_group_ids.at(i));
-  }
+    }
     json_->at("random_effects").emplace(rfx_label, groupids_json);
     return rfx_label;
   }
@@ -2153,9 +2164,9 @@ py::array_t<int> cppComputeForestContainerLeafIndices(ForestContainerCpp& forest
   }
 
   // Compute leaf indices
-  auto result = py::array_t<int, py::array::f_style>(py::detail::any_container<py::ssize_t>({num_obs*num_trees, num_samples}));
+  auto result = py::array_t<int, py::array::f_style>(py::detail::any_container<py::ssize_t>({num_obs * num_trees, num_samples}));
   int* output_data_ptr = static_cast<int*>(result.mutable_data());
-  Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>> output_eigen(output_data_ptr, num_obs*num_trees, num_samples);
+  Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>> output_eigen(output_data_ptr, num_obs * num_trees, num_samples);
   forest_container.GetContainer()->PredictLeafIndicesInplace(covariates_eigen, output_eigen, forest_indices, num_trees, num_obs);
 
   // Return matrix
@@ -2180,9 +2191,11 @@ void ForestContainerCpp::AppendFromJson(JsonCpp& json, std::string forest_label)
 void ForestContainerCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, int forest_num, bool add) {
   // Determine whether or not we are adding forest_num to the residuals
   std::function<double(double, double)> op;
-  if (add) op = std::plus<double>();
-  else op = std::minus<double>();
-  
+  if (add)
+    op = std::plus<double>();
+  else
+    op = std::minus<double>();
+
   // Perform the update (addition / subtraction) operation
   StochTree::UpdateResidualEntireForest(*(sampler.GetTracker()), *(dataset.GetDataset()), *(residual.GetData()), forest_samples_->GetEnsemble(forest_num), requires_basis, op);
 }
@@ -2190,9 +2203,11 @@ void ForestContainerCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& 
 void ForestCpp::AdjustResidual(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestSamplerCpp& sampler, bool requires_basis, bool add) {
   // Determine whether or not we are adding forest predictions to the residuals
   std::function<double(double, double)> op;
-  if (add) op = std::plus<double>();
-  else op = std::minus<double>();
-  
+  if (add)
+    op = std::plus<double>();
+  else
+    op = std::minus<double>();
+
   // Perform the update (addition / subtraction) operation
   StochTree::UpdateResidualEntireForest(*(sampler.GetTracker()), *(dataset.GetDataset()), *(residual.GetData()), forest_.get(), requires_basis, op);
 }
@@ -2215,13 +2230,13 @@ void RandomEffectsContainerCpp::AddSample(RandomEffectsModelCpp& rfx_model) {
 py::array_t<double> RandomEffectsContainerCpp::Predict(RandomEffectsDatasetCpp& rfx_dataset, RandomEffectsLabelMapperCpp& label_mapper) {
   py::ssize_t num_observations = rfx_dataset.NumObservations();
   int num_samples = rfx_container_->NumSamples();
-  std::vector<double> output(num_observations*num_samples);
+  std::vector<double> output(num_observations * num_samples);
   rfx_container_->Predict(*rfx_dataset.GetDataset(), *label_mapper.GetLabelMapper(), output);
   auto result = py::array_t<double>(py::detail::any_container<py::ssize_t>({num_observations, num_samples}));
   auto accessor = result.mutable_unchecked<2>();
   for (size_t i = 0; i < num_observations; i++) {
     for (int j = 0; j < num_samples; j++) {
-      accessor(i, j) = output.at(j*num_observations + i);
+      accessor(i, j) = output.at(j * num_observations + i);
     }
   }
   return result;
@@ -2233,10 +2248,10 @@ void RandomEffectsLabelMapperCpp::LoadFromJson(JsonCpp& json, std::string rfx_la
   rfx_label_mapper_->from_json(rfx_json);
 }
 
-void RandomEffectsModelCpp::SampleRandomEffects(RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual, 
-                                                RandomEffectsTrackerCpp& rfx_tracker, RandomEffectsContainerCpp& rfx_container, 
+void RandomEffectsModelCpp::SampleRandomEffects(RandomEffectsDatasetCpp& rfx_dataset, ResidualCpp& residual,
+                                                RandomEffectsTrackerCpp& rfx_tracker, RandomEffectsContainerCpp& rfx_container,
                                                 bool keep_sample, double global_variance, RngCpp& rng) {
-  rfx_model_->SampleRandomEffects(*rfx_dataset.GetDataset(), *residual.GetData(), 
+  rfx_model_->SampleRandomEffects(*rfx_dataset.GetDataset(), *residual.GetData(),
                                   *rfx_tracker.GetTracker(), global_variance, *rng.GetRng());
   if (keep_sample) rfx_container.AddSample(*this);
 }
@@ -2254,191 +2269,191 @@ PYBIND11_MODULE(stochtree_cpp, m) {
   m.def("cppComputeForestMaxLeafIndex", &cppComputeForestMaxLeafIndex, "Compute max leaf index of a forest in a forest container");
 
   py::class_<JsonCpp>(m, "JsonCpp")
-    .def(py::init<>())
-    .def("LoadFile", &JsonCpp::LoadFile)
-    .def("SaveFile", &JsonCpp::SaveFile)
-    .def("LoadFromString", &JsonCpp::LoadFromString)
-    .def("DumpJson", &JsonCpp::DumpJson)
-    .def("AddDouble", &JsonCpp::AddDouble)
-    .def("AddDoubleSubfolder", &JsonCpp::AddDoubleSubfolder)
-    .def("AddInteger", &JsonCpp::AddInteger)
-    .def("AddIntegerSubfolder", &JsonCpp::AddIntegerSubfolder)
-    .def("AddBool", &JsonCpp::AddBool)
-    .def("AddBoolSubfolder", &JsonCpp::AddBoolSubfolder)
-    .def("AddString", &JsonCpp::AddString)
-    .def("AddStringSubfolder", &JsonCpp::AddStringSubfolder)
-    .def("AddDoubleVector", &JsonCpp::AddDoubleVector)
-    .def("AddDoubleVectorSubfolder", &JsonCpp::AddDoubleVectorSubfolder)
-    .def("AddIntegerVector", &JsonCpp::AddIntegerVector)
-    .def("AddIntegerVectorSubfolder", &JsonCpp::AddIntegerVectorSubfolder)
-    .def("AddStringVector", &JsonCpp::AddStringVector)
-    .def("AddStringVectorSubfolder", &JsonCpp::AddStringVectorSubfolder)
-    .def("AddForest", &JsonCpp::AddForest)
-    .def("AddRandomEffectsContainer", &JsonCpp::AddRandomEffectsContainer)
-    .def("AddRandomEffectsLabelMapper", &JsonCpp::AddRandomEffectsLabelMapper)
-    .def("AddRandomEffectsGroupIDs", &JsonCpp::AddRandomEffectsGroupIDs)
-    .def("ContainsField", &JsonCpp::ContainsField)
-    .def("ContainsFieldSubfolder", &JsonCpp::ContainsFieldSubfolder)
-    .def("ExtractDouble", &JsonCpp::ExtractDouble)
-    .def("ExtractDoubleSubfolder", &JsonCpp::ExtractDoubleSubfolder)
-    .def("ExtractInteger", &JsonCpp::ExtractInteger)
-    .def("ExtractIntegerSubfolder", &JsonCpp::ExtractIntegerSubfolder)
-    .def("ExtractBool", &JsonCpp::ExtractBool)
-    .def("ExtractBoolSubfolder", &JsonCpp::ExtractBoolSubfolder)
-    .def("ExtractString", &JsonCpp::ExtractString)
-    .def("ExtractStringSubfolder", &JsonCpp::ExtractStringSubfolder)
-    .def("ExtractDoubleVector", &JsonCpp::ExtractDoubleVector)
-    .def("ExtractDoubleVectorSubfolder", &JsonCpp::ExtractDoubleVectorSubfolder)
-    .def("ExtractIntegerVector", &JsonCpp::ExtractIntegerVector)
-    .def("ExtractIntegerVectorSubfolder", &JsonCpp::ExtractIntegerVectorSubfolder)
-    .def("ExtractStringVector", &JsonCpp::ExtractStringVector)
-    .def("ExtractStringVectorSubfolder", &JsonCpp::ExtractStringVectorSubfolder)
-    .def("IncrementRandomEffectsCount", &JsonCpp::IncrementRandomEffectsCount)
-    .def("SubsetJsonForest", &JsonCpp::SubsetJsonForest)
-    .def("SubsetJsonRFX", &JsonCpp::SubsetJsonRFX);
+      .def(py::init<>())
+      .def("LoadFile", &JsonCpp::LoadFile)
+      .def("SaveFile", &JsonCpp::SaveFile)
+      .def("LoadFromString", &JsonCpp::LoadFromString)
+      .def("DumpJson", &JsonCpp::DumpJson)
+      .def("AddDouble", &JsonCpp::AddDouble)
+      .def("AddDoubleSubfolder", &JsonCpp::AddDoubleSubfolder)
+      .def("AddInteger", &JsonCpp::AddInteger)
+      .def("AddIntegerSubfolder", &JsonCpp::AddIntegerSubfolder)
+      .def("AddBool", &JsonCpp::AddBool)
+      .def("AddBoolSubfolder", &JsonCpp::AddBoolSubfolder)
+      .def("AddString", &JsonCpp::AddString)
+      .def("AddStringSubfolder", &JsonCpp::AddStringSubfolder)
+      .def("AddDoubleVector", &JsonCpp::AddDoubleVector)
+      .def("AddDoubleVectorSubfolder", &JsonCpp::AddDoubleVectorSubfolder)
+      .def("AddIntegerVector", &JsonCpp::AddIntegerVector)
+      .def("AddIntegerVectorSubfolder", &JsonCpp::AddIntegerVectorSubfolder)
+      .def("AddStringVector", &JsonCpp::AddStringVector)
+      .def("AddStringVectorSubfolder", &JsonCpp::AddStringVectorSubfolder)
+      .def("AddForest", &JsonCpp::AddForest)
+      .def("AddRandomEffectsContainer", &JsonCpp::AddRandomEffectsContainer)
+      .def("AddRandomEffectsLabelMapper", &JsonCpp::AddRandomEffectsLabelMapper)
+      .def("AddRandomEffectsGroupIDs", &JsonCpp::AddRandomEffectsGroupIDs)
+      .def("ContainsField", &JsonCpp::ContainsField)
+      .def("ContainsFieldSubfolder", &JsonCpp::ContainsFieldSubfolder)
+      .def("ExtractDouble", &JsonCpp::ExtractDouble)
+      .def("ExtractDoubleSubfolder", &JsonCpp::ExtractDoubleSubfolder)
+      .def("ExtractInteger", &JsonCpp::ExtractInteger)
+      .def("ExtractIntegerSubfolder", &JsonCpp::ExtractIntegerSubfolder)
+      .def("ExtractBool", &JsonCpp::ExtractBool)
+      .def("ExtractBoolSubfolder", &JsonCpp::ExtractBoolSubfolder)
+      .def("ExtractString", &JsonCpp::ExtractString)
+      .def("ExtractStringSubfolder", &JsonCpp::ExtractStringSubfolder)
+      .def("ExtractDoubleVector", &JsonCpp::ExtractDoubleVector)
+      .def("ExtractDoubleVectorSubfolder", &JsonCpp::ExtractDoubleVectorSubfolder)
+      .def("ExtractIntegerVector", &JsonCpp::ExtractIntegerVector)
+      .def("ExtractIntegerVectorSubfolder", &JsonCpp::ExtractIntegerVectorSubfolder)
+      .def("ExtractStringVector", &JsonCpp::ExtractStringVector)
+      .def("ExtractStringVectorSubfolder", &JsonCpp::ExtractStringVectorSubfolder)
+      .def("IncrementRandomEffectsCount", &JsonCpp::IncrementRandomEffectsCount)
+      .def("SubsetJsonForest", &JsonCpp::SubsetJsonForest)
+      .def("SubsetJsonRFX", &JsonCpp::SubsetJsonRFX);
 
   py::class_<ForestDatasetCpp>(m, "ForestDatasetCpp")
-    .def(py::init<>())
-    .def("AddCovariates", &ForestDatasetCpp::AddCovariates)
-    .def("AddBasis", &ForestDatasetCpp::AddBasis)
-    .def("UpdateBasis", &ForestDatasetCpp::UpdateBasis)
-    .def("AddVarianceWeights", &ForestDatasetCpp::AddVarianceWeights)
-    .def("UpdateVarianceWeights", &ForestDatasetCpp::UpdateVarianceWeights)
-    .def("NumRows", &ForestDatasetCpp::NumRows)
-    .def("NumCovariates", &ForestDatasetCpp::NumCovariates)
-    .def("NumBasis", &ForestDatasetCpp::NumBasis)
-    .def("GetCovariates", &ForestDatasetCpp::GetCovariates)
-    .def("GetBasis", &ForestDatasetCpp::GetBasis)
-    .def("GetVarianceWeights", &ForestDatasetCpp::GetVarianceWeights)
-    .def("HasBasis", &ForestDatasetCpp::HasBasis)
-    .def("HasVarianceWeights", &ForestDatasetCpp::HasVarianceWeights)
-    .def("AddAuxiliaryDimension", &ForestDatasetCpp::AddAuxiliaryDimension)
-    .def("SetAuxiliaryDataValue", &ForestDatasetCpp::SetAuxiliaryDataValue)
-    .def("GetAuxiliaryDataValue", &ForestDatasetCpp::GetAuxiliaryDataValue)
-    .def("GetAuxiliaryDataVector", &ForestDatasetCpp::GetAuxiliaryDataVector);
+      .def(py::init<>())
+      .def("AddCovariates", &ForestDatasetCpp::AddCovariates)
+      .def("AddBasis", &ForestDatasetCpp::AddBasis)
+      .def("UpdateBasis", &ForestDatasetCpp::UpdateBasis)
+      .def("AddVarianceWeights", &ForestDatasetCpp::AddVarianceWeights)
+      .def("UpdateVarianceWeights", &ForestDatasetCpp::UpdateVarianceWeights)
+      .def("NumRows", &ForestDatasetCpp::NumRows)
+      .def("NumCovariates", &ForestDatasetCpp::NumCovariates)
+      .def("NumBasis", &ForestDatasetCpp::NumBasis)
+      .def("GetCovariates", &ForestDatasetCpp::GetCovariates)
+      .def("GetBasis", &ForestDatasetCpp::GetBasis)
+      .def("GetVarianceWeights", &ForestDatasetCpp::GetVarianceWeights)
+      .def("HasBasis", &ForestDatasetCpp::HasBasis)
+      .def("HasVarianceWeights", &ForestDatasetCpp::HasVarianceWeights)
+      .def("AddAuxiliaryDimension", &ForestDatasetCpp::AddAuxiliaryDimension)
+      .def("SetAuxiliaryDataValue", &ForestDatasetCpp::SetAuxiliaryDataValue)
+      .def("GetAuxiliaryDataValue", &ForestDatasetCpp::GetAuxiliaryDataValue)
+      .def("GetAuxiliaryDataVector", &ForestDatasetCpp::GetAuxiliaryDataVector);
 
   py::class_<ResidualCpp>(m, "ResidualCpp")
-    .def(py::init<py::array_t<double>,data_size_t>())
-    .def("GetResidualArray", &ResidualCpp::GetResidualArray)
-    .def("ReplaceData", &ResidualCpp::ReplaceData)
-    .def("AddToData", &ResidualCpp::AddToData)
-    .def("SubtractFromData", &ResidualCpp::SubtractFromData);
+      .def(py::init<py::array_t<double>, data_size_t>())
+      .def("GetResidualArray", &ResidualCpp::GetResidualArray)
+      .def("ReplaceData", &ResidualCpp::ReplaceData)
+      .def("AddToData", &ResidualCpp::AddToData)
+      .def("SubtractFromData", &ResidualCpp::SubtractFromData);
 
   py::class_<RngCpp>(m, "RngCpp")
-    .def(py::init<int>());
-  
+      .def(py::init<int>());
+
   py::class_<ForestContainerCpp>(m, "ForestContainerCpp")
-    .def(py::init<int,int,bool,bool>())
-    .def("CombineForests", &ForestContainerCpp::CombineForests)
-    .def("AddToForest", &ForestContainerCpp::AddToForest)
-    .def("MultiplyForest", &ForestContainerCpp::MultiplyForest)
-    .def("OutputDimension", &ForestContainerCpp::OutputDimension)
-    .def("NumTrees", &ForestContainerCpp::NumTrees)
-    .def("NumSamples", &ForestContainerCpp::NumSamples)
-    .def("DeleteSample", &ForestContainerCpp::DeleteSample)
-    .def("Predict", &ForestContainerCpp::Predict)
-    .def("PredictRaw", &ForestContainerCpp::PredictRaw)
-    .def("PredictRawSingleForest", &ForestContainerCpp::PredictRawSingleForest)
-    .def("SetRootValue", &ForestContainerCpp::SetRootValue)
-    .def("SetRootVector", &ForestContainerCpp::SetRootVector)
-    .def("AdjustResidual", &ForestContainerCpp::AdjustResidual)
-    .def("SaveToJsonFile", &ForestContainerCpp::SaveToJsonFile)
-    .def("LoadFromJsonFile", &ForestContainerCpp::LoadFromJsonFile)
-    .def("LoadFromJson", &ForestContainerCpp::LoadFromJson)
-    .def("AppendFromJson", &ForestContainerCpp::AppendFromJson)
-    .def("DumpJsonString", &ForestContainerCpp::DumpJsonString)
-    .def("LoadFromJsonString", &ForestContainerCpp::LoadFromJsonString)
-    .def("AddSampleValue", &ForestContainerCpp::AddSampleValue)
-    .def("AddSampleVector", &ForestContainerCpp::AddSampleVector)
-    .def("AddNumericSplitValue", &ForestContainerCpp::AddNumericSplitValue)
-    .def("AddNumericSplitVector", &ForestContainerCpp::AddNumericSplitVector)
-    .def("GetTreeLeaves", &ForestContainerCpp::GetTreeLeaves)
-    .def("GetTreeSplitCounts", &ForestContainerCpp::GetTreeSplitCounts)
-    .def("GetForestSplitCounts", &ForestContainerCpp::GetForestSplitCounts)
-    .def("GetOverallSplitCounts", &ForestContainerCpp::GetOverallSplitCounts)
-    .def("GetGranularSplitCounts", &ForestContainerCpp::GetGranularSplitCounts)
-    .def("NumLeavesForest", &ForestContainerCpp::NumLeavesForest)
-    .def("SumLeafSquared", &ForestContainerCpp::SumLeafSquared)
-    .def("IsLeafNode", &ForestContainerCpp::IsLeafNode)
-    .def("IsNumericSplitNode", &ForestContainerCpp::IsNumericSplitNode)
-    .def("IsCategoricalSplitNode", &ForestContainerCpp::IsCategoricalSplitNode)
-    .def("ParentNode", &ForestContainerCpp::ParentNode)
-    .def("LeftChildNode", &ForestContainerCpp::LeftChildNode)
-    .def("RightChildNode", &ForestContainerCpp::RightChildNode)
-    .def("SplitIndex", &ForestContainerCpp::SplitIndex)
-    .def("NodeDepth", &ForestContainerCpp::NodeDepth)
-    .def("SplitThreshold", &ForestContainerCpp::SplitThreshold)
-    .def("SplitCategories", &ForestContainerCpp::SplitCategories)
-    .def("NodeLeafValues", &ForestContainerCpp::NodeLeafValues)
-    .def("NumNodes", &ForestContainerCpp::NumNodes)
-    .def("NumLeaves", &ForestContainerCpp::NumLeaves)
-    .def("NumLeafParents", &ForestContainerCpp::NumLeafParents)
-    .def("NumSplitNodes", &ForestContainerCpp::NumSplitNodes)
-    .def("Nodes", &ForestContainerCpp::Nodes)
-    .def("Leaves", &ForestContainerCpp::Leaves);
+      .def(py::init<int, int, bool, bool>())
+      .def("CombineForests", &ForestContainerCpp::CombineForests)
+      .def("AddToForest", &ForestContainerCpp::AddToForest)
+      .def("MultiplyForest", &ForestContainerCpp::MultiplyForest)
+      .def("OutputDimension", &ForestContainerCpp::OutputDimension)
+      .def("NumTrees", &ForestContainerCpp::NumTrees)
+      .def("NumSamples", &ForestContainerCpp::NumSamples)
+      .def("DeleteSample", &ForestContainerCpp::DeleteSample)
+      .def("Predict", &ForestContainerCpp::Predict)
+      .def("PredictRaw", &ForestContainerCpp::PredictRaw)
+      .def("PredictRawSingleForest", &ForestContainerCpp::PredictRawSingleForest)
+      .def("SetRootValue", &ForestContainerCpp::SetRootValue)
+      .def("SetRootVector", &ForestContainerCpp::SetRootVector)
+      .def("AdjustResidual", &ForestContainerCpp::AdjustResidual)
+      .def("SaveToJsonFile", &ForestContainerCpp::SaveToJsonFile)
+      .def("LoadFromJsonFile", &ForestContainerCpp::LoadFromJsonFile)
+      .def("LoadFromJson", &ForestContainerCpp::LoadFromJson)
+      .def("AppendFromJson", &ForestContainerCpp::AppendFromJson)
+      .def("DumpJsonString", &ForestContainerCpp::DumpJsonString)
+      .def("LoadFromJsonString", &ForestContainerCpp::LoadFromJsonString)
+      .def("AddSampleValue", &ForestContainerCpp::AddSampleValue)
+      .def("AddSampleVector", &ForestContainerCpp::AddSampleVector)
+      .def("AddNumericSplitValue", &ForestContainerCpp::AddNumericSplitValue)
+      .def("AddNumericSplitVector", &ForestContainerCpp::AddNumericSplitVector)
+      .def("GetTreeLeaves", &ForestContainerCpp::GetTreeLeaves)
+      .def("GetTreeSplitCounts", &ForestContainerCpp::GetTreeSplitCounts)
+      .def("GetForestSplitCounts", &ForestContainerCpp::GetForestSplitCounts)
+      .def("GetOverallSplitCounts", &ForestContainerCpp::GetOverallSplitCounts)
+      .def("GetGranularSplitCounts", &ForestContainerCpp::GetGranularSplitCounts)
+      .def("NumLeavesForest", &ForestContainerCpp::NumLeavesForest)
+      .def("SumLeafSquared", &ForestContainerCpp::SumLeafSquared)
+      .def("IsLeafNode", &ForestContainerCpp::IsLeafNode)
+      .def("IsNumericSplitNode", &ForestContainerCpp::IsNumericSplitNode)
+      .def("IsCategoricalSplitNode", &ForestContainerCpp::IsCategoricalSplitNode)
+      .def("ParentNode", &ForestContainerCpp::ParentNode)
+      .def("LeftChildNode", &ForestContainerCpp::LeftChildNode)
+      .def("RightChildNode", &ForestContainerCpp::RightChildNode)
+      .def("SplitIndex", &ForestContainerCpp::SplitIndex)
+      .def("NodeDepth", &ForestContainerCpp::NodeDepth)
+      .def("SplitThreshold", &ForestContainerCpp::SplitThreshold)
+      .def("SplitCategories", &ForestContainerCpp::SplitCategories)
+      .def("NodeLeafValues", &ForestContainerCpp::NodeLeafValues)
+      .def("NumNodes", &ForestContainerCpp::NumNodes)
+      .def("NumLeaves", &ForestContainerCpp::NumLeaves)
+      .def("NumLeafParents", &ForestContainerCpp::NumLeafParents)
+      .def("NumSplitNodes", &ForestContainerCpp::NumSplitNodes)
+      .def("Nodes", &ForestContainerCpp::Nodes)
+      .def("Leaves", &ForestContainerCpp::Leaves);
 
   py::class_<ForestCpp>(m, "ForestCpp")
-    .def(py::init<int,int,bool,bool>())
-    .def("GetForestPtr", &ForestCpp::GetForestPtr)
-    .def("MergeForest", &ForestCpp::MergeForest)
-    .def("AddConstant", &ForestCpp::AddConstant)
-    .def("MultiplyConstant", &ForestCpp::MultiplyConstant)
-    .def("OutputDimension", &ForestCpp::OutputDimension)
-    .def("NumTrees", &ForestCpp::NumTrees)
-    .def("NumLeavesForest", &ForestCpp::NumLeavesForest)
-    .def("SumLeafSquared", &ForestCpp::SumLeafSquared)
-    .def("ResetRoot", &ForestCpp::ResetRoot)
-    .def("Reset", &ForestCpp::Reset)
-    .def("Predict", &ForestCpp::Predict)
-    .def("PredictRaw", &ForestCpp::PredictRaw)
-    .def("SetRootValue", &ForestCpp::SetRootValue)
-    .def("SetRootVector", &ForestCpp::SetRootVector)
-    .def("AdjustResidual", &ForestCpp::AdjustResidual)
-    .def("AddNumericSplitValue", &ForestCpp::AddNumericSplitValue)
-    .def("AddNumericSplitVector", &ForestCpp::AddNumericSplitVector)
-    .def("GetEnsemble", &ForestCpp::GetEnsemble)
-    .def("GetTreeLeaves", &ForestCpp::GetTreeLeaves)
-    .def("GetTreeSplitCounts", &ForestCpp::GetTreeSplitCounts)
-    .def("GetOverallSplitCounts", &ForestCpp::GetOverallSplitCounts)
-    .def("GetGranularSplitCounts", &ForestCpp::GetGranularSplitCounts)
-    .def("NumLeavesForest", &ForestCpp::NumLeavesForest)
-    .def("SumLeafSquared", &ForestCpp::SumLeafSquared)
-    .def("IsLeafNode", &ForestCpp::IsLeafNode)
-    .def("IsNumericSplitNode", &ForestCpp::IsNumericSplitNode)
-    .def("IsCategoricalSplitNode", &ForestCpp::IsCategoricalSplitNode)
-    .def("ParentNode", &ForestCpp::ParentNode)
-    .def("LeftChildNode", &ForestCpp::LeftChildNode)
-    .def("RightChildNode", &ForestCpp::RightChildNode)
-    .def("SplitIndex", &ForestCpp::SplitIndex)
-    .def("NodeDepth", &ForestCpp::NodeDepth)
-    .def("SplitThreshold", &ForestCpp::SplitThreshold)
-    .def("SplitCategories", &ForestCpp::SplitCategories)
-    .def("NodeLeafValues", &ForestCpp::NodeLeafValues)
-    .def("NumNodes", &ForestCpp::NumNodes)
-    .def("NumLeaves", &ForestCpp::NumLeaves)
-    .def("NumLeafParents", &ForestCpp::NumLeafParents)
-    .def("NumSplitNodes", &ForestCpp::NumSplitNodes)
-    .def("Nodes", &ForestCpp::Nodes)
-    .def("Leaves", &ForestCpp::Leaves);
-  
-  py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
-    .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
-    .def("ReconstituteTrackerFromForest", &ForestSamplerCpp::ReconstituteTrackerFromForest)
-    .def("SampleOneIteration", &ForestSamplerCpp::SampleOneIteration)
-    .def("InitializeForestModel", &ForestSamplerCpp::InitializeForestModel)
-    .def("GetCachedForestPredictions", &ForestSamplerCpp::GetCachedForestPredictions)
-    .def("PropagateBasisUpdate", &ForestSamplerCpp::PropagateBasisUpdate)
-    .def("PropagateResidualUpdate", &ForestSamplerCpp::PropagateResidualUpdate)
-    .def("UpdateAlpha", &ForestSamplerCpp::UpdateAlpha)
-    .def("UpdateBeta", &ForestSamplerCpp::UpdateBeta)
-    .def("UpdateMinSamplesLeaf", &ForestSamplerCpp::UpdateMinSamplesLeaf)
-    .def("UpdateMaxDepth", &ForestSamplerCpp::UpdateMaxDepth)
-    .def("GetAlpha", &ForestSamplerCpp::GetAlpha)
-    .def("GetBeta", &ForestSamplerCpp::GetBeta)
-    .def("GetMinSamplesLeaf", &ForestSamplerCpp::GetMinSamplesLeaf)
-    .def("GetMaxDepth", &ForestSamplerCpp::GetMaxDepth);
+      .def(py::init<int, int, bool, bool>())
+      .def("GetForestPtr", &ForestCpp::GetForestPtr)
+      .def("MergeForest", &ForestCpp::MergeForest)
+      .def("AddConstant", &ForestCpp::AddConstant)
+      .def("MultiplyConstant", &ForestCpp::MultiplyConstant)
+      .def("OutputDimension", &ForestCpp::OutputDimension)
+      .def("NumTrees", &ForestCpp::NumTrees)
+      .def("NumLeavesForest", &ForestCpp::NumLeavesForest)
+      .def("SumLeafSquared", &ForestCpp::SumLeafSquared)
+      .def("ResetRoot", &ForestCpp::ResetRoot)
+      .def("Reset", &ForestCpp::Reset)
+      .def("Predict", &ForestCpp::Predict)
+      .def("PredictRaw", &ForestCpp::PredictRaw)
+      .def("SetRootValue", &ForestCpp::SetRootValue)
+      .def("SetRootVector", &ForestCpp::SetRootVector)
+      .def("AdjustResidual", &ForestCpp::AdjustResidual)
+      .def("AddNumericSplitValue", &ForestCpp::AddNumericSplitValue)
+      .def("AddNumericSplitVector", &ForestCpp::AddNumericSplitVector)
+      .def("GetEnsemble", &ForestCpp::GetEnsemble)
+      .def("GetTreeLeaves", &ForestCpp::GetTreeLeaves)
+      .def("GetTreeSplitCounts", &ForestCpp::GetTreeSplitCounts)
+      .def("GetOverallSplitCounts", &ForestCpp::GetOverallSplitCounts)
+      .def("GetGranularSplitCounts", &ForestCpp::GetGranularSplitCounts)
+      .def("NumLeavesForest", &ForestCpp::NumLeavesForest)
+      .def("SumLeafSquared", &ForestCpp::SumLeafSquared)
+      .def("IsLeafNode", &ForestCpp::IsLeafNode)
+      .def("IsNumericSplitNode", &ForestCpp::IsNumericSplitNode)
+      .def("IsCategoricalSplitNode", &ForestCpp::IsCategoricalSplitNode)
+      .def("ParentNode", &ForestCpp::ParentNode)
+      .def("LeftChildNode", &ForestCpp::LeftChildNode)
+      .def("RightChildNode", &ForestCpp::RightChildNode)
+      .def("SplitIndex", &ForestCpp::SplitIndex)
+      .def("NodeDepth", &ForestCpp::NodeDepth)
+      .def("SplitThreshold", &ForestCpp::SplitThreshold)
+      .def("SplitCategories", &ForestCpp::SplitCategories)
+      .def("NodeLeafValues", &ForestCpp::NodeLeafValues)
+      .def("NumNodes", &ForestCpp::NumNodes)
+      .def("NumLeaves", &ForestCpp::NumLeaves)
+      .def("NumLeafParents", &ForestCpp::NumLeafParents)
+      .def("NumSplitNodes", &ForestCpp::NumSplitNodes)
+      .def("Nodes", &ForestCpp::Nodes)
+      .def("Leaves", &ForestCpp::Leaves);
 
-    py::class_<RandomEffectsDatasetCpp>(m, "RandomEffectsDatasetCpp")
+  py::class_<ForestSamplerCpp>(m, "ForestSamplerCpp")
+      .def(py::init<ForestDatasetCpp&, py::array_t<int>, int, data_size_t, double, double, int, int>())
+      .def("ReconstituteTrackerFromForest", &ForestSamplerCpp::ReconstituteTrackerFromForest)
+      .def("SampleOneIteration", &ForestSamplerCpp::SampleOneIteration)
+      .def("InitializeForestModel", &ForestSamplerCpp::InitializeForestModel)
+      .def("GetCachedForestPredictions", &ForestSamplerCpp::GetCachedForestPredictions)
+      .def("PropagateBasisUpdate", &ForestSamplerCpp::PropagateBasisUpdate)
+      .def("PropagateResidualUpdate", &ForestSamplerCpp::PropagateResidualUpdate)
+      .def("UpdateAlpha", &ForestSamplerCpp::UpdateAlpha)
+      .def("UpdateBeta", &ForestSamplerCpp::UpdateBeta)
+      .def("UpdateMinSamplesLeaf", &ForestSamplerCpp::UpdateMinSamplesLeaf)
+      .def("UpdateMaxDepth", &ForestSamplerCpp::UpdateMaxDepth)
+      .def("GetAlpha", &ForestSamplerCpp::GetAlpha)
+      .def("GetBeta", &ForestSamplerCpp::GetBeta)
+      .def("GetMinSamplesLeaf", &ForestSamplerCpp::GetMinSamplesLeaf)
+      .def("GetMaxDepth", &ForestSamplerCpp::GetMaxDepth);
+
+  py::class_<RandomEffectsDatasetCpp>(m, "RandomEffectsDatasetCpp")
       .def(py::init<>())
       .def("GetDataset", &RandomEffectsDatasetCpp::GetDataset)
       .def("NumObservations", &RandomEffectsDatasetCpp::NumObservations)
@@ -2457,71 +2472,71 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("HasVarianceWeights", &RandomEffectsDatasetCpp::HasVarianceWeights);
 
   py::class_<RandomEffectsContainerCpp>(m, "RandomEffectsContainerCpp")
-    .def(py::init<>())
-    .def("SetComponentsAndGroups", &RandomEffectsContainerCpp::SetComponentsAndGroups)
-    .def("AddSample", &RandomEffectsContainerCpp::AddSample)
-    .def("NumSamples", &RandomEffectsContainerCpp::NumSamples)
-    .def("NumComponents", &RandomEffectsContainerCpp::NumComponents)
-    .def("NumGroups", &RandomEffectsContainerCpp::NumGroups)
-    .def("GetBeta", &RandomEffectsContainerCpp::GetBeta)
-    .def("GetXi", &RandomEffectsContainerCpp::GetXi)
-    .def("GetAlpha", &RandomEffectsContainerCpp::GetAlpha)
-    .def("GetSigma", &RandomEffectsContainerCpp::GetSigma)
-    .def("DeleteSample", &RandomEffectsContainerCpp::DeleteSample)
-    .def("Predict", &RandomEffectsContainerCpp::Predict)
-    .def("SaveToJsonFile", &RandomEffectsContainerCpp::SaveToJsonFile)
-    .def("LoadFromJsonFile", &RandomEffectsContainerCpp::LoadFromJsonFile)
-    .def("DumpJsonString", &RandomEffectsContainerCpp::DumpJsonString)
-    .def("LoadFromJsonString", &RandomEffectsContainerCpp::LoadFromJsonString)
-    .def("LoadFromJson", &RandomEffectsContainerCpp::LoadFromJson)
-    .def("AppendFromJson", &RandomEffectsContainerCpp::AppendFromJson)
-    .def("GetRandomEffectsContainer", &RandomEffectsContainerCpp::GetRandomEffectsContainer);
+      .def(py::init<>())
+      .def("SetComponentsAndGroups", &RandomEffectsContainerCpp::SetComponentsAndGroups)
+      .def("AddSample", &RandomEffectsContainerCpp::AddSample)
+      .def("NumSamples", &RandomEffectsContainerCpp::NumSamples)
+      .def("NumComponents", &RandomEffectsContainerCpp::NumComponents)
+      .def("NumGroups", &RandomEffectsContainerCpp::NumGroups)
+      .def("GetBeta", &RandomEffectsContainerCpp::GetBeta)
+      .def("GetXi", &RandomEffectsContainerCpp::GetXi)
+      .def("GetAlpha", &RandomEffectsContainerCpp::GetAlpha)
+      .def("GetSigma", &RandomEffectsContainerCpp::GetSigma)
+      .def("DeleteSample", &RandomEffectsContainerCpp::DeleteSample)
+      .def("Predict", &RandomEffectsContainerCpp::Predict)
+      .def("SaveToJsonFile", &RandomEffectsContainerCpp::SaveToJsonFile)
+      .def("LoadFromJsonFile", &RandomEffectsContainerCpp::LoadFromJsonFile)
+      .def("DumpJsonString", &RandomEffectsContainerCpp::DumpJsonString)
+      .def("LoadFromJsonString", &RandomEffectsContainerCpp::LoadFromJsonString)
+      .def("LoadFromJson", &RandomEffectsContainerCpp::LoadFromJson)
+      .def("AppendFromJson", &RandomEffectsContainerCpp::AppendFromJson)
+      .def("GetRandomEffectsContainer", &RandomEffectsContainerCpp::GetRandomEffectsContainer);
 
   py::class_<RandomEffectsTrackerCpp>(m, "RandomEffectsTrackerCpp")
-    .def(py::init<py::array_t<int>>())
-    .def("GetUniqueGroupIds", &RandomEffectsTrackerCpp::GetUniqueGroupIds)
-    .def("GetTracker", &RandomEffectsTrackerCpp::GetTracker)
-    .def("Reset", &RandomEffectsTrackerCpp::Reset)
-    .def("RootReset", &RandomEffectsTrackerCpp::RootReset);
+      .def(py::init<py::array_t<int>>())
+      .def("GetUniqueGroupIds", &RandomEffectsTrackerCpp::GetUniqueGroupIds)
+      .def("GetTracker", &RandomEffectsTrackerCpp::GetTracker)
+      .def("Reset", &RandomEffectsTrackerCpp::Reset)
+      .def("RootReset", &RandomEffectsTrackerCpp::RootReset);
 
   py::class_<RandomEffectsLabelMapperCpp>(m, "RandomEffectsLabelMapperCpp")
-    .def(py::init<>())
-    .def("LoadFromTracker", &RandomEffectsLabelMapperCpp::LoadFromTracker)
-    .def("SaveToJsonFile", &RandomEffectsLabelMapperCpp::SaveToJsonFile)
-    .def("LoadFromJsonFile", &RandomEffectsLabelMapperCpp::LoadFromJsonFile)
-    .def("DumpJsonString", &RandomEffectsLabelMapperCpp::DumpJsonString)
-    .def("LoadFromJsonString", &RandomEffectsLabelMapperCpp::LoadFromJsonString)
-    .def("LoadFromJson", &RandomEffectsLabelMapperCpp::LoadFromJson)
-    .def("GetLabelMapper", &RandomEffectsLabelMapperCpp::GetLabelMapper)
-    .def("MapGroupIdToArrayIndex", &RandomEffectsLabelMapperCpp::MapGroupIdToArrayIndex)
-    .def("MapMultipleGroupIdsToArrayIndices", &RandomEffectsLabelMapperCpp::MapMultipleGroupIdsToArrayIndices);
+      .def(py::init<>())
+      .def("LoadFromTracker", &RandomEffectsLabelMapperCpp::LoadFromTracker)
+      .def("SaveToJsonFile", &RandomEffectsLabelMapperCpp::SaveToJsonFile)
+      .def("LoadFromJsonFile", &RandomEffectsLabelMapperCpp::LoadFromJsonFile)
+      .def("DumpJsonString", &RandomEffectsLabelMapperCpp::DumpJsonString)
+      .def("LoadFromJsonString", &RandomEffectsLabelMapperCpp::LoadFromJsonString)
+      .def("LoadFromJson", &RandomEffectsLabelMapperCpp::LoadFromJson)
+      .def("GetLabelMapper", &RandomEffectsLabelMapperCpp::GetLabelMapper)
+      .def("MapGroupIdToArrayIndex", &RandomEffectsLabelMapperCpp::MapGroupIdToArrayIndex)
+      .def("MapMultipleGroupIdsToArrayIndices", &RandomEffectsLabelMapperCpp::MapMultipleGroupIdsToArrayIndices);
 
   py::class_<RandomEffectsModelCpp>(m, "RandomEffectsModelCpp")
-    .def(py::init<int, int>())
-    .def("GetModel", &RandomEffectsModelCpp::GetModel)
-    .def("SampleRandomEffects", &RandomEffectsModelCpp::SampleRandomEffects)
-    .def("Predict", &RandomEffectsModelCpp::Predict)
-    .def("SetWorkingParameter", &RandomEffectsModelCpp::SetWorkingParameter)
-    .def("SetGroupParameters", &RandomEffectsModelCpp::SetGroupParameters)
-    .def("SetWorkingParameterCovariance", &RandomEffectsModelCpp::SetWorkingParameterCovariance)
-    .def("SetGroupParameterCovariance", &RandomEffectsModelCpp::SetGroupParameterCovariance)
-    .def("SetVariancePriorShape", &RandomEffectsModelCpp::SetVariancePriorShape)
-    .def("SetVariancePriorScale", &RandomEffectsModelCpp::SetVariancePriorScale)
-    .def("Reset", &RandomEffectsModelCpp::Reset);
+      .def(py::init<int, int>())
+      .def("GetModel", &RandomEffectsModelCpp::GetModel)
+      .def("SampleRandomEffects", &RandomEffectsModelCpp::SampleRandomEffects)
+      .def("Predict", &RandomEffectsModelCpp::Predict)
+      .def("SetWorkingParameter", &RandomEffectsModelCpp::SetWorkingParameter)
+      .def("SetGroupParameters", &RandomEffectsModelCpp::SetGroupParameters)
+      .def("SetWorkingParameterCovariance", &RandomEffectsModelCpp::SetWorkingParameterCovariance)
+      .def("SetGroupParameterCovariance", &RandomEffectsModelCpp::SetGroupParameterCovariance)
+      .def("SetVariancePriorShape", &RandomEffectsModelCpp::SetVariancePriorShape)
+      .def("SetVariancePriorScale", &RandomEffectsModelCpp::SetVariancePriorScale)
+      .def("Reset", &RandomEffectsModelCpp::Reset);
 
   py::class_<GlobalVarianceModelCpp>(m, "GlobalVarianceModelCpp")
-    .def(py::init<>())
-    .def("SampleOneIteration", &GlobalVarianceModelCpp::SampleOneIteration);
+      .def(py::init<>())
+      .def("SampleOneIteration", &GlobalVarianceModelCpp::SampleOneIteration);
 
   py::class_<LeafVarianceModelCpp>(m, "LeafVarianceModelCpp")
-    .def(py::init<>())
-    .def("SampleOneIteration", &LeafVarianceModelCpp::SampleOneIteration);
+      .def(py::init<>())
+      .def("SampleOneIteration", &LeafVarianceModelCpp::SampleOneIteration);
 
   py::class_<OrdinalSamplerCpp>(m, "OrdinalSamplerCpp")
-    .def(py::init<>())
-    .def("UpdateLatentVariables", &OrdinalSamplerCpp::UpdateLatentVariables)
-    .def("UpdateGammaParams", &OrdinalSamplerCpp::UpdateGammaParams)
-    .def("UpdateCumulativeExpSums", &OrdinalSamplerCpp::UpdateCumulativeExpSums);
+      .def(py::init<>())
+      .def("UpdateLatentVariables", &OrdinalSamplerCpp::UpdateLatentVariables)
+      .def("UpdateGammaParams", &OrdinalSamplerCpp::UpdateGammaParams)
+      .def("UpdateCumulativeExpSums", &OrdinalSamplerCpp::UpdateCumulativeExpSums);
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
