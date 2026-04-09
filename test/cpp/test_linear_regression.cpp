@@ -6,7 +6,6 @@
 #include <numeric>
 #include <random>
 #include <vector>
-#include "Eigen/src/Core/Matrix.h"
 
 TEST(LinearRegression, UnivariateDegeneratePosteriorMeanCorrectness) {
   // Test that the posterior mean of the regression coefficient is correct in a degenerate case where the outcome has no variance
