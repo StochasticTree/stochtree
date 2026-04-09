@@ -130,13 +130,12 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
 
 # Aggregate the source files underpinning the implementation in the C++ library
 file(
-  GLOB 
+  GLOB
   SOURCES
   src/container.cpp
   src/cutpoint_candidates.cpp
   src/data.cpp
   src/io.cpp
-  src/json11.cpp
   src/leaf_model.cpp
   src/ordinal_sampler.cpp
   src/partition_tracker.cpp
@@ -177,18 +176,29 @@ endif()
 
 # Build C++ test program
 if(BUILD_TEST)
-  # Check if user specified a local clone of the GoogleTest repo, use Github repo if not
-  if (NOT DEFINED GOOGLETEST_GIT_REPO)
-    set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
-  endif()
-  
-  # Fetch and install GoogleTest dependency
   include(FetchContent)
-  FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
-    GIT_TAG        6910c9d9165801d8827d628cb72eb7ea9dd538c5 # release-1.16.0
-  )
+
+  set(GTEST_SUBMODULE_DIR "${PROJECT_SOURCE_DIR}/deps/googletest")
+  if(EXISTS "${GTEST_SUBMODULE_DIR}/CMakeLists.txt")
+    # Use the local submodule — no network required.
+    # Initialize with: git submodule update --init deps/googletest
+    message(STATUS "GoogleTest: using local submodule at ${GTEST_SUBMODULE_DIR}")
+    FetchContent_Declare(
+      googletest
+      SOURCE_DIR "${GTEST_SUBMODULE_DIR}"
+    )
+  else()
+    # Fall back to GitHub fetch (CI, shallow clones, or submodule not initialized).
+    if (NOT DEFINED GOOGLETEST_GIT_REPO)
+      set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
+    endif()
+    message(STATUS "GoogleTest: fetching from ${GOOGLETEST_GIT_REPO}")
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
+      GIT_TAG        6910c9d9165801d8827d628cb72eb7ea9dd538c5 # release-1.16.0
+    )
+  endif()
   # For Windows: Prevent overriding the parent project's compiler/linker settings
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
@@ -209,17 +219,28 @@ if(BUILD_TEST)
   gtest_discover_tests(teststochtree)
 endif()
 
-# Standalone C++ Program for Debugging
+# Standalone C++ Programs for Debugging
 if(BUILD_DEBUG_TARGETS)
-  # Build test suite
-  add_executable(debugstochtree debug/api_debug.cpp)
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug)
+
+  # BART debug driver
+  add_executable(bart_debug debug/bart_debug.cpp)
   if(USE_OPENMP)
-    target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
-    target_link_libraries(debugstochtree PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
+    target_include_directories(bart_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+    target_link_libraries(bart_debug PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
   else()
-    target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
-    target_link_libraries(debugstochtree PRIVATE stochtree_objs)
+    target_include_directories(bart_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+    target_link_libraries(bart_debug PRIVATE stochtree_objs)
+  endif()
+
+  # BCF debug driver
+  add_executable(bcf_debug debug/bcf_debug.cpp)
+  if(USE_OPENMP)
+    target_include_directories(bcf_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+    target_link_libraries(bcf_debug PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
+  else()
+    target_include_directories(bcf_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+    target_link_libraries(bcf_debug PRIVATE stochtree_objs)
   endif()
 endif()
 

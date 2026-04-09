@@ -1,0 +1,69 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "bart_debug (macOS)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bart_debug",
+      "args": ["0"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake: Build (dev-quick)"
+    },
+    {
+      "name": "bcf_debug (macOS)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bcf_debug",
+      "args": ["0"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake: Build (dev-quick)"
+    },
+    {
+      "name": "teststochtree (macOS)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/teststochtree",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake: Build (dev)"
+    },
+    {
+      "name": "bart_debug (Linux/Container)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bart_debug",
+      "args": ["0"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "CMake: Build (dev-quick)"
+    },
+    {
+      "name": "bcf_debug (Linux/Container)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bcf_debug",
+      "args": ["0"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "CMake: Build (dev-quick)"
+    },
+    {
+      "name": "teststochtree (Linux/Container)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/teststochtree",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "CMake: Build (dev)"
+    },
+    {
+      "name": "Python Debugger: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal"
+    }
+  ]
+}

@@ -4,9 +4,13 @@
 *.DS_Store
 lib/
 build/
-.vscode/
+.vscode/positron/
 xcode/
 *.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!CMakePresets.json
 !test/R/testthat/fixtures/*.json
 !test/python/fixtures/*.json
 .vs/

@@ -1,0 +1,106 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Dev (Debug + Tests)",
+      "description": "Debug build with GoogleTest and debug targets — primary development preset",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "USE_DEBUG": "ON",
+        "BUILD_DEBUG_TARGETS": "ON",
+        "BUILD_TEST": "ON",
+        "BUILD_PYTHON": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "FETCHCONTENT_UPDATES_DISCONNECTED": "ON"
+      }
+    },
+    {
+      "name": "dev-quick",
+      "displayName": "Dev (Debug, no tests)",
+      "description": "Debug build with debug targets, skips GoogleTest download — faster configure",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "USE_DEBUG": "ON",
+        "BUILD_DEBUG_TARGETS": "ON",
+        "BUILD_TEST": "OFF",
+        "BUILD_PYTHON": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "Optimized release build",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "USE_DEBUG": "OFF",
+        "BUILD_DEBUG_TARGETS": "OFF",
+        "BUILD_TEST": "OFF",
+        "BUILD_PYTHON": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "OFF"
+      }
+    },
+    {
+      "name": "sanitizer",
+      "displayName": "Sanitizer (ASAN + UBSAN)",
+      "description": "Debug build with address and undefined-behavior sanitizers",
+      "binaryDir": "${sourceDir}/build-sanitizer",
+      "cacheVariables": {
+        "USE_DEBUG": "ON",
+        "USE_SANITIZER": "ON",
+        "BUILD_DEBUG_TARGETS": "ON",
+        "BUILD_TEST": "ON",
+        "BUILD_PYTHON": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "FETCHCONTENT_UPDATES_DISCONNECTED": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev",
+      "displayName": "Dev (Debug + Tests)",
+      "configurePreset": "dev",
+      "jobs": 0
+    },
+    {
+      "name": "dev-quick",
+      "displayName": "Dev (Debug, no tests)",
+      "configurePreset": "dev-quick",
+      "jobs": 0
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "configurePreset": "release",
+      "jobs": 0
+    },
+    {
+      "name": "sanitizer",
+      "displayName": "Sanitizer",
+      "configurePreset": "sanitizer",
+      "jobs": 0
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "displayName": "Dev tests",
+      "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true,
+        "verbosity": "default"
+      }
+    },
+    {
+      "name": "sanitizer",
+      "displayName": "Sanitizer tests",
+      "configurePreset": "sanitizer",
+      "output": {
+        "outputOnFailure": true,
+        "verbosity": "default"
+      }
+    }
+  ]
+}
