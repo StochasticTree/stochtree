@@ -13,42 +13,42 @@ namespace StochTree {
 
 struct BARTData {
   // Train set covariates
-  const double* X_train;
+  double* X_train;
   int n_train = 0;
   int p = 0;
 
   // Test set covariates
-  const double* X_test;
+  double* X_test;
   int n_test = 0;
 
   // Train set outcome
-  const double* y_train;
+  double* y_train;
 
   // Basis for leaf regression
-  const double* basis_train;
-  const double* basis_test;
+  double* basis_train;
+  double* basis_test;
   int basis_dim = 0;
 
   // Observation weights
-  const double* obs_weights_train;
-  const double* obs_weights_test;
+  double* obs_weights_train;
+  double* obs_weights_test;
 
   // Random effects
-  const int* rfx_group_ids_train;
-  const int* rfx_group_ids_test;
-  const double* rfx_basis_train;
-  const double* rfx_basis_test;
+  int* rfx_group_ids_train;
+  int* rfx_group_ids_test;
+  double* rfx_basis_train;
+  double* rfx_basis_test;
   int rfx_num_groups = 0;
   int rfx_basis_dim = 0;
-
-  // Feature types encoded as integers (e.g. 0 = continuous, 1 = categorical, etc.)
-  const int* feature_types;
 };
 
 struct BARTConfig {
   // High level parameters
-  bool standardize_outcome = true;  // whether to standardize the outcome before fitting and unstandardize predictions after
-  int num_threads = 1;              // number of threads to use for sampling
+  bool standardize_outcome = true;        // whether to standardize the outcome before fitting and unstandardize predictions after
+  int num_threads = 1;                    // number of threads to use for sampling
+  int cutpoint_grid_size = 100;           // number of cutpoints to consider for each covariate when sampling splits
+  std::vector<int> feature_types;         // feature types for each covariate (should be same length as number of covariates in the dataset), where 0 = continuous, 1 = categorical
+  std::vector<int> sweep_update_indices;  // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
 
   // Global error variance parameters
   double a_sigma2_global = 0.0;     // shape parameter for inverse gamma prior on global error variance
@@ -61,19 +61,24 @@ struct BARTConfig {
   double beta_mean = 2.0;                // beta parameter for mean forest tree prior
   int min_samples_leaf_mean = 5;         // minimum number of samples per leaf for mean forest
   bool leaf_constant_mean = true;        // whether to use constant leaf model for mean forest
+  int leaf_dim_mean = 1;                 // dimension of the leaf for mean forest
   bool exponentiated_leaf_mean = false;  // whether to exponentiate leaf predictions for mean forest
   int num_features_subsample_mean = 0;   // number of features to subsample for each mean forest split (0 means no subsampling)
   double a_sigma2_mean = 3.0;            // shape parameter for inverse gamma prior on mean forest leaf scale
   double b_sigma2_mean = -1.0;           // scale parameter for inverse gamma prior on mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
+  double sigma2_mean_init = -1.0;        // initial value of mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
+  std::vector<double> var_weights_mean;  // variable weights for mean forest splits (should be same length as number of covariates in the dataset)
 
   // Variance forest parameters
-  int num_trees_variance = 0;               // number of trees in the variance forest
-  double alpha_variance = 0.5;              // alpha parameter for variance forest tree prior
-  double beta_variance = 2.0;               // beta parameter for variance forest tree prior
-  int min_samples_leaf_variance = 5;        // minimum number of samples per leaf for variance forest
-  bool leaf_constant_variance = true;       // whether to use constant leaf model for variance forest
-  bool exponentiated_leaf_variance = true;  // whether to exponentiate leaf predictions for variance forest
-  int num_features_subsample_variance = 0;  // number of features to subsample for each variance forest split (0 means no subsampling)
+  int num_trees_variance = 0;                // number of trees in the variance forest
+  double alpha_variance = 0.5;               // alpha parameter for variance forest tree prior
+  double beta_variance = 2.0;                // beta parameter for variance forest tree prior
+  int min_samples_leaf_variance = 5;         // minimum number of samples per leaf for variance forest
+  bool leaf_constant_variance = true;        // whether to use constant leaf model for variance forest
+  int leaf_dim_variance = 1;                 // dimension of the leaf for variance forest (should be 1 if leaf_constant_variance=true)
+  bool exponentiated_leaf_variance = true;   // whether to exponentiate leaf predictions for variance forest
+  int num_features_subsample_variance = 0;   // number of features to subsample for each variance forest split (0 means no subsampling)
+  std::vector<double> var_weights_variance;  // variable weights for variance forest splits (should be same length as number of covariates in the dataset)
 
   // TODO: Random effects parameters ...
 

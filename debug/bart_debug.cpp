@@ -15,6 +15,7 @@
  * random effects, multivariate leaf, etc.).
  */
 
+#include <stochtree/bart.h>
 #include <stochtree/container.h>
 #include <stochtree/data.h>
 #include <stochtree/distributions.h>
@@ -26,6 +27,7 @@
 #include <stochtree/variance_model.h>
 
 #include <cmath>
+#include <memory>
 #include <numeric>
 #include <iostream>
 #include <random>
@@ -99,25 +101,31 @@ using PostIterFn = std::function<void(StochTree::ForestTracker&, double&)>;
 using ReportFn = std::function<void(const std::vector<double>&, double)>;
 
 void run_bart_sampler(int n, int n_test, int p, int num_trees, int num_gfr, int num_mcmc,
+                      StochTree::BARTConfig& config,
                       StochTree::ForestDataset& dataset,
                       StochTree::ColumnVector& residual, std::mt19937& rng,
                       StochTree::ForestDataset& test_dataset,
                       PostIterFn post_iter, ReportFn report_results) {
+  // Initialize sample outputs
+  StochTree::BARTSamples bart_samples;
+
   // Single-threaded with default cutpoint grid size (for now)
-  constexpr int num_threads = 1;
-  constexpr int cutpoint_grid_size = 100;
+  int num_threads = config.num_threads;
+  int cutpoint_grid_size = config.cutpoint_grid_size;
 
   // Model parameters for split rule selection and tree sweeps
-  std::vector<StochTree::FeatureType> feature_types(p, StochTree::FeatureType::kNumeric);
-  std::vector<double> var_weights(p, 1.0 / p);
-  std::vector<int> sweep_indices(num_trees);
-  std::iota(sweep_indices.begin(), sweep_indices.end(), 0);
+  std::vector<StochTree::FeatureType> feature_types(p);
+  for (int i = 0; i < p; i++) {
+    feature_types[i] = static_cast<StochTree::FeatureType>(config.feature_types[i]);
+  }
+  std::vector<double> var_weights = config.var_weights_mean;
+  std::vector<int> sweep_indices = config.sweep_update_indices;
 
   // Ephemeral sampler state
-  StochTree::TreePrior tree_prior(0.95, 2.0, /*min_samples_leaf=*/5);
-  StochTree::ForestContainer forest_samples(num_trees, /*output_dim=*/1, /*leaf_constant=*/true, /*exponentiated=*/false);
-  StochTree::TreeEnsemble active_forest(num_trees, 1, true, false);
-  StochTree::ForestTracker tracker(dataset.GetCovariates(), feature_types, num_trees, n);
+  StochTree::TreePrior tree_prior(config.alpha_mean, config.beta_mean, /*min_samples_leaf=*/config.min_samples_leaf_mean);
+  bart_samples.mean_forests = std::make_unique<StochTree::ForestContainer>(config.num_trees_mean, /*output_dim=*/config.leaf_dim_mean, /*leaf_constant=*/config.leaf_constant_mean, /*exponentiated=*/config.exponentiated_leaf_mean);
+  StochTree::TreeEnsemble active_forest(config.num_trees_mean, config.leaf_dim_mean, config.leaf_constant_mean, config.exponentiated_leaf_mean);
+  StochTree::ForestTracker tracker(dataset.GetCovariates(), feature_types, config.num_trees_mean, n);
 
   // Initialize forest and tracker predictions to 0 (after standardization, this is the best initial guess)
   active_forest.SetLeafValue(0.0);
@@ -125,8 +133,17 @@ void run_bart_sampler(int n, int n_test, int p, int num_trees, int num_gfr, int 
   tracker.UpdatePredictions(&active_forest, dataset);
 
   // Initialize leaf model and global variance for sampling iterations
-  StochTree::GaussianConstantLeafModel leaf_model(1.0 / num_trees);
-  double global_variance = 1.0;
+  if (config.sigma2_mean_init < 0.0) {
+    // Data-informed initialization of leaf scale based on variance of the outcome and number of trees, following Chipman et al. (2010)
+    double y_var = 0.0;
+    for (int i = 0; i < n; i++) {
+      y_var += residual.GetData()[i] * residual.GetData()[i];
+    }
+    y_var /= n;
+    config.sigma2_mean_init = y_var / config.num_trees_mean;
+  }
+  StochTree::GaussianConstantLeafModel leaf_model(config.sigma2_mean_init);
+  double global_variance = config.sigma2_global_init;
 
   // Run GFR
   std::cout << "[GFR]  " << num_gfr << " warmup iterations...\n";
@@ -136,7 +153,7 @@ void run_bart_sampler(int n, int n_test, int p, int num_trees, int num_gfr, int 
     StochTree::GFRSampleOneIter<
         StochTree::GaussianConstantLeafModel,
         StochTree::GaussianConstantSuffStat>(
-        active_forest, tracker, forest_samples, leaf_model,
+        active_forest, tracker, *bart_samples.mean_forests, leaf_model,
         dataset, residual, tree_prior, rng,
         var_weights, sweep_indices, global_variance, feature_types,
         cutpoint_grid_size, /*keep_forest=*/false, pre_initialized,
@@ -153,7 +170,7 @@ void run_bart_sampler(int n, int n_test, int p, int num_trees, int num_gfr, int 
     StochTree::MCMCSampleOneIter<
         StochTree::GaussianConstantLeafModel,
         StochTree::GaussianConstantSuffStat>(
-        active_forest, tracker, forest_samples, leaf_model,
+        active_forest, tracker, *bart_samples.mean_forests, leaf_model,
         dataset, residual, tree_prior, rng,
         var_weights, sweep_indices, global_variance,
         /*keep_forest=*/true, /*pre_initialized=*/true,
@@ -164,7 +181,7 @@ void run_bart_sampler(int n, int n_test, int p, int num_trees, int num_gfr, int 
   }
 
   // Analyze posterior predictions (column-major, element [j*n_test + i] = sample j, obs i)
-  report_results(forest_samples.Predict(test_dataset), global_variance);
+  report_results(bart_samples.mean_forests->Predict(test_dataset), global_variance);
 }
 
 // ---- Scenario 0: homoskedastic constant-leaf BART -------------------
@@ -193,10 +210,17 @@ void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr, int nu
     resid_vec[i] = (data.y[i] - y_bar) / y_std;
   }
 
+  // Load data into BARTData object
+  StochTree::BARTData bart_data;
+  bart_data.n_train = n;
+  bart_data.p = p;
+  bart_data.X_train = data.X.data();
+  bart_data.y_train = resid_vec.data();
+
   // Initialize dataset and residual vector for sampler
   StochTree::ForestDataset dataset;
-  dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/false);
-  StochTree::ColumnVector residual(resid_vec.data(), n);
+  dataset.AddCovariates(bart_data.X_train, n, p, /*row_major=*/false);
+  StochTree::ColumnVector residual(bart_data.y_train, n);
 
   // Initialize global error variance model
   constexpr double a_sigma = 0.0, b_sigma = 0.0;  // non-informative IG prior
@@ -228,8 +252,19 @@ void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr, int nu
               << "  sigma (truth):       1.0\n";
   };
 
+  // Initialize BART config (same for GFR warmup and MCMC sampling)
+  StochTree::BARTConfig config;
+  config.num_trees_mean = num_trees;
+  config.a_sigma2_mean = a_sigma;
+  config.b_sigma2_mean = b_sigma;
+  config.cutpoint_grid_size = 100;
+  config.sweep_update_indices.resize(num_trees);
+  std::iota(config.sweep_update_indices.begin(), config.sweep_update_indices.end(), 0);
+  config.feature_types = std::vector<int>(p, 0);
+  config.var_weights_mean = std::vector<double>(p, 1.0 / p);
+
   // Dispatch BART sampler
-  run_bart_sampler(n, n_test, p, num_trees, num_gfr, num_mcmc, dataset, residual, rng, test_dataset, post_iter, report);
+  run_bart_sampler(n, n_test, p, num_trees, num_gfr, num_mcmc, config, dataset, residual, rng, test_dataset, post_iter, report);
 }
 
 // ---- Scenario 1: constant-leaf probit BART -------------------
@@ -254,10 +289,17 @@ void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr, int nu
     Z_vec[i] = data.y[i] - y_bar;
   }
 
+  // Load data into BARTData object
+  StochTree::BARTData bart_data;
+  bart_data.n_train = n;
+  bart_data.p = p;
+  bart_data.X_train = data.X.data();
+  bart_data.y_train = y_vec.data();
+
   // Initialize dataset and residual vector for sampler
   StochTree::ForestDataset dataset;
-  dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/false);
-  StochTree::ColumnVector residual(Z_vec.data(), n);
+  dataset.AddCovariates(bart_data.X_train, n, p, /*row_major=*/false);
+  StochTree::ColumnVector residual(bart_data.y_train, n);
 
   // Lambda function for probit data augmentation sampling step (after each forest sample)
   auto post_iter = [&](StochTree::ForestTracker& tracker, double&) {
@@ -285,8 +327,17 @@ void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr, int nu
               << "  sigma (truth):       1.0\n";
   };
 
+  // Initialize BART config (same for GFR warmup and MCMC sampling)
+  StochTree::BARTConfig config;
+  config.num_trees_mean = num_trees;
+  config.cutpoint_grid_size = 100;
+  config.sweep_update_indices.resize(num_trees);
+  std::iota(config.sweep_update_indices.begin(), config.sweep_update_indices.end(), 0);
+  config.feature_types = std::vector<int>(p, 0);
+  config.var_weights_mean = std::vector<double>(p, 1.0 / p);
+
   // Dispatch BART sampler
-  run_bart_sampler(n, n_test, p, num_trees, num_gfr, num_mcmc, dataset, residual, rng, test_dataset, post_iter, report);
+  run_bart_sampler(n, n_test, p, num_trees, num_gfr, num_mcmc, config, dataset, residual, rng, test_dataset, post_iter, report);
 }
 
 // ---- Main -----------------------------------------------------------
