@@ -30,7 +30,6 @@
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 
-#include <Eigen/Dense>
 #include <cmath>
 #include <iostream>
 #include <numeric>
@@ -43,20 +42,20 @@ static constexpr double kPi = 3.14159265358979323846;
 // ---- Data ------------------------------------------------------------
 
 struct SimpleBCFDataset {
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X;
-  Eigen::VectorXd y;
-  Eigen::VectorXd z;
-  Eigen::VectorXd mu_true;
-  Eigen::VectorXd tau_true;
+  std::vector<double> X;
+  std::vector<double> y;
+  std::vector<double> z;
+  std::vector<double> mu_true;
+  std::vector<double> tau_true;
 };
 
 struct ProbitBCFDataset {
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X;
-  Eigen::VectorXd y;
-  Eigen::VectorXd latent_outcome;
-  Eigen::VectorXd z;
-  Eigen::VectorXd mu_true;
-  Eigen::VectorXd tau_true;
+  std::vector<double> X;
+  std::vector<double> y;
+  std::vector<double> latent_outcome;
+  std::vector<double> z;
+  std::vector<double> mu_true;
+  std::vector<double> tau_true;
 };
 
 SimpleBCFDataset generate_simple_bcf_data(int n, int p, std::mt19937& rng) {
@@ -65,7 +64,7 @@ SimpleBCFDataset generate_simple_bcf_data(int n, int p, std::mt19937& rng) {
   std::bernoulli_distribution bern(0.5);
 
   SimpleBCFDataset d;
-  d.X.resize(n, p);
+  d.X.resize(n * p);
   d.y.resize(n);
   d.z.resize(n);
   d.mu_true.resize(n);
@@ -73,13 +72,13 @@ SimpleBCFDataset generate_simple_bcf_data(int n, int p, std::mt19937& rng) {
 
   for (int i = 0; i < n; i++)
     for (int j = 0; j < p; j++)
-      d.X(i, j) = unif(rng);
+      d.X[j * n + i] = unif(rng);
 
   for (int i = 0; i < n; i++) {
-    d.z(i) = bern(rng) ? 1.0 : 0.0;
-    d.mu_true(i) = 2.0 * std::sin(kPi * d.X(i, 0)) + 0.5 * d.X(i, 1);
-    d.tau_true(i) = 1.0 + d.X(i, 2);
-    d.y(i) = d.mu_true(i) + d.tau_true(i) * d.z(i) + 0.5 * normal(rng);
+    d.z[i] = bern(rng) ? 1.0 : 0.0;
+    d.mu_true[i] = 2.0 * std::sin(kPi * d.X[i]) + 0.5 * d.X[1 * n + i];
+    d.tau_true[i] = 1.0 + d.X[2 * n + i];
+    d.y[i] = d.mu_true[i] + d.tau_true[i] * d.z[i] + 0.5 * normal(rng);
   }
   return d;
 }
@@ -90,7 +89,7 @@ ProbitBCFDataset generate_probit_bcf_data(int n, int p, std::mt19937& rng) {
   std::bernoulli_distribution bern(0.5);
 
   ProbitBCFDataset d;
-  d.X.resize(n, p);
+  d.X.resize(n * p);
   d.y.resize(n);
   d.z.resize(n);
   d.mu_true.resize(n);
@@ -99,14 +98,14 @@ ProbitBCFDataset generate_probit_bcf_data(int n, int p, std::mt19937& rng) {
 
   for (int i = 0; i < n; i++)
     for (int j = 0; j < p; j++)
-      d.X(i, j) = unif(rng);
+      d.X[j * n + i] = unif(rng);
 
   for (int i = 0; i < n; i++) {
-    d.z(i) = bern(rng) ? 1.0 : 0.0;
-    d.mu_true(i) = 2.0 * std::sin(kPi * d.X(i, 0)) + 0.5 * d.X(i, 1);
-    d.tau_true(i) = 1.0 + d.X(i, 2);
-    d.latent_outcome(i) = d.mu_true(i) + d.tau_true(i) * d.z(i) + normal(rng);
-    d.y(i) = (d.latent_outcome(i) > 0.0) ? 1.0 : 0.0;
+    d.z[i] = bern(rng) ? 1.0 : 0.0;
+    d.mu_true[i] = 2.0 * std::sin(kPi * d.X[i]) + 0.5 * d.X[1 * n + i];
+    d.tau_true[i] = 1.0 + d.X[2 * n + i];
+    d.latent_outcome[i] = d.mu_true[i] + d.tau_true[i] * d.z[i] + normal(rng);
+    d.y[i] = (d.latent_outcome[i] > 0.0) ? 1.0 : 0.0;
   }
   return d;
 }
@@ -258,13 +257,20 @@ void run_scenario_0(int n, int n_test, int p, int num_trees_mu, int num_trees_ta
 
   // Generate data and standardize outcome
   SimpleBCFDataset data = generate_simple_bcf_data(n, p, rng);
-  double y_bar = data.y.mean();
-  double y_std = std::sqrt((data.y.array() - y_bar).square().mean());
-  Eigen::VectorXd resid_vec = (data.y.array() - y_bar) / y_std;  // standardize
+  double y_bar = std::accumulate(data.y.begin(), data.y.end(), 0.0) / data.y.size();
+  double y_std = 0;
+  for (int i = 0; i < n; i++) {
+    y_std += (data.y[i] - y_bar) * (data.y[i] - y_bar);
+  }
+  y_std = std::sqrt(y_std / n);
+  std::vector<double> resid_vec(n);
+  for (int i = 0; i < n; i++) {
+    resid_vec[i] = (data.y[i] - y_bar) / y_std;
+  }
 
   // Shared dataset: only tau forest uses the Z basis for leaf regression
   StochTree::ForestDataset dataset;
-  dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/true);
+  dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/false);
   dataset.AddBasis(data.z.data(), n, /*num_col=*/1, /*row_major=*/false);
 
   // Shared residual
@@ -284,7 +290,7 @@ void run_scenario_0(int n, int n_test, int p, int num_trees_mu, int num_trees_ta
 
   // Test dataset: covariates + actual treatment z (for y prediction)
   StochTree::ForestDataset test_dataset;
-  test_dataset.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/true);
+  test_dataset.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/false);
   test_dataset.AddBasis(test_data.z.data(), n_test, /*num_col=*/1, /*row_major=*/false);
 
   // Lambda function for reporting mu/tau RMSE and last draw of global error variance
@@ -296,16 +302,16 @@ void run_scenario_0(int n, int n_test, int p, int num_trees_mu, int num_trees_ta
       double mu_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
         mu_hat += mu_preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
-      mu_rmse_sum += (mu_hat * y_std + y_bar - test_data.mu_true(i)) * (mu_hat * y_std + y_bar - test_data.mu_true(i));
+      mu_rmse_sum += (mu_hat * y_std + y_bar - test_data.mu_true[i]) * (mu_hat * y_std + y_bar - test_data.mu_true[i]);
 
       // tau_preds from test_dataset_cate (z=1 basis) => raw CATE estimates
       double cate_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
         cate_hat += tau_preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
-      tau_rmse_sum += (cate_hat * y_std - test_data.tau_true(i)) * (cate_hat * y_std - test_data.tau_true(i));
+      tau_rmse_sum += (cate_hat * y_std - test_data.tau_true[i]) * (cate_hat * y_std - test_data.tau_true[i]);
 
-      double y_hat = mu_hat * y_std + y_bar + cate_hat * test_data.z(i) * y_std;
-      y_rmse_sum += (y_hat - test_data.y(i)) * (y_hat - test_data.y(i));
+      double y_hat = mu_hat * y_std + y_bar + cate_hat * test_data.z[i] * y_std;
+      y_rmse_sum += (y_hat - test_data.y[i]) * (y_hat - test_data.y[i]);
     }
 
     std::cout << "\nScenario 0 (BCF: constant mu + univariate tau with Z basis):\n"
@@ -336,9 +342,12 @@ void run_scenario_1(int n, int n_test, int p, int num_trees_mu, int num_trees_ta
 
   // Generate data and standardize outcome
   ProbitBCFDataset data = generate_probit_bcf_data(n, p, rng);
-  double y_bar = StochTree::norm_cdf(data.y.mean());
-  Eigen::VectorXd y_vec = data.y.array();
-  Eigen::VectorXd Z_vec = (data.y.array() - y_bar);
+  double y_bar = std::accumulate(data.y.begin(), data.y.end(), 0.0) / data.y.size();
+  std::vector<double> Z_vec(n);
+  for (int i = 0; i < n; i++) {
+    Z_vec[i] = data.y[i] - y_bar;
+  }
+  std::vector<double> y_vec = data.y;
 
   // Shared dataset: only tau forest uses the Z basis for leaf regression
   StochTree::ForestDataset dataset;
@@ -375,16 +384,16 @@ void run_scenario_1(int n, int n_test, int p, int num_trees_mu, int num_trees_ta
       double mu_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
         mu_hat += mu_preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
-      mu_rmse_sum += (mu_hat + y_bar - test_data.mu_true(i)) * (mu_hat + y_bar - test_data.mu_true(i));
+      mu_rmse_sum += (mu_hat + y_bar - test_data.mu_true[i]) * (mu_hat + y_bar - test_data.mu_true[i]);
 
       // tau_preds from test_dataset_cate (z=1 basis) => raw CATE estimates
       double cate_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
         cate_hat += tau_preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
-      tau_rmse_sum += (cate_hat - test_data.tau_true(i)) * (cate_hat - test_data.tau_true(i));
+      tau_rmse_sum += (cate_hat - test_data.tau_true[i]) * (cate_hat - test_data.tau_true[i]);
 
-      double y_hat = mu_hat + y_bar + cate_hat * test_data.z(i);
-      y_rmse_sum += (y_hat - test_data.latent_outcome(i)) * (y_hat - test_data.latent_outcome(i));
+      double y_hat = mu_hat + y_bar + cate_hat * test_data.z[i];
+      y_rmse_sum += (y_hat - test_data.latent_outcome[i]) * (y_hat - test_data.latent_outcome[i]);
     }
 
     std::cout << "\nScenario 0 (BCF: constant mu + univariate tau with Z basis):\n"

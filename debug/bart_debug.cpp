@@ -25,7 +25,6 @@
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 
-#include <Eigen/Dense>
 #include <cmath>
 #include <numeric>
 #include <iostream>
@@ -38,14 +37,14 @@ static constexpr double kPi = 3.14159265358979323846;
 // ---- Data ------------------------------------------------------------
 
 struct RegressionDataset {
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X;
-  Eigen::VectorXd y;
+  std::vector<double> X;
+  std::vector<double> y;
 };
 
 struct ProbitDataset {
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> X;
-  Eigen::VectorXd y;
-  Eigen::VectorXd Z;
+  std::vector<double> X;
+  std::vector<double> y;
+  std::vector<double> Z;
 };
 
 // DGP: y ~ sin(2*pi*x1) + 0.5*x2 - 1.5*x3 + N(0,1)
@@ -53,13 +52,13 @@ RegressionDataset generate_constant_leaf_regression_data(int n, int p, std::mt19
   std::uniform_real_distribution<double> unif(0.0, 1.0);
   std::normal_distribution<double> normal(0.0, 1.0);
   RegressionDataset d;
-  d.X.resize(n, p);
+  d.X.resize(n * p);
   d.y.resize(n);
   for (int i = 0; i < n; i++)
     for (int j = 0; j < p; j++)
-      d.X(i, j) = unif(rng);
+      d.X[j * n + i] = unif(rng);
   for (int i = 0; i < n; i++)
-    d.y(i) = std::sin(2.0 * kPi * d.X(i, 0)) + 0.5 * d.X(i, 1) - 1.5 * d.X(i, 2) + normal(rng);
+    d.y[i] = std::sin(2.0 * kPi * d.X[i]) + 0.5 * d.X[1 * n + i] - 1.5 * d.X[2 * n + i] + normal(rng);
   return d;
 }
 
@@ -70,17 +69,16 @@ RegressionDataset generate_constant_leaf_regression_data(int n, int p, std::mt19
 ProbitDataset generate_probit_data(int n, int p, std::mt19937& rng) {
   std::uniform_real_distribution<double> unif(0.0, 1.0);
   std::normal_distribution<double> normal(0.0, 1.0);
-  Eigen::VectorXd Z;
   ProbitDataset d;
-  d.X.resize(n, p);
+  d.X.resize(n * p);
   d.y.resize(n);
   d.Z.resize(n);
   for (int i = 0; i < n; i++)
     for (int j = 0; j < p; j++)
-      d.X(i, j) = unif(rng);
+      d.X[j * n + i] = unif(rng);
   for (int i = 0; i < n; i++) {
-    d.Z(i) = std::sin(2.0 * kPi * d.X(i, 0)) + 0.5 * d.X(i, 1) - 1.5 * d.X(i, 2) + normal(rng);
-    d.y(i) = (d.Z(i) > 0) ? 1.0 : 0.0;
+    d.Z[i] = std::sin(2.0 * kPi * d.X[i]) + 0.5 * d.X[1 * n + i] - 1.5 * d.X[2 * n + i] + normal(rng);
+    d.y[i] = (d.Z[i] > 0) ? 1.0 : 0.0;
   }
   return d;
 }
@@ -184,13 +182,20 @@ void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr, int nu
 
   // Generate data
   RegressionDataset data = generate_constant_leaf_regression_data(n, p, rng);
-  double y_bar = data.y.mean();
-  double y_std = std::sqrt((data.y.array() - y_bar).square().sum() / (data.y.size() - 1));
-  Eigen::VectorXd resid_vec = (data.y.array() - y_bar) / y_std;  // standardize
+  double y_bar = std::accumulate(data.y.begin(), data.y.end(), 0.0) / data.y.size();
+  double y_std = 0;
+  for (int i = 0; i < n; i++) {
+    y_std += (data.y[i] - y_bar) * (data.y[i] - y_bar);
+  }
+  y_std = std::sqrt(y_std / n);
+  std::vector<double> resid_vec(data.y.size());
+  for (std::size_t i = 0; i < data.y.size(); i++) {
+    resid_vec[i] = (data.y[i] - y_bar) / y_std;
+  }
 
   // Initialize dataset and residual vector for sampler
   StochTree::ForestDataset dataset;
-  dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/true);
+  dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/false);
   StochTree::ColumnVector residual(resid_vec.data(), n);
 
   // Initialize global error variance model
@@ -205,7 +210,7 @@ void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr, int nu
   // Generate test data and build test dataset
   RegressionDataset test_data = generate_constant_leaf_regression_data(n_test, p, rng);
   StochTree::ForestDataset test_dataset;
-  test_dataset.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/true);
+  test_dataset.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/false);
 
   // Lambda function for reporting test-set RMSE and last draw of global error variance model
   auto report = [&](const std::vector<double>& preds, double global_variance) {
@@ -214,7 +219,7 @@ void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr, int nu
       double mu_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
         mu_hat += preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
-      double err = (mu_hat * y_std + y_bar) - test_data.y(i);
+      double err = (mu_hat * y_std + y_bar) - test_data.y[i];
       rmse_sum += err * err;
     }
     std::cout << "\nScenario 0 (Homoskedastic BART):\n"
@@ -242,13 +247,16 @@ void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr, int nu
 
   // Generate data
   ProbitDataset data = generate_probit_data(n, p, rng);
-  double y_bar = StochTree::norm_cdf(data.y.mean());
-  Eigen::VectorXd y_vec = data.y.array();
-  Eigen::VectorXd Z_vec = (data.y.array() - y_bar);
+  double y_bar = std::accumulate(data.y.begin(), data.y.end(), 0.0) / data.y.size();
+  std::vector<double> y_vec = data.y;
+  std::vector<double> Z_vec(n);
+  for (int i = 0; i < n; i++) {
+    Z_vec[i] = data.y[i] - y_bar;
+  }
 
   // Initialize dataset and residual vector for sampler
   StochTree::ForestDataset dataset;
-  dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/true);
+  dataset.AddCovariates(data.X.data(), n, p, /*row_major=*/false);
   StochTree::ColumnVector residual(Z_vec.data(), n);
 
   // Lambda function for probit data augmentation sampling step (after each forest sample)
@@ -260,7 +268,7 @@ void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr, int nu
   // Generate test data and build test dataset
   ProbitDataset test_data = generate_probit_data(n_test, p, rng);
   StochTree::ForestDataset test_dataset;
-  test_dataset.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/true);
+  test_dataset.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/false);
 
   // Lambda function for reporting test-set RMSE
   auto report = [&](const std::vector<double>& preds, double global_variance) {
@@ -269,7 +277,7 @@ void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr, int nu
       double mu_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
         mu_hat += preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
-      double err = (mu_hat + y_bar) - test_data.Z(i);
+      double err = (mu_hat + y_bar) - test_data.Z[i];
       rmse_sum += err * err;
     }
     std::cout << "\nScenario 1 (Probit BART):\n"
