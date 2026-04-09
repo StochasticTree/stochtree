@@ -420,7 +420,7 @@ class UnsortedNodeSampleTracker {
 
   /*! \brief Update SampleNodeMapper for all the observations in tree */
   void UpdateObservationMapping(Tree* tree, int tree_id, SampleNodeMapper* sample_node_mapper) {
-    std::vector<int> leaves = tree->GetLeaves();
+    std::vector<int> const& leaves = tree->GetLeaves();
     int leaf;
     for (int i = 0; i < leaves.size(); i++) {
       leaf = leaves[i];

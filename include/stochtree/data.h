@@ -119,7 +119,7 @@ static inline void FeatureUnpack(std::vector<int32_t>& categorical_variables, co
 static inline std::vector<int> Str2FeatureVec(const char* parameters) {
   std::vector<int> feature_vec;
   auto args = Common::Split(parameters, ",");
-  for (auto arg : args) {
+  for (const auto& arg : args) {
     FeatureUnpack(feature_vec, Common::Trim(arg).c_str());
   }
   return feature_vec;

@@ -13,7 +13,6 @@
 
 #include <Eigen/Dense>
 #include <random>
-#include <vector>
 
 namespace StochTree {
 
