@@ -152,7 +152,14 @@ void run_bart_sampler(int n, int p, int num_trees, int num_gfr, int num_mcmc,
 // ---- Scenario 0: homoskedastic constant-leaf BART -------------------
 
 void run_scenario_0(int n, int p, int num_trees, int num_gfr, int num_mcmc, int seed = 1234) {
-  std::mt19937 rng(seed);
+  int rng_seed;
+  if (seed == -1) {
+    std::random_device rd;
+    rng_seed = rd();
+  } else {
+    rng_seed = seed;
+  }
+  std::mt19937 rng(rng_seed);
 
   RegressionDataset data = generate_constant_leaf_regression_data(n, p, rng);
   double y_bar = data.y.mean();
@@ -191,7 +198,14 @@ void run_scenario_0(int n, int p, int num_trees, int num_gfr, int num_mcmc, int 
 // ---- Scenario 1: constant-leaf probit BART -------------------
 
 void run_scenario_1(int n, int p, int num_trees, int num_gfr, int num_mcmc, int seed = 1234) {
-  std::mt19937 rng(seed);
+  int rng_seed;
+  if (seed == -1) {
+    std::random_device rd;
+    rng_seed = rd();
+  } else {
+    rng_seed = seed;
+  }
+  std::mt19937 rng(rng_seed);
 
   ProbitDataset data = generate_probit_data(n, p, rng);
   double y_bar = StochTree::norm_cdf(data.y.mean());
@@ -205,7 +219,7 @@ void run_scenario_1(int n, int p, int num_trees, int num_gfr, int num_mcmc, int 
   // Data augmentation: sample latent Z given current forest predictions
   auto post_iter = [&](StochTree::ForestTracker& tracker, double&) {
     StochTree::sample_probit_latent_outcome(
-        rng, y_vec.data(), tracker.GetSumPredictions(), residual.GetData().data(), n);
+        rng, y_vec.data(), tracker.GetSumPredictions(), residual.GetData().data(), y_bar, n);
   };
 
   auto report = [&](const std::vector<double>& preds, double global_variance) {
@@ -232,7 +246,7 @@ int main(int argc, char** argv) {
   int n = 500;
   int p = 5;
   int num_trees = 200;
-  int num_gfr = 20;
+  int num_gfr = 10;
   int num_mcmc = 100;
   int seed = 1234;
 
@@ -254,22 +268,22 @@ int main(int argc, char** argv) {
         num_gfr = val;
       else if (arg == "--num_mcmc")
         num_mcmc = val;
-      else if (arg == "--num_mcmc")
+      else if (arg == "--seed")
         seed = val;
     } else {
       std::cerr << "Unknown or incomplete argument: " << arg << "\n"
                 << "Usage: bart_debug [--scenario N] [--n N] [--p N]"
-                   " [--num_trees N] [--num_gfr N] [--num_mcmc N]\n";
+                   " [--num_trees N] [--num_gfr N] [--num_mcmc N] [--seed N]\n";
       return 1;
     }
   }
 
   switch (scenario) {
     case 0:
-      run_scenario_0(n, p, num_trees, num_gfr, num_mcmc);
+      run_scenario_0(n, p, num_trees, num_gfr, num_mcmc, seed);
       break;
     case 1:
-      run_scenario_1(n, p, num_trees, num_gfr, num_mcmc);
+      run_scenario_1(n, p, num_trees, num_gfr, num_mcmc, seed);
       break;
     default:
       std::cerr << "Unknown scenario " << scenario

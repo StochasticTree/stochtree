@@ -9,20 +9,24 @@
 
 namespace StochTree {
 
-void sample_probit_latent_outcome(std::mt19937& gen, double* outcome, double* conditional_mean, double* latent_outcome, int n) {
+void sample_probit_latent_outcome(std::mt19937& gen, double* outcome, double* conditional_mean, double* partial_residual, double y_bar, int n) {
   double uniform_draw_std;
   double uniform_draw_trunc;
   double quantile;
+  double cond_mean;
+  double latent_outcome;
   for (int i = 0; i < n; i++) {
+    cond_mean = conditional_mean[i] + y_bar;
     uniform_draw_std = standard_uniform_draw_53bit(gen);
-    quantile = norm_cdf(0 - conditional_mean[i]);
+    quantile = norm_cdf(0 - cond_mean);
     if (outcome[i] == 1.0) {
       uniform_draw_trunc = quantile + uniform_draw_std * (1.0 - quantile);
-      latent_outcome[i] = norm_inv_cdf(uniform_draw_trunc) + conditional_mean[i];
+      latent_outcome = norm_inv_cdf(uniform_draw_trunc) + cond_mean;
     } else {
       uniform_draw_trunc = uniform_draw_std * quantile;
-      latent_outcome[i] = norm_inv_cdf(uniform_draw_trunc) + conditional_mean[i];
+      latent_outcome = norm_inv_cdf(uniform_draw_trunc) + cond_mean;
     }
+    partial_residual[i] = latent_outcome - cond_mean;
   }
 }
 
