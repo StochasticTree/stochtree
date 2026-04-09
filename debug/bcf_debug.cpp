@@ -1,7 +1,7 @@
 /*
  * BCF debug program
  *
- * Usage: bcf_debug [--scenario N] [--n N] [--p N] [--num_trees_mu N] [--num_trees_tau N]
+ * Usage: bcf_debug [--scenario N] [--n N] [--n_test N] [--p N] [--num_trees_mu N] [--num_trees_tau N]
  *                  [--num_gfr N] [--num_mcmc N] [--seed N]
  *
  *   0  Two-forest BCF: constant-leaf mu, univariate-leaf tau (Z as basis)
@@ -82,9 +82,11 @@ BCFDataset generate_data(int n, int p, std::mt19937& rng) {
 using PostIterFn = std::function<void(StochTree::ForestTracker&, double&)>;
 using BCFReportFn = std::function<void(const std::vector<double>&, const std::vector<double>&, double)>;
 
-void run_bcf_sampler(int n, int p, int num_trees_mu, int num_trees_tau, int num_gfr, int num_mcmc,
+void run_bcf_sampler(int n, int n_test, int p, int num_trees_mu, int num_trees_tau, int num_gfr, int num_mcmc,
                      StochTree::ForestDataset& dataset,
                      StochTree::ColumnVector& residual, std::mt19937& rng,
+                     StochTree::ForestDataset& test_dataset,
+                     StochTree::ForestDataset& test_dataset_cate,
                      PostIterFn post_iter, BCFReportFn report_results) {
   // Single-threaded with default cutpoint grid size (for now)
   constexpr int num_threads = 1;
@@ -181,13 +183,14 @@ void run_bcf_sampler(int n, int p, int num_trees_mu, int num_trees_tau, int num_
     post_iter(mu_tracker, global_variance);
   }
 
-  // Analyze posterior predictions (column-major, element [j*n + i] = sample j, obs i)
-  report_results(mu_samples.Predict(dataset), tau_samples.Predict(dataset), global_variance);
+  // Analyze posterior predictions (column-major, element [j*n_test + i] = sample j, obs i)
+  // tau uses test_dataset_cate (z=1 basis) so predictions == raw CATE estimates
+  report_results(mu_samples.Predict(test_dataset), tau_samples.Predict(test_dataset_cate), global_variance);
 }
 
 // ---- Scenario 0: constant-leaf mu + univariate-leaf tau (Z basis) ---
 
-void run_scenario_0(int n, int p, int num_trees_mu, int num_trees_tau, int num_gfr, int num_mcmc, int seed = 42) {
+void run_scenario_0(int n, int n_test, int p, int num_trees_mu, int num_trees_tau, int num_gfr, int num_mcmc, int seed = 42) {
   // Allow seed to be non-deterministic if set to sentinel value of -1
   int rng_seed;
   if (seed == -1) {
@@ -221,40 +224,52 @@ void run_scenario_0(int n, int p, int num_trees_mu, int num_trees_tau, int num_g
     global_variance = var_model.SampleVarianceParameter(residual.GetData(), a_sigma, b_sigma, rng);
   };
 
+  // Generate test data and build test datasets
+  BCFDataset test_data = generate_data(n_test, p, rng);
+  Eigen::VectorXd z_ones = Eigen::VectorXd::Ones(n_test);
+
+  // Test dataset: covariates + actual treatment z (for y prediction)
+  StochTree::ForestDataset test_dataset;
+  test_dataset.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/true);
+  test_dataset.AddBasis(test_data.z.data(), n_test, /*num_col=*/1, /*row_major=*/false);
+
+  // CATE dataset: covariates + z=1 so tau predictions == raw CATE estimates
+  StochTree::ForestDataset test_dataset_cate;
+  test_dataset_cate.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/true);
+  test_dataset_cate.AddBasis(z_ones.data(), n_test, /*num_col=*/1, /*row_major=*/false);
+
   // Lambda function for reporting mu/tau RMSE and last draw of global error variance
   auto report = [&](const std::vector<double>& mu_preds, const std::vector<double>& tau_preds,
                     double global_variance) {
     double mu_rmse_sum = 0.0, tau_rmse_sum = 0.0, y_rmse_sum = 0.0;
-    int n_treated = 0;
 
-    for (int i = 0; i < n; i++) {
-      double y_hat = 0.0;
+    for (int i = 0; i < n_test; i++) {
       double mu_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
-        mu_hat += mu_preds[static_cast<std::size_t>(j * n + i)] / num_mcmc;
-      mu_rmse_sum += (mu_hat * y_std + y_bar - data.mu_true(i)) * (mu_hat * y_std + y_bar - data.mu_true(i));
-      y_hat += mu_hat * y_std + y_bar;
+        mu_hat += mu_preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
+      mu_rmse_sum += (mu_hat * y_std + y_bar - test_data.mu_true(i)) * (mu_hat * y_std + y_bar - test_data.mu_true(i));
 
-      // For z=1: tau_preds = tau_hat * 1 = tau_hat, so we can evaluate CATE directly
-      double tau_hat = 0.0;
+      // tau_preds from test_dataset_cate (z=1 basis) => raw CATE estimates
+      double cate_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
-        tau_hat += tau_preds[static_cast<std::size_t>(j * n + i)] / num_mcmc;
-      tau_rmse_sum += (tau_hat * y_std - data.tau_true(i)) * (tau_hat * y_std - data.tau_true(i));
-      y_hat += tau_hat * data.z(i) * y_std;
-      y_rmse_sum += (y_hat - data.y(i)) * (y_hat - data.y(i));
+        cate_hat += tau_preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
+      tau_rmse_sum += (cate_hat * y_std - test_data.tau_true(i)) * (cate_hat * y_std - test_data.tau_true(i));
+
+      double y_hat = mu_hat * y_std + y_bar + cate_hat * test_data.z(i) * y_std;
+      y_rmse_sum += (y_hat - test_data.y(i)) * (y_hat - test_data.y(i));
     }
 
     std::cout << "\nScenario 0 (BCF: constant mu + univariate tau with Z basis):\n"
-              << "  mu RMSE:             " << std::sqrt(mu_rmse_sum / n) << "\n"
-              << "  tau RMSE (treated):  " << std::sqrt(tau_rmse_sum / n) << "\n"
-              << "  y RMSE:              " << std::sqrt(y_rmse_sum / n) << "\n"
+              << "  mu RMSE (test):      " << std::sqrt(mu_rmse_sum / n_test) << "\n"
+              << "  tau RMSE (test):     " << std::sqrt(tau_rmse_sum / n_test) << "\n"
+              << "  y RMSE (test):       " << std::sqrt(y_rmse_sum / n_test) << "\n"
               << "  sigma (last sample): " << std::sqrt(global_variance) * y_std << "\n"
               << "  sigma (truth):       0.5\n";
   };
 
   // Dispatch BCF sampler
-  run_bcf_sampler(n, p, num_trees_mu, num_trees_tau, num_gfr, num_mcmc, dataset, residual, rng,
-                  post_iter, report);
+  run_bcf_sampler(n, n_test, p, num_trees_mu, num_trees_tau, num_gfr, num_mcmc, dataset, residual, rng,
+                  test_dataset, test_dataset_cate, post_iter, report);
 }
 
 // ---- Main -----------------------------------------------------------
@@ -262,6 +277,7 @@ void run_scenario_0(int n, int p, int num_trees_mu, int num_trees_tau, int num_g
 int main(int argc, char** argv) {
   int scenario = 0;
   int n = 500;
+  int n_test = 100;
   int p = 5;
   int num_trees_mu = 200;
   int num_trees_tau = 50;
@@ -271,7 +287,7 @@ int main(int argc, char** argv) {
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
-    if ((arg == "--scenario" || arg == "--n" || arg == "--p" ||
+    if ((arg == "--scenario" || arg == "--n" || arg == "--n_test" || arg == "--p" ||
          arg == "--num_trees_mu" || arg == "--num_trees_tau" || arg == "--num_gfr" || arg == "--num_mcmc" || arg == "--seed") &&
         i + 1 < argc) {
       int val = std::stoi(argv[++i]);
@@ -279,6 +295,8 @@ int main(int argc, char** argv) {
         scenario = val;
       else if (arg == "--n")
         n = val;
+      else if (arg == "--n_test")
+        n_test = val;
       else if (arg == "--p")
         p = val;
       else if (arg == "--num_trees_mu")
@@ -293,7 +311,7 @@ int main(int argc, char** argv) {
         seed = val;
     } else {
       std::cerr << "Unknown or incomplete argument: " << arg << "\n"
-                << "Usage: bcf_debug [--scenario N] [--n N] [--p N]"
+                << "Usage: bcf_debug [--scenario N] [--n N] [--n_test N] [--p N]"
                    " [--num_trees_mu N] [--num_trees_tau N] [--num_gfr N] [--num_mcmc N] [--seed N]\n";
       return 1;
     }
@@ -301,7 +319,7 @@ int main(int argc, char** argv) {
 
   switch (scenario) {
     case 0:
-      run_scenario_0(n, p, num_trees_mu, num_trees_tau, num_gfr, num_mcmc, seed);
+      run_scenario_0(n, n_test, p, num_trees_mu, num_trees_tau, num_gfr, num_mcmc, seed);
       break;
     default:
       std::cerr << "Unknown scenario " << scenario

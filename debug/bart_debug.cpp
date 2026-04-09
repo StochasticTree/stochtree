@@ -1,11 +1,15 @@
 /*
  * BART debug program. The first CLI argument selects the scenario (default: 0).
  *
- * Usage: bart_debug [--scenario N] [--n N] [--p N] [--num_trees N]
+ * Usage: bart_debug [--scenario N] [--n N] [--n_test N] [--p N] [--num_trees N]
  *                   [--num_gfr N] [--num_mcmc N] [--seed N]
  *
  *   0  Homoskedastic constant-leaf BART
  *      DGP: y = sin(2*pi*x1) + 0.5*x2 - 1.5*x3 + eps, eps ~ N(0,1)
+ *
+ *   1  Homoskedastic constant-leaf probit BART
+ *      DGP: Z = sin(2*pi*x1) + 0.5*x2 - 1.5*x3 + eps, eps ~ N(0,1)
+ *           y = 1{Z > 0}
  *
  * Add scenarios here as the BARTSampler API develops (heteroskedastic,
  * random effects, multivariate leaf, etc.).
@@ -96,9 +100,10 @@ ProbitDataset generate_probit_data(int n, int p, std::mt19937& rng) {
 using PostIterFn = std::function<void(StochTree::ForestTracker&, double&)>;
 using ReportFn = std::function<void(const std::vector<double>&, double)>;
 
-void run_bart_sampler(int n, int p, int num_trees, int num_gfr, int num_mcmc,
+void run_bart_sampler(int n, int n_test, int p, int num_trees, int num_gfr, int num_mcmc,
                       StochTree::ForestDataset& dataset,
                       StochTree::ColumnVector& residual, std::mt19937& rng,
+                      StochTree::ForestDataset& test_dataset,
                       PostIterFn post_iter, ReportFn report_results) {
   // Single-threaded with default cutpoint grid size (for now)
   constexpr int num_threads = 1;
@@ -160,13 +165,13 @@ void run_bart_sampler(int n, int p, int num_trees, int num_gfr, int num_mcmc,
     post_iter(tracker, global_variance);
   }
 
-  // Analyze posterior predictions (column-major, element [j*n + i] = sample j, obs i)
-  report_results(forest_samples.Predict(dataset), global_variance);
+  // Analyze posterior predictions (column-major, element [j*n_test + i] = sample j, obs i)
+  report_results(forest_samples.Predict(test_dataset), global_variance);
 }
 
 // ---- Scenario 0: homoskedastic constant-leaf BART -------------------
 
-void run_scenario_0(int n, int p, int num_trees, int num_gfr, int num_mcmc, int seed = 1234) {
+void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr, int num_mcmc, int seed = 1234) {
   // Allow seed to be non-deterministic if set to sentinel value of -1
   int rng_seed;
   if (seed == -1) {
@@ -197,29 +202,34 @@ void run_scenario_0(int n, int p, int num_trees, int num_gfr, int num_mcmc, int 
     global_variance = var_model.SampleVarianceParameter(residual.GetData(), a_sigma, b_sigma, rng);
   };
 
-  // Lambda function for reporting RMSE and last draw of global error variance model
+  // Generate test data and build test dataset
+  RegressionDataset test_data = generate_constant_leaf_regression_data(n_test, p, rng);
+  StochTree::ForestDataset test_dataset;
+  test_dataset.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/true);
+
+  // Lambda function for reporting test-set RMSE and last draw of global error variance model
   auto report = [&](const std::vector<double>& preds, double global_variance) {
     double rmse_sum = 0.0;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n_test; i++) {
       double mu_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
-        mu_hat += preds[static_cast<std::size_t>(j * n + i)] / num_mcmc;
-      double err = (mu_hat * y_std + y_bar) - data.y(i);
+        mu_hat += preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
+      double err = (mu_hat * y_std + y_bar) - test_data.y(i);
       rmse_sum += err * err;
     }
     std::cout << "\nScenario 0 (Homoskedastic BART):\n"
-              << "  RMSE:                " << std::sqrt(rmse_sum / n) << "\n"
+              << "  RMSE (test):         " << std::sqrt(rmse_sum / n_test) << "\n"
               << "  sigma (last sample): " << std::sqrt(global_variance) * y_std << "\n"
               << "  sigma (truth):       1.0\n";
   };
 
   // Dispatch BART sampler
-  run_bart_sampler(n, p, num_trees, num_gfr, num_mcmc, dataset, residual, rng, post_iter, report);
+  run_bart_sampler(n, n_test, p, num_trees, num_gfr, num_mcmc, dataset, residual, rng, test_dataset, post_iter, report);
 }
 
 // ---- Scenario 1: constant-leaf probit BART -------------------
 
-void run_scenario_1(int n, int p, int num_trees, int num_gfr, int num_mcmc, int seed = 1234) {
+void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr, int num_mcmc, int seed = 1234) {
   // Allow seed to be non-deterministic if set to sentinel value of -1
   int rng_seed;
   if (seed == -1) {
@@ -247,23 +257,28 @@ void run_scenario_1(int n, int p, int num_trees, int num_gfr, int num_mcmc, int 
         rng, y_vec.data(), tracker.GetSumPredictions(), residual.GetData().data(), y_bar, n);
   };
 
-  // Lambda function for reporting RMSE
+  // Generate test data and build test dataset
+  ProbitDataset test_data = generate_probit_data(n_test, p, rng);
+  StochTree::ForestDataset test_dataset;
+  test_dataset.AddCovariates(test_data.X.data(), n_test, p, /*row_major=*/true);
+
+  // Lambda function for reporting test-set RMSE
   auto report = [&](const std::vector<double>& preds, double global_variance) {
     double rmse_sum = 0.0;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n_test; i++) {
       double mu_hat = 0.0;
       for (int j = 0; j < num_mcmc; j++)
-        mu_hat += preds[static_cast<std::size_t>(j * n + i)] / num_mcmc;
-      double err = (mu_hat + y_bar) - data.Z(i);
+        mu_hat += preds[static_cast<std::size_t>(j * n_test + i)] / num_mcmc;
+      double err = (mu_hat + y_bar) - test_data.Z(i);
       rmse_sum += err * err;
     }
     std::cout << "\nScenario 1 (Probit BART):\n"
-              << "  RMSE:                " << std::sqrt(rmse_sum / n) << "\n"
+              << "  RMSE (test):         " << std::sqrt(rmse_sum / n_test) << "\n"
               << "  sigma (truth):       1.0\n";
   };
 
   // Dispatch BART sampler
-  run_bart_sampler(n, p, num_trees, num_gfr, num_mcmc, dataset, residual, rng, post_iter, report);
+  run_bart_sampler(n, n_test, p, num_trees, num_gfr, num_mcmc, dataset, residual, rng, test_dataset, post_iter, report);
 }
 
 // ---- Main -----------------------------------------------------------
@@ -271,6 +286,7 @@ void run_scenario_1(int n, int p, int num_trees, int num_gfr, int num_mcmc, int 
 int main(int argc, char** argv) {
   int scenario = 1;
   int n = 500;
+  int n_test = 100;
   int p = 5;
   int num_trees = 200;
   int num_gfr = 10;
@@ -279,7 +295,7 @@ int main(int argc, char** argv) {
 
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
-    if ((arg == "--scenario" || arg == "--n" || arg == "--p" ||
+    if ((arg == "--scenario" || arg == "--n" || arg == "--n_test" || arg == "--p" ||
          arg == "--num_trees" || arg == "--num_gfr" || arg == "--num_mcmc" || arg == "--seed") &&
         i + 1 < argc) {
       int val = std::stoi(argv[++i]);
@@ -287,6 +303,8 @@ int main(int argc, char** argv) {
         scenario = val;
       else if (arg == "--n")
         n = val;
+      else if (arg == "--n_test")
+        n_test = val;
       else if (arg == "--p")
         p = val;
       else if (arg == "--num_trees")
@@ -299,7 +317,7 @@ int main(int argc, char** argv) {
         seed = val;
     } else {
       std::cerr << "Unknown or incomplete argument: " << arg << "\n"
-                << "Usage: bart_debug [--scenario N] [--n N] [--p N]"
+                << "Usage: bart_debug [--scenario N] [--n N] [--n_test N] [--p N]"
                    " [--num_trees N] [--num_gfr N] [--num_mcmc N] [--seed N]\n";
       return 1;
     }
@@ -307,10 +325,10 @@ int main(int argc, char** argv) {
 
   switch (scenario) {
     case 0:
-      run_scenario_0(n, p, num_trees, num_gfr, num_mcmc, seed);
+      run_scenario_0(n, n_test, p, num_trees, num_gfr, num_mcmc, seed);
       break;
     case 1:
-      run_scenario_1(n, p, num_trees, num_gfr, num_mcmc, seed);
+      run_scenario_1(n, n_test, p, num_trees, num_gfr, num_mcmc, seed);
       break;
     default:
       std::cerr << "Unknown scenario " << scenario
