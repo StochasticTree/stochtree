@@ -24,7 +24,7 @@
         "USE_DEBUG": "ON",
         "BUILD_DEBUG_TARGETS": "ON",
         "BUILD_TEST": "OFF",
-        "BUILD_PYTHON": "OFF",
+        "BUILD_PYTHON": "ON",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
     },
