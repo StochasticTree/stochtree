@@ -2,6 +2,7 @@
 #define STOCHTREE_DISTRIBUTIONS_H
 #include <numeric>
 #include <random>
+#include <boost/math/special_functions/erf.hpp>
 /*!
  * \brief A collection of random number generation utilities.
  *
@@ -11,6 +12,23 @@
  */
 
 namespace StochTree {
+
+/*!
+ * Standard normal cumulative distribution function, implemented via the complementary error function.
+ */
+inline double norm_cdf(double x) {
+  return 0.5 * boost::math::erfc(-x / std::sqrt(2.0));
+}
+
+/*!
+ * Standard normal quantile function (inverse CDF), implemented via the inverse complementary error function.
+ */
+inline double norm_inv_cdf(double p) {
+  return -std::sqrt(2.0) * boost::math::erfc_inv(2.0 * p);
+}
+
+/*! Precomputed standard normal CDF at 0 */
+static constexpr double Phi_0 = 0.5;
 
 /*!
  * Generate a standard uniform random variate to 53 bits of precision via two mersenne twisters, see:
@@ -323,6 +341,22 @@ inline int sample_discrete_stateless(std::mt19937& gen, std::vector<double>& wei
     }
   }
   return weights.size() - 1;
+}
+
+/*!
+ * Generate a single sample from a truncated standard normal distribution, bounded above by 0.
+ */
+inline double sample_std_truncnorm_upper(std::mt19937& gen) {
+  double uniform_draw = standard_uniform_draw_53bit(gen);
+  return norm_inv_cdf(uniform_draw * Phi_0);
+}
+
+/*!
+ * Generate a single sample from a truncated standard normal distribution, bounded below by 0.
+ */
+inline double sample_std_truncnorm_lower(std::mt19937& gen) {
+  double uniform_draw = standard_uniform_draw_53bit(gen);
+  return norm_inv_cdf(uniform_draw + (1 - uniform_draw) * Phi_0);
 }
 
 }  // namespace StochTree
