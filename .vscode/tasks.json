@@ -20,7 +20,7 @@
     {
       "label": "CMake: Build (dev)",
       "type": "shell",
-      "command": "cmake --build --preset dev",
+      "command": "cmake --preset dev && cmake --build --preset dev",
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": ["$gcc"],
       "presentation": { "reveal": "always", "panel": "shared" }
@@ -28,7 +28,7 @@
     {
       "label": "CMake: Build (dev-quick)",
       "type": "shell",
-      "command": "cmake --build --preset dev-quick",
+      "command": "cmake --preset dev-quick && cmake --build --preset dev-quick",
       "group": "build",
       "problemMatcher": ["$gcc"],
       "presentation": { "reveal": "always", "panel": "shared" }
@@ -36,7 +36,7 @@
     {
       "label": "CMake: Build (release)",
       "type": "shell",
-      "command": "cmake --build --preset release",
+      "command": "cmake --preset release && cmake --build --preset release",
       "group": "build",
       "problemMatcher": ["$gcc"],
       "presentation": { "reveal": "always", "panel": "shared" }
@@ -44,23 +44,23 @@
     {
       "label": "CMake: Build (sanitizer)",
       "type": "shell",
-      "command": "cmake --build --preset sanitizer",
+      "command": "cmake --preset sanitizer && cmake --build --preset sanitizer",
       "group": "build",
       "problemMatcher": ["$gcc"],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
     {
-      "label": "CTest: Run All",
+      "label": "Test: Run All",
       "type": "shell",
-      "command": "ctest --preset dev",
+      "command": "${workspaceFolder}/build/teststochtree",
       "group": { "kind": "test", "isDefault": true },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }
     },
     {
-      "label": "CTest: Run All (sanitizer)",
+      "label": "Test: Run All (sanitizer)",
       "type": "shell",
-      "command": "ctest --preset sanitizer",
+      "command": "${workspaceFolder}/build/teststochtree",
       "group": "test",
       "problemMatcher": [],
       "presentation": { "reveal": "always", "panel": "shared" }

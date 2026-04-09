@@ -178,27 +178,18 @@ endif()
 if(BUILD_TEST)
   include(FetchContent)
 
-  set(GTEST_SUBMODULE_DIR "${PROJECT_SOURCE_DIR}/deps/googletest")
-  if(EXISTS "${GTEST_SUBMODULE_DIR}/CMakeLists.txt")
-    # Use the local submodule — no network required.
-    # Initialize with: git submodule update --init deps/googletest
-    message(STATUS "GoogleTest: using local submodule at ${GTEST_SUBMODULE_DIR}")
-    FetchContent_Declare(
-      googletest
-      SOURCE_DIR "${GTEST_SUBMODULE_DIR}"
-    )
-  else()
-    # Fall back to GitHub fetch (CI, shallow clones, or submodule not initialized).
-    if (NOT DEFINED GOOGLETEST_GIT_REPO)
-      set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
-    endif()
-    message(STATUS "GoogleTest: fetching from ${GOOGLETEST_GIT_REPO}")
-    FetchContent_Declare(
-      googletest
-      GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
-      GIT_TAG        6910c9d9165801d8827d628cb72eb7ea9dd538c5 # release-1.16.0
-    )
+  # GoogleTest is fetched on first configure and cached in build/_deps/.
+  # Re-download is skipped automatically when FETCHCONTENT_UPDATES_DISCONNECTED=ON
+  # (set in the dev and sanitizer presets), so no submodule or internet access
+  # is needed after the initial cmake --preset dev.
+  if (NOT DEFINED GOOGLETEST_GIT_REPO)
+    set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
   endif()
+  FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
+    GIT_TAG        6910c9d9165801d8827d628cb72eb7ea9dd538c5 # release-1.16.0
+  )
   # For Windows: Prevent overriding the parent project's compiler/linker settings
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(googletest)
