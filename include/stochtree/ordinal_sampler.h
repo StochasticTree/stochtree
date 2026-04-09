@@ -18,24 +18,24 @@
 namespace StochTree {
 
 static double sample_truncated_exponential_low_high(double u, double rate, double low, double high) {
-    return -std::log((1-u)*std::exp(-rate*low) + u*std::exp(-rate*high))/rate;
+  return -std::log((1 - u) * std::exp(-rate * low) + u * std::exp(-rate * high)) / rate;
 }
 
 static double sample_truncated_exponential_low(double u, double rate, double low) {
-    return -std::log((1-u)*std::exp(-rate*low))/rate;
+  return -std::log((1 - u) * std::exp(-rate * low)) / rate;
 }
 
 static double sample_truncated_exponential_high(double u, double rate, double high) {
-    return -std::log1p(u*std::expm1(-high*rate))/rate;
+  return -std::log1p(u * std::expm1(-high * rate)) / rate;
 }
 
 static double sample_exponential(double u, double rate) {
-    return -std::log1p(-u)/rate;
+  return -std::log1p(-u) / rate;
 }
 
 /*!
  * \brief Sampler for ordinal model hyperparameters
- * 
+ *
  * This class handles MCMC sampling for ordinal-specific parameters:
  * - Truncated exponential latent variables (Z)
  * - Cutpoint parameters (gamma)
@@ -50,9 +50,9 @@ class OrdinalSampler {
 
   /*!
    * \brief Sample from truncated exponential distribution
-   * 
+   *
    * Samples from exponential distribution truncated to [low,high]
-   * 
+   *
    * \param gen Random number generator
    * \param rate Rate parameter for exponential distribution
    * \param low Lower truncation bound
@@ -63,7 +63,7 @@ class OrdinalSampler {
 
   /*!
    * \brief Update truncated exponential latent variables (Z)
-   * 
+   *
    * \param dataset Forest dataset containing training data (covariates) and auxiliary data needed for sampling
    * \param outcome Vector of outcome values
    * \param gen Random number generator
@@ -72,7 +72,7 @@ class OrdinalSampler {
 
   /*!
    * \brief Update gamma cutpoint parameters
-   * 
+   *
    * \param dataset Forest dataset containing training data (covariates) and auxiliary data needed for sampling
    * \param outcome Vector of outcome values
    * \param alpha_gamma Shape parameter for log-gamma prior on cutpoints gamma
@@ -80,13 +80,13 @@ class OrdinalSampler {
    * \param gamma_0 Fixed value for first cutpoint parameter (for identifiability)
    * \param gen Random number generator
    */
-  void UpdateGammaParams(ForestDataset& dataset, Eigen::VectorXd& outcome, 
-                         double alpha_gamma, double beta_gamma, 
+  void UpdateGammaParams(ForestDataset& dataset, Eigen::VectorXd& outcome,
+                         double alpha_gamma, double beta_gamma,
                          double gamma_0, std::mt19937& gen);
 
   /*!
    * \brief Update cumulative exponential sums (seg)
-   * 
+   *
    * \param dataset Forest dataset containing training data (covariates) and auxiliary data needed for sampling
    */
   void UpdateCumulativeExpSums(ForestDataset& dataset);
@@ -95,6 +95,6 @@ class OrdinalSampler {
   GammaSampler gamma_sampler_;
 };
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_ORDINAL_SAMPLER_H_
+#endif  // STOCHTREE_ORDINAL_SAMPLER_H_

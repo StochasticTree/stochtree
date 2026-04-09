@@ -36,29 +36,29 @@ class RandomEffectsTracker {
  public:
   RandomEffectsTracker(std::vector<int32_t>& group_indices);
   ~RandomEffectsTracker() {}
-  inline data_size_t GetCategoryId(int observation_num) {return sample_category_mapper_->GetCategoryId(observation_num);}
-  inline data_size_t CategoryBegin(int category_id) {return category_sample_tracker_->CategoryBegin(category_id);}
-  inline data_size_t CategoryEnd(int category_id) {return category_sample_tracker_->CategoryEnd(category_id);}
-  inline data_size_t CategorySize(int category_id) {return category_sample_tracker_->CategorySize(category_id);}
-  inline int32_t NumCategories() {return num_categories_;}
-  inline int32_t CategoryNumber(int32_t category_id) {return category_sample_tracker_->CategoryNumber(category_id);}
-  SampleCategoryMapper* GetSampleCategoryMapper() {return sample_category_mapper_.get();}
-  CategorySampleTracker* GetCategorySampleTracker() {return category_sample_tracker_.get();}
+  inline data_size_t GetCategoryId(int observation_num) { return sample_category_mapper_->GetCategoryId(observation_num); }
+  inline data_size_t CategoryBegin(int category_id) { return category_sample_tracker_->CategoryBegin(category_id); }
+  inline data_size_t CategoryEnd(int category_id) { return category_sample_tracker_->CategoryEnd(category_id); }
+  inline data_size_t CategorySize(int category_id) { return category_sample_tracker_->CategorySize(category_id); }
+  inline int32_t NumCategories() { return num_categories_; }
+  inline int32_t CategoryNumber(int32_t category_id) { return category_sample_tracker_->CategoryNumber(category_id); }
+  SampleCategoryMapper* GetSampleCategoryMapper() { return sample_category_mapper_.get(); }
+  CategorySampleTracker* GetCategorySampleTracker() { return category_sample_tracker_.get(); }
   std::vector<data_size_t>::iterator UnsortedNodeBeginIterator(int category_id);
   std::vector<data_size_t>::iterator UnsortedNodeEndIterator(int category_id);
-  std::map<int32_t, int32_t>& GetLabelMap() {return category_sample_tracker_->GetLabelMap();}
-  std::vector<int32_t>& GetUniqueGroupIds() {return category_sample_tracker_->GetUniqueGroupIds();}
-  std::vector<data_size_t>& NodeIndices(int category_id) {return category_sample_tracker_->NodeIndices(category_id);}
-  std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) {return category_sample_tracker_->NodeIndicesInternalIndex(internal_category_id);}
-  double GetPrediction(data_size_t observation_num) {return rfx_predictions_.at(observation_num);}
-  void SetPrediction(data_size_t observation_num, double pred) {rfx_predictions_.at(observation_num) = pred;}
+  std::map<int32_t, int32_t>& GetLabelMap() { return category_sample_tracker_->GetLabelMap(); }
+  std::vector<int32_t>& GetUniqueGroupIds() { return category_sample_tracker_->GetUniqueGroupIds(); }
+  std::vector<data_size_t>& NodeIndices(int category_id) { return category_sample_tracker_->NodeIndices(category_id); }
+  std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) { return category_sample_tracker_->NodeIndicesInternalIndex(internal_category_id); }
+  double GetPrediction(data_size_t observation_num) { return rfx_predictions_.at(observation_num); }
+  void SetPrediction(data_size_t observation_num, double pred) { rfx_predictions_.at(observation_num) = pred; }
   /*! \brief Resets RFX tracker based on a specific sample. Assumes tracker already exists in main memory. */
-  void ResetFromSample(MultivariateRegressionRandomEffectsModel& rfx_model, 
+  void ResetFromSample(MultivariateRegressionRandomEffectsModel& rfx_model,
                        RandomEffectsDataset& rfx_dataset, ColumnVector& residual);
-  /*! \brief Resets RFX tracker to initial default. Assumes tracker already exists in main memory. 
+  /*! \brief Resets RFX tracker to initial default. Assumes tracker already exists in main memory.
    *         Assumes that the initial "clean slate" prediction of a random effects model is 0.
    */
-  void RootReset(MultivariateRegressionRandomEffectsModel& rfx_model, 
+  void RootReset(MultivariateRegressionRandomEffectsModel& rfx_model,
                  RandomEffectsDataset& rfx_dataset, ColumnVector& residual);
 
  private:
@@ -113,11 +113,15 @@ class LabelMapper {
     this->Reset();
     this->from_json(rfx_label_mapper_json);
   }
-  std::vector<int32_t>& Keys() {return keys_;}
-  std::map<int32_t, int32_t>& Map() {return label_map_;}
-  void Reset() {label_map_.clear(); keys_.clear();}
+  std::vector<int32_t>& Keys() { return keys_; }
+  std::map<int32_t, int32_t>& Map() { return label_map_; }
+  void Reset() {
+    label_map_.clear();
+    keys_.clear();
+  }
   nlohmann::json to_json();
   void from_json(const nlohmann::json& rfx_label_mapper_json);
+
  private:
   std::map<int32_t, int32_t> label_map_;
   std::vector<int32_t> keys_;
@@ -140,7 +144,7 @@ class MultivariateRegressionRandomEffectsModel {
 
   /*! \brief Reconstruction from serialized model parameter samples */
   void ResetFromSample(RandomEffectsContainer& rfx_container, int sample_num);
-  
+
   /*! \brief Samplers */
   void SampleRandomEffects(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, std::mt19937& gen);
   void SampleWorkingParameter(RandomEffectsDataset& dataset, ColumnVector& residual, RandomEffectsTracker& tracker, double global_variance, std::mt19937& gen);
@@ -192,9 +196,9 @@ class MultivariateRegressionRandomEffectsModel {
   double GetVariancePriorScale() {
     return variance_prior_scale_;
   }
-  inline int32_t NumComponents() {return num_components_;}
-  inline int32_t NumGroups() {return num_groups_;}
-  
+  inline int32_t NumComponents() { return num_components_; }
+  inline int32_t NumGroups() { return num_groups_; }
+
   std::vector<double> Predict(RandomEffectsDataset& dataset, RandomEffectsTracker& tracker) {
     std::vector<double> output(dataset.NumObservations());
     PredictInplace(dataset, tracker, output);
@@ -266,7 +270,7 @@ class MultivariateRegressionRandomEffectsModel {
   /*! \brief Random effects structure details */
   int num_components_;
   int num_groups_;
-  
+
   /*! \brief Group mean parameters, decomposed into "working parameter" and individual parameters
    *  under the "redundant" parameterization of Gelman et al (2008)
    */
@@ -275,7 +279,7 @@ class MultivariateRegressionRandomEffectsModel {
 
   /*! \brief Variance components for the group parameters */
   Eigen::MatrixXd group_parameter_covariance_;
-  
+
   /*! \brief Variance components for the working parameter */
   Eigen::MatrixXd working_parameter_covariance_;
 
@@ -320,12 +324,12 @@ class RandomEffectsContainer {
   void AddSample(MultivariateRegressionRandomEffectsModel& model);
   void DeleteSample(int sample_num);
   void Predict(RandomEffectsDataset& dataset, LabelMapper& label_mapper, std::vector<double>& output);
-  inline int NumSamples() {return num_samples_;}
-  inline int NumComponents() {return num_components_;}
-  inline int NumGroups() {return num_groups_;}
-  inline void SetNumSamples(int num_samples) {num_samples_ = num_samples;}
-  inline void SetNumComponents(int num_components) {num_components_ = num_components;}
-  inline void SetNumGroups(int num_groups) {num_groups_ = num_groups;}
+  inline int NumSamples() { return num_samples_; }
+  inline int NumComponents() { return num_components_; }
+  inline int NumGroups() { return num_groups_; }
+  inline void SetNumSamples(int num_samples) { num_samples_ = num_samples; }
+  inline void SetNumComponents(int num_components) { num_components_ = num_components; }
+  inline void SetNumGroups(int num_groups) { num_groups_ = num_groups; }
   void Reset() {
     num_samples_ = 0;
     num_components_ = 0;
@@ -335,13 +339,14 @@ class RandomEffectsContainer {
     xi_.clear();
     sigma_xi_.clear();
   }
-  std::vector<double>& GetBeta() {return beta_;}
-  std::vector<double>& GetAlpha() {return alpha_;}
-  std::vector<double>& GetXi() {return xi_;}
-  std::vector<double>& GetSigma() {return sigma_xi_;}
+  std::vector<double>& GetBeta() { return beta_; }
+  std::vector<double>& GetAlpha() { return alpha_; }
+  std::vector<double>& GetXi() { return xi_; }
+  std::vector<double>& GetSigma() { return sigma_xi_; }
   nlohmann::json to_json();
   void from_json(const nlohmann::json& rfx_container_json);
   void append_from_json(const nlohmann::json& rfx_container_json);
+
  private:
   int num_samples_;
   int num_components_;
@@ -355,6 +360,6 @@ class RandomEffectsContainer {
   void AddSigma(MultivariateRegressionRandomEffectsModel& model);
 };
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_RANDOM_EFFECTS_H_
+#endif  // STOCHTREE_RANDOM_EFFECTS_H_

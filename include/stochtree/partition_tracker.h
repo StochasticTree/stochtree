@@ -1,25 +1,25 @@
 /*!
  * Copyright (c) 2024 stochtree authors.
- * 
+ *
  * Data structures used for tracking dataset through the tree building process.
- * 
+ *
  * The first category of data structure tracks observations available in nodes of a tree.
- *   a. UnsortedNodeSampleTracker tracks the observations available in every leaf of every tree in an ensemble, 
+ *   a. UnsortedNodeSampleTracker tracks the observations available in every leaf of every tree in an ensemble,
  *      in no feature-specific sort order. It is primarily designed for use in BART-based algorithms.
- *   b. SortedNodeSampleTracker tracks the observations available in a every leaf of a tree, pre-sorted 
+ *   b. SortedNodeSampleTracker tracks the observations available in a every leaf of a tree, pre-sorted
  *      separately for each feature. It is primarily designed for use in XBART-based algorithms.
- * 
+ *
  * The second category, SampleNodeMapper, maps observations from a dataset to leaf nodes.
- * 
- * SampleNodeMapper is inspired by the design of the DataPartition class in LightGBM, 
+ *
+ * SampleNodeMapper is inspired by the design of the DataPartition class in LightGBM,
  * released under the MIT license with the following copyright:
- * 
+ *
  * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for license information.
- * 
- * SortedNodeSampleTracker is inspired by the "approximate" split finding method in xgboost, released 
+ *
+ * SortedNodeSampleTracker is inspired by the "approximate" split finding method in xgboost, released
  * under the Apache license with the following copyright:
- * 
+ *
  * Copyright 2015~2023 by XGBoost Contributors
  */
 #ifndef STOCHTREE_PARTITION_TRACKER_H_
@@ -47,7 +47,7 @@ class ForestTracker {
  public:
   /*!
    * \brief Construct a new `ForestTracker` object
-   * 
+   *
    * \param covariates Matrix of covariate data
    * \param feature_types Type of each feature (column) in `covariates`. This is represented by the enum `StochTree::FeatureType`
    * \param num_trees Number of trees in an ensemble to be sampled
@@ -83,14 +83,15 @@ class ForestTracker {
   std::vector<data_size_t>::iterator UnsortedNodeEndIterator(int tree_id, int node_id);
   std::vector<data_size_t>::iterator SortedNodeBeginIterator(int node_id, int feature_id);
   std::vector<data_size_t>::iterator SortedNodeEndIterator(int node_id, int feature_id);
-  SamplePredMapper* GetSamplePredMapper() {return sample_pred_mapper_.get();}
-  SampleNodeMapper* GetSampleNodeMapper() {return sample_node_mapper_.get();}
-  UnsortedNodeSampleTracker* GetUnsortedNodeSampleTracker() {return unsorted_node_sample_tracker_.get();}
-  SortedNodeSampleTracker* GetSortedNodeSampleTracker() {return sorted_node_sample_tracker_.get();}
-  int GetNumObservations() {return num_observations_;}
-  int GetNumTrees() {return num_trees_;}
-  int GetNumFeatures() {return num_features_;}
-  bool Initialized() {return initialized_;}
+  SamplePredMapper* GetSamplePredMapper() { return sample_pred_mapper_.get(); }
+  SampleNodeMapper* GetSampleNodeMapper() { return sample_node_mapper_.get(); }
+  UnsortedNodeSampleTracker* GetUnsortedNodeSampleTracker() { return unsorted_node_sample_tracker_.get(); }
+  SortedNodeSampleTracker* GetSortedNodeSampleTracker() { return sorted_node_sample_tracker_.get(); }
+  int GetNumObservations() { return num_observations_; }
+  int GetNumTrees() { return num_trees_; }
+  int GetNumFeatures() { return num_features_; }
+  bool Initialized() { return initialized_; }
+
  private:
   /*! \brief Mapper from observations to predicted values summed over every tree in a forest */
   std::vector<double> sum_predictions_;
@@ -102,7 +103,7 @@ class ForestTracker {
    *  Primarily used in MCMC algorithms
    */
   std::unique_ptr<UnsortedNodeSampleTracker> unsorted_node_sample_tracker_;
-  /*! \brief Data structure tracking / updating observations available in each node for each feature (pre-sorted) for a given tree in a forest 
+  /*! \brief Data structure tracking / updating observations available in each node for each feature (pre-sorted) for a given tree in a forest
    *  Primarily used in GFR algorithms
    */
   std::unique_ptr<FeaturePresortRootContainer> presort_container_;
@@ -145,10 +146,10 @@ class SamplePredMapper {
     CHECK_LT(tree_id, num_trees_);
     tree_preds_[tree_id][sample_id] = value;
   }
-  
-  inline int NumTrees() {return num_trees_;}
-  
-  inline int NumObservations() {return num_observations_;}
+
+  inline int NumTrees() { return num_trees_; }
+
+  inline int NumObservations() { return num_observations_; }
 
   inline void AssignAllSamplesToConstantPrediction(int tree_id, double value) {
     for (data_size_t i = 0; i < num_observations_; i++) {
@@ -174,8 +175,8 @@ class SampleNodeMapper {
       tree_observation_indices_[j].resize(num_observations_);
     }
   }
-  
-  SampleNodeMapper(SampleNodeMapper& other){
+
+  SampleNodeMapper(SampleNodeMapper& other) {
     num_trees_ = other.NumTrees();
     num_observations_ = other.NumObservations();
     // Initialize the vector of vectors of leaf indices for each tree
@@ -214,10 +215,10 @@ class SampleNodeMapper {
     CHECK_LT(tree_id, num_trees_);
     tree_observation_indices_[tree_id][sample_id] = node_id;
   }
-  
-  inline int NumTrees() {return num_trees_;}
-  
-  inline int NumObservations() {return num_observations_;}
+
+  inline int NumTrees() { return num_trees_; }
+
+  inline int NumObservations() { return num_observations_; }
 
   inline void AssignAllSamplesToRoot(int tree_id) {
     for (data_size_t i = 0; i < num_observations_; i++) {
@@ -333,10 +334,11 @@ class UnsortedNodeSampleTracker {
   void PartitionTreeNode(Eigen::MatrixXd& covariates, int tree_id, int node_id, int left_node_id, int right_node_id, int feature_split, std::vector<std::uint32_t> const& category_list) {
     return feature_partitions_[tree_id]->PartitionNode(covariates, node_id, left_node_id, right_node_id, feature_split, category_list);
   }
-  
+
   /*! \brief Convert a tree to root */
   void ResetTreeToRoot(int tree_id, data_size_t n) {
-    feature_partitions_[tree_id].reset(new FeatureUnsortedPartition(n));;
+    feature_partitions_[tree_id].reset(new FeatureUnsortedPartition(n));
+    ;
   }
 
   /*! \brief Convert a (currently split) node to a leaf */
@@ -447,15 +449,15 @@ class NodeOffsetSize {
 
   ~NodeOffsetSize() {}
 
-  void SetSorted() {presorted_ = true;}
+  void SetSorted() { presorted_ = true; }
 
-  bool IsSorted() {return presorted_;}
+  bool IsSorted() { return presorted_; }
 
-  data_size_t Begin() {return node_begin_;}
+  data_size_t Begin() { return node_begin_; }
 
-  data_size_t End() {return node_end_;}
+  data_size_t End() { return node_end_; }
 
-  data_size_t Size() {return node_size_;}
+  data_size_t Size() { return node_size_; }
 
  private:
   data_size_t node_begin_;
@@ -468,16 +470,17 @@ class NodeOffsetSize {
 class FeaturePresortPartition;
 
 /*! \brief Data structure for presorting a feature by its values
- * 
- *  This class is intended to be run *once* on a dataset as it 
+ *
+ *  This class is intended to be run *once* on a dataset as it
  *  pre-sorts each feature across the entire dataset.
- *  
+ *
  *  FeaturePresortPartition is intended for use in recursive construction
- *  of new trees, and each new tree's FeaturePresortPartition is initialized 
+ *  of new trees, and each new tree's FeaturePresortPartition is initialized
  *  from a FeaturePresortRoot class so that features are only arg-sorted one time.
  */
 class FeaturePresortRoot {
- friend FeaturePresortPartition; 
+  friend FeaturePresortPartition;
+
  public:
   FeaturePresortRoot(Eigen::MatrixXd& covariates, int32_t feature_index, FeatureType feature_type) {
     feature_index_ = feature_index;
@@ -488,17 +491,17 @@ class FeaturePresortRoot {
 
   void ArgsortRoot(Eigen::MatrixXd& covariates) {
     data_size_t num_obs = covariates.rows();
-    
+
     // Make a vector of indices from 0 to num_obs - 1
-    if (feature_sort_indices_.size() != num_obs){
+    if (feature_sort_indices_.size() != num_obs) {
       feature_sort_indices_.resize(num_obs, 0);
     }
     std::iota(feature_sort_indices_.begin(), feature_sort_indices_.end(), 0);
 
     // Define a custom comparator to be used with stable_sort:
-    // For every two indices l and r store as elements of `data_sort_indices_`, 
+    // For every two indices l and r store as elements of `data_sort_indices_`,
     // compare them for sorting purposes by indexing the covariate's raw data with both l and r
-    auto comp_op = [&](size_t const &l, size_t const &r) { return std::less<double>{}(covariates(l, feature_index_), covariates(r, feature_index_)); };
+    auto comp_op = [&](size_t const& l, size_t const& r) { return std::less<double>{}(covariates(l, feature_index_), covariates(r, feature_index_)); };
     std::stable_sort(feature_sort_indices_.begin(), feature_sort_indices_.end(), comp_op);
   }
 
@@ -520,21 +523,21 @@ class FeaturePresortRootContainer {
 
   ~FeaturePresortRootContainer() {}
 
-  FeaturePresortRoot* GetFeaturePresort(int feature_num) {return feature_presort_[feature_num].get(); }
+  FeaturePresortRoot* GetFeaturePresort(int feature_num) { return feature_presort_[feature_num].get(); }
 
  private:
   std::vector<std::unique_ptr<FeaturePresortRoot>> feature_presort_;
   int num_features_;
 };
 
-/*! \brief Data structure that tracks pre-sorted feature values 
+/*! \brief Data structure that tracks pre-sorted feature values
  *  through a tree's split lifecycle
- * 
- *  This class is initialized from a FeaturePresortRoot which has computed the 
- *  sort indices for a given feature over the entire dataset, so that sorting 
+ *
+ *  This class is initialized from a FeaturePresortRoot which has computed the
+ *  sort indices for a given feature over the entire dataset, so that sorting
  *  is not necessary for each new tree.
- *  
- *  When a split is made, this class handles sifting for each feature, so that 
+ *
+ *  When a split is made, this class handles sifting for each feature, so that
  *  the presorted feature values available at each node are easily queried.
  */
 class FeaturePresortPartition {
@@ -563,28 +566,29 @@ class FeaturePresortPartition {
   void SplitFeatureCategorical(Eigen::MatrixXd& covariates, int32_t node_id, int32_t feature_index, std::vector<std::uint32_t> const& category_list);
 
   /*! \brief Start position of node indexed by node_id */
-  data_size_t NodeBegin(int32_t node_id) {return node_offset_sizes_[node_id].Begin();}
+  data_size_t NodeBegin(int32_t node_id) { return node_offset_sizes_[node_id].Begin(); }
 
   /*! \brief End position of node indexed by node_id */
-  data_size_t NodeEnd(int32_t node_id) {return node_offset_sizes_[node_id].End();}
+  data_size_t NodeEnd(int32_t node_id) { return node_offset_sizes_[node_id].End(); }
 
   /*! \brief Size (in observations) of node indexed by node_id */
-  data_size_t NodeSize(int32_t node_id) {return node_offset_sizes_[node_id].Size();}
+  data_size_t NodeSize(int32_t node_id) { return node_offset_sizes_[node_id].Size(); }
 
   /*! \brief Data indices for a given node */
   std::vector<data_size_t> NodeIndices(int node_id);
 
   /*! \brief Feature sort index j */
-  data_size_t SortIndex(data_size_t j) {return feature_sort_indices_[j];}
+  data_size_t SortIndex(data_size_t j) { return feature_sort_indices_[j]; }
 
   /*! \brief Feature type */
-  FeatureType GetFeatureType() {return feature_type_;}
+  FeatureType GetFeatureType() { return feature_type_; }
 
   /*! \brief Update SampleNodeMapper for all the observations in node_id */
   void UpdateObservationMapping(int node_id, int tree_id, SampleNodeMapper* sample_node_mapper);
 
   /*! \brief Feature sort indices */
   std::vector<data_size_t> feature_sort_indices_;
+
  private:
   /*! \brief Add left and right nodes */
   void AddLeftRightNodes(data_size_t left_node_begin, data_size_t left_node_size, data_size_t right_node_begin, data_size_t right_node_size);
@@ -663,7 +667,7 @@ class SortedNodeSampleTracker {
   }
 
   /*! \brief Feature sort index j for feature_index */
-  data_size_t SortIndex(data_size_t j, int feature_index) {return feature_partitions_[feature_index]->SortIndex(j); }
+  data_size_t SortIndex(data_size_t j, int feature_index) { return feature_partitions_[feature_index]->SortIndex(j); }
 
   /*! \brief Update SampleNodeMapper for all the observations in node_id */
   void UpdateObservationMapping(int node_id, int tree_id, SampleNodeMapper* sample_node_mapper, int feature_index = 0) {
@@ -675,6 +679,6 @@ class SortedNodeSampleTracker {
   int num_features_;
 };
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_PARTITION_TRACKER_H_
+#endif  // STOCHTREE_PARTITION_TRACKER_H_
