@@ -8,58 +8,63 @@
 #include <memory>
 #include <vector>
 #include "stochtree/container.h"
+#include "stochtree/meta.h"
 
 namespace StochTree {
 
 struct BARTData {
   // Train set covariates
-  double* X_train;
+  double* X_train = nullptr;
   int n_train = 0;
   int p = 0;
 
   // Test set covariates
-  double* X_test;
+  double* X_test = nullptr;
   int n_test = 0;
 
   // Train set outcome
-  double* y_train;
+  double* y_train = nullptr;
 
   // Basis for leaf regression
-  double* basis_train;
-  double* basis_test;
+  double* basis_train = nullptr;
+  double* basis_test = nullptr;
   int basis_dim = 0;
 
   // Observation weights
-  double* obs_weights_train;
-  double* obs_weights_test;
+  double* obs_weights_train = nullptr;
+  double* obs_weights_test = nullptr;
 
   // Random effects
-  int* rfx_group_ids_train;
-  int* rfx_group_ids_test;
-  double* rfx_basis_train;
-  double* rfx_basis_test;
+  int* rfx_group_ids_train = nullptr;
+  int* rfx_group_ids_test = nullptr;
+  double* rfx_basis_train = nullptr;
+  double* rfx_basis_test = nullptr;
   int rfx_num_groups = 0;
   int rfx_basis_dim = 0;
 };
 
 struct BARTConfig {
   // High level parameters
-  bool standardize_outcome = true;        // whether to standardize the outcome before fitting and unstandardize predictions after
-  int num_threads = 1;                    // number of threads to use for sampling
-  int cutpoint_grid_size = 100;           // number of cutpoints to consider for each covariate when sampling splits
-  std::vector<int> feature_types;         // feature types for each covariate (should be same length as number of covariates in the dataset), where 0 = continuous, 1 = categorical
-  std::vector<int> sweep_update_indices;  // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
+  bool standardize_outcome = true;         // whether to standardize the outcome before fitting and unstandardize predictions after
+  int num_threads = 1;                     // number of threads to use for sampling
+  int cutpoint_grid_size = 100;            // number of cutpoints to consider for each covariate when sampling splits
+  std::vector<FeatureType> feature_types;  // feature types for each covariate (should be same length as number of covariates in the dataset), where 0 = continuous, 1 = categorical
+  std::vector<int> sweep_update_indices;   // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
 
   // Global error variance parameters
-  double a_sigma2_global = 0.0;     // shape parameter for inverse gamma prior on global error variance
-  double b_sigma2_global = 0.0;     // scale parameter for inverse gamma prior on global error variance
-  double sigma2_global_init = 1.0;  // initial value for global error variance
+  double a_sigma2_global = 0.0;      // shape parameter for inverse gamma prior on global error variance
+  double b_sigma2_global = 0.0;      // scale parameter for inverse gamma prior on global error variance
+  double sigma2_global_init = 1.0;   // initial value for global error variance
+  bool probit = false;               // whether to use probit link (if true, global error variance is not sampled and latent outcomes are sampled instead)
+  int random_seed = -1;              // random seed for reproducibility (if negative, a random seed will be generated)
+  bool sample_sigma2_global = true;  // whether to sample global error variance (if false, it will be fixed at sigma2_global_init)
 
   // Mean forest parameters
   int num_trees_mean = 200;              // number of trees in the mean forest
   double alpha_mean = 0.95;              // alpha parameter for mean forest tree prior
   double beta_mean = 2.0;                // beta parameter for mean forest tree prior
   int min_samples_leaf_mean = 5;         // minimum number of samples per leaf for mean forest
+  int max_depth_mean = -1;               // maximum depth for mean forest trees (-1 means no maximum)
   bool leaf_constant_mean = true;        // whether to use constant leaf model for mean forest
   int leaf_dim_mean = 1;                 // dimension of the leaf for mean forest
   bool exponentiated_leaf_mean = false;  // whether to exponentiate leaf predictions for mean forest
@@ -68,12 +73,14 @@ struct BARTConfig {
   double b_sigma2_mean = -1.0;           // scale parameter for inverse gamma prior on mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
   double sigma2_mean_init = -1.0;        // initial value of mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
   std::vector<double> var_weights_mean;  // variable weights for mean forest splits (should be same length as number of covariates in the dataset)
+  bool sample_sigma2_leaf_mean = true;   // whether to sample mean forest leaf scale (if false, it will be fixed at sigma2_mean_init)
 
   // Variance forest parameters
   int num_trees_variance = 0;                // number of trees in the variance forest
   double alpha_variance = 0.5;               // alpha parameter for variance forest tree prior
   double beta_variance = 2.0;                // beta parameter for variance forest tree prior
   int min_samples_leaf_variance = 5;         // minimum number of samples per leaf for variance forest
+  int max_depth_variance = -1;               // maximum depth for variance forest trees (-1 means no maximum)
   bool leaf_constant_variance = true;        // whether to use constant leaf model for variance forest
   int leaf_dim_variance = 1;                 // dimension of the leaf for variance forest (should be 1 if leaf_constant_variance=true)
   bool exponentiated_leaf_variance = true;   // whether to exponentiate leaf predictions for variance forest
@@ -111,6 +118,13 @@ struct BARTSamples {
   std::unique_ptr<ForestContainer> variance_forests;
 
   // TODO: Pointer to random effects samples ...
+
+  // Metadata about the samples (e.g., number of samples, burn-in, etc.) could be added here as needed
+  int num_samples = 0;
+  int num_train = 0;
+  int num_test = 0;
+  double y_bar = 0.0;
+  double y_std = 0.0;
 };
 
 }  // namespace StochTree
