@@ -34,7 +34,7 @@ class BARTSampler {
   bool initialized_ = false;
 
   /*! Internal sample runner function */
-  void RunOneIteration(BARTSamples& samples, BARTConfig& config, BARTData& data, GaussianConstantLeafModel& leaf_model, std::mt19937& rng, bool gfr, bool keep_sample);
+  void RunOneIteration(BARTSamples& samples, BARTConfig& config, BARTData& data, GaussianConstantLeafModel* mean_leaf_model, LogLinearVarianceLeafModel* variance_leaf_model, std::mt19937& rng, bool gfr, bool keep_sample);
 
   /*! Mean forest state */
   std::unique_ptr<TreeEnsemble> mean_forest_;
