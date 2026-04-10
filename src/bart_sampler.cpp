@@ -187,17 +187,17 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BART
   if (has_variance_forest_) {
     if (gfr) {
       GFRSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
-          *mean_forest_, *mean_forest_tracker_, *samples.mean_forests, *variance_leaf_model,
-          *forest_dataset_, *residual_, *tree_prior_mean_, rng,
-          config.var_weights_mean, config.sweep_update_indices, global_variance_, config.feature_types,
+          *variance_forest_, *variance_forest_tracker_, *samples.variance_forests, *variance_leaf_model,
+          *forest_dataset_, *residual_, *tree_prior_variance_, rng,
+          config.var_weights_variance, config.sweep_update_indices, global_variance_, config.feature_types,
           config.cutpoint_grid_size, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/false,
           /*num_features_subsample=*/data.p, config.num_threads);
     } else {
       MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
-          *mean_forest_, *mean_forest_tracker_, *samples.mean_forests, *variance_leaf_model,
-          *forest_dataset_, *residual_, *tree_prior_mean_, rng,
-          config.var_weights_mean, config.sweep_update_indices, global_variance_, /*keep_forest=*/keep_sample,
+          *variance_forest_, *variance_forest_tracker_, *samples.variance_forests, *variance_leaf_model,
+          *forest_dataset_, *residual_, *tree_prior_variance_, rng,
+          config.var_weights_variance, config.sweep_update_indices, global_variance_, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/false,
           /*num_threads=*/config.num_threads);
     }
