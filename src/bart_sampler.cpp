@@ -1,10 +1,12 @@
 /*! Copyright (c) 2026 by stochtree authors */
 #include <stochtree/bart.h>
 #include <stochtree/bart_sampler.h>
+#include <stochtree/distributions.h>
 #include <stochtree/meta.h>
 #include <stochtree/probit.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
+#include <numeric>
 #include <random>
 
 namespace StochTree {
@@ -40,12 +42,18 @@ void BARTSampler::InitializeState(BARTSamples& samples, BARTConfig& config, BART
   }
 
   // Compute outcome location and scale for standardization
-  samples.y_bar = 0.0;
-  samples.y_std = 0.0;
-  for (int i = 0; i < data.n_train; i++) samples.y_bar += data.y_train[i];
-  samples.y_bar /= data.n_train;
-  for (int i = 0; i < data.n_train; i++) samples.y_std += (data.y_train[i] - samples.y_bar) * (data.y_train[i] - samples.y_bar);
-  samples.y_std = std::sqrt(samples.y_std / data.n_train);
+  if (config.probit) {
+    samples.y_std = 1.0;
+    double y_mean = std::accumulate(data.y_train, data.y_train + data.n_train, 0.0) / data.n_train;
+    samples.y_bar = norm_cdf(y_mean);
+  } else {
+    samples.y_bar = 0.0;
+    samples.y_std = 0.0;
+    for (int i = 0; i < data.n_train; i++) samples.y_bar += data.y_train[i];
+    samples.y_bar /= data.n_train;
+    for (int i = 0; i < data.n_train; i++) samples.y_std += (data.y_train[i] - samples.y_bar) * (data.y_train[i] - samples.y_bar);
+    samples.y_std = std::sqrt(samples.y_std / data.n_train);
+  }
 
   // Standardize partial residuals in place; these are updated in each iteration but initialized to standardized outcomes
   for (int i = 0; i < data.n_train; i++) residual_->GetData()[i] = (data.y_train[i] - samples.y_bar) / samples.y_std;
@@ -172,7 +180,9 @@ void BARTSampler::run_mcmc(BARTSamples& samples, BARTConfig& config, BARTData& d
         samples.mean_forest_predictions_train.insert(samples.mean_forest_predictions_train.end(),
                                                      mean_forest_tracker_->GetSumPredictions(), mean_forest_tracker_->GetSumPredictions() + samples.num_train);
         int num_samples = samples.mean_forests->NumSamples();
-        samples.mean_forests->GetEnsemble(num_samples - 1)->PredictInplace(*forest_dataset_test_, samples.mean_forest_predictions_test, (num_samples - 1) * samples.num_test);
+        std::vector<double> predictions = samples.mean_forests->GetEnsemble(num_samples - 1)->Predict(*forest_dataset_test_);
+        samples.mean_forest_predictions_test.insert(samples.mean_forest_predictions_test.end(),
+                                                    predictions.data(), predictions.data() + samples.num_test);
       }
     }
   }

@@ -88,17 +88,17 @@ static void report_bart(const StochTree::BARTSamples& samples,
   const int n_test = samples.num_test;
   double rmse_sum = 0.0;
   for (int i = 0; i < n_test; i++) {
-    double mu_hat = 0.0;
+    double y_hat = 0.0;
     for (int j = 0; j < num_samples; j++)
-      mu_hat += samples.mean_forest_predictions_test[static_cast<std::size_t>(j * n_test + i)] / num_samples;
-    double err = mu_hat - test_ref[i];
+      y_hat += samples.mean_forest_predictions_test[static_cast<std::size_t>(j * n_test + i)] / num_samples;
+    double err = (y_hat * samples.y_std + samples.y_bar) - test_ref[i];
     rmse_sum += err * err;
   }
   std::cout << "\n"
             << scenario_name << ":\n"
             << "  RMSE (test):   " << std::sqrt(rmse_sum / n_test) << "\n";
   if (!samples.global_error_variance_samples.empty()) {
-    std::cout << "  sigma (last):  " << std::sqrt(samples.global_error_variance_samples.back()) << "\n"
+    std::cout << "  sigma (last):  " << std::sqrt(samples.global_error_variance_samples.back()) * samples.y_std << "\n"
               << "  sigma (truth): 1.0\n";
   }
 }
@@ -123,7 +123,7 @@ static void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr,
   config.random_seed = seed;
   config.probit = false;
   config.standardize_outcome = true;
-  config.sample_sigma2_global = false;
+  config.sample_sigma2_global = true;
   config.var_weights_mean = std::vector<double>(p, 1.0 / p);
   config.feature_types = std::vector<StochTree::FeatureType>(p, StochTree::FeatureType::kNumeric);
   config.sweep_update_indices = std::vector<int>(num_trees, 0);
