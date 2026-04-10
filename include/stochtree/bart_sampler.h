@@ -23,10 +23,10 @@ class BARTSampler {
   BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data);
 
   // Main entry point for running the BART sampler, which dispatches to GFR warmup and MCMC sampling functions
-  void run_gfr(BARTSamples& samples, BARTConfig& config, BARTData& data, std::mt19937& rng, int num_gfr, bool keep_gfr);
+  void run_gfr(BARTSamples& samples, BARTConfig& config, BARTData& data, int num_gfr, bool keep_gfr);
 
   // Main entry point for running the BART sampler, which dispatches to GFR warmup and MCMC sampling functions
-  void run_mcmc(BARTSamples& samples, BARTConfig& config, BARTData& data, std::mt19937& rng, int num_burnin, int keep_every, int num_mcmc);
+  void run_mcmc(BARTSamples& samples, BARTConfig& config, BARTData& data, int num_burnin, int keep_every, int num_mcmc);
 
  private:
   /*! Initialize state variables */
@@ -34,7 +34,7 @@ class BARTSampler {
   bool initialized_ = false;
 
   /*! Internal sample runner function */
-  void RunOneIteration(BARTSamples& samples, BARTConfig& config, BARTData& data, GaussianConstantLeafModel* mean_leaf_model, LogLinearVarianceLeafModel* variance_leaf_model, std::mt19937& rng, bool gfr, bool keep_sample);
+  void RunOneIteration(BARTSamples& samples, BARTConfig& config, BARTData& data, GaussianConstantLeafModel* mean_leaf_model, LogLinearVarianceLeafModel* variance_leaf_model, bool gfr, bool keep_sample);
 
   /*! Mean forest state */
   std::unique_ptr<TreeEnsemble> mean_forest_;

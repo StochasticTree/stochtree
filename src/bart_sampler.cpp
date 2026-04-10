@@ -2,14 +2,13 @@
 #include <stochtree/bart.h>
 #include <stochtree/bart_sampler.h>
 #include <stochtree/distributions.h>
+#include <stochtree/leaf_model.h>
 #include <stochtree/meta.h>
 #include <stochtree/probit.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 #include <memory>
-#include <numeric>
 #include <random>
-#include "stochtree/leaf_model.h"
 
 namespace StochTree {
 
@@ -142,16 +141,16 @@ void BARTSampler::InitializeState(BARTSamples& samples, BARTConfig& config, BART
   initialized_ = true;
 }
 
-void BARTSampler::run_gfr(BARTSamples& samples, BARTConfig& config, BARTData& data, std::mt19937& rng, int num_gfr, bool keep_gfr) {
+void BARTSampler::run_gfr(BARTSamples& samples, BARTConfig& config, BARTData& data, int num_gfr, bool keep_gfr) {
   // TODO: dispatch correct leaf model and variance model based on config; currently hardcoded to Gaussian constant-leaf and homoskedastic variance
   std::unique_ptr<GaussianConstantLeafModel> mean_leaf_model_ptr = std::make_unique<GaussianConstantLeafModel>(leaf_scale_);
   std::unique_ptr<LogLinearVarianceLeafModel> variance_leaf_model_ptr = std::make_unique<LogLinearVarianceLeafModel>(config.shape_variance_forest, config.scale_variance_forest);
   for (int i = 0; i < num_gfr; i++) {
-    RunOneIteration(samples, config, data, mean_leaf_model_ptr.get(), variance_leaf_model_ptr.get(), rng, /*gfr=*/true, /*keep_sample=*/keep_gfr);
+    RunOneIteration(samples, config, data, mean_leaf_model_ptr.get(), variance_leaf_model_ptr.get(), /*gfr=*/true, /*keep_sample=*/keep_gfr);
   }
 }
 
-void BARTSampler::run_mcmc(BARTSamples& samples, BARTConfig& config, BARTData& data, std::mt19937& rng, int num_burnin, int keep_every, int num_mcmc) {
+void BARTSampler::run_mcmc(BARTSamples& samples, BARTConfig& config, BARTData& data, int num_burnin, int keep_every, int num_mcmc) {
   std::unique_ptr<GaussianConstantLeafModel> mean_leaf_model_ptr = std::make_unique<GaussianConstantLeafModel>(leaf_scale_);
   std::unique_ptr<LogLinearVarianceLeafModel> variance_leaf_model_ptr = std::make_unique<LogLinearVarianceLeafModel>(config.shape_variance_forest, config.scale_variance_forest);
   bool keep_forest = false;
@@ -160,16 +159,16 @@ void BARTSampler::run_mcmc(BARTSamples& samples, BARTConfig& config, BARTData& d
       keep_forest = true;
     else
       keep_forest = false;
-    RunOneIteration(samples, config, data, mean_leaf_model_ptr.get(), variance_leaf_model_ptr.get(), rng, /*gfr=*/false, /*keep_sample=*/keep_forest);
+    RunOneIteration(samples, config, data, mean_leaf_model_ptr.get(), variance_leaf_model_ptr.get(), /*gfr=*/false, /*keep_sample=*/keep_forest);
   }
 }
 
-void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BARTData& data, GaussianConstantLeafModel* mean_leaf_model, LogLinearVarianceLeafModel* variance_leaf_model, std::mt19937& rng, bool gfr, bool keep_sample) {
+void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BARTData& data, GaussianConstantLeafModel* mean_leaf_model, LogLinearVarianceLeafModel* variance_leaf_model, bool gfr, bool keep_sample) {
   if (has_mean_forest_) {
     if (gfr) {
       GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
           *mean_forest_, *mean_forest_tracker_, *samples.mean_forests, *mean_leaf_model,
-          *forest_dataset_, *residual_, *tree_prior_mean_, rng,
+          *forest_dataset_, *residual_, *tree_prior_mean_, rng_,
           config.var_weights_mean, config.sweep_update_indices, global_variance_, config.feature_types,
           config.cutpoint_grid_size, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/true,
@@ -177,7 +176,7 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BART
     } else {
       MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
           *mean_forest_, *mean_forest_tracker_, *samples.mean_forests, *mean_leaf_model,
-          *forest_dataset_, *residual_, *tree_prior_mean_, rng,
+          *forest_dataset_, *residual_, *tree_prior_mean_, rng_,
           config.var_weights_mean, config.sweep_update_indices, global_variance_, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/true,
           /*num_threads=*/config.num_threads);
@@ -188,7 +187,7 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BART
     if (gfr) {
       GFRSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
           *variance_forest_, *variance_forest_tracker_, *samples.variance_forests, *variance_leaf_model,
-          *forest_dataset_, *residual_, *tree_prior_variance_, rng,
+          *forest_dataset_, *residual_, *tree_prior_variance_, rng_,
           config.var_weights_variance, config.sweep_update_indices, global_variance_, config.feature_types,
           config.cutpoint_grid_size, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/false,
@@ -196,7 +195,7 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BART
     } else {
       MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
           *variance_forest_, *variance_forest_tracker_, *samples.variance_forests, *variance_leaf_model,
-          *forest_dataset_, *residual_, *tree_prior_variance_, rng,
+          *forest_dataset_, *residual_, *tree_prior_variance_, rng_,
           config.var_weights_variance, config.sweep_update_indices, global_variance_, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/false,
           /*num_threads=*/config.num_threads);
