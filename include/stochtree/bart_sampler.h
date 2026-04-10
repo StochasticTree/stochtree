@@ -9,11 +9,12 @@
 #include <stochtree/container.h>
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
+#include <stochtree/leaf_model.h>
 #include <stochtree/partition_tracker.h>
+#include <stochtree/prior.h>
 #include <stochtree/variance_model.h>
 #include <memory>
 #include <vector>
-#include "stochtree/prior.h"
 
 namespace StochTree {
 
@@ -31,6 +32,9 @@ class BARTSampler {
   /*! Initialize state variables */
   void InitializeState(BARTSamples& samples, BARTConfig& config, BARTData& data);
   bool initialized_ = false;
+
+  /*! Internal sample runner function */
+  void RunOneIteration(BARTSamples& samples, BARTConfig& config, BARTData& data, GaussianConstantLeafModel& leaf_model, std::mt19937& rng, bool gfr, bool keep_sample);
 
   /*! Mean forest state */
   std::unique_ptr<TreeEnsemble> mean_forest_;

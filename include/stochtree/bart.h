@@ -7,10 +7,22 @@
 
 #include <memory>
 #include <vector>
-#include "stochtree/container.h"
-#include "stochtree/meta.h"
+#include <stochtree/container.h>
+#include <stochtree/meta.h>
 
 namespace StochTree {
+
+enum class LinkFunction {
+  Identity,
+  Probit,
+  Cloglog
+};
+
+enum class OutcomeType {
+  Continuous,
+  Binary,
+  Ordinal
+};
 
 struct BARTData {
   // Train set covariates
@@ -45,18 +57,19 @@ struct BARTData {
 
 struct BARTConfig {
   // High level parameters
-  bool standardize_outcome = true;         // whether to standardize the outcome before fitting and unstandardize predictions after
-  int num_threads = 1;                     // number of threads to use for sampling
-  int cutpoint_grid_size = 100;            // number of cutpoints to consider for each covariate when sampling splits
-  std::vector<FeatureType> feature_types;  // feature types for each covariate (should be same length as number of covariates in the dataset), where 0 = continuous, 1 = categorical
-  std::vector<int> sweep_update_indices;   // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
+  bool standardize_outcome = true;                      // whether to standardize the outcome before fitting and unstandardize predictions after
+  int num_threads = 1;                                  // number of threads to use for sampling
+  int cutpoint_grid_size = 100;                         // number of cutpoints to consider for each covariate when sampling splits
+  std::vector<FeatureType> feature_types;               // feature types for each covariate (should be same length as number of covariates in the dataset), where 0 = continuous, 1 = categorical
+  std::vector<int> sweep_update_indices;                // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
+  LinkFunction link_function = LinkFunction::Identity;  // link function to use (Identity, Probit, Cloglog)
+  OutcomeType outcome_type = OutcomeType::Continuous;   // type of the outcome variable (Continuous, Binary, Ordinal)
+  int random_seed = -1;                                 // random seed for reproducibility (if negative, a random seed will be generated)
 
   // Global error variance parameters
   double a_sigma2_global = 0.0;      // shape parameter for inverse gamma prior on global error variance
   double b_sigma2_global = 0.0;      // scale parameter for inverse gamma prior on global error variance
   double sigma2_global_init = 1.0;   // initial value for global error variance
-  bool probit = false;               // whether to use probit link (if true, global error variance is not sampled and latent outcomes are sampled instead)
-  int random_seed = -1;              // random seed for reproducibility (if negative, a random seed will be generated)
   bool sample_sigma2_global = true;  // whether to sample global error variance (if false, it will be fixed at sigma2_global_init)
 
   // Mean forest parameters

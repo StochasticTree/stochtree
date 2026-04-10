@@ -121,7 +121,7 @@ static void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr,
   StochTree::BARTConfig config;
   config.num_trees_mean = num_trees;
   config.random_seed = seed;
-  config.probit = false;
+  config.link_function = StochTree::LinkFunction::Identity;
   config.standardize_outcome = true;
   config.sample_sigma2_global = true;
   config.var_weights_mean = std::vector<double>(p, 1.0 / p);
@@ -154,8 +154,7 @@ static void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr,
   StochTree::BARTConfig config;
   config.num_trees_mean = num_trees;
   config.random_seed = seed;
-  config.probit = true;
-  config.standardize_outcome = true;
+  config.link_function = StochTree::LinkFunction::Probit;
   config.sample_sigma2_global = false;
   config.var_weights_mean = std::vector<double>(p, 1.0 / p);
   config.feature_types = std::vector<StochTree::FeatureType>(p, StochTree::FeatureType::kNumeric);
