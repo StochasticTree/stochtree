@@ -55,7 +55,7 @@ cat(sprintf(
 # ---------------------------------------------------------------------------
 # Helper: run one configuration and return timing + RMSE
 # ---------------------------------------------------------------------------
-run_once <- function(run_cpp, seed) {
+run_once <- function(run_cpp, seed = -1) {
   t0 <- proc.time()
   m <- bart(
     X_train = X_train,

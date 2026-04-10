@@ -96,79 +96,88 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   output.num_features_subsample_variance = get_config_scalar_default<int>(config, "num_features_subsample_variance", 0);
 
   // Handle vector conversions separately
-  cpp11::sexp feature_type_sxp = config["feature_types"];
-  if (!Rf_isNull(feature_type_sxp)) {
-    cpp11::integers feature_types_r_vec(feature_type_sxp);
+  SEXP feature_type_raw = static_cast<SEXP>(config["feature_types"]);
+  if (!Rf_isNull(feature_type_raw)) {
+    cpp11::integers feature_types_r_vec(feature_type_raw);
     for (auto i : feature_types_r_vec) {
       output.feature_types.push_back(static_cast<StochTree::FeatureType>(i));
     }
   }
-  cpp11::sexp sweep_update_indices_sxp = config["sweep_update_indices"];
-  if (!Rf_isNull(sweep_update_indices_sxp)) {
-    cpp11::integers sweep_update_indices_r_vec(sweep_update_indices_sxp);
+  SEXP sweep_update_indices_raw = static_cast<SEXP>(config["sweep_update_indices"]);
+  if (!Rf_isNull(sweep_update_indices_raw)) {
+    cpp11::integers sweep_update_indices_r_vec(sweep_update_indices_raw);
     output.sweep_update_indices.assign(sweep_update_indices_r_vec.begin(), sweep_update_indices_r_vec.end());
   }
-  cpp11::sexp var_weights_mean_sxp = config["var_weights_mean"];
-  if (!Rf_isNull(var_weights_mean_sxp)) {
-    cpp11::doubles var_weights_mean_r_vec(var_weights_mean_sxp);
+  SEXP var_weights_mean_raw = static_cast<SEXP>(config["var_weights_mean"]);
+  if (!Rf_isNull(var_weights_mean_raw)) {
+    cpp11::doubles var_weights_mean_r_vec(var_weights_mean_raw);
     output.var_weights_mean.assign(var_weights_mean_r_vec.begin(), var_weights_mean_r_vec.end());
   }
-  cpp11::sexp var_weights_variance_sxp = config["var_weights_variance"];
-  if (!Rf_isNull(var_weights_variance_sxp)) {
-    cpp11::doubles var_weights_variance_r_vec(var_weights_variance_sxp);
+  SEXP var_weights_variance_raw = static_cast<SEXP>(config["var_weights_variance"]);
+  if (!Rf_isNull(var_weights_variance_raw)) {
+    cpp11::doubles var_weights_variance_r_vec(var_weights_variance_raw);
     output.var_weights_variance.assign(var_weights_variance_r_vec.begin(), var_weights_variance_r_vec.end());
   }
+  return output;
 }
 
 cpp11::writable::list convert_bart_results_to_list(StochTree::BARTSamples& bart_samples) {
   cpp11::writable::list output;
 
   // Pointers to forests
-  if (bart_samples.mean_forests.get() != nullptr) {
-    output["mean_forests"] = cpp11::external_pointer<StochTree::ForestContainer>(bart_samples.mean_forests.release());
-  } else {
-    output["mean_forests"] = R_NilValue;
-  }
+  SEXP mean_forests_sexp = (bart_samples.mean_forests.get() != nullptr)
+                               ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bart_samples.mean_forests.release()))
+                               : R_NilValue;
+  output.push_back(cpp11::named_arg("mean_forests") = mean_forests_sexp);
 
-  if (bart_samples.variance_forests.get() != nullptr) {
-    output["variance_forests"] = cpp11::external_pointer<StochTree::ForestContainer>(bart_samples.variance_forests.release());
-  } else {
-    output["variance_forests"] = R_NilValue;
-  }
+  SEXP variance_forests_sexp = (bart_samples.variance_forests.get() != nullptr)
+                                   ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bart_samples.variance_forests.release()))
+                                   : R_NilValue;
+  output.push_back(cpp11::named_arg("variance_forests") = variance_forests_sexp);
 
   // Predictions
-  if (!bart_samples.mean_forest_predictions_train.empty()) {
-    output["mean_forest_predictions_train"] = cpp11::writable::doubles(bart_samples.mean_forest_predictions_train);
-  } else {
-    output["mean_forest_predictions_train"] = R_NilValue;
-  }
-  if (!bart_samples.variance_forest_predictions_train.empty()) {
-    output["variance_forest_predictions_train"] = cpp11::writable::doubles(bart_samples.variance_forest_predictions_train);
-  } else {
-    output["variance_forest_predictions_train"] = R_NilValue;
-  }
-  if (!bart_samples.mean_forest_predictions_test.empty()) {
-    output["mean_forest_predictions_test"] = cpp11::writable::doubles(bart_samples.mean_forest_predictions_test);
-  } else {
-    output["mean_forest_predictions_test"] = R_NilValue;
-  }
-  if (!bart_samples.variance_forest_predictions_test.empty()) {
-    output["variance_forest_predictions_test"] = cpp11::writable::doubles(bart_samples.variance_forest_predictions_test);
-  } else {
-    output["variance_forest_predictions_test"] = R_NilValue;
-  }
+  SEXP mean_preds_train_sexp = !bart_samples.mean_forest_predictions_train.empty()
+                                   ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.mean_forest_predictions_train.begin(), bart_samples.mean_forest_predictions_train.end()))
+                                   : R_NilValue;
+  output.push_back(cpp11::named_arg("mean_forest_predictions_train") = mean_preds_train_sexp);
+
+  SEXP var_preds_train_sexp = !bart_samples.variance_forest_predictions_train.empty()
+                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.variance_forest_predictions_train.begin(), bart_samples.variance_forest_predictions_train.end()))
+                                  : R_NilValue;
+  output.push_back(cpp11::named_arg("variance_forest_predictions_train") = var_preds_train_sexp);
+
+  SEXP mean_preds_test_sexp = !bart_samples.mean_forest_predictions_test.empty()
+                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.mean_forest_predictions_test.begin(), bart_samples.mean_forest_predictions_test.end()))
+                                  : R_NilValue;
+  output.push_back(cpp11::named_arg("mean_forest_predictions_test") = mean_preds_test_sexp);
+
+  SEXP var_preds_test_sexp = !bart_samples.variance_forest_predictions_test.empty()
+                                 ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.variance_forest_predictions_test.begin(), bart_samples.variance_forest_predictions_test.end()))
+                                 : R_NilValue;
+  output.push_back(cpp11::named_arg("variance_forest_predictions_test") = var_preds_test_sexp);
 
   // Parameter samples
-  if (!bart_samples.global_error_variance_samples.empty()) {
-    output["global_error_variance_samples"] = cpp11::writable::doubles(bart_samples.global_error_variance_samples);
-  } else {
-    output["global_error_variance_samples"] = R_NilValue;
-  }
-  if (!bart_samples.leaf_scale_samples.empty()) {
-    output["leaf_scale_samples"] = cpp11::writable::doubles(bart_samples.leaf_scale_samples);
-  } else {
-    output["leaf_scale_samples"] = R_NilValue;
-  }
+  SEXP global_var_sexp = !bart_samples.global_error_variance_samples.empty()
+                             ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.global_error_variance_samples.begin(), bart_samples.global_error_variance_samples.end()))
+                             : R_NilValue;
+  output.push_back(cpp11::named_arg("global_error_variance_samples") = global_var_sexp);
+
+  SEXP leaf_scale_sexp = !bart_samples.leaf_scale_samples.empty()
+                             ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.leaf_scale_samples.begin(), bart_samples.leaf_scale_samples.end()))
+                             : R_NilValue;
+  output.push_back(cpp11::named_arg("leaf_scale_samples") = leaf_scale_sexp);
+
+  // Sample metadata
+  double y_bar_sexp = bart_samples.y_bar;
+  output.push_back(cpp11::named_arg("y_bar") = y_bar_sexp);
+  double y_std_sexp = bart_samples.y_std;
+  output.push_back(cpp11::named_arg("y_std") = y_std_sexp);
+  int num_samples_sexp = bart_samples.num_samples;
+  output.push_back(cpp11::named_arg("num_samples") = num_samples_sexp);
+  int num_train_sexp = bart_samples.num_train;
+  output.push_back(cpp11::named_arg("num_train") = num_train_sexp);
+  int num_test_sexp = bart_samples.num_test;
+  output.push_back(cpp11::named_arg("num_test") = num_test_sexp);
 
   return output;
 }
@@ -248,6 +257,5 @@ cpp11::writable::list bart_sample_cpp(
   // Unprotect protected R objects
   UNPROTECT(protect_count);
 
-  // Release management of the pointer to R session
   return convert_bart_results_to_list(results_raw);
 }

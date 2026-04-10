@@ -1136,7 +1136,7 @@ bart <- function(
       "leaf_dim_variance" = 1,
       "exponentiated_leaf_variance" = TRUE,
       "num_features_subsample_variance" = num_features_subsample_variance,
-      "feature_types" = feature_types,
+      "feature_types" = as.integer(feature_types),
       "sweep_update_indices" = 0:(ncol(X_train) - 1),
       "var_weights_mean" = variable_weights_mean,
       "var_weights_variance" = variable_weights_variance
@@ -1151,7 +1151,11 @@ bart <- function(
       p = ncol(X_train),
       basis_train = if (exists("leaf_basis_train")) leaf_basis_train else NULL,
       basis_test = if (exists("leaf_basis_test")) leaf_basis_test else NULL,
-      basis_dim = if (!is.null(leaf_basis_train)) ncol(leaf_basis_train) else 0L,
+      basis_dim = if (!is.null(leaf_basis_train)) {
+        ncol(leaf_basis_train)
+      } else {
+        0L
+      },
       obs_weights_train = if (exists("obs_weights_train")) {
         obs_weights_train
       } else {
@@ -1178,7 +1182,11 @@ bart <- function(
         NULL
       },
       rfx_basis_test = if (exists("rfx_basis_test")) rfx_basis_test else NULL,
-      rfx_num_groups = if (exists("num_rfx_groups")) as.integer(num_rfx_groups) else 0L,
+      rfx_num_groups = if (exists("num_rfx_groups")) {
+        as.integer(num_rfx_groups)
+      } else {
+        0L
+      },
       rfx_basis_dim = as.integer(num_basis_rfx),
       num_gfr = as.integer(num_gfr),
       num_burnin = as.integer(num_burnin),
@@ -1187,6 +1195,27 @@ bart <- function(
       config_input = bart_config
     )
     result <- bart_results
+    # TODO: store num_samples in the result list
+    if (!is.null(result['mean_forest_predictions_train'])) {
+      dim(result[['mean_forest_predictions_train']]) <- c(
+        result[["num_train"]],
+        result[["num_samples"]]
+      )
+      y_hat_train_raw <- result[["mean_forest_predictions_train"]]
+      result[["y_hat_train"]] <- y_hat_train_raw *
+        result[["y_std"]] +
+        result[["y_bar"]]
+    }
+    if (!is.null(result['mean_forest_predictions_test'])) {
+      dim(result[['mean_forest_predictions_test']]) <- c(
+        result[["num_test"]],
+        result[["num_samples"]]
+      )
+      y_hat_test_raw <- result[["mean_forest_predictions_test"]]
+      result[["y_hat_test"]] <- y_hat_test_raw *
+        result[["y_std"]] +
+        result[["y_bar"]]
+    }
     class(result) <- "bartmodel"
   } else {
     # Set a function-scoped RNG if user provided a random seed
