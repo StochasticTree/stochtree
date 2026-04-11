@@ -85,7 +85,7 @@ void BARTSampler::InitializeState(BARTSamples& samples, BARTConfig& config, BART
         config.sigma2_mean_init = y_var / config.num_trees_mean;
       }
     }
-    if (sample_sigma2_leaf_) {
+    if (config.sample_sigma2_leaf_mean) {
       if (config.b_sigma2_mean <= 0.0) {
         if (config.link_function == LinkFunction::Probit) {
           config.b_sigma2_mean = 1.0 / (2 * config.num_trees_mean);
