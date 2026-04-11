@@ -157,7 +157,7 @@ NULL
 #'   - `variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'   - `variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'
-#' @param run_cpp Whether or not to run the core C++ sampler. This is exposed as an argument for testing purposes, but in general should be left as `TRUE`. If `FALSE`, the function will run the previous version of the BART sampler in which the core loop logic was implemented in R, with C++ calls for most computationally intensive steps.
+#' @param run_cpp Whether or not to run the core C++ sampler. Default `FALSE`, but will eventually be set to `TRUE`.
 #'
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
@@ -206,7 +206,7 @@ bart <- function(
   mean_forest_params = list(),
   variance_forest_params = list(),
   random_effects_params = list(),
-  run_cpp = TRUE
+  run_cpp = FALSE
 ) {
   # Update general BART parameters
   general_params_default <- list(
