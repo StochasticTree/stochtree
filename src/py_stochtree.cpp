@@ -1,7 +1,10 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 #include <nlohmann/json.hpp>
+#include <stochtree/bart.h>
+#include <stochtree/bart_sampler.h>
 #include <stochtree/container.h>
 #include <stochtree/data.h>
 #include <stochtree/leaf_model.h>
@@ -248,6 +251,13 @@ class ForestContainerCpp {
   ForestContainerCpp(int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
     // Initialize pointer to C++ ForestContainer class
     forest_samples_ = std::make_unique<StochTree::ForestContainer>(num_trees, output_dimension, is_leaf_constant, is_exponentiated);
+    num_trees_ = num_trees;
+    output_dimension_ = output_dimension;
+    is_leaf_constant_ = is_leaf_constant;
+    is_exponentiated_ = is_exponentiated;
+  }
+  ForestContainerCpp(std::unique_ptr<StochTree::ForestContainer> forest_samples, int num_trees, int output_dimension = 1, bool is_leaf_constant = true, bool is_exponentiated = false) {
+    forest_samples_ = std::move(forest_samples);
     num_trees_ = num_trees;
     output_dimension_ = output_dimension;
     is_leaf_constant_ = is_leaf_constant;
@@ -2146,6 +2156,288 @@ class JsonCpp {
   std::unique_ptr<nlohmann::json> json_;
 };
 
+template <typename T>
+T get_config_scalar_default(py::dict& config_dict, const char* config_key, T default_value) {
+  return config_dict.contains(config_key) ? config_dict[config_key].cast<T>() : default_value;
+}
+
+inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
+  StochTree::BARTConfig output;
+  output.num_trees_mean = get_config_scalar_default(config_dict, "num_trees_mean", 200);
+  output.alpha_mean = get_config_scalar_default(config_dict, "alpha_mean", 0.95);
+  output.beta_mean = get_config_scalar_default(config_dict, "beta_mean", 2.0);
+
+  // Global model parameters
+  output.num_trees_mean = get_config_scalar_default<int>(config_dict, "num_trees_mean", 200);
+  output.standardize_outcome = get_config_scalar_default<bool>(config_dict, "standardize_outcome", true);
+  output.num_threads = get_config_scalar_default<int>(config_dict, "num_threads", 1);
+  output.cutpoint_grid_size = get_config_scalar_default<int>(config_dict, "cutpoint_grid_size", 100);
+  output.link_function = static_cast<StochTree::LinkFunction>(get_config_scalar_default<int>(config_dict, "link_function", 0));
+  output.outcome_type = static_cast<StochTree::OutcomeType>(get_config_scalar_default<int>(config_dict, "outcome_type", 0));
+  output.random_seed = get_config_scalar_default<int>(config_dict, "random_seed", 1);
+
+  // Global error variance parameters
+  output.a_sigma2_global = get_config_scalar_default<double>(config_dict, "a_sigma2_global", 0.0);
+  output.b_sigma2_global = get_config_scalar_default<double>(config_dict, "b_sigma2_global", 0.0);
+  output.sigma2_global_init = get_config_scalar_default<double>(config_dict, "sigma2_global_init", 1.0);
+  output.sample_sigma2_global = get_config_scalar_default<bool>(config_dict, "sample_sigma2_global", true);
+
+  // Mean forest parameters
+  output.num_trees_mean = get_config_scalar_default<int>(config_dict, "num_trees_mean", 200);
+  output.alpha_mean = get_config_scalar_default<double>(config_dict, "alpha_mean", 0.95);
+  output.beta_mean = get_config_scalar_default<double>(config_dict, "beta_mean", 2.0);
+  output.min_samples_leaf_mean = get_config_scalar_default<int>(config_dict, "min_samples_leaf_mean", 5);
+  output.max_depth_mean = get_config_scalar_default<int>(config_dict, "max_depth_mean", -1);
+  output.leaf_constant_mean = get_config_scalar_default<bool>(config_dict, "leaf_constant_mean", true);
+  output.leaf_dim_mean = get_config_scalar_default<int>(config_dict, "leaf_dim_mean", 1);
+  output.exponentiated_leaf_mean = get_config_scalar_default<bool>(config_dict, "exponentiated_leaf_mean", true);
+  output.num_features_subsample_mean = get_config_scalar_default<int>(config_dict, "num_features_subsample_mean", 0);
+  output.a_sigma2_mean = get_config_scalar_default<double>(config_dict, "a_sigma2_mean", 3.0);
+  output.b_sigma2_mean = get_config_scalar_default<double>(config_dict, "b_sigma2_mean", -1.0);
+  output.sigma2_mean_init = get_config_scalar_default<double>(config_dict, "sigma2_mean_init", -1.0);
+  output.sample_sigma2_leaf_mean = get_config_scalar_default<bool>(config_dict, "sample_sigma2_leaf_mean", false);
+
+  // Variance forest parameters
+  output.num_trees_variance = get_config_scalar_default<int>(config_dict, "num_trees_variance", 0);
+  output.leaf_prior_calibration_param = get_config_scalar_default<double>(config_dict, "leaf_prior_calibration_param", 1.5);
+  output.shape_variance_forest = get_config_scalar_default<double>(config_dict, "shape_variance_forest", -1.0);
+  output.scale_variance_forest = get_config_scalar_default<double>(config_dict, "scale_variance_forest", -1.0);
+  output.alpha_variance = get_config_scalar_default<double>(config_dict, "alpha_variance", 0.5);
+  output.beta_variance = get_config_scalar_default<double>(config_dict, "beta_variance", 2.0);
+  output.min_samples_leaf_variance = get_config_scalar_default<int>(config_dict, "min_samples_leaf_variance", 5);
+  output.max_depth_variance = get_config_scalar_default<int>(config_dict, "max_depth_variance", -1);
+  output.leaf_constant_variance = get_config_scalar_default<bool>(config_dict, "leaf_constant_variance", true);
+  output.leaf_dim_variance = get_config_scalar_default<int>(config_dict, "leaf_dim_variance", 1);
+  output.exponentiated_leaf_variance = get_config_scalar_default<bool>(config_dict, "exponentiated_leaf_variance", true);
+  output.num_features_subsample_variance = get_config_scalar_default<int>(config_dict, "num_features_subsample_variance", 0);
+
+  // Handle vector conversions separately
+  if (config_dict.contains("feature_types")) {
+    std::vector<int> feature_types_vector = config_dict["feature_types"].cast<std::vector<int>>();
+    for (auto item : feature_types_vector) {
+      output.feature_types.push_back(static_cast<StochTree::FeatureType>(item));
+    }
+  }
+  if (config_dict.contains("sweep_update_indices_mean")) {
+    output.sweep_update_indices_mean = config_dict["sweep_update_indices_mean"].cast<std::vector<int>>();
+  }
+  if (config_dict.contains("sweep_update_indices_variance")) {
+    output.sweep_update_indices_variance = config_dict["sweep_update_indices_variance"].cast<std::vector<int>>();
+  }
+  if (config_dict.contains("var_weights_mean")) {
+    output.var_weights_mean = config_dict["var_weights_mean"].cast<std::vector<double>>();
+  }
+  if (config_dict.contains("var_weights_variance")) {
+    output.var_weights_variance = config_dict["var_weights_variance"].cast<std::vector<double>>();
+  }
+  return output;
+}
+
+inline StochTree::BARTData convert_numpy_to_bart_data(
+    py::object X_train,
+    py::object y_train,
+    py::object X_test,
+    int n_train,
+    int n_test,
+    int p,
+    py::object basis_train,
+    py::object basis_test,
+    int basis_dim,
+    py::object obs_weights_train,
+    py::object obs_weights_test,
+    py::object rfx_group_ids_train,
+    py::object rfx_group_ids_test,
+    py::object rfx_basis_train,
+    py::object rfx_basis_test,
+    int rfx_num_groups,
+    int rfx_basis_dim) {
+  StochTree::BARTData output;
+  if (!X_train.is_none()) {
+    py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> X_train_array = X_train.cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.X_train = static_cast<double*>(X_train_array.mutable_data());
+  }
+  if (!y_train.is_none()) {
+    py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> y_train_array = y_train.cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.y_train = static_cast<double*>(y_train_array.mutable_data());
+  }
+  if (!X_test.is_none()) {
+    py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> X_test_array = X_test.cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.X_test = static_cast<double*>(X_test_array.mutable_data());
+  }
+  if (!basis_train.is_none()) {
+    py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> basis_train_array = basis_train.cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.basis_train = static_cast<double*>(basis_train_array.mutable_data());
+  }
+  if (!basis_test.is_none()) {
+    py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> basis_test_array = basis_test.cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.basis_test = static_cast<double*>(basis_test_array.mutable_data());
+  }
+  if (!obs_weights_train.is_none()) {
+    py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> obs_weights_train_array = obs_weights_train.cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.obs_weights_train = static_cast<double*>(obs_weights_train_array.mutable_data());
+  }
+  if (!obs_weights_test.is_none()) {
+    py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> obs_weights_test_array = obs_weights_test.cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.obs_weights_test = static_cast<double*>(obs_weights_test_array.mutable_data());
+  }
+  if (!rfx_group_ids_train.is_none()) {
+    py::array_t<int, pybind11::array::f_style | pybind11::array::forcecast> rfx_group_ids_train_array = rfx_group_ids_train.cast<py::array_t<int, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.rfx_group_ids_train = static_cast<int*>(rfx_group_ids_train_array.mutable_data());
+  }
+  if (!rfx_group_ids_test.is_none()) {
+    py::array_t<int, pybind11::array::f_style | pybind11::array::forcecast> rfx_group_ids_test_array = rfx_group_ids_test.cast<py::array_t<int, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.rfx_group_ids_test = static_cast<int*>(rfx_group_ids_test_array.mutable_data());
+  }
+  if (!rfx_basis_train.is_none()) {
+    py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> rfx_basis_train_array = rfx_basis_train.cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.rfx_basis_train = static_cast<double*>(rfx_basis_train_array.mutable_data());
+  }
+  if (!rfx_basis_test.is_none()) {
+    py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> rfx_basis_test_array = rfx_basis_test.cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    output.rfx_basis_test = static_cast<double*>(rfx_basis_test_array.mutable_data());
+  }
+  output.n_train = n_train;
+  output.n_test = n_test;
+  output.p = p;
+  output.basis_dim = basis_dim;
+  output.rfx_num_groups = rfx_num_groups;
+  output.rfx_basis_dim = rfx_basis_dim;
+  return output;
+}
+
+inline py::dict convert_bart_results_to_dict(
+    StochTree::BARTSamples& results_raw, StochTree::BARTConfig& config) {
+  py::dict output;
+
+  // Transfer ownership of mean forest pointers
+  if (results_raw.mean_forests != nullptr) {
+    output["mean_forests"] = py::cast(ForestContainerCpp(std::move(results_raw.mean_forests), config.num_trees_mean, config.leaf_dim_mean, config.leaf_constant_mean, config.exponentiated_leaf_mean));
+  } else {
+    output["mean_forests"] = py::none();
+  }
+
+  // Transfer ownership of variance forest pointers
+  if (results_raw.variance_forests != nullptr) {
+    output["variance_forests"] = py::cast(ForestContainerCpp(std::move(results_raw.variance_forests), config.num_trees_variance, config.leaf_dim_variance, config.leaf_constant_variance, config.exponentiated_leaf_variance));
+  } else {
+    output["variance_forests"] = py::none();
+  }
+
+  // Move parameter vector samples
+
+  // Train set mean forest predictions
+  if (results_raw.mean_forest_predictions_train.empty()) {
+    output["mean_forest_predictions_train"] = py::none();
+  } else {
+    auto input_vec = results_raw.mean_forest_predictions_train;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["mean_forest_predictions_train"] = array;
+  }
+
+  // Test set mean forest predictions
+  if (results_raw.mean_forest_predictions_test.empty()) {
+    output["mean_forest_predictions_test"] = py::none();
+  } else {
+    auto input_vec = results_raw.mean_forest_predictions_test;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["mean_forest_predictions_test"] = array;
+  }
+
+  // Train set variance forest predictions
+  if (results_raw.variance_forest_predictions_train.empty()) {
+    output["variance_forest_predictions_train"] = py::none();
+  } else {
+    auto input_vec = results_raw.variance_forest_predictions_train;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["variance_forest_predictions_train"] = array;
+  }
+
+  // Test set variance forest predictions
+  if (results_raw.variance_forest_predictions_test.empty()) {
+    output["variance_forest_predictions_test"] = py::none();
+  } else {
+    auto input_vec = results_raw.variance_forest_predictions_test;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["variance_forest_predictions_test"] = array;
+  }
+
+  // Global error variance samples
+  if (results_raw.global_error_variance_samples.empty()) {
+    output["global_error_variance_samples"] = py::none();
+  } else {
+    auto input_vec = results_raw.global_error_variance_samples;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["global_error_variance_samples"] = array;
+  }
+
+  // Leaf scale samples
+  if (results_raw.leaf_scale_samples.empty()) {
+    output["leaf_scale_samples"] = py::none();
+  } else {
+    auto input_vec = results_raw.leaf_scale_samples;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["leaf_scale_samples"] = array;
+  }
+
+  // Unpack scalars
+  output["y_bar"] = results_raw.y_bar;
+  output["y_std"] = results_raw.y_std;
+  output["num_samples"] = results_raw.num_samples;
+  output["num_train"] = results_raw.num_train;
+  output["num_test"] = results_raw.num_test;
+
+  return output;
+}
+
+py::dict bart_sample_cpp(
+    py::object X_train,
+    py::object y_train,
+    py::object X_test,
+    int n_train,
+    int n_test,
+    int p,
+    py::object basis_train,
+    py::object basis_test,
+    int basis_dim,
+    py::object obs_weights_train,
+    py::object obs_weights_test,
+    py::object rfx_group_ids_train,
+    py::object rfx_group_ids_test,
+    py::object rfx_basis_train,
+    py::object rfx_basis_test,
+    int rfx_num_groups,
+    int rfx_basis_dim,
+    int num_gfr,
+    int num_burnin,
+    int keep_every,
+    int num_mcmc,
+    py::dict config_input) {
+  // Convert config dict to BARTConfig struct
+  StochTree::BARTConfig bart_config = convert_dict_to_bart_config(config_input);
+
+  // Unpack pointers to input data to BARTData object
+  StochTree::BARTData bart_data = convert_numpy_to_bart_data(X_train, y_train, X_test, n_train, n_test, p, basis_train, basis_test, basis_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim);
+
+  // Create outcome object
+  StochTree::BARTSamples bart_results_raw = StochTree::BARTSamples();
+
+  // Initialize a BART sampler
+  StochTree::BARTSampler bart_sampler(bart_results_raw, bart_config, bart_data);
+
+  // Run the sampler
+  bart_sampler.run_gfr(bart_results_raw, bart_config, bart_data, num_gfr, true);
+  bart_sampler.run_mcmc(bart_results_raw, bart_config, bart_data, num_burnin, keep_every, num_mcmc);
+
+  // Convert results to Python dictionary
+  return convert_bart_results_to_dict(bart_results_raw, bart_config);
+}
+
 py::array_t<int> cppComputeForestContainerLeafIndices(ForestContainerCpp& forest_container, py::array_t<double>& covariates, py::array_t<int>& forest_nums) {
   // Wrap an Eigen Map around the raw data of the covariate matrix
   StochTree::data_size_t num_obs = covariates.shape(0);
@@ -2267,6 +2559,29 @@ void RandomEffectsTrackerCpp::RootReset(RandomEffectsModelCpp& rfx_model, Random
 PYBIND11_MODULE(stochtree_cpp, m) {
   m.def("cppComputeForestContainerLeafIndices", &cppComputeForestContainerLeafIndices, "Compute leaf indices of the forests in a forest container");
   m.def("cppComputeForestMaxLeafIndex", &cppComputeForestMaxLeafIndex, "Compute max leaf index of a forest in a forest container");
+  m.def("bart_sample_cpp", &bart_sample_cpp, "Run BART sampler in C++ implementation",
+        py::arg("X_train"),
+        py::arg("y_train"),
+        py::arg("X_test") = py::none(),
+        py::arg("n_train"),
+        py::arg("n_test"),
+        py::arg("p"),
+        py::arg("basis_train") = py::none(),
+        py::arg("basis_test") = py::none(),
+        py::arg("basis_dim"),
+        py::arg("obs_weights_train") = py::none(),
+        py::arg("obs_weights_test") = py::none(),
+        py::arg("rfx_group_ids_train") = py::none(),
+        py::arg("rfx_group_ids_test") = py::none(),
+        py::arg("rfx_basis_train") = py::none(),
+        py::arg("rfx_basis_test") = py::none(),
+        py::arg("rfx_num_groups"),
+        py::arg("rfx_basis_dim"),
+        py::arg("num_gfr"),
+        py::arg("num_burnin"),
+        py::arg("keep_every"),
+        py::arg("num_mcmc"),
+        py::arg("config_input"));
 
   py::class_<JsonCpp>(m, "JsonCpp")
       .def(py::init<>())
@@ -2537,6 +2852,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("UpdateLatentVariables", &OrdinalSamplerCpp::UpdateLatentVariables)
       .def("UpdateGammaParams", &OrdinalSamplerCpp::UpdateGammaParams)
       .def("UpdateCumulativeExpSums", &OrdinalSamplerCpp::UpdateCumulativeExpSums);
+  ;
 
 #ifdef VERSION_INFO
   m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

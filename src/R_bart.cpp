@@ -211,7 +211,7 @@ cpp11::writable::list bart_sample_cpp(
     int keep_every,
     int num_mcmc,
     cpp11::list config_input) {
-  // Create smart pointer to outcome object
+  // Create outcome object
   StochTree::BARTSamples results_raw = StochTree::BARTSamples();
 
   // Extract pointers to raw data
