@@ -1098,6 +1098,7 @@ class BARTModel:
                     rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
 
         if run_cpp:
+          # Arrange all config in a large python dictionary
           bart_config = {
               "standardize_outcome": self.standardize,
               "num_threads": num_threads,
@@ -1141,15 +1142,31 @@ class BARTModel:
               "var_weights_variance": variable_weights_variance
           }
 
+          # Remove None values from config (alternative is to check for Nones on the C++ side when unpacking into non-optional types)
+          bart_config = {k: v for k, v in bart_config.items() if v is not None}
+
+          # Convert arrays to F-contiguous (column-major) before calling C++.
+          # convert_numpy_to_bart_data stores raw pointers into these arrays; if
+          # pybind11 has to make an F-contiguous copy (because the input is C-order)
+          # that copy is destroyed when the helper returns, leaving a dangling pointer.
+          # Passing already-F-contiguous arrays causes pybind11 to return a view of
+          # the original, which remains alive in this Python scope.
+          X_train_cpp = np.asfortranarray(X_train_processed)
+          y_train_cpp = np.asfortranarray(y_train)
+          X_test_cpp = np.asfortranarray(X_test_processed) if self.has_test else None
+          basis_train_cpp = np.asfortranarray(leaf_basis_train) if self.has_basis else None
+          basis_test_cpp = np.asfortranarray(leaf_basis_test) if self.has_basis and self.has_test else None
+
+          # Run the BART sampler from C++
           bart_results = bart_sample_cpp(
-              X_train = X_train_processed,
-              y_train = y_train,
-              X_test = X_test_processed if self.has_test else None,
-              n_train = X_train_processed.shape[0],
-              n_test = X_test_processed.shape[0] if self.has_test else 0,
-              p = X_train_processed.shape[1],
-              basis_train = leaf_basis_train if self.has_basis else None,
-              basis_test = leaf_basis_test if self.has_basis and self.has_test else None,
+              X_train = X_train_cpp,
+              y_train = y_train_cpp,
+              X_test = X_test_cpp,
+              n_train = X_train_cpp.shape[0],
+              n_test = X_test_cpp.shape[0] if self.has_test else 0,
+              p = X_train_cpp.shape[1],
+              basis_train = basis_train_cpp,
+              basis_test = basis_test_cpp,
               basis_dim = self.num_basis if self.has_basis else 0,
               obs_weights_train = observation_weights if observation_weights is not None else None,
               obs_weights_test = None,
@@ -1166,31 +1183,37 @@ class BARTModel:
               config_input = bart_config
           )
 
-          self.forest_container_mean = ForestContainer(num_trees=num_trees_mean, num_samples=num_mcmc, num_burnin=num_burnin, keep_every=keep_every)
-          self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
+          # Unpack mean forest results
           if self.include_variance_forest:
-              self.forest_container_variance = ForestContainer(num_trees=num_trees_variance, num_samples=num_mcmc, num_burnin=num_burnin, keep_every=keep_every)
-              self.forest_container_variance.forest_container_cpp = bart_results["forest_container_variance"]
+            self.forest_container_mean = ForestContainer(num_trees=num_trees_mean, num_samples=num_mcmc, num_burnin=num_burnin, keep_every=keep_every)
+            self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
+            mean_forest_preds_train = bart_results["mean_forest_predictions_train"]
+            mean_forest_preds_train.reshape(self.n_train, bart_results["num_samples"], order="F")
+            self.y_hat_train = mean_forest_preds_train * self.y_std + self.y_bar
+            if self.has_test:
+              mean_forest_preds_test = bart_results["mean_forest_predictions_test"]
+              mean_forest_preds_test.reshape(self.n_test, bart_results["num_samples"], order="F")
+              self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
+          
+          # Unpack variance forest results
+          if self.include_variance_forest:
+            self.forest_container_variance = ForestContainer(num_trees=num_trees_variance, num_samples=num_mcmc, num_burnin=num_burnin, keep_every=keep_every)
+            self.forest_container_variance.forest_container_cpp = bart_results["forest_container_variance"]
+            variance_forest_preds_train = bart_results["variance_forest_predictions_train"]
+            variance_forest_preds_train.reshape(self.n_train, bart_results["num_samples"], order="F")
+            self.variance_forest_preds_train = variance_forest_preds_train * self.y_std * self.y_std
+            if self.has_test:
+                variance_forest_preds_test = bart_results["variance_forest_predictions_test"]
+                variance_forest_preds_test.reshape(self.n_test, bart_results["num_samples"], order="F")
+                self.variance_forest_preds_test = variance_forest_preds_test * self.y_std * self.y_std
+
+          # Unpack parameter samples
           if sample_sigma2_global:
               self.global_var_samples = bart_results["global_var_samples"] * self.y_std * self.y_std
           if sample_sigma2_leaf:
               self.leaf_scale_samples = bart_results["leaf_scale_samples"]
-          mean_forest_preds_train = bart_results["mean_forest_predictions_train"]
-          mean_forest_preds_train.reshape(self.n_train, bart_results["num_samples"], order="F")
-          self.y_hat_train = mean_forest_preds_train * self.y_std + self.y_bar
-          if self.has_test:
-              mean_forest_preds_test = bart_results["mean_forest_predictions_test"]
-              mean_forest_preds_test.reshape(self.n_test, bart_results["num_samples"], order="F")
-              self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
-          if self.include_variance_forest:
-              variance_forest_preds_train = bart_results["variance_forest_predictions_train"]
-              variance_forest_preds_train.reshape(self.n_train, bart_results["num_samples"], order="F")
-              self.variance_forest_preds_train = variance_forest_preds_train * self.y_std * self.y_std
-              if self.has_test:
-                  variance_forest_preds_test = bart_results["variance_forest_predictions_test"]
-                  variance_forest_preds_test.reshape(self.n_test, bart_results["num_samples"], order="F")
-                  self.variance_forest_preds_test = variance_forest_preds_test * self.y_std * self.y_std
           
+          # Unpack other model metadata
           self.num_samples = bart_results["num_samples"]
           self.sampled = True
           
