@@ -61,7 +61,6 @@ struct BARTConfig {
   int num_threads = 1;                                  // number of threads to use for sampling
   int cutpoint_grid_size = 100;                         // number of cutpoints to consider for each covariate when sampling splits
   std::vector<FeatureType> feature_types;               // feature types for each covariate (should be same length as number of covariates in the dataset), where 0 = continuous, 1 = categorical
-  std::vector<int> sweep_update_indices;                // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
   LinkFunction link_function = LinkFunction::Identity;  // link function to use (Identity, Probit, Cloglog)
   OutcomeType outcome_type = OutcomeType::Continuous;   // type of the outcome variable (Continuous, Binary, Ordinal)
   int random_seed = -1;                                 // random seed for reproducibility (if negative, a random seed will be generated)
@@ -73,35 +72,37 @@ struct BARTConfig {
   bool sample_sigma2_global = true;  // whether to sample global error variance (if false, it will be fixed at sigma2_global_init)
 
   // Mean forest parameters
-  int num_trees_mean = 200;              // number of trees in the mean forest
-  double alpha_mean = 0.95;              // alpha parameter for mean forest tree prior
-  double beta_mean = 2.0;                // beta parameter for mean forest tree prior
-  int min_samples_leaf_mean = 5;         // minimum number of samples per leaf for mean forest
-  int max_depth_mean = -1;               // maximum depth for mean forest trees (-1 means no maximum)
-  bool leaf_constant_mean = true;        // whether to use constant leaf model for mean forest
-  int leaf_dim_mean = 1;                 // dimension of the leaf for mean forest
-  bool exponentiated_leaf_mean = false;  // whether to exponentiate leaf predictions for mean forest
-  int num_features_subsample_mean = 0;   // number of features to subsample for each mean forest split (0 means no subsampling)
-  double a_sigma2_mean = 3.0;            // shape parameter for inverse gamma prior on mean forest leaf scale
-  double b_sigma2_mean = -1.0;           // scale parameter for inverse gamma prior on mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
-  double sigma2_mean_init = -1.0;        // initial value of mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
-  std::vector<double> var_weights_mean;  // variable weights for mean forest splits (should be same length as number of covariates in the dataset)
-  bool sample_sigma2_leaf_mean = false;  // whether to sample mean forest leaf scale (if false, it will be fixed at sigma2_mean_init)
+  int num_trees_mean = 200;                    // number of trees in the mean forest
+  double alpha_mean = 0.95;                    // alpha parameter for mean forest tree prior
+  double beta_mean = 2.0;                      // beta parameter for mean forest tree prior
+  int min_samples_leaf_mean = 5;               // minimum number of samples per leaf for mean forest
+  int max_depth_mean = -1;                     // maximum depth for mean forest trees (-1 means no maximum)
+  bool leaf_constant_mean = true;              // whether to use constant leaf model for mean forest
+  int leaf_dim_mean = 1;                       // dimension of the leaf for mean forest
+  bool exponentiated_leaf_mean = false;        // whether to exponentiate leaf predictions for mean forest
+  int num_features_subsample_mean = 0;         // number of features to subsample for each mean forest split (0 means no subsampling)
+  double a_sigma2_mean = 3.0;                  // shape parameter for inverse gamma prior on mean forest leaf scale
+  double b_sigma2_mean = -1.0;                 // scale parameter for inverse gamma prior on mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
+  double sigma2_mean_init = -1.0;              // initial value of mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
+  std::vector<double> var_weights_mean;        // variable weights for mean forest splits (should be same length as number of covariates in the dataset)
+  bool sample_sigma2_leaf_mean = false;        // whether to sample mean forest leaf scale (if false, it will be fixed at sigma2_mean_init)
+  std::vector<int> sweep_update_indices_mean;  // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
 
   // Variance forest parameters
-  int num_trees_variance = 0;                 // number of trees in the variance forest
-  double leaf_prior_calibration_param = 1.5;  // calibration parameter for variance forest leaf prior
-  double shape_variance_forest = -1.0;        // shape parameter for variance forest leaf model (calibrated internally based on leaf_prior_calibration_param if set to sentinel value of -1)
-  double scale_variance_forest = -1.0;        // scale parameter for variance forest leaf model (calibrated internally based on leaf_prior_calibration_param if set to sentinel value of -1)
-  double alpha_variance = 0.5;                // alpha parameter for variance forest tree prior
-  double beta_variance = 2.0;                 // beta parameter for variance forest tree prior
-  int min_samples_leaf_variance = 5;          // minimum number of samples per leaf for variance forest
-  int max_depth_variance = -1;                // maximum depth for variance forest trees (-1 means no maximum)
-  bool leaf_constant_variance = true;         // whether to use constant leaf model for variance forest
-  int leaf_dim_variance = 1;                  // dimension of the leaf for variance forest (should be 1 if leaf_constant_variance=true)
-  bool exponentiated_leaf_variance = true;    // whether to exponentiate leaf predictions for variance forest
-  int num_features_subsample_variance = 0;    // number of features to subsample for each variance forest split (0 means no subsampling)
-  std::vector<double> var_weights_variance;   // variable weights for variance forest splits (should be same length as number of covariates in the dataset)
+  int num_trees_variance = 0;                      // number of trees in the variance forest
+  double leaf_prior_calibration_param = 1.5;       // calibration parameter for variance forest leaf prior
+  double shape_variance_forest = -1.0;             // shape parameter for variance forest leaf model (calibrated internally based on leaf_prior_calibration_param if set to sentinel value of -1)
+  double scale_variance_forest = -1.0;             // scale parameter for variance forest leaf model (calibrated internally based on leaf_prior_calibration_param if set to sentinel value of -1)
+  double alpha_variance = 0.5;                     // alpha parameter for variance forest tree prior
+  double beta_variance = 2.0;                      // beta parameter for variance forest tree prior
+  int min_samples_leaf_variance = 5;               // minimum number of samples per leaf for variance forest
+  int max_depth_variance = -1;                     // maximum depth for variance forest trees (-1 means no maximum)
+  bool leaf_constant_variance = true;              // whether to use constant leaf model for variance forest
+  int leaf_dim_variance = 1;                       // dimension of the leaf for variance forest (should be 1 if leaf_constant_variance=true)
+  bool exponentiated_leaf_variance = true;         // whether to exponentiate leaf predictions for variance forest
+  int num_features_subsample_variance = 0;         // number of features to subsample for each variance forest split (0 means no subsampling)
+  std::vector<double> var_weights_variance;        // variable weights for variance forest splits (should be same length as number of covariates in the dataset)
+  std::vector<int> sweep_update_indices_variance;  // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
 
   // TODO: Random effects parameters ...
 

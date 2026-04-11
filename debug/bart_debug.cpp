@@ -126,13 +126,13 @@ static void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr,
   config.sample_sigma2_global = true;
   config.var_weights_mean = std::vector<double>(p, 1.0 / p);
   config.feature_types = std::vector<StochTree::FeatureType>(p, StochTree::FeatureType::kNumeric);
-  config.sweep_update_indices = std::vector<int>(num_trees, 0);
-  std::iota(config.sweep_update_indices.begin(), config.sweep_update_indices.end(), 0);
+  config.sweep_update_indices_mean = std::vector<int>(num_trees, 0);
+  std::iota(config.sweep_update_indices_mean.begin(), config.sweep_update_indices_mean.end(), 0);
 
   StochTree::BARTSamples samples;
   StochTree::BARTSampler sampler(samples, config, data);
-  sampler.run_gfr(samples, config, data, rng, num_gfr, true);
-  sampler.run_mcmc(samples, config, data, rng, 0, 1, num_mcmc);
+  sampler.run_gfr(samples, config, data, num_gfr, true);
+  sampler.run_mcmc(samples, config, data, 0, 1, num_mcmc);
   report_bart(samples, test.y, "Scenario 0 (Homoskedastic BART)");
 }
 
@@ -158,8 +158,8 @@ static void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr,
   config.sample_sigma2_global = false;
   config.var_weights_mean = std::vector<double>(p, 1.0 / p);
   config.feature_types = std::vector<StochTree::FeatureType>(p, StochTree::FeatureType::kNumeric);
-  config.sweep_update_indices = std::vector<int>(num_trees, 0);
-  std::iota(config.sweep_update_indices.begin(), config.sweep_update_indices.end(), 0);
+  config.sweep_update_indices_mean = std::vector<int>(num_trees, 0);
+  std::iota(config.sweep_update_indices_mean.begin(), config.sweep_update_indices_mean.end(), 0);
 
   StochTree::BARTSamples samples;
   StochTree::BARTSampler sampler(samples, config, data);

@@ -1137,7 +1137,16 @@ bart <- function(
       "exponentiated_leaf_variance" = TRUE,
       "num_features_subsample_variance" = num_features_subsample_variance,
       "feature_types" = as.integer(feature_types),
-      "sweep_update_indices" = 0:(ncol(X_train) - 1),
+      "sweep_update_indices_mean" = if (num_trees_mean > 0) {
+        0:(num_trees_mean - 1)
+      } else {
+        NULL
+      },
+      "sweep_update_indices_variance" = if (num_trees_variance > 0) {
+        0:(num_trees_variance - 1)
+      } else {
+        NULL
+      },
       "var_weights_mean" = variable_weights_mean,
       "var_weights_variance" = variable_weights_variance
     )

@@ -10,7 +10,7 @@ library(stochtree)
 # ---------------------------------------------------------------------------
 set.seed(1234)
 
-n <- 2000
+n <- 10000
 p <- 10
 X <- matrix(runif(n * p), ncol = p)
 f_X <- (((0.00 <= X[, 1]) & (X[, 1] < 0.25)) *
@@ -55,7 +55,7 @@ cat(sprintf(
 # ---------------------------------------------------------------------------
 # Helper: run one configuration and return timing + RMSE
 # ---------------------------------------------------------------------------
-run_once <- function(run_cpp, seed = -1) {
+run_once <- function(run_cpp, num_gfr, num_mcmc, seed = -1) {
   t0 <- proc.time()
   m <- bart(
     X_train = X_train,
@@ -88,13 +88,23 @@ results_r <- vector("list", n_reps)
 cat("Running C++ sampler (run_cpp = TRUE)...\n")
 for (i in seq_len(n_reps)) {
   cat(sprintf("  rep %d/%d\n", i, n_reps))
-  results_cpp[[i]] <- run_once(run_cpp = TRUE, seed = seeds[i])
+  results_cpp[[i]] <- run_once(
+    run_cpp = TRUE,
+    num_gfr = num_gfr,
+    num_mcmc = num_mcmc,
+    seed = seeds[i]
+  )
 }
 
 cat("\nRunning R sampler (run_cpp = FALSE)...\n")
 for (i in seq_len(n_reps)) {
   cat(sprintf("  rep %d/%d\n", i, n_reps))
-  results_r[[i]] <- run_once(run_cpp = FALSE, seed = seeds[i])
+  results_r[[i]] <- run_once(
+    run_cpp = FALSE,
+    num_gfr = num_gfr,
+    num_mcmc = num_mcmc,
+    seed = seeds[i]
+  )
 }
 
 # ---------------------------------------------------------------------------

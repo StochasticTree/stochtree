@@ -103,10 +103,15 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
       output.feature_types.push_back(static_cast<StochTree::FeatureType>(i));
     }
   }
-  SEXP sweep_update_indices_raw = static_cast<SEXP>(config["sweep_update_indices"]);
-  if (!Rf_isNull(sweep_update_indices_raw)) {
-    cpp11::integers sweep_update_indices_r_vec(sweep_update_indices_raw);
-    output.sweep_update_indices.assign(sweep_update_indices_r_vec.begin(), sweep_update_indices_r_vec.end());
+  SEXP sweep_update_indices_mean_raw = static_cast<SEXP>(config["sweep_update_indices_mean"]);
+  if (!Rf_isNull(sweep_update_indices_mean_raw)) {
+    cpp11::integers sweep_update_indices_mean_r_vec(sweep_update_indices_mean_raw);
+    output.sweep_update_indices_mean.assign(sweep_update_indices_mean_r_vec.begin(), sweep_update_indices_mean_r_vec.end());
+  }
+  SEXP sweep_update_indices_variance_raw = static_cast<SEXP>(config["sweep_update_indices_variance"]);
+  if (!Rf_isNull(sweep_update_indices_variance_raw)) {
+    cpp11::integers sweep_update_indices_variance_r_vec(sweep_update_indices_variance_raw);
+    output.sweep_update_indices_variance.assign(sweep_update_indices_variance_r_vec.begin(), sweep_update_indices_variance_r_vec.end());
   }
   SEXP var_weights_mean_raw = static_cast<SEXP>(config["var_weights_mean"]);
   if (!Rf_isNull(var_weights_mean_raw)) {

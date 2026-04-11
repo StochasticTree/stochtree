@@ -169,7 +169,7 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BART
       GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
           *mean_forest_, *mean_forest_tracker_, *samples.mean_forests, *mean_leaf_model,
           *forest_dataset_, *residual_, *tree_prior_mean_, rng_,
-          config.var_weights_mean, config.sweep_update_indices, global_variance_, config.feature_types,
+          config.var_weights_mean, config.sweep_update_indices_mean, global_variance_, config.feature_types,
           config.cutpoint_grid_size, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/true,
           /*num_features_subsample=*/data.p, config.num_threads);
@@ -177,7 +177,7 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BART
       MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
           *mean_forest_, *mean_forest_tracker_, *samples.mean_forests, *mean_leaf_model,
           *forest_dataset_, *residual_, *tree_prior_mean_, rng_,
-          config.var_weights_mean, config.sweep_update_indices, global_variance_, /*keep_forest=*/keep_sample,
+          config.var_weights_mean, config.sweep_update_indices_mean, global_variance_, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/true,
           /*num_threads=*/config.num_threads);
     }
@@ -188,7 +188,7 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BART
       GFRSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
           *variance_forest_, *variance_forest_tracker_, *samples.variance_forests, *variance_leaf_model,
           *forest_dataset_, *residual_, *tree_prior_variance_, rng_,
-          config.var_weights_variance, config.sweep_update_indices, global_variance_, config.feature_types,
+          config.var_weights_variance, config.sweep_update_indices_variance, global_variance_, config.feature_types,
           config.cutpoint_grid_size, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/false,
           /*num_features_subsample=*/data.p, config.num_threads);
@@ -196,7 +196,7 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, BARTConfig& config, BART
       MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
           *variance_forest_, *variance_forest_tracker_, *samples.variance_forests, *variance_leaf_model,
           *forest_dataset_, *residual_, *tree_prior_variance_, rng_,
-          config.var_weights_variance, config.sweep_update_indices, global_variance_, /*keep_forest=*/keep_sample,
+          config.var_weights_variance, config.sweep_update_indices_variance, global_variance_, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/false,
           /*num_threads=*/config.num_threads);
     }
