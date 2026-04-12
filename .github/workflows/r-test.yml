@@ -49,3 +49,7 @@ jobs:
       - uses: r-lib/actions/check-r-package@v2
         with:
           working-directory: 'stochtree_cran'
+      
+      - name: Show install log
+        run: cat stochtree_cran/check/stochtree.Rcheck/00install.out
+        shell: bash
