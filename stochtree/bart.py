@@ -1183,20 +1183,26 @@ class BARTModel:
               config_input = bart_config
           )
 
+          # Unpack standardization params computed by C++ sampler
+          self.y_bar = bart_results["y_bar"]
+          self.y_std = bart_results["y_std"]
+
           # Unpack mean forest results
-          self.forest_container_mean = ForestContainer(num_trees=num_trees_mean, num_samples=num_mcmc, num_burnin=num_burnin, keep_every=keep_every)
+          self.forest_container_mean = (
+              ForestContainer(num_trees_mean, 1, True, False)
+              if not self.has_basis
+              else ForestContainer(num_trees_mean, self.num_basis, False, False)
+          )
           self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
-          mean_forest_preds_train = bart_results["mean_forest_predictions_train"]
-          mean_forest_preds_train.reshape(self.n_train, bart_results["num_samples"], order="F")
+          mean_forest_preds_train = bart_results["mean_forest_predictions_train"].reshape(self.n_train, bart_results["num_samples"], order="F")
           self.y_hat_train = mean_forest_preds_train * self.y_std + self.y_bar
           if self.has_test:
-            mean_forest_preds_test = bart_results["mean_forest_predictions_test"]
-            mean_forest_preds_test.reshape(self.n_test, bart_results["num_samples"], order="F")
+            mean_forest_preds_test = bart_results["mean_forest_predictions_test"].reshape(self.n_test, bart_results["num_samples"], order="F")
             self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
           
           # Unpack variance forest results
           if self.include_variance_forest:
-            self.forest_container_variance = ForestContainer(num_trees=num_trees_variance, num_samples=num_mcmc, num_burnin=num_burnin, keep_every=keep_every)
+            self.forest_container_variance = ForestContainer(num_trees_variance, 1, True, True)
             self.forest_container_variance.forest_container_cpp = bart_results["forest_container_variance"]
             variance_forest_preds_train = bart_results["variance_forest_predictions_train"]
             variance_forest_preds_train.reshape(self.n_train, bart_results["num_samples"], order="F")
