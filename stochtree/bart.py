@@ -1204,12 +1204,10 @@ class BARTModel:
           if self.include_variance_forest:
             self.forest_container_variance = ForestContainer(num_trees_variance, 1, True, True)
             self.forest_container_variance.forest_container_cpp = bart_results["forest_container_variance"]
-            variance_forest_preds_train = bart_results["variance_forest_predictions_train"]
-            variance_forest_preds_train.reshape(self.n_train, bart_results["num_samples"], order="F")
+            variance_forest_preds_train = bart_results["variance_forest_predictions_train"].reshape(self.n_train, bart_results["num_samples"], order="F")
             self.variance_forest_preds_train = variance_forest_preds_train * self.y_std * self.y_std
             if self.has_test:
-                variance_forest_preds_test = bart_results["variance_forest_predictions_test"]
-                variance_forest_preds_test.reshape(self.n_test, bart_results["num_samples"], order="F")
+                variance_forest_preds_test = bart_results["variance_forest_predictions_test"].reshape(self.n_test, bart_results["num_samples"], order="F")
                 self.variance_forest_preds_test = variance_forest_preds_test * self.y_std * self.y_std
 
           # Unpack parameter samples
