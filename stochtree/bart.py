@@ -1115,7 +1115,7 @@ class BARTModel:
               "beta_mean": beta_mean,
               "min_samples_leaf_mean": min_samples_leaf_mean,
               "max_depth_mean": max_depth_mean,
-              "leaf_constant_mean": True if self.has_basis else False,
+              "leaf_constant_mean": False if self.has_basis else True,
               "leaf_dim_mean": self.num_basis if self.has_basis else 1,
               "exponentiated_leaf_mean": False,
               "num_features_subsample_mean": num_features_subsample_mean,
