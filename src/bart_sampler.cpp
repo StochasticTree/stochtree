@@ -148,12 +148,26 @@ void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr) {
   for (int i = 0; i < num_gfr; i++) {
     RunOneIteration(samples, mean_leaf_model_ptr.get(), variance_leaf_model_ptr.get(), /*gfr=*/true, /*keep_sample=*/keep_gfr);
   }
+  if (keep_gfr) {
+    if (has_mean_forest_) {
+      samples.mean_forest_predictions_train.reserve(data_.n_train * num_gfr);
+    }
+    if (has_variance_forest_) {
+      samples.variance_forest_predictions_train.reserve(data_.n_train * num_gfr);
+    }
+  }
 }
 
 void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every, int num_mcmc) {
   std::unique_ptr<GaussianConstantLeafModel> mean_leaf_model_ptr = std::make_unique<GaussianConstantLeafModel>(leaf_scale_);
   std::unique_ptr<LogLinearVarianceLeafModel> variance_leaf_model_ptr = std::make_unique<LogLinearVarianceLeafModel>(config_.shape_variance_forest, config_.scale_variance_forest);
   bool keep_forest = false;
+  if (has_mean_forest_) {
+    samples.mean_forest_predictions_train.reserve(data_.n_train * num_mcmc);
+  }
+  if (has_variance_forest_) {
+    samples.variance_forest_predictions_train.reserve(data_.n_train * num_mcmc);
+  }
   for (int i = 0; i < num_burnin + keep_every * num_mcmc; i++) {
     if (i >= num_burnin && (i - num_burnin) % keep_every == 0)
       keep_forest = true;
