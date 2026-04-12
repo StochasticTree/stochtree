@@ -1184,16 +1184,15 @@ class BARTModel:
           )
 
           # Unpack mean forest results
-          if self.include_variance_forest:
-            self.forest_container_mean = ForestContainer(num_trees=num_trees_mean, num_samples=num_mcmc, num_burnin=num_burnin, keep_every=keep_every)
-            self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
-            mean_forest_preds_train = bart_results["mean_forest_predictions_train"]
-            mean_forest_preds_train.reshape(self.n_train, bart_results["num_samples"], order="F")
-            self.y_hat_train = mean_forest_preds_train * self.y_std + self.y_bar
-            if self.has_test:
-              mean_forest_preds_test = bart_results["mean_forest_predictions_test"]
-              mean_forest_preds_test.reshape(self.n_test, bart_results["num_samples"], order="F")
-              self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
+          self.forest_container_mean = ForestContainer(num_trees=num_trees_mean, num_samples=num_mcmc, num_burnin=num_burnin, keep_every=keep_every)
+          self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
+          mean_forest_preds_train = bart_results["mean_forest_predictions_train"]
+          mean_forest_preds_train.reshape(self.n_train, bart_results["num_samples"], order="F")
+          self.y_hat_train = mean_forest_preds_train * self.y_std + self.y_bar
+          if self.has_test:
+            mean_forest_preds_test = bart_results["mean_forest_predictions_test"]
+            mean_forest_preds_test.reshape(self.n_test, bart_results["num_samples"], order="F")
+            self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
           
           # Unpack variance forest results
           if self.include_variance_forest:

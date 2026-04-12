@@ -2311,16 +2311,16 @@ inline py::dict convert_bart_results_to_dict(
 
   // Transfer ownership of mean forest pointers
   if (results_raw.mean_forests != nullptr) {
-    output["mean_forests"] = py::cast(std::make_unique<ForestContainerCpp>(std::move(results_raw.mean_forests), config.num_trees_mean, config.leaf_dim_mean, config.leaf_constant_mean, config.exponentiated_leaf_mean));
+    output["forest_container_mean"] = py::cast(std::make_unique<ForestContainerCpp>(std::move(results_raw.mean_forests), config.num_trees_mean, config.leaf_dim_mean, config.leaf_constant_mean, config.exponentiated_leaf_mean));
   } else {
-    output["mean_forests"] = py::none();
+    output["forest_container_mean"] = py::none();
   }
 
   // Transfer ownership of variance forest pointers
   if (results_raw.variance_forests != nullptr) {
-    output["variance_forests"] = py::cast(std::make_unique<ForestContainerCpp>(std::move(results_raw.variance_forests), config.num_trees_variance, config.leaf_dim_variance, config.leaf_constant_variance, config.exponentiated_leaf_variance));
+    output["forest_container_variance"] = py::cast(std::make_unique<ForestContainerCpp>(std::move(results_raw.variance_forests), config.num_trees_variance, config.leaf_dim_variance, config.leaf_constant_variance, config.exponentiated_leaf_variance));
   } else {
-    output["variance_forests"] = py::none();
+    output["forest_container_variance"] = py::none();
   }
 
   // Move parameter vector samples
@@ -2367,12 +2367,12 @@ inline py::dict convert_bart_results_to_dict(
 
   // Global error variance samples
   if (results_raw.global_error_variance_samples.empty()) {
-    output["global_error_variance_samples"] = py::none();
+    output["global_var_samples"] = py::none();
   } else {
     auto input_vec = results_raw.global_error_variance_samples;
     py::array_t<double> array(input_vec.size());
     std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
-    output["global_error_variance_samples"] = array;
+    output["global_var_samples"] = array;
   }
 
   // Leaf scale samples
