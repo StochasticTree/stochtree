@@ -51,5 +51,6 @@ jobs:
           working-directory: 'stochtree_cran'
       
       - name: Show install log
+        if: always()
         run: cat stochtree_cran/check/stochtree.Rcheck/00install.out
         shell: bash
