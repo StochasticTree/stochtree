@@ -33,6 +33,7 @@ from .utils import (
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
+from stochtree_cpp import bart_sample_cpp
 
 
 class BARTModel:
@@ -95,6 +96,7 @@ class BARTModel:
         mean_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
         random_effects_params: Optional[Dict[str, Any]] = None,
+        run_cpp: bool = False,
     ) -> None:
         """Runs a BART sampler on provided training set. Predictions will be cached for the training set and (if provided) the test set.
         Does not require a leaf regression basis.
@@ -169,6 +171,9 @@ class BARTModel:
             counting backwards as noted before. If more chains are requested
             than there are samples in `previous_model_json`, a warning will be
             raised and only the last sample will be used.
+        run_cpp : bool, optional
+            Whether to run the C++ implementation of the BART sampler. Defaults to `False`.
+
 
         Returns
         -------
@@ -1049,204 +1054,7 @@ class BARTModel:
                     "Sampling global error variance not yet supported for models with variance forests, so the global error variance parameter will not be sampled in this model."
                 )
                 sample_sigma2_global = False
-
-        # Handle standardization, prior calibration, and initialization of forest
-        # differently for binary and continuous outcomes
-        if link_is_probit:
-            # Compute a probit-scale offset and fix scale to 1
-            self.y_bar = norm.ppf(np.squeeze(np.mean(y_train)))
-            self.y_std = 1.0
-
-            # Set a pseudo outcome by subtracting mean(y_train) from y_train
-            resid_train = y_train - np.squeeze(np.mean(y_train))
-
-            # Set initial values of root nodes to 0.0 (in probit scale)
-            init_val_mean = 0.0
-
-            # Calibrate priors for sigma^2 and tau
-            # Set sigma2_init to 1, ignoring default provided
-            sigma2_init = 1.0
-            current_sigma2 = sigma2_init
-            self.sigma2_init = sigma2_init
-            # Skip variance_forest_init, since variance forests are not supported with probit link
-            b_leaf = 1.0 / num_trees_mean if b_leaf is None else b_leaf
-            if self.has_basis:
-                if sigma2_leaf is None:
-                    current_leaf_scale = np.zeros(
-                        (self.num_basis, self.num_basis), dtype=float
-                    )
-                    np.fill_diagonal(
-                        current_leaf_scale,
-                        2.0 / num_trees_mean,
-                    )
-                elif isinstance(sigma2_leaf, float):
-                    current_leaf_scale = np.zeros(
-                        (self.num_basis, self.num_basis), dtype=float
-                    )
-                    np.fill_diagonal(current_leaf_scale, sigma2_leaf)
-                elif isinstance(sigma2_leaf, np.ndarray):
-                    if sigma2_leaf.ndim != 2:
-                        raise ValueError(
-                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                        )
-                    if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
-                        raise ValueError(
-                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                        )
-                    if sigma2_leaf.shape[0] != self.num_basis:
-                        raise ValueError(
-                            "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
-                        )
-                    current_leaf_scale = sigma2_leaf
-                else:
-                    raise ValueError(
-                        "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
-                    )
-            else:
-                if sigma2_leaf is None:
-                    current_leaf_scale = np.array([[2.0 / num_trees_mean]])
-                elif isinstance(sigma2_leaf, float):
-                    current_leaf_scale = np.array([[sigma2_leaf]])
-                elif isinstance(sigma2_leaf, np.ndarray):
-                    if sigma2_leaf.ndim != 2:
-                        raise ValueError(
-                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                        )
-                    if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
-                        raise ValueError(
-                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                        )
-                    if sigma2_leaf.shape[0] != 1:
-                        raise ValueError(
-                            "sigma2_leaf must be a 1x1 numpy array for this leaf model"
-                        )
-                    current_leaf_scale = sigma2_leaf
-                else:
-                    raise ValueError(
-                        "sigma2_leaf must be either a scalar or a 2d numpy array"
-                    )
-        elif link_is_cloglog:
-            # Fix offset to 0 and scale to 1
-            self.y_bar = 0
-            self.y_std = 1
-
-            # Remap outcomes to start from 0
-            resid_train = y_train - np.min(unique_outcomes)
-            cloglog_num_categories = int(np.max(resid_train)) + 1
-
-            # Set initial values of root nodes to 0.0 (in linear scale)
-            init_val_mean = 0.0
-
-            # Calibrate priors for sigma^2 and tau
-            sigma2_init = 1.0
-            current_sigma2 = sigma2_init
-            self.sigma2_init = sigma2_init
-            current_leaf_scale = np.array([[2.0 / num_trees_mean]])
-
-            # Set first cutpoint to 0 for identifiability
-            cloglog_cutpoint_0 = 0.0
-
-            # Set shape and rate parameters for conditional gamma model
-            cloglog_forest_shape = 2.0
-            cloglog_forest_rate = 2.0
-        else:
-            # Standardize if requested
-            if self.standardize:
-                self.y_bar = np.squeeze(np.mean(y_train))
-                self.y_std = np.squeeze(np.std(y_train))
-            else:
-                self.y_bar = 0
-                self.y_std = 1
-
-            # Compute residual value
-            resid_train = (y_train - self.y_bar) / self.y_std
-
-            # Compute initial value of root nodes in mean forest
-            init_val_mean = np.squeeze(np.mean(resid_train))
-
-            # Calibrate priors for global sigma^2 and sigma2_leaf
-            if not sigma2_init:
-                sigma2_init = 1.0 * np.var(resid_train)
-            if not variance_forest_leaf_init:
-                variance_forest_leaf_init = 0.6 * np.var(resid_train)
-            current_sigma2 = sigma2_init
-            self.sigma2_init = sigma2_init
-            if self.include_mean_forest:
-                b_leaf = (
-                    np.squeeze(np.var(resid_train)) / num_trees_mean
-                    if b_leaf is None
-                    else b_leaf
-                )
-                if self.has_basis:
-                    if sigma2_leaf is None:
-                        current_leaf_scale = np.zeros(
-                            (self.num_basis, self.num_basis), dtype=float
-                        )
-                        np.fill_diagonal(
-                            current_leaf_scale,
-                            np.squeeze(np.var(resid_train)) / num_trees_mean,
-                        )
-                    elif isinstance(sigma2_leaf, float):
-                        current_leaf_scale = np.zeros(
-                            (self.num_basis, self.num_basis), dtype=float
-                        )
-                        np.fill_diagonal(current_leaf_scale, sigma2_leaf)
-                    elif isinstance(sigma2_leaf, np.ndarray):
-                        if sigma2_leaf.ndim != 2:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                            )
-                        if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                            )
-                        if sigma2_leaf.shape[0] != self.num_basis:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
-                            )
-                        current_leaf_scale = sigma2_leaf
-                    else:
-                        raise ValueError(
-                            "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
-                        )
-                else:
-                    if sigma2_leaf is None:
-                        current_leaf_scale = np.array([
-                            [np.squeeze(np.var(resid_train)) / num_trees_mean]
-                        ])
-                    elif isinstance(sigma2_leaf, float):
-                        current_leaf_scale = np.array([[sigma2_leaf]])
-                    elif isinstance(sigma2_leaf, np.ndarray):
-                        if sigma2_leaf.ndim != 2:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                            )
-                        if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                            )
-                        if sigma2_leaf.shape[0] != 1:
-                            raise ValueError(
-                                "sigma2_leaf must be a 1x1 numpy array for this leaf model"
-                            )
-                        current_leaf_scale = sigma2_leaf
-                    else:
-                        raise ValueError(
-                            "sigma2_leaf must be either a scalar or a 2d numpy array"
-                        )
-            else:
-                current_leaf_scale = np.array([[1.0]])
-            if self.include_variance_forest:
-                if not a_forest:
-                    a_forest = num_trees_variance / a_0**2 + 0.5
-                if not b_forest:
-                    b_forest = num_trees_variance / a_0**2
-            else:
-                if not a_forest:
-                    a_forest = 1.0
-                if not b_forest:
-                    b_forest = 1.0
-
+        
         # Runtime checks on RFX group ids
         self.has_rfx = False
         has_rfx_test = False
@@ -1288,825 +1096,1151 @@ class BARTModel:
             elif self.rfx_model_spec == "intercept_only":
                 if rfx_basis_test is None:
                     rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
-        # Set up random effects structures
-        if self.has_rfx:
-            # Prior parameters
-            if rfx_working_parameter_prior_mean is None:
-                if num_rfx_components == 1:
-                    alpha_init = np.array([0.0], dtype=float)
-                elif num_rfx_components > 1:
-                    alpha_init = np.zeros(num_rfx_components, dtype=float)
-                else:
-                    raise ValueError("There must be at least 1 random effect component")
-            else:
-                alpha_init = _expand_dims_1d(
-                    rfx_working_parameter_prior_mean, num_rfx_components
-                )
 
-            if rfx_group_parameter_prior_mean is None:
-                xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
-            else:
-                xi_init = _expand_dims_2d(
-                    rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups
-                )
+        if run_cpp:
+          # Arrange all config in a large python dictionary
+          bart_config = {
+              "standardize_outcome": self.standardize,
+              "num_threads": num_threads,
+              "cutpoint_grid_size": cutpoint_grid_size,
+              "link_function": 0 if self.outcome_model.link == "identity" else (1 if self.outcome_model.link == "probit" else 2),
+              "outcome_type": 0 if self.outcome_model.outcome == "continuous" else (1 if self.outcome_model.outcome == "binary" else 2),
+              "random_seed": random_seed,
+              "a_sigma2_global": a_global,
+              "b_sigma2_global": b_global,
+              "sigma2_global_init": 1.0, # TODO: calibrate this before
+              "sample_sigma2_global": sample_sigma2_global,
+              "num_trees_mean": num_trees_mean,
+              "alpha_mean": alpha_mean,
+              "beta_mean": beta_mean,
+              "min_samples_leaf_mean": min_samples_leaf_mean,
+              "max_depth_mean": max_depth_mean,
+              "leaf_constant_mean": False if self.has_basis else True,
+              "leaf_dim_mean": self.num_basis if self.has_basis else 1,
+              "exponentiated_leaf_mean": False,
+              "num_features_subsample_mean": num_features_subsample_mean,
+              "a_sigma2_mean": a_leaf,
+              "b_sigma2_mean": b_leaf,
+              "sigma2_mean_init": -1.0,
+              "sample_sigma2_leaf_mean": sample_sigma2_leaf,
+              "num_trees_variance": num_trees_variance,
+              "leaf_prior_calibration_param": a_0,
+              "shape_variance_forest": a_forest,
+              "scale_variance_forest": b_forest,
+              "alpha_variance": alpha_variance,
+              "beta_variance": beta_variance,
+              "min_samples_leaf_variance": min_samples_leaf_variance,
+              "max_depth_variance": max_depth_variance,
+              "leaf_constant_variance": True,
+              "leaf_dim_variance": 1,
+              "exponentiated_leaf_variance": True,
+              "num_features_subsample_variance": num_features_subsample_variance,
+              "feature_types": feature_types.astype(int),
+              "sweep_update_indices_mean": list(range(num_trees_mean)) if num_trees_mean > 0 else None,
+              "sweep_update_indices_variance": list(range(num_trees_variance)) if num_trees_variance > 0 else None,
+              "var_weights_mean": variable_weights_mean,
+              "var_weights_variance": variable_weights_variance
+          }
 
-            if rfx_working_parameter_prior_cov is None:
-                sigma_alpha_init = np.identity(num_rfx_components)
-            else:
-                sigma_alpha_init = _expand_dims_2d_diag(
-                    rfx_working_parameter_prior_cov, num_rfx_components
-                )
+          # Remove None values from config (alternative is to check for Nones on the C++ side when unpacking into non-optional types)
+          bart_config = {k: v for k, v in bart_config.items() if v is not None}
 
-            if rfx_group_parameter_prior_cov is None:
-                sigma_xi_init = np.identity(num_rfx_components)
-            else:
-                sigma_xi_init = _expand_dims_2d_diag(
-                    rfx_group_parameter_prior_cov, num_rfx_components
-                )
+          # Convert arrays to F-contiguous (column-major) before calling C++.
+          # convert_numpy_to_bart_data stores raw pointers into these arrays; if
+          # pybind11 has to make an F-contiguous copy (because the input is C-order)
+          # that copy is destroyed when the helper returns, leaving a dangling pointer.
+          # Passing already-F-contiguous arrays causes pybind11 to return a view of
+          # the original, which remains alive in this Python scope.
+          X_train_cpp = np.asfortranarray(X_train_processed)
+          y_train_cpp = np.asfortranarray(y_train)
+          X_test_cpp = np.asfortranarray(X_test_processed) if self.has_test else None
+          basis_train_cpp = np.asfortranarray(leaf_basis_train) if self.has_basis else None
+          basis_test_cpp = np.asfortranarray(leaf_basis_test) if self.has_basis and self.has_test else None
 
-            sigma_xi_shape = rfx_variance_prior_shape
-            sigma_xi_scale = rfx_variance_prior_scale
+          # Run the BART sampler from C++
+          bart_results = bart_sample_cpp(
+              X_train = X_train_cpp,
+              y_train = y_train_cpp,
+              X_test = X_test_cpp,
+              n_train = X_train_cpp.shape[0],
+              n_test = X_test_cpp.shape[0] if self.has_test else 0,
+              p = X_train_cpp.shape[1],
+              basis_train = basis_train_cpp,
+              basis_test = basis_test_cpp,
+              basis_dim = self.num_basis if self.has_basis else 0,
+              obs_weights_train = observation_weights if observation_weights is not None else None,
+              obs_weights_test = None,
+              rfx_group_ids_train = rfx_group_ids_train,
+              rfx_group_ids_test = rfx_group_ids_test,
+              rfx_basis_train = rfx_basis_train,
+              rfx_basis_test = rfx_basis_test,
+              rfx_num_groups = num_rfx_groups if self.has_rfx else 0,
+              rfx_basis_dim = self.num_rfx_basis if self.has_rfx else 0,
+              num_gfr = num_gfr,
+              num_burnin = num_burnin,
+              keep_every = keep_every,
+              num_mcmc = num_mcmc,
+              config_input = bart_config
+          )
 
-            # Random effects sampling data structures
-            rfx_dataset_train = RandomEffectsDataset()
-            rfx_dataset_train.add_group_labels(rfx_group_ids_train)
-            rfx_dataset_train.add_basis(rfx_basis_train)
-            rfx_tracker = RandomEffectsTracker(rfx_group_ids_train)
-            rfx_model = RandomEffectsModel(num_rfx_components, num_rfx_groups)
-            rfx_model.set_working_parameter(alpha_init)
-            rfx_model.set_group_parameters(xi_init)
-            rfx_model.set_working_parameter_covariance(sigma_alpha_init)
-            rfx_model.set_group_parameter_covariance(sigma_xi_init)
-            rfx_model.set_variance_prior_shape(sigma_xi_shape)
-            rfx_model.set_variance_prior_scale(sigma_xi_scale)
-            self.rfx_container = RandomEffectsContainer()
-            self.rfx_container.load_new_container(
-                num_rfx_components, num_rfx_groups, rfx_tracker
-            )
+          # Unpack standardization params computed by C++ sampler
+          self.y_bar = bart_results["y_bar"]
+          self.y_std = bart_results["y_std"]
 
-        # Container of variance parameter samples
-        self.num_gfr = num_gfr
-        self.num_burnin = num_burnin
-        self.num_mcmc = num_mcmc
-        self.num_chains = num_chains
-        self.keep_every = keep_every
-        num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
-        num_retained_samples = num_mcmc * num_chains
-        # Delete GFR samples from these containers after the fact if desired
-        # if keep_gfr:
-        #     num_retained_samples += num_gfr
-        num_retained_samples += num_gfr
-        if keep_burnin:
-            num_retained_samples += num_burnin * num_chains
-        self.num_samples = num_retained_samples
-        self.sample_sigma2_global = sample_sigma2_global
-        self.sample_sigma2_leaf = sample_sigma2_leaf
-        if sample_sigma2_global:
-            self.global_var_samples = np.empty(self.num_samples, dtype=np.float64)
-        if sample_sigma2_leaf:
-            self.leaf_scale_samples = np.empty(self.num_samples, dtype=np.float64)
-        if self.include_mean_forest:
-            yhat_train_raw = np.empty(
-                (self.n_train, self.num_samples), dtype=np.float64
-            )
-        if self.include_variance_forest:
-            sigma2_x_train_raw = np.empty(
-                (self.n_train, self.num_samples), dtype=np.float64
-            )
-        sample_counter = -1
-
-        # Forest Dataset (covariates and optional basis)
-        forest_dataset_train = Dataset()
-        forest_dataset_train.add_covariates(X_train_processed)
-        if self.has_basis:
-            forest_dataset_train.add_basis(leaf_basis_train)
-        if observation_weights is not None:
-            forest_dataset_train.add_variance_weights(observation_weights_)
-        if self.has_test:
-            forest_dataset_test = Dataset()
-            forest_dataset_test.add_covariates(X_test_processed)
-            if self.has_basis:
-                forest_dataset_test.add_basis(leaf_basis_test)
-
-        # Residual
-        residual_train = Residual(resid_train)
-
-        # C++ and Numpy random number generator
-        if random_seed is None:
-            cpp_rng = RNG(-1)
-            self.rng = np.random.default_rng()
-        else:
-            cpp_rng = RNG(random_seed)
-            self.rng = np.random.default_rng(random_seed)
-
-        # Set variance leaf model type (currently only one option)
-        leaf_model_variance_forest = 3
-        leaf_dimension_variance = 1
-
-        # Determine the mean forest leaf model type
-        if link_is_cloglog and not self.has_basis:
-            leaf_model_mean_forest = 4
-            leaf_dimension_mean = 1
-        elif not self.has_basis:
-            leaf_model_mean_forest = 0
-            leaf_dimension_mean = 1
-        elif self.num_basis == 1:
-            leaf_model_mean_forest = 1
-            leaf_dimension_mean = 1
-        else:
-            leaf_model_mean_forest = 2
-            leaf_dimension_mean = self.num_basis
-            
-        # Sampling data structures
-        global_model_config = GlobalModelConfig(global_error_variance=current_sigma2)
-        if self.include_mean_forest:
-            forest_model_config_mean = ForestModelConfig(
-                num_trees=num_trees_mean,
-                num_features=num_features,
-                num_observations=self.n_train,
-                feature_types=feature_types,
-                variable_weights=variable_weights_mean,
-                leaf_dimension=leaf_dimension_mean,
-                alpha=alpha_mean,
-                beta=beta_mean,
-                min_samples_leaf=min_samples_leaf_mean,
-                max_depth=max_depth_mean,
-                leaf_model_type=leaf_model_mean_forest,
-                leaf_model_scale=current_leaf_scale,
-                cutpoint_grid_size=cutpoint_grid_size,
-                num_features_subsample=num_features_subsample_mean,
-            )
-            if link_is_cloglog:
-                forest_model_config_mean.update_cloglog_forest_shape(cloglog_forest_shape)
-                forest_model_config_mean.update_cloglog_forest_rate(cloglog_forest_rate)
-            forest_sampler_mean = ForestSampler(
-                forest_dataset_train,
-                global_model_config,
-                forest_model_config_mean,
-            )
-        if self.include_variance_forest:
-            forest_model_config_variance = ForestModelConfig(
-                num_trees=num_trees_variance,
-                num_features=num_features,
-                num_observations=self.n_train,
-                feature_types=feature_types,
-                variable_weights=variable_weights_variance,
-                leaf_dimension=leaf_dimension_variance,
-                alpha=alpha_variance,
-                beta=beta_variance,
-                min_samples_leaf=min_samples_leaf_variance,
-                max_depth=max_depth_variance,
-                leaf_model_type=leaf_model_variance_forest,
-                cutpoint_grid_size=cutpoint_grid_size,
-                variance_forest_shape=a_forest,
-                variance_forest_scale=b_forest,
-                num_features_subsample=num_features_subsample_variance,
-            )
-            forest_sampler_variance = ForestSampler(
-                forest_dataset_train,
-                global_model_config,
-                forest_model_config_variance,
-            )
-
-        # Container of forest samples
-        if self.include_mean_forest:
-            self.forest_container_mean = (
-                ForestContainer(num_trees_mean, 1, True, False)
-                if not self.has_basis
-                else ForestContainer(num_trees_mean, self.num_basis, False, False)
-            )
-            active_forest_mean = (
-                Forest(num_trees_mean, 1, True, False)
-                if not self.has_basis
-                else Forest(num_trees_mean, self.num_basis, False, False)
-            )
-        if self.include_variance_forest:
-            self.forest_container_variance = ForestContainer(
-                num_trees_variance, 1, True, True
-            )
-            active_forest_variance = Forest(num_trees_variance, 1, True, True)
-
-        # Variance samplers
-        if self.sample_sigma2_global:
-            global_var_model = GlobalVarianceModel()
-        if self.sample_sigma2_leaf:
-            leaf_var_model = LeafVarianceModel()
-
-        # Initialize the leaves of each tree in the mean forest
-        if self.include_mean_forest:
-            if self.has_basis:
-                init_val_mean = np.repeat(0.0, leaf_basis_train.shape[1])
-            else:
-                init_val_mean = np.array([0.0])
-            forest_sampler_mean.prepare_for_sampler(
-                forest_dataset_train,
-                residual_train,
-                active_forest_mean,
-                leaf_model_mean_forest,
-                init_val_mean,
-            )
-
-        # Initialize the leaves of each tree in the variance forest
-        if self.include_variance_forest:
-            init_val_variance = np.array([variance_forest_leaf_init])
-            forest_sampler_variance.prepare_for_sampler(
-                forest_dataset_train,
-                residual_train,
-                active_forest_variance,
-                leaf_model_variance_forest,
-                init_val_variance,
-            )
-
-        # Initialize auxiliary data and ordinal sampler for cloglog
-        if link_is_cloglog:
-            ordinal_sampler = OrdinalSampler()
-            train_size = self.n_train
-
-            # Slot 0: Latent variable Z (size n_train)
-            forest_dataset_train.add_auxiliary_dimension(train_size)
-            # Slot 1: Forest predictions eta (size n_train)
-            forest_dataset_train.add_auxiliary_dimension(train_size)
-            # Slot 2: Log-scale cutpoints gamma (size cloglog_num_categories - 1)
-            forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories - 1)
-            # Slot 3: Cumulative exp cutpoints seg (size cloglog_num_categories)
-            forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories)
-
-            # Initialize all slots to 0
-            for j in range(train_size):
-                forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
-                forest_dataset_train.set_auxiliary_data_value(1, j, 0.0)
-            for j in range(cloglog_num_categories - 1):
-                forest_dataset_train.set_auxiliary_data_value(2, j, 0.0)
-
-            # Compute initial cumulative exp sums
-            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
-
-            # Allocate storage for cutpoint samples
-            cloglog_cutpoint_samples = np.full(
-                (cloglog_num_categories - 1, num_retained_samples), np.nan
-            )
-        # Run GFR (warm start) if specified
-        if self.num_gfr > 0:
-            for i in range(self.num_gfr):
-                # Keep all GFR samples at this stage -- remove from ForestSamples after MCMC
-                # keep_sample = keep_gfr
-                keep_sample = True
-                if keep_sample:
-                    sample_counter += 1
-                if self.include_mean_forest:
-                    if link_is_probit:
-                        # Sample latent probit variable z | -
-                        outcome_pred = active_forest_mean.predict(forest_dataset_train)
-                        if self.has_rfx:
-                            rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
-                            outcome_pred = outcome_pred + rfx_pred
-                        # Full probit-scale predictor: forest learns z - y_bar, so add y_bar back
-                        eta_pred = outcome_pred + self.y_bar
-                        mu0 = eta_pred[y_train[:, 0] == 0]
-                        mu1 = eta_pred[y_train[:, 0] == 1]
-                        n0 = np.sum(y_train[:, 0] == 0)
-                        n1 = np.sum(y_train[:, 0] == 1)
-                        u0 = self.rng.uniform(
-                            low=0.0,
-                            high=norm.cdf(0 - mu0),
-                            size=n0,
-                        )
-                        u1 = self.rng.uniform(
-                            low=norm.cdf(0 - mu1),
-                            high=1.0,
-                            size=n1,
-                        )
-                        resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
-                        resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
-
-                        # Update outcome: center z by y_bar before passing to forest
-                        new_outcome = np.squeeze(resid_train) - self.y_bar - outcome_pred
-                        residual_train.update_data(new_outcome)
-
-                    # Sample the mean forest
-                    forest_sampler_mean.sample_one_iteration(
-                        self.forest_container_mean,
-                        active_forest_mean,
-                        forest_dataset_train,
-                        residual_train,
-                        cpp_rng,
-                        global_model_config,
-                        forest_model_config_mean,
-                        keep_sample,
-                        True,
-                        num_threads,
-                    )
-
-                    # Cache train set predictions since they are already computed during sampling
-                    if keep_sample:
-                        yhat_train_raw[:, sample_counter] = (
-                            forest_sampler_mean.get_cached_forest_predictions()
-                        )
-
-                # Sample the variance forest
-                if self.include_variance_forest:
-                    forest_sampler_variance.sample_one_iteration(
-                        self.forest_container_variance,
-                        active_forest_variance,
-                        forest_dataset_train,
-                        residual_train,
-                        cpp_rng,
-                        global_model_config,
-                        forest_model_config_variance,
-                        keep_sample,
-                        True,
-                        num_threads,
-                    )
-
-                    # Cache train set predictions since they are already computed during sampling
-                    if keep_sample:
-                        sigma2_x_train_raw[:, sample_counter] = (
-                            forest_sampler_variance.get_cached_forest_predictions()
-                        )
-
-                # Sample variance parameters (if requested)
-                if self.sample_sigma2_global:
-                    current_sigma2 = global_var_model.sample_one_iteration(
-                        residual_train, cpp_rng, a_global, b_global
-                    )
-                    global_model_config.update_global_error_variance(current_sigma2)
-                    if keep_sample:
-                        self.global_var_samples[sample_counter] = current_sigma2
-                if self.sample_sigma2_leaf:
-                    current_leaf_scale[0, 0] = leaf_var_model.sample_one_iteration(
-                        active_forest_mean, cpp_rng, a_leaf, b_leaf
-                    )
-                    forest_model_config_mean.update_leaf_model_scale(current_leaf_scale)
-                    if keep_sample:
-                        self.leaf_scale_samples[sample_counter] = current_leaf_scale[
-                            0, 0
-                        ]
-
-                # Sample random effects
-                if self.has_rfx:
-                    rfx_model.sample(
-                        rfx_dataset_train,
-                        residual_train,
-                        rfx_tracker,
-                        self.rfx_container,
-                        keep_sample,
-                        current_sigma2,
-                        cpp_rng,
-                    )
-
-                # Cloglog Gibbs updates
-                if link_is_cloglog:
-                    # Update auxiliary data slot 1 with current forest predictions
-                    forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
-                    for j in range(train_size):
-                        forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
-
-                    # Sample latent z_i's using truncated exponential
-                    ordinal_sampler.update_latent_variables(
-                        forest_dataset_train, residual_train, cpp_rng
-                    )
-
-                    # Sample gamma parameters (cutpoints)
-                    ordinal_sampler.update_gamma_params(
-                        forest_dataset_train,
-                        residual_train,
-                        cloglog_forest_shape,
-                        cloglog_forest_rate,
-                        cloglog_cutpoint_0,
-                        cpp_rng,
-                    )
-
-                    # Update cumulative sum of exp(gamma) values
-                    ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
-
-                    # Retain cutpoint draw
-                    if keep_sample:
-                        cloglog_cutpoint_samples[:, sample_counter] = (
-                            forest_dataset_train.get_auxiliary_data_vector(2)
-                        )
-
-        # Run MCMC
-        if self.num_burnin + self.num_mcmc > 0:
-            for chain_num in range(num_chains):
-                if num_gfr > 0:
-                    forest_ind = num_gfr - chain_num - 1
-                    # Reset mean forest
-                    if self.include_mean_forest:
-                        active_forest_mean.reset(self.forest_container_mean, forest_ind)
-                        forest_sampler_mean.reconstitute_from_forest(
-                            active_forest_mean,
-                            forest_dataset_train,
-                            residual_train,
-                            True,
-                        )
-                        # Reset leaf scale
-                        if sample_sigma2_leaf:
-                                leaf_scale_double = self.leaf_scale_samples[
-                                    forest_ind
-                                ]
-                                current_leaf_scale[0, 0] = leaf_scale_double
-                                forest_model_config_mean.update_leaf_model_scale(
-                                    leaf_scale_double
-                                )
-                    # Reset variance forest
-                    if self.include_variance_forest:
-                        active_forest_variance.reset(
-                            self.forest_container_variance, forest_ind
-                        )
-                        forest_sampler_variance.reconstitute_from_forest(
-                            active_forest_variance,
-                            forest_dataset_train,
-                            residual_train,
-                            False,
-                        )
-                    # Reset global error scale
-                    if sample_sigma2_global:
-                        current_sigma2 = self.global_var_samples[forest_ind]
-                        global_model_config.update_global_error_variance(current_sigma2)
-                    # Reset random effects
-                    if self.has_rfx:
-                        rfx_model.reset(self.rfx_container, forest_ind, sigma_alpha_init)
-                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
-                    # Reset cloglog auxiliary data
-                    if link_is_cloglog:
-                        # Reset cutpoints from saved GFR samples
-                        current_cutpoints = cloglog_cutpoint_samples[:, forest_ind]
-                        for j in range(len(current_cutpoints)):
-                            forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
-                        ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
-                        # Reset forest predictions by re-predicting from active forest
-                        active_forest_preds = active_forest_mean.predict(forest_dataset_train)
-                        for j in range(train_size):
-                            forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
-                            # Latent variables must be reset to 0 and burnt in
-                            forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
-                elif has_prev_model:
-                    warmstart_index = previous_model_warmstart_sample_num - chain_num if previous_model_decrement else previous_model_warmstart_sample_num
-                    # Reset mean forest
-                    if self.include_mean_forest:
-                        active_forest_mean.reset(
-                            previous_bart_model.forest_container_mean,
-                            warmstart_index,
-                        )
-                        forest_sampler_mean.reconstitute_from_forest(
-                            active_forest_mean,
-                            forest_dataset_train,
-                            residual_train,
-                            True,
-                        )
-                        # Reset leaf scale
-                        if sample_sigma2_leaf and previous_leaf_var_samples is not None:
-                            leaf_scale_double = previous_leaf_var_samples[
-                                warmstart_index
-                            ]
-                            current_leaf_scale[0, 0] = leaf_scale_double
-                            forest_model_config_mean.update_leaf_model_scale(
-                                leaf_scale_double
-                            )
-                    # Reset variance forest
-                    if self.include_variance_forest:
-                        active_forest_variance.reset(
-                            previous_bart_model.forest_container_variance,
-                            warmstart_index,
-                        )
-                        forest_sampler_variance.reconstitute_from_forest(
-                            active_forest_variance,
-                            forest_dataset_train,
-                            residual_train,
-                            True,
-                        )
-                    # Reset global error scale
-                    if self.sample_sigma2_global:
-                        current_sigma2 = previous_global_var_samples[
-                            warmstart_index
-                        ]
-                        global_model_config.update_global_error_variance(current_sigma2)
-                    # Reset random effects
-                    if self.has_rfx:
-                        rfx_model.reset(previous_bart_model.rfx_container, warmstart_index, sigma_alpha_init)
-                        rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, previous_bart_model.rfx_container)
-                    # Reset cloglog auxiliary data from previous model
-                    if link_is_cloglog:
-                        previous_cloglog_cutpoint_samples = getattr(
-                            previous_bart_model, "cloglog_cutpoint_samples", None
-                        )
-                        if previous_cloglog_cutpoint_samples is not None:
-                            current_cutpoints = previous_cloglog_cutpoint_samples[:, warmstart_index]
-                            for j in range(len(current_cutpoints)):
-                                forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
-                            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
-                        active_forest_preds = active_forest_mean.predict(forest_dataset_train)
-                        for j in range(train_size):
-                            forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
-                            # Latent variables must be reset to 0 and burnt in
-                            forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
-                else:
-                    # Reset mean forest
-                    if self.include_mean_forest:
-                        active_forest_mean.reset_root()
-                        if init_val_mean.shape[0] == 1:
-                            active_forest_mean.set_root_leaves(
-                                init_val_mean[0] / num_trees_mean
-                            )
-                        else:
-                            active_forest_mean.set_root_leaves(
-                                init_val_mean / num_trees_mean
-                            )
-                        forest_sampler_mean.reconstitute_from_forest(
-                            active_forest_mean,
-                            forest_dataset_train,
-                            residual_train,
-                            True,
-                        )
-                        # Reset mean forest leaf scale
-                        if sample_sigma2_leaf and previous_leaf_var_samples is not None:
-                            current_leaf_scale[0, 0] = sigma2_leaf
-                            forest_model_config_mean.update_leaf_model_scale(
-                                current_leaf_scale
-                            )
-                        if link_is_cloglog:
-                            # Reset all cloglog parameters to default values
-                            for j in range(train_size):
-                                forest_dataset_train.set_auxiliary_data_value(1, j, 0.0)
-                                forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
-                            # Initialize log-scale cutpoints to 0
-                            initial_gamma = np.zeros(cloglog_num_categories - 1)
-                            for j in range(cloglog_num_categories - 1):
-                                forest_dataset_train.set_auxiliary_data_value(
-                                    2,
-                                    j,
-                                    initial_gamma[j]
-                                )
-                            # Convert to cumulative exponentiated cutpoints
-                            ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
-                    # Reset variance forest
-                    if self.include_variance_forest:
-                        active_forest_variance.reset_root()
-                        active_forest_variance.set_root_leaves(
-                            log(variance_forest_leaf_init) / num_trees_variance
-                        )
-                        forest_sampler_variance.reconstitute_from_forest(
-                            active_forest_variance,
-                            forest_dataset_train,
-                            residual_train,
-                            False,
-                        )
-                    # Reset global error scale
-                    if self.sample_sigma2_global:
-                        current_sigma2 = sigma2_init
-                        global_model_config.update_global_error_variance(current_sigma2)
-                    # Reset random effects terms
-                    if self.has_rfx:
-                        rfx_model.root_reset(alpha_init, xi_init, sigma_alpha_init, sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
-                        rfx_tracker.root_reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
-                # Sample MCMC and burnin for each chain
-                for i in range(self.num_gfr, num_temp_samples):
-                    is_mcmc = i + 1 > num_gfr + num_burnin
-                    if is_mcmc:
-                        mcmc_counter = i - num_gfr - num_burnin + 1
-                        if mcmc_counter % keep_every == 0:
-                            keep_sample = True
-                        else:
-                            keep_sample = False
-                    else:
-                        if keep_burnin:
-                            keep_sample = True
-                        else:
-                            keep_sample = False
-                    if keep_sample:
-                        sample_counter += 1
-
-                    if self.include_mean_forest:
-                        if link_is_probit:
-                            # Sample latent probit variable z | -
-                            outcome_pred = active_forest_mean.predict(
-                                forest_dataset_train
-                            )
-                            if self.has_rfx:
-                                rfx_pred = rfx_model.predict(
-                                    rfx_dataset_train, rfx_tracker
-                                )
-                                outcome_pred = outcome_pred + rfx_pred
-                            # Full probit-scale predictor: forest learns z - y_bar, so add y_bar back
-                            eta_pred = outcome_pred + self.y_bar
-                            mu0 = eta_pred[y_train[:, 0] == 0]
-                            mu1 = eta_pred[y_train[:, 0] == 1]
-                            n0 = np.sum(y_train[:, 0] == 0)
-                            n1 = np.sum(y_train[:, 0] == 1)
-                            u0 = self.rng.uniform(
-                                low=0.0,
-                                high=norm.cdf(0 - mu0),
-                                size=n0,
-                            )
-                            u1 = self.rng.uniform(
-                                low=norm.cdf(0 - mu1),
-                                high=1.0,
-                                size=n1,
-                            )
-                            resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
-                            resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
-
-                            # Update outcome: center z by y_bar before passing to forest
-                            new_outcome = np.squeeze(resid_train) - self.y_bar - outcome_pred
-                            residual_train.update_data(new_outcome)
-
-                        # Sample the mean forest
-                        forest_sampler_mean.sample_one_iteration(
-                            self.forest_container_mean,
-                            active_forest_mean,
-                            forest_dataset_train,
-                            residual_train,
-                            cpp_rng,
-                            global_model_config,
-                            forest_model_config_mean,
-                            keep_sample,
-                            False,
-                            num_threads,
-                        )
-
-                        if keep_sample:
-                            yhat_train_raw[:, sample_counter] = (
-                                forest_sampler_mean.get_cached_forest_predictions()
-                            )
-
-                    # Sample the variance forest
-                    if self.include_variance_forest:
-                        forest_sampler_variance.sample_one_iteration(
-                            self.forest_container_variance,
-                            active_forest_variance,
-                            forest_dataset_train,
-                            residual_train,
-                            cpp_rng,
-                            global_model_config,
-                            forest_model_config_variance,
-                            keep_sample,
-                            False,
-                            num_threads,
-                        )
-
-                        if keep_sample:
-                            sigma2_x_train_raw[:, sample_counter] = (
-                                forest_sampler_variance.get_cached_forest_predictions()
-                            )
-
-                    # Sample variance parameters (if requested)
-                    if self.sample_sigma2_global:
-                        current_sigma2 = global_var_model.sample_one_iteration(
-                            residual_train, cpp_rng, a_global, b_global
-                        )
-                        global_model_config.update_global_error_variance(current_sigma2)
-                        if keep_sample:
-                            self.global_var_samples[sample_counter] = current_sigma2
-                    if self.sample_sigma2_leaf:
-                        current_leaf_scale[0, 0] = leaf_var_model.sample_one_iteration(
-                            active_forest_mean, cpp_rng, a_leaf, b_leaf
-                        )
-                        forest_model_config_mean.update_leaf_model_scale(
-                            current_leaf_scale
-                        )
-                        if keep_sample:
-                            self.leaf_scale_samples[sample_counter] = (
-                                current_leaf_scale[0, 0]
-                            )
-
-                    # Sample random effects
-                    if self.has_rfx:
-                        rfx_model.sample(
-                            rfx_dataset_train,
-                            residual_train,
-                            rfx_tracker,
-                            self.rfx_container,
-                            keep_sample,
-                            current_sigma2,
-                            cpp_rng,
-                        )
-
-                    # Cloglog Gibbs updates
-                    if link_is_cloglog:
-                        # Update auxiliary data slot 1 with current forest predictions
-                        forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
-                        for j in range(train_size):
-                            forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
-
-                        # Sample latent z_i's using truncated exponential
-                        ordinal_sampler.update_latent_variables(
-                            forest_dataset_train, residual_train, cpp_rng
-                        )
-
-                        # Sample gamma parameters (cutpoints)
-                        ordinal_sampler.update_gamma_params(
-                            forest_dataset_train,
-                            residual_train,
-                            cloglog_forest_shape,
-                            cloglog_forest_rate,
-                            cloglog_cutpoint_0,
-                            cpp_rng,
-                        )
-
-                        # Update cumulative sum of exp(gamma) values
-                        ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
-
-                        # Retain cutpoint draw
-                        if keep_sample:
-                            cloglog_cutpoint_samples[:, sample_counter] = (
-                                forest_dataset_train.get_auxiliary_data_vector(2)
-                            )
-
-        # Mark the model as sampled
-        self.sampled = True
-
-        # Remove GFR samples if they are not to be retained
-        if not keep_gfr and num_gfr > 0:
-            for i in range(num_gfr):
-                if self.include_mean_forest:
-                    self.forest_container_mean.delete_sample(0)
-                if self.include_variance_forest:
-                    self.forest_container_variance.delete_sample(0)
-                if self.has_rfx:
-                    self.rfx_container.delete_sample(0)
-            if self.sample_sigma2_global:
-                self.global_var_samples = self.global_var_samples[num_gfr:]
-            if self.sample_sigma2_leaf:
-                self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
-            if self.include_mean_forest:
-                yhat_train_raw = yhat_train_raw[:, num_gfr:]
-            if self.include_variance_forest:
-                sigma2_x_train_raw = sigma2_x_train_raw[:, num_gfr:]
-            if link_is_cloglog:
-                cloglog_cutpoint_samples = cloglog_cutpoint_samples[:, num_gfr:]
-            self.num_samples -= num_gfr
-
-        # Store cloglog results (cutpoints only for ordinal, num_categories always)
-        if link_is_cloglog:
-            self.cloglog_num_categories = cloglog_num_categories
-            if not outcome_is_binary:
-                self.cloglog_cutpoint_samples = cloglog_cutpoint_samples
-
-        # Store predictions
-        if self.sample_sigma2_global:
-            self.global_var_samples = self.global_var_samples * self.y_std * self.y_std
-
-        if self.sample_sigma2_leaf:
-            self.leaf_scale_samples = self.leaf_scale_samples
-
-        if self.include_mean_forest:
-            self.y_hat_train = yhat_train_raw * self.y_std + self.y_bar
+          # Unpack mean forest results
+          self.forest_container_mean = (
+              ForestContainer(num_trees_mean, 1, True, False)
+              if not self.has_basis
+              else ForestContainer(num_trees_mean, self.num_basis, False, False)
+          )
+          self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
+          mean_forest_preds_train = bart_results["mean_forest_predictions_train"].reshape(self.n_train, bart_results["num_samples"], order="F")
+          self.y_hat_train = mean_forest_preds_train * self.y_std + self.y_bar
+          if self.has_test:
+            mean_forest_preds_test = bart_results["mean_forest_predictions_test"].reshape(self.n_test, bart_results["num_samples"], order="F")
+            self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
+          
+          # Unpack variance forest results
+          if self.include_variance_forest:
+            self.forest_container_variance = ForestContainer(num_trees_variance, 1, True, True)
+            self.forest_container_variance.forest_container_cpp = bart_results["forest_container_variance"]
+            variance_forest_preds_train = bart_results["variance_forest_predictions_train"].reshape(self.n_train, bart_results["num_samples"], order="F")
+            self.variance_forest_preds_train = variance_forest_preds_train * self.y_std * self.y_std
             if self.has_test:
-                yhat_test_raw = self.forest_container_mean.forest_container_cpp.Predict(
-                    forest_dataset_test.dataset_cpp
-                )
-                self.y_hat_test = yhat_test_raw * self.y_std + self.y_bar
+                variance_forest_preds_test = bart_results["variance_forest_predictions_test"].reshape(self.n_test, bart_results["num_samples"], order="F")
+                self.variance_forest_preds_test = variance_forest_preds_test * self.y_std * self.y_std
 
-        # TODO: make rfx_preds_train and rfx_preds_test persistent properties
-        if self.has_rfx:
-            rfx_preds_train = (
-                self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train)
-                * self.y_std
-            )
-            if has_rfx_test:
-                rfx_preds_test = (
-                    self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test)
-                    * self.y_std
-                )
-            if self.include_mean_forest:
-                self.y_hat_train = self.y_hat_train + rfx_preds_train
-                if self.has_test:
-                    self.y_hat_test = self.y_hat_test + rfx_preds_test
-            else:
-                self.y_hat_train = rfx_preds_train
-                if self.has_test:
-                    self.y_hat_test = rfx_preds_test
+          # Unpack parameter samples
+          if sample_sigma2_global:
+              self.global_var_samples = bart_results["global_var_samples"] * self.y_std * self.y_std
+          if sample_sigma2_leaf:
+              self.leaf_scale_samples = bart_results["leaf_scale_samples"]
+          
+          # Unpack other model metadata
+          self.num_samples = bart_results["num_samples"]
+          self.sampled = True
+          
+          return self
+        
+        else:
+        
+          # Handle standardization, prior calibration, and initialization of forest
+          # differently for binary and continuous outcomes
+          if link_is_probit:
+              # Compute a probit-scale offset and fix scale to 1
+              self.y_bar = norm.ppf(np.squeeze(np.mean(y_train)))
+              self.y_std = 1.0
 
-        if self.include_variance_forest:
-            if self.sample_sigma2_global:
-                self.sigma2_x_train = np.empty_like(sigma2_x_train_raw)
-                for i in range(self.num_samples):
-                    self.sigma2_x_train[:, i] = (
-                        np.exp(sigma2_x_train_raw[:, i]) * self.global_var_samples[i]
-                    )
-            else:
-                self.sigma2_x_train = (
-                    np.exp(sigma2_x_train_raw)
-                    * self.sigma2_init
-                    * self.y_std
-                    * self.y_std
-                )
-            if self.has_test:
-                sigma2_x_test_raw = (
-                    self.forest_container_variance.forest_container_cpp.Predict(
-                        forest_dataset_test.dataset_cpp
-                    )
-                )
-                if self.sample_sigma2_global:
-                    self.sigma2_x_test = sigma2_x_test_raw
-                    for i in range(self.num_samples):
-                        self.sigma2_x_test[:, i] = (
-                            sigma2_x_test_raw[:, i] * self.global_var_samples[i]
-                        )
-                else:
-                    self.sigma2_x_test = (
-                        sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
-                    )
+              # Set a pseudo outcome by subtracting mean(y_train) from y_train
+              resid_train = y_train - np.squeeze(np.mean(y_train))
+
+              # Set initial values of root nodes to 0.0 (in probit scale)
+              init_val_mean = 0.0
+
+              # Calibrate priors for sigma^2 and tau
+              # Set sigma2_init to 1, ignoring default provided
+              sigma2_init = 1.0
+              current_sigma2 = sigma2_init
+              self.sigma2_init = sigma2_init
+              # Skip variance_forest_init, since variance forests are not supported with probit link
+              b_leaf = 1.0 / num_trees_mean if b_leaf is None else b_leaf
+              if self.has_basis:
+                  if sigma2_leaf is None:
+                      current_leaf_scale = np.zeros(
+                          (self.num_basis, self.num_basis), dtype=float
+                      )
+                      np.fill_diagonal(
+                          current_leaf_scale,
+                          2.0 / num_trees_mean,
+                      )
+                  elif isinstance(sigma2_leaf, float):
+                      current_leaf_scale = np.zeros(
+                          (self.num_basis, self.num_basis), dtype=float
+                      )
+                      np.fill_diagonal(current_leaf_scale, sigma2_leaf)
+                  elif isinstance(sigma2_leaf, np.ndarray):
+                      if sigma2_leaf.ndim != 2:
+                          raise ValueError(
+                              "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                          )
+                      if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
+                          raise ValueError(
+                              "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                          )
+                      if sigma2_leaf.shape[0] != self.num_basis:
+                          raise ValueError(
+                              "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
+                          )
+                      current_leaf_scale = sigma2_leaf
+                  else:
+                      raise ValueError(
+                          "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
+                      )
+              else:
+                  if sigma2_leaf is None:
+                      current_leaf_scale = np.array([[2.0 / num_trees_mean]])
+                  elif isinstance(sigma2_leaf, float):
+                      current_leaf_scale = np.array([[sigma2_leaf]])
+                  elif isinstance(sigma2_leaf, np.ndarray):
+                      if sigma2_leaf.ndim != 2:
+                          raise ValueError(
+                              "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                          )
+                      if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
+                          raise ValueError(
+                              "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                          )
+                      if sigma2_leaf.shape[0] != 1:
+                          raise ValueError(
+                              "sigma2_leaf must be a 1x1 numpy array for this leaf model"
+                          )
+                      current_leaf_scale = sigma2_leaf
+                  else:
+                      raise ValueError(
+                          "sigma2_leaf must be either a scalar or a 2d numpy array"
+                      )
+          elif link_is_cloglog:
+              # Fix offset to 0 and scale to 1
+              self.y_bar = 0
+              self.y_std = 1
+
+              # Remap outcomes to start from 0
+              resid_train = y_train - np.min(unique_outcomes)
+              cloglog_num_categories = int(np.max(resid_train)) + 1
+
+              # Set initial values of root nodes to 0.0 (in linear scale)
+              init_val_mean = 0.0
+
+              # Calibrate priors for sigma^2 and tau
+              sigma2_init = 1.0
+              current_sigma2 = sigma2_init
+              self.sigma2_init = sigma2_init
+              current_leaf_scale = np.array([[2.0 / num_trees_mean]])
+
+              # Set first cutpoint to 0 for identifiability
+              cloglog_cutpoint_0 = 0.0
+
+              # Set shape and rate parameters for conditional gamma model
+              cloglog_forest_shape = 2.0
+              cloglog_forest_rate = 2.0
+          else:
+              # Standardize if requested
+              if self.standardize:
+                  self.y_bar = np.squeeze(np.mean(y_train))
+                  self.y_std = np.squeeze(np.std(y_train))
+              else:
+                  self.y_bar = 0
+                  self.y_std = 1
+
+              # Compute residual value
+              resid_train = (y_train - self.y_bar) / self.y_std
+
+              # Compute initial value of root nodes in mean forest
+              init_val_mean = np.squeeze(np.mean(resid_train))
+
+              # Calibrate priors for global sigma^2 and sigma2_leaf
+              if not sigma2_init:
+                  sigma2_init = 1.0 * np.var(resid_train)
+              if not variance_forest_leaf_init:
+                  variance_forest_leaf_init = 0.6 * np.var(resid_train)
+              current_sigma2 = sigma2_init
+              self.sigma2_init = sigma2_init
+              if self.include_mean_forest:
+                  b_leaf = (
+                      np.squeeze(np.var(resid_train)) / num_trees_mean
+                      if b_leaf is None
+                      else b_leaf
+                  )
+                  if self.has_basis:
+                      if sigma2_leaf is None:
+                          current_leaf_scale = np.zeros(
+                              (self.num_basis, self.num_basis), dtype=float
+                          )
+                          np.fill_diagonal(
+                              current_leaf_scale,
+                              np.squeeze(np.var(resid_train)) / num_trees_mean,
+                          )
+                      elif isinstance(sigma2_leaf, float):
+                          current_leaf_scale = np.zeros(
+                              (self.num_basis, self.num_basis), dtype=float
+                          )
+                          np.fill_diagonal(current_leaf_scale, sigma2_leaf)
+                      elif isinstance(sigma2_leaf, np.ndarray):
+                          if sigma2_leaf.ndim != 2:
+                              raise ValueError(
+                                  "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                              )
+                          if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
+                              raise ValueError(
+                                  "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                              )
+                          if sigma2_leaf.shape[0] != self.num_basis:
+                              raise ValueError(
+                                  "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
+                              )
+                          current_leaf_scale = sigma2_leaf
+                      else:
+                          raise ValueError(
+                              "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
+                          )
+                  else:
+                      if sigma2_leaf is None:
+                          current_leaf_scale = np.array([
+                              [np.squeeze(np.var(resid_train)) / num_trees_mean]
+                          ])
+                      elif isinstance(sigma2_leaf, float):
+                          current_leaf_scale = np.array([[sigma2_leaf]])
+                      elif isinstance(sigma2_leaf, np.ndarray):
+                          if sigma2_leaf.ndim != 2:
+                              raise ValueError(
+                                  "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                              )
+                          if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
+                              raise ValueError(
+                                  "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                              )
+                          if sigma2_leaf.shape[0] != 1:
+                              raise ValueError(
+                                  "sigma2_leaf must be a 1x1 numpy array for this leaf model"
+                              )
+                          current_leaf_scale = sigma2_leaf
+                      else:
+                          raise ValueError(
+                              "sigma2_leaf must be either a scalar or a 2d numpy array"
+                          )
+              else:
+                  current_leaf_scale = np.array([[1.0]])
+              if self.include_variance_forest:
+                  if not a_forest:
+                      a_forest = num_trees_variance / a_0**2 + 0.5
+                  if not b_forest:
+                      b_forest = num_trees_variance / a_0**2
+              else:
+                  if not a_forest:
+                      a_forest = 1.0
+                  if not b_forest:
+                      b_forest = 1.0
+
+          # Set up random effects structures
+          if self.has_rfx:
+              # Prior parameters
+              if rfx_working_parameter_prior_mean is None:
+                  if num_rfx_components == 1:
+                      alpha_init = np.array([0.0], dtype=float)
+                  elif num_rfx_components > 1:
+                      alpha_init = np.zeros(num_rfx_components, dtype=float)
+                  else:
+                      raise ValueError("There must be at least 1 random effect component")
+              else:
+                  alpha_init = _expand_dims_1d(
+                      rfx_working_parameter_prior_mean, num_rfx_components
+                  )
+
+              if rfx_group_parameter_prior_mean is None:
+                  xi_init = np.tile(np.expand_dims(alpha_init, 1), (1, num_rfx_groups))
+              else:
+                  xi_init = _expand_dims_2d(
+                      rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups
+                  )
+
+              if rfx_working_parameter_prior_cov is None:
+                  sigma_alpha_init = np.identity(num_rfx_components)
+              else:
+                  sigma_alpha_init = _expand_dims_2d_diag(
+                      rfx_working_parameter_prior_cov, num_rfx_components
+                  )
+
+              if rfx_group_parameter_prior_cov is None:
+                  sigma_xi_init = np.identity(num_rfx_components)
+              else:
+                  sigma_xi_init = _expand_dims_2d_diag(
+                      rfx_group_parameter_prior_cov, num_rfx_components
+                  )
+
+              sigma_xi_shape = rfx_variance_prior_shape
+              sigma_xi_scale = rfx_variance_prior_scale
+
+              # Random effects sampling data structures
+              rfx_dataset_train = RandomEffectsDataset()
+              rfx_dataset_train.add_group_labels(rfx_group_ids_train)
+              rfx_dataset_train.add_basis(rfx_basis_train)
+              rfx_tracker = RandomEffectsTracker(rfx_group_ids_train)
+              rfx_model = RandomEffectsModel(num_rfx_components, num_rfx_groups)
+              rfx_model.set_working_parameter(alpha_init)
+              rfx_model.set_group_parameters(xi_init)
+              rfx_model.set_working_parameter_covariance(sigma_alpha_init)
+              rfx_model.set_group_parameter_covariance(sigma_xi_init)
+              rfx_model.set_variance_prior_shape(sigma_xi_shape)
+              rfx_model.set_variance_prior_scale(sigma_xi_scale)
+              self.rfx_container = RandomEffectsContainer()
+              self.rfx_container.load_new_container(
+                  num_rfx_components, num_rfx_groups, rfx_tracker
+              )
+
+          # Container of variance parameter samples
+          self.num_gfr = num_gfr
+          self.num_burnin = num_burnin
+          self.num_mcmc = num_mcmc
+          self.num_chains = num_chains
+          self.keep_every = keep_every
+          num_temp_samples = num_gfr + num_burnin + num_mcmc * keep_every
+          num_retained_samples = num_mcmc * num_chains
+          # Delete GFR samples from these containers after the fact if desired
+          # if keep_gfr:
+          #     num_retained_samples += num_gfr
+          num_retained_samples += num_gfr
+          if keep_burnin:
+              num_retained_samples += num_burnin * num_chains
+          self.num_samples = num_retained_samples
+          self.sample_sigma2_global = sample_sigma2_global
+          self.sample_sigma2_leaf = sample_sigma2_leaf
+          if sample_sigma2_global:
+              self.global_var_samples = np.empty(self.num_samples, dtype=np.float64)
+          if sample_sigma2_leaf:
+              self.leaf_scale_samples = np.empty(self.num_samples, dtype=np.float64)
+          if self.include_mean_forest:
+              yhat_train_raw = np.empty(
+                  (self.n_train, self.num_samples), dtype=np.float64
+              )
+          if self.include_variance_forest:
+              sigma2_x_train_raw = np.empty(
+                  (self.n_train, self.num_samples), dtype=np.float64
+              )
+          sample_counter = -1
+
+          # Forest Dataset (covariates and optional basis)
+          forest_dataset_train = Dataset()
+          forest_dataset_train.add_covariates(X_train_processed)
+          if self.has_basis:
+              forest_dataset_train.add_basis(leaf_basis_train)
+          if observation_weights is not None:
+              forest_dataset_train.add_variance_weights(observation_weights_)
+          if self.has_test:
+              forest_dataset_test = Dataset()
+              forest_dataset_test.add_covariates(X_test_processed)
+              if self.has_basis:
+                  forest_dataset_test.add_basis(leaf_basis_test)
+
+          # Residual
+          residual_train = Residual(resid_train)
+
+          # C++ and Numpy random number generator
+          if random_seed is None:
+              cpp_rng = RNG(-1)
+              self.rng = np.random.default_rng()
+          else:
+              cpp_rng = RNG(random_seed)
+              self.rng = np.random.default_rng(random_seed)
+
+          # Set variance leaf model type (currently only one option)
+          leaf_model_variance_forest = 3
+          leaf_dimension_variance = 1
+
+          # Determine the mean forest leaf model type
+          if link_is_cloglog and not self.has_basis:
+              leaf_model_mean_forest = 4
+              leaf_dimension_mean = 1
+          elif not self.has_basis:
+              leaf_model_mean_forest = 0
+              leaf_dimension_mean = 1
+          elif self.num_basis == 1:
+              leaf_model_mean_forest = 1
+              leaf_dimension_mean = 1
+          else:
+              leaf_model_mean_forest = 2
+              leaf_dimension_mean = self.num_basis
+              
+          # Sampling data structures
+          global_model_config = GlobalModelConfig(global_error_variance=current_sigma2)
+          if self.include_mean_forest:
+              forest_model_config_mean = ForestModelConfig(
+                  num_trees=num_trees_mean,
+                  num_features=num_features,
+                  num_observations=self.n_train,
+                  feature_types=feature_types,
+                  variable_weights=variable_weights_mean,
+                  leaf_dimension=leaf_dimension_mean,
+                  alpha=alpha_mean,
+                  beta=beta_mean,
+                  min_samples_leaf=min_samples_leaf_mean,
+                  max_depth=max_depth_mean,
+                  leaf_model_type=leaf_model_mean_forest,
+                  leaf_model_scale=current_leaf_scale,
+                  cutpoint_grid_size=cutpoint_grid_size,
+                  num_features_subsample=num_features_subsample_mean,
+              )
+              if link_is_cloglog:
+                  forest_model_config_mean.update_cloglog_forest_shape(cloglog_forest_shape)
+                  forest_model_config_mean.update_cloglog_forest_rate(cloglog_forest_rate)
+              forest_sampler_mean = ForestSampler(
+                  forest_dataset_train,
+                  global_model_config,
+                  forest_model_config_mean,
+              )
+          if self.include_variance_forest:
+              forest_model_config_variance = ForestModelConfig(
+                  num_trees=num_trees_variance,
+                  num_features=num_features,
+                  num_observations=self.n_train,
+                  feature_types=feature_types,
+                  variable_weights=variable_weights_variance,
+                  leaf_dimension=leaf_dimension_variance,
+                  alpha=alpha_variance,
+                  beta=beta_variance,
+                  min_samples_leaf=min_samples_leaf_variance,
+                  max_depth=max_depth_variance,
+                  leaf_model_type=leaf_model_variance_forest,
+                  cutpoint_grid_size=cutpoint_grid_size,
+                  variance_forest_shape=a_forest,
+                  variance_forest_scale=b_forest,
+                  num_features_subsample=num_features_subsample_variance,
+              )
+              forest_sampler_variance = ForestSampler(
+                  forest_dataset_train,
+                  global_model_config,
+                  forest_model_config_variance,
+              )
+
+          # Container of forest samples
+          if self.include_mean_forest:
+              self.forest_container_mean = (
+                  ForestContainer(num_trees_mean, 1, True, False)
+                  if not self.has_basis
+                  else ForestContainer(num_trees_mean, self.num_basis, False, False)
+              )
+              active_forest_mean = (
+                  Forest(num_trees_mean, 1, True, False)
+                  if not self.has_basis
+                  else Forest(num_trees_mean, self.num_basis, False, False)
+              )
+          if self.include_variance_forest:
+              self.forest_container_variance = ForestContainer(
+                  num_trees_variance, 1, True, True
+              )
+              active_forest_variance = Forest(num_trees_variance, 1, True, True)
+
+          # Variance samplers
+          if self.sample_sigma2_global:
+              global_var_model = GlobalVarianceModel()
+          if self.sample_sigma2_leaf:
+              leaf_var_model = LeafVarianceModel()
+
+          # Initialize the leaves of each tree in the mean forest
+          if self.include_mean_forest:
+              if self.has_basis:
+                  init_val_mean = np.repeat(0.0, leaf_basis_train.shape[1])
+              else:
+                  init_val_mean = np.array([0.0])
+              forest_sampler_mean.prepare_for_sampler(
+                  forest_dataset_train,
+                  residual_train,
+                  active_forest_mean,
+                  leaf_model_mean_forest,
+                  init_val_mean,
+              )
+
+          # Initialize the leaves of each tree in the variance forest
+          if self.include_variance_forest:
+              init_val_variance = np.array([variance_forest_leaf_init])
+              forest_sampler_variance.prepare_for_sampler(
+                  forest_dataset_train,
+                  residual_train,
+                  active_forest_variance,
+                  leaf_model_variance_forest,
+                  init_val_variance,
+              )
+
+          # Initialize auxiliary data and ordinal sampler for cloglog
+          if link_is_cloglog:
+              ordinal_sampler = OrdinalSampler()
+              train_size = self.n_train
+
+              # Slot 0: Latent variable Z (size n_train)
+              forest_dataset_train.add_auxiliary_dimension(train_size)
+              # Slot 1: Forest predictions eta (size n_train)
+              forest_dataset_train.add_auxiliary_dimension(train_size)
+              # Slot 2: Log-scale cutpoints gamma (size cloglog_num_categories - 1)
+              forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories - 1)
+              # Slot 3: Cumulative exp cutpoints seg (size cloglog_num_categories)
+              forest_dataset_train.add_auxiliary_dimension(cloglog_num_categories)
+
+              # Initialize all slots to 0
+              for j in range(train_size):
+                  forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
+                  forest_dataset_train.set_auxiliary_data_value(1, j, 0.0)
+              for j in range(cloglog_num_categories - 1):
+                  forest_dataset_train.set_auxiliary_data_value(2, j, 0.0)
+
+              # Compute initial cumulative exp sums
+              ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+
+              # Allocate storage for cutpoint samples
+              cloglog_cutpoint_samples = np.full(
+                  (cloglog_num_categories - 1, num_retained_samples), np.nan
+              )
+          # Run GFR (warm start) if specified
+          if self.num_gfr > 0:
+              for i in range(self.num_gfr):
+                  # Keep all GFR samples at this stage -- remove from ForestSamples after MCMC
+                  # keep_sample = keep_gfr
+                  keep_sample = True
+                  if keep_sample:
+                      sample_counter += 1
+                  if self.include_mean_forest:
+                      if link_is_probit:
+                          # Sample latent probit variable z | -
+                          outcome_pred = active_forest_mean.predict(forest_dataset_train)
+                          if self.has_rfx:
+                              rfx_pred = rfx_model.predict(rfx_dataset_train, rfx_tracker)
+                              outcome_pred = outcome_pred + rfx_pred
+                          # Full probit-scale predictor: forest learns z - y_bar, so add y_bar back
+                          eta_pred = outcome_pred + self.y_bar
+                          mu0 = eta_pred[y_train[:, 0] == 0]
+                          mu1 = eta_pred[y_train[:, 0] == 1]
+                          n0 = np.sum(y_train[:, 0] == 0)
+                          n1 = np.sum(y_train[:, 0] == 1)
+                          u0 = self.rng.uniform(
+                              low=0.0,
+                              high=norm.cdf(0 - mu0),
+                              size=n0,
+                          )
+                          u1 = self.rng.uniform(
+                              low=norm.cdf(0 - mu1),
+                              high=1.0,
+                              size=n1,
+                          )
+                          resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
+                          resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
+
+                          # Update outcome: center z by y_bar before passing to forest
+                          new_outcome = np.squeeze(resid_train) - self.y_bar - outcome_pred
+                          residual_train.update_data(new_outcome)
+
+                      # Sample the mean forest
+                      forest_sampler_mean.sample_one_iteration(
+                          self.forest_container_mean,
+                          active_forest_mean,
+                          forest_dataset_train,
+                          residual_train,
+                          cpp_rng,
+                          global_model_config,
+                          forest_model_config_mean,
+                          keep_sample,
+                          True,
+                          num_threads,
+                      )
+
+                      # Cache train set predictions since they are already computed during sampling
+                      if keep_sample:
+                          yhat_train_raw[:, sample_counter] = (
+                              forest_sampler_mean.get_cached_forest_predictions()
+                          )
+
+                  # Sample the variance forest
+                  if self.include_variance_forest:
+                      forest_sampler_variance.sample_one_iteration(
+                          self.forest_container_variance,
+                          active_forest_variance,
+                          forest_dataset_train,
+                          residual_train,
+                          cpp_rng,
+                          global_model_config,
+                          forest_model_config_variance,
+                          keep_sample,
+                          True,
+                          num_threads,
+                      )
+
+                      # Cache train set predictions since they are already computed during sampling
+                      if keep_sample:
+                          sigma2_x_train_raw[:, sample_counter] = (
+                              forest_sampler_variance.get_cached_forest_predictions()
+                          )
+
+                  # Sample variance parameters (if requested)
+                  if self.sample_sigma2_global:
+                      current_sigma2 = global_var_model.sample_one_iteration(
+                          residual_train, cpp_rng, a_global, b_global
+                      )
+                      global_model_config.update_global_error_variance(current_sigma2)
+                      if keep_sample:
+                          self.global_var_samples[sample_counter] = current_sigma2
+                  if self.sample_sigma2_leaf:
+                      current_leaf_scale[0, 0] = leaf_var_model.sample_one_iteration(
+                          active_forest_mean, cpp_rng, a_leaf, b_leaf
+                      )
+                      forest_model_config_mean.update_leaf_model_scale(current_leaf_scale)
+                      if keep_sample:
+                          self.leaf_scale_samples[sample_counter] = current_leaf_scale[
+                              0, 0
+                          ]
+
+                  # Sample random effects
+                  if self.has_rfx:
+                      rfx_model.sample(
+                          rfx_dataset_train,
+                          residual_train,
+                          rfx_tracker,
+                          self.rfx_container,
+                          keep_sample,
+                          current_sigma2,
+                          cpp_rng,
+                      )
+
+                  # Cloglog Gibbs updates
+                  if link_is_cloglog:
+                      # Update auxiliary data slot 1 with current forest predictions
+                      forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
+                      for j in range(train_size):
+                          forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
+
+                      # Sample latent z_i's using truncated exponential
+                      ordinal_sampler.update_latent_variables(
+                          forest_dataset_train, residual_train, cpp_rng
+                      )
+
+                      # Sample gamma parameters (cutpoints)
+                      ordinal_sampler.update_gamma_params(
+                          forest_dataset_train,
+                          residual_train,
+                          cloglog_forest_shape,
+                          cloglog_forest_rate,
+                          cloglog_cutpoint_0,
+                          cpp_rng,
+                      )
+
+                      # Update cumulative sum of exp(gamma) values
+                      ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+
+                      # Retain cutpoint draw
+                      if keep_sample:
+                          cloglog_cutpoint_samples[:, sample_counter] = (
+                              forest_dataset_train.get_auxiliary_data_vector(2)
+                          )
+
+          # Run MCMC
+          if self.num_burnin + self.num_mcmc > 0:
+              for chain_num in range(num_chains):
+                  if num_gfr > 0:
+                      forest_ind = num_gfr - chain_num - 1
+                      # Reset mean forest
+                      if self.include_mean_forest:
+                          active_forest_mean.reset(self.forest_container_mean, forest_ind)
+                          forest_sampler_mean.reconstitute_from_forest(
+                              active_forest_mean,
+                              forest_dataset_train,
+                              residual_train,
+                              True,
+                          )
+                          # Reset leaf scale
+                          if sample_sigma2_leaf:
+                                  leaf_scale_double = self.leaf_scale_samples[
+                                      forest_ind
+                                  ]
+                                  current_leaf_scale[0, 0] = leaf_scale_double
+                                  forest_model_config_mean.update_leaf_model_scale(
+                                      leaf_scale_double
+                                  )
+                      # Reset variance forest
+                      if self.include_variance_forest:
+                          active_forest_variance.reset(
+                              self.forest_container_variance, forest_ind
+                          )
+                          forest_sampler_variance.reconstitute_from_forest(
+                              active_forest_variance,
+                              forest_dataset_train,
+                              residual_train,
+                              False,
+                          )
+                      # Reset global error scale
+                      if sample_sigma2_global:
+                          current_sigma2 = self.global_var_samples[forest_ind]
+                          global_model_config.update_global_error_variance(current_sigma2)
+                      # Reset random effects
+                      if self.has_rfx:
+                          rfx_model.reset(self.rfx_container, forest_ind, sigma_alpha_init)
+                          rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                      # Reset cloglog auxiliary data
+                      if link_is_cloglog:
+                          # Reset cutpoints from saved GFR samples
+                          current_cutpoints = cloglog_cutpoint_samples[:, forest_ind]
+                          for j in range(len(current_cutpoints)):
+                              forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
+                          ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+                          # Reset forest predictions by re-predicting from active forest
+                          active_forest_preds = active_forest_mean.predict(forest_dataset_train)
+                          for j in range(train_size):
+                              forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
+                              # Latent variables must be reset to 0 and burnt in
+                              forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
+                  elif has_prev_model:
+                      warmstart_index = previous_model_warmstart_sample_num - chain_num if previous_model_decrement else previous_model_warmstart_sample_num
+                      # Reset mean forest
+                      if self.include_mean_forest:
+                          active_forest_mean.reset(
+                              previous_bart_model.forest_container_mean,
+                              warmstart_index,
+                          )
+                          forest_sampler_mean.reconstitute_from_forest(
+                              active_forest_mean,
+                              forest_dataset_train,
+                              residual_train,
+                              True,
+                          )
+                          # Reset leaf scale
+                          if sample_sigma2_leaf and previous_leaf_var_samples is not None:
+                              leaf_scale_double = previous_leaf_var_samples[
+                                  warmstart_index
+                              ]
+                              current_leaf_scale[0, 0] = leaf_scale_double
+                              forest_model_config_mean.update_leaf_model_scale(
+                                  leaf_scale_double
+                              )
+                      # Reset variance forest
+                      if self.include_variance_forest:
+                          active_forest_variance.reset(
+                              previous_bart_model.forest_container_variance,
+                              warmstart_index,
+                          )
+                          forest_sampler_variance.reconstitute_from_forest(
+                              active_forest_variance,
+                              forest_dataset_train,
+                              residual_train,
+                              True,
+                          )
+                      # Reset global error scale
+                      if self.sample_sigma2_global:
+                          current_sigma2 = previous_global_var_samples[
+                              warmstart_index
+                          ]
+                          global_model_config.update_global_error_variance(current_sigma2)
+                      # Reset random effects
+                      if self.has_rfx:
+                          rfx_model.reset(previous_bart_model.rfx_container, warmstart_index, sigma_alpha_init)
+                          rfx_tracker.reset(rfx_model, rfx_dataset_train, residual_train, previous_bart_model.rfx_container)
+                      # Reset cloglog auxiliary data from previous model
+                      if link_is_cloglog:
+                          previous_cloglog_cutpoint_samples = getattr(
+                              previous_bart_model, "cloglog_cutpoint_samples", None
+                          )
+                          if previous_cloglog_cutpoint_samples is not None:
+                              current_cutpoints = previous_cloglog_cutpoint_samples[:, warmstart_index]
+                              for j in range(len(current_cutpoints)):
+                                  forest_dataset_train.set_auxiliary_data_value(2, j, current_cutpoints[j])
+                              ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+                          active_forest_preds = active_forest_mean.predict(forest_dataset_train)
+                          for j in range(train_size):
+                              forest_dataset_train.set_auxiliary_data_value(1, j, active_forest_preds[j])
+                              # Latent variables must be reset to 0 and burnt in
+                              forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
+                  else:
+                      # Reset mean forest
+                      if self.include_mean_forest:
+                          active_forest_mean.reset_root()
+                          if init_val_mean.shape[0] == 1:
+                              active_forest_mean.set_root_leaves(
+                                  init_val_mean[0] / num_trees_mean
+                              )
+                          else:
+                              active_forest_mean.set_root_leaves(
+                                  init_val_mean / num_trees_mean
+                              )
+                          forest_sampler_mean.reconstitute_from_forest(
+                              active_forest_mean,
+                              forest_dataset_train,
+                              residual_train,
+                              True,
+                          )
+                          # Reset mean forest leaf scale
+                          if sample_sigma2_leaf and previous_leaf_var_samples is not None:
+                              current_leaf_scale[0, 0] = sigma2_leaf
+                              forest_model_config_mean.update_leaf_model_scale(
+                                  current_leaf_scale
+                              )
+                          if link_is_cloglog:
+                              # Reset all cloglog parameters to default values
+                              for j in range(train_size):
+                                  forest_dataset_train.set_auxiliary_data_value(1, j, 0.0)
+                                  forest_dataset_train.set_auxiliary_data_value(0, j, 0.0)
+                              # Initialize log-scale cutpoints to 0
+                              initial_gamma = np.zeros(cloglog_num_categories - 1)
+                              for j in range(cloglog_num_categories - 1):
+                                  forest_dataset_train.set_auxiliary_data_value(
+                                      2,
+                                      j,
+                                      initial_gamma[j]
+                                  )
+                              # Convert to cumulative exponentiated cutpoints
+                              ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+                      # Reset variance forest
+                      if self.include_variance_forest:
+                          active_forest_variance.reset_root()
+                          active_forest_variance.set_root_leaves(
+                              log(variance_forest_leaf_init) / num_trees_variance
+                          )
+                          forest_sampler_variance.reconstitute_from_forest(
+                              active_forest_variance,
+                              forest_dataset_train,
+                              residual_train,
+                              False,
+                          )
+                      # Reset global error scale
+                      if self.sample_sigma2_global:
+                          current_sigma2 = sigma2_init
+                          global_model_config.update_global_error_variance(current_sigma2)
+                      # Reset random effects terms
+                      if self.has_rfx:
+                          rfx_model.root_reset(alpha_init, xi_init, sigma_alpha_init, sigma_xi_init, sigma_xi_shape, sigma_xi_scale)
+                          rfx_tracker.root_reset(rfx_model, rfx_dataset_train, residual_train, self.rfx_container)
+                  # Sample MCMC and burnin for each chain
+                  for i in range(self.num_gfr, num_temp_samples):
+                      is_mcmc = i + 1 > num_gfr + num_burnin
+                      if is_mcmc:
+                          mcmc_counter = i - num_gfr - num_burnin + 1
+                          if mcmc_counter % keep_every == 0:
+                              keep_sample = True
+                          else:
+                              keep_sample = False
+                      else:
+                          if keep_burnin:
+                              keep_sample = True
+                          else:
+                              keep_sample = False
+                      if keep_sample:
+                          sample_counter += 1
+
+                      if self.include_mean_forest:
+                          if link_is_probit:
+                              # Sample latent probit variable z | -
+                              outcome_pred = active_forest_mean.predict(
+                                  forest_dataset_train
+                              )
+                              if self.has_rfx:
+                                  rfx_pred = rfx_model.predict(
+                                      rfx_dataset_train, rfx_tracker
+                                  )
+                                  outcome_pred = outcome_pred + rfx_pred
+                              # Full probit-scale predictor: forest learns z - y_bar, so add y_bar back
+                              eta_pred = outcome_pred + self.y_bar
+                              mu0 = eta_pred[y_train[:, 0] == 0]
+                              mu1 = eta_pred[y_train[:, 0] == 1]
+                              n0 = np.sum(y_train[:, 0] == 0)
+                              n1 = np.sum(y_train[:, 0] == 1)
+                              u0 = self.rng.uniform(
+                                  low=0.0,
+                                  high=norm.cdf(0 - mu0),
+                                  size=n0,
+                              )
+                              u1 = self.rng.uniform(
+                                  low=norm.cdf(0 - mu1),
+                                  high=1.0,
+                                  size=n1,
+                              )
+                              resid_train[y_train[:, 0] == 0, 0] = mu0 + norm.ppf(u0)
+                              resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
+
+                              # Update outcome: center z by y_bar before passing to forest
+                              new_outcome = np.squeeze(resid_train) - self.y_bar - outcome_pred
+                              residual_train.update_data(new_outcome)
+
+                          # Sample the mean forest
+                          forest_sampler_mean.sample_one_iteration(
+                              self.forest_container_mean,
+                              active_forest_mean,
+                              forest_dataset_train,
+                              residual_train,
+                              cpp_rng,
+                              global_model_config,
+                              forest_model_config_mean,
+                              keep_sample,
+                              False,
+                              num_threads,
+                          )
+
+                          if keep_sample:
+                              yhat_train_raw[:, sample_counter] = (
+                                  forest_sampler_mean.get_cached_forest_predictions()
+                              )
+
+                      # Sample the variance forest
+                      if self.include_variance_forest:
+                          forest_sampler_variance.sample_one_iteration(
+                              self.forest_container_variance,
+                              active_forest_variance,
+                              forest_dataset_train,
+                              residual_train,
+                              cpp_rng,
+                              global_model_config,
+                              forest_model_config_variance,
+                              keep_sample,
+                              False,
+                              num_threads,
+                          )
+
+                          if keep_sample:
+                              sigma2_x_train_raw[:, sample_counter] = (
+                                  forest_sampler_variance.get_cached_forest_predictions()
+                              )
+
+                      # Sample variance parameters (if requested)
+                      if self.sample_sigma2_global:
+                          current_sigma2 = global_var_model.sample_one_iteration(
+                              residual_train, cpp_rng, a_global, b_global
+                          )
+                          global_model_config.update_global_error_variance(current_sigma2)
+                          if keep_sample:
+                              self.global_var_samples[sample_counter] = current_sigma2
+                      if self.sample_sigma2_leaf:
+                          current_leaf_scale[0, 0] = leaf_var_model.sample_one_iteration(
+                              active_forest_mean, cpp_rng, a_leaf, b_leaf
+                          )
+                          forest_model_config_mean.update_leaf_model_scale(
+                              current_leaf_scale
+                          )
+                          if keep_sample:
+                              self.leaf_scale_samples[sample_counter] = (
+                                  current_leaf_scale[0, 0]
+                              )
+
+                      # Sample random effects
+                      if self.has_rfx:
+                          rfx_model.sample(
+                              rfx_dataset_train,
+                              residual_train,
+                              rfx_tracker,
+                              self.rfx_container,
+                              keep_sample,
+                              current_sigma2,
+                              cpp_rng,
+                          )
+
+                      # Cloglog Gibbs updates
+                      if link_is_cloglog:
+                          # Update auxiliary data slot 1 with current forest predictions
+                          forest_pred_current = forest_sampler_mean.get_cached_forest_predictions()
+                          for j in range(train_size):
+                              forest_dataset_train.set_auxiliary_data_value(1, j, forest_pred_current[j])
+
+                          # Sample latent z_i's using truncated exponential
+                          ordinal_sampler.update_latent_variables(
+                              forest_dataset_train, residual_train, cpp_rng
+                          )
+
+                          # Sample gamma parameters (cutpoints)
+                          ordinal_sampler.update_gamma_params(
+                              forest_dataset_train,
+                              residual_train,
+                              cloglog_forest_shape,
+                              cloglog_forest_rate,
+                              cloglog_cutpoint_0,
+                              cpp_rng,
+                          )
+
+                          # Update cumulative sum of exp(gamma) values
+                          ordinal_sampler.update_cumulative_exp_sums(forest_dataset_train)
+
+                          # Retain cutpoint draw
+                          if keep_sample:
+                              cloglog_cutpoint_samples[:, sample_counter] = (
+                                  forest_dataset_train.get_auxiliary_data_vector(2)
+                              )
+
+          # Mark the model as sampled
+          self.sampled = True
+
+          # Remove GFR samples if they are not to be retained
+          if not keep_gfr and num_gfr > 0:
+              for i in range(num_gfr):
+                  if self.include_mean_forest:
+                      self.forest_container_mean.delete_sample(0)
+                  if self.include_variance_forest:
+                      self.forest_container_variance.delete_sample(0)
+                  if self.has_rfx:
+                      self.rfx_container.delete_sample(0)
+              if self.sample_sigma2_global:
+                  self.global_var_samples = self.global_var_samples[num_gfr:]
+              if self.sample_sigma2_leaf:
+                  self.leaf_scale_samples = self.leaf_scale_samples[num_gfr:]
+              if self.include_mean_forest:
+                  yhat_train_raw = yhat_train_raw[:, num_gfr:]
+              if self.include_variance_forest:
+                  sigma2_x_train_raw = sigma2_x_train_raw[:, num_gfr:]
+              if link_is_cloglog:
+                  cloglog_cutpoint_samples = cloglog_cutpoint_samples[:, num_gfr:]
+              self.num_samples -= num_gfr
+
+          # Store cloglog results (cutpoints only for ordinal, num_categories always)
+          if link_is_cloglog:
+              self.cloglog_num_categories = cloglog_num_categories
+              if not outcome_is_binary:
+                  self.cloglog_cutpoint_samples = cloglog_cutpoint_samples
+
+          # Store predictions
+          if self.sample_sigma2_global:
+              self.global_var_samples = self.global_var_samples * self.y_std * self.y_std
+
+          if self.sample_sigma2_leaf:
+              self.leaf_scale_samples = self.leaf_scale_samples
+
+          if self.include_mean_forest:
+              self.y_hat_train = yhat_train_raw * self.y_std + self.y_bar
+              if self.has_test:
+                  yhat_test_raw = self.forest_container_mean.forest_container_cpp.Predict(
+                      forest_dataset_test.dataset_cpp
+                  )
+                  self.y_hat_test = yhat_test_raw * self.y_std + self.y_bar
+
+          # TODO: make rfx_preds_train and rfx_preds_test persistent properties
+          if self.has_rfx:
+              rfx_preds_train = (
+                  self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train)
+                  * self.y_std
+              )
+              if has_rfx_test:
+                  rfx_preds_test = (
+                      self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test)
+                      * self.y_std
+                  )
+              if self.include_mean_forest:
+                  self.y_hat_train = self.y_hat_train + rfx_preds_train
+                  if self.has_test:
+                      self.y_hat_test = self.y_hat_test + rfx_preds_test
+              else:
+                  self.y_hat_train = rfx_preds_train
+                  if self.has_test:
+                      self.y_hat_test = rfx_preds_test
+
+          if self.include_variance_forest:
+              if self.sample_sigma2_global:
+                  self.sigma2_x_train = np.empty_like(sigma2_x_train_raw)
+                  for i in range(self.num_samples):
+                      self.sigma2_x_train[:, i] = (
+                          np.exp(sigma2_x_train_raw[:, i]) * self.global_var_samples[i]
+                      )
+              else:
+                  self.sigma2_x_train = (
+                      np.exp(sigma2_x_train_raw)
+                      * self.sigma2_init
+                      * self.y_std
+                      * self.y_std
+                  )
+              if self.has_test:
+                  sigma2_x_test_raw = (
+                      self.forest_container_variance.forest_container_cpp.Predict(
+                          forest_dataset_test.dataset_cpp
+                      )
+                  )
+                  if self.sample_sigma2_global:
+                      self.sigma2_x_test = sigma2_x_test_raw
+                      for i in range(self.num_samples):
+                          self.sigma2_x_test[:, i] = (
+                              sigma2_x_test_raw[:, i] * self.global_var_samples[i]
+                          )
+                  else:
+                      self.sigma2_x_test = (
+                          sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
+                      )
+          return self
 
     def predict(
         self,

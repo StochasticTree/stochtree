@@ -36,7 +36,6 @@ void ForestTracker::ReconstituteFromForest(TreeEnsemble& forest, ForestDataset& 
   // Reconstitute each of the remaining data structures in the tracker based on splits in the ensemble
   // UnsortedNodeSampleTracker
   unsorted_node_sample_tracker_->ReconstituteFromForest(forest, dataset);
-
 }
 
 void ForestTracker::ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureType>& feature_types, int32_t tree_num) {
@@ -45,19 +44,19 @@ void ForestTracker::ResetRoot(Eigen::MatrixXd& covariates, std::vector<FeatureTy
   sorted_node_sample_tracker_.reset(new SortedNodeSampleTracker(presort_container_.get(), covariates, feature_types));
 }
 
-data_size_t ForestTracker::GetNodeId(int observation_num, int tree_num) {return sample_node_mapper_->GetNodeId(observation_num, tree_num);}
+data_size_t ForestTracker::GetNodeId(int observation_num, int tree_num) { return sample_node_mapper_->GetNodeId(observation_num, tree_num); }
 
-data_size_t ForestTracker::UnsortedNodeBegin(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeBegin(tree_id, node_id);}
+data_size_t ForestTracker::UnsortedNodeBegin(int tree_id, int node_id) { return unsorted_node_sample_tracker_->NodeBegin(tree_id, node_id); }
 
-data_size_t ForestTracker::UnsortedNodeEnd(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeEnd(tree_id, node_id);}
+data_size_t ForestTracker::UnsortedNodeEnd(int tree_id, int node_id) { return unsorted_node_sample_tracker_->NodeEnd(tree_id, node_id); }
 
-data_size_t ForestTracker::UnsortedNodeSize(int tree_id, int node_id) {return unsorted_node_sample_tracker_->NodeSize(tree_id, node_id);}
+data_size_t ForestTracker::UnsortedNodeSize(int tree_id, int node_id) { return unsorted_node_sample_tracker_->NodeSize(tree_id, node_id); }
 
-data_size_t ForestTracker::SortedNodeBegin(int node_id, int feature_id) {return sorted_node_sample_tracker_->NodeBegin(node_id, feature_id);}
+data_size_t ForestTracker::SortedNodeBegin(int node_id, int feature_id) { return sorted_node_sample_tracker_->NodeBegin(node_id, feature_id); }
 
-data_size_t ForestTracker::SortedNodeEnd(int node_id, int feature_id) {return sorted_node_sample_tracker_->NodeEnd(node_id, feature_id);}
+data_size_t ForestTracker::SortedNodeEnd(int node_id, int feature_id) { return sorted_node_sample_tracker_->NodeEnd(node_id, feature_id); }
 
-data_size_t ForestTracker::SortedNodeSize(int node_id, int feature_id) {return sorted_node_sample_tracker_->NodeSize(node_id, feature_id);}
+data_size_t ForestTracker::SortedNodeSize(int node_id, int feature_id) { return sorted_node_sample_tracker_->NodeSize(node_id, feature_id); }
 
 std::vector<data_size_t>::iterator ForestTracker::UnsortedNodeBeginIterator(int tree_id, int node_id) {
   return unsorted_node_sample_tracker_->NodeBeginIterator(tree_id, node_id);
@@ -84,7 +83,7 @@ void ForestTracker::AssignAllSamplesToRoot(int32_t tree_num) {
 
 void ForestTracker::AssignAllSamplesToConstantPrediction(double value) {
   for (data_size_t i = 0; i < num_observations_; i++) {
-    sum_predictions_[i] = value*num_trees_;
+    sum_predictions_[i] = value * num_trees_;
   }
   for (int i = 0; i < num_trees_; i++) {
     sample_pred_mapper_->AssignAllSamplesToConstantPrediction(i, value);
@@ -565,8 +564,7 @@ bool FeatureUnsortedPartition::IsValidNode(int node_id) {
   if (node_id >= num_nodes_ || node_id < 0) {
     return false;
   }
-  return !(std::find(deleted_nodes_.begin(), deleted_nodes_.end(), node_id)
-           != deleted_nodes_.end());
+  return !(std::find(deleted_nodes_.begin(), deleted_nodes_.end(), node_id) != deleted_nodes_.end());
 }
 
 bool FeatureUnsortedPartition::LeftNodeIsLeaf(int node_id) {

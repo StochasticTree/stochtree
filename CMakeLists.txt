@@ -130,13 +130,13 @@ set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build)
 
 # Aggregate the source files underpinning the implementation in the C++ library
 file(
-  GLOB 
+  GLOB
   SOURCES
+  src/bart_sampler.cpp
   src/container.cpp
   src/cutpoint_candidates.cpp
   src/data.cpp
   src/io.cpp
-  src/json11.cpp
   src/leaf_model.cpp
   src/ordinal_sampler.cpp
   src/partition_tracker.cpp
@@ -177,13 +177,15 @@ endif()
 
 # Build C++ test program
 if(BUILD_TEST)
-  # Check if user specified a local clone of the GoogleTest repo, use Github repo if not
+  include(FetchContent)
+
+  # GoogleTest is fetched on first configure and cached in build/_deps/.
+  # Re-download is skipped automatically when FETCHCONTENT_UPDATES_DISCONNECTED=ON
+  # (set in the dev and sanitizer presets), so no submodule or internet access
+  # is needed after the initial cmake --preset dev.
   if (NOT DEFINED GOOGLETEST_GIT_REPO)
     set(GOOGLETEST_GIT_REPO https://github.com/google/googletest.git)
   endif()
-  
-  # Fetch and install GoogleTest dependency
-  include(FetchContent)
   FetchContent_Declare(
     googletest
     GIT_REPOSITORY ${GOOGLETEST_GIT_REPO}
@@ -209,17 +211,28 @@ if(BUILD_TEST)
   gtest_discover_tests(teststochtree)
 endif()
 
-# Standalone C++ Program for Debugging
+# Standalone C++ Programs for Debugging
 if(BUILD_DEBUG_TARGETS)
-  # Build test suite
-  add_executable(debugstochtree debug/api_debug.cpp)
   set(StochTree_DEBUG_HEADER_DIR ${PROJECT_SOURCE_DIR}/debug)
+
+  # BART debug driver
+  add_executable(bart_debug debug/bart_debug.cpp)
   if(USE_OPENMP)
-    target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
-    target_link_libraries(debugstochtree PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
+    target_include_directories(bart_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+    target_link_libraries(bart_debug PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
   else()
-    target_include_directories(debugstochtree PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
-    target_link_libraries(debugstochtree PRIVATE stochtree_objs)
+    target_include_directories(bart_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+    target_link_libraries(bart_debug PRIVATE stochtree_objs)
   endif()
+
+  # BCF debug driver (temporarily disabled)
+  # add_executable(bcf_debug debug/bcf_debug.cpp)
+  # if(USE_OPENMP)
+  #   target_include_directories(bcf_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+  #   target_link_libraries(bcf_debug PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
+  # else()
+  #   target_include_directories(bcf_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+  #   target_link_libraries(bcf_debug PRIVATE stochtree_objs)
+  # endif()
 endif()
 

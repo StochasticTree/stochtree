@@ -5,7 +5,6 @@
 #include <stochtree/meta.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/tree.h>
-#include <iostream>
 #include <memory>
 
 TEST(SortedNodeSampleTracker, BasicOperations) {
@@ -52,23 +51,23 @@ TEST(SortedNodeSampleTracker, BasicOperations) {
   ASSERT_EQ(sample_node_mapper.GetNodeId(7, 0), 2);
   ASSERT_EQ(sample_node_mapper.GetNodeId(8, 0), 1);
   ASSERT_EQ(sample_node_mapper.GetNodeId(9, 0), 1);
-  
+
   // Check that node begin and node end haven't changed for root node, but that the indices have been sifted
   ASSERT_EQ(sorted_node_sampler_tracker.NodeBegin(0, 0), 0);
   ASSERT_EQ(sorted_node_sampler_tracker.NodeEnd(0, 0), n);
-  std::vector<StochTree::data_size_t> expected_result{2,8,9,4,1,6,3,7,0,5};
+  std::vector<StochTree::data_size_t> expected_result{2, 8, 9, 4, 1, 6, 3, 7, 0, 5};
   ASSERT_EQ(sorted_node_sampler_tracker.NodeIndices(0, 0), expected_result);
-  
+
   // Check node begin and node end for left node
   ASSERT_EQ(sorted_node_sampler_tracker.NodeBegin(1, 0), 0);
   ASSERT_EQ(sorted_node_sampler_tracker.NodeEnd(1, 0), 3);
-  expected_result = {2,8,9};
+  expected_result = {2, 8, 9};
   ASSERT_EQ(sorted_node_sampler_tracker.NodeIndices(1, 0), expected_result);
-  
+
   // Check node begin and node end for right node
   ASSERT_EQ(sorted_node_sampler_tracker.NodeBegin(2, 0), 3);
   ASSERT_EQ(sorted_node_sampler_tracker.NodeEnd(2, 0), n);
-  expected_result = {4,1,6,3,7,0,5};
+  expected_result = {4, 1, 6, 3, 7, 0, 5};
   ASSERT_EQ(sorted_node_sampler_tracker.NodeIndices(2, 0), expected_result);
 
   // Partition right node based on X[,1] <= 0.5
@@ -77,24 +76,24 @@ TEST(SortedNodeSampleTracker, BasicOperations) {
   // Check that node begin and node end haven't changed for old right node, but that the indices have been sifted
   ASSERT_EQ(sorted_node_sampler_tracker.NodeBegin(2, 0), 3);
   ASSERT_EQ(sorted_node_sampler_tracker.NodeEnd(2, 0), n);
-  expected_result = {1,6,4,3,7,0,5};
+  expected_result = {1, 6, 4, 3, 7, 0, 5};
   ASSERT_EQ(sorted_node_sampler_tracker.NodeIndices(2, 0), expected_result);
 
   // Check same indices for feature 1
   ASSERT_EQ(sorted_node_sampler_tracker.NodeBegin(2, 1), 3);
   ASSERT_EQ(sorted_node_sampler_tracker.NodeEnd(2, 1), n);
-  expected_result = {6,1,3,0,7,4,5};
+  expected_result = {6, 1, 3, 0, 7, 4, 5};
   ASSERT_EQ(sorted_node_sampler_tracker.NodeIndices(2, 1), expected_result);
-  
+
   // Check node begin and node end for new left node
   ASSERT_EQ(sorted_node_sampler_tracker.NodeBegin(3, 1), 3);
   ASSERT_EQ(sorted_node_sampler_tracker.NodeEnd(3, 1), 5);
-  expected_result = {6,1};
+  expected_result = {6, 1};
   ASSERT_EQ(sorted_node_sampler_tracker.NodeIndices(3, 1), expected_result);
-  
+
   // Check node begin and node end for new right node
   ASSERT_EQ(sorted_node_sampler_tracker.NodeBegin(4, 1), 5);
   ASSERT_EQ(sorted_node_sampler_tracker.NodeEnd(4, 1), n);
-  expected_result = {3,0,7,4,5};
+  expected_result = {3, 0, 7, 4, 5};
   ASSERT_EQ(sorted_node_sampler_tracker.NodeIndices(4, 1), expected_result);
 }

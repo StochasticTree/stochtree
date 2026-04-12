@@ -4,9 +4,14 @@
 *.DS_Store
 lib/
 build/
-.vscode/
+build-release*/
+.vscode/positron/
 xcode/
 *.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!CMakePresets.json
 !test/R/testthat/fixtures/*.json
 !test/python/fixtures/*.json
 .vs/
@@ -15,7 +20,7 @@ cpp_docs/doxyoutput/xml
 cpp_docs/doxyoutput/latex
 stochtree_cran
 *.trace
-*.clangd
+.cache/clangd/
 *.claude
 
 ## R gitignore

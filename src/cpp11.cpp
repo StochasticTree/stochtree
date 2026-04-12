@@ -5,6 +5,13 @@
 #include "cpp11/declarations.hpp"
 #include <R_ext/Visibility.h>
 
+// R_bart.cpp
+cpp11::writable::list bart_sample_cpp(cpp11::sexp X_train, cpp11::sexp y_train, cpp11::sexp X_test, int n_train, int n_test, int p, cpp11::sexp basis_train, cpp11::sexp basis_test, int basis_dim, cpp11::sexp obs_weights_train, cpp11::sexp obs_weights_test, cpp11::sexp rfx_group_ids_train, cpp11::sexp rfx_group_ids_test, cpp11::sexp rfx_basis_train, cpp11::sexp rfx_basis_test, int rfx_num_groups, int rfx_basis_dim, int num_gfr, int num_burnin, int keep_every, int num_mcmc, cpp11::list config_input);
+extern "C" SEXP _stochtree_bart_sample_cpp(SEXP X_train, SEXP y_train, SEXP X_test, SEXP n_train, SEXP n_test, SEXP p, SEXP basis_train, SEXP basis_test, SEXP basis_dim, SEXP obs_weights_train, SEXP obs_weights_test, SEXP rfx_group_ids_train, SEXP rfx_group_ids_test, SEXP rfx_basis_train, SEXP rfx_basis_test, SEXP rfx_num_groups, SEXP rfx_basis_dim, SEXP num_gfr, SEXP num_burnin, SEXP keep_every, SEXP num_mcmc, SEXP config_input) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(bart_sample_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(X_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(y_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(X_test), cpp11::as_cpp<cpp11::decay_t<int>>(n_train), cpp11::as_cpp<cpp11::decay_t<int>>(n_test), cpp11::as_cpp<cpp11::decay_t<int>>(p), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(basis_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(basis_test), cpp11::as_cpp<cpp11::decay_t<int>>(basis_dim), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(obs_weights_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(obs_weights_test), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(rfx_group_ids_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(rfx_group_ids_test), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(rfx_basis_train), cpp11::as_cpp<cpp11::decay_t<cpp11::sexp>>(rfx_basis_test), cpp11::as_cpp<cpp11::decay_t<int>>(rfx_num_groups), cpp11::as_cpp<cpp11::decay_t<int>>(rfx_basis_dim), cpp11::as_cpp<cpp11::decay_t<int>>(num_gfr), cpp11::as_cpp<cpp11::decay_t<int>>(num_burnin), cpp11::as_cpp<cpp11::decay_t<int>>(keep_every), cpp11::as_cpp<cpp11::decay_t<int>>(num_mcmc), cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(config_input)));
+  END_CPP11
+}
 // R_data.cpp
 cpp11::external_pointer<StochTree::ForestDataset> create_forest_dataset_cpp();
 extern "C" SEXP _stochtree_create_forest_dataset_cpp() {
@@ -1694,6 +1701,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_all_roots_forest_container_cpp",                      (DL_FUNC) &_stochtree_all_roots_forest_container_cpp,                       2},
     {"_stochtree_average_max_depth_active_forest_cpp",                 (DL_FUNC) &_stochtree_average_max_depth_active_forest_cpp,                  1},
     {"_stochtree_average_max_depth_forest_container_cpp",              (DL_FUNC) &_stochtree_average_max_depth_forest_container_cpp,               1},
+    {"_stochtree_bart_sample_cpp",                                     (DL_FUNC) &_stochtree_bart_sample_cpp,                                     22},
     {"_stochtree_combine_forests_forest_container_cpp",                (DL_FUNC) &_stochtree_combine_forests_forest_container_cpp,                 2},
     {"_stochtree_compute_leaf_indices_cpp",                            (DL_FUNC) &_stochtree_compute_leaf_indices_cpp,                             3},
     {"_stochtree_create_column_vector_cpp",                            (DL_FUNC) &_stochtree_create_column_vector_cpp,                             1},

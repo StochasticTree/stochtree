@@ -1,0 +1,77 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CMake: Configure (dev)",
+      "type": "shell",
+      "command": "cmake --preset dev",
+      "group": "build",
+      "problemMatcher": ["$gcc"],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "CMake: Configure (dev-quick)",
+      "type": "shell",
+      "command": "cmake --preset dev-quick",
+      "group": "build",
+      "problemMatcher": ["$gcc"],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "CMake: Build (dev)",
+      "type": "shell",
+      "command": "cmake --preset dev && cmake --build --preset dev",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$gcc"],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "CMake: Build (dev-quick)",
+      "type": "shell",
+      "command": "cmake --preset dev-quick && cmake --build --preset dev-quick",
+      "group": "build",
+      "problemMatcher": ["$gcc"],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "CMake: Build (release)",
+      "type": "shell",
+      "command": "cmake --preset release && cmake --build --preset release",
+      "group": "build",
+      "problemMatcher": ["$gcc"],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "CMake: Build (release-drivers)",
+      "type": "shell",
+      "command": "cmake --preset release-drivers && cmake --build --preset release-drivers",
+      "group": "build",
+      "problemMatcher": ["$gcc"],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "CMake: Build (sanitizer)",
+      "type": "shell",
+      "command": "cmake --preset sanitizer && cmake --build --preset sanitizer",
+      "group": "build",
+      "problemMatcher": ["$gcc"],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "Test: Run All",
+      "type": "shell",
+      "command": "${workspaceFolder}/build/teststochtree",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "Test: Run All (sanitizer)",
+      "type": "shell",
+      "command": "${workspaceFolder}/build/teststochtree",
+      "group": "test",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    }
+  ]
+}

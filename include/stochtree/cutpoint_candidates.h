@@ -1,39 +1,39 @@
 /*!
  * Copyright (c) 2024 stochtree authors.
- * 
+ *
  * Data structures for enumerating potential cutpoint candidates.
- * 
+ *
  * This is used in the XBART family of algorithms, which samples split rules
- * based on the log marginal likelihood of every potential cutpoint. For numeric 
- * variables with large sample sizes, it is often unnecessary to consider every 
+ * based on the log marginal likelihood of every potential cutpoint. For numeric
+ * variables with large sample sizes, it is often unnecessary to consider every
  * unique value, so we allow for an adaptive "grid" of potential cutpoint values.
- * 
- * Algorithms for enumerating cutpoints take Dataset and SortedNodeSampleTracker objects 
- * as inputs, so that each feature is "pre-sorted" according to its value within a 
- * given node. The size of the adaptive cutpoint grid is set by the 
+ *
+ * Algorithms for enumerating cutpoints take Dataset and SortedNodeSampleTracker objects
+ * as inputs, so that each feature is "pre-sorted" according to its value within a
+ * given node. The size of the adaptive cutpoint grid is set by the
  * cutpoint_grid_size configuration parameter.
- * 
+ *
  * Numeric Features
  * ----------------
- * 
- * When a node has fewer available observations than cutpoint_grid_size, 
- * full enumeration of unique available cutpoints is done via the 
+ *
+ * When a node has fewer available observations than cutpoint_grid_size,
+ * full enumeration of unique available cutpoints is done via the
  * `EnumerateNumericCutpointsDeduplication` function
- * 
- * When a node has more available observations than cutpoint_grid_size, 
- * potential cutpoints are "thinned out" by considering every k-th observation, 
+ *
+ * When a node has more available observations than cutpoint_grid_size,
+ * potential cutpoints are "thinned out" by considering every k-th observation,
  * where k is implied by the number of observations and the target cutpoint_grid_size.
- * 
+ *
  * Ordered Categorical Features
  * ----------------------------
- * 
- * In this case, the grid is every unique value of the ordered categorical 
+ *
+ * In this case, the grid is every unique value of the ordered categorical
  * feature in ascending order.
- * 
+ *
  * Unordered Categorical Features
  * ------------------------------
- * 
- * In this case, the grid is every unique value of the unordered categorical feature, 
+ *
+ * In this case, the grid is every unique value of the unordered categorical feature,
  * arranged in an outcome-dependent order, as described in Fisher (1958)
  */
 #ifndef STOCHTREE_CUTPOINT_CANDIDATES_H_
@@ -45,7 +45,7 @@
 namespace StochTree {
 
 /*! \brief Computing and tracking cutpoints available for a given feature at a given node
- *  Store cutpoint bins in 0-indexed fashion, so that if a given node has 
+ *  Store cutpoint bins in 0-indexed fashion, so that if a given node has
  */
 class FeatureCutpointGrid {
  public:
@@ -66,19 +66,19 @@ class FeatureCutpointGrid {
   void CalculateStridesUnorderedCategorical(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
 
   /*! \brief Number of potential cutpoints enumerated */
-  int32_t NumCutpoints() {return node_stride_begin_.size();}
+  int32_t NumCutpoints() { return node_stride_begin_.size(); }
 
   /*! \brief Beginning index of bin i */
-  int32_t BinStartIndex(int i) {return node_stride_begin_.at(i);}
+  int32_t BinStartIndex(int i) { return node_stride_begin_.at(i); }
 
   /*! \brief Size of bin i */
-  int32_t BinLength(int i) {return node_stride_length_.at(i);}
+  int32_t BinLength(int i) { return node_stride_length_.at(i); }
 
   /*! \brief Beginning index of bin i */
-  int32_t BinEndIndex(int i) {return node_stride_begin_.at(i) + node_stride_length_.at(i);}
+  int32_t BinEndIndex(int i) { return node_stride_begin_.at(i) + node_stride_length_.at(i); }
 
   /*! \brief Value of the upper-bound (cutpoint) implied by bin i */
-  double CutpointValue(int i) {return cutpoint_values_.at(i);}
+  double CutpointValue(int i) { return cutpoint_values_.at(i); }
 
   /*! \brief Vector of cutpoint values up to and including bin i
    *  Helper function for converting categorical split "value" (as outlined in Fisher 1958) to a set of categories
@@ -135,22 +135,22 @@ class CutpointGridContainer {
   }
 
   /*! \brief Max size of cutpoint grid */
-  int32_t CutpointGridSize() {return cutpoint_grid_size_;}
+  int32_t CutpointGridSize() { return cutpoint_grid_size_; }
 
   /*! \brief Number of potential cutpoints enumerated */
-  int32_t NumCutpoints(int feature_index) {return feature_cutpoint_grid_[feature_index]->NumCutpoints();}
+  int32_t NumCutpoints(int feature_index) { return feature_cutpoint_grid_[feature_index]->NumCutpoints(); }
 
   /*! \brief Beginning index of bin i */
-  int32_t BinStartIndex(int i, int feature_index) {return feature_cutpoint_grid_[feature_index]->BinStartIndex(i);}
+  int32_t BinStartIndex(int i, int feature_index) { return feature_cutpoint_grid_[feature_index]->BinStartIndex(i); }
 
   /*! \brief Size of bin i */
-  int32_t BinLength(int i, int feature_index) {return feature_cutpoint_grid_[feature_index]->BinLength(i);}
+  int32_t BinLength(int i, int feature_index) { return feature_cutpoint_grid_[feature_index]->BinLength(i); }
 
   /*! \brief Beginning index of bin i */
-  int32_t BinEndIndex(int i, int feature_index) {return feature_cutpoint_grid_[feature_index]->BinEndIndex(i);}
+  int32_t BinEndIndex(int i, int feature_index) { return feature_cutpoint_grid_[feature_index]->BinEndIndex(i); }
 
   /*! \brief Value of the upper-bound (cutpoint) implied by bin i */
-  double CutpointValue(int i, int feature_index) {return feature_cutpoint_grid_[feature_index]->CutpointValue(i);}
+  double CutpointValue(int i, int feature_index) { return feature_cutpoint_grid_[feature_index]->CutpointValue(i); }
 
   /*! \brief Vector of cutpoint values up to and including bin i
    *  Helper function for converting categorical split "value" (as outlined in Fisher 1958) to a set of categories
@@ -159,7 +159,7 @@ class CutpointGridContainer {
     return feature_cutpoint_grid_[feature_index]->CutpointVector(i);
   }
 
-  FeatureCutpointGrid* GetFeatureCutpointGrid(int feature_num) {return feature_cutpoint_grid_[feature_num].get(); }
+  FeatureCutpointGrid* GetFeatureCutpointGrid(int feature_num) { return feature_cutpoint_grid_[feature_num].get(); }
 
  private:
   std::vector<std::unique_ptr<FeatureCutpointGrid>> feature_cutpoint_grid_;
@@ -184,7 +184,7 @@ class NodeCutpointTracker {
   void CalculateStridesCategorical(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, data_size_t node_begin, data_size_t node_end, int32_t feature_index);
 
   /*! \brief Number of potential cutpoints enumerated */
-  int32_t NumCutpoints() {return node_stride_begin_.size();}
+  int32_t NumCutpoints() { return node_stride_begin_.size(); }
 
   /*! \brief Whether a cutpoint grid has been enumerated for a given node */
   bool NodeCutpointEvaluated(int32_t node_id) {
@@ -192,18 +192,18 @@ class NodeCutpointTracker {
   }
 
   /*! \brief Node id of the node that has been most recently evaluated */
-  int32_t CurrentNodeEvaluated() {return current_node_;}
+  int32_t CurrentNodeEvaluated() { return current_node_; }
 
   /*! \brief Vectors of node stride starting points and stride lengths */
   std::vector<data_size_t> node_stride_begin_;
   std::vector<data_size_t> node_stride_length_;
- 
+
  private:
   int32_t cutpoint_grid_size_;
   std::vector<int32_t> nodes_enumerated_;
   int32_t current_node_;
 };
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_CUTPOINT_CANDIDATES_H_
+#endif  // STOCHTREE_CUTPOINT_CANDIDATES_H_

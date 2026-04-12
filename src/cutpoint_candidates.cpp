@@ -26,15 +26,15 @@ void FeatureCutpointGrid::CalculateStridesNumeric(Eigen::MatrixXd& covariates, E
   data_size_t node_size = node_end - node_begin;
   // Check if node has fewer observations than cutpoint_grid_size
   if (node_size <= cutpoint_grid_size_) {
-    // In this case it is still possible to have "duplicates" if the values of 
-    // a numeric feature are very close together which in practice will only 
+    // In this case it is still possible to have "duplicates" if the values of
+    // a numeric feature are very close together which in practice will only
     // occur when a categorical was imported incorrectly as numeric.
-    // For this case, we run through the sorted data, determining the stride length 
+    // For this case, we run through the sorted data, determining the stride length
     // of all unique values.
     EnumerateNumericCutpointsDeduplication(covariates, residuals, feature_node_sort_tracker, node_id, node_begin, node_end, node_size, feature_index);
   } else {
     // Here we must essentially "thin out" the possible cutpoints
-    // First, we determine a step size that ensures there will be as 
+    // First, we determine a step size that ensures there will be as
     // many potential cutpoints as articulated in cutpoint_grid_size
     ScanNumericCutpoints(covariates, residuals, feature_node_sort_tracker, node_id, node_begin, node_end, node_size, feature_index);
   }
@@ -42,7 +42,7 @@ void FeatureCutpointGrid::CalculateStridesNumeric(Eigen::MatrixXd& covariates, E
 
 void FeatureCutpointGrid::CalculateStridesOrderedCategorical(Eigen::MatrixXd& covariates, Eigen::VectorXd& residuals, SortedNodeSampleTracker* feature_node_sort_tracker, int32_t node_id, data_size_t node_begin, data_size_t node_end, int32_t feature_index) {
   data_size_t node_size = node_end - node_begin;
-  
+
   // Edge case 1: single observation
   double single_value;
   if (node_end - node_begin == 1) {
@@ -63,7 +63,7 @@ void FeatureCutpointGrid::CalculateStridesOrderedCategorical(Eigen::MatrixXd& co
     cutpoint_values_.push_back(static_cast<std::uint32_t>(single_value));
     return;
   }
-  
+
   // Run the "regular" algorithm for computing categorical strides
   data_size_t stride_begin = node_begin;
   data_size_t stride_length = 0;
@@ -71,14 +71,14 @@ void FeatureCutpointGrid::CalculateStridesOrderedCategorical(Eigen::MatrixXd& co
   bool last_element;
   bool stride_complete;
   double current_val, next_val;
-  for (data_size_t i = node_begin; i < node_end; i++){
+  for (data_size_t i = node_begin; i < node_end; i++) {
     current_sort_ind = feature_node_sort_tracker->SortIndex(i, feature_index);
     current_val = covariates(current_sort_ind, feature_index);
     last_element = ((i == node_end - 1));
 
     // Increment stride length and bin_sum
     stride_length += 1;
-    
+
     if (last_element) {
       // Update bin vectors
       node_stride_begin_.push_back(stride_begin);
@@ -106,7 +106,7 @@ void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(Eigen::MatrixXd& 
   // TODO: refactor so that this initial code is shared between ordered and unordered categorical cutpoint calculation
   data_size_t node_size = node_end - node_begin;
   std::vector<double> bin_sums;
-  
+
   // Edge case 1: single observation
   double single_value;
   if (node_end - node_begin == 1) {
@@ -127,7 +127,7 @@ void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(Eigen::MatrixXd& 
     cutpoint_values_.push_back(static_cast<std::uint32_t>(single_value));
     return;
   }
-  
+
   // Run the "regular" algorithm for computing categorical strides
   data_size_t stride_begin = node_begin;
   data_size_t stride_length = 0;
@@ -137,11 +137,11 @@ void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(Eigen::MatrixXd& 
   double current_val, next_val;
   double current_outcome, next_outcome;
   double bin_sum = 0;
-  for (data_size_t i = node_begin; i < node_end; i++){
+  for (data_size_t i = node_begin; i < node_end; i++) {
     current_sort_ind = feature_node_sort_tracker->SortIndex(i, feature_index);
     current_val = covariates(current_sort_ind, feature_index);
     last_element = ((i == node_end - 1));
-    
+
     // Increment stride length and bin_sum
     stride_length += 1;
     bin_sum += residuals(current_sort_ind);
@@ -156,7 +156,7 @@ void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(Eigen::MatrixXd& 
       next_sort_ind = feature_node_sort_tracker->SortIndex(i + 1, feature_index);
       next_val = covariates(next_sort_ind, feature_index);
       stride_complete = (static_cast<std::uint32_t>(next_val) != static_cast<std::uint32_t>(current_val));
-      
+
       if (stride_complete) {
         // Update bin vectors
         node_stride_begin_.push_back(stride_begin);
@@ -173,16 +173,16 @@ void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(Eigen::MatrixXd& 
   }
 
   // Now re-arrange the categories according to the average outcome as in Fisher (1958)
-//  CHECK_EQ(residuals.cols(), 1);
+  //  CHECK_EQ(residuals.cols(), 1);
   std::vector<double> bin_avgs(bin_sums.size());
   for (int i = 0; i < bin_sums.size(); i++) {
     bin_avgs[i] = bin_sums[i] / node_stride_length_[i];
   }
   std::vector<int> bin_sort_inds(bin_avgs.size());
   std::iota(bin_sort_inds.begin(), bin_sort_inds.end(), 0);
-  auto comp_op = [&](size_t const &l, size_t const &r) { return std::less<double>{}(bin_avgs[l], bin_avgs[r]); };
+  auto comp_op = [&](size_t const& l, size_t const& r) { return std::less<double>{}(bin_avgs[l], bin_avgs[r]); };
   std::stable_sort(bin_sort_inds.begin(), bin_sort_inds.end(), comp_op);
-  
+
   std::vector<data_size_t> temp_stride_begin_;
   std::vector<data_size_t> temp_stride_length_;
   std::vector<double> temp_cutpoint_value_;
@@ -192,9 +192,9 @@ void FeatureCutpointGrid::CalculateStridesUnorderedCategorical(Eigen::MatrixXd& 
   std::copy(cutpoint_values_.begin(), cutpoint_values_.end(), std::back_inserter(temp_cutpoint_value_));
 
   for (int i = 0; i < node_stride_begin_.size(); i++) {
-      node_stride_begin_[i] = temp_stride_begin_[bin_sort_inds[i]];
-      node_stride_length_[i] = temp_stride_length_[bin_sort_inds[i]];
-      cutpoint_values_[i] = temp_cutpoint_value_[bin_sort_inds[i]];
+    node_stride_begin_[i] = temp_stride_begin_[bin_sort_inds[i]];
+    node_stride_length_[i] = temp_stride_length_[bin_sort_inds[i]];
+    cutpoint_values_[i] = temp_cutpoint_value_[bin_sort_inds[i]];
   }
 }
 
@@ -218,7 +218,7 @@ void FeatureCutpointGrid::EnumerateNumericCutpointsDeduplication(Eigen::MatrixXd
     cutpoint_values_.push_back(first_val);
     return;
   }
-  
+
   // Run the "regular" algorithm for computing categorical strides
   data_size_t stride_begin = node_begin;
   data_size_t stride_length = 0;
@@ -226,14 +226,14 @@ void FeatureCutpointGrid::EnumerateNumericCutpointsDeduplication(Eigen::MatrixXd
   bool last_element;
   bool stride_complete;
   double current_val, next_val;
-  for (data_size_t i = node_begin; i < node_end; i++){
+  for (data_size_t i = node_begin; i < node_end; i++) {
     current_sort_ind = feature_node_sort_tracker->SortIndex(i, feature_index);
     current_val = covariates(current_sort_ind, feature_index);
     last_element = ((i == node_end - 1));
 
     // Increment stride length
     stride_length += 1;
-    
+
     if (last_element) {
       // Update bin vectors
       node_stride_begin_.push_back(stride_begin);
@@ -277,7 +277,7 @@ void FeatureCutpointGrid::ScanNumericCutpoints(Eigen::MatrixXd& covariates, Eige
     cutpoint_values_.push_back(first_val);
     return;
   }
-  
+
   // Run the "regular" algorithm for computing categorical strides
   data_size_t stride_begin = node_begin;
   data_size_t stride_length = 0;
@@ -287,14 +287,14 @@ void FeatureCutpointGrid::ScanNumericCutpoints(Eigen::MatrixXd& covariates, Eige
   bool bin_complete;
   double step_size = node_size / cutpoint_grid_size_;
   double current_val, next_val;
-  for (data_size_t i = node_begin; i < node_end; i++){
+  for (data_size_t i = node_begin; i < node_end; i++) {
     current_sort_ind = feature_node_sort_tracker->SortIndex(i, feature_index);
     current_val = covariates(current_sort_ind, feature_index);
     last_element = ((i == node_end - 1));
 
     // Increment stride length
     stride_length += 1;
-    
+
     if (last_element) {
       // Update bin vectors
       node_stride_begin_.push_back(stride_begin);
@@ -319,4 +319,4 @@ void FeatureCutpointGrid::ScanNumericCutpoints(Eigen::MatrixXd& covariates, Eige
   }
 }
 
-} // namespace StochTree
+}  // namespace StochTree
