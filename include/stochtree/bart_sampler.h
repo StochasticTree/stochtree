@@ -10,8 +10,10 @@
 #include <stochtree/data.h>
 #include <stochtree/ensemble.h>
 #include <stochtree/leaf_model.h>
+#include <stochtree/linear_regression.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/prior.h>
+#include <stochtree/probit.h>
 #include <stochtree/variance_model.h>
 #include <memory>
 #include <vector>
@@ -23,18 +25,22 @@ class BARTSampler {
   BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data);
 
   // Main entry point for running the BART sampler, which dispatches to GFR warmup and MCMC sampling functions
-  void run_gfr(BARTSamples& samples, BARTConfig& config, BARTData& data, int num_gfr, bool keep_gfr);
+  void run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr);
 
   // Main entry point for running the BART sampler, which dispatches to GFR warmup and MCMC sampling functions
-  void run_mcmc(BARTSamples& samples, BARTConfig& config, BARTData& data, int num_burnin, int keep_every, int num_mcmc);
+  void run_mcmc(BARTSamples& samples, int num_burnin, int keep_every, int num_mcmc);
 
  private:
   /*! Initialize state variables */
-  void InitializeState(BARTSamples& samples, BARTConfig& config, BARTData& data);
+  void InitializeState(BARTSamples& samples);
   bool initialized_ = false;
 
   /*! Internal sample runner function */
-  void RunOneIteration(BARTSamples& samples, BARTConfig& config, BARTData& data, GaussianConstantLeafModel* mean_leaf_model, LogLinearVarianceLeafModel* variance_leaf_model, bool gfr, bool keep_sample);
+  void RunOneIteration(BARTSamples& samples, GaussianConstantLeafModel* mean_leaf_model, LogLinearVarianceLeafModel* variance_leaf_model, bool gfr, bool keep_sample);
+
+  /*! Internal reference to config and data state */
+  BARTConfig& config_;
+  BARTData& data_;
 
   /*! Mean forest state */
   std::unique_ptr<TreeEnsemble> mean_forest_;

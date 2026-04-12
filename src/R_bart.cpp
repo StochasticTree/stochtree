@@ -256,8 +256,8 @@ cpp11::writable::list bart_sample_cpp(
   StochTree::BARTSampler bart_sampler(results_raw, config, data);
 
   // Run the sampler
-  bart_sampler.run_gfr(results_raw, config, data, num_gfr, true);
-  bart_sampler.run_mcmc(results_raw, config, data, num_burnin, keep_every, num_mcmc);
+  bart_sampler.run_gfr(results_raw, num_gfr, true);
+  bart_sampler.run_mcmc(results_raw, num_burnin, keep_every, num_mcmc);
 
   // Unprotect protected R objects
   UNPROTECT(protect_count);

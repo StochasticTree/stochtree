@@ -9,7 +9,7 @@
 
 namespace StochTree {
 
-void sample_probit_latent_outcome(std::mt19937& gen, double* outcome, double* conditional_mean, double* partial_residual, double y_bar, int n) {
+static void sample_probit_latent_outcome(std::mt19937& gen, double* outcome, double* conditional_mean, double* partial_residual, double y_bar, int n) {
   double uniform_draw_std;
   double uniform_draw_trunc;
   double quantile;

@@ -25,7 +25,7 @@ namespace StochTree {
  * \param gen Random number generator
  * \return double
  */
-inline double sample_univariate_gaussian_regression_coefficient(double* y, double* x, double error_variance, double prior_variance, int n, std::mt19937& gen) {
+static double sample_univariate_gaussian_regression_coefficient(double* y, double* x, double error_variance, double prior_variance, int n, std::mt19937& gen) {
   double sum_xx = 0.0;
   double sum_yx = 0.0;
   for (int i = 0; i < n; i++) {
@@ -51,7 +51,7 @@ inline double sample_univariate_gaussian_regression_coefficient(double* y, doubl
  * \param n Number of observations
  * \param gen Random number generator
  */
-inline void sample_general_bivariate_gaussian_regression_coefficients(double* output, double* y, double* x1, double* x2, double error_variance, double prior_variance_11, double prior_variance_12, double prior_variance_22, int n, std::mt19937& gen) {
+static void sample_general_bivariate_gaussian_regression_coefficients(double* output, double* y, double* x1, double* x2, double error_variance, double prior_variance_11, double prior_variance_12, double prior_variance_22, int n, std::mt19937& gen) {
   double det_prior_var = prior_variance_11 * prior_variance_22 - prior_variance_12 * prior_variance_12;
   double inv_prior_var_11 = prior_variance_22 / det_prior_var;
   double inv_prior_var_12 = -prior_variance_12 / det_prior_var;
@@ -99,7 +99,7 @@ inline void sample_general_bivariate_gaussian_regression_coefficients(double* ou
  * \param n Number of observations
  * \param gen Random number generator
  */
-inline void sample_diagonal_bivariate_gaussian_regression_coefficients(double* output, double* y, double* x1, double* x2, double error_variance, double prior_variance_11, double prior_variance_22, int n, std::mt19937& gen) {
+static void sample_diagonal_bivariate_gaussian_regression_coefficients(double* output, double* y, double* x1, double* x2, double error_variance, double prior_variance_11, double prior_variance_22, int n, std::mt19937& gen) {
   double inv_prior_var_11 = 1.0 / prior_variance_11;
   double inv_prior_var_22 = 1.0 / prior_variance_22;
   double sum_x1x1 = 0.0;
@@ -142,7 +142,7 @@ inline void sample_diagonal_bivariate_gaussian_regression_coefficients(double* o
  * \param n Number of observations
  * \param gen Random number generator
  */
-Eigen::VectorXd sample_general_gaussian_regression_coefficients(Eigen::VectorXd& y, Eigen::MatrixXd& X, double error_variance, Eigen::MatrixXd& prior_variance, int n, std::mt19937& gen) {
+static Eigen::VectorXd sample_general_gaussian_regression_coefficients(Eigen::VectorXd& y, Eigen::MatrixXd& X, double error_variance, Eigen::MatrixXd& prior_variance, int n, std::mt19937& gen) {
   int p = X.cols();
   Eigen::MatrixXd inv_prior_var = prior_variance.inverse();
   Eigen::MatrixXd XtX = X.transpose() * X;

@@ -2431,8 +2431,8 @@ py::dict bart_sample_cpp(
   StochTree::BARTSampler bart_sampler(bart_results_raw, bart_config, bart_data);
 
   // Run the sampler
-  bart_sampler.run_gfr(bart_results_raw, bart_config, bart_data, num_gfr, true);
-  bart_sampler.run_mcmc(bart_results_raw, bart_config, bart_data, num_burnin, keep_every, num_mcmc);
+  bart_sampler.run_gfr(bart_results_raw, num_gfr, true);
+  bart_sampler.run_mcmc(bart_results_raw, num_burnin, keep_every, num_mcmc);
 
   // Convert results to Python dictionary
   return convert_bart_results_to_dict(bart_results_raw, bart_config);
