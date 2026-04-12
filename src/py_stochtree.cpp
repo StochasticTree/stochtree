@@ -2311,14 +2311,14 @@ inline py::dict convert_bart_results_to_dict(
 
   // Transfer ownership of mean forest pointers
   if (results_raw.mean_forests != nullptr) {
-    output["mean_forests"] = py::cast(ForestContainerCpp(std::move(results_raw.mean_forests), config.num_trees_mean, config.leaf_dim_mean, config.leaf_constant_mean, config.exponentiated_leaf_mean));
+    output["mean_forests"] = py::cast(std::make_unique<ForestContainerCpp>(std::move(results_raw.mean_forests), config.num_trees_mean, config.leaf_dim_mean, config.leaf_constant_mean, config.exponentiated_leaf_mean));
   } else {
     output["mean_forests"] = py::none();
   }
 
   // Transfer ownership of variance forest pointers
   if (results_raw.variance_forests != nullptr) {
-    output["variance_forests"] = py::cast(ForestContainerCpp(std::move(results_raw.variance_forests), config.num_trees_variance, config.leaf_dim_variance, config.leaf_constant_variance, config.exponentiated_leaf_variance));
+    output["variance_forests"] = py::cast(std::make_unique<ForestContainerCpp>(std::move(results_raw.variance_forests), config.num_trees_variance, config.leaf_dim_variance, config.leaf_constant_variance, config.exponentiated_leaf_variance));
   } else {
     output["variance_forests"] = py::none();
   }
