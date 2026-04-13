@@ -164,8 +164,8 @@ static void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr,
 
   StochTree::BARTSamples samples;
   StochTree::BARTSampler sampler(samples, config, data);
-  sampler.run_gfr(samples, config, data, num_gfr, true);
-  sampler.run_mcmc(samples, config, data, 0, 1, num_mcmc);
+  sampler.run_gfr(samples, num_gfr, true);
+  sampler.run_mcmc(samples, 0, 1, num_mcmc);
   // Predictions are on latent scale (= raw + y_bar); compare to true latent Z.
   report_bart(samples, test.Z, "Scenario 1 (Probit BART)");
 }
