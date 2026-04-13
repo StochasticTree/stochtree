@@ -202,7 +202,7 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, GaussianConstantLeafMode
           config_.var_weights_mean, config_.sweep_update_indices_mean, global_variance_, config_.feature_types,
           config_.cutpoint_grid_size, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/true,
-          /*num_features_subsample=*/data_.p, config_.num_threads);
+          /*num_features_subsample=*/config_.num_features_subsample_mean, config_.num_threads);
     } else {
       MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
           *mean_forest_, *mean_forest_tracker_, *samples.mean_forests, *mean_leaf_model,
@@ -221,7 +221,7 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, GaussianConstantLeafMode
           config_.var_weights_variance, config_.sweep_update_indices_variance, global_variance_, config_.feature_types,
           config_.cutpoint_grid_size, /*keep_forest=*/keep_sample,
           /*pre_initialized=*/true, /*backfitting=*/false,
-          /*num_features_subsample=*/data_.p, config_.num_threads);
+          /*num_features_subsample=*/config_.num_features_subsample_variance, config_.num_threads);
     } else {
       MCMCSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
           *variance_forest_, *variance_forest_tracker_, *samples.variance_forests, *variance_leaf_model,
