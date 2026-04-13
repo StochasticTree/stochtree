@@ -164,9 +164,15 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
   bool keep_forest = false;
   if (has_mean_forest_) {
     samples.mean_forest_predictions_train.reserve(data_.n_train * num_mcmc);
+    if (has_test_) {
+      samples.mean_forest_predictions_test.reserve(data_.n_test * num_mcmc);
+    }
   }
   if (has_variance_forest_) {
     samples.variance_forest_predictions_train.reserve(data_.n_train * num_mcmc);
+    if (has_test_) {
+      samples.variance_forest_predictions_train.reserve(data_.n_test * num_mcmc);
+    }
   }
   for (int i = 0; i < num_burnin + keep_every * num_mcmc; i++) {
     if (i >= num_burnin && (i - num_burnin) % keep_every == 0)
@@ -174,6 +180,16 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
     else
       keep_forest = false;
     RunOneIteration(samples, mean_leaf_model_ptr.get(), variance_leaf_model_ptr.get(), /*gfr=*/false, /*keep_sample=*/keep_forest);
+  }
+}
+
+void BARTSampler::postprocess_samples(BARTSamples& samples) {
+  if (has_mean_forest_) {
+    if (has_test_) {
+      std::vector<double> predictions = samples.mean_forests->Predict(*forest_dataset_test_);
+      samples.mean_forest_predictions_test.insert(samples.mean_forest_predictions_test.end(),
+                                                  predictions.data(), predictions.data() + predictions.size());
+    }
   }
 }
 
@@ -240,11 +256,6 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, GaussianConstantLeafMode
       double* mean_forest_preds_train = mean_forest_tracker_->GetSumPredictions();
       samples.mean_forest_predictions_train.insert(samples.mean_forest_predictions_train.end(),
                                                    mean_forest_preds_train, mean_forest_preds_train + samples.num_train);
-      if (has_test_) {
-        std::vector<double> predictions = samples.mean_forests->GetEnsemble(samples.num_samples - 1)->Predict(*forest_dataset_test_);
-        samples.mean_forest_predictions_test.insert(samples.mean_forest_predictions_test.end(),
-                                                    predictions.data(), predictions.data() + samples.num_test);
-      }
     }
   }
 }

@@ -131,8 +131,9 @@ static void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr,
 
   StochTree::BARTSamples samples;
   StochTree::BARTSampler sampler(samples, config, data);
-  sampler.run_gfr(samples, config, data, num_gfr, true);
-  sampler.run_mcmc(samples, config, data, 0, 1, num_mcmc);
+  sampler.run_gfr(samples, num_gfr, true);
+  sampler.run_mcmc(samples, 0, 1, num_mcmc);
+  sampler.postprocess_samples(samples);
   report_bart(samples, test.y, "Scenario 0 (Homoskedastic BART)");
 }
 

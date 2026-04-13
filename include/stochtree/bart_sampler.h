@@ -24,11 +24,14 @@ class BARTSampler {
  public:
   BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data);
 
-  // Main entry point for running the BART sampler, which dispatches to GFR warmup and MCMC sampling functions
+  // Main entry point for running the BART GFR sampler
   void run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr);
 
-  // Main entry point for running the BART sampler, which dispatches to GFR warmup and MCMC sampling functions
+  // Main entry point for running the BART MCMC sampler
   void run_mcmc(BARTSamples& samples, int num_burnin, int keep_every, int num_mcmc);
+
+  // Post-process samples by extracting test set predictions and running any necessary transformations
+  void postprocess_samples(BARTSamples& samples);
 
  private:
   /*! Initialize state variables */

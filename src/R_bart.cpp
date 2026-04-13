@@ -258,6 +258,7 @@ cpp11::writable::list bart_sample_cpp(
   // Run the sampler
   bart_sampler.run_gfr(results_raw, num_gfr, true);
   bart_sampler.run_mcmc(results_raw, num_burnin, keep_every, num_mcmc);
+  bart_sampler.postprocess_samples(results_raw);
 
   // Unprotect protected R objects
   UNPROTECT(protect_count);
