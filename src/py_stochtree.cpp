@@ -2175,6 +2175,8 @@ inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
   output.link_function = static_cast<StochTree::LinkFunction>(get_config_scalar_default<int>(config_dict, "link_function", 0));
   output.outcome_type = static_cast<StochTree::OutcomeType>(get_config_scalar_default<int>(config_dict, "outcome_type", 0));
   output.random_seed = get_config_scalar_default<int>(config_dict, "random_seed", 1);
+  output.keep_gfr = get_config_scalar_default<bool>(config_dict, "keep_gfr", 1);
+  output.keep_burnin = get_config_scalar_default<bool>(config_dict, "keep_burnin", 1);
 
   // Global error variance parameters
   output.a_sigma2_global = get_config_scalar_default<double>(config_dict, "a_sigma2_global", 0.0);

@@ -59,6 +59,8 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   output.link_function = static_cast<StochTree::LinkFunction>(get_config_scalar_default<int>(config, "link_function", 0));
   output.outcome_type = static_cast<StochTree::OutcomeType>(get_config_scalar_default<int>(config, "outcome_type", 0));
   output.random_seed = get_config_scalar_default<int>(config, "random_seed", 1);
+  output.keep_gfr = get_config_scalar_default<bool>(config, "keep_gfr", true);
+  output.keep_burnin = get_config_scalar_default<bool>(config, "keep_burnin", false);
 
   // Global error variance parameters
   output.a_sigma2_global = get_config_scalar_default<double>(config, "a_sigma2_global", 0.0);

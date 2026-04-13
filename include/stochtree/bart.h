@@ -64,6 +64,8 @@ struct BARTConfig {
   LinkFunction link_function = LinkFunction::Identity;  // link function to use (Identity, Probit, Cloglog)
   OutcomeType outcome_type = OutcomeType::Continuous;   // type of the outcome variable (Continuous, Binary, Ordinal)
   int random_seed = -1;                                 // random seed for reproducibility (if negative, a random seed will be generated)
+  bool keep_gfr = true;                                 // whether or not to keep GFR samples or simply use them to warm-start an MCMC chain
+  bool keep_burnin = false;                             // whether or not to keep "burn-in" MCMC samples (largely a debugging flag)
 
   // Global error variance parameters
   double a_sigma2_global = 0.0;      // shape parameter for inverse gamma prior on global error variance

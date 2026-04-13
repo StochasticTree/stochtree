@@ -1106,6 +1106,8 @@ class BARTModel:
               "link_function": 0 if self.outcome_model.link == "identity" else (1 if self.outcome_model.link == "probit" else 2),
               "outcome_type": 0 if self.outcome_model.outcome == "continuous" else (1 if self.outcome_model.outcome == "binary" else 2),
               "random_seed": random_seed,
+              "keep_gfr": keep_gfr,
+              "keep_burnin": keep_burnin,
               "a_sigma2_global": a_global,
               "b_sigma2_global": b_global,
               "sigma2_global_init": 1.0, # TODO: calibrate this before

@@ -1107,6 +1107,8 @@ bart <- function(
         ifelse(outcome_model$outcome == "binary", 1, 2)
       ),
       "random_seed" = random_seed,
+      "keep_gfr" = keep_gfr,
+      "keep_burnin" = keep_burnin,
       "a_sigma2_global" = a_global,
       "b_sigma2_global" = b_global,
       "sigma2_global_init" = sigma2_init,
