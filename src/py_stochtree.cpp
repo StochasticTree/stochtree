@@ -2397,6 +2397,11 @@ inline py::dict convert_bart_results_to_dict(
   return output;
 }
 
+void add_config_to_result_dict(py::dict& result, StochTree::BARTConfig& config) {
+  // Unpack more metadata about the model that was sampled
+  result["sigma2_init"] = config.sigma2_global_init;
+}
+
 py::dict bart_sample_cpp(
     py::object X_train,
     py::object y_train,
@@ -2438,7 +2443,9 @@ py::dict bart_sample_cpp(
   bart_sampler.postprocess_samples(bart_results_raw);
 
   // Convert results to Python dictionary
-  return convert_bart_results_to_dict(bart_results_raw, bart_config);
+  py::dict bart_results = convert_bart_results_to_dict(bart_results_raw, bart_config);
+  add_config_to_result_dict(bart_results, bart_config);
+  return bart_results;
 }
 
 py::array_t<int> cppComputeForestContainerLeafIndices(ForestContainerCpp& forest_container, py::array_t<double>& covariates, py::array_t<int>& forest_nums) {

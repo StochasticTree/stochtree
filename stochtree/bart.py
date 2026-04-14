@@ -1185,6 +1185,13 @@ class BARTModel:
               config_input = bart_config
           )
 
+          # Store high level model metadata from C++ results
+          self.num_gfr = num_gfr
+          self.num_burnin = num_burnin
+          self.keep_every = keep_every
+          self.num_mcmc = num_mcmc
+          self.num_chains = num_chains
+          
           # Unpack standardization params computed by C++ sampler
           self.y_bar = bart_results["y_bar"]
           self.y_std = bart_results["y_std"]
@@ -1207,15 +1214,17 @@ class BARTModel:
             self.forest_container_variance = ForestContainer(num_trees_variance, 1, True, True)
             self.forest_container_variance.forest_container_cpp = bart_results["forest_container_variance"]
             variance_forest_preds_train = bart_results["variance_forest_predictions_train"].reshape(self.n_train, bart_results["num_samples"], order="F")
-            self.variance_forest_preds_train = variance_forest_preds_train * self.y_std * self.y_std
+            self.sigma2_x_train = variance_forest_preds_train * self.y_std * self.y_std
             if self.has_test:
                 variance_forest_preds_test = bart_results["variance_forest_predictions_test"].reshape(self.n_test, bart_results["num_samples"], order="F")
-                self.variance_forest_preds_test = variance_forest_preds_test * self.y_std * self.y_std
+                self.sigma2_x_test = variance_forest_preds_test * self.y_std * self.y_std
 
           # Unpack parameter samples
-          if sample_sigma2_global:
+          self.sample_sigma2_global = sample_sigma2_global
+          self.sample_sigma2_leaf = sample_sigma2_leaf
+          if self.sample_sigma2_global:
               self.global_var_samples = bart_results["global_var_samples"] * self.y_std * self.y_std
-          if sample_sigma2_leaf:
+          if self.sample_sigma2_leaf:
               self.leaf_scale_samples = bart_results["leaf_scale_samples"]
           
           # Unpack other model metadata
