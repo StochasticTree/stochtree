@@ -1090,6 +1090,44 @@ bart <- function(
     leaf_regression = FALSE
   }
 
+  model_params_r <- list(
+    "a_global" = a_global,
+    "b_global" = b_global,
+    "a_leaf" = a_leaf,
+    "standardize" = standardize,
+    "leaf_dimension" = leaf_dimension,
+    "is_leaf_constant" = is_leaf_constant,
+    "leaf_regression" = leaf_regression,
+    "requires_basis" = leaf_regression,
+    "num_covariates" = num_cov_orig,
+    "num_basis" = ifelse(
+      is.null(leaf_basis_train),
+      0,
+      ncol(leaf_basis_train)
+    ),
+    "num_gfr" = num_gfr,
+    "num_burnin" = num_burnin,
+    "num_mcmc" = num_mcmc,
+    "keep_every" = keep_every,
+    "num_chains" = num_chains,
+    "has_basis" = !is.null(leaf_basis_train),
+    "has_rfx" = has_rfx,
+    "has_rfx_basis" = has_basis_rfx,
+    "num_rfx_basis" = num_basis_rfx,
+    "sample_sigma2_global" = sample_sigma2_global,
+    "sample_sigma2_leaf" = sample_sigma2_leaf,
+    "include_mean_forest" = include_mean_forest,
+    "include_variance_forest" = include_variance_forest,
+    "outcome_model" = outcome_model,
+    "probit_outcome_model" = probit_outcome_model,
+    "cloglog_num_categories" = ifelse(
+      link_is_cloglog,
+      max(y_train - min(y_train)) + 1,
+      0
+    ),
+    "rfx_model_spec" = rfx_model_spec
+  )
+
   if (run_cpp) {
     # Specify the BART config
     bart_config <- list(
@@ -1205,28 +1243,102 @@ bart <- function(
       num_mcmc = as.integer(num_mcmc),
       config_input = bart_config
     )
-    result <- bart_results
-    # TODO: store num_samples in the result list
-    if (!is.null(result['mean_forest_predictions_train'])) {
-      dim(result[['mean_forest_predictions_train']]) <- c(
-        result[["num_train"]],
-        result[["num_samples"]]
+    result <- list()
+    model_params_cpp <- list(
+      "sigma2_init" = bart_results[["sigma2_global_init"]],
+      "sigma2_leaf_init" = bart_results[["sigma2_mean_init"]],
+      "b_leaf" = bart_results[["b_sigma2_mean"]],
+      "a_forest" = bart_results[["shape_variance_forest"]],
+      "b_forest" = bart_results[["scale_variance_forest"]],
+      "outcome_mean" = bart_results[["y_bar"]],
+      "outcome_scale" = bart_results[["y_std"]],
+      "num_samples" = bart_results[["num_samples"]]
+    )
+    model_params <- c(model_params_r, model_params_cpp)
+    result[["model_params"]] <- model_params
+    result[["train_set_metadata"]] <- X_train_metadata
+
+    # Unpack mean forest predictions if they were returned
+    has_mean_forest_predictions_train <- !is.null(
+      bart_results[['mean_forest_predictions_train']]
+    )
+    has_mean_forest_predictions_test <- !is.null(
+      bart_results[['mean_forest_predictions_test']]
+    )
+    if (has_mean_forest_predictions_train) {
+      dim(bart_results[['mean_forest_predictions_train']]) <- c(
+        bart_results[["num_train"]],
+        bart_results[["num_samples"]]
       )
-      y_hat_train_raw <- result[["mean_forest_predictions_train"]]
+      y_hat_train_raw <- bart_results[["mean_forest_predictions_train"]]
       result[["y_hat_train"]] <- y_hat_train_raw *
-        result[["y_std"]] +
-        result[["y_bar"]]
+        bart_results[["y_std"]] +
+        bart_results[["y_bar"]]
     }
-    if (!is.null(result['mean_forest_predictions_test'])) {
-      dim(result[['mean_forest_predictions_test']]) <- c(
-        result[["num_test"]],
-        result[["num_samples"]]
+    if (has_mean_forest_predictions_test) {
+      dim(bart_results[['mean_forest_predictions_test']]) <- c(
+        bart_results[["num_test"]],
+        bart_results[["num_samples"]]
       )
-      y_hat_test_raw <- result[["mean_forest_predictions_test"]]
+      y_hat_test_raw <- bart_results[["mean_forest_predictions_test"]]
       result[["y_hat_test"]] <- y_hat_test_raw *
-        result[["y_std"]] +
-        result[["y_bar"]]
+        bart_results[["y_std"]] +
+        bart_results[["y_bar"]]
     }
+    if (has_mean_forest_predictions_train || has_mean_forest_predictions_test) {
+      mean_forests_r <- ForestSamples$new(
+        num_trees_mean,
+        leaf_dimension,
+        is_leaf_constant,
+        FALSE
+      )
+      mean_forests_r$forest_container_ptr <- bart_results[[
+        "mean_forests"
+      ]]
+      result[["mean_forests"]] <- mean_forests_r
+    }
+
+    # Unpack variance forest predictions if they were returned
+    has_variance_forest_predictions_train <- !is.null(
+      bart_results[['variance_forest_predictions_train']]
+    )
+    has_variance_forest_predictions_test <- !is.null(
+      bart_results[['variance_forest_predictions_test']]
+    )
+    if (has_variance_forest_predictions_train) {
+      dim(bart_results[['variance_forest_predictions_train']]) <- c(
+        bart_results[["num_train"]],
+        bart_results[["num_samples"]]
+      )
+      result[["sigma2_x_hat_train"]] <- bart_results[[
+        "variance_forest_predictions_train"
+      ]]
+    }
+    if (has_variance_forest_predictions_test) {
+      dim(bart_results[['variance_forest_predictions_test']]) <- c(
+        bart_results[["num_test"]],
+        bart_results[["num_samples"]]
+      )
+      result[["sigma2_x_hat_test"]] <- bart_results[[
+        "variance_forest_predictions_test"
+      ]]
+    }
+    if (
+      has_variance_forest_predictions_train ||
+        has_variance_forest_predictions_test
+    ) {
+      variance_forests_r <- ForestSamples$new(
+        num_trees_variance,
+        1,
+        FALSE,
+        TRUE
+      )
+      variance_forests_r$forest_container_ptr <- bart_results[[
+        "variance_forests"
+      ]]
+      result[["variance_forests"]] <- variance_forests_r
+    }
+
     class(result) <- "bartmodel"
   } else {
     # Set a function-scoped RNG if user provided a random seed
@@ -2550,51 +2662,17 @@ bart <- function(
     }
 
     # Return results as a list
-    model_params <- list(
+    model_params_r_calibrated <- list(
       "sigma2_init" = sigma2_init,
       "sigma2_leaf_init" = sigma2_leaf_init,
-      "a_global" = a_global,
-      "b_global" = b_global,
-      "a_leaf" = a_leaf,
       "b_leaf" = b_leaf,
       "a_forest" = a_forest,
       "b_forest" = b_forest,
       "outcome_mean" = y_bar_train,
       "outcome_scale" = y_std_train,
-      "standardize" = standardize,
-      "leaf_dimension" = leaf_dimension,
-      "is_leaf_constant" = is_leaf_constant,
-      "leaf_regression" = leaf_regression,
-      "requires_basis" = requires_basis,
-      "num_covariates" = num_cov_orig,
-      "num_basis" = ifelse(
-        is.null(leaf_basis_train),
-        0,
-        ncol(leaf_basis_train)
-      ),
-      "num_samples" = num_retained_samples,
-      "num_gfr" = num_gfr,
-      "num_burnin" = num_burnin,
-      "num_mcmc" = num_mcmc,
-      "keep_every" = keep_every,
-      "num_chains" = num_chains,
-      "has_basis" = !is.null(leaf_basis_train),
-      "has_rfx" = has_rfx,
-      "has_rfx_basis" = has_basis_rfx,
-      "num_rfx_basis" = num_basis_rfx,
-      "sample_sigma2_global" = sample_sigma2_global,
-      "sample_sigma2_leaf" = sample_sigma2_leaf,
-      "include_mean_forest" = include_mean_forest,
-      "include_variance_forest" = include_variance_forest,
-      "outcome_model" = outcome_model,
-      "probit_outcome_model" = probit_outcome_model,
-      "cloglog_num_categories" = ifelse(
-        link_is_cloglog,
-        cloglog_num_categories,
-        0
-      ),
-      "rfx_model_spec" = rfx_model_spec
+      "num_samples" = num_retained_samples
     )
+    model_params <- c(model_params_r, model_params_r_calibrated)
     result <- list(
       "model_params" = model_params,
       "train_set_metadata" = X_train_metadata

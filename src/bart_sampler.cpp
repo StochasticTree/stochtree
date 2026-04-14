@@ -51,33 +51,24 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
   }
   double y_var = M2 / data_.n_train;
 
-  // Compute outcome location and scale for standardization
-  if (config_.link_function == LinkFunction::Probit) {
-    samples.y_std = 1.0;
-    samples.y_bar = norm_inv_cdf(y_mean);
-  } else {
-    if (config_.standardize_outcome) {
-      samples.y_bar = y_mean;
-      samples.y_std = std::sqrt(y_var);
-    } else {
-      samples.y_bar = 0.0;
-      samples.y_std = 1.0;
-    }
-  }
-
-  // Standardize partial residuals in place; these are updated in each iteration but initialized to standardized outcomes
-  for (int i = 0; i < data_.n_train; i++) residual_->GetData()[i] = (data_.y_train[i] - samples.y_bar) / samples.y_std;
-
-  // Initialize mean forest state (if present)
+  // Standardization and calibration for mean forests
+  double init_val_mean;
   if (config_.num_trees_mean > 0) {
-    mean_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_mean, config_.leaf_dim_mean, config_.leaf_constant_mean, config_.exponentiated_leaf_mean);
-    samples.mean_forests = std::make_unique<ForestContainer>(config_.num_trees_mean, config_.leaf_dim_mean, config_.leaf_constant_mean, config_.exponentiated_leaf_mean);
-    mean_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_mean, data_.n_train);
-    tree_prior_mean_ = std::make_unique<TreePrior>(config_.alpha_mean, config_.beta_mean, config_.min_samples_leaf_mean, config_.max_depth_mean);
-    mean_forest_->SetLeafValue(0.0);
-    UpdateResidualEntireForest(*mean_forest_tracker_, *forest_dataset_, *residual_, mean_forest_.get(), !config_.leaf_constant_mean, std::minus<double>());
-    mean_forest_tracker_->UpdatePredictions(mean_forest_.get(), *forest_dataset_.get());
-    has_mean_forest_ = true;
+    if (config_.link_function == LinkFunction::Probit) {
+      samples.y_std = 1.0;
+      samples.y_bar = norm_inv_cdf(y_mean);
+      init_val_mean = 0.0;
+    } else {
+      if (config_.standardize_outcome) {
+        samples.y_bar = y_mean;
+        samples.y_std = std::sqrt(y_var);
+        init_val_mean = 0.0;
+      } else {
+        samples.y_bar = 0.0;
+        samples.y_std = 1.0;
+        init_val_mean = y_mean;
+      }
+    }
     if (config_.sigma2_mean_init < 0.0) {
       if (config_.link_function == LinkFunction::Probit) {
         config_.sigma2_mean_init = 1.0 / config_.num_trees_mean;
@@ -96,15 +87,10 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
     }
   }
 
-  // Initialize variance forest state (if present)
+  // Calibration for variance forests
+  double init_val_variance;
   if (config_.num_trees_variance > 0) {
-    variance_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
-    samples.variance_forests = std::make_unique<ForestContainer>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
-    variance_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_variance, data_.n_train);
-    tree_prior_variance_ = std::make_unique<TreePrior>(config_.alpha_variance, config_.beta_variance, config_.min_samples_leaf_variance, config_.max_depth_variance);
-    variance_forest_->SetLeafValue(1.0 / config_.num_trees_variance);
-    variance_forest_tracker_->UpdatePredictions(variance_forest_.get(), *forest_dataset_.get());
-    has_variance_forest_ = true;
+    // NOTE: calibration only works for standardized outcomes
     if (config_.shape_variance_forest <= 0.0 || config_.scale_variance_forest <= 0.0) {
       if (config_.leaf_prior_calibration_param <= 0.0) {
         config_.leaf_prior_calibration_param = 1.5;
@@ -116,6 +102,41 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
         config_.scale_variance_forest = config_.num_trees_variance / (config_.leaf_prior_calibration_param * config_.leaf_prior_calibration_param);
       }
     }
+    if (config_.standardize_outcome) {
+      init_val_variance = 1.0;
+    } else {
+      init_val_variance = y_var;
+    }
+  }
+
+  // Standardize partial residuals in place; these are updated in each iteration but initialized to standardized outcomes
+  // Works for:
+  //  1. Standardized outcomes (since y_bar = mean(y) and y_std = sd(y))
+  //  2. Non-standardized outcomes (since y_bar = 0 and y_std = 1, so this just transfers y_train as-is)
+  //  3. Probit link (since y_bar = norm_inv_cdf(mean(y)) and y_std = 1)
+  for (int i = 0; i < data_.n_train; i++) residual_->GetData()[i] = (data_.y_train[i] - samples.y_bar) / samples.y_std;
+
+  // Initialize mean forest state (if present)
+  if (config_.num_trees_mean > 0) {
+    mean_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_mean, config_.leaf_dim_mean, config_.leaf_constant_mean, config_.exponentiated_leaf_mean);
+    samples.mean_forests = std::make_unique<ForestContainer>(config_.num_trees_mean, config_.leaf_dim_mean, config_.leaf_constant_mean, config_.exponentiated_leaf_mean);
+    mean_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_mean, data_.n_train);
+    tree_prior_mean_ = std::make_unique<TreePrior>(config_.alpha_mean, config_.beta_mean, config_.min_samples_leaf_mean, config_.max_depth_mean);
+    mean_forest_->SetLeafValue(init_val_mean / config_.num_trees_mean);
+    UpdateResidualEntireForest(*mean_forest_tracker_, *forest_dataset_, *residual_, mean_forest_.get(), !config_.leaf_constant_mean, std::minus<double>());
+    mean_forest_tracker_->UpdatePredictions(mean_forest_.get(), *forest_dataset_.get());
+    has_mean_forest_ = true;
+  }
+
+  // Initialize variance forest state (if present)
+  if (config_.num_trees_variance > 0) {
+    variance_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
+    samples.variance_forests = std::make_unique<ForestContainer>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
+    variance_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_variance, data_.n_train);
+    tree_prior_variance_ = std::make_unique<TreePrior>(config_.alpha_variance, config_.beta_variance, config_.min_samples_leaf_variance, config_.max_depth_variance);
+    variance_forest_->SetLeafValue(init_val_variance / config_.num_trees_variance);
+    variance_forest_tracker_->UpdatePredictions(variance_forest_.get(), *forest_dataset_.get());
+    has_variance_forest_ = true;
   }
 
   // Global error variance model
@@ -142,12 +163,7 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
 }
 
 void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr) {
-  // TODO: dispatch correct leaf model and variance model based on config; currently hardcoded to Gaussian constant-leaf and homoskedastic variance
-  std::unique_ptr<GaussianConstantLeafModel> mean_leaf_model_ptr = std::make_unique<GaussianConstantLeafModel>(leaf_scale_);
-  std::unique_ptr<LogLinearVarianceLeafModel> variance_leaf_model_ptr = std::make_unique<LogLinearVarianceLeafModel>(config_.shape_variance_forest, config_.scale_variance_forest);
-  for (int i = 0; i < num_gfr; i++) {
-    RunOneIteration(samples, mean_leaf_model_ptr.get(), variance_leaf_model_ptr.get(), /*gfr=*/true, /*keep_sample=*/keep_gfr);
-  }
+  // Reserve space for GFR predictions if they are to be retained
   if (keep_gfr) {
     if (has_mean_forest_) {
       samples.mean_forest_predictions_train.reserve(data_.n_train * num_gfr);
@@ -156,12 +172,17 @@ void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr) {
       samples.variance_forest_predictions_train.reserve(data_.n_train * num_gfr);
     }
   }
+
+  // TODO: dispatch correct leaf model and variance model based on config; currently hardcoded to Gaussian constant-leaf and homoskedastic variance
+  std::unique_ptr<GaussianConstantLeafModel> mean_leaf_model_ptr = std::make_unique<GaussianConstantLeafModel>(leaf_scale_);
+  std::unique_ptr<LogLinearVarianceLeafModel> variance_leaf_model_ptr = std::make_unique<LogLinearVarianceLeafModel>(config_.shape_variance_forest, config_.scale_variance_forest);
+  for (int i = 0; i < num_gfr; i++) {
+    RunOneIteration(samples, mean_leaf_model_ptr.get(), variance_leaf_model_ptr.get(), /*gfr=*/true, /*keep_sample=*/keep_gfr);
+  }
 }
 
 void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every, int num_mcmc) {
-  std::unique_ptr<GaussianConstantLeafModel> mean_leaf_model_ptr = std::make_unique<GaussianConstantLeafModel>(leaf_scale_);
-  std::unique_ptr<LogLinearVarianceLeafModel> variance_leaf_model_ptr = std::make_unique<LogLinearVarianceLeafModel>(config_.shape_variance_forest, config_.scale_variance_forest);
-  bool keep_forest = false;
+  // Reserve space for MCMC predictions if they are to be retained
   if (has_mean_forest_) {
     samples.mean_forest_predictions_train.reserve(data_.n_train * num_mcmc);
     if (has_test_) {
@@ -171,9 +192,14 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
   if (has_variance_forest_) {
     samples.variance_forest_predictions_train.reserve(data_.n_train * num_mcmc);
     if (has_test_) {
-      samples.variance_forest_predictions_train.reserve(data_.n_test * num_mcmc);
+      samples.variance_forest_predictions_test.reserve(data_.n_test * num_mcmc);
     }
   }
+
+  // Create leaf models and pass them to the RunOneIteration function; these are updated in place and will reflect the current state of the leaf scale parameters (if they are being sampled)
+  std::unique_ptr<GaussianConstantLeafModel> mean_leaf_model_ptr = std::make_unique<GaussianConstantLeafModel>(leaf_scale_);
+  std::unique_ptr<LogLinearVarianceLeafModel> variance_leaf_model_ptr = std::make_unique<LogLinearVarianceLeafModel>(config_.shape_variance_forest, config_.scale_variance_forest);
+  bool keep_forest = false;
   for (int i = 0; i < num_burnin + keep_every * num_mcmc; i++) {
     if (i >= num_burnin && (i - num_burnin) % keep_every == 0)
       keep_forest = true;
@@ -184,11 +210,17 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
 }
 
 void BARTSampler::postprocess_samples(BARTSamples& samples) {
-  if (has_mean_forest_) {
-    if (has_test_) {
+  // Unpack test set predictions for mean and variance forest
+  if (has_test_) {
+    if (has_mean_forest_) {
       std::vector<double> predictions = samples.mean_forests->Predict(*forest_dataset_test_);
       samples.mean_forest_predictions_test.insert(samples.mean_forest_predictions_test.end(),
                                                   predictions.data(), predictions.data() + predictions.size());
+    }
+    if (has_variance_forest_) {
+      std::vector<double> predictions = samples.variance_forests->Predict(*forest_dataset_test_);
+      samples.variance_forest_predictions_test.insert(samples.variance_forest_predictions_test.end(),
+                                                      predictions.data(), predictions.data() + predictions.size());
     }
   }
 }

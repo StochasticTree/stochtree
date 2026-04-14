@@ -174,7 +174,7 @@ cpp11::writable::list convert_bart_results_to_list(StochTree::BARTSamples& bart_
                              : R_NilValue;
   output.push_back(cpp11::named_arg("leaf_scale_samples") = leaf_scale_sexp);
 
-  // Sample metadata
+  // Metadata about the model that was sampled
   double y_bar_sexp = bart_samples.y_bar;
   output.push_back(cpp11::named_arg("y_bar") = y_bar_sexp);
   double y_std_sexp = bart_samples.y_std;
@@ -185,8 +185,17 @@ cpp11::writable::list convert_bart_results_to_list(StochTree::BARTSamples& bart_
   output.push_back(cpp11::named_arg("num_train") = num_train_sexp);
   int num_test_sexp = bart_samples.num_test;
   output.push_back(cpp11::named_arg("num_test") = num_test_sexp);
-
   return output;
+}
+
+void add_config_to_result_list(cpp11::writable::list& result, StochTree::BARTConfig& config) {
+  // Unpack more metadata about the model that was sampled
+  result.push_back(cpp11::named_arg("sigma2_global_init") = config.sigma2_global_init);
+  result.push_back(cpp11::named_arg("sigma2_mean_init") = config.sigma2_mean_init);
+  result.push_back(cpp11::named_arg("b_sigma2_mean") = config.b_sigma2_mean);
+  result.push_back(cpp11::named_arg("shape_variance_forest") = config.shape_variance_forest);
+  result.push_back(cpp11::named_arg("scale_variance_forest") = config.scale_variance_forest);
+  return;
 }
 
 [[cpp11::register]]
@@ -265,5 +274,8 @@ cpp11::writable::list bart_sample_cpp(
   // Unprotect protected R objects
   UNPROTECT(protect_count);
 
-  return convert_bart_results_to_list(results_raw);
+  // Unpack outputs
+  cpp11::writable::list output_list = convert_bart_results_to_list(results_raw);
+  add_config_to_result_list(output_list, config);
+  return output_list;
 }
