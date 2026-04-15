@@ -1198,6 +1198,10 @@ class BARTModel:
           self.y_bar = bart_results["y_bar"]
           self.y_std = bart_results["y_std"]
           self.sigma2_init = bart_results["sigma2_init"]
+          self.sigma2_leaf_init = bart_results["sigma2_leaf_init"] if self.include_mean_forest else None
+          self.b_leaf = bart_results["b_sigma2_mean"] if self.include_mean_forest else None
+          self.shape_variance_forest = bart_results["shape_variance_forest"] if self.include_variance_forest else None
+          self.scale_variance_forest = bart_results["scale_variance_forest"] if self.include_variance_forest else None
 
           # Unpack mean forest results
           self.forest_container_mean = (
@@ -1434,6 +1438,9 @@ class BARTModel:
                       a_forest = 1.0
                   if not b_forest:
                       b_forest = 1.0
+              self.shape_variance_forest = a_forest
+              self.scale_variance_forest = b_forest
+              self.sigma2_leaf_init = bart_results["sigma2_leaf_init"] if self.include_mean_forest else None
 
           # Set up random effects structures
           if self.has_rfx:

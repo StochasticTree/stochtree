@@ -2400,6 +2400,10 @@ inline py::dict convert_bart_results_to_dict(
 void add_config_to_result_dict(py::dict& result, StochTree::BARTConfig& config) {
   // Unpack more metadata about the model that was sampled
   result["sigma2_init"] = config.sigma2_global_init;
+  result["sigma2_mean_init"] = config.sigma2_mean_init;
+  result["b_sigma2_mean"] = config.b_sigma2_mean;
+  result["shape_variance_forest"] = config.shape_variance_forest;
+  result["scale_variance_forest"] = config.scale_variance_forest;
 }
 
 py::dict bart_sample_cpp(
