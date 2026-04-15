@@ -1191,10 +1191,13 @@ class BARTModel:
           self.keep_every = keep_every
           self.num_mcmc = num_mcmc
           self.num_chains = num_chains
+          self.sample_sigma2_global = sample_sigma2_global
+          self.sample_sigma2_leaf = sample_sigma2_leaf
           
           # Unpack standardization params computed by C++ sampler
           self.y_bar = bart_results["y_bar"]
           self.y_std = bart_results["y_std"]
+          self.sigma2_init = bart_results["sigma2_init"]
 
           # Unpack mean forest results
           self.forest_container_mean = (
