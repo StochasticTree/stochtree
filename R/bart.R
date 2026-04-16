@@ -1199,7 +1199,11 @@ bart <- function(
 
     bart_results <- bart_sample_cpp(
       X_train = X_train,
-      y_train = y_train,
+      y_train = if (link_is_cloglog) {
+        as.numeric(y_train - min(y_train))
+      } else {
+        y_train
+      },
       X_test = if (exists("X_test")) X_test else NULL,
       n_train = nrow(X_train),
       n_test = if (!is.null(X_test)) nrow(X_test) else 0L,
@@ -1353,9 +1357,9 @@ bart <- function(
         cloglog_num_categories - 1,
         bart_results[["num_samples"]]
       )
-      result[["cloglog_cutpoint_samples"]] <- t(bart_results[[
+      result[["cloglog_cutpoint_samples"]] <- bart_results[[
         "cloglog_cutpoint_samples"
-      ]])
+      ]]
     }
 
     class(result) <- "bartmodel"
@@ -3113,8 +3117,12 @@ predict.bartmodel <- function(
           mean_forest_probabilities[, j, ] <- (1 -
             exp(
               -exp(
-                mean_forest_predictions +
-                  cloglog_cutpoint_samples[j, ]
+                sweep(
+                  mean_forest_predictions,
+                  2,
+                  cloglog_cutpoint_samples[j, ],
+                  "+"
+                )
               )
             ))
         } else if (j == cloglog_num_categories) {
@@ -3127,15 +3135,23 @@ predict.bartmodel <- function(
         } else {
           mean_forest_probabilities[, j, ] <- (exp(
             -exp(
-              mean_forest_predictions +
-                cloglog_cutpoint_samples[j - 1, ]
+              sweep(
+                mean_forest_predictions,
+                2,
+                cloglog_cutpoint_samples[j - 1, ],
+                "+"
+              )
             )
           ) *
             (1 -
               exp(
                 -exp(
-                  mean_forest_predictions +
-                    cloglog_cutpoint_samples[j, ]
+                  sweep(
+                    mean_forest_predictions,
+                    2,
+                    cloglog_cutpoint_samples[j, ],
+                    "+"
+                  )
                 )
               )))
         }

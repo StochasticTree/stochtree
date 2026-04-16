@@ -7,6 +7,7 @@
 #include <stochtree/probit.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
+#include <algorithm>
 #include <memory>
 #include <random>
 
@@ -17,6 +18,24 @@ BARTSampler::BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& dat
 }
 
 void BARTSampler::InitializeState(BARTSamples& samples) {
+  // Validate y_train values match the expected support for discrete link functions
+  if (config_.link_function == LinkFunction::Probit) {
+    for (int i = 0; i < data_.n_train; i++) {
+      if (data_.y_train[i] != 0.0 && data_.y_train[i] != 1.0) {
+        Log::Fatal("Outcomes must be 0 or 1 for probit link function");
+      }
+    }
+  } else if (config_.link_function == LinkFunction::Cloglog) {
+    for (int i = 0; i < data_.n_train; i++) {
+      if (std::floor(data_.y_train[i]) != data_.y_train[i]) {
+        Log::Fatal("Outcomes must be integers for cloglog link function");
+      }
+      if (data_.y_train[i] < 0.0) {
+        Log::Fatal("Outcomes must be 0-indexed for cloglog link function; remap before calling the sampler");
+      }
+    }
+  }
+
   // Load data from BARTData object into ForestDataset object
   forest_dataset_ = std::make_unique<ForestDataset>();
   forest_dataset_->AddCovariates(data_.X_train, data_.n_train, data_.p, /*row_major=*/false);
@@ -68,18 +87,34 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
     }
 
     if (config_.link_function == LinkFunction::Probit) {
+      // Initialize forests to 0, no scaling, but offset by the probit transform of the mean outcome to improve mixing
       samples.y_std = 1.0;
       samples.y_bar = norm_inv_cdf(y_mean);
       init_val_mean_ = 0.0;
+    } else if (config_.link_function == LinkFunction::Cloglog) {
+      // Initialize forests to 0, no scaling or location shifting of the outcome
+      // Outcomes are expected to already be 0-indexed by the caller
+      samples.y_std = 1.0;
+      samples.y_bar = 0.0;
+      init_val_mean_ = 0.0;
     } else {
-      if (config_.standardize_outcome) {
-        samples.y_bar = y_mean;
-        samples.y_std = std::sqrt(y_var);
-        init_val_mean_ = 0.0;
+      if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianConstant) {
+        // Case 1: Constant leaf
+        if (config_.standardize_outcome) {
+          samples.y_bar = y_mean;
+          samples.y_std = std::sqrt(y_var);
+          init_val_mean_ = 0.0;
+        } else {
+          samples.y_bar = 0.0;
+          samples.y_std = 1.0;
+          init_val_mean_ = y_mean;
+        }
+      } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression) {
+        // Case 2: Univariate leaf regression
+        // TODO ...
       } else {
-        samples.y_bar = 0.0;
-        samples.y_std = 1.0;
-        init_val_mean_ = y_mean;
+        // Case 3: Multivariate leaf regression
+        // TODO ...
       }
     }
     if (config_.sigma2_mean_init < 0.0) {
@@ -162,6 +197,8 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
 
   // Cloglog state
   if (config_.link_function == LinkFunction::Cloglog) {
+    // Initialize the ordinal sampler
+    ordinal_sampler_ = std::make_unique<OrdinalSampler>();
     // Latent variable (Z in Alam et al (2025) notation)
     forest_dataset_->AddAuxiliaryDimension(data_.n_train);
     // Forest predictions (eta in Alam et al (2025) notation)

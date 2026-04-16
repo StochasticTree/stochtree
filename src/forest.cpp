@@ -862,7 +862,7 @@ void initialize_forest_model_active_forest_cpp(cpp11::external_pointer<StochTree
     int n = data->NumObservations();
     std::vector<double> initial_preds(n, init_val);
     data->AddVarianceWeights(initial_preds.data(), n);
-  } else if (model_type == StochTree::ModelType::kLogLinearVariance) {
+  } else if (model_type == StochTree::ModelType::kCloglogOrdinal) {
     leaf_init_val = init_val / static_cast<double>(num_trees);
     active_forest->SetLeafValue(leaf_init_val);
     UpdateResidualEntireForest(*tracker, *data, *residual, active_forest.get(), false, std::minus<double>());

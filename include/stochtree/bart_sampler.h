@@ -65,7 +65,14 @@ class BARTSampler {
       // TODO ...
     }
     void operator()(CloglogOrdinalLeafModel& model) {
-      // TODO ...
+      sampler.mean_forest_ = std::make_unique<TreeEnsemble>(sampler.config_.num_trees_mean, sampler.config_.leaf_dim_mean, sampler.config_.leaf_constant_mean, sampler.config_.exponentiated_leaf_mean);
+      samples.mean_forests = std::make_unique<ForestContainer>(sampler.config_.num_trees_mean, sampler.config_.leaf_dim_mean, sampler.config_.leaf_constant_mean, sampler.config_.exponentiated_leaf_mean);
+      sampler.mean_forest_tracker_ = std::make_unique<ForestTracker>(sampler.forest_dataset_->GetCovariates(), sampler.config_.feature_types, sampler.config_.num_trees_mean, sampler.data_.n_train);
+      sampler.tree_prior_mean_ = std::make_unique<TreePrior>(sampler.config_.alpha_mean, sampler.config_.beta_mean, sampler.config_.min_samples_leaf_mean, sampler.config_.max_depth_mean);
+      sampler.mean_forest_->SetLeafValue(sampler.init_val_mean_ / sampler.config_.num_trees_mean);
+      UpdateResidualEntireForest(*sampler.mean_forest_tracker_, *sampler.forest_dataset_, *sampler.residual_, sampler.mean_forest_.get(), false, std::minus<double>());
+      sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
+      sampler.has_mean_forest_ = true;
     }
   };
 
