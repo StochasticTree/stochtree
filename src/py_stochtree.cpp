@@ -2198,6 +2198,11 @@ inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
   output.b_sigma2_mean = get_config_scalar_default<double>(config_dict, "b_sigma2_mean", -1.0);
   output.sigma2_mean_init = get_config_scalar_default<double>(config_dict, "sigma2_mean_init", -1.0);
   output.sample_sigma2_leaf_mean = get_config_scalar_default<bool>(config_dict, "sample_sigma2_leaf_mean", false);
+  output.mean_leaf_model_type = static_cast<StochTree::MeanLeafModelType>(get_config_scalar_default<int>(config_dict, "mean_leaf_model_type", 0));
+  output.num_classes_cloglog = get_config_scalar_default<int>(config_dict, "num_classes_cloglog", 0);
+  output.cloglog_leaf_prior_shape = get_config_scalar_default<double>(config_dict, "cloglog_leaf_prior_shape", 2.0);
+  output.cloglog_leaf_prior_scale = get_config_scalar_default<double>(config_dict, "cloglog_leaf_prior_scale", 2.0);
+  output.cloglog_cutpoint_0 = get_config_scalar_default<double>(config_dict, "cloglog_cutpoint_0", 0.0);
 
   // Variance forest parameters
   output.num_trees_variance = get_config_scalar_default<int>(config_dict, "num_trees_variance", 0);
@@ -2385,6 +2390,16 @@ inline py::dict convert_bart_results_to_dict(
     py::array_t<double> array(input_vec.size());
     std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
     output["leaf_scale_samples"] = array;
+  }
+
+  // Cloglog cutpoint samples
+  if (results_raw.cloglog_cutpoint_samples.empty()) {
+    output["cloglog_cutpoint_samples"] = py::none();
+  } else {
+    auto input_vec = results_raw.cloglog_cutpoint_samples;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["cloglog_cutpoint_samples"] = array;
   }
 
   // Unpack scalars

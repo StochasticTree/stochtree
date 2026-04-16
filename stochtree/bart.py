@@ -214,6 +214,8 @@ class BARTModel:
         - **keep_vars** (*list* or *np.array*): Variable names or column indices to include in the mean forest. Defaults to ``None``.
         - **drop_vars** (*list* or *np.array*): Variable names or column indices to exclude from the mean forest. Defaults to ``None``. Ignored if ``keep_vars`` is also set.
         - **num_features_subsample** (*int*): How many features to subsample when growing each tree for the GFR algorithm. Defaults to the number of features in the training dataset.
+        - **cloglog_leaf_prior_shape** (*float*): Shape parameter for the prior on leaf parameters in a cloglog ordinal leaf model. Defaults to ``2.0``.
+        - **cloglog_leaf_prior_scale** (*float*): Scale parameter for the prior on leaf parameters in a cloglog ordinal leaf model. Defaults to ``2.0``.
 
         **variance_forest_params keys**
 
@@ -276,6 +278,8 @@ class BARTModel:
             "keep_vars": None,
             "drop_vars": None,
             "num_features_subsample": None,
+            "cloglog_leaf_prior_shape": 2.0,
+            "cloglog_leaf_prior_scale": 2.0,
         }
         mean_forest_params_updated = _preprocess_params(
             mean_forest_params_default, mean_forest_params
@@ -347,6 +351,8 @@ class BARTModel:
         num_features_subsample_mean = mean_forest_params_updated[
             "num_features_subsample"
         ]
+        cloglog_leaf_prior_shape = mean_forest_params_updated["cloglog_leaf_prior_shape"]
+        cloglog_leaf_prior_scale = mean_forest_params_updated["cloglog_leaf_prior_scale"]
 
         # 3. Variance forest parameters
         num_trees_variance = variance_forest_params_updated["num_trees"]
@@ -1096,6 +1102,31 @@ class BARTModel:
             elif self.rfx_model_spec == "intercept_only":
                 if rfx_basis_test is None:
                     rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
+        
+        # Set variance leaf model type (currently only one option)
+        leaf_model_variance_forest = 3
+        leaf_dimension_variance = 1
+
+        # Determine the mean forest leaf model type
+        if link_is_cloglog and not self.has_basis:
+            leaf_model_mean_forest = 4
+            leaf_dimension_mean = 1
+        elif not self.has_basis:
+            leaf_model_mean_forest = 0
+            leaf_dimension_mean = 1
+        elif self.num_basis == 1:
+            leaf_model_mean_forest = 1
+            leaf_dimension_mean = 1
+        else:
+            leaf_model_mean_forest = 2
+            leaf_dimension_mean = self.num_basis
+
+        # Determine cloglog number of classes
+        if link_is_cloglog:
+            unique_outcomes = np.sort(np.unique(y_train))
+            cloglog_num_categories = int(np.max(y_train - np.min(unique_outcomes))) + 1
+        else:
+            cloglog_num_categories = 0
 
         if run_cpp:
           # Arrange all config in a large python dictionary
@@ -1125,6 +1156,11 @@ class BARTModel:
               "b_sigma2_mean": b_leaf,
               "sigma2_mean_init": -1.0,
               "sample_sigma2_leaf_mean": sample_sigma2_leaf,
+              "mean_leaf_model_type": leaf_model_mean_forest,
+              "num_classes_cloglog": cloglog_num_categories,
+              "cloglog_leaf_prior_shape": cloglog_leaf_prior_shape,
+              "cloglog_leaf_prior_scale": cloglog_leaf_prior_scale,
+              "cloglog_cutpoint_0": 0, 
               "num_trees_variance": num_trees_variance,
               "leaf_prior_calibration_param": a_0,
               "shape_variance_forest": a_forest,
@@ -1198,7 +1234,7 @@ class BARTModel:
           self.y_bar = bart_results["y_bar"]
           self.y_std = bart_results["y_std"]
           self.sigma2_init = bart_results["sigma2_init"]
-          self.sigma2_leaf_init = bart_results["sigma2_leaf_init"] if self.include_mean_forest else None
+          self.sigma2_leaf_init = bart_results["sigma2_mean_init"] if self.include_mean_forest else None
           self.b_leaf = bart_results["b_sigma2_mean"] if self.include_mean_forest else None
           self.shape_variance_forest = bart_results["shape_variance_forest"] if self.include_variance_forest else None
           self.scale_variance_forest = bart_results["scale_variance_forest"] if self.include_variance_forest else None
@@ -1233,6 +1269,9 @@ class BARTModel:
               self.global_var_samples = bart_results["global_var_samples"] * self.y_std * self.y_std
           if self.sample_sigma2_leaf:
               self.leaf_scale_samples = bart_results["leaf_scale_samples"]
+          if link_is_cloglog:
+              self.cloglog_num_categories = cloglog_num_categories
+              self.cloglog_cutpoint_samples = bart_results["cloglog_cutpoint_samples"].reshape(cloglog_num_categories - 1, bart_results["num_samples"], order="F")
           
           # Unpack other model metadata
           self.num_samples = bart_results["num_samples"]
@@ -1339,8 +1378,10 @@ class BARTModel:
               cloglog_cutpoint_0 = 0.0
 
               # Set shape and rate parameters for conditional gamma model
-              cloglog_forest_shape = 2.0
-              cloglog_forest_rate = 2.0
+              if cloglog_leaf_prior_shape is None:
+                  cloglog_forest_shape = 2.0
+              if cloglog_leaf_prior_scale is None:
+                  cloglog_forest_rate = 2.0
           else:
               # Standardize if requested
               if self.standardize:
@@ -1440,7 +1481,6 @@ class BARTModel:
                       b_forest = 1.0
               self.shape_variance_forest = a_forest
               self.scale_variance_forest = b_forest
-              self.sigma2_leaf_init = bart_results["sigma2_leaf_init"] if self.include_mean_forest else None
 
           # Set up random effects structures
           if self.has_rfx:
@@ -1553,24 +1593,6 @@ class BARTModel:
               cpp_rng = RNG(random_seed)
               self.rng = np.random.default_rng(random_seed)
 
-          # Set variance leaf model type (currently only one option)
-          leaf_model_variance_forest = 3
-          leaf_dimension_variance = 1
-
-          # Determine the mean forest leaf model type
-          if link_is_cloglog and not self.has_basis:
-              leaf_model_mean_forest = 4
-              leaf_dimension_mean = 1
-          elif not self.has_basis:
-              leaf_model_mean_forest = 0
-              leaf_dimension_mean = 1
-          elif self.num_basis == 1:
-              leaf_model_mean_forest = 1
-              leaf_dimension_mean = 1
-          else:
-              leaf_model_mean_forest = 2
-              leaf_dimension_mean = self.num_basis
-              
           # Sampling data structures
           global_model_config = GlobalModelConfig(global_error_variance=current_sigma2)
           if self.include_mean_forest:

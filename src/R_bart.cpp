@@ -82,6 +82,11 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   output.b_sigma2_mean = get_config_scalar_default<double>(config, "b_sigma2_mean", -1.0);
   output.sigma2_mean_init = get_config_scalar_default<double>(config, "sigma2_mean_init", -1.0);
   output.sample_sigma2_leaf_mean = get_config_scalar_default<bool>(config, "sample_sigma2_leaf_mean", false);
+  output.mean_leaf_model_type = static_cast<StochTree::MeanLeafModelType>(get_config_scalar_default<int>(config, "mean_leaf_model_type", 0));
+  output.num_classes_cloglog = get_config_scalar_default<int>(config, "num_classes_cloglog", 0);
+  output.cloglog_leaf_prior_shape = get_config_scalar_default<double>(config, "cloglog_leaf_prior_shape", 2.0);
+  output.cloglog_leaf_prior_scale = get_config_scalar_default<double>(config, "cloglog_leaf_prior_scale", 2.0);
+  output.cloglog_cutpoint_0 = get_config_scalar_default<double>(config, "cloglog_cutpoint_0", 0.0);
 
   // Variance forest parameters
   output.num_trees_variance = get_config_scalar_default<int>(config, "num_trees_variance", 0);
@@ -173,6 +178,11 @@ cpp11::writable::list convert_bart_results_to_list(StochTree::BARTSamples& bart_
                              ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.leaf_scale_samples.begin(), bart_samples.leaf_scale_samples.end()))
                              : R_NilValue;
   output.push_back(cpp11::named_arg("leaf_scale_samples") = leaf_scale_sexp);
+
+  SEXP cloglog_cutpoints_sexp = !bart_samples.cloglog_cutpoint_samples.empty()
+                                    ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.cloglog_cutpoint_samples.begin(), bart_samples.cloglog_cutpoint_samples.end()))
+                                    : R_NilValue;
+  output.push_back(cpp11::named_arg("cloglog_cutpoint_samples") = cloglog_cutpoints_sexp);
 
   // Metadata about the model that was sampled
   double y_bar_sexp = bart_samples.y_bar;

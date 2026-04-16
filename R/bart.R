@@ -1090,6 +1090,11 @@ bart <- function(
     leaf_regression = FALSE
   }
 
+  cloglog_num_categories <- ifelse(
+    link_is_cloglog,
+    max(y_train - min(y_train)) + 1,
+    0
+  )
   model_params_r <- list(
     "a_global" = a_global,
     "b_global" = b_global,
@@ -1120,11 +1125,7 @@ bart <- function(
     "include_variance_forest" = include_variance_forest,
     "outcome_model" = outcome_model,
     "probit_outcome_model" = probit_outcome_model,
-    "cloglog_num_categories" = ifelse(
-      link_is_cloglog,
-      max(y_train - min(y_train)) + 1,
-      0
-    ),
+    "cloglog_num_categories" = cloglog_num_categories,
     "rfx_model_spec" = rfx_model_spec
   )
 
@@ -1164,6 +1165,11 @@ bart <- function(
       "b_sigma2_mean" = b_leaf,
       "sigma2_mean_init" = sigma2_leaf_init,
       "sample_sigma2_leaf_mean" = sample_sigma2_leaf,
+      "mean_leaf_model_type" = leaf_model_mean_forest,
+      "num_classes_cloglog" = cloglog_num_categories,
+      "cloglog_leaf_prior_shape" = cloglog_leaf_prior_shape,
+      "cloglog_leaf_prior_scale" = cloglog_leaf_prior_scale,
+      "cloglog_cutpoint_0" = 0,
       "num_trees_variance" = num_trees_variance,
       "leaf_prior_calibration_param" = a_0,
       "shape_variance_forest" = a_forest,
@@ -1337,6 +1343,19 @@ bart <- function(
         "variance_forests"
       ]]
       result[["variance_forests"]] <- variance_forests_r
+    }
+
+    has_cloglog_cutpoint_samples <- !is.null(
+      bart_results[['cloglog_cutpoint_samples']]
+    )
+    if (has_cloglog_cutpoint_samples) {
+      dim(bart_results[['cloglog_cutpoint_samples']]) <- c(
+        cloglog_num_categories - 1,
+        bart_results[["num_samples"]]
+      )
+      result[["cloglog_cutpoint_samples"]] <- t(bart_results[[
+        "cloglog_cutpoint_samples"
+      ]])
     }
 
     class(result) <- "bartmodel"

@@ -155,6 +155,7 @@ static void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr,
   StochTree::BARTConfig config;
   config.num_trees_mean = num_trees;
   config.random_seed = seed;
+  config.mean_leaf_model_type = StochTree::MeanLeafModelType::GaussianConstant;
   config.link_function = StochTree::LinkFunction::Probit;
   config.sample_sigma2_global = false;
   config.var_weights_mean = std::vector<double>(p, 1.0 / p);

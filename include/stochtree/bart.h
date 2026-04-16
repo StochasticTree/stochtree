@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <vector>
+#include "stochtree/leaf_model.h"
 #include <stochtree/container.h>
 #include <stochtree/meta.h>
 
@@ -22,6 +23,14 @@ enum class OutcomeType {
   Continuous,
   Binary,
   Ordinal
+};
+
+enum class MeanLeafModelType {
+  GaussianConstant,
+  GaussianUnivariateRegression,
+  GaussianMultivariateRegression,
+  LogLinearVariance,
+  CloglogOrdinal
 };
 
 struct BARTData {
@@ -89,6 +98,11 @@ struct BARTConfig {
   std::vector<double> var_weights_mean;        // variable weights for mean forest splits (should be same length as number of covariates in the dataset)
   bool sample_sigma2_leaf_mean = false;        // whether to sample mean forest leaf scale (if false, it will be fixed at sigma2_mean_init)
   std::vector<int> sweep_update_indices_mean;  // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
+  MeanLeafModelType mean_leaf_model_type;      // leaf model type for mean forest
+  int num_classes_cloglog = 0;                 // number of classes for cloglog ordinal leaf model (should be set if mean_leaf_model_type = CloglogOrdinal)
+  double cloglog_leaf_prior_shape = 2.0;       // shape parameter for cloglog ordinal leaf model prior
+  double cloglog_leaf_prior_scale = 2.0;       // scale parameter for cloglog ordinal leaf model prior
+  double cloglog_cutpoint_0 = 0.0;             // Fixed value of the first log-scale cutpoint for the cloglog model (defaults to 0 for identifiability)
 
   // Variance forest parameters
   int num_trees_variance = 0;                      // number of trees in the variance forest
@@ -135,6 +149,9 @@ struct BARTSamples {
 
   // Pointer to sampled variance forests
   std::unique_ptr<ForestContainer> variance_forests;
+
+  // Posterior samples of cloglog cutpoint parameters (num_samples x num_classes - 1, stored column-major)
+  std::vector<double> cloglog_cutpoint_samples;
 
   // TODO: Pointer to random effects samples ...
 

@@ -14,9 +14,12 @@
 #include <stochtree/partition_tracker.h>
 #include <stochtree/prior.h>
 #include <stochtree/probit.h>
+#include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 #include <memory>
+#include <variant>
 #include <vector>
+#include "stochtree/ordinal_sampler.h"
 
 namespace StochTree {
 
@@ -39,23 +42,144 @@ class BARTSampler {
   bool initialized_ = false;
 
   /*! Internal sample runner function */
-  void RunOneIteration(BARTSamples& samples, GaussianConstantLeafModel* mean_leaf_model, LogLinearVarianceLeafModel* variance_leaf_model, bool gfr, bool keep_sample);
+  void RunOneIteration(BARTSamples& samples, bool gfr, bool keep_sample);
+
+  /*! Initialization visitor */
+  struct MeanForestInitVisitor {
+    BARTSampler& sampler;
+    BARTSamples& samples;
+    void operator()(GaussianConstantLeafModel& model) {
+      sampler.mean_forest_ = std::make_unique<TreeEnsemble>(sampler.config_.num_trees_mean, sampler.config_.leaf_dim_mean, sampler.config_.leaf_constant_mean, sampler.config_.exponentiated_leaf_mean);
+      samples.mean_forests = std::make_unique<ForestContainer>(sampler.config_.num_trees_mean, sampler.config_.leaf_dim_mean, sampler.config_.leaf_constant_mean, sampler.config_.exponentiated_leaf_mean);
+      sampler.mean_forest_tracker_ = std::make_unique<ForestTracker>(sampler.forest_dataset_->GetCovariates(), sampler.config_.feature_types, sampler.config_.num_trees_mean, sampler.data_.n_train);
+      sampler.tree_prior_mean_ = std::make_unique<TreePrior>(sampler.config_.alpha_mean, sampler.config_.beta_mean, sampler.config_.min_samples_leaf_mean, sampler.config_.max_depth_mean);
+      sampler.mean_forest_->SetLeafValue(sampler.init_val_mean_ / sampler.config_.num_trees_mean);
+      UpdateResidualEntireForest(*sampler.mean_forest_tracker_, *sampler.forest_dataset_, *sampler.residual_, sampler.mean_forest_.get(), !sampler.config_.leaf_constant_mean, std::minus<double>());
+      sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
+      sampler.has_mean_forest_ = true;
+    }
+    void operator()(GaussianUnivariateRegressionLeafModel& model) {
+      // TODO ...
+    }
+    void operator()(GaussianMultivariateRegressionLeafModel& model) {
+      // TODO ...
+    }
+    void operator()(CloglogOrdinalLeafModel& model) {
+      // TODO ...
+    }
+  };
+
+  /*! GFR iteration visitor */
+  struct GFROneIterationVisitor {
+    BARTSampler& sampler;
+    BARTSamples& samples;
+    bool keep_sample;
+    void operator()(GaussianConstantLeafModel& model) {
+      GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
+          *sampler.mean_forest_, *sampler.mean_forest_tracker_, *samples.mean_forests, model,
+          *sampler.forest_dataset_, *sampler.residual_, *sampler.tree_prior_mean_, sampler.rng_,
+          sampler.config_.var_weights_mean, sampler.config_.sweep_update_indices_mean, sampler.global_variance_, sampler.config_.feature_types,
+          sampler.config_.cutpoint_grid_size, /*keep_forest=*/keep_sample,
+          /*pre_initialized=*/true, /*backfitting=*/true,
+          /*num_features_subsample=*/sampler.config_.num_features_subsample_mean, sampler.config_.num_threads);
+    }
+    void operator()(GaussianUnivariateRegressionLeafModel& model) {
+      GFRSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(
+          *sampler.mean_forest_, *sampler.mean_forest_tracker_, *samples.mean_forests, model,
+          *sampler.forest_dataset_, *sampler.residual_, *sampler.tree_prior_mean_, sampler.rng_,
+          sampler.config_.var_weights_mean, sampler.config_.sweep_update_indices_mean, sampler.global_variance_, sampler.config_.feature_types,
+          sampler.config_.cutpoint_grid_size, /*keep_forest=*/keep_sample,
+          /*pre_initialized=*/true, /*backfitting=*/true,
+          /*num_features_subsample=*/sampler.config_.num_features_subsample_mean, sampler.config_.num_threads);
+    }
+    void operator()(GaussianMultivariateRegressionLeafModel& model) {
+      // TODO ...
+    }
+    void operator()(CloglogOrdinalLeafModel& model) {
+      GFRSampleOneIter<CloglogOrdinalLeafModel, CloglogOrdinalSuffStat>(
+          *sampler.mean_forest_, *sampler.mean_forest_tracker_, *samples.mean_forests, model,
+          *sampler.forest_dataset_, *sampler.residual_, *sampler.tree_prior_mean_, sampler.rng_,
+          sampler.config_.var_weights_mean, sampler.config_.sweep_update_indices_mean, sampler.global_variance_, sampler.config_.feature_types,
+          sampler.config_.cutpoint_grid_size, /*keep_forest=*/keep_sample,
+          /*pre_initialized=*/true, /*backfitting=*/false,
+          /*num_features_subsample=*/sampler.config_.num_features_subsample_mean, sampler.config_.num_threads);
+    }
+  };
+
+  /*! MCMC iteration visitor */
+  struct MCMCOneIterationVisitor {
+    BARTSampler& sampler;
+    BARTSamples& samples;
+    bool keep_sample;
+    void operator()(GaussianConstantLeafModel& model) {
+      MCMCSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
+          *sampler.mean_forest_, *sampler.mean_forest_tracker_, *samples.mean_forests, model,
+          *sampler.forest_dataset_, *sampler.residual_, *sampler.tree_prior_mean_, sampler.rng_,
+          sampler.config_.var_weights_mean, sampler.config_.sweep_update_indices_mean, sampler.global_variance_, /*keep_forest=*/keep_sample,
+          /*pre_initialized=*/true, /*backfitting=*/true,
+          /*num_threads=*/sampler.config_.num_threads);
+    }
+    void operator()(GaussianUnivariateRegressionLeafModel& model) {
+      MCMCSampleOneIter<GaussianUnivariateRegressionLeafModel, GaussianUnivariateRegressionSuffStat>(
+          *sampler.mean_forest_, *sampler.mean_forest_tracker_, *samples.mean_forests, model,
+          *sampler.forest_dataset_, *sampler.residual_, *sampler.tree_prior_mean_, sampler.rng_,
+          sampler.config_.var_weights_mean, sampler.config_.sweep_update_indices_mean, sampler.global_variance_, /*keep_forest=*/keep_sample,
+          /*pre_initialized=*/true, /*backfitting=*/true,
+          /*num_threads=*/sampler.config_.num_threads);
+    }
+    void operator()(GaussianMultivariateRegressionLeafModel& model) {
+      // TODO ...
+    }
+    void operator()(CloglogOrdinalLeafModel& model) {
+      MCMCSampleOneIter<CloglogOrdinalLeafModel, CloglogOrdinalSuffStat>(
+          *sampler.mean_forest_, *sampler.mean_forest_tracker_, *samples.mean_forests, model,
+          *sampler.forest_dataset_, *sampler.residual_, *sampler.tree_prior_mean_, sampler.rng_,
+          sampler.config_.var_weights_mean, sampler.config_.sweep_update_indices_mean, sampler.global_variance_, /*keep_forest=*/keep_sample,
+          /*pre_initialized=*/true, /*backfitting=*/false,
+          /*num_threads=*/sampler.config_.num_threads);
+    }
+  };
+
+  /*! Mean forest leaf scale update visitor */
+  struct ScaleUpdateVisitor {
+    BARTSampler& sampler;
+    double leaf_scale;
+    void operator()(GaussianConstantLeafModel& model) {
+      model.SetScale(leaf_scale);
+    }
+    void operator()(GaussianUnivariateRegressionLeafModel& model) {
+      model.SetScale(leaf_scale);
+    }
+    void operator()(GaussianMultivariateRegressionLeafModel& model) {
+      // No-op for multivariate regression leaf model since scale is a vector
+    }
+    void operator()(CloglogOrdinalLeafModel& model) {
+      // No-op for cloglog ordinal leaf model since scale is not a variance parameter
+    }
+  };
 
   /*! Internal reference to config and data state */
   BARTConfig& config_;
   BARTData& data_;
+
+  /*! Leaf model for mean and variance forests */
+  std::variant<GaussianConstantLeafModel, GaussianUnivariateRegressionLeafModel, GaussianMultivariateRegressionLeafModel, CloglogOrdinalLeafModel> mean_leaf_model_;
+  LogLinearVarianceLeafModel variance_leaf_model_;
 
   /*! Mean forest state */
   std::unique_ptr<TreeEnsemble> mean_forest_;
   std::unique_ptr<ForestTracker> mean_forest_tracker_;
   std::unique_ptr<TreePrior> tree_prior_mean_;
   bool has_mean_forest_ = false;
+  double init_val_mean_;
+  std::unique_ptr<OrdinalSampler> ordinal_sampler_;
 
   /*! Variance forest state */
   std::unique_ptr<TreeEnsemble> variance_forest_;
   std::unique_ptr<ForestTracker> variance_forest_tracker_;
   std::unique_ptr<TreePrior> tree_prior_variance_;
   bool has_variance_forest_ = false;
+  double init_val_variance_;
 
   /*! Dataset */
   std::unique_ptr<ColumnVector> residual_;
