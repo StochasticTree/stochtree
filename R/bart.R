@@ -2867,8 +2867,12 @@ predict.bartmodel <- function(
           mean_forest_probabilities[, j, ] <- (1 -
             exp(
               -exp(
-                mean_forest_predictions +
-                  cloglog_cutpoint_samples[j, ]
+                sweep(
+                  mean_forest_predictions,
+                  2,
+                  cloglog_cutpoint_samples[j, ],
+                  "+"
+                )
               )
             ))
         } else if (j == cloglog_num_categories) {
@@ -2881,15 +2885,23 @@ predict.bartmodel <- function(
         } else {
           mean_forest_probabilities[, j, ] <- (exp(
             -exp(
-              mean_forest_predictions +
-                cloglog_cutpoint_samples[j - 1, ]
+              sweep(
+                mean_forest_predictions,
+                2,
+                cloglog_cutpoint_samples[j, ],
+                "+"
+              )
             )
           ) *
             (1 -
               exp(
                 -exp(
-                  mean_forest_predictions +
-                    cloglog_cutpoint_samples[j, ]
+                  sweep(
+                    mean_forest_predictions,
+                    2,
+                    cloglog_cutpoint_samples[j, ],
+                    "+"
+                  )
                 )
               )))
         }
