@@ -1122,11 +1122,7 @@ class BARTModel:
             leaf_dimension_mean = self.num_basis
 
         # Determine cloglog number of classes
-        if link_is_cloglog:
-            unique_outcomes = np.sort(np.unique(y_train))
-            cloglog_num_categories = int(np.max(y_train - np.min(unique_outcomes))) + 1
-        else:
-            cloglog_num_categories = 0
+        cloglog_num_categories = int(np.max(y_train - np.min(y_train))) + 1 if link_is_cloglog else 0
 
         if run_cpp:
           # Arrange all config in a large python dictionary
@@ -1190,7 +1186,8 @@ class BARTModel:
           # Passing already-F-contiguous arrays causes pybind11 to return a view of
           # the original, which remains alive in this Python scope.
           X_train_cpp = np.asfortranarray(X_train_processed)
-          y_train_cpp = np.asfortranarray(y_train)
+          y_train_remapped = y_train - np.min(y_train) if link_is_cloglog else y_train
+          y_train_cpp = np.asfortranarray(y_train_remapped)
           X_test_cpp = np.asfortranarray(X_test_processed) if self.has_test else None
           basis_train_cpp = np.asfortranarray(leaf_basis_train) if self.has_basis else None
           basis_test_cpp = np.asfortranarray(leaf_basis_test) if self.has_basis and self.has_test else None
@@ -1879,6 +1876,10 @@ class BARTModel:
                               residual_train,
                               True,
                           )
+                          if link_is_cloglog:
+                              # ReconstituteFromForest corrupts the residual for cloglog
+                              # (computes y - forest_preds instead of keeping category labels)
+                              residual_train.update_data(resid_train[:, 0])
                           # Reset leaf scale
                           if sample_sigma2_leaf:
                                   leaf_scale_double = self.leaf_scale_samples[
@@ -1934,6 +1935,9 @@ class BARTModel:
                               residual_train,
                               True,
                           )
+                          if link_is_cloglog:
+                              # ReconstituteFromForest corrupts the residual for cloglog
+                              residual_train.update_data(resid_train[:, 0])
                           # Reset leaf scale
                           if sample_sigma2_leaf and previous_leaf_var_samples is not None:
                               leaf_scale_double = previous_leaf_var_samples[
@@ -1998,6 +2002,9 @@ class BARTModel:
                               residual_train,
                               True,
                           )
+                          if link_is_cloglog:
+                              # ReconstituteFromForest corrupts the residual for cloglog
+                              residual_train.update_data(resid_train[:, 0])
                           # Reset mean forest leaf scale
                           if sample_sigma2_leaf and previous_leaf_var_samples is not None:
                               current_leaf_scale[0, 0] = sigma2_leaf

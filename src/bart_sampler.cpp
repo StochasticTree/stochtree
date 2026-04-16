@@ -7,7 +7,6 @@
 #include <stochtree/probit.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
-#include <algorithm>
 #include <memory>
 #include <random>
 
