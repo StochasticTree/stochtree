@@ -93,7 +93,10 @@ run_once <- function(run_cpp, num_gfr, num_mcmc, seed = -1) {
     num_gfr = num_gfr,
     num_burnin = 0,
     num_mcmc = num_mcmc,
-    mean_forest_params = list(num_trees = num_trees),
+    mean_forest_params = list(
+      num_trees = num_trees,
+      sample_sigma2_leaf = FALSE
+    ),
     general_params = list(
       random_seed = seed,
       outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog"),

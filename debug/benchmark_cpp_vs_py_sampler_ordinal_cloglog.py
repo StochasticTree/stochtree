@@ -95,7 +95,7 @@ def run_once(run_cpp: bool, num_gfr: int, num_mcmc: int, seed: int) -> dict:
         num_gfr=num_gfr,
         num_burnin=0,
         num_mcmc=num_mcmc,
-        mean_forest_params={"num_trees": num_trees},
+        mean_forest_params={"num_trees": num_trees, "sample_sigma2_leaf": False},
         general_params={
             "random_seed": seed,
             "outcome_model": OutcomeModel(outcome="ordinal", link="cloglog"),

@@ -1411,6 +1411,15 @@ class TestBART:
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
 
+        # Correctness: posterior-mean predicted probability must correlate with true
+        # P(Y=1|X). Residual corruption from reconstitute_from_forest (the GFR warm-start
+        # bug) produces near-random predictions that would fail this check.
+        p_true_test = prob[test_inds]
+        p_hat_mean = bart_model.predict(
+            X=X_test, type="mean", scale="probability", terms="y_hat"
+        )
+        assert np.corrcoef(p_hat_mean, p_true_test)[0, 1] > 0.5
+
     def test_cloglog_ordinal_bart(self):
         # RNG
         random_seed = 101
@@ -1573,3 +1582,12 @@ class TestBART:
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
         assert bart_model.cloglog_cutpoint_samples.shape == (2, num_mcmc)
+
+        # Correctness: predicted P(Y=1) must correlate with the true P(Y=1).
+        # Residual corruption from reconstitute_from_forest produces near-random
+        # predictions that would fail this check.
+        true_probs_test = true_probs[test_inds, :]
+        preds_mean_prob = bart_model.predict(
+            X=X_test, type="mean", scale="probability", terms="y_hat"
+        )
+        assert np.corrcoef(preds_mean_prob[:, 0], true_probs_test[:, 0])[0, 1] > 0.3
