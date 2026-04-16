@@ -1380,8 +1380,12 @@ class BARTModel:
               # Set shape and rate parameters for conditional gamma model
               if cloglog_leaf_prior_shape is None:
                   cloglog_forest_shape = 2.0
+              else:
+                  cloglog_forest_shape = cloglog_leaf_prior_shape
               if cloglog_leaf_prior_scale is None:
                   cloglog_forest_rate = 2.0
+              else:
+                  cloglog_forest_rate = cloglog_leaf_prior_scale
           else:
               # Standardize if requested
               if self.standardize:
