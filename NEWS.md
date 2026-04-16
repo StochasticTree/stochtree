@@ -7,7 +7,7 @@
 
 ## Bug Fixes
 
-* Fixed initialization and probability prediction bugs for cloglog in R [#357](https://github.com/StochasticTree/stochtree/pull/357)
+* Fixed several initialization, sampling and prediction bugs for cloglog [#357](https://github.com/StochasticTree/stochtree/pull/357)
 * Fixed num_threads pass-through bug in R BART [#339](https://github.com/StochasticTree/stochtree/pull/339)
 * Fixed probit offset bug in R and Python [#337](https://github.com/StochasticTree/stochtree/pull/337)
 * Standardized multi-chain BCF handling of internal propensity models [#334](https://github.com/StochasticTree/stochtree/pull/334)
