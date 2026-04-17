@@ -3,9 +3,9 @@
 ## probabilities) across run_cpp = TRUE / FALSE in bart().
 ##
 ## DGP uses 4 ordinal categories with a cloglog link.
-## The latent step function f(X) is on the log-log scale, and each category
-## boundary (gamma_k) is fixed at log(k) for k = 1, 2, 3 so the four
-## cumulative probabilities are P(Y <= k | X) = 1 - exp(-exp(f(X) - gamma_k)).
+## f(X) is a smooth sinusoidal function of two covariates so that all four
+## categories are well-populated. Cutpoints are spaced to yield roughly equal
+## marginal class frequencies. GFR is disabled (num_gfr = 0).
 ##
 ## Usage: Rscript debug/benchmark_cpp_vs_r_sampler_ordinal_cloglog.R
 ##        or source() from an interactive session after devtools::load_all('.')
@@ -20,17 +20,14 @@ n <- 2000
 p <- 10
 X <- matrix(runif(n * p), ncol = p)
 
-# Latent step function on the cloglog scale
-f_X <- (((0.00 <= X[, 1]) & (X[, 1] < 0.25)) *
-  (-2.0) +
-  ((0.25 <= X[, 1]) & (X[, 1] < 0.50)) * (-0.5) +
-  ((0.50 <= X[, 1]) & (X[, 1] < 0.75)) * (0.5) +
-  ((0.75 <= X[, 1]) & (X[, 1] < 1.00)) * (1.0))
+# Latent mean on the cloglog scale (smooth, two covariates)
+f_X <- 0.6 * sin(2 * pi * X[, 1]) + 0.4 * cos(2 * pi * X[, 2])
 
-# Fixed log-scale cutpoints (gamma_k); K = 4 categories => K-1 = 3 cutpoints
-# gamma_0 is fixed at 0 for identifiability; gamma_1 = log(2), gamma_2 = log(3)
+# Fixed log-scale cutpoints spaced to give roughly equal marginal class freqs.
+# With f_X in roughly [-1, 1], setting gamma = c(0, log(2), log(4)) puts the
+# four cumulative boundaries at moderate probability levels.
 K <- 4
-gamma_true <- c(0, log(2), log(3))
+gamma_true <- c(0, log(2), log(4))
 
 # True cumulative probabilities: P(Y <= k | X) = 1 - exp(-exp(f_X - gamma_k))
 # True class probabilities: P(Y = k | X) = P(Y <= k) - P(Y <= k-1)
@@ -64,19 +61,21 @@ p_test <- p_X[test_inds, ] # n_test x K matrix of true class probabilities
 # ---------------------------------------------------------------------------
 # Benchmark settings
 # ---------------------------------------------------------------------------
-num_gfr <- 10
+num_gfr <- 0
+num_burnin <- 100
 num_mcmc <- 100
 num_trees <- 200
 n_reps <- 3
 
 cat(sprintf(
-  "K=%d  n_train=%d  n_test=%d  p=%d  num_trees=%d  num_gfr=%d  num_mcmc=%d  reps=%d\n\n",
+  "K=%d  n_train=%d  n_test=%d  p=%d  num_trees=%d  num_gfr=%d  num_burnin=%d  num_mcmc=%d  reps=%d\n\n",
   K,
   n_train,
   n_test,
   p,
   num_trees,
   num_gfr,
+  num_burnin,
   num_mcmc,
   n_reps
 ))
@@ -84,14 +83,14 @@ cat(sprintf(
 # ---------------------------------------------------------------------------
 # Helper: run one configuration and return timing + metrics
 # ---------------------------------------------------------------------------
-run_once <- function(run_cpp, num_gfr, num_mcmc, seed = -1) {
+run_once <- function(run_cpp, seed = -1) {
   t0 <- proc.time()
   m <- bart(
     X_train = X_train,
     y_train = y_train,
     X_test = X_test,
     num_gfr = num_gfr,
-    num_burnin = 0,
+    num_burnin = num_burnin,
     num_mcmc = num_mcmc,
     mean_forest_params = list(
       num_trees = num_trees,
@@ -137,23 +136,13 @@ results_r <- vector("list", n_reps)
 cat("Running C++ sampler (run_cpp = TRUE)...\n")
 for (i in seq_len(n_reps)) {
   cat(sprintf("  rep %d/%d\n", i, n_reps))
-  results_cpp[[i]] <- run_once(
-    run_cpp = TRUE,
-    num_gfr = num_gfr,
-    num_mcmc = num_mcmc,
-    seed = seeds[i]
-  )
+  results_cpp[[i]] <- run_once(run_cpp = TRUE, seed = seeds[i])
 }
 
 cat("\nRunning R sampler (run_cpp = FALSE)...\n")
 for (i in seq_len(n_reps)) {
   cat(sprintf("  rep %d/%d\n", i, n_reps))
-  results_r[[i]] <- run_once(
-    run_cpp = FALSE,
-    num_gfr = num_gfr,
-    num_mcmc = num_mcmc,
-    seed = seeds[i]
-  )
+  results_r[[i]] <- run_once(run_cpp = FALSE, seed = seeds[i])
 }
 
 # ---------------------------------------------------------------------------

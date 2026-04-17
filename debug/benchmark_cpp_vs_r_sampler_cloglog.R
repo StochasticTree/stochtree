@@ -3,8 +3,8 @@
 ## run_cpp = TRUE / FALSE in bart().
 ##
 ## DGP uses the cloglog link: P(Y=1|X) = 1 - exp(-exp(f(X))).
-## The step function for f(X) is kept in the range [-2, 1] so that the implied
-## probabilities span roughly 0.13 to 0.93 and are well-identified.
+## f(X) is a smooth sinusoidal function of two covariates, keeping probabilities
+## in [~0.25, ~0.75] for stable mixing. GFR is disabled (num_gfr = 0).
 ##
 ## Usage: Rscript debug/benchmark_cpp_vs_r_sampler_cloglog.R
 ##        or source() from an interactive session after devtools::load_all('.')
@@ -20,12 +20,9 @@ p <- 10
 X <- matrix(runif(n * p), ncol = p)
 
 # Latent mean on the cloglog (log-log) scale.
-# P(Y=1|X) = 1 - exp(-exp(f_X)); values chosen so probabilities are moderate.
-f_X <- (((0.00 <= X[, 1]) & (X[, 1] < 0.25)) *
-  (-2.0) +
-  ((0.25 <= X[, 1]) & (X[, 1] < 0.50)) * (-0.5) +
-  ((0.50 <= X[, 1]) & (X[, 1] < 0.75)) * (0.5) +
-  ((0.75 <= X[, 1]) & (X[, 1] < 1.00)) * (1.0))
+# f_X is centred near -0.5 so that P(Y=1|X) = 1 - exp(-exp(f_X)) stays
+# in [~0.25, ~0.75], avoiding extreme probabilities that inflate tree depth.
+f_X <- 0.6 * sin(2 * pi * X[, 1]) + 0.4 * cos(2 * pi * X[, 2]) - 0.5
 p_X <- 1 - exp(-exp(f_X)) # true P(Y = 1 | X)
 y <- rbinom(n, 1L, p_X) # observed binary outcome
 
@@ -44,18 +41,20 @@ p_test <- p_X[test_inds]
 # ---------------------------------------------------------------------------
 # Benchmark settings
 # ---------------------------------------------------------------------------
-num_gfr <- 10
+num_gfr <- 0
+num_burnin <- 100
 num_mcmc <- 100
 num_trees <- 200
 n_reps <- 3
 
 cat(sprintf(
-  "n_train=%d  n_test=%d  p=%d  num_trees=%d  num_gfr=%d  num_mcmc=%d  reps=%d\n\n",
+  "n_train=%d  n_test=%d  p=%d  num_trees=%d  num_gfr=%d  num_burnin=%d  num_mcmc=%d  reps=%d\n\n",
   n_train,
   n_test,
   p,
   num_trees,
   num_gfr,
+  num_burnin,
   num_mcmc,
   n_reps
 ))
@@ -63,14 +62,14 @@ cat(sprintf(
 # ---------------------------------------------------------------------------
 # Helper: run one configuration and return timing + metrics
 # ---------------------------------------------------------------------------
-run_once <- function(run_cpp, num_gfr, num_mcmc, seed = -1) {
+run_once <- function(run_cpp, seed = -1) {
   t0 <- proc.time()
   m <- bart(
     X_train = X_train,
     y_train = y_train,
     X_test = X_test,
     num_gfr = num_gfr,
-    num_burnin = 0,
+    num_burnin = num_burnin,
     num_mcmc = num_mcmc,
     mean_forest_params = list(
       num_trees = num_trees,
@@ -115,23 +114,13 @@ results_r <- vector("list", n_reps)
 cat("Running C++ sampler (run_cpp = TRUE)...\n")
 for (i in seq_len(n_reps)) {
   cat(sprintf("  rep %d/%d\n", i, n_reps))
-  results_cpp[[i]] <- run_once(
-    run_cpp = TRUE,
-    num_gfr = num_gfr,
-    num_mcmc = num_mcmc,
-    seed = seeds[i]
-  )
+  results_cpp[[i]] <- run_once(run_cpp = TRUE, seed = seeds[i])
 }
 
 cat("\nRunning R sampler (run_cpp = FALSE)...\n")
 for (i in seq_len(n_reps)) {
   cat(sprintf("  rep %d/%d\n", i, n_reps))
-  results_r[[i]] <- run_once(
-    run_cpp = FALSE,
-    num_gfr = num_gfr,
-    num_mcmc = num_mcmc,
-    seed = seeds[i]
-  )
+  results_r[[i]] <- run_once(run_cpp = FALSE, seed = seeds[i])
 }
 
 # ---------------------------------------------------------------------------

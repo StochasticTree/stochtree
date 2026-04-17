@@ -4,9 +4,9 @@ Compares runtime, mean Brier score, and mean RMSE-to-truth (vs. true class
 probabilities) across run_cpp=True / False in BARTModel.sample().
 
 DGP uses 4 ordinal categories with a cloglog link.
-The latent step function f(X) is on the log-log scale, and each category
-boundary (gamma_k) is fixed at log(k) for k = 1, 2, 3 so the four
-cumulative probabilities are P(Y <= k | X) = 1 - exp(-exp(f(X) - gamma_k)).
+f(X) is a smooth sinusoidal function of two covariates so that all four
+categories are well-populated. Cutpoints are spaced to yield roughly equal
+marginal class frequencies. GFR is disabled (num_gfr=0).
 
 Usage:
     conda activate stochtree-book   # or: source venv/bin/activate
@@ -26,18 +26,14 @@ n = 2000
 p = 10
 X = rng.uniform(size=(n, p))
 
-# Latent step function on the cloglog scale
-f_X = (
-    np.where((X[:, 0] >= 0.00) & (X[:, 0] < 0.25), -2.0, 0.0) +
-    np.where((X[:, 0] >= 0.25) & (X[:, 0] < 0.50), -0.5, 0.0) +
-    np.where((X[:, 0] >= 0.50) & (X[:, 0] < 0.75),  0.5, 0.0) +
-    np.where((X[:, 0] >= 0.75) & (X[:, 0] < 1.00),  1.0, 0.0)
-)
+# Latent mean on the cloglog scale (smooth, two covariates)
+f_X = 0.6 * np.sin(2 * np.pi * X[:, 0]) + 0.4 * np.cos(2 * np.pi * X[:, 1])
 
-# Fixed log-scale cutpoints (gamma_k); K = 4 categories => K-1 = 3 cutpoints
-# gamma_0 is fixed at 0 for identifiability; gamma_1 = log(2), gamma_2 = log(3)
+# Fixed log-scale cutpoints spaced to give roughly equal marginal class freqs.
+# With f_X in roughly [-1, 1], gamma = [0, log(2), log(4)] puts the four
+# cumulative boundaries at moderate probability levels.
 K = 4
-gamma_true = np.array([0.0, np.log(2), np.log(3)])
+gamma_true = np.array([0.0, np.log(2), np.log(4)])
 
 # True cumulative probabilities: P(Y <= k | X) = 1 - exp(-exp(f_X - gamma_k))
 # Shape: (n, K-1)
@@ -72,20 +68,22 @@ p_test = p_X[test_inds]  # (n_test, K) true class probabilities
 # ---------------------------------------------------------------------------
 # Benchmark settings
 # ---------------------------------------------------------------------------
-num_gfr   = 10
-num_mcmc  = 100
-num_trees = 200
-n_reps    = 3
+num_gfr    = 0
+num_burnin = 100
+num_mcmc   = 100
+num_trees  = 200
+n_reps     = 3
 
 print(
     f"K={K}  n_train={n_train}  n_test={n_test}  p={p}  "
-    f"num_trees={num_trees}  num_gfr={num_gfr}  num_mcmc={num_mcmc}  reps={n_reps}\n"
+    f"num_trees={num_trees}  num_gfr={num_gfr}  num_burnin={num_burnin}  "
+    f"num_mcmc={num_mcmc}  reps={n_reps}\n"
 )
 
 # ---------------------------------------------------------------------------
 # Helper: run one configuration and return timing + metrics
 # ---------------------------------------------------------------------------
-def run_once(run_cpp: bool, num_gfr: int, num_mcmc: int, seed: int) -> dict:
+def run_once(run_cpp: bool, seed: int) -> dict:
     m = BARTModel()
     t0 = time.perf_counter()
     m.sample(
@@ -93,7 +91,7 @@ def run_once(run_cpp: bool, num_gfr: int, num_mcmc: int, seed: int) -> dict:
         y_train=y_train,
         X_test=X_test,
         num_gfr=num_gfr,
-        num_burnin=0,
+        num_burnin=num_burnin,
         num_mcmc=num_mcmc,
         mean_forest_params={"num_trees": num_trees, "sample_sigma2_leaf": False},
         general_params={
@@ -128,12 +126,12 @@ results_py  = []
 print("Running C++ sampler (run_cpp=True)...")
 for i, seed in enumerate(seeds, 1):
     print(f"  rep {i}/{n_reps}")
-    results_cpp.append(run_once(run_cpp=True,  num_gfr=num_gfr, num_mcmc=num_mcmc, seed=seed))
+    results_cpp.append(run_once(run_cpp=True,  seed=seed))
 
 print("\nRunning Python sampler (run_cpp=False)...")
 for i, seed in enumerate(seeds, 1):
     print(f"  rep {i}/{n_reps}")
-    results_py.append(run_once(run_cpp=False, num_gfr=num_gfr, num_mcmc=num_mcmc, seed=seed))
+    results_py.append(run_once(run_cpp=False, seed=seed))
 
 # ---------------------------------------------------------------------------
 # Summarise
