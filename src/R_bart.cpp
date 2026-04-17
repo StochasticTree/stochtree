@@ -125,6 +125,11 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
     cpp11::doubles var_weights_mean_r_vec(var_weights_mean_raw);
     output.var_weights_mean.assign(var_weights_mean_r_vec.begin(), var_weights_mean_r_vec.end());
   }
+  SEXP sigma2_leaf_mean_matrix_raw = static_cast<SEXP>(config["sigma2_leaf_mean_matrix"]);
+  if (!Rf_isNull(sigma2_leaf_mean_matrix_raw)) {
+    cpp11::doubles sigma2_leaf_mean_matrix_r_vec(sigma2_leaf_mean_matrix_raw);
+    output.sigma2_leaf_mean_matrix.assign(sigma2_leaf_mean_matrix_r_vec.begin(), sigma2_leaf_mean_matrix_r_vec.end());
+  }
   SEXP var_weights_variance_raw = static_cast<SEXP>(config["var_weights_variance"]);
   if (!Rf_isNull(var_weights_variance_raw)) {
     cpp11::doubles var_weights_variance_r_vec(var_weights_variance_raw);

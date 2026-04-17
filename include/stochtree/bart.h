@@ -96,6 +96,7 @@ struct BARTConfig {
   double b_sigma2_mean = -1.0;                 // scale parameter for inverse gamma prior on mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
   double sigma2_mean_init = -1.0;              // initial value of mean forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
   std::vector<double> var_weights_mean;        // variable weights for mean forest splits (should be same length as number of covariates in the dataset)
+  std::vector<double> sigma2_leaf_mean_matrix; // prior covariance matrix Sigma_0 for multivariate leaf regression, stored column-major (size leaf_dim_mean^2); empty = use sigma2_mean_init * I
   bool sample_sigma2_leaf_mean = false;        // whether to sample mean forest leaf scale (if false, it will be fixed at sigma2_mean_init)
   std::vector<int> sweep_update_indices_mean;  // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
   MeanLeafModelType mean_leaf_model_type;      // leaf model type for mean forest

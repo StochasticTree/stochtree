@@ -109,7 +109,15 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
         init_val_mean_ = 0.0;
       } else {
         // Case 3: Multivariate leaf regression
-        // TODO ...
+        if (config_.standardize_outcome) {
+          samples.y_bar = y_mean;
+          samples.y_std = std::sqrt(y_var);
+        } else {
+          samples.y_bar = 0.0;
+          samples.y_std = 1.0;
+        }
+        init_val_mean_ = 0.0;
+        init_val_mean_vec_.assign(config_.leaf_dim_mean, 0.0);
       }
     }
 
@@ -137,8 +145,18 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
     } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression) {
       mean_leaf_model_ = GaussianUnivariateRegressionLeafModel(config_.sigma2_mean_init);
     } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
-      // TODO
-      // mean_leaf_model_ = GaussianMultivariateRegressionLeafModel(...);
+      Eigen::MatrixXd Sigma_0;
+      if (!config_.sigma2_leaf_mean_matrix.empty()) {
+        if ((int)config_.sigma2_leaf_mean_matrix.size() != config_.leaf_dim_mean * config_.leaf_dim_mean) {
+          Log::Fatal("sigma2_leaf_mean_matrix must have leaf_dim_mean * leaf_dim_mean = %d elements, but has %zu",
+                     config_.leaf_dim_mean * config_.leaf_dim_mean, config_.sigma2_leaf_mean_matrix.size());
+        }
+        // Column-major interpretation matches both R and Eigen (python must be reordered before passing to C++)
+        Sigma_0 = Eigen::Map<const Eigen::MatrixXd>(config_.sigma2_leaf_mean_matrix.data(), config_.leaf_dim_mean, config_.leaf_dim_mean);
+      } else {
+        Sigma_0 = config_.sigma2_mean_init * Eigen::MatrixXd::Identity(config_.leaf_dim_mean, config_.leaf_dim_mean);
+      }
+      mean_leaf_model_ = GaussianMultivariateRegressionLeafModel(Sigma_0);
     } else if (config_.mean_leaf_model_type == MeanLeafModelType::CloglogOrdinal) {
       mean_leaf_model_ = CloglogOrdinalLeafModel(config_.cloglog_leaf_prior_shape, config_.cloglog_leaf_prior_scale);
     } else {

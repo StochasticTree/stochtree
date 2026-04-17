@@ -2234,6 +2234,9 @@ inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
   if (config_dict.contains("var_weights_mean")) {
     output.var_weights_mean = config_dict["var_weights_mean"].cast<std::vector<double>>();
   }
+  if (config_dict.contains("sigma2_leaf_mean_matrix")) {
+    output.sigma2_leaf_mean_matrix = config_dict["sigma2_leaf_mean_matrix"].cast<std::vector<double>>();
+  }
   if (config_dict.contains("var_weights_variance")) {
     output.var_weights_variance = config_dict["var_weights_variance"].cast<std::vector<double>>();
   }
