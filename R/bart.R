@@ -1321,18 +1321,24 @@ bart <- function(
         bart_results[["num_train"]],
         bart_results[["num_samples"]]
       )
+      y_std_cpp <- bart_results[["y_std"]]
       result[["sigma2_x_hat_train"]] <- bart_results[[
         "variance_forest_predictions_train"
-      ]]
+      ]] *
+        y_std_cpp *
+        y_std_cpp
     }
     if (has_variance_forest_predictions_test) {
       dim(bart_results[['variance_forest_predictions_test']]) <- c(
         bart_results[["num_test"]],
         bart_results[["num_samples"]]
       )
+      y_std_cpp <- bart_results[["y_std"]]
       result[["sigma2_x_hat_test"]] <- bart_results[[
         "variance_forest_predictions_test"
-      ]]
+      ]] *
+        y_std_cpp *
+        y_std_cpp
     }
     if (
       has_variance_forest_predictions_train ||

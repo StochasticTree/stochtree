@@ -211,7 +211,7 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
   }
 
   // Leaf scale model
-  if (config_.sample_sigma2_leaf_mean) {
+  if (config_.sample_sigma2_leaf_mean && config_.num_trees_mean > 0) {
     leaf_scale_model_ = std::make_unique<LeafNodeHomoskedasticVarianceModel>();
     sample_sigma2_leaf_ = true;
   }

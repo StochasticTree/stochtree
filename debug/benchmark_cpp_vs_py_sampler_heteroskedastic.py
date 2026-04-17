@@ -62,7 +62,7 @@ s_test = s_X[test_inds]
 num_gfr    = 10
 num_burnin = 0
 num_mcmc   = 100
-num_trees_mean     = 0
+num_trees_mean     = 200
 num_trees_variance = 50
 n_reps = 3
 

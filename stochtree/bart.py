@@ -1000,6 +1000,7 @@ class BARTModel:
         # Preliminary runtime checks for probit link
         if not self.include_mean_forest:
             link_is_probit = False
+            sample_sigma2_leaf = False
         if link_is_probit:
             if np.unique(y_train).size != 2:
                 raise ValueError(
