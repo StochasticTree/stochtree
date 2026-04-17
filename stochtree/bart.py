@@ -1699,6 +1699,9 @@ class BARTModel:
                             residual_train,
                             True,
                         )
+                        # Undo residual update done by reconstitute_from_forest for the cloglog model
+                        if link_is_cloglog:
+                          residual_train.update_data(resid_train[:, 0])
                         # Reset leaf scale
                         if sample_sigma2_leaf:
                                 leaf_scale_double = self.leaf_scale_samples[
@@ -1754,6 +1757,9 @@ class BARTModel:
                             residual_train,
                             True,
                         )
+                        # Undo residual update done by reconstitute_from_forest for the cloglog model
+                        if link_is_cloglog:
+                          residual_train.update_data(resid_train[:, 0])
                         # Reset leaf scale
                         if sample_sigma2_leaf and previous_leaf_var_samples is not None:
                             leaf_scale_double = previous_leaf_var_samples[
@@ -1818,6 +1824,9 @@ class BARTModel:
                             residual_train,
                             True,
                         )
+                        # Undo residual update done by reconstitute_from_forest for the cloglog model
+                        if link_is_cloglog:
+                          residual_train.update_data(resid_train[:, 0])
                         # Reset mean forest leaf scale
                         if sample_sigma2_leaf and previous_leaf_var_samples is not None:
                             current_leaf_scale[0, 0] = sigma2_leaf

@@ -3,7 +3,7 @@
 *.csv
 *.DS_Store
 lib/
-build/
+build*/
 .vscode/
 xcode/
 *.json
