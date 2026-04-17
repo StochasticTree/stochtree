@@ -96,7 +96,17 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
         }
       } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression) {
         // Case 2: Univariate leaf regression
-        // TODO ...
+        if (config_.standardize_outcome) {
+          samples.y_bar = y_mean;
+          samples.y_std = std::sqrt(y_var);
+        } else {
+          samples.y_bar = 0.0;
+          samples.y_std = 1.0;
+        }
+        // Always map initial leaf value to zero
+        // Users fitting a univariate leaf regression (with a non-centered basis) should standardize their outcomes
+        // TODO: consider adding warning in R / Python if univariate regression leaf model is specified without standardization
+        init_val_mean_ = 0.0;
       } else {
         // Case 3: Multivariate leaf regression
         // TODO ...
