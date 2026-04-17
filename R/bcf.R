@@ -653,8 +653,9 @@ bcf <- function(
       )
     }
     if (include_variance_forest) {
-      warning(
-        "Results may be unreliable when observation_weights are deployed alongside a variance forest model."
+      stop(
+        "observation_weights are not compatible with a variance forest model. ",
+        "Use either observation_weights or a variance forest, not both."
       )
     }
   }

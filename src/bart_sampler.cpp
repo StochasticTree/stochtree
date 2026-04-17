@@ -69,22 +69,8 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
   }
   double y_var = M2 / data_.n_train;
 
-  // Standardization and calibration for mean forests
+  // Standardization, calibration, and initialization for mean forests
   if (config_.num_trees_mean > 0) {
-    // Initialize leaf model
-    if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianConstant) {
-      mean_leaf_model_ = GaussianConstantLeafModel(config_.sigma2_mean_init);
-    } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression) {
-      mean_leaf_model_ = GaussianUnivariateRegressionLeafModel(config_.sigma2_mean_init);
-    } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
-      // TODO
-      // mean_leaf_model_ = GaussianMultivariateRegressionLeafModel(...);
-    } else if (config_.mean_leaf_model_type == MeanLeafModelType::CloglogOrdinal) {
-      mean_leaf_model_ = CloglogOrdinalLeafModel(config_.cloglog_leaf_prior_shape, config_.cloglog_leaf_prior_scale);
-    } else {
-      Log::Fatal("Unsupported leaf model type for mean forest");
-    }
-
     if (config_.link_function == LinkFunction::Probit) {
       // Initialize forests to 0, no scaling, but offset by the probit transform of the mean outcome to improve mixing
       samples.y_std = 1.0;
@@ -116,6 +102,8 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
         // TODO ...
       }
     }
+
+    // Calibrate leaf scale and variance model priors
     if (config_.sigma2_mean_init < 0.0) {
       if (config_.link_function == LinkFunction::Probit) {
         config_.sigma2_mean_init = 1.0 / config_.num_trees_mean;
@@ -131,6 +119,30 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
           config_.b_sigma2_mean = y_var / (2 * config_.num_trees_mean);
         }
       }
+    }
+
+    // Initialize leaf model
+    if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianConstant) {
+      mean_leaf_model_ = GaussianConstantLeafModel(config_.sigma2_mean_init);
+    } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression) {
+      mean_leaf_model_ = GaussianUnivariateRegressionLeafModel(config_.sigma2_mean_init);
+    } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
+      // TODO
+      // mean_leaf_model_ = GaussianMultivariateRegressionLeafModel(...);
+    } else if (config_.mean_leaf_model_type == MeanLeafModelType::CloglogOrdinal) {
+      mean_leaf_model_ = CloglogOrdinalLeafModel(config_.cloglog_leaf_prior_shape, config_.cloglog_leaf_prior_scale);
+    } else {
+      Log::Fatal("Unsupported leaf model type for mean forest");
+    }
+  } else {
+    // Variance-only model (num_trees_mean == 0): no mean forest, but y_bar/y_std must
+    // still be valid so the residual initialisation below doesn't divide by zero.
+    if (config_.standardize_outcome) {
+      samples.y_bar = y_mean;
+      samples.y_std = std::sqrt(y_var);
+    } else {
+      samples.y_bar = 0.0;
+      samples.y_std = 1.0;
     }
   }
 
@@ -174,8 +186,21 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
     samples.variance_forests = std::make_unique<ForestContainer>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
     variance_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_variance, data_.n_train);
     tree_prior_variance_ = std::make_unique<TreePrior>(config_.alpha_variance, config_.beta_variance, config_.min_samples_leaf_variance, config_.max_depth_variance);
-    variance_forest_->SetLeafValue(init_val_variance_ / config_.num_trees_variance);
+    // Leaf values for the log-linear variance model are on the log scale; the ensemble sums
+    // log(sigma^2_i) contributions, so each tree starts at log(init_val) / num_trees.
+    variance_forest_->SetLeafValue(std::log(init_val_variance_) / config_.num_trees_variance);
     variance_forest_tracker_->UpdatePredictions(variance_forest_.get(), *forest_dataset_.get());
+    // UpdateVarModelTree (called inside GFRSampleOneIter / MCMCSampleOneIter) unconditionally
+    // reads and writes the dataset variance weight slot via VarWeightValue / SetVarWeightValue.
+    // This slot tracks the cumulative per-observation variance prediction
+    // (sigma^2_i = exp(sum of tree leaf values)) and is incompatible with case weights, which
+    // would need to be reapplied after every per-tree update. The R/Python APIs enforce this
+    // as a hard error; guard here for callers that use BARTSampler directly.
+    if (forest_dataset_->HasVarWeights()) {
+      Log::Fatal("observation_weights and a variance forest cannot be used together.");
+    }
+    std::vector<double> initial_variance_preds(data_.n_train, init_val_variance_);
+    forest_dataset_->AddVarianceWeights(initial_variance_preds.data(), data_.n_train);
     has_variance_forest_ = true;
   }
 

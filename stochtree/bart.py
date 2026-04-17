@@ -451,8 +451,9 @@ class BARTModel:
                     "observation_weights are not compatible with cloglog link functions."
                 )
             if self.include_variance_forest:
-                warnings.warn(
-                    "Results may be unreliable when observation_weights are deployed alongside a variance forest model."
+                raise ValueError(
+                    "observation_weights are not compatible with a variance forest model."
+                    "Use either observation_weights or a variance forest, not both."
                 )
 
         # Check data inputs
@@ -1237,17 +1238,18 @@ class BARTModel:
           self.scale_variance_forest = bart_results["scale_variance_forest"] if self.include_variance_forest else None
 
           # Unpack mean forest results
-          self.forest_container_mean = (
-              ForestContainer(num_trees_mean, 1, True, False)
-              if not self.has_basis
-              else ForestContainer(num_trees_mean, self.num_basis, False, False)
-          )
-          self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
-          mean_forest_preds_train = bart_results["mean_forest_predictions_train"].reshape(self.n_train, bart_results["num_samples"], order="F")
-          self.y_hat_train = mean_forest_preds_train * self.y_std + self.y_bar
-          if self.has_test:
-            mean_forest_preds_test = bart_results["mean_forest_predictions_test"].reshape(self.n_test, bart_results["num_samples"], order="F")
-            self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
+          if self.include_mean_forest:
+            self.forest_container_mean = (
+                ForestContainer(num_trees_mean, 1, True, False)
+                if not self.has_basis
+                else ForestContainer(num_trees_mean, self.num_basis, False, False)
+            )
+            self.forest_container_mean.forest_container_cpp = bart_results["forest_container_mean"]
+            mean_forest_preds_train = bart_results["mean_forest_predictions_train"].reshape(self.n_train, bart_results["num_samples"], order="F")
+            self.y_hat_train = mean_forest_preds_train * self.y_std + self.y_bar
+            if self.has_test:
+              mean_forest_preds_test = bart_results["mean_forest_predictions_test"].reshape(self.n_test, bart_results["num_samples"], order="F")
+              self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
           
           # Unpack variance forest results
           if self.include_variance_forest:
