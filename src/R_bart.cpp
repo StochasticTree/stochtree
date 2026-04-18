@@ -102,6 +102,14 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   output.exponentiated_leaf_variance = get_config_scalar_default<bool>(config, "exponentiated_leaf_variance", true);
   output.num_features_subsample_variance = get_config_scalar_default<int>(config, "num_features_subsample_variance", 0);
 
+  // Random effect parameters
+  output.rfx_working_parameter_prior_mean = get_config_scalar_default<double>(config, "rfx_working_parameter_prior_mean", -1.0);
+  output.rfx_group_parameter_prior_mean = get_config_scalar_default<double>(config, "rfx_group_parameter_prior_mean", -1.0);
+  output.rfx_working_parameter_prior_cov = get_config_scalar_default<double>(config, "rfx_working_parameter_prior_cov", -1.0);
+  output.rfx_group_parameter_prior_cov = get_config_scalar_default<double>(config, "rfx_group_parameter_prior_cov", -1.0);
+  output.rfx_variance_prior_shape = get_config_scalar_default<double>(config, "rfx_variance_prior_shape", 1.0);
+  output.rfx_variance_prior_scale = get_config_scalar_default<double>(config, "rfx_variance_prior_scale", 1.0);
+
   // Handle vector conversions separately
   SEXP feature_type_raw = static_cast<SEXP>(config["feature_types"]);
   if (!Rf_isNull(feature_type_raw)) {

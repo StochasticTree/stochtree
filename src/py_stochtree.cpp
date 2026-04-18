@@ -2218,6 +2218,14 @@ inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
   output.exponentiated_leaf_variance = get_config_scalar_default<bool>(config_dict, "exponentiated_leaf_variance", true);
   output.num_features_subsample_variance = get_config_scalar_default<int>(config_dict, "num_features_subsample_variance", 0);
 
+  // Random effects parameters
+  output.rfx_working_parameter_prior_mean = get_config_scalar_default<double>(config_dict, "rfx_working_parameter_prior_mean", -1.0);
+  output.rfx_group_parameter_prior_mean = get_config_scalar_default<double>(config_dict, "rfx_group_parameter_prior_mean", -1.0);
+  output.rfx_working_parameter_prior_cov = get_config_scalar_default<double>(config_dict, "rfx_working_parameter_prior_cov", -1.0);
+  output.rfx_group_parameter_prior_cov = get_config_scalar_default<double>(config_dict, "rfx_group_parameter_prior_cov", -1.0);
+  output.rfx_variance_prior_shape = get_config_scalar_default<double>(config_dict, "rfx_variance_prior_shape", 1.0);
+  output.rfx_variance_prior_scale = get_config_scalar_default<double>(config_dict, "rfx_variance_prior_scale", 1.0);
+
   // Handle vector conversions separately
   if (config_dict.contains("feature_types")) {
     std::vector<int> feature_types_vector = config_dict["feature_types"].cast<std::vector<int>>();
@@ -2403,6 +2411,20 @@ inline py::dict convert_bart_results_to_dict(
     py::array_t<double> array(input_vec.size());
     std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
     output["cloglog_cutpoint_samples"] = array;
+  }
+
+  // Transfer ownership of random effects container pointers
+  if (results_raw.rfx_container != nullptr) {
+    output["rfx_container"] = py::cast(std::make_unique<RandomEffectsContainerCpp>(std::move(results_raw.rfx_container)));
+  } else {
+    output["rfx_container"] = py::none();
+  }
+
+  // Transfer ownership of random effects label mapper pointers
+  if (results_raw.rfx_container != nullptr) {
+    output["rfx_container"] = py::cast(std::make_unique<RandomEffectsLabelMapperCpp>(std::move(results_raw.rfx_label_mapper)));
+  } else {
+    output["forest_container_mean"] = py::none();
   }
 
   // Unpack scalars
