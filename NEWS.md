@@ -7,6 +7,7 @@
 
 ## Bug Fixes
 
+* Fixed prediction bugs in binary classification sklearn wrapper [#359](https://github.com/StochasticTree/stochtree/pull/359)
 * Fixed several initialization, sampling and prediction bugs for cloglog [#357](https://github.com/StochasticTree/stochtree/pull/357)
 * Fixed num_threads pass-through bug in R BART [#339](https://github.com/StochasticTree/stochtree/pull/339)
 * Fixed probit offset bug in R and Python [#337](https://github.com/StochasticTree/stochtree/pull/337)
