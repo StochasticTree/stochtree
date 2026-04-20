@@ -244,6 +244,13 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
     sample_sigma2_leaf_ = true;
   }
 
+  // Random effects model
+  if (config_.has_random_effects) {
+    random_effects_model_ = std::make_unique<MultivariateRegressionRandomEffectsModel>(data_.rfx_basis_dim, data_.rfx_num_groups);
+    random_effects_tracker_ = std::make_unique<RandomEffectsTracker>(data_.n_train, config_.num_random_effects);
+    has_random_effects_ = true;
+  }
+
   // RNG
   rng_ = std::mt19937(config_.random_seed >= 0 ? config_.random_seed : std::random_device{}());
 

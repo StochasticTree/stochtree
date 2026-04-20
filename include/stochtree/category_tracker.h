@@ -45,6 +45,14 @@ class SampleCategoryMapper {
     observation_indices_ = group_indices;
   }
 
+  SampleCategoryMapper(int32_t * group_indices, int num_observations) {
+    num_observations_ = num_observations;
+    observation_indices_.resize(num_observations_);
+    for (int i = 0; i < num_observations_; i++) {
+      observation_indices_[i] = group_indices[i];
+    }
+  }
+
   SampleCategoryMapper(SampleCategoryMapper& other) {
     num_observations_ = other.NumObservations();
     observation_indices_.resize(num_observations_);
@@ -60,13 +68,13 @@ class SampleCategoryMapper {
 
   inline void SetCategoryId(data_size_t sample_id, int category_id) {
     CHECK_LT(sample_id, num_observations_);
-    observation_indices_[sample_id] = sample_id;
+    observation_indices_[sample_id] = category_id;
   }
 
   inline int NumObservations() { return num_observations_; }
 
  private:
-  std::vector<int> observation_indices_;
+  std::vector<int32_t> observation_indices_;
   data_size_t num_observations_;
 };
 
@@ -77,6 +85,43 @@ class CategorySampleTracker {
  public:
   CategorySampleTracker(const std::vector<int32_t>& group_indices) {
     int n = group_indices.size();
+    indices_ = std::vector<data_size_t>(n);
+    std::iota(indices_.begin(), indices_.end(), 0);
+
+    auto comp_op = [&](size_t const& l, size_t const& r) { return std::less<data_size_t>{}(group_indices[l], group_indices[r]); };
+    std::stable_sort(indices_.begin(), indices_.end(), comp_op);
+
+    category_count_ = 0;
+    int observation_count = 0;
+    for (int i = 0; i < n; i++) {
+      bool start_cond = i == 0;
+      bool end_cond = i == n - 1;
+      bool new_group_cond{false};
+      if (i > 0) new_group_cond = group_indices[indices_[i]] != group_indices[indices_[i - 1]];
+      if (start_cond || new_group_cond) {
+        category_id_map_.insert({group_indices[indices_[i]], category_count_});
+        unique_category_ids_.push_back(group_indices[indices_[i]]);
+        node_index_vector_.emplace_back();
+        if (i == 0) {
+          category_begin_.push_back(i);
+        } else {
+          category_begin_.push_back(i);
+          category_length_.push_back(observation_count);
+        }
+        observation_count = 1;
+        category_count_++;
+      } else if (end_cond) {
+        category_length_.push_back(observation_count + 1);
+      } else {
+        observation_count++;
+      }
+      // Add the index to the category's node index vector in either case
+      node_index_vector_[category_count_ - 1].emplace_back(indices_[i]);
+    }
+  }
+
+  CategorySampleTracker(int32_t* group_indices, int num_observations) {
+    int n = num_observations;
     indices_ = std::vector<data_size_t>(n);
     std::iota(indices_.begin(), indices_.end(), 0);
 

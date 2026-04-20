@@ -20,6 +20,7 @@
 #include <variant>
 #include <vector>
 #include "stochtree/ordinal_sampler.h"
+#include "stochtree/random_effects.h"
 
 namespace StochTree {
 
@@ -215,6 +216,11 @@ class BARTSampler {
   std::unique_ptr<TreePrior> tree_prior_variance_;
   bool has_variance_forest_ = false;
   double init_val_variance_;
+
+  /*! Random effects state */
+  std::unique_ptr<MultivariateRegressionRandomEffectsModel> random_effects_model_;
+  std::unique_ptr<RandomEffectsTracker> random_effects_tracker_;
+  bool has_random_effects_ = false;
 
   /*! Dataset */
   std::unique_ptr<ColumnVector> residual_;

@@ -61,8 +61,8 @@ struct BARTData {
   double* obs_weights_test = nullptr;
 
   // Random effects
-  int* rfx_group_ids_train = nullptr;
-  int* rfx_group_ids_test = nullptr;
+  int32_t* rfx_group_ids_train = nullptr;
+  int32_t* rfx_group_ids_test = nullptr;
   double* rfx_basis_train = nullptr;
   double* rfx_basis_test = nullptr;
   int rfx_num_groups = 0;
@@ -126,14 +126,15 @@ struct BARTConfig {
   std::vector<double> var_weights_variance;        // variable weights for variance forest splits (should be same length as number of covariates in the dataset)
   std::vector<int> sweep_update_indices_variance;  // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
 
-  // TODO: Random effects parameters ...
-  BARTRFXModelSpec rfx_model_spec = BARTRFXModelSpec::Custom;
-  double rfx_working_parameter_prior_mean = -1.0;
-  double rfx_group_parameter_prior_mean = -1.0;
-  double rfx_working_parameter_prior_cov = -1.0;
-  double rfx_group_parameter_prior_cov = -1.0;
-  double rfx_variance_prior_shape = 1.0;
-  double rfx_variance_prior_scale = 1.0;
+  // Random effects parameters
+  bool has_random_effects = false;                             // whether or not a model includes a random effects term
+  BARTRFXModelSpec rfx_model_spec = BARTRFXModelSpec::Custom;  // specification for the random effects model; custom relies on a user-provided basis while intercept-only constructs a varying intercept model without needing a user-provided basis
+  double rfx_working_parameter_prior_mean = -1.0;              // prior mean for working parameter in random effects model
+  double rfx_group_parameter_prior_mean = -1.0;                // prior mean for group parameter in random effects model
+  double rfx_working_parameter_prior_cov = -1.0;               // prior covariance for working parameter in random effects model
+  double rfx_group_parameter_prior_cov = -1.0;                 // prior covariance for group parameter in random effects model
+  double rfx_variance_prior_shape = 1.0;                       // shape parameter for variance prior in random effects model
+  double rfx_variance_prior_scale = 1.0;                       // scale parameter for variance prior in random effects model
 
   // TODO: Other parameters ...
 };

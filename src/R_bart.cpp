@@ -103,6 +103,8 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   output.num_features_subsample_variance = get_config_scalar_default<int>(config, "num_features_subsample_variance", 0);
 
   // Random effect parameters
+  output.has_random_effects = get_config_scalar_default<bool>(config, "has_random_effects", false);
+  output.rfx_model_spec = static_cast<StochTree::BARTRFXModelSpec>(get_config_scalar_default<int>(config, "rfx_model_spec", 0));
   output.rfx_working_parameter_prior_mean = get_config_scalar_default<double>(config, "rfx_working_parameter_prior_mean", -1.0);
   output.rfx_group_parameter_prior_mean = get_config_scalar_default<double>(config, "rfx_group_parameter_prior_mean", -1.0);
   output.rfx_working_parameter_prior_cov = get_config_scalar_default<double>(config, "rfx_working_parameter_prior_cov", -1.0);

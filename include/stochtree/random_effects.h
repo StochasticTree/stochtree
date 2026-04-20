@@ -35,6 +35,7 @@ class RandomEffectsContainer;
 class RandomEffectsTracker {
  public:
   RandomEffectsTracker(std::vector<int32_t>& group_indices);
+  RandomEffectsTracker(int32_t* group_indices, int num_observations);
   ~RandomEffectsTracker() {}
   inline data_size_t GetCategoryId(int observation_num) { return sample_category_mapper_->GetCategoryId(observation_num); }
   inline data_size_t CategoryBegin(int category_id) { return category_sample_tracker_->CategoryBegin(category_id); }

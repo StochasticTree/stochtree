@@ -2219,6 +2219,8 @@ inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
   output.num_features_subsample_variance = get_config_scalar_default<int>(config_dict, "num_features_subsample_variance", 0);
 
   // Random effects parameters
+  output.has_random_effects = get_config_scalar_default<bool>(config_dict, "has_random_effects", false);
+  output.rfx_model_spec = static_cast<StochTree::BARTRFXModelSpec>(get_config_scalar_default<int>(config_dict, "rfx_model_spec", 0));
   output.rfx_working_parameter_prior_mean = get_config_scalar_default<double>(config_dict, "rfx_working_parameter_prior_mean", -1.0);
   output.rfx_group_parameter_prior_mean = get_config_scalar_default<double>(config_dict, "rfx_group_parameter_prior_mean", -1.0);
   output.rfx_working_parameter_prior_cov = get_config_scalar_default<double>(config_dict, "rfx_working_parameter_prior_cov", -1.0);
