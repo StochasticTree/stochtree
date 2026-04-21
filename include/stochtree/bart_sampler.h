@@ -29,10 +29,14 @@ class BARTSampler {
   BARTSampler(BARTSamples& samples, BARTConfig& config, BARTData& data);
 
   // Main entry point for running the BART GFR sampler
-  void run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr);
+  // If num_chains > 0, captures snapshots of the last num_chains GFR states for fork_chains()
+  void run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr, int num_chains = 0);
 
-  // Main entry point for running the BART MCMC sampler
+  // Run a single chain of the BART MCMC sampler
   void run_mcmc(BARTSamples& samples, int num_burnin, int keep_every, int num_mcmc);
+
+  // Run num_chains independent MCMC chains sequentually based on GFR snapshots captured by run_gfr() or re-initialized from root
+  void run_mcmc_chains(BARTSamples& samples, int num_chains, int num_burnin, int keep_every, int num_mcmc);
 
   // Post-process samples by extracting test set predictions and running any necessary transformations
   void postprocess_samples(BARTSamples& samples);
@@ -42,8 +46,14 @@ class BARTSampler {
   void InitializeState(BARTSamples& samples);
   bool initialized_ = false;
 
+  /*! Internal function to restore sampler state based on a GFR snapshot */
+  void RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot_index);
+
+  /*! Internal function to restore sampler state to root / initial values */
+  void RestoreStateDefault();
+
   /*! Internal sample runner function */
-  void RunOneIteration(BARTSamples& samples, bool gfr, bool keep_sample);
+  void RunOneIteration(BARTSamples& samples, bool gfr, bool keep_sample, bool write_snapshot = false);
 
   /*! Initialization visitor */
   struct MeanForestInitVisitor {
@@ -246,9 +256,39 @@ class BARTSampler {
   std::unique_ptr<LeafNodeHomoskedasticVarianceModel> leaf_scale_model_;
   bool sample_sigma2_leaf_ = false;
 
-  /*! Vector of warm-start snapshots (forests needed for MCMC chains but not retained) */
-  std::vector<ForestContainer> warm_start_forests_mean_;
-  std::vector<ForestContainer> warm_start_forests_variance_;
+  /*! Snapshot of sampler state captured at the end of a GFR iteration, used to initialize independent MCMC chains */
+  struct GFRSnapshot {
+    // Forest state
+    std::unique_ptr<TreeEnsemble> mean_forest;      // null if no mean forest
+    std::unique_ptr<TreeEnsemble> variance_forest;  // null if no variance forest
+
+    // Global parameters
+    double sigma2;
+    double leaf_scale;
+    std::vector<double> leaf_scale_multivariate;
+
+    // Residual (incorporates forest + RFX contributions for a given sampler iteration)
+    std::vector<double> residual;
+
+    // Heteroskedastic variance model state
+    std::vector<double> variance_weights;  // forest_dataset_ var_weights at snapshot time; only valid when variance_forest != null
+
+    // Cloglog model state
+    std::vector<double> cloglog_forest_preds;        // cached forest predictions; only populated with cloglog link
+    std::vector<double> cloglog_latent_outcome;      // cached latent outcome state; only populated with cloglog link
+    std::vector<double> cloglog_logscale_cutpoints;  // cached logscale cutpoints; only populated with cloglog link and ordinal outcome
+
+    // RFX model state (only populated when has_random_effects_)
+    Eigen::VectorXd rfx_working_parameter;
+    Eigen::MatrixXd rfx_group_parameters;
+    Eigen::MatrixXd rfx_group_parameter_covariance;
+    Eigen::MatrixXd rfx_working_parameter_covariance;
+    double rfx_variance_prior_shape;
+    double rfx_variance_prior_scale;
+  };
+
+  /*! GFR snapshots captured during run_gfr() for use by multi-chain sampler */
+  std::vector<GFRSnapshot> gfr_snapshots_;
 };
 
 }  // namespace StochTree

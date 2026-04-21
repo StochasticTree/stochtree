@@ -389,7 +389,7 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
   initialized_ = true;
 }
 
-void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr) {
+void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr, int num_chains) {
   // Reserve space for GFR predictions if they are to be retained
   if (keep_gfr) {
     if (has_mean_forest_) {
@@ -400,9 +400,14 @@ void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr) {
     }
   }
 
-  // TODO: dispatch correct leaf model and variance model based on config; currently hardcoded to Gaussian constant-leaf and homoskedastic variance
+  int snapshot_start = (num_chains > 0) ? std::max(0, num_gfr - num_chains) : num_gfr;
+  gfr_snapshots_.clear();
+  if (num_chains > 0) gfr_snapshots_.reserve(num_chains);
+
+  bool write_snapshot = false;
   for (int i = 0; i < num_gfr; i++) {
-    RunOneIteration(samples, /*gfr=*/true, /*keep_sample=*/keep_gfr);
+    if (i >= snapshot_start) write_snapshot = true;
+    RunOneIteration(samples, /*gfr=*/true, /*keep_sample=*/keep_gfr, /*write_snapshot=*/write_snapshot);
   }
 }
 
@@ -428,7 +433,7 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
       keep_forest = true;
     else
       keep_forest = false;
-    RunOneIteration(samples, /*gfr=*/false, /*keep_sample=*/keep_forest);
+    RunOneIteration(samples, /*gfr=*/false, /*keep_sample=*/keep_forest, /*write_snapshot=*/false);
   }
 }
 
@@ -458,10 +463,9 @@ void BARTSampler::postprocess_samples(BARTSamples& samples) {
       samples.rfx_container->Predict(rfx_dataset_test, *samples.rfx_label_mapper, samples.rfx_predictions_test);
     }
   }
-
 }
 
-void BARTSampler::RunOneIteration(BARTSamples& samples, bool gfr, bool keep_sample) {
+void BARTSampler::RunOneIteration(BARTSamples& samples, bool gfr, bool keep_sample, bool write_snapshot) {
   if (has_mean_forest_) {
     if (gfr) {
       std::visit(GFROneIterationVisitor{*this, samples, keep_sample}, mean_leaf_model_);
@@ -558,6 +562,139 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, bool gfr, bool keep_samp
       }
       samples.cloglog_cutpoint_samples.insert(samples.cloglog_cutpoint_samples.end(),
                                               cloglog_cutpoints.data(), cloglog_cutpoints.data() + cloglog_cutpoints.size());
+    }
+  }
+
+  if (write_snapshot) {
+    GFRSnapshot snap;
+    if (has_mean_forest_) snap.mean_forest = std::make_unique<TreeEnsemble>(*mean_forest_);
+    if (has_variance_forest_) snap.variance_forest = std::make_unique<TreeEnsemble>(*variance_forest_);
+    snap.sigma2 = global_variance_;
+    if (has_mean_forest_) {
+      if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
+        snap.leaf_scale_multivariate = leaf_scale_multivariate_;
+      } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression || config_.mean_leaf_model_type == MeanLeafModelType::GaussianConstant) {
+        snap.leaf_scale = leaf_scale_;
+      } else if (config_.mean_leaf_model_type == MeanLeafModelType::CloglogOrdinal) {
+        snap.cloglog_forest_preds.clear();
+        snap.cloglog_forest_preds.resize(data_.n_train);
+        snap.cloglog_forest_preds.assign(mean_forest_tracker_->GetSumPredictions(), mean_forest_tracker_->GetSumPredictions() + data_.n_train);
+        snap.cloglog_latent_outcome.clear();
+        snap.cloglog_latent_outcome.resize(data_.n_train);
+        for (int i = 0; i < data_.n_train; i++) {
+          snap.cloglog_latent_outcome[i] = forest_dataset_->GetAuxiliaryDataValue(0, i);
+        }
+        snap.cloglog_logscale_cutpoints.clear();
+        snap.cloglog_logscale_cutpoints.resize(config_.num_classes_cloglog - 1);
+        for (int i = 0; i < config_.num_classes_cloglog - 1; i++) {
+          snap.cloglog_logscale_cutpoints[i] = forest_dataset_->GetAuxiliaryDataValue(2, i);
+        }
+      }
+    }
+    snap.residual.clear();
+    snap.residual.resize(data_.n_train);
+    snap.residual.assign(residual_->GetData().data(), residual_->GetData().data() + data_.n_train);
+    if (has_variance_forest_) {
+      snap.variance_weights.clear();
+      snap.variance_weights.resize(data_.n_train);
+      snap.variance_weights.assign(forest_dataset_->GetVarWeights().data(), forest_dataset_->GetVarWeights().data() + data_.n_train);
+    }
+    if (config_.has_random_effects) {
+      snap.rfx_working_parameter = random_effects_model_->GetWorkingParameter();
+      snap.rfx_group_parameters = random_effects_model_->GetGroupParameters();
+      snap.rfx_group_parameter_covariance = random_effects_model_->GetGroupParameterCovariance();
+      snap.rfx_working_parameter_covariance = random_effects_model_->GetWorkingParameterCovariance();
+      snap.rfx_variance_prior_shape = random_effects_model_->GetVariancePriorShape();
+      snap.rfx_variance_prior_scale = random_effects_model_->GetVariancePriorScale();
+    }
+    gfr_snapshots_.push_back(std::move(snap));
+  }
+}
+
+void BARTSampler::RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot_index) {
+  GFRSnapshot& snap = gfr_snapshots_[snapshot_index];
+
+  // Restore residual from snapshot; this is used for initializing the variance forest state and must be done before initializing the variance forest tracker
+  residual_->OverwriteData(snap.residual.data(), data_.n_train);
+
+  // Initialize mean forest state (if present)
+  if (config_.num_trees_mean > 0) {
+    std::visit(MeanForestInitVisitor{*this, samples}, mean_leaf_model_);
+  }
+
+  // Initialize variance forest state (if present)
+  if (config_.num_trees_variance > 0) {
+    variance_leaf_model_ = LogLinearVarianceLeafModel(config_.shape_variance_forest, config_.scale_variance_forest);
+    variance_forest_ = std::make_unique<TreeEnsemble>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
+    samples.variance_forests = std::make_unique<ForestContainer>(config_.num_trees_variance, config_.leaf_dim_variance, config_.leaf_constant_variance, config_.exponentiated_leaf_variance);
+    variance_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_variance, data_.n_train);
+    tree_prior_variance_ = std::make_unique<TreePrior>(config_.alpha_variance, config_.beta_variance, config_.min_samples_leaf_variance, config_.max_depth_variance);
+    // Leaf values for the log-linear variance model are on the log scale; the ensemble sums
+    // log(sigma^2_i) contributions, so each tree starts at log(init_val) / num_trees.
+    variance_forest_->SetLeafValue(std::log(init_val_variance_) / config_.num_trees_variance);
+    variance_forest_tracker_->UpdatePredictions(variance_forest_.get(), *forest_dataset_.get());
+    // UpdateVarModelTree (called inside GFRSampleOneIter / MCMCSampleOneIter) unconditionally
+    // reads and writes the dataset variance weight slot via VarWeightValue / SetVarWeightValue.
+    // This slot tracks the cumulative per-observation variance prediction
+    // (sigma^2_i = exp(sum of tree leaf values)) and is incompatible with case weights, which
+    // would need to be reapplied after every per-tree update. The R/Python APIs enforce this
+    // as a hard error; guard here for callers that use BARTSampler directly.
+    if (forest_dataset_->HasVarWeights()) {
+      Log::Fatal("observation_weights and a variance forest cannot be used together.");
+    }
+    std::vector<double> initial_variance_preds(data_.n_train, init_val_variance_);
+    forest_dataset_->AddVarianceWeights(initial_variance_preds.data(), data_.n_train);
+    has_variance_forest_ = true;
+  }
+
+  // Random effects model
+  if (config_.has_random_effects) {
+    // Restore "working" parameter prior mean
+    random_effects_model_->SetWorkingParameter(snap.rfx_working_parameter);
+
+    // Restore "group" parameter prior mean
+    random_effects_model_->SetGroupParameters(snap.rfx_group_parameters);
+
+    // Restore "working" parameter prior covariance
+    random_effects_model_->SetWorkingParameterCovariance(snap.rfx_working_parameter_covariance);
+
+    // Restore "group" parameter prior covariance
+    random_effects_model_->SetGroupParameterCovariance(snap.rfx_group_parameter_covariance);
+
+    // Restore variance model priors
+    random_effects_model_->SetVariancePriorShape(snap.rfx_variance_prior_shape);
+    random_effects_model_->SetVariancePriorScale(snap.rfx_variance_prior_scale);
+
+    // Set has_random_effects_ flag to true so that the sampler will perform random effects updates at each iteration
+    has_random_effects_ = true;
+  }
+
+  // Cloglog state
+  if (config_.link_function == LinkFunction::Cloglog) {
+    // Reset auxiliary data values
+    // Restore latent outcome values (slot 0)
+    for (int i = 0; i < data_.n_train; i++) {
+      forest_dataset_->SetAuxiliaryDataValue(0, i, snap.cloglog_latent_outcome[i]);
+    }
+    // Restore forest predictions (slot 1)
+    for (int i = 0; i < data_.n_train; i++) {
+      forest_dataset_->SetAuxiliaryDataValue(1, i, snap.cloglog_forest_preds[i]);
+    }
+    // Restore log-scale cutpoints
+    for (int i = 0; i < config_.num_classes_cloglog - 1; i++) {
+      forest_dataset_->SetAuxiliaryDataValue(2, i, snap.cloglog_log_scale_cutpoints[i]);
+    }
+    // Convert to cumulative exponentiated cutpoints directly in C++
+    ordinal_sampler_->UpdateCumulativeExpSums(*forest_dataset_);
+  }
+
+  // Other internal model state
+  global_variance_ = snap.sigma2;
+  if (has_mean_forest_) {
+    if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
+      leaf_scale_multivariate_ = snap.leaf_scale_multivariate;
+    } else if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression || config_.mean_leaf_model_type == MeanLeafModelType::GaussianConstant) {
+      leaf_scale_ = snap.leaf_scale;
     }
   }
 }
