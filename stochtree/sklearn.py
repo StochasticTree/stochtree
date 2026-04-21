@@ -64,9 +64,9 @@ class StochTreeBARTRegressor(RegressorMixin, BaseEstimator):
 
     Examples
     --------
-    >>> from sklearn.datasets import load_boston
+    >>> from sklearn.datasets import load_diabetes
     >>> from stochtree import StochTreeBARTRegressor
-    >>> data = load_boston()
+    >>> data = load_diabetes()
     >>> X = data.data
     >>> y = data.target
     >>> reg = StochTreeBARTRegressor()
@@ -130,10 +130,6 @@ class StochTreeBARTRegressor(RegressorMixin, BaseEstimator):
             rfx_group_ids = check_array(rfx_group_ids, force_writeable=True, order="C", copy=True)
         if rfx_basis is not None:
             rfx_basis = check_array(rfx_basis, force_writeable=True, order="C", copy=True)
-        self.n_features_in_ = X.shape[1]
-        self.feature_names_in_ = X.columns if hasattr(X, "columns") else None
-        if X.shape[0] < 2:
-            raise ValueError("n_samples=1")
 
         # Store the training data to predict later
         self.X_ = X
@@ -186,13 +182,13 @@ class StochTreeBARTRegressor(RegressorMixin, BaseEstimator):
         check_is_fitted(self)
 
         # Input validation
-        X = validate_data(self, X, reset=False, force_writeable=True)
+        X = validate_data(self, X, reset=False, force_writeable=True, order="C", copy=True)
         if leaf_regression_basis is not None:
-            leaf_regression_basis = check_array(leaf_regression_basis, force_writeable=True)
+            leaf_regression_basis = check_array(leaf_regression_basis, force_writeable=True, order="C", copy=True)
         if rfx_group_ids is not None:
-            rfx_group_ids = check_array(rfx_group_ids, force_writeable=True)
+            rfx_group_ids = check_array(rfx_group_ids, force_writeable=True, order="C", copy=True)
         if rfx_basis is not None:
-            rfx_basis = check_array(rfx_basis, force_writeable=True)
+            rfx_basis = check_array(rfx_basis, force_writeable=True, order="C", copy=True)
 
         # Compute and return predictions
         return self.model_.predict(X, leaf_basis=leaf_regression_basis, 
@@ -311,9 +307,9 @@ class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
 
     Examples
     --------
-    >>> from sklearn.datasets import load_wine
+    >>> from sklearn.datasets import load_breast_cancer
     >>> from stochtree import StochTreeBARTBinaryClassifier
-    >>> data = load_wine()
+    >>> data = load_breast_cancer()
     >>> X = data.data
     >>> y = data.target
     >>> clf = StochTreeBARTBinaryClassifier()
@@ -372,20 +368,19 @@ class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
         # Input validation
         X, y = validate_data(self, X, y, force_writeable=True, order="C", copy=True)
         check_classification_targets(y)
+        self.classes_, y_transformed = np.unique(y, return_inverse=True)
+        if len(self.classes_) != 2:
+            raise ValueError("y must be a binary outcome")
         if leaf_regression_basis is not None:
             leaf_regression_basis = check_array(leaf_regression_basis, force_writeable=True, order="C", copy=True)
         if rfx_group_ids is not None:
             rfx_group_ids = check_array(rfx_group_ids, force_writeable=True, order="C", copy=True)
         if rfx_basis is not None:
             rfx_basis = check_array(rfx_basis, force_writeable=True, order="C", copy=True)
-        self.n_features_in_ = X.shape[1]
-        self.feature_names_in_ = X.columns if hasattr(X, "columns") else None
-        if X.shape[0] < 2:
-            raise ValueError("n_samples=1")
 
         # Store the training data to predict later
         self.X_ = X
-        self.y_ = y
+        self.y_ = y_transformed
         self.leaf_regression_basis_ = leaf_regression_basis
         self.rfx_group_ids_ = rfx_group_ids
         self.rfx_basis_ = rfx_basis
@@ -397,7 +392,7 @@ class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
           "sample_sigma2_global": False,
         }
         self.model_ = BARTModel()
-        self.model_.sample(X_train=X, y_train=y, leaf_basis_train=leaf_regression_basis,
+        self.model_.sample(X_train=X, y_train=y_transformed, leaf_basis_train=leaf_regression_basis,
                            rfx_group_ids_train=rfx_group_ids, rfx_basis_train=rfx_basis,
                            num_gfr=self.num_gfr, num_burnin=self.num_burnin, num_mcmc=self.num_mcmc,
                            general_params=general_params, mean_forest_params=self.mean_forest_params, 
@@ -433,13 +428,13 @@ class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
         check_is_fitted(self)
 
         # Input validation
-        X = validate_data(self, X, reset=False, force_writeable=True)
+        X = validate_data(self, X, reset=False, force_writeable=True, order="C", copy=True)
         if leaf_regression_basis is not None:
-            leaf_regression_basis = check_array(leaf_regression_basis, reset=False, force_writeable=True)
+            leaf_regression_basis = check_array(leaf_regression_basis, force_writeable=True, order="C", copy=True)
         if rfx_group_ids is not None:
-            rfx_group_ids = check_array(rfx_group_ids, reset=False, force_writeable=True)
+            rfx_group_ids = check_array(rfx_group_ids, force_writeable=True, order="C", copy=True)
         if rfx_basis is not None:
-            rfx_basis = check_array(rfx_basis, reset=False, force_writeable=True)
+            rfx_basis = check_array(rfx_basis, force_writeable=True, order="C", copy=True)
 
         # Compute and return predicted probabilities
         return self.model_.predict(X, leaf_basis=leaf_regression_basis,
@@ -506,27 +501,13 @@ class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
         y : ndarray, shape (n_samples,)
             Returns an array of predicted target values.
         """
-        # Check if fit had been called
-        check_is_fitted(self)
-
-        # Input validation
-        X = validate_data(self, X, reset=False, force_writeable=True, order="C", copy=True)
-        if leaf_regression_basis is not None:
-            leaf_regression_basis = check_array(leaf_regression_basis, reset=False, force_writeable=True, order="C", copy=True)
-        if rfx_group_ids is not None:
-            rfx_group_ids = check_array(rfx_group_ids, reset=False, force_writeable=True, order="C", copy=True)
-        if rfx_basis is not None:
-            rfx_basis = check_array(rfx_basis, reset=False, force_writeable=True, order="C", copy=True)
-
-        # Compute and return predicted class probabilities
-        scores = self.model_.predict(X, leaf_basis=leaf_regression_basis,
-                                     rfx_group_ids=rfx_group_ids, rfx_basis=rfx_basis,
-                                     type="mean", terms="y_hat", scale="linear")
+        scores = self.decision_function(X, leaf_regression_basis=leaf_regression_basis, 
+                                        rfx_group_ids=rfx_group_ids, rfx_basis=rfx_basis)
         probs = norm.cdf(scores)
         return np.vstack([1 - probs, probs]).T
 
     def score(self, X, y, leaf_regression_basis=None, rfx_group_ids=None, rfx_basis=None):
-        """A reference implementation of a scoring function.
+        """Compute the accuracy of a classifier
 
         Parameters
         ----------
@@ -548,16 +529,13 @@ class StochTreeBARTBinaryClassifier(ClassifierMixin, BaseEstimator):
         Returns
         -------
         score : float
-            R^2 of `self.predict(X, leaf_regression_basis, rfx_group_ids, rfx_basis)` with respect to `y`.
+            Accuracy of `self.predict(X, leaf_regression_basis, rfx_group_ids, rfx_basis)` with respect to `y`.
         """
-        # Check if fit had been called
-        check_is_fitted(self)
-
         # Predict target values
         preds = self.predict(X, leaf_regression_basis=leaf_regression_basis,
                              rfx_group_ids=rfx_group_ids, rfx_basis=rfx_basis)
 
-        # Compute R2
+        # Compute accuracy
         return accuracy_score(y, preds)
     
     def __getstate__(self):
