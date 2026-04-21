@@ -2888,7 +2888,7 @@ predict.bartmodel <- function(
               sweep(
                 mean_forest_predictions,
                 2,
-                cloglog_cutpoint_samples[j, ],
+                cloglog_cutpoint_samples[j - 1, ],
                 "+"
               )
             )
