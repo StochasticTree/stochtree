@@ -247,25 +247,21 @@ class RandomEffectsTracker:
 
     def __init__(self, group_indices: np.ndarray) -> None:
         self.rfx_tracker_cpp = RandomEffectsTrackerCpp(group_indices)
-    
+
     def reset(self, rfx_model, rfx_dataset, residual, rfx_container) -> None:
         """
         Reset the random effects tracker to an existing parameter state
         """
         self.rfx_tracker_cpp.Reset(
-            rfx_model.rfx_model_cpp,
-            rfx_dataset.rfx_dataset_cpp,
-            residual.residual_cpp
+            rfx_model.rfx_model_cpp, rfx_dataset.rfx_dataset_cpp, residual.residual_cpp
         )
-    
+
     def root_reset(self, rfx_model, rfx_dataset, residual, rfx_container) -> None:
         """
         Reset the random effects tracker to its initial state
         """
         self.rfx_tracker_cpp.RootReset(
-            rfx_model.rfx_model_cpp,
-            rfx_dataset.rfx_dataset_cpp,
-            residual.residual_cpp
+            rfx_model.rfx_model_cpp, rfx_dataset.rfx_dataset_cpp, residual.residual_cpp
         )
 
 
@@ -418,7 +414,7 @@ class RandomEffectsContainer:
             "sigma_samples": sigma_samples,
         }
         return output
-    
+
     def map_group_id_to_array_index(self, group_id: int) -> int:
         """
         Map an integer-valued random effects group ID to its group's corresponding position in the arrays that store random effects parameter samples.
@@ -434,7 +430,7 @@ class RandomEffectsContainer:
             The position of `group_id` in the parameter sample arrays underlying the random effects container.
         """
         return self.rfx_label_mapper_cpp.MapGroupIdToArrayIndex(group_id)
-    
+
     def map_group_ids_to_array_indices(self, group_ids: np.ndarray) -> np.ndarray:
         """
         Map an array of integer-valued random effects group IDs to their groups' corresponding positions in the arrays that store random effects parameter samples.
@@ -450,7 +446,7 @@ class RandomEffectsContainer:
             Numpy array of the position of `group_id` in the parameter sample arrays underlying the random effects container.
         """
         return self.rfx_label_mapper_cpp.MapMultipleGroupIdsToArrayIndices(group_ids)
-    
+
     def __str__(self) -> str:
         """
         String representation of the random effects container.
@@ -683,8 +679,13 @@ class RandomEffectsModel:
         if scale <= 0:
             raise ValueError("scale must a positive scalar")
         self.rfx_model_cpp.SetVariancePriorScale(scale)
-    
-    def reset(self, rfx_container: RandomEffectsContainer, sample_num: int, sigma_alpha_init: np.array) -> None:
+
+    def reset(
+        self,
+        rfx_container: RandomEffectsContainer,
+        sample_num: int,
+        sigma_alpha_init: np.array,
+    ) -> None:
         """
         Reset the random effects model to a previous sample state.
         """
@@ -702,12 +703,18 @@ class RandomEffectsModel:
             raise ValueError(
                 "sigma_alpha_init must be a 2d square numpy array with as many rows / columns as bases in the random effects model"
             )
-        self.rfx_model_cpp.Reset(
-            rfx_container.rfx_container_cpp, sample_num
-        )
+        self.rfx_model_cpp.Reset(rfx_container.rfx_container_cpp, sample_num)
         self.set_working_parameter_covariance(sigma_alpha_init)
-    
-    def root_reset(self, alpha_init: np.array, xi_init: np.array, sigma_alpha_init: np.array, sigma_xi_init: np.array, sigma_xi_shape: float, sigma_xi_scale: float) -> None:
+
+    def root_reset(
+        self,
+        alpha_init: np.array,
+        xi_init: np.array,
+        sigma_alpha_init: np.array,
+        sigma_xi_init: np.array,
+        sigma_xi_shape: float,
+        sigma_xi_scale: float,
+    ) -> None:
         """
         Reset the random effects model to its initial state.
         """

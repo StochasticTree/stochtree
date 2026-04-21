@@ -345,7 +345,7 @@ class Residual:
         """
         n = new_vector.size
         self.residual_cpp.ReplaceData(new_vector, n)
-    
+
     def add_vector(self, update_vector: np.array) -> None:
         """
         Update the current state of the outcome (i.e. partial residual) data by adding each element of `update_vector`
@@ -362,7 +362,7 @@ class Residual:
             raise ValueError("update_vector must be a 1-dimensional numpy array.")
         n = update_vector_.size
         self.residual_cpp.AddToData(update_vector_, n)
-    
+
     def subtract_vector(self, update_vector: np.array) -> None:
         """
         Update the current state of the outcome (i.e. partial residual) data by subtracting each element of `update_vector`

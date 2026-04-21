@@ -13,14 +13,23 @@ def _validate_inputs(model: Union[BARTModel, BCFModel], term: str) -> None:
     Validate the parameter name against the model's expected parameter names.
     """
     bart_valid_terms = [
-        "sigma2", "global_error_scale", "sigma2_global",
-        "sigma2_leaf", "leaf_scale", 
+        "sigma2",
+        "global_error_scale",
+        "sigma2_global",
+        "sigma2_leaf",
+        "leaf_scale",
     ]
     bcf_valid_terms = [
-        "sigma2", "global_error_scale", "sigma2_global",
-        "sigma2_leaf_mu", "leaf_scale_mu", "mu_leaf_scale",
-        "sigma2_leaf_tau", "leaf_scale_tau", "tau_leaf_scale",
-        "adaptive_coding", 
+        "sigma2",
+        "global_error_scale",
+        "sigma2_global",
+        "sigma2_leaf_mu",
+        "leaf_scale_mu",
+        "mu_leaf_scale",
+        "sigma2_leaf_tau",
+        "leaf_scale_tau",
+        "tau_leaf_scale",
+        "adaptive_coding",
     ]
     if not isinstance(model, BARTModel) and not isinstance(model, BCFModel):
         raise ValueError("Unsupported model type.")
@@ -28,16 +37,18 @@ def _validate_inputs(model: Union[BARTModel, BCFModel], term: str) -> None:
         raise ValueError("Term must be a string.")
     if isinstance(model, BARTModel):
         if term not in bart_valid_terms:
-            raise ValueError(f"Invalid term '{term}' for model type {type(model).__name__}")
+            raise ValueError(
+                f"Invalid term '{term}' for model type {type(model).__name__}"
+            )
     elif isinstance(model, BCFModel):
         if term not in bcf_valid_terms:
-            raise ValueError(f"Invalid term '{term}' for model type {type(model).__name__}")
+            raise ValueError(
+                f"Invalid term '{term}' for model type {type(model).__name__}"
+            )
 
 
 def plot_parameter_trace(
-    model: Union[BARTModel, BCFModel], 
-    term: str, 
-    ax: plt.Axes = None
+    model: Union[BARTModel, BCFModel], term: str, ax: plt.Axes = None
 ) -> plt.Axes:
     """
     Plot the parameter trace for a given model. For `BARTModel` objects, the following conventions are used for parameter names:
@@ -48,8 +59,8 @@ def plot_parameter_trace(
       - Prognostic forest leaf scale: `"sigma2_leaf_mu"`, `"leaf_scale_mu"`, `"mu_leaf_scale"`
       - Treatment effect forest leaf scale: `"sigma2_leaf_tau"`, `"leaf_scale_tau"`, `"tau_leaf_scale"`
       - Adaptive coding parameters: `"adaptive_coding"` (returns both the control and treated parameters jointly, with control in the first row and treated in the second row)
-    
-    For traceplots / histograms of functional terms like `"y_hat_train"` or `"tau_hat_train"`, use the `model.extract_parameter_trace()` method to 
+
+    For traceplots / histograms of functional terms like `"y_hat_train"` or `"tau_hat_train"`, use the `model.extract_parameter_trace()` method to
     query a (2d / 3d) parameter array and then plot directly using `pyplot.plot`, `pyplot.scatter`, or `pyplot.hist`.
 
     Parameters
@@ -75,7 +86,7 @@ def plot_parameter_trace(
     # Squeeze and check dimensions
     parameter_array = np.squeeze(parameter_array)
     param_dim = parameter_array.ndim
-    
+
     # Check cases
     if param_dim > 2:
         raise ValueError("Invalid parameter array shape.")
@@ -90,9 +101,9 @@ def plot_parameter_trace(
     if isinstance(model, BARTModel):
         ax.plot(parameter_array)
     elif isinstance(model, BCFModel):
-        if term in ['adaptive_coding']:
-            ax.plot(parameter_array[0,:], label='Control')
-            ax.plot(parameter_array[1,:], label='Treated')
+        if term in ["adaptive_coding"]:
+            ax.plot(parameter_array[0, :], label="Control")
+            ax.plot(parameter_array[1, :], label="Treated")
             ax.legend()
         else:
             ax.plot(parameter_array)
