@@ -1393,14 +1393,17 @@ bart <- function(
     }
 
     # Unpack RFX predictions if they were returned
-    has_rfx_predictions_train <- !is.null(bart_results[['rfx_predictions_train']])
-    has_rfx_predictions_test  <- !is.null(bart_results[['rfx_predictions_test']])
+    has_rfx_predictions_train <- !is.null(bart_results[[
+      'rfx_predictions_train'
+    ]])
+    has_rfx_predictions_test <- !is.null(bart_results[['rfx_predictions_test']])
     if (has_rfx_predictions_train) {
       dim(bart_results[['rfx_predictions_train']]) <- c(
         bart_results[["num_train"]],
         bart_results[["num_samples"]]
       )
-      rfx_preds_train <- bart_results[["rfx_predictions_train"]] * bart_results[["y_std"]]
+      rfx_preds_train <- bart_results[["rfx_predictions_train"]] *
+        bart_results[["y_std"]]
       result[["y_hat_train"]] <- if (!is.null(result[["y_hat_train"]])) {
         result[["y_hat_train"]] + rfx_preds_train
       } else {
@@ -1412,7 +1415,8 @@ bart <- function(
         bart_results[["num_test"]],
         bart_results[["num_samples"]]
       )
-      rfx_preds_test <- bart_results[["rfx_predictions_test"]] * bart_results[["y_std"]]
+      rfx_preds_test <- bart_results[["rfx_predictions_test"]] *
+        bart_results[["y_std"]]
       result[["y_hat_test"]] <- if (!is.null(result[["y_hat_test"]])) {
         result[["y_hat_test"]] + rfx_preds_test
       } else {
