@@ -31,7 +31,6 @@ void check_integer(cpp11::sexp input, const char* input_name) {
 int* extract_integer_pointer(cpp11::sexp input, const char* input_name, int& protect_count) {
   if (input == R_NilValue) return nullptr;
   check_integer(input, input_name);
-  protect_count++;
   return INTEGER(input);
 }
 
@@ -105,10 +104,6 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   // Random effect parameters
   output.has_random_effects = get_config_scalar_default<bool>(config, "has_random_effects", false);
   output.rfx_model_spec = static_cast<StochTree::BARTRFXModelSpec>(get_config_scalar_default<int>(config, "rfx_model_spec", 0));
-  output.rfx_working_parameter_prior_mean = get_config_scalar_default<double>(config, "rfx_working_parameter_prior_mean", -1.0);
-  output.rfx_group_parameter_prior_mean = get_config_scalar_default<double>(config, "rfx_group_parameter_prior_mean", -1.0);
-  output.rfx_working_parameter_prior_cov = get_config_scalar_default<double>(config, "rfx_working_parameter_prior_cov", -1.0);
-  output.rfx_group_parameter_prior_cov = get_config_scalar_default<double>(config, "rfx_group_parameter_prior_cov", -1.0);
   output.rfx_variance_prior_shape = get_config_scalar_default<double>(config, "rfx_variance_prior_shape", 1.0);
   output.rfx_variance_prior_scale = get_config_scalar_default<double>(config, "rfx_variance_prior_scale", 1.0);
 
@@ -144,6 +139,26 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   if (!Rf_isNull(var_weights_variance_raw)) {
     cpp11::doubles var_weights_variance_r_vec(var_weights_variance_raw);
     output.var_weights_variance.assign(var_weights_variance_r_vec.begin(), var_weights_variance_r_vec.end());
+  }
+  SEXP rfx_working_parameter_mean_prior_raw = static_cast<SEXP>(config["rfx_working_parameter_mean_prior"]);
+  if (!Rf_isNull(rfx_working_parameter_mean_prior_raw)) {
+    cpp11::doubles rfx_working_parameter_mean_prior_r_vec(rfx_working_parameter_mean_prior_raw);
+    output.rfx_working_parameter_mean_prior.assign(rfx_working_parameter_mean_prior_r_vec.begin(), rfx_working_parameter_mean_prior_r_vec.end());
+  }
+  SEXP rfx_group_parameter_mean_prior_raw = static_cast<SEXP>(config["rfx_group_parameter_mean_prior"]);
+  if (!Rf_isNull(rfx_group_parameter_mean_prior_raw)) {
+    cpp11::doubles rfx_group_parameter_mean_prior_r_vec(rfx_group_parameter_mean_prior_raw);
+    output.rfx_group_parameter_mean_prior.assign(rfx_group_parameter_mean_prior_r_vec.begin(), rfx_group_parameter_mean_prior_r_vec.end());
+  }
+  SEXP rfx_working_parameter_cov_prior_raw = static_cast<SEXP>(config["rfx_working_parameter_cov_prior"]);
+  if (!Rf_isNull(rfx_working_parameter_cov_prior_raw)) {
+    cpp11::doubles rfx_working_parameter_cov_prior_r_vec(rfx_working_parameter_cov_prior_raw);
+    output.rfx_working_parameter_cov_prior.assign(rfx_working_parameter_cov_prior_r_vec.begin(), rfx_working_parameter_cov_prior_r_vec.end());
+  }
+  SEXP rfx_group_parameter_cov_prior_raw = static_cast<SEXP>(config["rfx_group_parameter_cov_prior"]);
+  if (!Rf_isNull(rfx_group_parameter_cov_prior_raw)) {
+    cpp11::doubles rfx_group_parameter_cov_prior_r_vec(rfx_group_parameter_cov_prior_raw);
+    output.rfx_group_parameter_cov_prior.assign(rfx_group_parameter_cov_prior_r_vec.begin(), rfx_group_parameter_cov_prior_r_vec.end());
   }
   return output;
 }
@@ -182,6 +197,17 @@ cpp11::writable::list convert_bart_results_to_list(StochTree::BARTSamples& bart_
                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.variance_forest_predictions_test.begin(), bart_samples.variance_forest_predictions_test.end()))
                                  : R_NilValue;
   output.push_back(cpp11::named_arg("variance_forest_predictions_test") = var_preds_test_sexp);
+
+  // RFX predictions
+  SEXP rfx_preds_train_sexp = !bart_samples.rfx_predictions_train.empty()
+                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.rfx_predictions_train.begin(), bart_samples.rfx_predictions_train.end()))
+                                  : R_NilValue;
+  output.push_back(cpp11::named_arg("rfx_predictions_train") = rfx_preds_train_sexp);
+
+  SEXP rfx_preds_test_sexp = !bart_samples.rfx_predictions_test.empty()
+                                 ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.rfx_predictions_test.begin(), bart_samples.rfx_predictions_test.end()))
+                                 : R_NilValue;
+  output.push_back(cpp11::named_arg("rfx_predictions_test") = rfx_preds_test_sexp);
 
   // Parameter samples
   SEXP global_var_sexp = !bart_samples.global_error_variance_samples.empty()

@@ -9,6 +9,8 @@
 #include <stochtree/variance_model.h>
 #include <memory>
 #include <random>
+#include "stochtree/data.h"
+#include "stochtree/random_effects.h"
 
 namespace StochTree {
 
@@ -246,8 +248,99 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
 
   // Random effects model
   if (config_.has_random_effects) {
+    random_effects_dataset_ = std::make_unique<RandomEffectsDataset>();
+    random_effects_dataset_->AddGroupLabels(data_.rfx_group_ids_train, data_.n_train);
+    if (data_.rfx_basis_train != nullptr) {
+      random_effects_dataset_->AddBasis(data_.rfx_basis_train, data_.n_train, data_.rfx_basis_dim, /*row_major=*/false);
+    } else {
+      if (config_.rfx_model_spec == BARTRFXModelSpec::InterceptOnly) {
+        // If no basis is provided, add an intercept basis (column of 1s)
+        // TODO: do we need to do this before we determine rfx_basis_dim and initialize the RFX data structures?
+        std::vector<double> intercept_basis(data_.n_train, 1.0);
+        random_effects_dataset_->AddBasis(intercept_basis.data(), data_.n_train, 1, /*row_major=*/false);
+        // Override rfx_basis_dim to 1 for intercept-only model the basis is a 1-dimensional vector of ones
+        data_.rfx_basis_dim = 1;
+      } else {
+        Log::Fatal("Random effects basis data must be provided for non-intercept-only random effects model");
+      }
+    }
+    // Tracking data structure for random effects groups
+    random_effects_tracker_ = std::make_unique<RandomEffectsTracker>(data_.rfx_group_ids_train, data_.n_train);
+    // Container of random effects samples
+    samples.rfx_container = std::make_unique<RandomEffectsContainer>(data_.rfx_basis_dim, data_.rfx_num_groups);
+    // Mapping from RFX labels to 0-indexed group IDs for efficient lookup in the sampler; populated from the RFX dataset group labels
+    samples.rfx_label_mapper = std::make_unique<LabelMapper>(random_effects_tracker_->GetLabelMap());
+
+    // Initialize random effects model object
     random_effects_model_ = std::make_unique<MultivariateRegressionRandomEffectsModel>(data_.rfx_basis_dim, data_.rfx_num_groups);
-    random_effects_tracker_ = std::make_unique<RandomEffectsTracker>(data_.n_train, config_.num_random_effects);
+
+    // Handle "working" parameter prior mean
+    Eigen::VectorXd working_parameter_prior_mean;
+    if (!config_.rfx_working_parameter_mean_prior.empty()) {
+      if ((int)config_.rfx_working_parameter_mean_prior.size() != data_.rfx_basis_dim) {
+        Log::Fatal("rfx_working_parameter_mean_prior must have rfx_basis_dim = %d elements, but has %zu",
+                   data_.rfx_basis_dim, config_.rfx_working_parameter_mean_prior.size());
+      }
+      // Column-major interpretation matches both R and Eigen (python must be reordered before passing to C++)
+      working_parameter_prior_mean = Eigen::Map<const Eigen::VectorXd>(config_.rfx_working_parameter_mean_prior.data(), data_.rfx_basis_dim);
+    } else {
+      working_parameter_prior_mean = Eigen::VectorXd::Zero(data_.rfx_basis_dim);
+    }
+    random_effects_model_->SetWorkingParameter(working_parameter_prior_mean);
+
+    // Handle "group" parameter prior mean
+    Eigen::MatrixXd group_parameter_prior_mean;
+    if (!config_.rfx_group_parameter_mean_prior.empty()) {
+      if ((int)config_.rfx_group_parameter_mean_prior.size() != data_.rfx_basis_dim * data_.rfx_num_groups) {
+        Log::Fatal("rfx_group_parameter_mean_prior must have rfx_basis_dim * rfx_num_groups = %d elements, but has %zu",
+                   data_.rfx_basis_dim * data_.rfx_num_groups, config_.rfx_group_parameter_mean_prior.size());
+      }
+      // Column-major interpretation matches both R and Eigen (python must be reordered before passing to C++)
+      group_parameter_prior_mean = Eigen::Map<const Eigen::MatrixXd>(config_.rfx_group_parameter_mean_prior.data(), data_.rfx_basis_dim, data_.rfx_num_groups);
+    } else {
+      group_parameter_prior_mean = Eigen::MatrixXd::Zero(data_.rfx_basis_dim, data_.rfx_num_groups);
+    }
+    random_effects_model_->SetGroupParameters(group_parameter_prior_mean);
+
+    // Handle "working" parameter prior covariance
+    Eigen::MatrixXd working_parameter_prior_cov;
+    if (!config_.rfx_working_parameter_cov_prior.empty()) {
+      if ((int)config_.rfx_working_parameter_cov_prior.size() != data_.rfx_basis_dim * data_.rfx_basis_dim) {
+        Log::Fatal("rfx_working_parameter_cov_prior must have rfx_basis_dim * rfx_basis_dim = %d elements, but has %zu",
+                   data_.rfx_basis_dim * data_.rfx_basis_dim, config_.rfx_working_parameter_cov_prior.size());
+      }
+      // Column-major interpretation matches both R and Eigen (python must be reordered before passing to C++)
+      working_parameter_prior_cov = Eigen::Map<const Eigen::MatrixXd>(config_.rfx_working_parameter_cov_prior.data(), data_.rfx_basis_dim, data_.rfx_basis_dim);
+    } else {
+      working_parameter_prior_cov = Eigen::MatrixXd::Identity(data_.rfx_basis_dim, data_.rfx_basis_dim);
+    }
+    random_effects_model_->SetWorkingParameterCovariance(working_parameter_prior_cov);
+
+    // Handle "group" parameter prior covariance
+    Eigen::MatrixXd group_parameter_prior_cov;
+    if (!config_.rfx_group_parameter_cov_prior.empty()) {
+      if ((int)config_.rfx_group_parameter_cov_prior.size() != data_.rfx_basis_dim * data_.rfx_basis_dim) {
+        Log::Fatal("rfx_group_parameter_cov_prior must have rfx_basis_dim * rfx_basis_dim = %d elements, but has %zu",
+                   data_.rfx_basis_dim * data_.rfx_basis_dim, config_.rfx_group_parameter_cov_prior.size());
+      }
+      // Column-major interpretation matches both R and Eigen (python must be reordered before passing to C++)
+      group_parameter_prior_cov = Eigen::Map<const Eigen::MatrixXd>(config_.rfx_group_parameter_cov_prior.data(), data_.rfx_basis_dim, data_.rfx_basis_dim);
+    } else {
+      group_parameter_prior_cov = Eigen::MatrixXd::Identity(data_.rfx_basis_dim, data_.rfx_basis_dim);
+    }
+    random_effects_model_->SetGroupParameterCovariance(group_parameter_prior_cov);
+
+    // Handle variance model priors
+    if (config_.rfx_variance_prior_shape <= 0.0) {
+      config_.rfx_variance_prior_shape = 1.0;
+    }
+    if (config_.rfx_variance_prior_scale <= 0.0) {
+      config_.rfx_variance_prior_scale = 1.0;
+    }
+    random_effects_model_->SetVariancePriorShape(config_.rfx_variance_prior_shape);
+    random_effects_model_->SetVariancePriorScale(config_.rfx_variance_prior_scale);
+
+    // Set has_random_effects_ flag to true so that the sampler will perform random effects updates at each iteration
     has_random_effects_ = true;
   }
 
@@ -352,7 +445,20 @@ void BARTSampler::postprocess_samples(BARTSamples& samples) {
       samples.variance_forest_predictions_test.insert(samples.variance_forest_predictions_test.end(),
                                                       predictions.data(), predictions.data() + predictions.size());
     }
+    if (has_random_effects_) {
+      RandomEffectsDataset rfx_dataset_test;
+      rfx_dataset_test.AddGroupLabels(data_.rfx_group_ids_test, data_.n_test);
+      if (data_.rfx_basis_test != nullptr) {
+        rfx_dataset_test.AddBasis(data_.rfx_basis_test, data_.n_test, data_.rfx_basis_dim, /*row_major=*/false);
+      } else {
+        std::vector<double> ones(data_.n_test, 1.0);
+        rfx_dataset_test.AddBasis(ones.data(), data_.n_test, 1, /*row_major=*/false);
+      }
+      samples.rfx_predictions_test.resize(data_.n_test * samples.num_samples);
+      samples.rfx_container->Predict(rfx_dataset_test, *samples.rfx_label_mapper, samples.rfx_predictions_test);
+    }
   }
+
 }
 
 void BARTSampler::RunOneIteration(BARTSamples& samples, bool gfr, bool keep_sample) {
@@ -388,10 +494,6 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, bool gfr, bool keep_samp
                                  residual_->GetData().data(), samples.y_bar, data_.n_train);
   }
 
-  if (config_.link_function == LinkFunction::Cloglog) {
-    // TODO
-  }
-
   if (sample_sigma2_global_) {
     global_variance_ = var_model_->SampleVarianceParameter(
         residual_->GetData(), config_.a_sigma2_global, config_.b_sigma2_global, rng_);
@@ -420,7 +522,19 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, bool gfr, bool keep_samp
     ordinal_sampler_->UpdateCumulativeExpSums(*forest_dataset_);
   }
 
+  // Gibbs updates for random effects model
+  if (has_random_effects_) {
+    random_effects_model_->SampleRandomEffects(*random_effects_dataset_, *residual_, *random_effects_tracker_, global_variance_, rng_);
+    if (keep_sample) {
+      samples.rfx_container->AddSample(*random_effects_model_);
+      for (int i = 0; i < data_.n_train; i++) {
+        samples.rfx_predictions_train.push_back(random_effects_tracker_->GetPrediction(i));
+      }
+    }
+  }
+
   if (keep_sample) {
+    // Add parameter and prediction samples
     samples.num_samples++;
     if (sample_sigma2_global_) samples.global_error_variance_samples.push_back(global_variance_);
     if (sample_sigma2_leaf_) samples.leaf_scale_samples.push_back(leaf_scale_);

@@ -61,8 +61,8 @@ struct BARTData {
   double* obs_weights_test = nullptr;
 
   // Random effects
-  int32_t* rfx_group_ids_train = nullptr;
-  int32_t* rfx_group_ids_test = nullptr;
+  int* rfx_group_ids_train = nullptr;
+  int* rfx_group_ids_test = nullptr;
   double* rfx_basis_train = nullptr;
   double* rfx_basis_test = nullptr;
   int rfx_num_groups = 0;
@@ -129,10 +129,10 @@ struct BARTConfig {
   // Random effects parameters
   bool has_random_effects = false;                             // whether or not a model includes a random effects term
   BARTRFXModelSpec rfx_model_spec = BARTRFXModelSpec::Custom;  // specification for the random effects model; custom relies on a user-provided basis while intercept-only constructs a varying intercept model without needing a user-provided basis
-  double rfx_working_parameter_prior_mean = -1.0;              // prior mean for working parameter in random effects model
-  double rfx_group_parameter_prior_mean = -1.0;                // prior mean for group parameter in random effects model
-  double rfx_working_parameter_prior_cov = -1.0;               // prior covariance for working parameter in random effects model
-  double rfx_group_parameter_prior_cov = -1.0;                 // prior covariance for group parameter in random effects model
+  std::vector<double> rfx_working_parameter_mean_prior;        // vector of dimension num_basis; empty = use zeros
+  std::vector<double> rfx_group_parameter_mean_prior;          // matrix of dimension num_basis x num_groups, stored column-major; empty = use zeros
+  std::vector<double> rfx_working_parameter_cov_prior;         // matrix of dimension num_basis x num_basis, stored column-major; empty = use identity matrix
+  std::vector<double> rfx_group_parameter_cov_prior;           // matrix of dimension num_basis x num_basis, stored column-major; empty = use identity matrix
   double rfx_variance_prior_shape = 1.0;                       // shape parameter for variance prior in random effects model
   double rfx_variance_prior_scale = 1.0;                       // scale parameter for variance prior in random effects model
 
@@ -166,6 +166,12 @@ struct BARTSamples {
 
   // Posterior samples of cloglog cutpoint parameters (num_samples x num_classes - 1, stored column-major)
   std::vector<double> cloglog_cutpoint_samples;
+
+  // Posterior samples of training set RFX predictions (num_samples x n_train, stored column-major)
+  std::vector<double> rfx_predictions_train;
+
+  // Posterior samples of test set RFX predictions (num_samples x n_test, stored column-major)
+  std::vector<double> rfx_predictions_test;
 
   // Pointer to random effects sample container and label mapping
   std::unique_ptr<RandomEffectsContainer> rfx_container;

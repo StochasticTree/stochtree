@@ -1504,6 +1504,9 @@ class RandomEffectsContainerCpp {
   RandomEffectsContainerCpp() {
     rfx_container_ = std::make_unique<StochTree::RandomEffectsContainer>();
   }
+  explicit RandomEffectsContainerCpp(std::unique_ptr<StochTree::RandomEffectsContainer> ptr)
+      : rfx_container_(std::move(ptr)) {}
+
   ~RandomEffectsContainerCpp() {}
   void SetComponentsAndGroups(int num_components, int num_groups) {
     rfx_container_->SetNumComponents(num_components);
@@ -1639,6 +1642,9 @@ class RandomEffectsLabelMapperCpp {
   RandomEffectsLabelMapperCpp() {
     rfx_label_mapper_ = std::make_unique<StochTree::LabelMapper>();
   }
+  explicit RandomEffectsLabelMapperCpp(std::unique_ptr<StochTree::LabelMapper> ptr)
+      : rfx_label_mapper_(std::move(ptr)) {}
+
   ~RandomEffectsLabelMapperCpp() {}
   void LoadFromTracker(RandomEffectsTrackerCpp& rfx_tracker) {
     StochTree::RandomEffectsTracker* internal_tracker = rfx_tracker.GetTracker();
@@ -2221,10 +2227,6 @@ inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
   // Random effects parameters
   output.has_random_effects = get_config_scalar_default<bool>(config_dict, "has_random_effects", false);
   output.rfx_model_spec = static_cast<StochTree::BARTRFXModelSpec>(get_config_scalar_default<int>(config_dict, "rfx_model_spec", 0));
-  output.rfx_working_parameter_prior_mean = get_config_scalar_default<double>(config_dict, "rfx_working_parameter_prior_mean", -1.0);
-  output.rfx_group_parameter_prior_mean = get_config_scalar_default<double>(config_dict, "rfx_group_parameter_prior_mean", -1.0);
-  output.rfx_working_parameter_prior_cov = get_config_scalar_default<double>(config_dict, "rfx_working_parameter_prior_cov", -1.0);
-  output.rfx_group_parameter_prior_cov = get_config_scalar_default<double>(config_dict, "rfx_group_parameter_prior_cov", -1.0);
   output.rfx_variance_prior_shape = get_config_scalar_default<double>(config_dict, "rfx_variance_prior_shape", 1.0);
   output.rfx_variance_prior_scale = get_config_scalar_default<double>(config_dict, "rfx_variance_prior_scale", 1.0);
 
@@ -2249,6 +2251,30 @@ inline StochTree::BARTConfig convert_dict_to_bart_config(py::dict config_dict) {
   }
   if (config_dict.contains("var_weights_variance")) {
     output.var_weights_variance = config_dict["var_weights_variance"].cast<std::vector<double>>();
+  }
+  if (config_dict.contains("rfx_working_parameter_mean_prior")) {
+    py::array_t<double, py::array::f_style | py::array::forcecast> arr =
+        config_dict["rfx_working_parameter_mean_prior"].cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+    output.rfx_working_parameter_mean_prior = std::vector<double>(
+        arr.data(), arr.data() + arr.size());
+  }
+  if (config_dict.contains("rfx_group_parameter_mean_prior")) {
+    py::array_t<double, py::array::f_style | py::array::forcecast> arr =
+        config_dict["rfx_group_parameter_mean_prior"].cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+    output.rfx_group_parameter_mean_prior = std::vector<double>(
+        arr.data(), arr.data() + arr.size());
+  }
+  if (config_dict.contains("rfx_working_parameter_cov_prior")) {
+    py::array_t<double, py::array::f_style | py::array::forcecast> arr =
+        config_dict["rfx_working_parameter_cov_prior"].cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+    output.rfx_working_parameter_cov_prior = std::vector<double>(
+        arr.data(), arr.data() + arr.size());
+  }
+  if (config_dict.contains("rfx_group_parameter_cov_prior")) {
+    py::array_t<double, py::array::f_style | py::array::forcecast> arr =
+        config_dict["rfx_group_parameter_cov_prior"].cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+    output.rfx_group_parameter_cov_prior = std::vector<double>(
+        arr.data(), arr.data() + arr.size());
   }
   return output;
 }
@@ -2415,6 +2441,24 @@ inline py::dict convert_bart_results_to_dict(
     output["cloglog_cutpoint_samples"] = array;
   }
 
+  // Unpack RFX predictions
+  if (!results_raw.rfx_predictions_train.empty()) {
+    auto& v = results_raw.rfx_predictions_train;
+    py::array_t<double> array(v.size());
+    std::copy(v.begin(), v.end(), array.mutable_data());
+    output["rfx_predictions_train"] = array;
+  } else {
+    output["rfx_predictions_train"] = py::none();
+  }
+  if (!results_raw.rfx_predictions_test.empty()) {
+    auto& v = results_raw.rfx_predictions_test;
+    py::array_t<double> array(v.size());
+    std::copy(v.begin(), v.end(), array.mutable_data());
+    output["rfx_predictions_test"] = array;
+  } else {
+    output["rfx_predictions_test"] = py::none();
+  }
+
   // Transfer ownership of random effects container pointers
   if (results_raw.rfx_container != nullptr) {
     output["rfx_container"] = py::cast(std::make_unique<RandomEffectsContainerCpp>(std::move(results_raw.rfx_container)));
@@ -2422,11 +2466,11 @@ inline py::dict convert_bart_results_to_dict(
     output["rfx_container"] = py::none();
   }
 
-  // Transfer ownership of random effects label mapper pointers
-  if (results_raw.rfx_container != nullptr) {
-    output["rfx_container"] = py::cast(std::make_unique<RandomEffectsLabelMapperCpp>(std::move(results_raw.rfx_label_mapper)));
+  // Transfer ownership of random effects label mapper pointer
+  if (results_raw.rfx_label_mapper != nullptr) {
+    output["rfx_label_mapper"] = py::cast(std::make_unique<RandomEffectsLabelMapperCpp>(std::move(results_raw.rfx_label_mapper)));
   } else {
-    output["forest_container_mean"] = py::none();
+    output["rfx_label_mapper"] = py::none();
   }
 
   // Unpack scalars

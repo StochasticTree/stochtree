@@ -1131,6 +1131,40 @@ bart <- function(
   )
 
   if (run_cpp) {
+    # Expand dimensions on RFX prior parameters if provided
+    # Working parameter (should be expanded to a vector if provided as a scalar)
+    if (!is.null(rfx_working_parameter_prior_mean)) {
+      rfx_working_parameter_prior_mean <- expand_dims_1d(
+        rfx_working_parameter_prior_mean,
+        num_rfx_components
+      )
+    }
+
+    # Group parameter (should be expanded to a matrix if provided as a scalar)
+    if (!is.null(rfx_group_parameter_prior_mean)) {
+      rfx_group_parameter_prior_mean <- expand_dims_2d(
+        rfx_group_parameter_prior_mean,
+        num_rfx_components,
+        num_rfx_groups
+      )
+    }
+
+    # Working parameter (should be expanded to a diagonal matrix if provided as a scalar)
+    if (!is.null(rfx_working_parameter_prior_cov)) {
+      rfx_working_parameter_prior_cov <- expand_dims_2d_diag(
+        rfx_working_parameter_prior_cov,
+        num_rfx_components
+      )
+    }
+
+    # Group parameter (should be expanded to a diagonal matrix if provided as a scalar)
+    if (!is.null(rfx_group_parameter_prior_cov)) {
+      rfx_group_parameter_prior_cov <- expand_dims_2d_diag(
+        rfx_group_parameter_prior_cov,
+        num_rfx_components
+      )
+    }
+
     # Specify the BART config
     bart_config <- list(
       "standardize_outcome" = standardize,
@@ -1164,10 +1198,18 @@ bart <- function(
       "num_features_subsample_mean" = num_features_subsample_mean,
       "a_sigma2_mean" = a_leaf,
       "b_sigma2_mean" = b_leaf,
-      "sigma2_mean_init" = if (is.matrix(sigma2_leaf_init)) NULL else sigma2_leaf_init,
+      "sigma2_mean_init" = if (is.matrix(sigma2_leaf_init)) {
+        NULL
+      } else {
+        sigma2_leaf_init
+      },
       "sample_sigma2_leaf_mean" = sample_sigma2_leaf,
       "mean_leaf_model_type" = leaf_model_mean_forest,
-      "sigma2_leaf_mean_matrix" = if (is.matrix(sigma2_leaf_init)) as.numeric(sigma2_leaf_init) else NULL,
+      "sigma2_leaf_mean_matrix" = if (is.matrix(sigma2_leaf_init)) {
+        as.numeric(sigma2_leaf_init)
+      } else {
+        NULL
+      },
       "num_classes_cloglog" = cloglog_num_categories,
       "cloglog_leaf_prior_shape" = cloglog_leaf_prior_shape,
       "cloglog_leaf_prior_scale" = cloglog_leaf_prior_scale,
@@ -1196,7 +1238,47 @@ bart <- function(
         NULL
       },
       "var_weights_mean" = variable_weights_mean,
-      "var_weights_variance" = variable_weights_variance
+      "var_weights_variance" = variable_weights_variance,
+      "has_random_effects" = has_rfx,
+      "rfx_model_spec" = if (has_rfx) {
+        ifelse(
+          rfx_model_spec == "custom",
+          0,
+          ifelse(rfx_model_spec == "intercept_only", 1, NULL)
+        )
+      } else {
+        NULL
+      },
+      "rfx_working_parameter_mean_prior" = if (has_rfx) {
+        rfx_working_parameter_prior_mean
+      } else {
+        NULL
+      },
+      "rfx_working_parameter_cov_prior" = if (has_rfx) {
+        rfx_working_parameter_prior_cov
+      } else {
+        NULL
+      },
+      "rfx_group_parameter_mean_prior" = if (has_rfx) {
+        rfx_group_parameter_prior_mean
+      } else {
+        NULL
+      },
+      "rfx_group_parameter_cov_prior" = if (has_rfx) {
+        rfx_group_parameter_prior_cov
+      } else {
+        NULL
+      },
+      "rfx_variance_prior_shape" = if (has_rfx) {
+        rfx_variance_prior_shape
+      } else {
+        NULL
+      },
+      "rfx_variance_prior_scale" = if (has_rfx) {
+        rfx_variance_prior_scale
+      } else {
+        NULL
+      }
     )
 
     bart_results <- bart_sample_cpp(
@@ -1308,6 +1390,34 @@ bart <- function(
         "mean_forests"
       ]]
       result[["mean_forests"]] <- mean_forests_r
+    }
+
+    # Unpack RFX predictions if they were returned
+    has_rfx_predictions_train <- !is.null(bart_results[['rfx_predictions_train']])
+    has_rfx_predictions_test  <- !is.null(bart_results[['rfx_predictions_test']])
+    if (has_rfx_predictions_train) {
+      dim(bart_results[['rfx_predictions_train']]) <- c(
+        bart_results[["num_train"]],
+        bart_results[["num_samples"]]
+      )
+      rfx_preds_train <- bart_results[["rfx_predictions_train"]] * bart_results[["y_std"]]
+      result[["y_hat_train"]] <- if (!is.null(result[["y_hat_train"]])) {
+        result[["y_hat_train"]] + rfx_preds_train
+      } else {
+        rfx_preds_train
+      }
+    }
+    if (has_rfx_predictions_test) {
+      dim(bart_results[['rfx_predictions_test']]) <- c(
+        bart_results[["num_test"]],
+        bart_results[["num_samples"]]
+      )
+      rfx_preds_test <- bart_results[["rfx_predictions_test"]] * bart_results[["y_std"]]
+      result[["y_hat_test"]] <- if (!is.null(result[["y_hat_test"]])) {
+        result[["y_hat_test"]] + rfx_preds_test
+      } else {
+        rfx_preds_test
+      }
     }
 
     # Unpack variance forest predictions if they were returned

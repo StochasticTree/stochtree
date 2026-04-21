@@ -32,7 +32,7 @@ namespace StochTree {
  * \param num_rows Number of observations in the data being loaded.
  */
 static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* text_data, const Parser* parser,
-                                                     std::vector<int32_t>& column_indices, Eigen::MatrixXd& data,
+                                                     std::vector<int>& column_indices, Eigen::MatrixXd& data,
                                                      data_size_t num_rows) {
   std::vector<std::pair<int, double>> oneline_features;
   auto& ref_text_data = *text_data;
@@ -73,7 +73,7 @@ static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* t
  * \param num_rows Number of observations in the data being loaded.
  */
 static inline void ExtractSingleFeatureFromMemory(std::vector<std::string>* text_data, const Parser* parser,
-                                                  int32_t column_index, Eigen::VectorXd& data, data_size_t num_rows) {
+                                                  int column_index, Eigen::VectorXd& data, data_size_t num_rows) {
   std::vector<std::pair<int, double>> oneline_features;
   auto& ref_text_data = *text_data;
   bool column_matched;
@@ -105,7 +105,7 @@ static inline std::vector<std::string> LoadTextDataToMemory(const char* filename
   return std::move(text_reader.Lines());
 }
 
-static inline void FeatureUnpack(std::vector<int32_t>& categorical_variables, const char* var_id) {
+static inline void FeatureUnpack(std::vector<int>& categorical_variables, const char* var_id) {
   std::string var_clean = Common::RemoveQuotationSymbol(Common::Trim(var_id));
   int out;
   bool success = Common::AtoiAndCheck(var_clean.c_str(), &out);
@@ -156,7 +156,7 @@ class ColumnMatrix {
    * \param row Row number to query in the matrix
    * \param col Column number to query in the matrix
    */
-  double GetElement(data_size_t row_num, int32_t col_num) { return data_(row_num, col_num); }
+  double GetElement(data_size_t row_num, int col_num) { return data_(row_num, col_num); }
   /*!
    * \brief Update an observation in the object's internal `Eigen::MatrixXd` to a new value.
    *
@@ -164,7 +164,7 @@ class ColumnMatrix {
    * \param col Column number to be overwritten.
    * \param value New value to write in (`row`, `col`) in the object's internal `Eigen::MatrixXd`.
    */
-  void SetElement(data_size_t row_num, int32_t col_num, double value) { data_(row_num, col_num) = value; }
+  void SetElement(data_size_t row_num, int col_num, double value) { data_(row_num, col_num) = value; }
   /*!
    * \brief Update the data in a `ColumnMatrix` object from an in-memory data buffer. This will erase the existing matrix.
    *
@@ -208,7 +208,7 @@ class ColumnVector {
    * \param header Whether or not the file contains a header of column names / non-data.
    * \param precise_float_parser Whether floating point numbers in the CSV should be parsed precisely.
    */
-  ColumnVector(std::string filename, int32_t column_index, bool header = true, bool precise_float_parser = false);
+  ColumnVector(std::string filename, int column_index, bool header = true, bool precise_float_parser = false);
   ~ColumnVector() {}
   /*!
    * \brief Returns the value stored at position `row` in the object's internal `Eigen::VectorXd`.
@@ -340,7 +340,7 @@ class ForestDataset {
    * \param filename Name of the file (including any necessary path prefixes)
    * \param column_index Integer index of column containing weights
    */
-  void AddVarianceWeightsFromCSV(std::string filename, int32_t column_index, bool header = true, bool precise_float_parser = false) {
+  void AddVarianceWeightsFromCSV(std::string filename, int column_index, bool header = true, bool precise_float_parser = false) {
     var_weights_ = ColumnVector(filename, column_index, header, precise_float_parser);
     has_var_weights_ = true;
   }
@@ -600,7 +600,7 @@ class RandomEffectsDataset {
    * \param num_row Number of rows in the weight vector
    * \param exponentiate Whether or not inputs should be exponentiated before being saved to var weight vector
    */
-  void UpdateGroupLabels(std::vector<int32_t>& group_labels, data_size_t num_row) {
+  void UpdateGroupLabels(std::vector<int>& group_labels, data_size_t num_row) {
     CHECK(has_group_labels_);
     CHECK_EQ(this->NumObservations(), num_row)
     // Copy data from R / Python process memory to internal vector
@@ -614,8 +614,21 @@ class RandomEffectsDataset {
    * \param group_labels Vector of integers with as many elements as `num_row` in the basis matrix,
    * where each element corresponds to the group label for a given observation.
    */
-  void AddGroupLabels(std::vector<int32_t>& group_labels) {
+  void AddGroupLabels(std::vector<int>& group_labels) {
     group_labels_ = group_labels;
+    has_group_labels_ = true;
+  }
+  /*!
+   * \brief Copy / load group indices for random effects
+   *
+   * \param group_labels Integer pointer to array with as many elements as `num_row` in the basis matrix,
+   * where each element corresponds to the group label for a given observation.
+   */
+  void AddGroupLabels(int* group_labels, int num_rows) {
+    group_labels_.resize(num_rows);
+    for (int i = 0; i < num_rows; ++i) {
+      group_labels_[i] = group_labels[i];
+    }
     has_group_labels_ = true;
   }
   /*! \brief Number of observations (rows) in the dataset */
@@ -646,7 +659,7 @@ class RandomEffectsDataset {
    *
    * \param row Index to query in the group label vector
    */
-  inline int32_t GroupId(data_size_t row) { return group_labels_[row]; }
+  inline int GroupId(data_size_t row) { return group_labels_[row]; }
   /*!
    * \brief Return a reference to the raw `Eigen::MatrixXd` storing the basis data
    *
@@ -664,12 +677,12 @@ class RandomEffectsDataset {
    *
    * \return Reference to internal std::vector
    */
-  inline std::vector<int32_t>& GetGroupLabels() { return group_labels_; }
+  inline std::vector<int>& GetGroupLabels() { return group_labels_; }
 
  private:
   ColumnMatrix basis_;
   ColumnVector var_weights_;
-  std::vector<int32_t> group_labels_;
+  std::vector<int> group_labels_;
   int num_basis_{0};
   bool has_basis_{false};
   bool has_var_weights_{false};

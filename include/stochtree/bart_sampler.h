@@ -220,6 +220,7 @@ class BARTSampler {
   /*! Random effects state */
   std::unique_ptr<MultivariateRegressionRandomEffectsModel> random_effects_model_;
   std::unique_ptr<RandomEffectsTracker> random_effects_tracker_;
+  std::unique_ptr<RandomEffectsDataset> random_effects_dataset_;
   bool has_random_effects_ = false;
 
   /*! Dataset */
@@ -244,9 +245,6 @@ class BARTSampler {
   // Leaf scale model
   std::unique_ptr<LeafNodeHomoskedasticVarianceModel> leaf_scale_model_;
   bool sample_sigma2_leaf_ = false;
-
-  /*! Random effects state */
-  // TODO ...
 
   /*! Vector of warm-start snapshots (forests needed for MCMC chains but not retained) */
   std::vector<ForestContainer> warm_start_forests_mean_;

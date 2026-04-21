@@ -1127,6 +1127,31 @@ class BARTModel:
         cloglog_num_categories = int(np.max(y_train - np.min(y_train))) + 1 if link_is_cloglog else 0
 
         if run_cpp:
+          # Expand dimensions on RFX prior parameters if provided
+          # Working parameter (should be expanded to a 1d array if provided as a scalar)
+          if rfx_working_parameter_prior_mean is not None:
+              rfx_working_parameter_prior_mean = _expand_dims_1d(
+                  rfx_working_parameter_prior_mean, num_rfx_components
+              )
+
+          # Group parameter (should be expanded to a 2d array if provided as a scalar)
+          if rfx_group_parameter_prior_mean is not None:
+              rfx_group_parameter_prior_mean = _expand_dims_2d(
+                  rfx_group_parameter_prior_mean, num_rfx_components, num_rfx_groups
+              )
+
+          # Working parameter (should be expanded to a diagonal matrix if provided as a scalar)
+          if rfx_working_parameter_prior_cov is not None:
+              rfx_working_parameter_prior_cov = _expand_dims_2d_diag(
+                  rfx_working_parameter_prior_cov, num_rfx_components
+              )
+
+          # Group parameter (should be expanded to a diagonal matrix if provided as a scalar)
+          if rfx_group_parameter_prior_cov is not None:
+              rfx_group_parameter_prior_cov = _expand_dims_2d_diag(
+                  rfx_group_parameter_prior_cov, num_rfx_components
+              )
+          
           # Arrange all config in a large python dictionary
           bart_config = {
               "standardize_outcome": self.standardize,
@@ -1176,7 +1201,15 @@ class BARTModel:
               "sweep_update_indices_mean": list(range(num_trees_mean)) if num_trees_mean > 0 else None,
               "sweep_update_indices_variance": list(range(num_trees_variance)) if num_trees_variance > 0 else None,
               "var_weights_mean": variable_weights_mean,
-              "var_weights_variance": variable_weights_variance
+              "var_weights_variance": variable_weights_variance,
+              "has_random_effects": self.has_rfx,
+              "rfx_model_spec": 0 if self.rfx_model_spec == "custom" else (1 if self.rfx_model_spec == "intercept_only" else None),
+              "rfx_working_parameter_mean_prior": rfx_working_parameter_prior_mean if self.has_rfx else None,
+              "rfx_group_parameter_mean_prior": rfx_group_parameter_prior_mean if self.has_rfx else None,
+              "rfx_working_parameter_cov_prior": rfx_working_parameter_prior_cov if self.has_rfx else None,
+              "rfx_group_parameter_cov_prior": rfx_group_parameter_prior_cov if self.has_rfx else None,
+              "rfx_variance_prior_shape": rfx_variance_prior_shape if self.has_rfx else None,
+              "rfx_variance_prior_scale": rfx_variance_prior_scale if self.has_rfx else None,
           }
 
           # Remove None values from config (alternative is to check for Nones on the C++ side when unpacking into non-optional types)
@@ -1253,6 +1286,16 @@ class BARTModel:
               mean_forest_preds_test = bart_results["mean_forest_predictions_test"].reshape(self.n_test, bart_results["num_samples"], order="F")
               self.y_hat_test = mean_forest_preds_test * self.y_std + self.y_bar
           
+          # Unpack RFX results
+          if self.has_rfx:
+            self.rfx_container = bart_results["rfx_container"]
+            self.rfx_label_mapper = bart_results["rfx_label_mapper"]
+            rfx_preds_train = bart_results["rfx_predictions_train"].reshape(self.n_train, bart_results["num_samples"], order="F") * self.y_std
+            self.y_hat_train = self.y_hat_train + rfx_preds_train if self.include_mean_forest else rfx_preds_train
+            if self.has_test:
+              rfx_preds_test = bart_results["rfx_predictions_test"].reshape(self.n_test, bart_results["num_samples"], order="F") * self.y_std
+              self.y_hat_test = self.y_hat_test + rfx_preds_test if self.include_mean_forest else rfx_preds_test
+
           # Unpack variance forest results
           if self.include_variance_forest:
             self.forest_container_variance = ForestContainer(num_trees_variance, 1, True, True)

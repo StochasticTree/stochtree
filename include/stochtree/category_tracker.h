@@ -40,12 +40,12 @@ namespace StochTree {
  */
 class SampleCategoryMapper {
  public:
-  SampleCategoryMapper(std::vector<int32_t>& group_indices) {
+  SampleCategoryMapper(std::vector<int>& group_indices) {
     num_observations_ = group_indices.size();
     observation_indices_ = group_indices;
   }
 
-  SampleCategoryMapper(int32_t * group_indices, int num_observations) {
+  SampleCategoryMapper(int* group_indices, int num_observations) {
     num_observations_ = num_observations;
     observation_indices_.resize(num_observations_);
     for (int i = 0; i < num_observations_; i++) {
@@ -74,7 +74,7 @@ class SampleCategoryMapper {
   inline int NumObservations() { return num_observations_; }
 
  private:
-  std::vector<int32_t> observation_indices_;
+  std::vector<int> observation_indices_;
   data_size_t num_observations_;
 };
 
@@ -83,7 +83,7 @@ class SampleCategoryMapper {
  */
 class CategorySampleTracker {
  public:
-  CategorySampleTracker(const std::vector<int32_t>& group_indices) {
+  CategorySampleTracker(const std::vector<int>& group_indices) {
     int n = group_indices.size();
     indices_ = std::vector<data_size_t>(n);
     std::iota(indices_.begin(), indices_.end(), 0);
@@ -120,7 +120,7 @@ class CategorySampleTracker {
     }
   }
 
-  CategorySampleTracker(int32_t* group_indices, int num_observations) {
+  CategorySampleTracker(int* group_indices, int num_observations) {
     int n = num_observations;
     indices_ = std::vector<data_size_t>(n);
     std::iota(indices_.begin(), indices_.end(), 0);
@@ -158,7 +158,7 @@ class CategorySampleTracker {
   }
 
   /*! \brief Zero-indexed numeric index that category_id is remapped to internally */
-  inline int32_t CategoryNumber(int category_id) {
+  inline int CategoryNumber(int category_id) {
     return category_id_map_[category_id];
   }
 
@@ -167,7 +167,7 @@ class CategorySampleTracker {
 
   /*! \brief One past the last index of data points contained in node_id */
   inline data_size_t CategoryEnd(int category_id) {
-    int32_t id = category_id_map_[category_id];
+    int id = category_id_map_[category_id];
     return category_begin_[id] + category_length_[id];
   }
 
@@ -184,7 +184,7 @@ class CategorySampleTracker {
 
   /*! \brief Data indices for a given node */
   std::vector<data_size_t>& NodeIndices(int category_id) {
-    int32_t id = category_id_map_[category_id];
+    int id = category_id_map_[category_id];
     return node_index_vector_[id];
   }
 
@@ -194,18 +194,18 @@ class CategorySampleTracker {
   }
 
   /*! \brief Returns label index map */
-  std::map<int32_t, int32_t>& GetLabelMap() { return category_id_map_; }
+  std::map<int, int>& GetLabelMap() { return category_id_map_; }
 
-  std::vector<int32_t>& GetUniqueGroupIds() { return unique_category_ids_; }
+  std::vector<int>& GetUniqueGroupIds() { return unique_category_ids_; }
 
  private:
   // Vectors tracking indices in each node
   std::vector<data_size_t> category_begin_;
   std::vector<data_size_t> category_length_;
-  std::map<int32_t, int32_t> category_id_map_;
-  std::vector<int32_t> unique_category_ids_;
+  std::map<int, int> category_id_map_;
+  std::vector<int> unique_category_ids_;
   std::vector<std::vector<data_size_t>> node_index_vector_;
-  int32_t category_count_;
+  int category_count_;
 };
 
 }  // namespace StochTree
