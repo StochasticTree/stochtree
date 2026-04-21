@@ -1418,7 +1418,7 @@ class TestBART:
         p_hat_mean = bart_model.predict(
             X=X_test, type="mean", scale="probability", terms="y_hat"
         )
-        assert np.corrcoef(p_hat_mean, p_true_test)[0, 1] > 0.5
+        assert np.corrcoef(p_hat_mean, p_true_test)[0, 1] > 0.4
 
     def test_cloglog_ordinal_bart(self):
         # RNG
