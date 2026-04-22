@@ -2514,6 +2514,7 @@ py::dict bart_sample_cpp(
     int num_burnin,
     int keep_every,
     int num_mcmc,
+    int num_chains,
     py::dict config_input) {
   // Convert config dict to BARTConfig struct
   StochTree::BARTConfig bart_config = convert_dict_to_bart_config(config_input);
@@ -2528,8 +2529,12 @@ py::dict bart_sample_cpp(
   StochTree::BARTSampler bart_sampler(bart_results_raw, bart_config, bart_data);
 
   // Run the sampler
-  bart_sampler.run_gfr(bart_results_raw, num_gfr, bart_config.keep_gfr);
-  bart_sampler.run_mcmc(bart_results_raw, num_burnin, keep_every, num_mcmc);
+  bart_sampler.run_gfr(bart_results_raw, num_gfr, bart_config.keep_gfr, num_chains);
+  if (num_chains > 1) {
+    bart_sampler.run_mcmc_chains(bart_results_raw, num_chains, num_burnin, keep_every, num_mcmc);
+  } else {
+    bart_sampler.run_mcmc(bart_results_raw, num_burnin, keep_every, num_mcmc);
+  }
   bart_sampler.postprocess_samples(bart_results_raw);
 
   // Convert results to Python dictionary

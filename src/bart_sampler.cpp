@@ -445,8 +445,10 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
 void BARTSampler::run_mcmc_chains(BARTSamples& samples, int num_chains, int num_burnin, int keep_every, int num_mcmc) {
   for (int chain_idx = 0; chain_idx < num_chains; chain_idx++) {
     if (chain_idx > 0) {
-      // Re-initialize the sampler state for each new chain
-      RestoreStateFromGFRSnapshot(samples, chain_idx);
+      // Re-initialize the sampler state for each new chain.
+      // Snapshots are stored oldest-first; chain 2 gets the most recent snapshot
+      // (index num_chains-2), chain 3 the next-most-recent (num_chains-3), etc.
+      RestoreStateFromGFRSnapshot(samples, num_chains - 1 - chain_idx);
     }
     run_mcmc(samples, num_burnin, keep_every, num_mcmc);
   }

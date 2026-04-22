@@ -108,7 +108,7 @@ class BARTSampler {
     TreeEnsemble& forest;
     void operator()(GaussianConstantLeafModel& model) {
       sampler.mean_forest_->ReconstituteFromForest(forest);
-      sampler.mean_forest_tracker_->ReconstituteFromForest(*forest, *sampler.forest_dataset_, *sampler.residual_, true);
+      sampler.mean_forest_tracker_->ReconstituteFromForest(forest, *sampler.forest_dataset_, *sampler.residual_, true);
       sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
     }
     void operator()(GaussianUnivariateRegressionLeafModel& model) {
