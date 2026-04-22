@@ -1321,6 +1321,7 @@ class BARTModel:
                 num_burnin=num_burnin,
                 keep_every=keep_every,
                 num_mcmc=num_mcmc,
+                num_chains=num_chains,
                 config_input=bart_config,
             )
 

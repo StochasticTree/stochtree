@@ -2681,6 +2681,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("num_burnin"),
         py::arg("keep_every"),
         py::arg("num_mcmc"),
+        py::arg("num_chains"),
         py::arg("config_input"));
 
   py::class_<JsonCpp>(m, "JsonCpp")

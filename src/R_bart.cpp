@@ -272,6 +272,7 @@ cpp11::writable::list bart_sample_cpp(
     int num_burnin,
     int keep_every,
     int num_mcmc,
+    int num_chains,
     cpp11::list config_input) {
   // Create outcome object
   StochTree::BARTSamples results_raw = StochTree::BARTSamples();
@@ -318,8 +319,12 @@ cpp11::writable::list bart_sample_cpp(
   StochTree::BARTSampler bart_sampler(results_raw, config, data);
 
   // Run the sampler
-  bart_sampler.run_gfr(results_raw, num_gfr, config.keep_gfr);
-  bart_sampler.run_mcmc(results_raw, num_burnin, keep_every, num_mcmc);
+  bart_sampler.run_gfr(results_raw, num_gfr, config.keep_gfr, num_chains);
+  if (num_chains > 1) {
+    bart_sampler.run_mcmc_chains(results_raw, num_chains, num_burnin, keep_every, num_mcmc);
+  } else {
+    bart_sampler.run_mcmc(results_raw, num_burnin, keep_every, num_mcmc);
+  }
   bart_sampler.postprocess_samples(results_raw);
 
   // Unprotect protected R objects

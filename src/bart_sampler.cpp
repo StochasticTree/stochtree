@@ -400,13 +400,18 @@ void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr, int 
     }
   }
 
-  int snapshot_start = (num_chains > 0) ? std::max(0, num_gfr - num_chains) : num_gfr;
-  gfr_snapshots_.clear();
-  if (num_chains > 0) gfr_snapshots_.reserve(num_chains);
+  // NOTE: for serial sampling (which is all we currently support), we can use the current BARTSampler state to
+  // initialize the first MCMC chain, so we only need to keep GFR snapshots for the number of chains minus one
+  // (the first chain uses the final GFR state). If num_chains is 1, we keep no snapshots.
+  int snapshot_start = (num_chains > 1) ? std::max(0, num_gfr - (num_chains - 1)) : num_gfr;
+  if (num_chains > 1) {
+    gfr_snapshots_.clear();
+    gfr_snapshots_.reserve(num_chains - 1);
+  }
 
   bool write_snapshot = false;
   for (int i = 0; i < num_gfr; i++) {
-    if (i >= snapshot_start) write_snapshot = true;
+    write_snapshot = (i >= snapshot_start);
     RunOneIteration(samples, /*gfr=*/true, /*keep_sample=*/keep_gfr, /*write_snapshot=*/write_snapshot);
   }
 }
@@ -434,6 +439,16 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
     else
       keep_forest = false;
     RunOneIteration(samples, /*gfr=*/false, /*keep_sample=*/keep_forest, /*write_snapshot=*/false);
+  }
+}
+
+void BARTSampler::run_mcmc_chains(BARTSamples& samples, int num_chains, int num_burnin, int keep_every, int num_mcmc) {
+  for (int chain_idx = 0; chain_idx < num_chains; chain_idx++) {
+    if (chain_idx > 0) {
+      // Re-initialize the sampler state for each new chain
+      RestoreStateFromGFRSnapshot(samples, chain_idx);
+    }
+    run_mcmc(samples, num_burnin, keep_every, num_mcmc);
   }
 }
 
@@ -682,7 +697,7 @@ void BARTSampler::RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot
     }
     // Restore log-scale cutpoints
     for (int i = 0; i < config_.num_classes_cloglog - 1; i++) {
-      forest_dataset_->SetAuxiliaryDataValue(2, i, snap.cloglog_log_scale_cutpoints[i]);
+      forest_dataset_->SetAuxiliaryDataValue(2, i, snap.cloglog_logscale_cutpoints[i]);
     }
     // Convert to cumulative exponentiated cutpoints directly in C++
     ordinal_sampler_->UpdateCumulativeExpSums(*forest_dataset_);

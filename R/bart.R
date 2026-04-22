@@ -1335,6 +1335,7 @@ bart <- function(
       num_burnin = as.integer(num_burnin),
       keep_every = as.integer(keep_every),
       num_mcmc = as.integer(num_mcmc),
+      num_chains = as.integer(num_chains),
       config_input = bart_config
     )
     result <- list()
