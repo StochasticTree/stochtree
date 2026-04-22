@@ -101,6 +101,27 @@ class BARTSampler {
     }
   };
 
+  /*! Initialization visitor */
+  struct MeanForestResetVisitor {
+    BARTSampler& sampler;
+    BARTSamples& samples;
+    TreeEnsemble& forest;
+    void operator()(GaussianConstantLeafModel& model) {
+      sampler.mean_forest_->ReconstituteFromForest(forest);
+      sampler.mean_forest_tracker_->ReconstituteFromForest(*forest, *sampler.forest_dataset_, *sampler.residual_, true);
+      sampler.mean_forest_tracker_->UpdatePredictions(sampler.mean_forest_.get(), *sampler.forest_dataset_.get());
+    }
+    void operator()(GaussianUnivariateRegressionLeafModel& model) {
+      // TODO
+    }
+    void operator()(GaussianMultivariateRegressionLeafModel& model) {
+      // TODO
+    }
+    void operator()(CloglogOrdinalLeafModel& model) {
+      // TODO
+    }
+  };
+
   /*! GFR iteration visitor */
   struct GFROneIterationVisitor {
     BARTSampler& sampler;

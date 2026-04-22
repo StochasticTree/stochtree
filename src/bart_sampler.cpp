@@ -617,9 +617,9 @@ void BARTSampler::RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot
   // Restore residual from snapshot; this is used for initializing the variance forest state and must be done before initializing the variance forest tracker
   residual_->OverwriteData(snap.residual.data(), data_.n_train);
 
-  // Initialize mean forest state (if present)
+  // Restore mean forest state (if present)
   if (config_.num_trees_mean > 0) {
-    std::visit(MeanForestInitVisitor{*this, samples}, mean_leaf_model_);
+    std::visit(MeanForestResetVisitor{*this, samples, *snap.mean_forest}, mean_leaf_model_);
   }
 
   // Initialize variance forest state (if present)
