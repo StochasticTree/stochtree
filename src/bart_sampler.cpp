@@ -631,10 +631,10 @@ void BARTSampler::RunOneIteration(BARTSamples& samples, bool gfr, bool keep_samp
 void BARTSampler::RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot_index) {
   GFRSnapshot& snap = gfr_snapshots_[snapshot_index];
 
-  // Restore residual from snapshot; this is used for initializing the variance forest state and must be done before initializing the variance forest tracker
-  residual_->OverwriteData(snap.residual.data(), data_.n_train);
-
-  // Restore mean forest state (if present)
+  // Restore mean forest state (if present).
+  // ReconstituteFromForest increments the residual by (prev_tree_pred - new_tree_pred) for
+  // every tree, swapping the chain-N forest contribution out and the GFR-snapshot contribution
+  // in.  The residual must still hold the chain-N state here so that this swap is correct.
   if (config_.num_trees_mean > 0) {
     std::visit(MeanForestResetVisitor{*this, samples, *snap.mean_forest}, mean_leaf_model_);
   }
@@ -682,8 +682,11 @@ void BARTSampler::RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot
     random_effects_model_->SetVariancePriorShape(snap.rfx_variance_prior_shape);
     random_effects_model_->SetVariancePriorScale(snap.rfx_variance_prior_scale);
 
-    // Set has_random_effects_ flag to true so that the sampler will perform random effects updates at each iteration
-    has_random_effects_ = true;
+    // Swap the chain-N RFX contribution out of the residual and the GFR-snapshot
+    // contribution in, exactly as the R sampler does via resetRandomEffectsTracker.
+    // At this point residual_ = y - f_gfr - rfx_chain_N (forest already swapped above),
+    // so ResetFromSample produces: residual_ += rfx_chain_N - rfx_gfr = y - f_gfr - rfx_gfr.
+    random_effects_tracker_->ResetFromSample(*random_effects_model_, *random_effects_dataset_, *residual_);
   }
 
   // Cloglog state
