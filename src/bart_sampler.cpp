@@ -400,10 +400,15 @@ void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr, int 
     }
   }
 
-  // NOTE: for serial sampling (which is all we currently support), we can use the current BARTSampler state to
-  // initialize the first MCMC chain, so we only need to keep GFR snapshots for the number of chains minus one
-  // (the first chain uses the final GFR state). If num_chains is 1, we keep no snapshots.
-  int snapshot_start = (num_chains > 1) ? std::max(0, num_gfr - (num_chains - 1)) : num_gfr;
+  // NOTE: for serial sampling (which is all we currently support), chain 1 uses the live sampler state after
+  // the GFR loop (i.e. the state after GFR iteration num_gfr-1). Chains 2..N each need their own earlier
+  // GFR starting point so that the chains are initialized from distinct states.
+  // We save exactly num_chains-1 snapshots, one per "extra" chain:
+  //   gfr_snapshots_[k] = state after GFR iteration (num_gfr - num_chains + k), for k = 0..num_chains-2.
+  // The last GFR iteration (i = num_gfr-1) is NOT snapshotted because chain 1 uses the live state.
+  // Chain j (1-indexed, j >= 2) uses gfr_snapshots_[num_chains-j] = state after GFR[num_gfr-j].
+  // If num_chains is 1, we keep no snapshots.
+  int snapshot_start = (num_chains > 1) ? std::max(0, num_gfr - num_chains) : num_gfr;
   if (num_chains > 1) {
     gfr_snapshots_.clear();
     gfr_snapshots_.reserve(num_chains - 1);
@@ -411,7 +416,8 @@ void BARTSampler::run_gfr(BARTSamples& samples, int num_gfr, bool keep_gfr, int 
 
   bool write_snapshot = false;
   for (int i = 0; i < num_gfr; i++) {
-    write_snapshot = (i >= snapshot_start);
+    // Do not snapshot the final GFR iteration: chain 1 uses the live sampler state directly.
+    write_snapshot = (i >= snapshot_start) && (i < num_gfr - 1);
     RunOneIteration(samples, /*gfr=*/true, /*keep_sample=*/keep_gfr, /*write_snapshot=*/write_snapshot);
   }
 }
@@ -444,11 +450,16 @@ void BARTSampler::run_mcmc(BARTSamples& samples, int num_burnin, int keep_every,
 
 void BARTSampler::run_mcmc_chains(BARTSamples& samples, int num_chains, int num_burnin, int keep_every, int num_mcmc) {
   for (int chain_idx = 0; chain_idx < num_chains; chain_idx++) {
-    if (chain_idx > 0) {
+    if (chain_idx > 0 && !gfr_snapshots_.empty()) {
       // Re-initialize the sampler state for each new chain.
-      // Snapshots are stored oldest-first; chain 2 gets the most recent snapshot
-      // (index num_chains-2), chain 3 the next-most-recent (num_chains-3), etc.
-      RestoreStateFromGFRSnapshot(samples, num_chains - 1 - chain_idx);
+      // gfr_snapshots_ holds num_chains-1 states (oldest-first): index 0 = GFR[num_gfr-num_chains],
+      // index num_chains-2 = GFR[num_gfr-2].  Chain j (1-indexed, j>=2) uses index num_chains-j.
+      // When num_gfr < num_chains we may not have enough distinct snapshots; in that case
+      // fall back to running chains from whatever state is available (same behavior as R).
+      int snapshot_idx = num_chains - 1 - chain_idx;
+      if (snapshot_idx >= 0 && snapshot_idx < static_cast<int>(gfr_snapshots_.size())) {
+        RestoreStateFromGFRSnapshot(samples, snapshot_idx);
+      }
     }
     run_mcmc(samples, num_burnin, keep_every, num_mcmc);
   }
@@ -706,6 +717,9 @@ void BARTSampler::RestoreStateFromGFRSnapshot(BARTSamples& samples, int snapshot
     }
     // Convert to cumulative exponentiated cutpoints directly in C++
     ordinal_sampler_->UpdateCumulativeExpSums(*forest_dataset_);
+    // For cloglog, residual_ holds raw y values (not y - f(X)), so the incremental
+    // tree-prediction swap in ReconstituteFromForest is wrong.  Restore from snapshot.
+    residual_->OverwriteData(snap.residual.data(), data_.n_train);
   }
 
   // Other internal model state
