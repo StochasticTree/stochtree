@@ -12,9 +12,15 @@ Usage:
     python debug/benchmark_cpp_vs_py_sampler_multivariate_leaf_regression.py
 """
 
+import argparse
 import time
 import numpy as np
 from stochtree import BARTModel
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--num-chains", type=int, default=1)
+args = parser.parse_args()
+num_chains = args.num_chains
 
 # ---------------------------------------------------------------------------
 # Data-generating process
@@ -75,7 +81,7 @@ sigma2_leaf_init = np.array([[0.5, 0.0], [0.0, 0.5]])
 print(
     f"n_train={n_train}  n_test={n_test}  p={p}  basis_dim=2\n"
     f"num_trees={num_trees}  num_gfr={num_gfr}  num_burnin={num_burnin}  "
-    f"num_mcmc={num_mcmc}  reps={n_reps}\n"
+    f"num_mcmc={num_mcmc}  num_chains={num_chains}  reps={n_reps}\n"
 )
 
 # ---------------------------------------------------------------------------
@@ -93,7 +99,7 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         num_gfr=num_gfr,
         num_burnin=num_burnin,
         num_mcmc=num_mcmc,
-        general_params={"random_seed": seed},
+        general_params={"random_seed": seed, "num_chains": num_chains},
         mean_forest_params={
             "num_trees": num_trees,
             "sigma2_leaf_init": sigma2_leaf_init,

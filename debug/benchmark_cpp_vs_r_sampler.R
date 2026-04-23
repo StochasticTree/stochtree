@@ -5,6 +5,13 @@
 ##        or source() from an interactive session after devtools::load_all('.')
 library(stochtree)
 
+args <- commandArgs(trailingOnly = TRUE)
+num_chains <- 1L
+idx <- grep("^--num-chains=", args)
+if (length(idx)) {
+  num_chains <- as.integer(sub("^--num-chains=", "", args[idx[1]]))
+}
+
 # ---------------------------------------------------------------------------
 # Data-generating process
 # ---------------------------------------------------------------------------
@@ -42,13 +49,14 @@ num_trees <- 200
 n_reps <- 3 # repeated runs for stable timing
 
 cat(sprintf(
-  "n_train=%d  n_test=%d  p=%d  num_trees=%d  num_gfr=%d  num_mcmc=%d  reps=%d\n\n",
+  "n_train=%d  n_test=%d  p=%d  num_trees=%d  num_gfr=%d  num_mcmc=%d  num_chains=%d  reps=%d\n\n",
   n_train,
   n_test,
   p,
   num_trees,
   num_gfr,
   num_mcmc,
+  num_chains,
   n_reps
 ))
 
@@ -65,7 +73,7 @@ run_once <- function(run_cpp, num_gfr, num_mcmc, seed = -1) {
     num_burnin = 0,
     num_mcmc = num_mcmc,
     mean_forest_params = list(num_trees = num_trees),
-    general_params = list(random_seed = seed),
+    general_params = list(random_seed = seed, num_chains = num_chains),
     run_cpp = run_cpp
   )
   elapsed <- (proc.time() - t0)[["elapsed"]]

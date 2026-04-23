@@ -18,6 +18,13 @@
 
 library(stochtree)
 
+args <- commandArgs(trailingOnly = TRUE)
+num_chains <- 1L
+idx <- grep("^--num-chains=", args)
+if (length(idx)) {
+  num_chains <- as.integer(sub("^--num-chains=", "", args[idx[1]]))
+}
+
 # ---------------------------------------------------------------------------
 # Data-generating process
 # ---------------------------------------------------------------------------
@@ -67,7 +74,7 @@ num_trees_variance <- 50
 n_reps <- 3
 
 cat(sprintf(
-  "n_train=%d  n_test=%d  p=%d  num_trees_mean=%d  num_trees_variance=%d  num_gfr=%d  num_burnin=%d  num_mcmc=%d  reps=%d\n\n",
+  "n_train=%d  n_test=%d  p=%d  num_trees_mean=%d  num_trees_variance=%d  num_gfr=%d  num_burnin=%d  num_mcmc=%d  num_chains=%d  reps=%d\n\n",
   n_train,
   n_test,
   p,
@@ -76,6 +83,7 @@ cat(sprintf(
   num_gfr,
   num_burnin,
   num_mcmc,
+  num_chains,
   n_reps
 ))
 
@@ -91,7 +99,7 @@ run_once <- function(run_cpp, seed) {
     num_gfr = num_gfr,
     num_burnin = num_burnin,
     num_mcmc = num_mcmc,
-    general_params = list(random_seed = seed, sample_sigma2_global = FALSE),
+    general_params = list(random_seed = seed, sample_sigma2_global = FALSE, num_chains = num_chains),
     mean_forest_params = list(num_trees = num_trees_mean),
     variance_forest_params = list(num_trees = num_trees_variance),
     run_cpp = run_cpp

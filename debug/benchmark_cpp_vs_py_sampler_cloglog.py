@@ -13,9 +13,15 @@ Usage:
     python debug/benchmark_cpp_vs_py_sampler_cloglog.py
 """
 
+import argparse
 import time
 import numpy as np
 from stochtree import BARTModel, OutcomeModel
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--num-chains", type=int, default=1)
+args = parser.parse_args()
+num_chains = args.num_chains
 
 # ---------------------------------------------------------------------------
 # Data-generating process
@@ -59,7 +65,7 @@ n_reps     = 3
 print(
     f"n_train={n_train}  n_test={n_test}  p={p}  "
     f"num_trees={num_trees}  num_gfr={num_gfr}  num_burnin={num_burnin}  "
-    f"num_mcmc={num_mcmc}  reps={n_reps}\n"
+    f"num_mcmc={num_mcmc}  num_chains={num_chains}  reps={n_reps}\n"
 )
 
 # ---------------------------------------------------------------------------
@@ -80,6 +86,7 @@ def run_once(run_cpp: bool, seed: int) -> dict:
             "random_seed": seed,
             "outcome_model": OutcomeModel(outcome="binary", link="cloglog"),
             "sample_sigma2_global": False,
+            "num_chains": num_chains,
         },
         run_cpp=run_cpp,
     )
