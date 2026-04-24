@@ -13,26 +13,6 @@
 
 namespace StochTree {
 
-enum class LinkFunction {
-  Identity,
-  Probit,
-  Cloglog
-};
-
-enum class OutcomeType {
-  Continuous,
-  Binary,
-  Ordinal
-};
-
-enum class MeanLeafModelType {
-  GaussianConstant,
-  GaussianUnivariateRegression,
-  GaussianMultivariateRegression,
-  LogLinearVariance,
-  CloglogOrdinal
-};
-
 enum class BARTRFXModelSpec {
   Custom,
   InterceptOnly

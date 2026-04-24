@@ -207,11 +207,11 @@ class TreeEnsemble {
     return output;
   }
 
-  std::vector<double> PredictRaw(ForestDataset& dataset) {
+  std::vector<double> PredictRaw(ForestDataset& dataset, bool row_major = true) {
     data_size_t n = dataset.NumObservations();
     data_size_t total_output_size = n * output_dimension_;
     std::vector<double> output(total_output_size);
-    PredictRawInplace(dataset, output, 0);
+    PredictRawInplace(dataset, output, 0, trees_.size(), 0, row_major);
     return output;
   }
 
@@ -285,12 +285,12 @@ class TreeEnsemble {
     }
   }
 
-  inline void PredictRawInplace(ForestDataset& dataset, std::vector<double>& output, data_size_t offset = 0) {
-    PredictRawInplace(dataset, output, 0, trees_.size(), offset);
+  inline void PredictRawInplace(ForestDataset& dataset, std::vector<double>& output, data_size_t offset = 0, bool row_major = true) {
+    PredictRawInplace(dataset, output, 0, trees_.size(), offset, row_major);
   }
 
   inline void PredictRawInplace(ForestDataset& dataset, std::vector<double>& output,
-                                int tree_begin, int tree_end, data_size_t offset = 0) {
+                                int tree_begin, int tree_end, data_size_t offset = 0, bool row_major = true) {
     double pred;
     Eigen::MatrixXd covariates = dataset.GetCovariates();
     CHECK_EQ(output_dimension_, trees_[0]->OutputDimension());
@@ -307,7 +307,11 @@ class TreeEnsemble {
           int32_t nidx = EvaluateTree(tree, covariates, i);
           pred += tree.LeafValue(nidx, k);
         }
-        output[i * output_dimension_ + k + offset] = pred;
+        if (row_major) {
+          output[i * output_dimension_ + k + offset] = pred;
+        } else {
+          output[k * n + i + offset] = pred;
+        }
       }
     }
   }

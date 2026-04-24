@@ -51,6 +51,7 @@ class RandomEffectsTracker {
   std::vector<int>& GetUniqueGroupIds() { return category_sample_tracker_->GetUniqueGroupIds(); }
   std::vector<data_size_t>& NodeIndices(int category_id) { return category_sample_tracker_->NodeIndices(category_id); }
   std::vector<data_size_t>& NodeIndicesInternalIndex(int internal_category_id) { return category_sample_tracker_->NodeIndicesInternalIndex(internal_category_id); }
+  double* GetPredictions() { return rfx_predictions_.data(); }
   double GetPrediction(data_size_t observation_num) { return rfx_predictions_.at(observation_num); }
   void SetPrediction(data_size_t observation_num, double pred) { rfx_predictions_.at(observation_num) = pred; }
   /*! \brief Resets RFX tracker based on a specific sample. Assumes tracker already exists in main memory. */

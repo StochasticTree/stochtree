@@ -32,6 +32,26 @@
 
 namespace StochTree {
 
+enum class LinkFunction {
+  Identity,
+  Probit,
+  Cloglog
+};
+
+enum class OutcomeType {
+  Continuous,
+  Binary,
+  Ordinal
+};
+
+enum class MeanLeafModelType {
+  GaussianConstant,
+  GaussianUnivariateRegression,
+  GaussianMultivariateRegression,
+  LogLinearVariance,
+  CloglogOrdinal
+};
+
 /*! \brief Integer encoding of feature types */
 enum FeatureType {
   kNumeric,             /*!< Numeric feature */
