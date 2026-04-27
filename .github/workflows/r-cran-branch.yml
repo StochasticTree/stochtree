@@ -38,7 +38,7 @@ jobs:
           Rscript cran-bootstrap.R 0 0 1
       
       - name: Deploy to CRAN dev branch
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && (github.event_name != 'release' || !github.event.release.prerelease)
         uses: JamesIves/github-pages-deploy-action@v4.5.0
         with:
           clean: true
@@ -46,7 +46,7 @@ jobs:
           folder: stochtree_cran
 
       - name: Tag r-dev branch at release version
-        if: github.event_name == 'release'
+        if: github.event_name == 'release' && !github.event.release.prerelease
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           git fetch origin r-dev

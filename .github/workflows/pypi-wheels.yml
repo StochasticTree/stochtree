@@ -16,6 +16,7 @@ on:
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
+    if: github.event_name != 'release' || !github.event.release.prerelease
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

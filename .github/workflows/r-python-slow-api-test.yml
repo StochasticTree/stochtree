@@ -1,13 +1,14 @@
 on:
   workflow_dispatch:
   release:
-    types: [prereleased]
+    types: [published]
 
 name: Unit Tests and Slow Running API Integration Tests for R and Python
 
 jobs:
   testing:
     name: test-slow-api-combinations
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease
     runs-on: ${{ matrix.os }}
 
     strategy:

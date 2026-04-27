@@ -1,12 +1,13 @@
 on:
   workflow_dispatch:
   release:
-    types: [prereleased]
+    types: [published]
 
 name: R CMD check with R-hub valgrind container
 
 jobs:
   check:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/r-hub/containers/valgrind:latest

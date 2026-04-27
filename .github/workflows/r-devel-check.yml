@@ -3,13 +3,14 @@
 on:
   workflow_dispatch:
   release:
-    types: [prereleased]
+    types: [published]
 
 name: R Devel CRAN Checks and Unit Tests
 
 jobs:
   testing:
     name: test-r
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease
     runs-on: ${{ matrix.os }}
     
     strategy:
