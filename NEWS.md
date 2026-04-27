@@ -22,13 +22,11 @@
 
 # stochtree 0.4.1
 
-## New Features
-
-## Bug Fixes
-
 ## Documentation and Other Maintenance
 
 * Converted all R man page titles to title case [#310](https://github.com/StochasticTree/stochtree/pull/310)
+* Updated Python `summary()` methods to print directly to console rather than return a summary string [#310](https://github.com/StochasticTree/stochtree/pull/310)
+* Updated vendored pybind11 dependency to version 3.0.2 [#310](https://github.com/StochasticTree/stochtree/pull/310)
 
 # stochtree 0.4.0
 
@@ -73,6 +71,7 @@
 ## New Features
 
 * Added `print`, `summary`, `plot`, and `extract_parameter` generic functions in R for the `bartmodel` and `bcfmodel` classes ([#271](https://github.com/StochasticTree/stochtree/pull/271))
+* Added sklearn-compatible estimator wrapper for `BARTModel` in Python ([#270](https://github.com/StochasticTree/stochtree/pull/270))
 
 ## Bug Fixes
 
