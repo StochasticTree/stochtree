@@ -21,6 +21,7 @@ See [RELEASING.md](../../RELEASING.md) for detailed instructions on each step.
 
 ## Pre-release and testing
 
+- [ ] Release notes drafted using template in `RELEASING.md` (installation instructions + NEWS.md section)
 - [ ] GitHub draft release created (tag: `vx.y.z`, target: `main`)
 - [ ] Draft published as pre-release → automated test suite fires
 - [ ] `r-python-slow-api-test` passed (all 3 OSes)

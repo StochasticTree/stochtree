@@ -41,6 +41,34 @@ This document describes the end-to-end process for releasing a new version of st
 
 ---
 
+## Release notes template
+
+Copy this into the GitHub release body (or into a `release_notes.md` file to use with `gh release create --notes-file`). Replace `x.y.z` throughout and paste the matching section from `NEWS.md` under Changes.
+
+````markdown
+## Installation
+
+**Python:**
+```
+pip install stochtree==x.y.z
+```
+
+**R (CRAN):** `install.packages("stochtree")` *(pending CRAN review)*
+**R (GitHub, immediate):** `remotes::install_github("StochasticTree/stochtree@r-x.y.z")`
+
+## Changes
+
+<!-- paste the stochtree x.y.z section from NEWS.md here -->
+````
+
+To create the draft from the command line instead of the GitHub UI:
+
+```bash
+gh release create vx.y.z --title "stochtree x.y.z" --notes-file release_notes.md --draft
+```
+
+---
+
 ## GitHub release states and what they trigger
 
 stochtree uses GitHub's three-stage release flow:
