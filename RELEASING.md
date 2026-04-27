@@ -67,6 +67,17 @@ To create the draft from the command line instead of the GitHub UI:
 gh release create vx.y.z --title "stochtree x.y.z" --notes-file release_notes.md --draft
 ```
 
+## Updating a pre-release
+
+If pre-release workflows trigger integration test failures or serious performance regressions that require updating code, the cleanest way to "update" the release candidate is to delete the published pre-release (and its associated tag), either in the github UI or via CLI
+
+```
+gh release delete v0.4.2 --repo StochasticTree/stochtree
+git push origin --delete v0.4.2
+```
+
+Then you can start a new draft and pre-release it as above
+
 ---
 
 ## GitHub release states and what they trigger
