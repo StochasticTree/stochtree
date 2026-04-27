@@ -1,5 +1,7 @@
 on:
   workflow_dispatch:
+  release:
+    types: [prereleased]
 
 name: Running stochtree on benchmark datasets
 

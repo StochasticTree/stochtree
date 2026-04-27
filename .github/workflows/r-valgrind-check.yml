@@ -1,5 +1,7 @@
 on:
   workflow_dispatch:
+  release:
+    types: [prereleased]
 
 name: R CMD check with R-hub valgrind container
 

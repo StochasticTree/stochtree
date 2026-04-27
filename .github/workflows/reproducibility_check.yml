@@ -1,5 +1,7 @@
 on:
   workflow_dispatch:
+  release:
+    types: [prereleased]
 
 name: Checking cross-platform reproducibility of stochtree
 
