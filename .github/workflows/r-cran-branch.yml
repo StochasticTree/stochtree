@@ -44,3 +44,11 @@ jobs:
           clean: true
           branch: r-dev
           folder: stochtree_cran
+
+      - name: Tag r-dev branch at release version
+        if: github.event_name == 'release'
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          git fetch origin r-dev
+          git tag r-${VERSION} origin/r-dev
+          git push origin r-${VERSION}

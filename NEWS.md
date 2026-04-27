@@ -1,4 +1,4 @@
-# stochtree 0.4.1.9000
+# stochtree 0.4.2.9000
 
 ## New Features
 
@@ -7,6 +7,7 @@
 
 ## Bug Fixes
 
+* Include boost headers in `sdist` for Python package [#362](https://github.com/StochasticTree/stochtree/pull/362)
 * Fixed prediction bug for cloglog BART in R [#361](https://github.com/StochasticTree/stochtree/pull/361)
 * Fixed assignment bug in RFX category tracker data structure [#360](https://github.com/StochasticTree/stochtree/pull/360)
 * Fixed prediction bugs in binary classification sklearn wrapper [#359](https://github.com/StochasticTree/stochtree/pull/359)
@@ -20,15 +21,15 @@
 
 ## Documentation and Other Maintenance
 
+* Add support for python 3.14 and drop 3.8 and 3.9 [#363](https://github.com/StochasticTree/stochtree/pull/363)
+
 # stochtree 0.4.1
-
-## New Features
-
-## Bug Fixes
 
 ## Documentation and Other Maintenance
 
 * Converted all R man page titles to title case [#310](https://github.com/StochasticTree/stochtree/pull/310)
+* Updated Python `summary()` methods to print directly to console rather than return a summary string [#310](https://github.com/StochasticTree/stochtree/pull/310)
+* Updated vendored pybind11 dependency to version 3.0.2 [#310](https://github.com/StochasticTree/stochtree/pull/310)
 
 # stochtree 0.4.0
 
@@ -73,6 +74,7 @@
 ## New Features
 
 * Added `print`, `summary`, `plot`, and `extract_parameter` generic functions in R for the `bartmodel` and `bcfmodel` classes ([#271](https://github.com/StochasticTree/stochtree/pull/271))
+* Added sklearn-compatible estimator wrapper for `BARTModel` in Python ([#270](https://github.com/StochasticTree/stochtree/pull/270))
 
 ## Bug Fixes
 

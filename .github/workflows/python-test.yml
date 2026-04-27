@@ -46,3 +46,37 @@ jobs:
     - name: Run Pytest
       run: |
         pytest test/python
+
+  # Builds the sdist (as uploaded to PyPI) and installs from it in a clean
+  # environment, verifying that MANIFEST.in includes all files needed for
+  # a source build. Catches packaging gaps that a direct checkout install
+  # would not (e.g. missing C++ dependency headers or python build files).
+  sdist:
+    name: sdist-build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: Setup Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: "pip"
+
+    - name: Build sdist
+      run: |
+        pip install build
+        python -m build --sdist
+
+    - name: Install from sdist
+      run: |
+        pip install -r requirements.txt
+        pip install dist/*.tar.gz
+
+    - name: Run Pytest
+      run: |
+        pytest test/python

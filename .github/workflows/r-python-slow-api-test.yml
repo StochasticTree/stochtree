@@ -1,5 +1,7 @@
 on:
   workflow_dispatch:
+  release:
+    types: [prereleased]
 
 name: Unit Tests and Slow Running API Integration Tests for R and Python
 
