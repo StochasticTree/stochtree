@@ -7,7 +7,7 @@ assignees: ''
 
 ---
 
-See [RELEASING.md](../../RELEASING.md) for detailed instructions on each step.
+See [RELEASING.md](https://github.com/StochasticTree/stochtree/blob/main/RELEASING.md) for detailed instructions on each step.
 
 ## Preparation
 
