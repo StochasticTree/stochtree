@@ -7,6 +7,7 @@
 
 ## Bug Fixes
 
+* Include boost headers in `sdist` for Python package [#362](https://github.com/StochasticTree/stochtree/pull/362)
 * Fixed prediction bug for cloglog BART in R [#361](https://github.com/StochasticTree/stochtree/pull/361)
 * Fixed assignment bug in RFX category tracker data structure [#360](https://github.com/StochasticTree/stochtree/pull/360)
 * Fixed prediction bugs in binary classification sklearn wrapper [#359](https://github.com/StochasticTree/stochtree/pull/359)
@@ -19,6 +20,8 @@
 * Convert binary factor-valued treatments to 0/1 binary numeric treatment in `bcf()` R function [#332](https://github.com/StochasticTree/stochtree/pull/332)
 
 ## Documentation and Other Maintenance
+
+* Add support for python 3.14 and drop 3.8 and 3.9 [#363](https://github.com/StochasticTree/stochtree/pull/363)
 
 # stochtree 0.4.1
 
