@@ -58,7 +58,7 @@ Draft  →  Pre-release  →  Full release
 
 Create a draft to write the release description and tag without triggering anything. The release is not public at this stage.
 
-**How:** Releases → "Draft a new release" → fill in tag (e.g. `v0.4.1`), target (`main`), title, description → click **"Save draft"**.
+**How:** Releases → "Draft a new release" → fill in tag (e.g. `v0.4.2`), target (`main`), title, description → click **"Save draft"**.
 
 ### Pre-release
 
@@ -94,7 +94,7 @@ After the full release is published and `r-dev` has been updated, submit the R p
 Rscript cran-bootstrap.R 0 0 1   # generates stochtree_cran/
 cd stochtree_cran
 R CMD build .
-R CMD check --as-cran stochtree_0.4.1.tar.gz
+R CMD check --as-cran stochtree_0.4.2.tar.gz
 # If checks pass:
 devtools::submit_cran()           # or use https://cran.r-project.org/submit.html
 ```
