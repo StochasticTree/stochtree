@@ -1,13 +1,14 @@
 on:
   workflow_dispatch:
   release:
-    types: [prereleased]
+    types: [published]
 
 name: Running stochtree on benchmark datasets
 
 jobs:
   stochtree_r:
     name: stochtree-r-bart-regression-test
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease
     runs-on: ubuntu-latest
     
     steps:
