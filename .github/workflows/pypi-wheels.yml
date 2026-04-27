@@ -51,7 +51,8 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.4.0
         env:
-          CIBW_SKIP: "pp* *-musllinux_* *-win32"
+          CIBW_SKIP: "pp* *-musllinux_* *-win32 cp38-* cp39-*"
+          CIBW_PRERELEASE_PYTHONS: "1"
           CIBW_ARCHS: ${{ matrix.cibw_archs }}
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
 
