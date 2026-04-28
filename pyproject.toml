@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stochtree"
-version = "0.4.2"
+version = "0.4.3-dev"
 dependencies = [
     "matplotlib",
     "numpy",
