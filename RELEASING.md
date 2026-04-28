@@ -49,12 +49,15 @@ Copy this into the GitHub release body (or into a `release_notes.md` file to use
 ## Installation
 
 **Python:**
+
 ```
 pip install stochtree==x.y.z
 ```
 
-**R (CRAN):** `install.packages("stochtree")` *(pending CRAN review)*
-**R (GitHub, immediate):** `remotes::install_github("StochasticTree/stochtree@r-x.y.z")`
+**R:**
+
+**CRAN:** `install.packages("stochtree")` *(pending CRAN review)*
+**GitHub, immediate:** `remotes::install_github("StochasticTree/stochtree@r-x.y.z")`
 
 ## Changes
 
@@ -64,7 +67,7 @@ pip install stochtree==x.y.z
 To create the draft from the command line instead of the GitHub UI:
 
 ```bash
-gh release create vx.y.z --title "stochtree x.y.z" --notes-file release_notes.md --draft
+gh release create vx.y.z --title "stochtree x.y.z" --target main --notes-file release_notes.md --prerelease --draft
 ```
 
 ## Updating a pre-release
@@ -77,6 +80,28 @@ git push origin --delete v0.4.2
 ```
 
 Then you can start a new draft and pre-release it as above
+
+## Updating a full release (minor fixes after promotion)
+
+For small fixes (doc corrections, man page updates, typos) discovered after promoting to a full release, delete-and-recreate is overkill. Instead, merge the fix to `main` and force-move the tag:
+
+```bash
+# After merging the fix to main
+git fetch origin
+git tag -f vx.y.z origin/main
+git push --force origin vx.y.z
+```
+
+The GitHub release automatically follows the tag — no UI edits needed.
+
+Because the `published`/`released` events already fired, the packaging workflows won't re-run automatically. Re-dispatch them manually:
+
+```bash
+gh workflow run pypi-wheels.yml --repo StochasticTree/stochtree
+gh workflow run r-cran-branch.yml --repo StochasticTree/stochtree
+```
+
+Or use **Actions → [workflow name] → Run workflow** in the GitHub UI.
 
 ---
 
