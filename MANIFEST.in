@@ -8,13 +8,17 @@ recursive-include include *.hpp
 # Vendor package source files (excluding R-specific)
 recursive-include src *.cpp
 recursive-include src *.h
-exclude src/cpp11.cpp src/forest.cpp src/kernel.cpp src/R_data.cpp src/R_random_effects.cpp src/sampler.cpp src/serialization.cpp src/stochtree_types.h
+exclude src/cpp11.cpp src/forest.cpp src/kernel.cpp src/R_data.cpp src/R_random_effects.cpp src/R_utils.cpp src/sampler.cpp src/serialization.cpp src/stochtree_types.h
 
 # Remove the CRAN extensionless LICENSE file
 exclude LICENSE
 
 # Remove egg info
 prune stochtree.egg-info
+
+# Vendor boost_math header files in PyPI source distribution
+recursive-include deps/boost_math/include *.hpp
+recursive-include deps/boost_math/include *.h
 
 # Vendor pybind11 dependencies in PyPI source distribution
 recursive-include deps/pybind11/include/pybind11 *.h

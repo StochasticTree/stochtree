@@ -22,6 +22,7 @@ stochtree_cran
 *.trace
 .cache/clangd/
 *.claude
+*release_notes.md
 
 ## R gitignore
 
