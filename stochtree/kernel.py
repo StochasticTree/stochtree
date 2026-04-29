@@ -22,7 +22,7 @@ def compute_forest_leaf_indices(
     """
     Compute and return a vector representation of a forest's leaf predictions for every observation in a dataset.
 
-    The vector has a "row-major" format that can be easily re-represented as as a CSR sparse matrix: elements are organized so that the first `n` elements
+    The vector has a "tree-major" format that can be easily re-represented as as a CSR sparse matrix: elements are organized so that the first `n` elements
     correspond to leaf predictions for all `n` observations in a dataset for the first tree in an ensemble, the next `n` elements correspond to predictions for
     the second tree and so on. The "data" for each element corresponds to a uniquely mapped column index that corresponds to a single leaf of a single tree (i.e.
     if tree 1 has 3 leaves, its column indices range from 0 to 2, and then tree 2's leaf indices begin at 3, etc...).
@@ -54,7 +54,7 @@ def compute_forest_leaf_indices(
 
     Returns
     -------
-    Numpy array with dimensions `num_obs` by `num_trees`, where `num_obs` is the number of rows in `covaritates` and `num_trees` is the number of trees in the relevant forest of `model_object`.
+    Numpy array with dimensions `num_obs` by `num_trees`, where `num_obs` is the number of rows in `covariates` and `num_trees` is the number of trees in the relevant forest of `model_object`.
     """
     # Extract relevant forest container
     if (
