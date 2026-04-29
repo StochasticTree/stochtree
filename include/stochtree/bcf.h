@@ -87,23 +87,23 @@ struct BCFConfig {
   std::vector<int> sweep_update_indices_mu;  // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
 
   // Treatment effect forest parameters
-  int num_trees_tau = 200;                     // number of trees in the treatment effect forest
-  double alpha_tau = 0.95;                     // alpha parameter for treatment effect forest tree prior
-  double beta_tau = 2.0;                       // beta parameter for treatment effect forest tree prior
-  int min_samples_leaf_tau = 5;                // minimum number of samples per leaf for treatment effect forest
-  int max_depth_tau = -1;                      // maximum depth for treatment effect forest trees (-1 means no maximum)
-  bool leaf_constant_tau = true;               // whether to use constant leaf model for treatment effect forest
-  int leaf_dim_tau = 1;                        // dimension of the leaf for treatment effect forest
-  bool exponentiated_leaf_tau = false;         // whether to exponentiate leaf predictions for treatment effect forest
-  int num_features_subsample_tau = 0;          // number of features to subsample for each treatment effect forest split (0 means no subsampling)
-  double a_sigma2_tau = 3.0;                   // shape parameter for inverse gamma prior on treatment effect forest leaf scale
-  double b_sigma2_tau = -1.0;                  // scale parameter for inverse gamma prior on treatment effect forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
-  double sigma2_tau_init = -1.0;               // initial value of treatment effect forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
-  std::vector<double> var_weights_tau;         // variable weights for treatment effect forest splits (should be same length as number of covariates in the dataset)
-  std::vector<double> sigma2_leaf_tau_matrix;  // prior covariance matrix Sigma_0 for multivariate leaf regression, stored column-major (size leaf_dim_tau^2); empty = use sigma2_tau_init * I
-  bool sample_sigma2_leaf_tau = false;         // whether to sample treatment effect forest leaf scale (if false, it will be fixed at sigma2_tau_init)
-  std::vector<int> sweep_update_indices_tau;   // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
-  MeanLeafModelType tau_leaf_model_type;       // leaf model type for treatment effect forest
+  int num_trees_tau = 200;                                                                  // number of trees in the treatment effect forest
+  double alpha_tau = 0.95;                                                                  // alpha parameter for treatment effect forest tree prior
+  double beta_tau = 2.0;                                                                    // beta parameter for treatment effect forest tree prior
+  int min_samples_leaf_tau = 5;                                                             // minimum number of samples per leaf for treatment effect forest
+  int max_depth_tau = -1;                                                                   // maximum depth for treatment effect forest trees (-1 means no maximum)
+  bool leaf_constant_tau = false;                                                           // whether to use constant leaf model for treatment effect forest (false for univariate/multivariate regression leaf, true for constant leaf)
+  int leaf_dim_tau = 1;                                                                     // dimension of the leaf for treatment effect forest
+  bool exponentiated_leaf_tau = false;                                                      // whether to exponentiate leaf predictions for treatment effect forest
+  int num_features_subsample_tau = 0;                                                       // number of features to subsample for each treatment effect forest split (0 means no subsampling)
+  double a_sigma2_tau = 3.0;                                                                // shape parameter for inverse gamma prior on treatment effect forest leaf scale
+  double b_sigma2_tau = -1.0;                                                               // scale parameter for inverse gamma prior on treatment effect forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
+  double sigma2_tau_init = -1.0;                                                            // initial value of treatment effect forest leaf scale (-1 is a sentinel value that triggers a data-informed calibration based on the variance of the outcome and the number of trees)
+  std::vector<double> var_weights_tau;                                                      // variable weights for treatment effect forest splits (should be same length as number of covariates in the dataset)
+  std::vector<double> sigma2_leaf_tau_matrix;                                               // prior covariance matrix Sigma_0 for multivariate leaf regression, stored column-major (size leaf_dim_tau^2); empty = use sigma2_tau_init * I
+  bool sample_sigma2_leaf_tau = false;                                                      // whether to sample treatment effect forest leaf scale (if false, it will be fixed at sigma2_tau_init)
+  std::vector<int> sweep_update_indices_tau;                                                // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
+  MeanLeafModelType tau_leaf_model_type = MeanLeafModelType::GaussianUnivariateRegression;  // leaf model type for treatment effect forest
 
   // Variance forest parameters
   int num_trees_variance = 0;                      // number of trees in the variance forest

@@ -78,27 +78,46 @@ static ProbitDataset generate_probit_data(int n, int p, std::mt19937& rng) {
 // ---- Reporter --------------------------------------------------------
 //
 // Reads directly from BARTSamples (already un-standardized by BARTSamplerFit).
-// test_ref is the comparison target on the original outcome scale.
+// test_ref is the comparison target:
+//   identity link — original outcome scale (y)
+//   probit link   — binary outcome (0/1); reports Brier score and accuracy
 
 static void report_bart(const StochTree::BARTSamples& samples,
                         const std::vector<double>& test_ref,
+                        StochTree::LinkFunction link,
                         const char* scenario_name) {
   const int num_samples = samples.num_samples;
   const int n_test = samples.num_test;
-  double rmse_sum = 0.0;
-  for (int i = 0; i < n_test; i++) {
-    double y_hat = 0.0;
-    for (int j = 0; j < num_samples; j++)
-      y_hat += samples.mean_forest_predictions_test[static_cast<std::size_t>(j * n_test + i)] / num_samples;
-    double err = (y_hat * samples.y_std + samples.y_bar) - test_ref[i];
-    rmse_sum += err * err;
-  }
-  std::cout << "\n"
-            << scenario_name << ":\n"
-            << "  RMSE (test):   " << std::sqrt(rmse_sum / n_test) << "\n";
-  if (!samples.global_error_variance_samples.empty()) {
-    std::cout << "  sigma (last):  " << std::sqrt(samples.global_error_variance_samples.back()) * samples.y_std << "\n"
-              << "  sigma (truth): 1.0\n";
+  std::cout << "\n" << scenario_name << ":\n";
+  if (link == StochTree::LinkFunction::Identity) {
+    double rmse_sum = 0.0;
+    for (int i = 0; i < n_test; i++) {
+      double y_hat = 0.0;
+      for (int j = 0; j < num_samples; j++)
+        y_hat += samples.mean_forest_predictions_test[static_cast<std::size_t>(j * n_test + i)] / num_samples;
+      double err = (y_hat * samples.y_std + samples.y_bar) - test_ref[i];
+      rmse_sum += err * err;
+    }
+    std::cout << "  RMSE (test):   " << std::sqrt(rmse_sum / n_test) << "\n";
+    if (!samples.global_error_variance_samples.empty()) {
+      std::cout << "  sigma (last):  " << std::sqrt(samples.global_error_variance_samples.back()) * samples.y_std << "\n"
+                << "  sigma (truth): 1.0\n";
+    }
+  } else {
+    // mean_forest_predictions_test is on the linear (latent) scale; apply norm_cdf for probit probability
+    double brier_sum = 0.0;
+    int correct = 0;
+    for (int i = 0; i < n_test; i++) {
+      double latent = 0.0;
+      for (int j = 0; j < num_samples; j++)
+        latent += samples.mean_forest_predictions_test[static_cast<std::size_t>(j * n_test + i)] / num_samples;
+      double p = StochTree::norm_cdf(latent * samples.y_std + samples.y_bar);
+      double diff = p - test_ref[i];
+      brier_sum += diff * diff;
+      correct += ((p >= 0.5) == (test_ref[i] >= 0.5)) ? 1 : 0;
+    }
+    std::cout << "  Brier (test):  " << brier_sum / n_test << "\n"
+              << "  Acc   (test):  " << static_cast<double>(correct) / n_test << "\n";
   }
 }
 
@@ -120,6 +139,7 @@ static void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr,
   StochTree::BARTConfig config;
   config.num_trees_mean = num_trees;
   config.random_seed = seed;
+  config.mean_leaf_model_type = StochTree::MeanLeafModelType::GaussianConstant;
   config.link_function = StochTree::LinkFunction::Identity;
   config.standardize_outcome = true;
   config.sample_sigma2_global = true;
@@ -133,7 +153,7 @@ static void run_scenario_0(int n, int n_test, int p, int num_trees, int num_gfr,
   sampler.run_gfr(samples, num_gfr, true);
   sampler.run_mcmc(samples, 0, 1, num_mcmc);
   sampler.postprocess_samples(samples);
-  report_bart(samples, test.y, "Scenario 0 (Homoskedastic BART)");
+  report_bart(samples, test.y, StochTree::LinkFunction::Identity, "Scenario 0 (Homoskedastic BART)");
 }
 
 // ---- Scenario 1: constant-leaf probit BART ---------------------------
@@ -166,8 +186,7 @@ static void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr,
   StochTree::BARTSampler sampler(samples, config, data);
   sampler.run_gfr(samples, num_gfr, true);
   sampler.run_mcmc(samples, 0, 1, num_mcmc);
-  // Predictions are on latent scale (= raw + y_bar); compare to true latent Z.
-  report_bart(samples, test.Z, "Scenario 1 (Probit BART)");
+  report_bart(samples, test.y, StochTree::LinkFunction::Probit, "Scenario 1 (Probit BART)");
 }
 
 // ---- Main -----------------------------------------------------------

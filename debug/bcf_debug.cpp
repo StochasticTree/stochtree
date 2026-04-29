@@ -30,6 +30,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include "stochtree/meta.h"
 
 static constexpr double kPi = 3.14159265358979323846;
 
@@ -104,38 +105,68 @@ static ProbitBCFDataset generate_probit_bcf_data(int n, int p, std::mt19937& rng
 // ---- Reporter --------------------------------------------------------
 //
 // Reads directly from BCFSamples (already un-standardized by BCFSamplerFit).
-//   mu_ref  — true prognostic function (original outcome scale)
-//   tau_ref — true CATE (treatment effect scale, no y_bar offset)
-//   y_ref   — true outcome or latent outcome for comparison
+//   mu_ref   — true prognostic function (original outcome scale)
+//   tau_ref  — true CATE (treatment effect scale, no y_bar offset)
+//   y_ref    — binary outcome (0/1) for probit; continuous outcome for identity
+//   link     — link function (Identity or Probit)
+//
+// mu/tau are always evaluated with RMSE (all test units).  For the outcome:
+//   identity — RMSE from y_hat_test (original scale)
+//   probit   — Brier score and accuracy from y_hat_test (already a probability)
 
 static void report_bcf(const StochTree::BCFSamples& samples,
                        const std::vector<double>& mu_ref,
                        const std::vector<double>& tau_ref,
                        const std::vector<double>& y_ref,
+                       StochTree::LinkFunction link,
                        const char* scenario_name) {
   const int num_samples = samples.num_samples;
   const int n_test = samples.num_test;
-  double mu_rmse_sum = 0.0, tau_rmse_sum = 0.0, y_rmse_sum = 0.0;
+  double mu_rmse_sum = 0.0, tau_rmse_sum = 0.0;
   for (int i = 0; i < n_test; i++) {
-    double mu_hat = 0.0, tau_hat = 0.0, y_hat = 0.0;
+    double mu_hat = 0.0, tau_hat = 0.0;
     for (int j = 0; j < num_samples; j++) {
       const auto k = static_cast<std::size_t>(j * n_test + i);
       mu_hat += samples.mu_forest_predictions_test[k] / num_samples;
       tau_hat += samples.tau_forest_predictions_test[k] / num_samples;
-      y_hat += samples.y_hat_test[k] / num_samples;
     }
-    mu_rmse_sum += (mu_hat - mu_ref[i]) * (mu_hat - mu_ref[i]);
-    tau_rmse_sum += (tau_hat - tau_ref[i]) * (tau_hat - tau_ref[i]);
-    y_rmse_sum += (y_hat - y_ref[i]) * (y_hat - y_ref[i]);
+    double mu_pred = mu_hat * samples.y_std + samples.y_bar;
+    double tau_pred = tau_hat * samples.y_std;
+    mu_rmse_sum += (mu_pred - mu_ref[i]) * (mu_pred - mu_ref[i]);
+    tau_rmse_sum += (tau_pred - tau_ref[i]) * (tau_pred - tau_ref[i]);
   }
   std::cout << "\n"
             << scenario_name << ":\n"
-            << "  mu RMSE (test):  " << std::sqrt(mu_rmse_sum / n_test) << "\n"
-            << "  tau RMSE (test): " << std::sqrt(tau_rmse_sum / n_test) << "\n"
-            << "  y RMSE (test):   " << std::sqrt(y_rmse_sum / n_test) << "\n";
-  if (!samples.global_error_variance_samples.empty()) {
-    std::cout << "  sigma (last):    "
-              << std::sqrt(samples.global_error_variance_samples.back()) << "\n";
+            << "  mu RMSE (test):        " << std::sqrt(mu_rmse_sum / n_test) << "\n"
+            << "  tau RMSE (test):       " << std::sqrt(tau_rmse_sum / n_test) << "\n";
+
+  if (link == StochTree::LinkFunction::Identity) {
+    double y_rmse_sum = 0.0;
+    for (int i = 0; i < n_test; i++) {
+      double y_hat = 0.0;
+      for (int j = 0; j < num_samples; j++)
+        y_hat += samples.y_hat_test[static_cast<std::size_t>(j * n_test + i)] / num_samples;
+      y_rmse_sum += (y_hat - y_ref[i]) * (y_hat - y_ref[i]);
+    }
+    std::cout << "  y RMSE (test):         " << std::sqrt(y_rmse_sum / n_test) << "\n";
+    if (!samples.global_error_variance_samples.empty()) {
+      std::cout << "  sigma (last):          "
+                << std::sqrt(samples.global_error_variance_samples.back()) * samples.y_std << "\n";
+    }
+  } else {
+    double brier_sum = 0.0;
+    int correct = 0;
+    for (int i = 0; i < n_test; i++) {
+      double latent = 0.0;
+      for (int j = 0; j < num_samples; j++)
+        latent += samples.y_hat_test[static_cast<std::size_t>(j * n_test + i)] / num_samples;
+      double p = StochTree::norm_cdf(latent);
+      double diff = p - y_ref[i];
+      brier_sum += diff * diff;
+      correct += ((p >= 0.5) == (y_ref[i] >= 0.5)) ? 1 : 0;
+    }
+    std::cout << "  Brier (test):          " << brier_sum / n_test << "\n"
+              << "  Acc   (test):          " << static_cast<double>(correct) / n_test << "\n";
   }
 }
 
@@ -163,17 +194,27 @@ static void run_scenario_0(int n, int n_test, int p,
   config.num_trees_mu = num_trees_mu;
   config.num_trees_tau = num_trees_tau;
   config.random_seed = seed;
+  config.tau_leaf_model_type = StochTree::MeanLeafModelType::GaussianUnivariateRegression;
   config.link_function = StochTree::LinkFunction::Identity;
   config.standardize_outcome = true;
   config.sample_sigma2_global = true;
+  config.var_weights_mu = std::vector<double>(p, 1.0 / p);
+  config.var_weights_tau = std::vector<double>(p, 1.0 / p);
+  config.feature_types = std::vector<StochTree::FeatureType>(p, StochTree::FeatureType::kNumeric);
+  config.sweep_update_indices_mu = std::vector<int>(num_trees_mu, 0);
+  config.sweep_update_indices_tau = std::vector<int>(num_trees_tau, 0);
+  std::iota(config.sweep_update_indices_mu.begin(), config.sweep_update_indices_mu.end(), 0);
+  std::iota(config.sweep_update_indices_tau.begin(), config.sweep_update_indices_tau.end(), 0);
 
   StochTree::BCFSamples samples;
   StochTree::BCFSampler sampler(samples, config, data);
   sampler.run_gfr(samples, num_gfr, /*keep_gfr=*/true);
   sampler.run_mcmc(samples, /*num_burnin=*/0, /*keep_every=*/1, /*num_mcmc=*/num_mcmc);
+  sampler.postprocess_samples(samples);
   report_bcf(samples, test.mu_true, test.tau_true, test.y,
+             StochTree::LinkFunction::Identity,
              "Scenario 0 (BCF: constant mu + univariate tau, identity link)");
-  std::cout << "  sigma (truth):   0.5\n";
+  std::cout << "  sigma (truth):         0.5\n";
 }
 
 // ---- Scenario 1: probit BCF (constant-leaf mu + univariate-leaf tau) ----
@@ -200,16 +241,25 @@ static void run_scenario_1(int n, int n_test, int p,
   config.num_trees_mu = num_trees_mu;
   config.num_trees_tau = num_trees_tau;
   config.random_seed = seed;
+  config.tau_leaf_model_type = StochTree::MeanLeafModelType::GaussianUnivariateRegression;
   config.link_function = StochTree::LinkFunction::Probit;
-  config.standardize_outcome = true;
   config.sample_sigma2_global = false;
+  config.var_weights_mu = std::vector<double>(p, 1.0 / p);
+  config.var_weights_tau = std::vector<double>(p, 1.0 / p);
+  config.feature_types = std::vector<StochTree::FeatureType>(p, StochTree::FeatureType::kNumeric);
+  config.sweep_update_indices_mu = std::vector<int>(num_trees_mu, 0);
+  config.sweep_update_indices_tau = std::vector<int>(num_trees_tau, 0);
+  std::iota(config.sweep_update_indices_mu.begin(), config.sweep_update_indices_mu.end(), 0);
+  std::iota(config.sweep_update_indices_tau.begin(), config.sweep_update_indices_tau.end(), 0);
 
   StochTree::BCFSamples samples;
   StochTree::BCFSampler sampler(samples, config, data);
   sampler.run_gfr(samples, num_gfr, /*keep_gfr=*/true);
   sampler.run_mcmc(samples, /*num_burnin=*/0, /*keep_every=*/1, /*num_mcmc=*/num_mcmc);
+  sampler.postprocess_samples(samples);
   report_bcf(samples, test.mu_true, test.tau_true, test.y,
-             "Scenario 0 (BCF: constant mu + univariate tau, probit link)");
+             StochTree::LinkFunction::Probit,
+             "Scenario 1 (BCF: constant mu + univariate tau, probit link)");
 }
 
 // ---- Main -----------------------------------------------------------

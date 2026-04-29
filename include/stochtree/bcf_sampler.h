@@ -107,9 +107,8 @@ class BCFSampler {
   /*! Probit terms / helpers */
   std::vector<double> model_preds_;
 
-  /*! Other temporary / helper data, only used for some model configurations */
-  bool needs_tau_forest_raw_preds_ = false;   // whether raw predictions from tau forest are needed during sampling time (as opposed to only when keeping a sample)
-  std::vector<double> tau_forest_raw_preds_;  // raw predictions from tau forest, stored **row major** with as many columns as number of treatments
+  /*! Raw tau(x) predictions (sum of leaf values across trees, no z multiplication), maintained each step via leaf-lookup */
+  std::vector<double> tau_raw_sum_preds_;
 
   // Global error scale model
   std::unique_ptr<GlobalHomoskedasticVarianceModel> var_model_;

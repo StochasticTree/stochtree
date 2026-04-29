@@ -48,6 +48,14 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
     Log::Fatal("Cloglog link function is not currently supported in BCF");
   }
 
+  // Validate that both num_trees_mu and num_trees_tau are positive
+  if (config_.num_trees_mu <= 0) {
+    Log::Fatal("num_trees_mu must be >0");
+  }
+  if (config_.num_trees_tau <= 0) {
+    Log::Fatal("num_trees_tau must be >0");
+  }
+
   // Validate outcome type
   if (config_.outcome_type == OutcomeType::Ordinal) {
     Log::Fatal("Ordinal outcome type is not currently supported in BCF");
@@ -93,69 +101,80 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
   }
   double y_var = M2 / data_.n_train;
 
-  // Outcome standardization
+  // Outcome standardization and forest initial value setup
   if (config_.link_function == LinkFunction::Probit) {
     // Initialize forests to 0, no scaling, but offset by the probit transform of the mean outcome to improve mixing
     samples.y_std = 1.0;
     samples.y_bar = norm_inv_cdf(y_mean);
+    init_val_mu_ = 0.0;
+    init_val_tau_ = 0.0;
+    if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
+      init_val_tau_vec_.assign(config_.leaf_dim_tau, 0.0);
+    }
   } else {
     if (config_.standardize_outcome) {
       samples.y_bar = y_mean;
       samples.y_std = std::sqrt(y_var);
+      init_val_mu_ = 0.0;
+      init_val_tau_ = 0.0;
+      if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
+        init_val_tau_vec_.assign(config_.leaf_dim_tau, 0.0);
+      }
     } else {
       samples.y_bar = 0.0;
       samples.y_std = 1.0;
+      init_val_mu_ = y_mean;
+      init_val_tau_ = 0.0;
+      if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
+        init_val_tau_vec_.assign(config_.leaf_dim_tau, 0.0);
+      }
     }
   }
 
   // Calibration for mu forest
-  if (config_.num_trees_mu > 0) {
-    if (config_.sigma2_mu_init < 0.0) {
-      if (config_.link_function == LinkFunction::Probit) {
+  if (config_.sigma2_mu_init < 0.0) {
+    if (config_.link_function == LinkFunction::Probit) {
+      config_.sigma2_mu_init = 1.0 / config_.num_trees_mu;
+    } else {
+      if (config_.standardize_outcome)
         config_.sigma2_mu_init = 1.0 / config_.num_trees_mu;
+      else
+        config_.sigma2_mu_init = y_var / config_.num_trees_mu;
+    }
+  }
+  if (config_.sample_sigma2_leaf_mu) {
+    if (config_.b_sigma2_mu <= 0.0) {
+      if (config_.link_function == LinkFunction::Probit) {
+        config_.b_sigma2_mu = 1.0 / (2 * config_.num_trees_mu);
       } else {
         if (config_.standardize_outcome)
-          config_.sigma2_mu_init = 1.0 / config_.num_trees_mu;
+          config_.sigma2_mu_init = 1.0 / (2 * config_.num_trees_mu);
         else
-          config_.sigma2_mu_init = y_var / config_.num_trees_mu;
-      }
-    }
-    if (config_.sample_sigma2_leaf_mu) {
-      if (config_.b_sigma2_mu <= 0.0) {
-        if (config_.link_function == LinkFunction::Probit) {
-          config_.b_sigma2_mu = 1.0 / (2 * config_.num_trees_mu);
-        } else {
-          if (config_.standardize_outcome)
-            config_.sigma2_mu_init = 1.0 / (2 * config_.num_trees_mu);
-          else
-            config_.sigma2_mu_init = y_var / (2 * config_.num_trees_mu);
-        }
+          config_.sigma2_mu_init = y_var / (2 * config_.num_trees_mu);
       }
     }
   }
 
   // Calibration for tau forest
-  if (config_.num_trees_tau > 0) {
-    if (config_.sigma2_tau_init < 0.0) {
-      if (config_.link_function == LinkFunction::Probit) {
+  if (config_.sigma2_tau_init < 0.0) {
+    if (config_.link_function == LinkFunction::Probit) {
+      config_.sigma2_tau_init = 1.0 / config_.num_trees_tau;
+    } else {
+      if (config_.standardize_outcome)
         config_.sigma2_tau_init = 1.0 / config_.num_trees_tau;
+      else
+        config_.sigma2_tau_init = y_var / config_.num_trees_tau;
+    }
+  }
+  if (config_.sample_sigma2_leaf_tau) {
+    if (config_.b_sigma2_tau <= 0.0) {
+      if (config_.link_function == LinkFunction::Probit) {
+        config_.b_sigma2_tau = 1.0 / (2 * config_.num_trees_tau);
       } else {
         if (config_.standardize_outcome)
-          config_.sigma2_tau_init = 1.0 / config_.num_trees_tau;
+          config_.sigma2_tau_init = 1.0 / (2 * config_.num_trees_tau);
         else
-          config_.sigma2_tau_init = y_var / config_.num_trees_tau;
-      }
-    }
-    if (config_.sample_sigma2_leaf_tau) {
-      if (config_.b_sigma2_tau <= 0.0) {
-        if (config_.link_function == LinkFunction::Probit) {
-          config_.b_sigma2_tau = 1.0 / (2 * config_.num_trees_tau);
-        } else {
-          if (config_.standardize_outcome)
-            config_.sigma2_tau_init = 1.0 / (2 * config_.num_trees_tau);
-          else
-            config_.sigma2_tau_init = y_var / (2 * config_.num_trees_tau);
-        }
+          config_.sigma2_tau_init = y_var / (2 * config_.num_trees_tau);
       }
     }
   }
@@ -226,7 +245,7 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
     samples.tau_forests = std::make_unique<ForestContainer>(config_.num_trees_tau, config_.leaf_dim_tau, config_.leaf_constant_tau, config_.exponentiated_leaf_tau);
     tau_forest_tracker_ = std::make_unique<ForestTracker>(forest_dataset_->GetCovariates(), config_.feature_types, config_.num_trees_tau, data_.n_train);
     tree_prior_tau_ = std::make_unique<TreePrior>(config_.alpha_tau, config_.beta_tau, config_.min_samples_leaf_tau, config_.max_depth_tau);
-    tau_forest_->SetLeafValue(config_.sigma2_tau_init / config_.num_trees_tau);
+    tau_forest_->SetLeafValue(init_val_tau_ / config_.num_trees_tau);
     UpdateResidualEntireForest(*tau_forest_tracker_, *forest_dataset_, *residual_, tau_forest_.get(), !config_.leaf_constant_tau, std::minus<double>());
     tau_forest_tracker_->UpdatePredictions(tau_forest_.get(), *forest_dataset_.get());
   } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
@@ -401,11 +420,7 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
   leaf_scale_tau_ = config_.sigma2_tau_init;
   leaf_scale_tau_multivariate_ = config_.sigma2_leaf_tau_matrix;
 
-  // Determine whether tau_forest_raw_preds_ is needed during sampling time (as opposed to when keeping a sample)
-  if (config_.adaptive_coding) {
-    needs_tau_forest_raw_preds_ = true;
-    tau_forest_raw_preds_.resize(data_.n_train * data_.treatment_dim, 0.0);
-  }
+  tau_raw_sum_preds_.assign(data_.n_train * data_.treatment_dim, 0.0);
 
   initialized_ = true;
 }
@@ -491,7 +506,7 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
     std::vector<double> predictions = samples.mu_forests->Predict(*forest_dataset_test_);
     samples.mu_forest_predictions_test.insert(samples.mu_forest_predictions_test.end(),
                                               predictions.data(), predictions.data() + predictions.size());
-    predictions = samples.tau_forests->Predict(*forest_dataset_test_);
+    predictions = samples.tau_forests->PredictRaw(*forest_dataset_test_);
     samples.tau_forest_predictions_test.insert(samples.tau_forest_predictions_test.end(),
                                                predictions.data(), predictions.data() + predictions.size());
     if (has_variance_forest_) {
@@ -510,6 +525,55 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
       }
       samples.rfx_predictions_test.resize(data_.n_test * samples.num_samples);
       samples.rfx_container->Predict(rfx_dataset_test, *samples.rfx_label_mapper, samples.rfx_predictions_test);
+    }
+
+    // Compute outcome predictions on the linear (link) scale: E[eta|X,Z] = mu(X) + Z*tau(X) + rfx
+    // tau_forest_predictions stores raw tau(x) (no z multiplication), so we multiply by z here.
+    // Callers that need probability-scale predictions (probit, cloglog) apply the inverse link themselves.
+    samples.y_hat_train.resize(data_.n_train * samples.num_samples);
+    double mu_term, tau_term, y_term;
+    const int treatment_dim = data_.treatment_dim;
+    for (int j = 0; j < samples.num_samples; j++) {
+      for (int i = 0; i < data_.n_train; i++) {
+        // Data index for the two terms that are guaranteed to be univariate - mu(x) and y_hat
+        const int k = j * data_.n_train + i;
+        mu_term = samples.mu_forest_predictions_train[k];
+        if (treatment_dim > 1) {
+          tau_term = 0;
+          for (int treatment_idx = 0; treatment_idx < treatment_dim; treatment_idx++) {
+            // Starting data index for multivariate treatment case, where tau(x) is col-major with dimensions (n_train, treatment_dim, num_samples)
+            const int k_tau = j * data_.n_train * treatment_dim + data_.n_train * treatment_idx + i;
+            tau_term += samples.tau_forest_predictions_train[k_tau] * data_.treatment_train[data_.n_train * treatment_idx + i];
+          }
+        } else {
+          tau_term = samples.tau_forest_predictions_train[k];
+        }
+        y_term = mu_term + tau_term;
+        if (has_random_effects_) y_term += samples.rfx_predictions_train[k];
+        samples.y_hat_train[k] = y_term * samples.y_std + samples.y_bar;
+      }
+    }
+
+    samples.y_hat_test.resize(data_.n_test * samples.num_samples);
+    for (int j = 0; j < samples.num_samples; j++) {
+      for (int i = 0; i < data_.n_test; i++) {
+        // Data index for the two terms that are guaranteed to be univariate - mu(x) and y_hat
+        const int k = j * data_.n_test + i;
+        mu_term = samples.mu_forest_predictions_test[k];
+        if (treatment_dim > 1) {
+          tau_term = 0;
+          for (int treatment_idx = 0; treatment_idx < treatment_dim; treatment_idx++) {
+            // Starting data index for multivariate treatment case, where tau(x) is col-major with dimensions (n_test, treatment_dim, num_samples)
+            const int k_tau = j * data_.n_test * treatment_dim + data_.n_test * treatment_idx + i;
+            tau_term += samples.tau_forest_predictions_test[k_tau] * data_.treatment_test[data_.n_test * treatment_idx + i];
+          }
+        } else {
+          tau_term = samples.tau_forest_predictions_test[k];
+        }
+        y_term = mu_term + tau_term;
+        if (has_random_effects_) y_term += samples.rfx_predictions_test[k];
+        samples.y_hat_test[k] = y_term * samples.y_std + samples.y_bar;
+      }
     }
   }
 }
@@ -539,9 +603,17 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
   } else {
     std::visit(MCMCOneIterationVisitorTau{*this, samples, keep_sample}, tau_leaf_model_);
   }
-  // Cache raw predictions from the tau forest if needed for adaptive coding
-  if (needs_tau_forest_raw_preds_) {
-    tau_forest_->PredictRawInplace(/*dataset=*/*forest_dataset_, /*output=*/tau_forest_raw_preds_, /*offset=*/0, /*row_major=*/false);
+  // Update raw tau(x): sum leaf values across trees for each dimension of the tau leaf.
+  // Uses node IDs already cached in the tracker — no tree traversal needed.
+  const int tau_dim = data_.treatment_dim;
+  const int data_dim = data_.n_train;
+  for (int i = 0; i < data_dim; i++) {
+    for (int k = 0; k < tau_dim; k++) tau_raw_sum_preds_[i * tau_dim + k] = 0.0;
+    for (int j = 0; j < config_.num_trees_tau; j++) {
+      data_size_t leaf = tau_forest_tracker_->GetNodeId(i, j);
+      for (int k = 0; k < tau_dim; k++)
+        tau_raw_sum_preds_[k * data_dim + i] += tau_forest_->GetTree(j)->LeafValue(leaf, k);
+    }
   }
 
   if (has_variance_forest_) {
@@ -601,20 +673,8 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
     samples.mu_forest_predictions_train.insert(samples.mu_forest_predictions_train.end(),
                                                mu_forest_preds_train,
                                                mu_forest_preds_train + samples.num_train);
-    if (needs_tau_forest_raw_preds_) {
-      samples.tau_forest_predictions_train.insert(samples.tau_forest_predictions_train.end(),
-                                                  tau_forest_raw_preds_.data(),
-                                                  tau_forest_raw_preds_.data() + samples.num_train * data_.treatment_dim);
-    } else {
-      int vec_size = samples.tau_forest_predictions_train.size();
-      int added_data_size = data_.n_train * data_.treatment_dim;
-      samples.tau_forest_predictions_train.resize(vec_size + added_data_size);
-      tau_forest_->PredictRawInplace(/*dataset=*/*forest_dataset_, samples.tau_forest_predictions_train, /*offset=*/vec_size, /*row_major=*/false);
-    }
-    double* tau_forest_preds_train = tau_forest_tracker_->GetSumPredictions();
     samples.tau_forest_predictions_train.insert(samples.tau_forest_predictions_train.end(),
-                                                tau_forest_preds_train,
-                                                tau_forest_preds_train + samples.num_train);
+                                                tau_raw_sum_preds_.begin(), tau_raw_sum_preds_.end());
     if (has_variance_forest_) {
       double* variance_forest_preds_train = variance_forest_tracker_->GetSumPredictions();
       samples.variance_forest_predictions_train.insert(samples.variance_forest_predictions_train.end(),
