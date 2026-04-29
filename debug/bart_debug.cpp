@@ -15,7 +15,6 @@
  * random effects, multivariate leaf, etc.).
  */
 
-// TODO: Replace with #include <stochtree/bart_sampler.h> once Task 1.3 is complete.
 #include <stochtree/bart.h>
 #include <stochtree/bart_sampler.h>
 

@@ -133,6 +133,7 @@ file(
   GLOB
   SOURCES
   src/bart_sampler.cpp
+  src/bcf_sampler.cpp
   src/container.cpp
   src/cutpoint_candidates.cpp
   src/data.cpp
@@ -225,14 +226,14 @@ if(BUILD_DEBUG_TARGETS)
     target_link_libraries(bart_debug PRIVATE stochtree_objs)
   endif()
 
-  # BCF debug driver (temporarily disabled)
-  # add_executable(bcf_debug debug/bcf_debug.cpp)
-  # if(USE_OPENMP)
-  #   target_include_directories(bcf_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
-  #   target_link_libraries(bcf_debug PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
-  # else()
-  #   target_include_directories(bcf_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
-  #   target_link_libraries(bcf_debug PRIVATE stochtree_objs)
-  # endif()
+  # BCF debug driver
+  add_executable(bcf_debug debug/bcf_debug.cpp)
+  if(USE_OPENMP)
+    target_include_directories(bcf_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR} ${OpenMP_CXX_INCLUDE_DIR})
+    target_link_libraries(bcf_debug PRIVATE stochtree_objs ${OpenMP_libomp_LIBRARY})
+  else()
+    target_include_directories(bcf_debug PRIVATE ${StochTree_HEADER_DIR} ${BOOSTMATH_HEADER_DIR} ${EIGEN_HEADER_DIR} ${StochTree_DEBUG_HEADER_DIR} ${FAST_DOUBLE_PARSER_HEADER_DIR} ${FMT_HEADER_DIR})
+    target_link_libraries(bcf_debug PRIVATE stochtree_objs)
+  endif()
 endif()
 

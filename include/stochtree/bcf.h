@@ -135,6 +135,9 @@ struct BCFConfig {
 };
 
 struct BCFSamples {
+  // Posterior samples of training set outcome predictions (num_samples x n_train, stored column-major)
+  std::vector<double> y_hat_train;
+
   // Posterior samples of training set prognostic forest predictions (num_samples x n_train, stored column-major)
   std::vector<double> mu_forest_predictions_train;
 
@@ -143,6 +146,9 @@ struct BCFSamples {
 
   // Posterior samples of training set variance forest predictions (num_samples x n_train, stored column-major)
   std::vector<double> variance_forest_predictions_train;
+
+  // Posterior samples of test set outcome predictions (num_samples x n_train, stored column-major)
+  std::vector<double> y_hat_test;
 
   // Posterior samples of test set prognostic forest predictions (num_samples x n_test, stored column-major)
   std::vector<double> mu_forest_predictions_test;
