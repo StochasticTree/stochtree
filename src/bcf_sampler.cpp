@@ -546,7 +546,7 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
             tau_term += samples.tau_forest_predictions_train[k_tau] * data_.treatment_train[data_.n_train * treatment_idx + i];
           }
         } else {
-          tau_term = samples.tau_forest_predictions_train[k];
+          tau_term = samples.tau_forest_predictions_train[k] * data_.treatment_test[i];
         }
         y_term = mu_term + tau_term;
         if (has_random_effects_) y_term += samples.rfx_predictions_train[k];
@@ -568,7 +568,7 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
             tau_term += samples.tau_forest_predictions_test[k_tau] * data_.treatment_test[data_.n_test * treatment_idx + i];
           }
         } else {
-          tau_term = samples.tau_forest_predictions_test[k];
+          tau_term = samples.tau_forest_predictions_test[k] * data_.treatment_test[i];
         }
         y_term = mu_term + tau_term;
         if (has_random_effects_) y_term += samples.rfx_predictions_test[k];
