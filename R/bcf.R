@@ -113,7 +113,7 @@ NULL
 #'   - `sigma2_global_shape` Shape parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
 #'   - `sigma2_global_scale` Scale parameter in the `IG(sigma2_global_shape, sigma2_global_scale)` global error variance model. Default: `0`.
 #'   - `variable_weights` Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to `rep(1/ncol(X_train), ncol(X_train))` if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to `1/ncol(X_train)`. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in `X_train` and then set `propensity_covariate` to `'none'` adjust `keep_vars` accordingly for the `prognostic` or `treatment_effect` forests.
-#'   - `propensity_covariate` Whether to include the propensity score as a covariate in either or both of the forests. Enter `"none"` for neither, `"prognostic"` for the prognostic forest, `"treatment_effect"` for the treatment forest, and `"both"` for both forests. If this is not `"none"` and a propensity score is not provided, it will be estimated from (`X_train`, `Z_train`) using `stochtree::bart()`. Default: `"mu"`.
+#'   - `propensity_covariate` Whether to include the propensity score as a covariate in either or both of the forests. Enter `"none"` for neither, `"prognostic"` for the prognostic forest, `"treatment_effect"` for the treatment forest, and `"both"` for both forests. If this is not `"none"` and a propensity score is not provided, it will be estimated from (`X_train`, `Z_train`) using `stochtree::bart()`. Default: `"prognostic"`.
 #'   - `adaptive_coding` Whether or not to use an "adaptive coding" scheme in which a binary treatment variable is not coded manually as (0,1) or (-1,1) but learned via parameters `b_0` and `b_1` that attach to the outcome model `[b_0 (1-Z) + b_1 Z] tau(X)`. This is ignored when Z is not binary. Default: `FALSE`.
 #'   - `control_coding_init` Initial value of the "control" group coding parameter. This is ignored when Z is not binary. Default: `-0.5`.
 #'   - `treated_coding_init` Initial value of the "treatment" group coding parameter. This is ignored when Z is not binary. Default: `0.5`.
@@ -1476,7 +1476,27 @@ bcf <- function(
     }
   }
 
+  # Set mu and tau leaf models / dimensions
+  leaf_model_mu_forest <- 0
+  leaf_dimension_mu_forest <- 1
+  if (has_multivariate_treatment) {
+    leaf_model_tau_forest <- 2
+    leaf_dimension_tau_forest <- ncol(Z_train)
+  } else {
+    leaf_model_tau_forest <- 1
+    leaf_dimension_tau_forest <- 1
+  }
+
+  # Set variance leaf model type (currently only one option)
+  leaf_model_variance_forest <- 3
+  leaf_dimension_variance_forest <- 1
+
   # Model params set without calibration / initialization
+  if (include_variance_forest) {
+    num_variance_covariates <- sum(variable_weights_variance > 0)
+  } else {
+    num_variance_covariates <- 0
+  }
   model_params_r <- list(
     "initial_b_0" = b_0,
     "initial_b_1" = b_1,
@@ -1497,7 +1517,6 @@ bcf <- function(
     "sample_tau_0" = sample_tau_0,
     "tau_0_prior_var" = if (sample_tau_0) tau_0_prior_var else NULL,
     "internal_propensity_model" = internal_propensity_model,
-    "num_samples" = num_retained_samples,
     "num_gfr" = num_gfr,
     "num_burnin" = num_burnin,
     "num_mcmc" = num_mcmc,
@@ -1578,17 +1597,17 @@ bcf <- function(
       "min_samples_leaf_mu" = min_samples_leaf_mu,
       "max_depth_mu" = max_depth_mu,
       "leaf_constant_mu" = TRUE,
-      "leaf_dim_mu" = 1,
+      "leaf_dim_mu" = leaf_dimension_mu_forest,
       "exponentiated_leaf_mu" = FALSE,
       "num_features_subsample_mu" = num_features_subsample_mu,
-      "a_sigma2_mu" = a_leaf,
-      "b_sigma2_mu" = b_leaf,
+      "a_sigma2_mu" = a_leaf_mu,
+      "b_sigma2_mu" = b_leaf_mu,
       "sigma2_mu_init" = if (is.matrix(sigma2_leaf_mu)) {
         NULL
       } else {
         sigma2_leaf_mu
       },
-      "sample_sigma2_leaf_mu" = sample_sigma2_leaf,
+      "sample_sigma2_leaf_mu" = sample_sigma2_leaf_mu,
       "mean_leaf_model_type" = leaf_model_mu_forest,
       "sigma2_leaf_mu_matrix" = if (is.matrix(sigma2_leaf_mu)) {
         as.numeric(sigma2_leaf_mu)
@@ -1601,17 +1620,17 @@ bcf <- function(
       "min_samples_leaf_tau" = min_samples_leaf_tau,
       "max_depth_tau" = max_depth_tau,
       "leaf_constant_tau" = FALSE,
-      "leaf_dim_tau" = treatment_dim,
+      "leaf_dim_tau" = leaf_dimension_tau_forest,
       "exponentiated_leaf_tau" = FALSE,
       "num_features_subsample_tau" = num_features_subsample_tau,
-      "a_sigma2_tau" = a_leaf,
-      "b_sigma2_tau" = b_leaf,
+      "a_sigma2_tau" = a_leaf_tau,
+      "b_sigma2_tau" = b_leaf_tau,
       "sigma2_tau_init" = if (is.matrix(sigma2_leaf_tau)) {
         NULL
       } else {
         sigma2_leaf_tau
       },
-      "sample_sigma2_leaf_tau" = sample_sigma2_leaf,
+      "sample_sigma2_leaf_tau" = sample_sigma2_leaf_tau,
       "mean_leaf_model_type" = leaf_model_tau_forest,
       "sigma2_leaf_tau_matrix" = if (is.matrix(sigma2_leaf_tau)) {
         as.numeric(sigma2_leaf_tau)
@@ -1627,12 +1646,17 @@ bcf <- function(
       "min_samples_leaf_variance" = min_samples_leaf_variance,
       "max_depth_variance" = max_depth_variance,
       "leaf_constant_variance" = TRUE,
-      "leaf_dim_variance" = 1,
+      "leaf_dim_variance" = leaf_dimension_variance_forest,
       "exponentiated_leaf_variance" = TRUE,
       "num_features_subsample_variance" = num_features_subsample_variance,
       "feature_types" = as.integer(feature_types),
-      "sweep_update_indices_mean" = if (num_trees_mean > 0) {
-        0:(num_trees_mean - 1)
+      "sweep_update_indices_mu" = if (num_trees_mu > 0) {
+        0:(num_trees_mu - 1)
+      } else {
+        NULL
+      },
+      "sweep_update_indices_tau" = if (num_trees_tau > 0) {
+        0:(num_trees_tau - 1)
       } else {
         NULL
       },
@@ -1766,6 +1790,7 @@ bcf <- function(
         bcf_results[["num_train"]],
         bcf_results[["num_samples"]]
       )
+      result[["mu_hat_train"]] <- bcf_results[['mu_forest_predictions_train']]
     }
     has_mu_forest_predictions_test <- !is.null(
       bcf_results[['mu_forest_predictions_test']]
@@ -1775,6 +1800,7 @@ bcf <- function(
         bcf_results[["num_test"]],
         bcf_results[["num_samples"]]
       )
+      result[["mu_hat_test"]] <- bcf_results[['mu_forest_predictions_test']]
     }
     has_tau_forest_predictions_train <- !is.null(
       bcf_results[['tau_forest_predictions_train']]
@@ -1784,6 +1810,7 @@ bcf <- function(
         bcf_results[["num_train"]],
         bcf_results[["num_samples"]]
       )
+      result[['tau_hat_train']] <- bcf_results[['tau_forest_predictions_train']]
     }
     has_tau_forest_predictions_test <- !is.null(
       bcf_results[['tau_forest_predictions_test']]
@@ -1793,6 +1820,7 @@ bcf <- function(
         bcf_results[["num_test"]],
         bcf_results[["num_samples"]]
       )
+      result[['tau_hat_test']] <- bcf_results[['tau_forest_predictions_test']]
     }
     has_y_hat_train <- !is.null(
       bcf_results[['y_hat_train']]
@@ -1802,6 +1830,7 @@ bcf <- function(
         bcf_results[["num_train"]],
         bcf_results[["num_samples"]]
       )
+      result[['y_hat_train']] <- bcf_results[['y_hat_train']]
     }
     has_y_hat_test <- !is.null(
       bcf_results[['y_hat_test']]
@@ -1811,6 +1840,7 @@ bcf <- function(
         bcf_results[["num_test"]],
         bcf_results[["num_samples"]]
       )
+      result[['y_hat_test']] <- bcf_results[['y_hat_test']]
     }
     if (has_mu_forest_predictions_train || has_mu_forest_predictions_test) {
       mu_forests_r <- ForestSamples$new(
@@ -1827,7 +1857,7 @@ bcf <- function(
     if (has_tau_forest_predictions_train || has_tau_forest_predictions_test) {
       tau_forests_r <- ForestSamples$new(
         num_trees_tau,
-        treatment_dim,
+        ncol(Z_train),
         FALSE,
         FALSE
       )
@@ -1932,6 +1962,26 @@ bcf <- function(
       rfx_samples$training_group_ids <- rfx_group_ids_train
       result[["rfx_samples"]] = rfx_samples
       result[["rfx_unique_group_ids"]] = levels(group_ids_factor)
+    }
+
+    result[["train_set_metadata"]] <- X_train_metadata
+    if (sample_sigma2_global) {
+      result[["sigma2_global_samples"]] = bcf_results[[
+        "global_error_variance_samples"
+      ]]
+    }
+    if (sample_sigma2_leaf_mu) {
+      result[["sigma2_leaf_mu_samples"]] = bcf_results[[
+        "leaf_scale_mu_samples"
+      ]]
+    }
+    if (sample_sigma2_leaf_tau) {
+      result[["sigma2_leaf_tau_samples"]] = bcf_results[[
+        "leaf_scale_tau_samples"
+      ]]
+    }
+    if (internal_propensity_model) {
+      result[["bart_propensity_model"]] = bart_model_propensity
     }
 
     class(result) <- "bcfmodel"
@@ -2077,21 +2127,6 @@ bcf <- function(
       }
       current_sigma2 <- sigma2_init
     }
-
-    # Set mu and tau leaf models / dimensions
-    leaf_model_mu_forest <- 0
-    leaf_dimension_mu_forest <- 1
-    if (has_multivariate_treatment) {
-      leaf_model_tau_forest <- 2
-      leaf_dimension_tau_forest <- ncol(Z_train)
-    } else {
-      leaf_model_tau_forest <- 1
-      leaf_dimension_tau_forest <- 1
-    }
-
-    # Set variance leaf model type (currently only one option)
-    leaf_model_variance_forest <- 3
-    leaf_dimension_variance_forest <- 1
 
     # Random effects prior parameters
     if (has_rfx) {
@@ -3730,11 +3765,6 @@ bcf <- function(
     }
 
     # Return results as a list
-    if (include_variance_forest) {
-      num_variance_covariates <- sum(variable_weights_variance > 0)
-    } else {
-      num_variance_covariates <- 0
-    }
     model_params_r_calibrated <- list(
       "initial_sigma2" = sigma2_init,
       "initial_sigma2_leaf_mu" = sigma2_leaf_mu,

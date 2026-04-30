@@ -190,6 +190,11 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
                                   : R_NilValue;
   output.push_back(cpp11::named_arg("variance_forest_predictions_train") = var_preds_train_sexp);
 
+  SEXP y_hat_train_sexp = !bcf_samples.y_hat_train.empty()
+                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.y_hat_train.begin(), bcf_samples.y_hat_train.end()))
+                                  : R_NilValue;
+  output.push_back(cpp11::named_arg("y_hat_train") = y_hat_train_sexp);
+
   SEXP mu_forest_predictions_test_sexp = !bcf_samples.mu_forest_predictions_test.empty()
                                              ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.mu_forest_predictions_test.begin(), bcf_samples.mu_forest_predictions_test.end()))
                                              : R_NilValue;
@@ -204,6 +209,11 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.variance_forest_predictions_test.begin(), bcf_samples.variance_forest_predictions_test.end()))
                                  : R_NilValue;
   output.push_back(cpp11::named_arg("variance_forest_predictions_test") = var_preds_test_sexp);
+
+  SEXP y_hat_test_sexp = !bcf_samples.y_hat_test.empty()
+                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.y_hat_test.begin(), bcf_samples.y_hat_test.end()))
+                                  : R_NilValue;
+  output.push_back(cpp11::named_arg("y_hat_test") = y_hat_test_sexp);
 
   // RFX predictions
   SEXP rfx_preds_train_sexp = !bcf_samples.rfx_predictions_train.empty()
