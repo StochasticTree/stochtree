@@ -1,6 +1,6 @@
 #include <cpp11.hpp>
-#include <stochtree/bart.h>
-#include <stochtree/bart_sampler.h>
+#include <stochtree/bcf.h>
+#include <stochtree/bcf_sampler.h>
 #include <stochtree/container.h>
 #include <stochtree/data.h>
 #include <stochtree/partition_tracker.h>
@@ -48,8 +48,8 @@ int get_config_scalar_default<int>(cpp11::list& config_list, const char* config_
   return Rf_asInteger(val);
 }
 
-StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
-  StochTree::BARTConfig output;
+StochTree::BCFConfig convert_list_to_config(cpp11::list config) {
+  StochTree::BCFConfig output;
 
   // Global model parameters
   output.standardize_outcome = get_config_scalar_default<bool>(config, "standardize_outcome", true);
@@ -60,6 +60,7 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   output.random_seed = get_config_scalar_default<int>(config, "random_seed", 1);
   output.keep_gfr = get_config_scalar_default<bool>(config, "keep_gfr", true);
   output.keep_burnin = get_config_scalar_default<bool>(config, "keep_burnin", false);
+  output.adaptive_coding = get_config_scalar_default<bool>(config, "adaptive_coding", false);
 
   // Global error variance parameters
   output.a_sigma2_global = get_config_scalar_default<double>(config, "a_sigma2_global", 0.0);
@@ -67,25 +68,35 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   output.sigma2_global_init = get_config_scalar_default<double>(config, "sigma2_global_init", 1.0);
   output.sample_sigma2_global = get_config_scalar_default<bool>(config, "sample_sigma2_global", true);
 
-  // Mean forest parameters
-  output.num_trees_mean = get_config_scalar_default<int>(config, "num_trees_mean", 200);
-  output.alpha_mean = get_config_scalar_default<double>(config, "alpha_mean", 0.95);
-  output.beta_mean = get_config_scalar_default<double>(config, "beta_mean", 2.0);
-  output.min_samples_leaf_mean = get_config_scalar_default<int>(config, "min_samples_leaf_mean", 5);
-  output.max_depth_mean = get_config_scalar_default<int>(config, "max_depth_mean", -1);
-  output.leaf_constant_mean = get_config_scalar_default<bool>(config, "leaf_constant_mean", true);
-  output.leaf_dim_mean = get_config_scalar_default<int>(config, "leaf_dim_mean", 1);
-  output.exponentiated_leaf_mean = get_config_scalar_default<bool>(config, "exponentiated_leaf_mean", false);
-  output.num_features_subsample_mean = get_config_scalar_default<int>(config, "num_features_subsample_mean", 0);
-  output.a_sigma2_mean = get_config_scalar_default<double>(config, "a_sigma2_mean", 3.0);
-  output.b_sigma2_mean = get_config_scalar_default<double>(config, "b_sigma2_mean", -1.0);
-  output.sigma2_mean_init = get_config_scalar_default<double>(config, "sigma2_mean_init", -1.0);
-  output.sample_sigma2_leaf_mean = get_config_scalar_default<bool>(config, "sample_sigma2_leaf_mean", false);
-  output.mean_leaf_model_type = static_cast<StochTree::MeanLeafModelType>(get_config_scalar_default<int>(config, "mean_leaf_model_type", 0));
-  output.num_classes_cloglog = get_config_scalar_default<int>(config, "num_classes_cloglog", 0);
-  output.cloglog_leaf_prior_shape = get_config_scalar_default<double>(config, "cloglog_leaf_prior_shape", 2.0);
-  output.cloglog_leaf_prior_scale = get_config_scalar_default<double>(config, "cloglog_leaf_prior_scale", 2.0);
-  output.cloglog_cutpoint_0 = get_config_scalar_default<double>(config, "cloglog_cutpoint_0", 0.0);
+  // Prognostic forest parameters
+  output.num_trees_mu = get_config_scalar_default<int>(config, "num_trees_mu", 200);
+  output.alpha_mu = get_config_scalar_default<double>(config, "alpha_mu", 0.95);
+  output.beta_mu = get_config_scalar_default<double>(config, "beta_mu", 2.0);
+  output.min_samples_leaf_mu = get_config_scalar_default<int>(config, "min_samples_leaf_mu", 5);
+  output.max_depth_mu = get_config_scalar_default<int>(config, "max_depth_mu", -1);
+  output.leaf_constant_mu = get_config_scalar_default<bool>(config, "leaf_constant_mu", true);
+  output.leaf_dim_mu = get_config_scalar_default<int>(config, "leaf_dim_mu", 1);
+  output.exponentiated_leaf_mu = get_config_scalar_default<bool>(config, "exponentiated_leaf_mu", false);
+  output.num_features_subsample_mu = get_config_scalar_default<int>(config, "num_features_subsample_mu", 0);
+  output.a_sigma2_mu = get_config_scalar_default<double>(config, "a_sigma2_mu", 3.0);
+  output.b_sigma2_mu = get_config_scalar_default<double>(config, "b_sigma2_mu", -1.0);
+  output.sigma2_mu_init = get_config_scalar_default<double>(config, "sigma2_mu_init", -1.0);
+  output.sample_sigma2_leaf_mu = get_config_scalar_default<bool>(config, "sample_sigma2_leaf_mu", false);
+
+  // Treatment effect forest parameters
+  output.num_trees_tau = get_config_scalar_default<int>(config, "num_trees_tau", 50);
+  output.alpha_tau = get_config_scalar_default<double>(config, "alpha_tau", 0.95);
+  output.beta_tau = get_config_scalar_default<double>(config, "beta_tau", 2.0);
+  output.min_samples_leaf_tau = get_config_scalar_default<int>(config, "min_samples_leaf_tau", 5);
+  output.max_depth_tau = get_config_scalar_default<int>(config, "max_depth_tau", -1);
+  output.leaf_constant_tau = get_config_scalar_default<bool>(config, "leaf_constant_tau", true);
+  output.leaf_dim_tau = get_config_scalar_default<int>(config, "leaf_dim_tau", 1);
+  output.exponentiated_leaf_tau = get_config_scalar_default<bool>(config, "exponentiated_leaf_tau", false);
+  output.num_features_subsample_tau = get_config_scalar_default<int>(config, "num_features_subsample_tau", 0);
+  output.a_sigma2_tau = get_config_scalar_default<double>(config, "a_sigma2_tau", 3.0);
+  output.b_sigma2_tau = get_config_scalar_default<double>(config, "b_sigma2_tau", -1.0);
+  output.sigma2_tau_init = get_config_scalar_default<double>(config, "sigma2_tau_init", -1.0);
+  output.sample_sigma2_leaf_tau = get_config_scalar_default<bool>(config, "sample_sigma2_leaf_tau", false);
 
   // Variance forest parameters
   output.num_trees_variance = get_config_scalar_default<int>(config, "num_trees_variance", 0);
@@ -103,7 +114,7 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
 
   // Random effect parameters
   output.has_random_effects = get_config_scalar_default<bool>(config, "has_random_effects", false);
-  output.rfx_model_spec = static_cast<StochTree::BARTRFXModelSpec>(get_config_scalar_default<int>(config, "rfx_model_spec", 0));
+  output.rfx_model_spec = static_cast<StochTree::BCFRFXModelSpec>(get_config_scalar_default<int>(config, "rfx_model_spec", 0));
   output.rfx_variance_prior_shape = get_config_scalar_default<double>(config, "rfx_variance_prior_shape", 1.0);
   output.rfx_variance_prior_scale = get_config_scalar_default<double>(config, "rfx_variance_prior_scale", 1.0);
 
@@ -115,25 +126,35 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
       output.feature_types.push_back(static_cast<StochTree::FeatureType>(i));
     }
   }
-  SEXP sweep_update_indices_mean_raw = static_cast<SEXP>(config["sweep_update_indices_mean"]);
-  if (!Rf_isNull(sweep_update_indices_mean_raw)) {
-    cpp11::integers sweep_update_indices_mean_r_vec(sweep_update_indices_mean_raw);
-    output.sweep_update_indices_mean.assign(sweep_update_indices_mean_r_vec.begin(), sweep_update_indices_mean_r_vec.end());
+  SEXP sweep_update_indices_mu_raw = static_cast<SEXP>(config["sweep_update_indices_mu"]);
+  if (!Rf_isNull(sweep_update_indices_mu_raw)) {
+    cpp11::integers sweep_update_indices_mu_r_vec(sweep_update_indices_mu_raw);
+    output.sweep_update_indices_mu.assign(sweep_update_indices_mu_r_vec.begin(), sweep_update_indices_mu_r_vec.end());
+  }
+  SEXP sweep_update_indices_tau_raw = static_cast<SEXP>(config["sweep_update_indices_tau"]);
+  if (!Rf_isNull(sweep_update_indices_tau_raw)) {
+    cpp11::integers sweep_update_indices_tau_r_vec(sweep_update_indices_tau_raw);
+    output.sweep_update_indices_tau.assign(sweep_update_indices_tau_r_vec.begin(), sweep_update_indices_tau_r_vec.end());
   }
   SEXP sweep_update_indices_variance_raw = static_cast<SEXP>(config["sweep_update_indices_variance"]);
   if (!Rf_isNull(sweep_update_indices_variance_raw)) {
     cpp11::integers sweep_update_indices_variance_r_vec(sweep_update_indices_variance_raw);
     output.sweep_update_indices_variance.assign(sweep_update_indices_variance_r_vec.begin(), sweep_update_indices_variance_r_vec.end());
   }
-  SEXP var_weights_mean_raw = static_cast<SEXP>(config["var_weights_mean"]);
-  if (!Rf_isNull(var_weights_mean_raw)) {
-    cpp11::doubles var_weights_mean_r_vec(var_weights_mean_raw);
-    output.var_weights_mean.assign(var_weights_mean_r_vec.begin(), var_weights_mean_r_vec.end());
+  SEXP var_weights_mu_raw = static_cast<SEXP>(config["var_weights_mu"]);
+  if (!Rf_isNull(var_weights_mu_raw)) {
+    cpp11::doubles var_weights_mu_r_vec(var_weights_mu_raw);
+    output.var_weights_mu.assign(var_weights_mu_r_vec.begin(), var_weights_mu_r_vec.end());
   }
-  SEXP sigma2_leaf_mean_matrix_raw = static_cast<SEXP>(config["sigma2_leaf_mean_matrix"]);
-  if (!Rf_isNull(sigma2_leaf_mean_matrix_raw)) {
-    cpp11::doubles sigma2_leaf_mean_matrix_r_vec(sigma2_leaf_mean_matrix_raw);
-    output.sigma2_leaf_mean_matrix.assign(sigma2_leaf_mean_matrix_r_vec.begin(), sigma2_leaf_mean_matrix_r_vec.end());
+  SEXP var_weights_tau_raw = static_cast<SEXP>(config["var_weights_tau"]);
+  if (!Rf_isNull(var_weights_tau_raw)) {
+    cpp11::doubles var_weights_tau_r_vec(var_weights_tau_raw);
+    output.var_weights_tau.assign(var_weights_tau_r_vec.begin(), var_weights_tau_r_vec.end());
+  }
+  SEXP sigma2_leaf_tau_matrix_raw = static_cast<SEXP>(config["sigma2_leaf_tau_matrix"]);
+  if (!Rf_isNull(sigma2_leaf_tau_matrix_raw)) {
+    cpp11::doubles sigma2_leaf_tau_matrix_r_vec(sigma2_leaf_tau_matrix_raw);
+    output.sigma2_leaf_tau_matrix.assign(sigma2_leaf_tau_matrix_r_vec.begin(), sigma2_leaf_tau_matrix_r_vec.end());
   }
   SEXP var_weights_variance_raw = static_cast<SEXP>(config["var_weights_variance"]);
   if (!Rf_isNull(var_weights_variance_raw)) {
@@ -163,80 +184,100 @@ StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
   return output;
 }
 
-cpp11::writable::list convert_bart_results_to_list(StochTree::BARTSamples& bart_samples) {
+cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_samples) {
   cpp11::writable::list output;
 
   // Pointers to forests
-  SEXP mean_forests_sexp = (bart_samples.mean_forests.get() != nullptr)
-                               ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bart_samples.mean_forests.release()))
-                               : R_NilValue;
-  output.push_back(cpp11::named_arg("mean_forests") = mean_forests_sexp);
+  SEXP mu_forests_sexp = (bcf_samples.mu_forests.get() != nullptr)
+                             ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bcf_samples.mu_forests.release()))
+                             : R_NilValue;
+  output.push_back(cpp11::named_arg("mu_forests") = mu_forests_sexp);
 
-  SEXP variance_forests_sexp = (bart_samples.variance_forests.get() != nullptr)
-                                   ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bart_samples.variance_forests.release()))
+  SEXP tau_forests_sexp = (bcf_samples.tau_forests.get() != nullptr)
+                              ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bcf_samples.tau_forests.release()))
+                              : R_NilValue;
+  output.push_back(cpp11::named_arg("tau_forests") = tau_forests_sexp);
+
+  SEXP variance_forests_sexp = (bcf_samples.variance_forests.get() != nullptr)
+                                   ? static_cast<SEXP>(cpp11::external_pointer<StochTree::ForestContainer>(bcf_samples.variance_forests.release()))
                                    : R_NilValue;
   output.push_back(cpp11::named_arg("variance_forests") = variance_forests_sexp);
 
   // TODO: transfer ownership of RFX pointers as well
 
   // Predictions
-  SEXP mean_preds_train_sexp = !bart_samples.mean_forest_predictions_train.empty()
-                                   ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.mean_forest_predictions_train.begin(), bart_samples.mean_forest_predictions_train.end()))
-                                   : R_NilValue;
-  output.push_back(cpp11::named_arg("mean_forest_predictions_train") = mean_preds_train_sexp);
+  SEXP mu_forest_predictions_train_sexp = !bcf_samples.mu_forest_predictions_train.empty()
+                                              ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.mu_forest_predictions_train.begin(), bcf_samples.mu_forest_predictions_train.end()))
+                                              : R_NilValue;
+  output.push_back(cpp11::named_arg("mu_forest_predictions_train") = mu_forest_predictions_train_sexp);
 
-  SEXP var_preds_train_sexp = !bart_samples.variance_forest_predictions_train.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.variance_forest_predictions_train.begin(), bart_samples.variance_forest_predictions_train.end()))
+  SEXP tau_forest_predictions_train_sexp = !bcf_samples.tau_forest_predictions_train.empty()
+                                               ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.tau_forest_predictions_train.begin(), bcf_samples.tau_forest_predictions_train.end()))
+                                               : R_NilValue;
+  output.push_back(cpp11::named_arg("tau_forest_predictions_train") = tau_forest_predictions_train_sexp);
+
+  SEXP var_preds_train_sexp = !bcf_samples.variance_forest_predictions_train.empty()
+                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.variance_forest_predictions_train.begin(), bcf_samples.variance_forest_predictions_train.end()))
                                   : R_NilValue;
   output.push_back(cpp11::named_arg("variance_forest_predictions_train") = var_preds_train_sexp);
 
-  SEXP mean_preds_test_sexp = !bart_samples.mean_forest_predictions_test.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.mean_forest_predictions_test.begin(), bart_samples.mean_forest_predictions_test.end()))
-                                  : R_NilValue;
-  output.push_back(cpp11::named_arg("mean_forest_predictions_test") = mean_preds_test_sexp);
+  SEXP mu_forest_predictions_test_sexp = !bcf_samples.mu_forest_predictions_test.empty()
+                                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.mu_forest_predictions_test.begin(), bcf_samples.mu_forest_predictions_test.end()))
+                                             : R_NilValue;
+  output.push_back(cpp11::named_arg("mu_forest_predictions_test") = mu_forest_predictions_test_sexp);
 
-  SEXP var_preds_test_sexp = !bart_samples.variance_forest_predictions_test.empty()
-                                 ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.variance_forest_predictions_test.begin(), bart_samples.variance_forest_predictions_test.end()))
+  SEXP tau_forest_predictions_test_sexp = !bcf_samples.tau_forest_predictions_test.empty()
+                                              ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.tau_forest_predictions_test.begin(), bcf_samples.tau_forest_predictions_test.end()))
+                                              : R_NilValue;
+  output.push_back(cpp11::named_arg("tau_forest_predictions_test") = tau_forest_predictions_test_sexp);
+
+  SEXP var_preds_test_sexp = !bcf_samples.variance_forest_predictions_test.empty()
+                                 ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.variance_forest_predictions_test.begin(), bcf_samples.variance_forest_predictions_test.end()))
                                  : R_NilValue;
   output.push_back(cpp11::named_arg("variance_forest_predictions_test") = var_preds_test_sexp);
 
   // RFX predictions
-  SEXP rfx_preds_train_sexp = !bart_samples.rfx_predictions_train.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.rfx_predictions_train.begin(), bart_samples.rfx_predictions_train.end()))
+  SEXP rfx_preds_train_sexp = !bcf_samples.rfx_predictions_train.empty()
+                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.rfx_predictions_train.begin(), bcf_samples.rfx_predictions_train.end()))
                                   : R_NilValue;
   output.push_back(cpp11::named_arg("rfx_predictions_train") = rfx_preds_train_sexp);
 
-  SEXP rfx_preds_test_sexp = !bart_samples.rfx_predictions_test.empty()
-                                 ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.rfx_predictions_test.begin(), bart_samples.rfx_predictions_test.end()))
+  SEXP rfx_preds_test_sexp = !bcf_samples.rfx_predictions_test.empty()
+                                 ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.rfx_predictions_test.begin(), bcf_samples.rfx_predictions_test.end()))
                                  : R_NilValue;
   output.push_back(cpp11::named_arg("rfx_predictions_test") = rfx_preds_test_sexp);
 
   // Parameter samples
-  SEXP global_var_sexp = !bart_samples.global_error_variance_samples.empty()
-                             ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.global_error_variance_samples.begin(), bart_samples.global_error_variance_samples.end()))
+  SEXP global_var_sexp = !bcf_samples.global_error_variance_samples.empty()
+                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.global_error_variance_samples.begin(), bcf_samples.global_error_variance_samples.end()))
                              : R_NilValue;
   output.push_back(cpp11::named_arg("global_error_variance_samples") = global_var_sexp);
 
-  SEXP leaf_scale_sexp = !bart_samples.leaf_scale_samples.empty()
-                             ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.leaf_scale_samples.begin(), bart_samples.leaf_scale_samples.end()))
-                             : R_NilValue;
-  output.push_back(cpp11::named_arg("leaf_scale_samples") = leaf_scale_sexp);
+  SEXP leaf_scale_mu_sexp = !bcf_samples.leaf_scale_mu_samples.empty()
+                                ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.leaf_scale_mu_samples.begin(), bcf_samples.leaf_scale_mu_samples.end()))
+                                : R_NilValue;
+  output.push_back(cpp11::named_arg("leaf_scale_mu_samples") = leaf_scale_mu_sexp);
 
-  SEXP cloglog_cutpoints_sexp = !bart_samples.cloglog_cutpoint_samples.empty()
-                                    ? static_cast<SEXP>(cpp11::writable::doubles(bart_samples.cloglog_cutpoint_samples.begin(), bart_samples.cloglog_cutpoint_samples.end()))
-                                    : R_NilValue;
-  output.push_back(cpp11::named_arg("cloglog_cutpoint_samples") = cloglog_cutpoints_sexp);
+  SEXP leaf_scale_tau_sexp = !bcf_samples.leaf_scale_tau_samples.empty()
+                                 ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.leaf_scale_tau_samples.begin(), bcf_samples.leaf_scale_tau_samples.end()))
+                                 : R_NilValue;
+  output.push_back(cpp11::named_arg("leaf_scale_tau_samples") = leaf_scale_tau_sexp);
+
+  SEXP leaf_scale_tau_sexp = !bcf_samples.leaf_scale_tau_samples.empty()
+                                 ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.adaptive_coding_samples.begin(), bcf_samples.leaf_scale_tau_samples.end()))
+                                 : R_NilValue;
+  output.push_back(cpp11::named_arg("leaf_scale_tau_samples") = leaf_scale_tau_sexp);
 
   // Metadata about the model that was sampled
-  double y_bar_sexp = bart_samples.y_bar;
+  double y_bar_sexp = bcf_samples.y_bar;
   output.push_back(cpp11::named_arg("y_bar") = y_bar_sexp);
-  double y_std_sexp = bart_samples.y_std;
+  double y_std_sexp = bcf_samples.y_std;
   output.push_back(cpp11::named_arg("y_std") = y_std_sexp);
-  int num_samples_sexp = bart_samples.num_samples;
+  int num_samples_sexp = bcf_samples.num_samples;
   output.push_back(cpp11::named_arg("num_samples") = num_samples_sexp);
-  int num_train_sexp = bart_samples.num_train;
+  int num_train_sexp = bcf_samples.num_train;
   output.push_back(cpp11::named_arg("num_train") = num_train_sexp);
-  int num_test_sexp = bart_samples.num_test;
+  int num_test_sexp = bcf_samples.num_test;
   output.push_back(cpp11::named_arg("num_test") = num_test_sexp);
   return output;
 }

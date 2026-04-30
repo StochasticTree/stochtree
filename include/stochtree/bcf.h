@@ -87,7 +87,7 @@ struct BCFConfig {
   std::vector<int> sweep_update_indices_mu;  // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
 
   // Treatment effect forest parameters
-  int num_trees_tau = 200;                                                                  // number of trees in the treatment effect forest
+  int num_trees_tau = 50;                                                                   // number of trees in the treatment effect forest
   double alpha_tau = 0.95;                                                                  // alpha parameter for treatment effect forest tree prior
   double beta_tau = 2.0;                                                                    // beta parameter for treatment effect forest tree prior
   int min_samples_leaf_tau = 5;                                                             // minimum number of samples per leaf for treatment effect forest
