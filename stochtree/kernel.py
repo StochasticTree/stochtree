@@ -34,18 +34,7 @@ def compute_forest_leaf_indices(
     covariates : np.array or pd.DataFrame
         Covariates to use for prediction. Must have the same dimensions / column types as the data used to train a forest.
     forest_type : str
-        Which forest to use from `model_object`. Valid inputs depend on the model type, and whether or not a given forest was sampled in that model.
-
-            * **BART**
-                * `'mean'`: `'mean'`: Extracts leaf indices for the mean forest
-                * `'variance'`: Extracts leaf indices for the variance forest
-            * **BCF**
-                * `'prognostic'`: Extracts leaf indices for the prognostic forest
-                * `'treatment'`: Extracts leaf indices for the treatment effect forest
-                * `'variance'`: Extracts leaf indices for the variance forest
-            * **ForestContainer**
-                * `NULL`: It is not necessary to disambiguate when this function is called directly on a `ForestSamples` object. This is the default value of this
-
+        Which forest to use from `model_object`. Valid inputs depend on the model type, and whether or not a given forest was sampled in that model. See Notes for a mapping from model type to valid forest types.
     propensity : `np.array`, optional
         Optional test set propensities. Must be provided if propensities were provided when the model was sampled.
     forest_inds : int or np.ndarray
@@ -55,6 +44,20 @@ def compute_forest_leaf_indices(
     Returns
     -------
     Numpy array with dimensions `num_obs` by `num_trees`, where `num_obs` is the number of rows in `covariates` and `num_trees` is the number of trees in the relevant forest of `model_object`.
+
+    Notes
+    -----
+    Mapping from model type to forest types:
+
+    - **BART**
+        - `'mean'`: `'mean'`: Extracts leaf indices for the mean forest
+        - `'variance'`: Extracts leaf indices for the variance forest
+    - **BCF**
+        - `'prognostic'`: Extracts leaf indices for the prognostic forest
+        - `'treatment'`: Extracts leaf indices for the treatment effect forest
+        - `'variance'`: Extracts leaf indices for the variance forest
+    - **ForestContainer**
+        - `NULL`: It is not necessary to disambiguate when this function is called directly on a `ForestSamples` object. This is the default value of this
     """
     # Extract relevant forest container
     if (
@@ -175,18 +178,7 @@ def compute_forest_max_leaf_index(
     model_object : BARTModel, BCFModel, or ForestContainer
         Object corresponding to a BART / BCF model with at least one forest sample, or a low-level `ForestContainer` object.
     forest_type : str
-        Which forest to use from `model_object`. Valid inputs depend on the model type, and whether or not a given forest was sampled in that model.
-
-            * **BART**
-                * `'mean'`: `'mean'`: Extracts leaf indices for the mean forest
-                * `'variance'`: Extracts leaf indices for the variance forest
-            * **BCF**
-                * `'prognostic'`: Extracts leaf indices for the prognostic forest
-                * `'treatment'`: Extracts leaf indices for the treatment effect forest
-                * `'variance'`: Extracts leaf indices for the variance forest
-            * **ForestContainer**
-                * `NULL`: It is not necessary to disambiguate when this function is called directly on a `ForestSamples` object. This is the default value of this
-
+        Which forest to use from `model_object`. Valid inputs depend on the model type, and whether or not a given forest was sampled in that model. See Notes for a mapping from model type to valid forest types.
     forest_inds : int or np.ndarray
         Indices of the forest sample(s) for which to compute max leaf indices. If not provided, this function will return max leaf indices for every sample of a forest.
         This function uses 0-indexing, so the first forest sample corresponds to `forest_num = 0`, and so on.
@@ -194,6 +186,20 @@ def compute_forest_max_leaf_index(
     Returns
     -------
     Numpy array containing the largest possible leaf index computable by `compute_forest_leaf_indices` for the forests in a designated forest sample container.
+
+    Notes
+    -----
+    Mapping from model type to forest types:
+
+    - **BART**
+        - `'mean'`: `'mean'`: Extracts leaf indices for the mean forest
+        - `'variance'`: Extracts leaf indices for the variance forest
+    - **BCF**
+        - `'prognostic'`: Extracts leaf indices for the prognostic forest
+        - `'treatment'`: Extracts leaf indices for the treatment effect forest
+        - `'variance'`: Extracts leaf indices for the variance forest
+    - **ForestContainer**
+        - `NULL`: It is not necessary to disambiguate when this function is called directly on a `ForestSamples` object. This is the default value of this
     """
     # Extract relevant forest container
     if (
