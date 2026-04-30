@@ -148,9 +148,9 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
         config_.b_sigma2_mu = 1.0 / (2 * config_.num_trees_mu);
       } else {
         if (config_.standardize_outcome)
-          config_.sigma2_mu_init = 1.0 / (2 * config_.num_trees_mu);
+          config_.b_sigma2_mu = 1.0 / (2 * config_.num_trees_mu);
         else
-          config_.sigma2_mu_init = y_var / (2 * config_.num_trees_mu);
+          config_.b_sigma2_mu = y_var / (2 * config_.num_trees_mu);
       }
     }
   }
@@ -172,9 +172,9 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
         config_.b_sigma2_tau = 1.0 / (2 * config_.num_trees_tau);
       } else {
         if (config_.standardize_outcome)
-          config_.sigma2_tau_init = 1.0 / (2 * config_.num_trees_tau);
+          config_.b_sigma2_tau = 1.0 / (2 * config_.num_trees_tau);
         else
-          config_.sigma2_tau_init = y_var / (2 * config_.num_trees_tau);
+          config_.b_sigma2_tau = y_var / (2 * config_.num_trees_tau);
       }
     }
   }

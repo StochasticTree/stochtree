@@ -1790,7 +1790,8 @@ bcf <- function(
         bcf_results[["num_train"]],
         bcf_results[["num_samples"]]
       )
-      result[["mu_hat_train"]] <- bcf_results[['mu_forest_predictions_train']]
+      result[["mu_hat_train"]] <- bcf_results[['mu_forest_predictions_train']] *
+        bcf_results[["y_std"]] + bcf_results[["y_bar"]]
     }
     has_mu_forest_predictions_test <- !is.null(
       bcf_results[['mu_forest_predictions_test']]
@@ -1800,7 +1801,8 @@ bcf <- function(
         bcf_results[["num_test"]],
         bcf_results[["num_samples"]]
       )
-      result[["mu_hat_test"]] <- bcf_results[['mu_forest_predictions_test']]
+      result[["mu_hat_test"]] <- bcf_results[['mu_forest_predictions_test']] *
+        bcf_results[["y_std"]] + bcf_results[["y_bar"]]
     }
     has_tau_forest_predictions_train <- !is.null(
       bcf_results[['tau_forest_predictions_train']]
@@ -1810,7 +1812,8 @@ bcf <- function(
         bcf_results[["num_train"]],
         bcf_results[["num_samples"]]
       )
-      result[['tau_hat_train']] <- bcf_results[['tau_forest_predictions_train']]
+      result[['tau_hat_train']] <- bcf_results[['tau_forest_predictions_train']] *
+        bcf_results[["y_std"]]
     }
     has_tau_forest_predictions_test <- !is.null(
       bcf_results[['tau_forest_predictions_test']]
@@ -1820,7 +1823,8 @@ bcf <- function(
         bcf_results[["num_test"]],
         bcf_results[["num_samples"]]
       )
-      result[['tau_hat_test']] <- bcf_results[['tau_forest_predictions_test']]
+      result[['tau_hat_test']] <- bcf_results[['tau_forest_predictions_test']] *
+        bcf_results[["y_std"]]
     }
     has_y_hat_train <- !is.null(
       bcf_results[['y_hat_train']]
