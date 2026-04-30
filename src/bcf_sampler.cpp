@@ -720,13 +720,12 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
 void BCFSampler::RestoreStateFromGFRSnapshot(BCFSamples& samples, int snapshot_index) {
   GFRSnapshot& snap = gfr_snapshots_[snapshot_index];
 
-  // Restore mean forest state (if present).
-  // ReconstituteFromForest increments the residual by (prev_tree_pred - new_tree_pred) for
-  // every tree, swapping the chain-N forest contribution out and the GFR-snapshot contribution
-  // in.  The residual must still hold the chain-N state here so that this swap is correct.
+  // Restore mu and tau forest state
+  // Prognostic forest
   mu_forest_->ReconstituteFromForest(*snap.mu_forest);
   mu_forest_tracker_->ReconstituteFromForest(*snap.mu_forest, *forest_dataset_, *residual_, true);
   mu_forest_tracker_->UpdatePredictions(mu_forest_.get(), *forest_dataset_.get());
+  // Treatment effect forest
   std::visit(TauForestResetVisitor{*this, samples, *snap.tau_forest}, tau_leaf_model_);
 
   // Initialize variance forest state (if present)

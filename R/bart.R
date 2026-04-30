@@ -1365,6 +1365,7 @@ bart <- function(
         bart_results[["num_train"]],
         bart_results[["num_samples"]]
       )
+      # TODO: move this logic to C++
       y_hat_train_raw <- bart_results[["mean_forest_predictions_train"]]
       result[["y_hat_train"]] <- y_hat_train_raw *
         bart_results[["y_std"]] +
@@ -1391,38 +1392,6 @@ bart <- function(
         "mean_forests"
       ]]
       result[["mean_forests"]] <- mean_forests_r
-    }
-
-    # Unpack RFX predictions if they were returned
-    has_rfx_predictions_train <- !is.null(bart_results[[
-      'rfx_predictions_train'
-    ]])
-    has_rfx_predictions_test <- !is.null(bart_results[['rfx_predictions_test']])
-    if (has_rfx_predictions_train) {
-      dim(bart_results[['rfx_predictions_train']]) <- c(
-        bart_results[["num_train"]],
-        bart_results[["num_samples"]]
-      )
-      rfx_preds_train <- bart_results[["rfx_predictions_train"]] *
-        bart_results[["y_std"]]
-      result[["y_hat_train"]] <- if (!is.null(result[["y_hat_train"]])) {
-        result[["y_hat_train"]] + rfx_preds_train
-      } else {
-        rfx_preds_train
-      }
-    }
-    if (has_rfx_predictions_test) {
-      dim(bart_results[['rfx_predictions_test']]) <- c(
-        bart_results[["num_test"]],
-        bart_results[["num_samples"]]
-      )
-      rfx_preds_test <- bart_results[["rfx_predictions_test"]] *
-        bart_results[["y_std"]]
-      result[["y_hat_test"]] <- if (!is.null(result[["y_hat_test"]])) {
-        result[["y_hat_test"]] + rfx_preds_test
-      } else {
-        rfx_preds_test
-      }
     }
 
     # Unpack variance forest predictions if they were returned
@@ -1472,6 +1441,55 @@ bart <- function(
       result[["variance_forests"]] <- variance_forests_r
     }
 
+    # Unpack RFX predictions if they were returned
+    has_rfx_predictions_train <- !is.null(bart_results[[
+      'rfx_predictions_train'
+    ]])
+    has_rfx_predictions_test <- !is.null(bart_results[['rfx_predictions_test']])
+    if (has_rfx_predictions_train) {
+      dim(bart_results[['rfx_predictions_train']]) <- c(
+        bart_results[["num_train"]],
+        bart_results[["num_samples"]]
+      )
+      rfx_preds_train <- bart_results[["rfx_predictions_train"]] *
+        bart_results[["y_std"]]
+      if (!is.null(result[["y_hat_train"]])) {
+        result[["y_hat_train"]] <- result[["y_hat_train"]] + rfx_preds_train
+      } else {
+        result[["y_hat_train"]] <- rfx_preds_train
+      }
+      result[["rfx_preds_train"]] = rfx_preds_train
+    }
+    if (has_rfx_predictions_test) {
+      dim(bart_results[['rfx_predictions_test']]) <- c(
+        bart_results[["num_test"]],
+        bart_results[["num_samples"]]
+      )
+      rfx_preds_test <- bart_results[["rfx_predictions_test"]] *
+        bart_results[["y_std"]]
+      if (!is.null(result[["y_hat_test"]])) {
+        result[["y_hat_test"]] <- result[["y_hat_test"]] + rfx_preds_test
+      } else {
+        result[["y_hat_test"]] <- rfx_preds_test
+      }
+      result[["rfx_preds_test"]] = rfx_preds_test
+    }
+
+    # Unpack RFX samples
+    if (has_rfx) {
+      rfx_samples <- RandomEffectSamples$new()
+      rfx_samples$rfx_container_ptr <- bart_results[[
+        "rfx_container"
+      ]]
+      rfx_samples$label_mapper_ptr <- bart_results[[
+        "rfx_label_mapper"
+      ]]
+      rfx_samples$training_group_ids <- rfx_group_ids_train
+      result[["rfx_samples"]] = rfx_samples
+      result[["rfx_unique_group_ids"]] = levels(group_ids_factor)
+    }
+
+    # Unpack cloglog model terms
     has_cloglog_cutpoint_samples <- !is.null(
       bart_results[['cloglog_cutpoint_samples']]
     )

@@ -5,50 +5,11 @@
 #include <stochtree/data.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/tree_sampler.h>
+#include "stochtree_types.h"
 #include <memory>
 #include <string>
 
-void check_numeric(cpp11::sexp input, const char* input_name) {
-  if (TYPEOF(input) != REALSXP && !Rf_isInteger(input)) {
-    cpp11::stop("Parameter %s must be a numeric array (integer or floating point)", input_name);
-  }
-}
-
-double* extract_numeric_pointer(cpp11::sexp input, const char* input_name, int& protect_count) {
-  if (input == R_NilValue) return nullptr;
-  check_numeric(input, input_name);
-  cpp11::sexp input_converted = PROTECT(Rf_coerceVector(input, REALSXP));
-  protect_count++;
-  return REAL(input_converted);
-}
-
-void check_integer(cpp11::sexp input, const char* input_name) {
-  if (!Rf_isInteger(input)) {
-    cpp11::stop("Parameter %s must be an integer array", input_name);
-  }
-}
-
-int* extract_integer_pointer(cpp11::sexp input, const char* input_name, int& protect_count) {
-  if (input == R_NilValue) return nullptr;
-  check_integer(input, input_name);
-  return INTEGER(input);
-}
-
-template <typename T>
-T get_config_scalar_default(cpp11::list& config_list, const char* config_key, T default_value) {
-  cpp11::sexp val = config_list[config_key];
-  if (Rf_isNull(val)) return default_value;
-  return cpp11::as_cpp<T>(val);
-}
-
-template <>
-int get_config_scalar_default<int>(cpp11::list& config_list, const char* config_key, int default_value) {
-  cpp11::sexp val = config_list[config_key];
-  if (Rf_isNull(val)) return default_value;
-  return Rf_asInteger(val);
-}
-
-StochTree::BARTConfig convert_list_to_config(cpp11::list config) {
+StochTree::BARTConfig convert_list_to_bart_config(cpp11::list config) {
   StochTree::BARTConfig output;
 
   // Global model parameters
@@ -177,7 +138,15 @@ cpp11::writable::list convert_bart_results_to_list(StochTree::BARTSamples& bart_
                                    : R_NilValue;
   output.push_back(cpp11::named_arg("variance_forests") = variance_forests_sexp);
 
-  // TODO: transfer ownership of RFX pointers as well
+  // Pointers to RFX model terms
+  SEXP rfx_container_sexp = (bart_samples.rfx_container.get() != nullptr)
+                                ? static_cast<SEXP>(cpp11::external_pointer<StochTree::RandomEffectsContainer>(bart_samples.rfx_container.release()))
+                                : R_NilValue;
+  output.push_back(cpp11::named_arg("rfx_container") = rfx_container_sexp);
+  SEXP rfx_label_mapper_sexp = (bart_samples.rfx_label_mapper.get() != nullptr)
+                                   ? static_cast<SEXP>(cpp11::external_pointer<StochTree::LabelMapper>(bart_samples.rfx_label_mapper.release()))
+                                   : R_NilValue;
+  output.push_back(cpp11::named_arg("rfx_label_mapper") = rfx_label_mapper_sexp);
 
   // Predictions
   SEXP mean_preds_train_sexp = !bart_samples.mean_forest_predictions_train.empty()
@@ -241,7 +210,7 @@ cpp11::writable::list convert_bart_results_to_list(StochTree::BARTSamples& bart_
   return output;
 }
 
-void add_config_to_result_list(cpp11::writable::list& result, StochTree::BARTConfig& config) {
+void add_config_to_bart_result_list(cpp11::writable::list& result, StochTree::BARTConfig& config) {
   // Unpack more metadata about the model that was sampled
   result.push_back(cpp11::named_arg("sigma2_global_init") = config.sigma2_global_init);
   result.push_back(cpp11::named_arg("sigma2_mean_init") = config.sigma2_mean_init);
@@ -315,7 +284,7 @@ cpp11::writable::list bart_sample_cpp(
   data.rfx_basis_dim = rfx_basis_dim;
 
   // Create the BARTConfig object
-  StochTree::BARTConfig config = convert_list_to_config(config_input);
+  StochTree::BARTConfig config = convert_list_to_bart_config(config_input);
 
   // Initialize a BART sampler
   StochTree::BARTSampler bart_sampler(results_raw, config, data);
@@ -334,6 +303,6 @@ cpp11::writable::list bart_sample_cpp(
 
   // Unpack outputs
   cpp11::writable::list output_list = convert_bart_results_to_list(results_raw);
-  add_config_to_result_list(output_list, config);
+  add_config_to_bart_result_list(output_list, config);
   return output_list;
 }

@@ -5,50 +5,11 @@
 #include <stochtree/data.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/tree_sampler.h>
+#include "stochtree_types.h"
 #include <memory>
 #include <string>
 
-void check_numeric(cpp11::sexp input, const char* input_name) {
-  if (TYPEOF(input) != REALSXP && !Rf_isInteger(input)) {
-    cpp11::stop("Parameter %s must be a numeric array (integer or floating point)", input_name);
-  }
-}
-
-double* extract_numeric_pointer(cpp11::sexp input, const char* input_name, int& protect_count) {
-  if (input == R_NilValue) return nullptr;
-  check_numeric(input, input_name);
-  cpp11::sexp input_converted = PROTECT(Rf_coerceVector(input, REALSXP));
-  protect_count++;
-  return REAL(input_converted);
-}
-
-void check_integer(cpp11::sexp input, const char* input_name) {
-  if (!Rf_isInteger(input)) {
-    cpp11::stop("Parameter %s must be an integer array", input_name);
-  }
-}
-
-int* extract_integer_pointer(cpp11::sexp input, const char* input_name, int& protect_count) {
-  if (input == R_NilValue) return nullptr;
-  check_integer(input, input_name);
-  return INTEGER(input);
-}
-
-template <typename T>
-T get_config_scalar_default(cpp11::list& config_list, const char* config_key, T default_value) {
-  cpp11::sexp val = config_list[config_key];
-  if (Rf_isNull(val)) return default_value;
-  return cpp11::as_cpp<T>(val);
-}
-
-template <>
-int get_config_scalar_default<int>(cpp11::list& config_list, const char* config_key, int default_value) {
-  cpp11::sexp val = config_list[config_key];
-  if (Rf_isNull(val)) return default_value;
-  return Rf_asInteger(val);
-}
-
-StochTree::BCFConfig convert_list_to_config(cpp11::list config) {
+StochTree::BCFConfig convert_list_to_bcf_config(cpp11::list config) {
   StochTree::BCFConfig output;
 
   // Global model parameters
@@ -203,7 +164,15 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
                                    : R_NilValue;
   output.push_back(cpp11::named_arg("variance_forests") = variance_forests_sexp);
 
-  // TODO: transfer ownership of RFX pointers as well
+  // Pointers to RFX model terms
+  SEXP rfx_container_sexp = (bcf_samples.rfx_container.get() != nullptr)
+                                ? static_cast<SEXP>(cpp11::external_pointer<StochTree::RandomEffectsContainer>(bcf_samples.rfx_container.release()))
+                                : R_NilValue;
+  output.push_back(cpp11::named_arg("rfx_container") = rfx_container_sexp);
+  SEXP rfx_label_mapper_sexp = (bcf_samples.rfx_label_mapper.get() != nullptr)
+                                   ? static_cast<SEXP>(cpp11::external_pointer<StochTree::LabelMapper>(bcf_samples.rfx_label_mapper.release()))
+                                   : R_NilValue;
+  output.push_back(cpp11::named_arg("rfx_label_mapper") = rfx_label_mapper_sexp);
 
   // Predictions
   SEXP mu_forest_predictions_train_sexp = !bcf_samples.mu_forest_predictions_train.empty()
@@ -263,10 +232,10 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
                                  : R_NilValue;
   output.push_back(cpp11::named_arg("leaf_scale_tau_samples") = leaf_scale_tau_sexp);
 
-  SEXP leaf_scale_tau_sexp = !bcf_samples.leaf_scale_tau_samples.empty()
-                                 ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.adaptive_coding_samples.begin(), bcf_samples.leaf_scale_tau_samples.end()))
-                                 : R_NilValue;
-  output.push_back(cpp11::named_arg("leaf_scale_tau_samples") = leaf_scale_tau_sexp);
+  SEXP adaptive_coding_samples_sexp = !bcf_samples.adaptive_coding_samples.empty()
+                                          ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.adaptive_coding_samples.begin(), bcf_samples.adaptive_coding_samples.end()))
+                                          : R_NilValue;
+  output.push_back(cpp11::named_arg("adaptive_coding_samples") = adaptive_coding_samples_sexp);
 
   // Metadata about the model that was sampled
   double y_bar_sexp = bcf_samples.y_bar;
@@ -282,27 +251,29 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
   return output;
 }
 
-void add_config_to_result_list(cpp11::writable::list& result, StochTree::BARTConfig& config) {
+void add_config_to_bcf_result_list(cpp11::writable::list& result, StochTree::BCFConfig& config) {
   // Unpack more metadata about the model that was sampled
   result.push_back(cpp11::named_arg("sigma2_global_init") = config.sigma2_global_init);
-  result.push_back(cpp11::named_arg("sigma2_mean_init") = config.sigma2_mean_init);
-  result.push_back(cpp11::named_arg("b_sigma2_mean") = config.b_sigma2_mean);
+  result.push_back(cpp11::named_arg("sigma2_mu_init") = config.sigma2_mu_init);
+  result.push_back(cpp11::named_arg("sigma2_tau_init") = config.sigma2_tau_init);
+  result.push_back(cpp11::named_arg("b_sigma2_mu") = config.b_sigma2_mu);
+  result.push_back(cpp11::named_arg("b_sigma2_tau") = config.b_sigma2_tau);
   result.push_back(cpp11::named_arg("shape_variance_forest") = config.shape_variance_forest);
   result.push_back(cpp11::named_arg("scale_variance_forest") = config.scale_variance_forest);
   return;
 }
 
 [[cpp11::register]]
-cpp11::writable::list bart_sample_cpp(
+cpp11::writable::list bcf_sample_cpp(
     cpp11::sexp X_train,
+    cpp11::sexp Z_train,
     cpp11::sexp y_train,
     cpp11::sexp X_test,
+    cpp11::sexp Z_test,
     int n_train,
     int n_test,
     int p,
-    cpp11::sexp basis_train,
-    cpp11::sexp basis_test,
-    int basis_dim,
+    int treatment_dim,
     cpp11::sexp obs_weights_train,
     cpp11::sexp obs_weights_test,
     cpp11::sexp rfx_group_ids_train,
@@ -316,17 +287,18 @@ cpp11::writable::list bart_sample_cpp(
     int keep_every,
     int num_mcmc,
     int num_chains,
+    bool adaptive_coding,
     cpp11::list config_input) {
   // Create outcome object
-  StochTree::BARTSamples results_raw = StochTree::BARTSamples();
+  StochTree::BCFSamples results_raw = StochTree::BCFSamples();
 
   // Extract pointers to raw data
   int protect_count = 0;
   double* X_train_ptr = extract_numeric_pointer(X_train, "X_train", protect_count);
+  double* Z_train_ptr = extract_numeric_pointer(Z_train, "Z_train", protect_count);
   double* y_train_ptr = extract_numeric_pointer(y_train, "y_train", protect_count);
   double* X_test_ptr = extract_numeric_pointer(X_test, "X_test", protect_count);
-  double* basis_train_ptr = extract_numeric_pointer(basis_train, "basis_train", protect_count);
-  double* basis_test_ptr = extract_numeric_pointer(basis_test, "basis_test", protect_count);
+  double* Z_test_ptr = extract_numeric_pointer(Z_test, "Z_test", protect_count);
   double* obs_weights_train_ptr = extract_numeric_pointer(obs_weights_train, "obs_weights_train", protect_count);
   double* obs_weights_test_ptr = extract_numeric_pointer(obs_weights_test, "obs_weights_test", protect_count);
   int* rfx_group_ids_train_ptr = extract_integer_pointer(rfx_group_ids_train, "rfx_group_ids_train", protect_count);
@@ -334,18 +306,18 @@ cpp11::writable::list bart_sample_cpp(
   double* rfx_basis_train_ptr = extract_numeric_pointer(rfx_basis_train, "rfx_basis_train", protect_count);
   double* rfx_basis_test_ptr = extract_numeric_pointer(rfx_basis_test, "rfx_basis_test", protect_count);
 
-  // Load the BARTData struct
+  // Load the BCFData struct
   // Consider reading directly from the R objects or at least checking for matches with the R object dimensions)
-  StochTree::BARTData data;
+  StochTree::BCFData data;
   data.X_train = X_train_ptr;
+  data.treatment_train = Z_train_ptr;
   data.y_train = y_train_ptr;
   data.X_test = X_test_ptr;
+  data.treatment_test = Z_test_ptr;
   data.n_train = n_train;
   data.p = p;
   data.n_test = n_test;
-  data.basis_train = basis_train_ptr;
-  data.basis_test = basis_test_ptr;
-  data.basis_dim = basis_dim;
+  data.treatment_dim = treatment_dim;
   data.obs_weights_train = obs_weights_train_ptr;
   data.obs_weights_test = obs_weights_test_ptr;
   data.rfx_group_ids_train = rfx_group_ids_train_ptr;
@@ -355,26 +327,26 @@ cpp11::writable::list bart_sample_cpp(
   data.rfx_num_groups = rfx_num_groups;
   data.rfx_basis_dim = rfx_basis_dim;
 
-  // Create the BARTConfig object
-  StochTree::BARTConfig config = convert_list_to_config(config_input);
+  // Create the BCFConfig object
+  StochTree::BCFConfig config = convert_list_to_bcf_config(config_input);
 
-  // Initialize a BART sampler
-  StochTree::BARTSampler bart_sampler(results_raw, config, data);
+  // Initialize a BCF sampler
+  StochTree::BCFSampler bcf_sampler(results_raw, config, data);
 
   // Run the sampler
-  bart_sampler.run_gfr(results_raw, num_gfr, config.keep_gfr, num_chains);
+  bcf_sampler.run_gfr(results_raw, num_gfr, config.keep_gfr, num_chains);
   if (num_chains > 1) {
-    bart_sampler.run_mcmc_chains(results_raw, num_chains, num_burnin, keep_every, num_mcmc);
+    bcf_sampler.run_mcmc_chains(results_raw, num_chains, num_burnin, keep_every, num_mcmc);
   } else {
-    bart_sampler.run_mcmc(results_raw, num_burnin, keep_every, num_mcmc);
+    bcf_sampler.run_mcmc(results_raw, num_burnin, keep_every, num_mcmc);
   }
-  bart_sampler.postprocess_samples(results_raw);
+  bcf_sampler.postprocess_samples(results_raw);
 
   // Unprotect protected R objects
   UNPROTECT(protect_count);
 
   // Unpack outputs
-  cpp11::writable::list output_list = convert_bart_results_to_list(results_raw);
-  add_config_to_result_list(output_list, config);
+  cpp11::writable::list output_list = convert_bcf_results_to_list(results_raw);
+  add_config_to_bcf_result_list(output_list, config);
   return output_list;
 }

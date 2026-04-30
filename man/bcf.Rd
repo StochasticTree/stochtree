@@ -26,7 +26,8 @@ bcf(
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
   variance_forest_params = list(),
-  random_effects_params = list()
+  random_effects_params = list(),
+  run_cpp = FALSE
 )
 }
 \arguments{
@@ -173,6 +174,8 @@ Default: \code{NULL}.}
 \item \code{variance_prior_shape} Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 \item \code{variance_prior_scale} Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 }}
+
+\item{run_cpp}{Whether or not to run the core C++ sampler. Default \code{FALSE}, but will eventually be set to \code{TRUE}.}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).

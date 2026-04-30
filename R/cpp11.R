@@ -4,6 +4,10 @@ bart_sample_cpp <- function(X_train, y_train, X_test, n_train, n_test, p, basis_
   .Call(`_stochtree_bart_sample_cpp`, X_train, y_train, X_test, n_train, n_test, p, basis_train, basis_test, basis_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_gfr, num_burnin, keep_every, num_mcmc, num_chains, config_input)
 }
 
+bcf_sample_cpp <- function(X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_gfr, num_burnin, keep_every, num_mcmc, num_chains, adaptive_coding, config_input) {
+  .Call(`_stochtree_bcf_sample_cpp`, X_train, Z_train, y_train, X_test, Z_test, n_train, n_test, p, treatment_dim, obs_weights_train, obs_weights_test, rfx_group_ids_train, rfx_group_ids_test, rfx_basis_train, rfx_basis_test, rfx_num_groups, rfx_basis_dim, num_gfr, num_burnin, keep_every, num_mcmc, num_chains, adaptive_coding, config_input)
+}
+
 create_forest_dataset_cpp <- function() {
   .Call(`_stochtree_create_forest_dataset_cpp`)
 }
