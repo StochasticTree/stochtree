@@ -546,7 +546,7 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
             tau_term += samples.tau_forest_predictions_train[k_tau] * data_.treatment_train[data_.n_train * treatment_idx + i];
           }
         } else {
-          tau_term = samples.tau_forest_predictions_train[k] * data_.treatment_test[i];
+          tau_term = samples.tau_forest_predictions_train[k] * data_.treatment_train[i];
         }
         y_term = mu_term + tau_term;
         if (has_random_effects_) y_term += samples.rfx_predictions_train[k];
@@ -605,14 +605,16 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
   }
   // Update raw tau(x): sum leaf values across trees for each dimension of the tau leaf.
   // Uses node IDs already cached in the tracker — no tree traversal needed.
+  // Stored col-major: tau_raw_sum_preds_[k * n_train + i] matches postprocess_samples indexing.
   const int tau_dim = data_.treatment_dim;
   const int data_dim = data_.n_train;
-  for (int i = 0; i < data_dim; i++) {
-    for (int k = 0; k < tau_dim; k++) tau_raw_sum_preds_[i * tau_dim + k] = 0.0;
-    for (int j = 0; j < config_.num_trees_tau; j++) {
-      data_size_t leaf = tau_forest_tracker_->GetNodeId(i, j);
-      for (int k = 0; k < tau_dim; k++)
+  for (int k = 0; k < tau_dim; k++) {
+    for (int i = 0; i < data_dim; i++) {
+      tau_raw_sum_preds_[k * data_dim + i] = 0.0;
+      for (int j = 0; j < config_.num_trees_tau; j++) {
+        data_size_t leaf = tau_forest_tracker_->GetNodeId(i, j);
         tau_raw_sum_preds_[k * data_dim + i] += tau_forest_->GetTree(j)->LeafValue(leaf, k);
+      }
     }
   }
 
