@@ -11,8 +11,14 @@
  *      DGP: Z = sin(2*pi*x1) + 0.5*x2 - 1.5*x3 + eps, eps ~ N(0,1)
  *           y = 1{Z > 0}
  *
+ *   2  Homoskedastic multivariate-leaf BART (2-column basis)
+ *      DGP: tau1(x) = piecewise on x1 in {-2,-1,1,2} (quartile bins)
+ *           tau2(x) = piecewise on x1 in {1,2,-1,-2} (quartile bins)
+ *           z1, z2 ~ Uniform(0,1)
+ *           y = tau1(x)*z1 + tau2(x)*z2 + eps, eps ~ N(0,1)
+ *
  * Add scenarios here as the BARTSampler API develops (heteroskedastic,
- * random effects, multivariate leaf, etc.).
+ * random effects, etc.).
  */
 
 #include <stochtree/bart.h>
@@ -38,6 +44,13 @@ struct ProbitDataset {
   std::vector<double> X;
   std::vector<double> y;
   std::vector<double> Z;
+};
+
+struct MultivariateRegressionDataset {
+  std::vector<double> X;
+  std::vector<double> y;
+  std::vector<double> basis;   // col-major n x 2: first n = z1, next n = z2
+  std::vector<double> f_true;
 };
 
 // DGP: y = sin(2*pi*x1) + 0.5*x2 - 1.5*x3 + N(0,1)
@@ -71,6 +84,33 @@ static ProbitDataset generate_probit_data(int n, int p, std::mt19937& rng) {
   for (int i = 0; i < n; i++) {
     d.Z[i] = std::sin(2.0 * kPi * d.X[i]) + 0.5 * d.X[1 * n + i] - 1.5 * d.X[2 * n + i] + normal(rng);
     d.y[i] = (d.Z[i] > 0) ? 1.0 : 0.0;
+  }
+  return d;
+}
+
+// DGP: tau1(x) and tau2(x) are piecewise-constant on x1 quartile bins;
+//      z1, z2 ~ Uniform(0,1); y = tau1*z1 + tau2*z2 + N(0,1)
+static MultivariateRegressionDataset generate_multivariate_regression_data(int n, int p, std::mt19937& rng) {
+  std::uniform_real_distribution<double> unif(0.0, 1.0);
+  std::normal_distribution<double> normal(0.0, 1.0);
+  MultivariateRegressionDataset d;
+  d.X.resize(n * p);
+  d.y.resize(n);
+  d.basis.resize(n * 2);
+  d.f_true.resize(n);
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < p; j++)
+      d.X[j * n + i] = unif(rng);
+  for (int i = 0; i < n; i++) {
+    double z1 = unif(rng);
+    double z2 = unif(rng);
+    d.basis[i]     = z1;
+    d.basis[n + i] = z2;
+    double x0 = d.X[i];
+    double tau1 = (x0 < 0.25) ? -2.0 : (x0 < 0.50) ? -1.0 : (x0 < 0.75) ? 1.0 : 2.0;
+    double tau2 = (x0 < 0.25) ?  1.0 : (x0 < 0.50) ?  2.0 : (x0 < 0.75) ? -1.0 : -2.0;
+    d.f_true[i] = tau1 * z1 + tau2 * z2;
+    d.y[i] = d.f_true[i] + normal(rng);
   }
   return d;
 }
@@ -189,6 +229,49 @@ static void run_scenario_1(int n, int n_test, int p, int num_trees, int num_gfr,
   report_bart(samples, test.y, StochTree::LinkFunction::Probit, "Scenario 1 (Probit BART)");
 }
 
+// ---- Scenario 2: multivariate-leaf BART (2-column basis) -------------
+
+static void run_scenario_2(int n, int n_test, int p, int num_trees, int num_gfr, int num_mcmc, int seed) {
+  std::mt19937 rng(seed < 0 ? std::random_device{}() : static_cast<unsigned>(seed));
+  MultivariateRegressionDataset train = generate_multivariate_regression_data(n, p, rng);
+  MultivariateRegressionDataset test  = generate_multivariate_regression_data(n_test, p, rng);
+  const int basis_dim = 2;
+
+  StochTree::BARTData data;
+  data.X_train     = train.X.data();
+  data.y_train     = train.y.data();
+  data.n_train     = n;
+  data.p           = p;
+  data.basis_train = train.basis.data();
+  data.basis_test  = test.basis.data();
+  data.basis_dim   = basis_dim;
+  data.X_test      = test.X.data();
+  data.n_test      = n_test;
+
+  StochTree::BARTConfig config;
+  config.num_trees_mean      = num_trees;
+  config.random_seed         = seed;
+  config.mean_leaf_model_type = StochTree::MeanLeafModelType::GaussianMultivariateRegression;
+  config.leaf_dim_mean       = basis_dim;
+  config.leaf_constant_mean  = false;
+  config.link_function       = StochTree::LinkFunction::Identity;
+  config.standardize_outcome = true;
+  config.sample_sigma2_global = true;
+  config.var_weights_mean    = std::vector<double>(p, 1.0 / p);
+  config.feature_types       = std::vector<StochTree::FeatureType>(p, StochTree::FeatureType::kNumeric);
+  config.sweep_update_indices_mean = std::vector<int>(num_trees, 0);
+  std::iota(config.sweep_update_indices_mean.begin(), config.sweep_update_indices_mean.end(), 0);
+  config.sigma2_leaf_mean_matrix = {0.5, 0.0, 0.0, 0.5};  // 0.5 * I_{2x2}, col-major
+
+  StochTree::BARTSamples samples;
+  StochTree::BARTSampler sampler(samples, config, data);
+  sampler.run_gfr(samples, num_gfr, true);
+  sampler.run_mcmc(samples, 0, 1, num_mcmc);
+  sampler.postprocess_samples(samples);
+  report_bart(samples, test.f_true, StochTree::LinkFunction::Identity,
+              "Scenario 2 (Multivariate-leaf BART)");
+}
+
 // ---- Main -----------------------------------------------------------
 
 int main(int argc, char** argv) {
@@ -238,9 +321,12 @@ int main(int argc, char** argv) {
     case 1:
       run_scenario_1(n, n_test, p, num_trees, num_gfr, num_mcmc, seed);
       break;
+    case 2:
+      run_scenario_2(n, n_test, p, num_trees, num_gfr, num_mcmc, seed);
+      break;
     default:
       std::cerr << "Unknown scenario " << scenario
-                << ". Available: 0 (Homoskedastic BART), 1 (Probit BART)\n";
+                << ". Available: 0 (Homoskedastic BART), 1 (Probit BART), 2 (Multivariate-leaf BART)\n";
       return 1;
   }
   return 0;

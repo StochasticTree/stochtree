@@ -185,7 +185,7 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
   // Initialize tau leaf model
   if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression) {
     tau_leaf_model_ = GaussianUnivariateRegressionLeafModel(config_.sigma2_tau_init);
-  } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianConstant) {
+  } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
     Eigen::MatrixXd Sigma_0;
     if (!config_.sigma2_leaf_tau_matrix.empty()) {
       if ((int)config_.sigma2_leaf_tau_matrix.size() != config_.leaf_dim_tau * config_.leaf_dim_tau) {

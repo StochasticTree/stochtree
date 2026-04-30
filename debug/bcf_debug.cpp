@@ -18,6 +18,12 @@
  *           W = mu(x) + tau(x)*z + N(0, 1)
  *           y = 1{W > 0}
  *
+ *   2  Two-forest BCF: constant-leaf mu, multivariate-leaf tau (2 treatments)
+ *      DGP: mu(x)  = 2*sin(pi*x1) + 0.5*x2
+ *           tau1(x) = 1 + x3,  tau2(x) = 0.5 - x4
+ *           z1, z2 ~ Bernoulli(0.5)
+ *           y = mu(x) + tau1(x)*z1 + tau2(x)*z2 + N(0, 0.5^2)
+ *
  * Add scenarios here as the BCFSampler API develops (propensity covariate,
  * adaptive coding, random effects, etc.).
  */
@@ -51,6 +57,15 @@ struct ProbitBCFDataset {
   std::vector<double> z;
   std::vector<double> mu_true;
   std::vector<double> tau_true;
+};
+
+struct MultivariateBCFDataset {
+  std::vector<double> X;
+  std::vector<double> y;
+  std::vector<double> z;   // col-major n x 2: first n = z1, next n = z2
+  std::vector<double> mu_true;
+  std::vector<double> tau1_true;
+  std::vector<double> tau2_true;
 };
 
 // DGP: mu(x) = 2*sin(pi*x1) + 0.5*x2, tau(x) = 1 + x3
@@ -98,6 +113,35 @@ static ProbitBCFDataset generate_probit_bcf_data(int n, int p, std::mt19937& rng
     d.tau_true[i] = 1.0 + d.X[2 * n + i];
     d.latent_outcome[i] = d.mu_true[i] + d.tau_true[i] * d.z[i] + normal(rng);
     d.y[i] = (d.latent_outcome[i] > 0.0) ? 1.0 : 0.0;
+  }
+  return d;
+}
+
+// DGP: mu(x) = 2*sin(pi*x1) + 0.5*x2, tau1(x) = 1 + x3, tau2(x) = 0.5 - x4
+//      z1, z2 ~ Bernoulli(0.5), y = mu + tau1*z1 + tau2*z2 + N(0, 0.25)
+static MultivariateBCFDataset generate_multivariate_bcf_data(int n, int p, std::mt19937& rng) {
+  std::uniform_real_distribution<double> unif(0.0, 1.0);
+  std::normal_distribution<double> normal(0.0, 1.0);
+  std::bernoulli_distribution bern(0.5);
+  MultivariateBCFDataset d;
+  d.X.resize(n * p);
+  d.y.resize(n);
+  d.z.resize(n * 2);
+  d.mu_true.resize(n);
+  d.tau1_true.resize(n);
+  d.tau2_true.resize(n);
+  for (int i = 0; i < n; i++)
+    for (int j = 0; j < p; j++)
+      d.X[j * n + i] = unif(rng);
+  for (int i = 0; i < n; i++) {
+    double z1 = bern(rng) ? 1.0 : 0.0;
+    double z2 = bern(rng) ? 1.0 : 0.0;
+    d.z[i]     = z1;
+    d.z[n + i] = z2;
+    d.mu_true[i]   = 2.0 * std::sin(kPi * d.X[i]) + 0.5 * d.X[1 * n + i];
+    d.tau1_true[i] = 1.0 + d.X[2 * n + i];
+    d.tau2_true[i] = 0.5 - d.X[3 * n + i];
+    d.y[i] = d.mu_true[i] + d.tau1_true[i] * z1 + d.tau2_true[i] * z2 + 0.5 * normal(rng);
   }
   return d;
 }
@@ -167,6 +211,50 @@ static void report_bcf(const StochTree::BCFSamples& samples,
     }
     std::cout << "  Brier (test):          " << brier_sum / n_test << "\n"
               << "  Acc   (test):          " << static_cast<double>(correct) / n_test << "\n";
+  }
+}
+
+static void report_bcf_multivariate(const StochTree::BCFSamples& samples,
+                                    const std::vector<double>& mu_ref,
+                                    const std::vector<double>& tau1_ref,
+                                    const std::vector<double>& tau2_ref,
+                                    const std::vector<double>& y_ref,
+                                    const char* scenario_name) {
+  const int num_samples = samples.num_samples;
+  const int n_test = samples.num_test;
+  const int treatment_dim = 2;
+  double mu_rmse_sum = 0.0, tau1_rmse_sum = 0.0, tau2_rmse_sum = 0.0, y_rmse_sum = 0.0;
+  for (int i = 0; i < n_test; i++) {
+    double mu_hat = 0.0, tau1_hat = 0.0, tau2_hat = 0.0;
+    for (int j = 0; j < num_samples; j++) {
+      mu_hat  += samples.mu_forest_predictions_test[static_cast<std::size_t>(j * n_test + i)] / num_samples;
+      // tau layout: j * n_test * treatment_dim + n_test * treatment_idx + i
+      tau1_hat += samples.tau_forest_predictions_test[static_cast<std::size_t>(j * n_test * treatment_dim + i)] / num_samples;
+      tau2_hat += samples.tau_forest_predictions_test[static_cast<std::size_t>(j * n_test * treatment_dim + n_test + i)] / num_samples;
+    }
+    double mu_pred   = mu_hat   * samples.y_std + samples.y_bar;
+    double tau1_pred = tau1_hat * samples.y_std;
+    double tau2_pred = tau2_hat * samples.y_std;
+    mu_rmse_sum   += (mu_pred   - mu_ref[i])   * (mu_pred   - mu_ref[i]);
+    tau1_rmse_sum += (tau1_pred - tau1_ref[i]) * (tau1_pred - tau1_ref[i]);
+    tau2_rmse_sum += (tau2_pred - tau2_ref[i]) * (tau2_pred - tau2_ref[i]);
+  }
+  for (int i = 0; i < n_test; i++) {
+    double y_hat = 0.0;
+    for (int j = 0; j < num_samples; j++)
+      y_hat += samples.y_hat_test[static_cast<std::size_t>(j * n_test + i)] / num_samples;
+    y_rmse_sum += (y_hat - y_ref[i]) * (y_hat - y_ref[i]);
+  }
+  std::cout << "\n"
+            << scenario_name << ":\n"
+            << "  mu RMSE (test):        " << std::sqrt(mu_rmse_sum / n_test) << "\n"
+            << "  tau1 RMSE (test):      " << std::sqrt(tau1_rmse_sum / n_test) << "\n"
+            << "  tau2 RMSE (test):      " << std::sqrt(tau2_rmse_sum / n_test) << "\n"
+            << "  y RMSE (test):         " << std::sqrt(y_rmse_sum / n_test) << "\n";
+  if (!samples.global_error_variance_samples.empty()) {
+    std::cout << "  sigma (last):          "
+              << std::sqrt(samples.global_error_variance_samples.back()) * samples.y_std << "\n"
+              << "  sigma (truth):         0.5\n";
   }
 }
 
@@ -262,6 +350,55 @@ static void run_scenario_1(int n, int n_test, int p,
              "Scenario 1 (BCF: constant mu + univariate tau, probit link)");
 }
 
+// ---- Scenario 2: constant-leaf mu + multivariate-leaf tau (identity link) ---
+
+static void run_scenario_2(int n, int n_test, int p,
+                           int num_trees_mu, int num_trees_tau,
+                           int num_gfr, int num_mcmc, int seed) {
+  std::mt19937 rng(seed < 0 ? std::random_device{}() : static_cast<unsigned>(seed));
+  MultivariateBCFDataset train = generate_multivariate_bcf_data(n, p, rng);
+  MultivariateBCFDataset test  = generate_multivariate_bcf_data(n_test, p, rng);
+  const int treatment_dim = 2;
+
+  StochTree::BCFData data;
+  data.X_train        = train.X.data();
+  data.y_train        = train.y.data();
+  data.treatment_train = train.z.data();
+  data.n_train        = n;
+  data.p              = p;
+  data.treatment_dim  = treatment_dim;
+  data.X_test         = test.X.data();
+  data.treatment_test = test.z.data();
+  data.n_test         = n_test;
+
+  StochTree::BCFConfig config;
+  config.num_trees_mu  = num_trees_mu;
+  config.num_trees_tau = num_trees_tau;
+  config.random_seed   = seed;
+  config.tau_leaf_model_type = StochTree::MeanLeafModelType::GaussianMultivariateRegression;
+  config.leaf_dim_tau   = treatment_dim;
+  config.leaf_constant_tau = false;
+  config.link_function  = StochTree::LinkFunction::Identity;
+  config.standardize_outcome = true;
+  config.sample_sigma2_global = true;
+  config.var_weights_mu  = std::vector<double>(p, 1.0 / p);
+  config.var_weights_tau = std::vector<double>(p, 1.0 / p);
+  config.feature_types   = std::vector<StochTree::FeatureType>(p, StochTree::FeatureType::kNumeric);
+  config.sweep_update_indices_mu  = std::vector<int>(num_trees_mu, 0);
+  config.sweep_update_indices_tau = std::vector<int>(num_trees_tau, 0);
+  std::iota(config.sweep_update_indices_mu.begin(),  config.sweep_update_indices_mu.end(),  0);
+  std::iota(config.sweep_update_indices_tau.begin(), config.sweep_update_indices_tau.end(), 0);
+  config.sigma2_leaf_tau_matrix = {0.5, 0.0, 0.0, 0.5};  // 0.5 * I_{2x2}, col-major
+
+  StochTree::BCFSamples samples;
+  StochTree::BCFSampler sampler(samples, config, data);
+  sampler.run_gfr(samples, num_gfr, /*keep_gfr=*/true);
+  sampler.run_mcmc(samples, /*num_burnin=*/0, /*keep_every=*/1, /*num_mcmc=*/num_mcmc);
+  sampler.postprocess_samples(samples);
+  report_bcf_multivariate(samples, test.mu_true, test.tau1_true, test.tau2_true, test.y,
+                          "Scenario 2 (BCF: constant mu + multivariate tau, identity link)");
+}
+
 // ---- Main -----------------------------------------------------------
 
 int main(int argc, char** argv) {
@@ -315,9 +452,12 @@ int main(int argc, char** argv) {
     case 1:
       run_scenario_1(n, n_test, p, num_trees_mu, num_trees_tau, num_gfr, num_mcmc, seed);
       break;
+    case 2:
+      run_scenario_2(n, n_test, p, num_trees_mu, num_trees_tau, num_gfr, num_mcmc, seed);
+      break;
     default:
       std::cerr << "Unknown scenario " << scenario
-                << ". Available: 0 (BCF: identity), 1 (BCF: probit)\n";
+                << ". Available: 0 (BCF: identity), 1 (BCF: probit), 2 (BCF: multivariate tau)\n";
       return 1;
   }
   return 0;
