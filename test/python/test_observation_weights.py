@@ -124,9 +124,9 @@ class TestBARTObservationWeights:
                 general_params={"outcome_model": OutcomeModel(outcome="ordinal", link="cloglog")},
             )
 
-    def test_variance_forest_warns(self):
+    def test_variance_forest_raises(self):
         X_train, y_train, _, n_train, _ = make_bart_data()
-        with pytest.warns(UserWarning, match="variance forest"):
+        with pytest.raises(ValueError, match="not compatible with a variance forest"):
             BARTModel().sample(
                 X_train=X_train, y_train=y_train,
                 observation_weights=np.ones(n_train),

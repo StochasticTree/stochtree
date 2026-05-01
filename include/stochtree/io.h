@@ -7,8 +7,8 @@
  *   parser.h
  *   pipeline_reader.h
  *   text_reader.h
- * 
- * LightGBM is MIT licensed and released with the following copyright header 
+ *
+ * LightGBM is MIT licensed and released with the following copyright header
  * (with different copyright years in different files):
  *
  * Copyright (c) 2016 Microsoft Corporation. All rights reserved.
@@ -42,9 +42,9 @@ namespace StochTree {
 const size_t kGbs = size_t(1024) * 1024 * 1024;
 
 /*!
-* \brief Contains some operation for an array, e.g. ArgMax, TopK.
-*/
-template<typename VAL_T>
+ * \brief Contains some operation for an array, e.g. ArgMax, TopK.
+ */
+template <typename VAL_T>
 class ArrayArgs {
  public:
   inline static size_t ArgMax(const std::vector<VAL_T>& array) {
@@ -116,18 +116,35 @@ class ArrayArgs {
     std::vector<VAL_T>& ref = *arr;
     VAL_T v = ref[end - 1];
     for (;;) {
-      while (ref[++i] > v) {}
-      while (v > ref[--j]) { if (j == start) { break; } }
-      if (i >= j) { break; }
+      while (ref[++i] > v) {
+      }
+      while (v > ref[--j]) {
+        if (j == start) {
+          break;
+        }
+      }
+      if (i >= j) {
+        break;
+      }
       std::swap(ref[i], ref[j]);
-      if (ref[i] == v) { p++; std::swap(ref[p], ref[i]); }
-      if (v == ref[j]) { q--; std::swap(ref[j], ref[q]); }
+      if (ref[i] == v) {
+        p++;
+        std::swap(ref[p], ref[i]);
+      }
+      if (v == ref[j]) {
+        q--;
+        std::swap(ref[j], ref[q]);
+      }
     }
     std::swap(ref[i], ref[end - 1]);
     j = i - 1;
     i = i + 1;
-    for (int k = start; k <= p; k++, j--) { std::swap(ref[k], ref[j]); }
-    for (int k = end - 2; k >= q; k--, i++) { std::swap(ref[i], ref[k]); }
+    for (int k = start; k <= p; k++, j--) {
+      std::swap(ref[k], ref[j]);
+    }
+    for (int k = end - 2; k >= q; k--, i++) {
+      std::swap(ref[i], ref[k]);
+    }
     *l = j;
     *r = i;
   }
@@ -193,24 +210,24 @@ class ArrayArgs {
 };
 
 /*!
-  * \brief An interface for serializing binary data to a buffer
-  */
+ * \brief An interface for serializing binary data to a buffer
+ */
 struct BinaryWriter {
   /*!
-    * \brief Append data to this binary target
-    * \param data Buffer to write from
-    * \param bytes Number of bytes to write from buffer
-    * \return Number of bytes written
-    */
+   * \brief Append data to this binary target
+   * \param data Buffer to write from
+   * \param bytes Number of bytes to write from buffer
+   * \return Number of bytes written
+   */
   virtual size_t Write(const void* data, size_t bytes) = 0;
 
   /*!
-    * \brief Append data to this binary target aligned on a given byte size boundary
-    * \param data Buffer to write from
-    * \param bytes Number of bytes to write from buffer
-    * \param alignment The size of bytes to align to in whole increments
-    * \return Number of bytes written
-    */
+   * \brief Append data to this binary target aligned on a given byte size boundary
+   * \param data Buffer to write from
+   * \param bytes Number of bytes to write from buffer
+   * \param alignment The size of bytes to align to in whole increments
+   * \return Number of bytes written
+   */
   size_t AlignedWrite(const void* data, size_t bytes, size_t alignment = 8) {
     auto ret = Write(data, bytes);
     if (bytes % alignment != 0) {
@@ -222,11 +239,11 @@ struct BinaryWriter {
   }
 
   /*!
-    * \brief The aligned size of a buffer length.
-    * \param bytes The number of bytes in a buffer
-    * \param alignment The size of bytes to align to in whole increments
-    * \return Number of aligned bytes
-    */
+   * \brief The aligned size of a buffer length.
+   * \param bytes The number of bytes in a buffer
+   * \param alignment The size of bytes to align to in whole increments
+   * \return Number of aligned bytes
+   */
   static size_t AlignedSize(size_t bytes, size_t alignment = 8) {
     if (bytes % alignment == 0) {
       return bytes;
@@ -301,42 +318,42 @@ class Parser {
   Parser() {}
 
   /*!
-  * \brief Constructor for customized parser. The constructor accepts content not path because need to save/load the config along with model string
-  */
+   * \brief Constructor for customized parser. The constructor accepts content not path because need to save/load the config along with model string
+   */
   explicit Parser(std::string) {}
 
   /*! \brief virtual destructor */
   virtual ~Parser() {}
 
   /*!
-  * \brief Parse one line with label
-  * \param str One line record, string format, should end with '\0'
-  * \param out_features Output columns, store in (column_idx, values)
-  */
+   * \brief Parse one line with label
+   * \param str One line record, string format, should end with '\0'
+   * \param out_features Output columns, store in (column_idx, values)
+   */
   virtual void ParseOneLine(const char* str,
                             std::vector<std::pair<int, double>>* out_features) const = 0;
 
   virtual int NumFeatures() const = 0;
 
   /*!
-  * \brief Create an object of parser, will auto choose the format depend on file
-  * \param filename One Filename of data
-  * \param header whether input file contains header
-  * \param num_features Pass num_features of this data file if you know, <=0 means don't know
-  * \param precise_float_parser using precise floating point number parsing if true
-  * \return Object of parser
-  */
+   * \brief Create an object of parser, will auto choose the format depend on file
+   * \param filename One Filename of data
+   * \param header whether input file contains header
+   * \param num_features Pass num_features of this data file if you know, <=0 means don't know
+   * \param precise_float_parser using precise floating point number parsing if true
+   * \return Object of parser
+   */
   static Parser* CreateParser(const char* filename, bool header, int num_features, bool precise_float_parser);
 };
 
-class CSVParser: public Parser {
+class CSVParser : public Parser {
  public:
   explicit CSVParser(int total_columns, AtofFunc atof)
-    :total_columns_(total_columns), atof_(atof) {
+      : total_columns_(total_columns), atof_(atof) {
   }
 
   inline void ParseOneLine(const char* str,
-    std::vector<std::pair<int, double>>* out_features) const override {
+                           std::vector<std::pair<int, double>>* out_features) const override {
     int idx = 0;
     double val = 0.0f;
     int offset = 0;
@@ -365,22 +382,22 @@ class CSVParser: public Parser {
 };
 
 /*!
-* \brief A pipeline file reader, use 2 threads, one read block from file, the other process the block
-*/
+ * \brief A pipeline file reader, use 2 threads, one read block from file, the other process the block
+ */
 class PipelineReader {
  public:
   /*!
-  * \brief Read data from a file, use pipeline methods
-  * \param filename Filename of data
-  * \process_fun Process function
-  */
+   * \brief Read data from a file, use pipeline methods
+   * \param filename Filename of data
+   * \process_fun Process function
+   */
   static size_t Read(const char* filename, int skip_bytes, const std::function<size_t(const char*, size_t)>& process_fun) {
     auto reader = VirtualFileReader::Make(filename);
     if (!reader->Init()) {
       return 0;
     }
     size_t cnt = 0;
-    const size_t buffer_size =  16 * 1024 * 1024;
+    const size_t buffer_size = 16 * 1024 * 1024;
     // buffer used for the process_fun
     auto buffer_process = std::vector<char>(buffer_size);
     // buffer used for the file reading
@@ -397,9 +414,9 @@ class PipelineReader {
     while (read_cnt > 0) {
       // start read thread
       std::thread read_worker = std::thread(
-        [=, &last_read_cnt, &reader, &buffer_read] {
-        last_read_cnt = reader->Read(buffer_read.data(), buffer_size);
-      });
+          [=, &last_read_cnt, &reader, &buffer_read] {
+            last_read_cnt = reader->Read(buffer_read.data(), buffer_size);
+          });
       // start process
       cnt += process_fun(buffer_process.data(), read_cnt);
       // wait for read thread
@@ -413,18 +430,17 @@ class PipelineReader {
 };
 
 /*!
-* \brief Read text data from file
-*/
-template<typename INDEX_T>
+ * \brief Read text data from file
+ */
+template <typename INDEX_T>
 class TextReader {
  public:
   /*!
-  * \brief Constructor
-  * \param filename Filename of data
-  * \param is_skip_first_line True if need to skip header
-  */
-  TextReader(const char* filename, bool is_skip_first_line, size_t progress_interval_bytes = SIZE_MAX):
-    filename_(filename), is_skip_first_line_(is_skip_first_line), read_progress_interval_bytes_(progress_interval_bytes) {
+   * \brief Constructor
+   * \param filename Filename of data
+   * \param is_skip_first_line True if need to skip header
+   */
+  TextReader(const char* filename, bool is_skip_first_line, size_t progress_interval_bytes = SIZE_MAX) : filename_(filename), is_skip_first_line_(is_skip_first_line), read_progress_interval_bytes_(progress_interval_bytes) {
     if (is_skip_first_line_) {
       auto reader = VirtualFileReader::Make(filename);
       if (!reader->Init()) {
@@ -454,33 +470,33 @@ class TextReader {
     }
   }
   /*!
-  * \brief Destructor
-  */
+   * \brief Destructor
+   */
   ~TextReader() {
     Clear();
   }
   /*!
-  * \brief Clear cached data
-  */
+   * \brief Clear cached data
+   */
   inline void Clear() {
     lines_.clear();
     lines_.shrink_to_fit();
   }
   /*!
-  * \brief return first line of data
-  */
+   * \brief return first line of data
+   */
   inline std::string first_line() {
     return first_line_;
   }
   /*!
-  * \brief Get text data that read from file
-  * \return Text data, store in std::vector by line
-  */
+   * \brief Get text data that read from file
+   * \return Text data, store in std::vector by line
+   */
   inline std::vector<std::string>& Lines() { return lines_; }
   /*!
-  * \brief Get joined text data that read from file
-  * \return Text data, store in std::string, joined all lines by delimiter
-  */
+   * \brief Get joined text data that read from file
+   * \return Text data, store in std::string, joined all lines by delimiter
+   */
   inline std::string JoinedLines(std::string delimiter = "\n") {
     std::stringstream ss;
     for (auto line : lines_) {
@@ -494,47 +510,48 @@ class TextReader {
     INDEX_T total_cnt = 0;
     size_t bytes_read = 0;
     PipelineReader::Read(filename_, skip_bytes_,
-        [&process_fun, &bytes_read, &total_cnt, this]
-    (const char* buffer_process, size_t read_cnt) {
-      size_t cnt = 0;
-      size_t i = 0;
-      size_t last_i = 0;
-      // skip the break between \r and \n
-      if (last_line_.size() == 0 && buffer_process[0] == '\n') {
-        i = 1;
-        last_i = i;
-      }
-      while (i < read_cnt) {
-        if (buffer_process[i] == '\n' || buffer_process[i] == '\r') {
-          if (last_line_.size() > 0) {
-            last_line_.append(buffer_process + last_i, i - last_i);
-            process_fun(total_cnt, last_line_.c_str(), last_line_.size());
-            last_line_ = "";
-          } else {
-            process_fun(total_cnt, buffer_process + last_i, i - last_i);
-          }
-          ++cnt;
-          ++i;
-          ++total_cnt;
-          // skip end of line
-          while ((buffer_process[i] == '\n' || buffer_process[i] == '\r') && i < read_cnt) { ++i; }
-          last_i = i;
-        } else {
-          ++i;
-        }
-      }
-      if (last_i != read_cnt) {
-        last_line_.append(buffer_process + last_i, read_cnt - last_i);
-      }
+                         [&process_fun, &bytes_read, &total_cnt, this](const char* buffer_process, size_t read_cnt) {
+                           size_t cnt = 0;
+                           size_t i = 0;
+                           size_t last_i = 0;
+                           // skip the break between \r and \n
+                           if (last_line_.size() == 0 && buffer_process[0] == '\n') {
+                             i = 1;
+                             last_i = i;
+                           }
+                           while (i < read_cnt) {
+                             if (buffer_process[i] == '\n' || buffer_process[i] == '\r') {
+                               if (last_line_.size() > 0) {
+                                 last_line_.append(buffer_process + last_i, i - last_i);
+                                 process_fun(total_cnt, last_line_.c_str(), last_line_.size());
+                                 last_line_ = "";
+                               } else {
+                                 process_fun(total_cnt, buffer_process + last_i, i - last_i);
+                               }
+                               ++cnt;
+                               ++i;
+                               ++total_cnt;
+                               // skip end of line
+                               while ((buffer_process[i] == '\n' || buffer_process[i] == '\r') && i < read_cnt) {
+                                 ++i;
+                               }
+                               last_i = i;
+                             } else {
+                               ++i;
+                             }
+                           }
+                           if (last_i != read_cnt) {
+                             last_line_.append(buffer_process + last_i, read_cnt - last_i);
+                           }
 
-      size_t prev_bytes_read = bytes_read;
-      bytes_read += read_cnt;
-      if (prev_bytes_read / read_progress_interval_bytes_ < bytes_read / read_progress_interval_bytes_) {
-        Log::Debug("Read %.1f GBs from %s.", 1.0 * bytes_read / kGbs, filename_);
-      }
+                           size_t prev_bytes_read = bytes_read;
+                           bytes_read += read_cnt;
+                           if (prev_bytes_read / read_progress_interval_bytes_ < bytes_read / read_progress_interval_bytes_) {
+                             Log::Debug("Read %.1f GBs from %s.", 1.0 * bytes_read / kGbs, filename_);
+                           }
 
-      return cnt;
-    });
+                           return cnt;
+                         });
     // if last line of file doesn't contain end of line
     if (last_line_.size() > 0) {
       Log::Info("Warning: last line of %s has no end of line, still using this line", filename_);
@@ -546,14 +563,14 @@ class TextReader {
   }
 
   /*!
-  * \brief Read all text data from file in memory
-  * \return number of lines of text data
-  */
+   * \brief Read all text data from file in memory
+   * \return number of lines of text data
+   */
   INDEX_T ReadAllLines() {
     return ReadAllAndProcess(
-      [=](INDEX_T, const char* buffer, size_t size) {
-      lines_.emplace_back(buffer, size);
-    });
+        [=](INDEX_T, const char* buffer, size_t size) {
+          lines_.emplace_back(buffer, size);
+        });
   }
 
   std::vector<char> ReadContent(size_t* out_len) {
@@ -577,8 +594,7 @@ class TextReader {
   INDEX_T SampleFromFile(Random* random, INDEX_T sample_cnt, std::vector<std::string>* out_sampled_data) {
     INDEX_T cur_sample_cnt = 0;
     return ReadAllAndProcess([=, &random, &cur_sample_cnt,
-                              &out_sampled_data]
-    (INDEX_T line_idx, const char* buffer, size_t size) {
+                              &out_sampled_data](INDEX_T line_idx, const char* buffer, size_t size) {
       if (cur_sample_cnt < sample_cnt) {
         out_sampled_data->emplace_back(buffer, size);
         ++cur_sample_cnt;
@@ -591,54 +607,52 @@ class TextReader {
     });
   }
   /*!
-  * \brief Read part of text data from file in memory, use filter_fun to filter data
-  * \param filter_fun Function that perform data filter
-  * \param out_used_data_indices Store line indices that read text data
-  * \return The number of total data
-  */
+   * \brief Read part of text data from file in memory, use filter_fun to filter data
+   * \param filter_fun Function that perform data filter
+   * \param out_used_data_indices Store line indices that read text data
+   * \return The number of total data
+   */
   INDEX_T ReadAndFilterLines(const std::function<bool(INDEX_T)>& filter_fun, std::vector<INDEX_T>* out_used_data_indices) {
     out_used_data_indices->clear();
     INDEX_T total_cnt = ReadAllAndProcess(
-        [&filter_fun, &out_used_data_indices, this]
-    (INDEX_T line_idx , const char* buffer, size_t size) {
-      bool is_used = filter_fun(line_idx);
-      if (is_used) {
-        out_used_data_indices->push_back(line_idx);
-        lines_.emplace_back(buffer, size);
-      }
-    });
+        [&filter_fun, &out_used_data_indices, this](INDEX_T line_idx, const char* buffer, size_t size) {
+          bool is_used = filter_fun(line_idx);
+          if (is_used) {
+            out_used_data_indices->push_back(line_idx);
+            lines_.emplace_back(buffer, size);
+          }
+        });
     return total_cnt;
   }
 
   INDEX_T SampleAndFilterFromFile(const std::function<bool(INDEX_T)>& filter_fun, std::vector<INDEX_T>* out_used_data_indices,
-    Random* random, INDEX_T sample_cnt, std::vector<std::string>* out_sampled_data) {
+                                  Random* random, INDEX_T sample_cnt, std::vector<std::string>* out_sampled_data) {
     INDEX_T cur_sample_cnt = 0;
     out_used_data_indices->clear();
     INDEX_T total_cnt = ReadAllAndProcess(
         [=, &filter_fun, &out_used_data_indices, &random, &cur_sample_cnt,
-         &out_sampled_data]
-    (INDEX_T line_idx, const char* buffer, size_t size) {
-      bool is_used = filter_fun(line_idx);
-      if (is_used) {
-        out_used_data_indices->push_back(line_idx);
-        if (cur_sample_cnt < sample_cnt) {
-          out_sampled_data->emplace_back(buffer, size);
-          ++cur_sample_cnt;
-        } else {
-          const size_t idx = static_cast<size_t>(random->NextInt(0, static_cast<int>(out_used_data_indices->size())));
-          if (idx < static_cast<size_t>(sample_cnt)) {
-            out_sampled_data->operator[](idx) = std::string(buffer, size);
+         &out_sampled_data](INDEX_T line_idx, const char* buffer, size_t size) {
+          bool is_used = filter_fun(line_idx);
+          if (is_used) {
+            out_used_data_indices->push_back(line_idx);
+            if (cur_sample_cnt < sample_cnt) {
+              out_sampled_data->emplace_back(buffer, size);
+              ++cur_sample_cnt;
+            } else {
+              const size_t idx = static_cast<size_t>(random->NextInt(0, static_cast<int>(out_used_data_indices->size())));
+              if (idx < static_cast<size_t>(sample_cnt)) {
+                out_sampled_data->operator[](idx) = std::string(buffer, size);
+              }
+            }
           }
-        }
-      }
-    });
+        });
     return total_cnt;
   }
 
   INDEX_T CountLine() {
     return ReadAllAndProcess(
-      [=](INDEX_T, const char*, size_t) {
-    });
+        [=](INDEX_T, const char*, size_t) {
+        });
   }
 
   INDEX_T ReadAllAndProcessParallelWithFilter(const std::function<void(INDEX_T, const std::vector<std::string>&)>& process_fun, const std::function<bool(INDEX_T, INDEX_T)>& filter_fun) {
@@ -647,56 +661,57 @@ class TextReader {
     size_t bytes_read = 0;
     INDEX_T used_cnt = 0;
     PipelineReader::Read(filename_, skip_bytes_,
-        [&process_fun, &filter_fun, &total_cnt, &bytes_read, &used_cnt, this]
-    (const char* buffer_process, size_t read_cnt) {
-      size_t cnt = 0;
-      size_t i = 0;
-      size_t last_i = 0;
-      INDEX_T start_idx = used_cnt;
-      // skip the break between \r and \n
-      if (last_line_.size() == 0 && buffer_process[0] == '\n') {
-        i = 1;
-        last_i = i;
-      }
-      while (i < read_cnt) {
-        if (buffer_process[i] == '\n' || buffer_process[i] == '\r') {
-          if (last_line_.size() > 0) {
-            last_line_.append(buffer_process + last_i, i - last_i);
-            if (filter_fun(used_cnt, total_cnt)) {
-              lines_.push_back(last_line_);
-              ++used_cnt;
-            }
-            last_line_ = "";
-          } else {
-            if (filter_fun(used_cnt, total_cnt)) {
-              lines_.emplace_back(buffer_process + last_i, i - last_i);
-              ++used_cnt;
-            }
-          }
-          ++cnt;
-          ++i;
-          ++total_cnt;
-          // skip end of line
-          while ((buffer_process[i] == '\n' || buffer_process[i] == '\r') && i < read_cnt) { ++i; }
-          last_i = i;
-        } else {
-          ++i;
-        }
-      }
-      process_fun(start_idx, lines_);
-      lines_.clear();
-      if (last_i != read_cnt) {
-        last_line_.append(buffer_process + last_i, read_cnt - last_i);
-      }
+                         [&process_fun, &filter_fun, &total_cnt, &bytes_read, &used_cnt, this](const char* buffer_process, size_t read_cnt) {
+                           size_t cnt = 0;
+                           size_t i = 0;
+                           size_t last_i = 0;
+                           INDEX_T start_idx = used_cnt;
+                           // skip the break between \r and \n
+                           if (last_line_.size() == 0 && buffer_process[0] == '\n') {
+                             i = 1;
+                             last_i = i;
+                           }
+                           while (i < read_cnt) {
+                             if (buffer_process[i] == '\n' || buffer_process[i] == '\r') {
+                               if (last_line_.size() > 0) {
+                                 last_line_.append(buffer_process + last_i, i - last_i);
+                                 if (filter_fun(used_cnt, total_cnt)) {
+                                   lines_.push_back(last_line_);
+                                   ++used_cnt;
+                                 }
+                                 last_line_ = "";
+                               } else {
+                                 if (filter_fun(used_cnt, total_cnt)) {
+                                   lines_.emplace_back(buffer_process + last_i, i - last_i);
+                                   ++used_cnt;
+                                 }
+                               }
+                               ++cnt;
+                               ++i;
+                               ++total_cnt;
+                               // skip end of line
+                               while ((buffer_process[i] == '\n' || buffer_process[i] == '\r') && i < read_cnt) {
+                                 ++i;
+                               }
+                               last_i = i;
+                             } else {
+                               ++i;
+                             }
+                           }
+                           process_fun(start_idx, lines_);
+                           lines_.clear();
+                           if (last_i != read_cnt) {
+                             last_line_.append(buffer_process + last_i, read_cnt - last_i);
+                           }
 
-      size_t prev_bytes_read = bytes_read;
-      bytes_read += read_cnt;
-      if (prev_bytes_read / read_progress_interval_bytes_ < bytes_read / read_progress_interval_bytes_) {
-        Log::Debug("Read %.1f GBs from %s.", 1.0 * bytes_read / kGbs, filename_);
-      }
+                           size_t prev_bytes_read = bytes_read;
+                           bytes_read += read_cnt;
+                           if (prev_bytes_read / read_progress_interval_bytes_ < bytes_read / read_progress_interval_bytes_) {
+                             Log::Debug("Read %.1f GBs from %s.", 1.0 * bytes_read / kGbs, filename_);
+                           }
 
-      return cnt;
-    });
+                           return cnt;
+                         });
     // if last line of file doesn't contain end of line
     if (last_line_.size() > 0) {
       Log::Info("Warning: last line of %s has no end of line, still using this line", filename_);
@@ -718,13 +733,13 @@ class TextReader {
 
   INDEX_T ReadPartAndProcessParallel(const std::vector<INDEX_T>& used_data_indices, const std::function<void(INDEX_T, const std::vector<std::string>&)>& process_fun) {
     return ReadAllAndProcessParallelWithFilter(process_fun,
-      [&used_data_indices](INDEX_T used_cnt, INDEX_T total_cnt) {
-      if (static_cast<size_t>(used_cnt) < used_data_indices.size() && total_cnt == used_data_indices[used_cnt]) {
-        return true;
-      } else {
-        return false;
-      }
-    });
+                                               [&used_data_indices](INDEX_T used_cnt, INDEX_T total_cnt) {
+                                                 if (static_cast<size_t>(used_cnt) < used_data_indices.size() && total_cnt == used_data_indices[used_cnt]) {
+                                                   return true;
+                                                 } else {
+                                                   return false;
+                                                 }
+                                               });
   }
 
  private:
@@ -745,4 +760,4 @@ class TextReader {
 
 }  // namespace StochTree
 
-#endif   // STOCHTREE_IO_H_
+#endif  // STOCHTREE_IO_H_

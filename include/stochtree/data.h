@@ -21,10 +21,10 @@ namespace StochTree {
  */
 
 /*!
- * \brief Extract multiple features from the raw data loaded from a file into an `Eigen::MatrixXd`. 
+ * \brief Extract multiple features from the raw data loaded from a file into an `Eigen::MatrixXd`.
  * Lightly modified from LightGBM's datasetloader interface to support `stochtree`'s use cases.
  * \internal
- * 
+ *
  * \param text_data Vector of data reads as string from a file.
  * \param parser Pointer to a parser object (i.e. `CSVParser`).
  * \param column_indices Integer labels of columns to be extracted from `text_data` into `data`.
@@ -32,7 +32,7 @@ namespace StochTree {
  * \param num_rows Number of observations in the data being loaded.
  */
 static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* text_data, const Parser* parser,
-                                                     std::vector<int32_t>& column_indices, Eigen::MatrixXd& data,
+                                                     std::vector<int>& column_indices, Eigen::MatrixXd& data,
                                                      data_size_t num_rows) {
   std::vector<std::pair<int, double>> oneline_features;
   auto& ref_text_data = *text_data;
@@ -42,7 +42,7 @@ static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* t
     // unpack the vector of textlines read from file into a vector of (int, double) tuples
     oneline_features.clear();
     parser->ParseOneLine(ref_text_data[i].c_str(), &oneline_features);
-    
+
     // free processed line:
     ref_text_data[i].clear();
 
@@ -50,9 +50,8 @@ static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* t
     int feature_counter = 0;
     for (auto& inner_data : oneline_features) {
       int feature_idx = inner_data.first;
-      column_matched = (std::find(column_indices.begin(), column_indices.end(), feature_idx)
-                        != column_indices.end());
-      if (column_matched){
+      column_matched = (std::find(column_indices.begin(), column_indices.end(), feature_idx) != column_indices.end());
+      if (column_matched) {
         data(i, feature_counter) = inner_data.second;
         feature_counter += 1;
       }
@@ -63,10 +62,10 @@ static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* t
 }
 
 /*!
-* \brief Extract a single feature from the raw data loaded from a file into an `Eigen::VectorXd`. 
+ * \brief Extract a single feature from the raw data loaded from a file into an `Eigen::VectorXd`.
  * Lightly modified from LightGBM's datasetloader interface to support `stochtree`'s use cases.
  * \internal
- * 
+ *
  * \param text_data Vector of data reads as string from a file.
  * \param parser Pointer to a parser object (i.e. `CSVParser`).
  * \param column_index Integer labels of columns to be extracted from `text_data` into `data`.
@@ -74,7 +73,7 @@ static inline void ExtractMultipleFeaturesFromMemory(std::vector<std::string>* t
  * \param num_rows Number of observations in the data being loaded.
  */
 static inline void ExtractSingleFeatureFromMemory(std::vector<std::string>* text_data, const Parser* parser,
-                                                  int32_t column_index, Eigen::VectorXd& data, data_size_t num_rows) {
+                                                  int column_index, Eigen::VectorXd& data, data_size_t num_rows) {
   std::vector<std::pair<int, double>> oneline_features;
   auto& ref_text_data = *text_data;
   bool column_matched;
@@ -82,14 +81,14 @@ static inline void ExtractSingleFeatureFromMemory(std::vector<std::string>* text
     // unpack the vector of textlines read from file into a vector of (int, double) tuples
     oneline_features.clear();
     parser->ParseOneLine(ref_text_data[i].c_str(), &oneline_features);
-    
+
     // free processed line:
     ref_text_data[i].clear();
 
     // unload the data from oneline_features vector into the dataset variables containers
     for (auto& inner_data : oneline_features) {
       int feature_idx = inner_data.first;
-      if (column_index == feature_idx){
+      if (column_index == feature_idx) {
         data(i) = inner_data.second;
       }
     }
@@ -106,7 +105,7 @@ static inline std::vector<std::string> LoadTextDataToMemory(const char* filename
   return std::move(text_reader.Lines());
 }
 
-static inline void FeatureUnpack(std::vector<int32_t>& categorical_variables, const char* var_id) {
+static inline void FeatureUnpack(std::vector<int>& categorical_variables, const char* var_id) {
   std::string var_clean = Common::RemoveQuotationSymbol(Common::Trim(var_id));
   int out;
   bool success = Common::AtoiAndCheck(var_clean.c_str(), &out);
@@ -120,7 +119,7 @@ static inline void FeatureUnpack(std::vector<int32_t>& categorical_variables, co
 static inline std::vector<int> Str2FeatureVec(const char* parameters) {
   std::vector<int> feature_vec;
   auto args = Common::Split(parameters, ",");
-  for (auto arg : args) {
+  for (const auto& arg : args) {
     FeatureUnpack(feature_vec, Common::Trim(arg).c_str());
   }
   return feature_vec;
@@ -134,7 +133,7 @@ class ColumnMatrix {
   ColumnMatrix() {}
   /*!
    * \brief Construct a new `ColumnMatrix` object from in-memory data buffer.
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a matrix.
    * \param num_row Number of rows in the matrix.
    * \param num_col Number of columns / covariates in the matrix.
@@ -143,7 +142,7 @@ class ColumnMatrix {
   ColumnMatrix(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
   /*!
    * \brief Construct a new ColumnMatrix object from CSV file
-   * 
+   *
    * \param filename Name of the file (including any necessary path prefixes).
    * \param column_index_string Comma-delimited string listing columns to extract into covariates matrix.
    * \param header Whether or not the file contains a header of column names / non-data.
@@ -153,11 +152,11 @@ class ColumnMatrix {
   ~ColumnMatrix() {}
   /*!
    * \brief Returns the value stored at (`row`, `col`) in the object's internal `Eigen::MatrixXd`.
-   * 
+   *
    * \param row Row number to query in the matrix
    * \param col Column number to query in the matrix
    */
-  double GetElement(data_size_t row_num, int32_t col_num) {return data_(row_num, col_num);}
+  double GetElement(data_size_t row_num, int col_num) { return data_(row_num, col_num); }
   /*!
    * \brief Update an observation in the object's internal `Eigen::MatrixXd` to a new value.
    *
@@ -165,10 +164,10 @@ class ColumnMatrix {
    * \param col Column number to be overwritten.
    * \param value New value to write in (`row`, `col`) in the object's internal `Eigen::MatrixXd`.
    */
-  void SetElement(data_size_t row_num, int32_t col_num, double value) {data_(row_num, col_num) = value;}
+  void SetElement(data_size_t row_num, int col_num, double value) { data_(row_num, col_num) = value; }
   /*!
    * \brief Update the data in a `ColumnMatrix` object from an in-memory data buffer. This will erase the existing matrix.
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a matrix.
    * \param num_row Number of rows in the matrix.
    * \param num_col Number of columns / covariates in the matrix.
@@ -176,18 +175,19 @@ class ColumnMatrix {
    */
   void LoadData(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major);
   /*! \brief Number of rows in the object's internal `Eigen::MatrixXd`. */
-  inline data_size_t NumRows() {return data_.rows();}
+  inline data_size_t NumRows() { return data_.rows(); }
   /*! \brief Number of columns in the object's internal `Eigen::MatrixXd`. */
-  inline int NumCols() {return data_.cols();}
+  inline int NumCols() { return data_.cols(); }
   /*! \brief Return a reference to the object's internal `Eigen::MatrixXd`, for interfaces that require a raw matrix. */
-  inline Eigen::MatrixXd& GetData() {return data_;}
+  inline Eigen::MatrixXd& GetData() { return data_; }
+
  private:
   Eigen::MatrixXd data_;
 };
 
 /*!
- * \brief Internal wrapper around `Eigen::VectorXd` interface for univariate floating point data. 
- * The (frequently updated) full / partial residual used in sampling forests is stored internally 
+ * \brief Internal wrapper around `Eigen::VectorXd` interface for univariate floating point data.
+ * The (frequently updated) full / partial residual used in sampling forests is stored internally
  * as a `ColumnVector` by the sampling functions (see \ref sampling_group).
  */
 class ColumnVector {
@@ -195,77 +195,78 @@ class ColumnVector {
   ColumnVector() {}
   /*!
    * \brief Construct a new `ColumnVector` object from in-memory data buffer.
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
    * \param num_row Number of rows / elements in the vector.
    */
   ColumnVector(double* data_ptr, data_size_t num_row);
   /*!
    * \brief Construct a new ColumnMatrix object from CSV file
-   * 
+   *
    * \param filename Name of the file (including any necessary path prefixes).
    * \param column_index Integer index of the column in `filename` to be unpacked as a vector.
    * \param header Whether or not the file contains a header of column names / non-data.
    * \param precise_float_parser Whether floating point numbers in the CSV should be parsed precisely.
    */
-  ColumnVector(std::string filename, int32_t column_index, bool header = true, bool precise_float_parser = false);
+  ColumnVector(std::string filename, int column_index, bool header = true, bool precise_float_parser = false);
   ~ColumnVector() {}
   /*!
    * \brief Returns the value stored at position `row` in the object's internal `Eigen::VectorXd`.
-   * 
+   *
    * \param row Row number to query in the vector
    */
-  double GetElement(data_size_t row) {return data_(row);}
+  double GetElement(data_size_t row) { return data_(row); }
   /*!
    * \brief Returns the value stored at position `row` in the object's internal `Eigen::VectorXd`.
-   * 
+   *
    * \param row Row number to query in the vector
    * \param value New value to write to element `row` of the object's internal `Eigen::VectorXd`.
    */
-  void SetElement(data_size_t row, double value) {data_(row) = value;}
+  void SetElement(data_size_t row, double value) { data_(row) = value; }
   /*!
    * \brief Update the data in a `ColumnVector` object from an in-memory data buffer. This will erase the existing vector.
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
    * \param num_row Number of rows / elements in the vector.
    */
   void LoadData(double* data_ptr, data_size_t num_row);
   /*!
-   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer, by adding each value obtained 
+   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer, by adding each value obtained
    * in `data_ptr` to the existing values in the object's internal `Eigen::VectorXd`.
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
    * \param num_row Number of rows / elements in the vector.
    */
   void AddToData(double* data_ptr, data_size_t num_row);
   /*!
-   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer, by subtracting each value obtained 
+   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer, by subtracting each value obtained
    * in `data_ptr` from the existing values in the object's internal `Eigen::VectorXd`.
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
    * \param num_row Number of rows / elements in the vector.
    */
   void SubtractFromData(double* data_ptr, data_size_t num_row);
   /*!
-   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer, by substituting each value obtained 
+   * \brief Update the data in a `ColumnVector` object from an in-memory data buffer, by substituting each value obtained
    * in `data_ptr` for the existing values in the object's internal `Eigen::VectorXd`.
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a vector.
    * \param num_row Number of rows / elements in the vector.
    */
   void OverwriteData(double* data_ptr, data_size_t num_row);
   /*! \brief Number of rows in the object's internal `Eigen::VectorXd`. */
-  inline data_size_t NumRows() {return data_.size();}
+  inline data_size_t NumRows() { return data_.size(); }
   /*! \brief Return a reference to the object's internal `Eigen::VectorXd`, for interfaces that require a raw vector. */
-  inline Eigen::VectorXd& GetData() {return data_;}
+  inline Eigen::VectorXd& GetData() { return data_; }
+
  private:
   Eigen::VectorXd data_;
   void UpdateData(double* data_ptr, data_size_t num_row, std::function<double(double, double)> op);
 };
 
-/*! 
- * \brief API for loading and accessing data used to sample tree ensembles 
- * The covariates / bases / weights used in sampling forests are stored internally 
+/*!
+ * \brief API for loading and accessing data used to sample tree ensembles
+ * The covariates / bases / weights used in sampling forests are stored internally
  * as a `ForestDataset` by the sampling functions (see \ref sampling_group).
  */
 class ForestDataset {
@@ -275,7 +276,7 @@ class ForestDataset {
   ~ForestDataset() {}
   /*!
    * \brief Copy / load covariates from raw memory buffer (often pointer to data in a R matrix or numpy array)
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a covariate matrix
    * \param num_row Number of rows in the covariate matrix
    * \param num_col Number of columns / covariates in the covariate matrix
@@ -289,7 +290,7 @@ class ForestDataset {
   }
   /*!
    * \brief Copy / load basis matrix from raw memory buffer (often pointer to data in a R matrix or numpy array)
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a basis matrix
    * \param num_row Number of rows in the basis matrix
    * \param num_col Number of columns in the basis matrix
@@ -302,7 +303,7 @@ class ForestDataset {
   }
   /*!
    * \brief Copy / load variance weights from raw memory buffer (often pointer to data in a R vector or numpy array)
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing weights
    * \param num_row Number of rows in the weight vector
    */
@@ -312,7 +313,7 @@ class ForestDataset {
   }
   /*!
    * \brief Copy / load covariates from CSV file
-   * 
+   *
    * \param filename Name of the file (including any necessary path prefixes)
    * \param column_index_string Comma-delimited string listing columns to extract into covariates matrix
    */
@@ -324,7 +325,7 @@ class ForestDataset {
   }
   /*!
    * \brief Copy / load basis matrix from CSV file
-   * 
+   *
    * \param filename Name of the file (including any necessary path prefixes)
    * \param column_index_string Comma-delimited string listing columns to extract into covariates matrix
    */
@@ -335,67 +336,67 @@ class ForestDataset {
   }
   /*!
    * \brief Copy / load variance / case weights from CSV file
-   * 
+   *
    * \param filename Name of the file (including any necessary path prefixes)
    * \param column_index Integer index of column containing weights
    */
-  void AddVarianceWeightsFromCSV(std::string filename, int32_t column_index, bool header = true, bool precise_float_parser = false) {
+  void AddVarianceWeightsFromCSV(std::string filename, int column_index, bool header = true, bool precise_float_parser = false) {
     var_weights_ = ColumnVector(filename, column_index, header, precise_float_parser);
     has_var_weights_ = true;
   }
   /*! \brief Whether or not a `ForestDataset` has (yet) loaded covariate data */
-  inline bool HasCovariates() {return has_covariates_;}
+  inline bool HasCovariates() { return has_covariates_; }
   /*! \brief Whether or not a `ForestDataset` has (yet) loaded basis data */
-  inline bool HasBasis() {return has_basis_;}
+  inline bool HasBasis() { return has_basis_; }
   /*! \brief Whether or not a `ForestDataset` has (yet) loaded variance weights */
-  inline bool HasVarWeights() {return has_var_weights_;}
+  inline bool HasVarWeights() { return has_var_weights_; }
   /*! \brief Number of observations (rows) in the dataset */
-  inline data_size_t NumObservations() {return num_observations_;}
+  inline data_size_t NumObservations() { return num_observations_; }
   /*! \brief Number of covariate columns in the dataset */
-  inline int NumCovariates() {return num_covariates_;}
+  inline int NumCovariates() { return num_covariates_; }
   /*! \brief Number of bases in the dataset. This is 0 if the dataset has not been provided a basis matrix. */
-  inline int NumBasis() {return num_basis_;}
+  inline int NumBasis() { return num_basis_; }
   /*!
    * \brief Returns a dataset's covariate value stored at (`row`, `col`)
-   * 
+   *
    * \param row Row number to query in the covariate matrix
    * \param col Column number to query in the covariate matrix
    */
-  inline double CovariateValue(data_size_t row, int col) {return covariates_.GetElement(row, col);}
+  inline double CovariateValue(data_size_t row, int col) { return covariates_.GetElement(row, col); }
   /*!
    * \brief Returns a dataset's basis value stored at (`row`, `col`)
-   * 
+   *
    * \param row Row number to query in the basis matrix
    * \param col Column number to query in the basis matrix
    */
-  inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
+  inline double BasisValue(data_size_t row, int col) { return basis_.GetElement(row, col); }
   /*!
    * \brief Returns a dataset's variance weight stored at element `row`
-   * 
+   *
    * \param row Index to query in the weight vector
    */
-  inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
+  inline double VarWeightValue(data_size_t row) { return var_weights_.GetElement(row); }
   /*!
    * \brief Return a reference to the raw `Eigen::MatrixXd` storing the covariate data
-   * 
+   *
    * \return Reference to internal Eigen::MatrixXd
    */
-  inline Eigen::MatrixXd& GetCovariates() {return covariates_.GetData();}
+  inline Eigen::MatrixXd& GetCovariates() { return covariates_.GetData(); }
   /*!
    * \brief Return a reference to the raw `Eigen::MatrixXd` storing the basis data
-   * 
+   *
    * \return Reference to internal Eigen::MatrixXd
    */
-  inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
+  inline Eigen::MatrixXd& GetBasis() { return basis_.GetData(); }
   /*!
    * \brief Return a reference to the raw `Eigen::VectorXd` storing the variance weights
-   * 
+   *
    * \return Reference to internal Eigen::VectorXd
    */
-  inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
+  inline Eigen::VectorXd& GetVarWeights() { return var_weights_.GetData(); }
   /*!
    * \brief Update the data in the internal basis matrix to new values stored in a raw double array
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a basis matrix
    * \param num_row Number of rows in the basis matrix
    * \param num_col Number of columns in the basis matrix
@@ -408,7 +409,7 @@ class ForestDataset {
     double temp_value;
     for (data_size_t i = 0; i < num_row; ++i) {
       for (int j = 0; j < num_col; ++j) {
-        if (is_row_major){
+        if (is_row_major) {
           // Numpy 2-d arrays are stored in "row major" order
           temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
         } else {
@@ -431,8 +432,10 @@ class ForestDataset {
     // Copy data from R / Python process memory to Eigen vector
     double temp_value;
     for (data_size_t i = 0; i < num_row; ++i) {
-      if (exponentiate) temp_value = std::exp(static_cast<double>(*(data_ptr + i)));
-      else temp_value = static_cast<double>(*(data_ptr + i));
+      if (exponentiate)
+        temp_value = std::exp(static_cast<double>(*(data_ptr + i)));
+      else
+        temp_value = static_cast<double>(*(data_ptr + i));
       var_weights_.SetElement(i, temp_value);
     }
   }
@@ -466,11 +469,13 @@ class ForestDataset {
    */
   void SetVarWeightValue(data_size_t row_id, double new_value, bool exponentiate = true) {
     CHECK(has_var_weights_);
-    if (exponentiate) var_weights_.SetElement(row_id, std::exp(new_value));
-    else var_weights_.SetElement(row_id, new_value);
+    if (exponentiate)
+      var_weights_.SetElement(row_id, std::exp(new_value));
+    else
+      var_weights_.SetElement(row_id, new_value);
   }
-  /*! 
-   * \brief Auxiliary data management methods 
+  /*!
+   * \brief Auxiliary data management methods
    * Methods to initialize, get, and set auxiliary data for BART models with more structure than the ``classic`` conjugate-Gaussian leaf BART model
    */
   void AddAuxiliaryDimension(int dim_size) {
@@ -506,9 +511,9 @@ class ForestDataset {
   bool has_basis_{false};
   bool has_var_weights_{false};
 
-  /*! 
-  * \brief Vector of vectors to track (potentially jagged) auxiliary data for complex BART models
-  */
+  /*!
+   * \brief Vector of vectors to track (potentially jagged) auxiliary data for complex BART models
+   */
   std::vector<std::vector<double>> auxiliary_data_;
   int num_auxiliary_dims_{0};
   bool has_auxiliary_data_{false};
@@ -522,30 +527,30 @@ class RandomEffectsDataset {
   ~RandomEffectsDataset() {}
   /*!
    * \brief Copy / load basis matrix from raw memory buffer (often pointer to data in a R matrix or numpy array)
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a basis matrix
    * \param num_row Number of rows in the basis matrix
    * \param num_col Number of columns in the basis matrix
    * \param is_row_major Whether or not the data in `data_ptr` are organized in a row-major or column-major fashion
    */
-   void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
+  void AddBasis(double* data_ptr, data_size_t num_row, int num_col, bool is_row_major) {
     basis_ = ColumnMatrix(data_ptr, num_row, num_col, is_row_major);
     num_basis_ = num_col;
     has_basis_ = true;
   }
   /*!
    * \brief Copy / load variance weights from raw memory buffer (often pointer to data in a R vector or numpy array)
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing weights
    * \param num_row Number of rows in the weight vector
-   */  
+   */
   void AddVarianceWeights(double* data_ptr, data_size_t num_row) {
     var_weights_ = ColumnVector(data_ptr, num_row);
     has_var_weights_ = true;
   }
   /*!
    * \brief Update the data in the internal basis matrix to new values stored in a raw double array
-   * 
+   *
    * \param data_ptr Pointer to first element of a contiguous array of data storing a basis matrix
    * \param num_row Number of rows in the basis matrix
    * \param num_col Number of columns in the basis matrix
@@ -558,7 +563,7 @@ class RandomEffectsDataset {
     double temp_value;
     for (data_size_t i = 0; i < num_row; ++i) {
       for (int j = 0; j < num_col; ++j) {
-        if (is_row_major){
+        if (is_row_major) {
           // Numpy 2-d arrays are stored in "row major" order
           temp_value = static_cast<double>(*(data_ptr + static_cast<data_size_t>(num_col) * i + j));
         } else {
@@ -581,8 +586,10 @@ class RandomEffectsDataset {
     // Copy data from R / Python process memory to Eigen vector
     double temp_value;
     for (data_size_t i = 0; i < num_row; ++i) {
-      if (exponentiate) temp_value = std::exp(static_cast<double>(*(data_ptr + i)));
-      else temp_value = static_cast<double>(*(data_ptr + i));
+      if (exponentiate)
+        temp_value = std::exp(static_cast<double>(*(data_ptr + i)));
+      else
+        temp_value = static_cast<double>(*(data_ptr + i));
       var_weights_.SetElement(i, temp_value);
     }
   }
@@ -593,7 +600,7 @@ class RandomEffectsDataset {
    * \param num_row Number of rows in the weight vector
    * \param exponentiate Whether or not inputs should be exponentiated before being saved to var weight vector
    */
-  void UpdateGroupLabels(std::vector<int32_t>& group_labels, data_size_t num_row) {
+  void UpdateGroupLabels(std::vector<int>& group_labels, data_size_t num_row) {
     CHECK(has_group_labels_);
     CHECK_EQ(this->NumObservations(), num_row)
     // Copy data from R / Python process memory to internal vector
@@ -603,73 +610,87 @@ class RandomEffectsDataset {
   }
   /*!
    * \brief Copy / load group indices for random effects
-   * 
-   * \param group_labels Vector of integers with as many elements as `num_row` in the basis matrix, 
+   *
+   * \param group_labels Vector of integers with as many elements as `num_row` in the basis matrix,
    * where each element corresponds to the group label for a given observation.
    */
-  void AddGroupLabels(std::vector<int32_t>& group_labels) {
+  void AddGroupLabels(std::vector<int>& group_labels) {
     group_labels_ = group_labels;
     has_group_labels_ = true;
   }
+  /*!
+   * \brief Copy / load group indices for random effects
+   *
+   * \param group_labels Integer pointer to array with as many elements as `num_row` in the basis matrix,
+   * where each element corresponds to the group label for a given observation.
+   */
+  void AddGroupLabels(int* group_labels, int num_rows) {
+    group_labels_.resize(num_rows);
+    for (int i = 0; i < num_rows; ++i) {
+      group_labels_[i] = group_labels[i];
+    }
+    has_group_labels_ = true;
+  }
   /*! \brief Number of observations (rows) in the dataset */
-  inline data_size_t NumObservations() {return basis_.NumRows();}
+  inline data_size_t NumObservations() { return basis_.NumRows(); }
   /*! \brief Number of columns of the basis vector in the dataset */
-  inline int NumBases() {return basis_.NumCols();}
+  inline int NumBases() { return basis_.NumCols(); }
   /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded basis data */
-  inline bool HasBasis() {return has_basis_;}
+  inline bool HasBasis() { return has_basis_; }
   /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded variance weights */
-  inline bool HasVarWeights() {return has_var_weights_;}
+  inline bool HasVarWeights() { return has_var_weights_; }
   /*! \brief Whether or not a `RandomEffectsDataset` has (yet) loaded group labels */
-  inline bool HasGroupLabels() {return has_group_labels_;}
+  inline bool HasGroupLabels() { return has_group_labels_; }
   /*!
    * \brief Returns a dataset's basis value stored at (`row`, `col`)
-   * 
+   *
    * \param row Row number to query in the basis matrix
    * \param col Column number to query in the basis matrix
    */
-  inline double BasisValue(data_size_t row, int col) {return basis_.GetElement(row, col);}
+  inline double BasisValue(data_size_t row, int col) { return basis_.GetElement(row, col); }
   /*!
    * \brief Returns a dataset's variance weight stored at element `row`
-   * 
+   *
    * \param row Index to query in the weight vector
    */
-  inline double VarWeightValue(data_size_t row) {return var_weights_.GetElement(row);}
+  inline double VarWeightValue(data_size_t row) { return var_weights_.GetElement(row); }
   /*!
    * \brief Returns a dataset's group label stored at element `row`
-   * 
+   *
    * \param row Index to query in the group label vector
    */
-  inline int32_t GroupId(data_size_t row) {return group_labels_[row];}
+  inline int GroupId(data_size_t row) { return group_labels_[row]; }
   /*!
    * \brief Return a reference to the raw `Eigen::MatrixXd` storing the basis data
-   * 
+   *
    * \return Reference to internal Eigen::MatrixXd
    */
-  inline Eigen::MatrixXd& GetBasis() {return basis_.GetData();}
+  inline Eigen::MatrixXd& GetBasis() { return basis_.GetData(); }
   /*!
    * \brief Return a reference to the raw `Eigen::VectorXd` storing the variance weights
-   * 
+   *
    * \return Reference to internal Eigen::VectorXd
    */
-  inline Eigen::VectorXd& GetVarWeights() {return var_weights_.GetData();}
+  inline Eigen::VectorXd& GetVarWeights() { return var_weights_.GetData(); }
   /*!
    * \brief Return a reference to the raw `std::vector` storing the group labels
-   * 
+   *
    * \return Reference to internal std::vector
    */
-  inline std::vector<int32_t>& GetGroupLabels() {return group_labels_;}
+  inline std::vector<int>& GetGroupLabels() { return group_labels_; }
+
  private:
   ColumnMatrix basis_;
   ColumnVector var_weights_;
-  std::vector<int32_t> group_labels_;
+  std::vector<int> group_labels_;
   int num_basis_{0};
   bool has_basis_{false};
   bool has_var_weights_{false};
   bool has_group_labels_{false};
 };
 
-/*! \} */ // end of data_group
+/*! \} */  // end of data_group
 
-} // namespace StochTree
+}  // namespace StochTree
 
-#endif // STOCHTREE_DATA_H_
+#endif  // STOCHTREE_DATA_H_

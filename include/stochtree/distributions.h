@@ -2,15 +2,33 @@
 #define STOCHTREE_DISTRIBUTIONS_H
 #include <numeric>
 #include <random>
+#include <boost/math/special_functions/erf.hpp>
 /*!
  * \brief A collection of random number generation utilities.
  *
- * This file is vendored from a broader C++ / R distribution 
+ * This file is vendored from a broader C++ / R distribution
  * library, where the distributions are subject to rigorous testing.
  * https://github.com/andrewherren/cpp11_r_rng
  */
 
 namespace StochTree {
+
+/*!
+ * Standard normal cumulative distribution function, implemented via the complementary error function.
+ */
+inline double norm_cdf(double x) {
+  return 0.5 * boost::math::erfc(-x / std::sqrt(2.0));
+}
+
+/*!
+ * Standard normal quantile function (inverse CDF), implemented via the inverse complementary error function.
+ */
+inline double norm_inv_cdf(double p) {
+  return -std::sqrt(2.0) * boost::math::erfc_inv(2.0 * p);
+}
+
+/*! Precomputed standard normal CDF at 0 */
+static constexpr double Phi_0 = 0.5;
 
 /*!
  * Generate a standard uniform random variate to 53 bits of precision via two mersenne twisters, see:
@@ -68,9 +86,9 @@ class standard_normal {
 /*!
  * Stateless standard normal sampler implementing Marsaglia's polar method.
  * Without caching, this is half as fast as other methods for repeated normal sampling,
- * but this might be acceptable in cases where a relatively small number of 
+ * but this might be acceptable in cases where a relatively small number of
  * normal draws is desired.
- * 
+ *
  * Reference: https://en.wikipedia.org/wiki/Marsaglia_polar_method
  */
 inline double sample_standard_normal(double mean, double sd, std::mt19937& gen) {
@@ -130,10 +148,10 @@ class gamma_sampler {
         v = v * v * v;
         double u = standard_uniform_draw_53bit(gen);
         if (u < 1.0 - 0.0331 * (x * x) * (x * x)) {
-            return b * v * scale;
+          return b * v * scale;
         }
         if (std::log(u) < 0.5 * x * x + b * (1.0 - v + std::log(v))) {
-            return b * v * scale;
+          return b * v * scale;
         }
       }
     } else {
@@ -202,23 +220,23 @@ inline double sample_gamma(std::mt19937& gen, double shape, double scale) {
     while (true) {
       double x, v;
       do {
-        // Marsaglia's polar method for standard normal 
+        // Marsaglia's polar method for standard normal
         double u1, u2, s;
         do {
           u1 = standard_uniform_draw_53bit(gen) * 2.0 - 1.0;
           u2 = standard_uniform_draw_53bit(gen) * 2.0 - 1.0;
           s = u1 * u1 + u2 * u2;
         } while (s >= 1.0 || s == 0.0);
-        x = u1 * std::sqrt(-2.0 * std::log(s) / s);            
+        x = u1 * std::sqrt(-2.0 * std::log(s) / s);
         v = 1.0 + c * x;
       } while (v <= 0.0);
       v = v * v * v;
       double u = standard_uniform_draw_53bit(gen);
       if (u < 1.0 - 0.0331 * (x * x) * (x * x)) {
-          return b * v * scale;
+        return b * v * scale;
       }
       if (std::log(u) < 0.5 * x * x + b * (1.0 - v + std::log(v))) {
-          return b * v * scale;
+        return b * v * scale;
       }
     }
   } else {
@@ -228,13 +246,13 @@ inline double sample_gamma(std::mt19937& gen, double shape, double scale) {
 
 /*!
  * Walker-Vose alias method for sampling with replacement from a weighted discrete distribution.
- * 
+ *
  * Simplified from https://github.com/boostorg/random/blob/develop/include/boost/random/discrete_distribution.hpp
  * Other references: https://en.wikipedia.org/wiki/Alias_method
  */
 class walker_vose {
  public:
-  template<typename Iterator>
+  template <typename Iterator>
   walker_vose(Iterator first, Iterator last) {
     n_ = std::distance(first, last);
     probability_.resize(n_);
@@ -245,7 +263,7 @@ class walker_vose {
     for (auto it = first; it != last; ++it) {
       sum += *it;
     }
-    
+
     // Build alias table using Walker's algorithm
     std::vector<double> p(n_);
     std::vector<int> below_average, above_average;
@@ -258,33 +276,35 @@ class walker_vose {
         above_average.push_back(i);
       }
     }
-    
+
     while (!below_average.empty() && !above_average.empty()) {
-      int j = below_average.back(); below_average.pop_back();
-      int i = above_average.back(); above_average.pop_back();
-      
+      int j = below_average.back();
+      below_average.pop_back();
+      int i = above_average.back();
+      above_average.pop_back();
+
       probability_[j] = p[j];
       alias_[j] = i;
       p[i] = (p[i] + p[j]) - 1.0;
-      
+
       if (p[i] < 1.0) {
         below_average.push_back(i);
       } else {
         above_average.push_back(i);
       }
     }
-    
+
     while (!above_average.empty()) {
       probability_[above_average.back()] = 1.0;
       above_average.pop_back();
     }
-    
+
     while (!below_average.empty()) {
       probability_[below_average.back()] = 1.0;
       below_average.pop_back();
     }
   }
-  
+
   int operator()(std::mt19937& gen) {
     double u = standard_uniform_draw_53bit(gen);
     int i = static_cast<int>(u * n_);
@@ -323,6 +343,22 @@ inline int sample_discrete_stateless(std::mt19937& gen, std::vector<double>& wei
   return weights.size() - 1;
 }
 
+/*!
+ * Generate a single sample from a truncated standard normal distribution, bounded above by 0.
+ */
+inline double sample_std_truncnorm_upper(std::mt19937& gen) {
+  double uniform_draw = standard_uniform_draw_53bit(gen);
+  return norm_inv_cdf(uniform_draw * Phi_0);
 }
 
-#endif // STOCHTREE_DISTRIBUTIONS_H
+/*!
+ * Generate a single sample from a truncated standard normal distribution, bounded below by 0.
+ */
+inline double sample_std_truncnorm_lower(std::mt19937& gen) {
+  double uniform_draw = standard_uniform_draw_53bit(gen);
+  return norm_inv_cdf(uniform_draw + (1 - uniform_draw) * Phi_0);
+}
+
+}  // namespace StochTree
+
+#endif  // STOCHTREE_DISTRIBUTIONS_H

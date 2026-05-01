@@ -5,7 +5,7 @@ RUN apt-get update -y && \
         valgrind && \
     rm -rf /var/lib/apt/lists/*
 
-ARG REINSTALL_CMAKE_VERSION_FROM_SOURCE="3.22.2"
+ARG REINSTALL_CMAKE_VERSION_FROM_SOURCE="3.29.3"
 
 # Optionally install the cmake for vcpkg
 COPY ./reinstall-cmake.sh /tmp/

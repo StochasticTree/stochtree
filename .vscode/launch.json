@@ -1,0 +1,107 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "bart_debug (macOS)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bart_debug",
+      "args": ["--scenario", "1", "--n", "500", "--n_test", "100", "--p", "5", "--num_trees", "200", "--num_gfr", "10", "--num_mcmc", "100", "--seed", "-1"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake: Build (dev-quick)"
+    },
+    {
+      "name": "bcf_debug (macOS)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bcf_debug",
+      "args": ["--scenario", "0", "--n", "500", "--n_test", "100", "--p", "5", "--num_trees_mu", "200", "--num_trees_tau", "50", "--num_gfr", "10", "--num_mcmc", "100", "--seed", "-1"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake: Build (dev-quick)"
+    },
+    {
+      "name": "teststochtree (macOS)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/teststochtree",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake: Build (dev)"
+    },
+    {
+      "name": "bart_debug (Linux/Container)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bart_debug",
+      "args": ["--scenario", "1", "--n", "500", "--n_test", "100", "--p", "5", "--num_trees", "200", "--num_gfr", "10", "--num_mcmc", "100", "--seed", "-1"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "CMake: Build (dev-quick)"
+    },
+    {
+      "name": "bcf_debug (Linux/Container)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/bcf_debug",
+      "args": ["--scenario", "1", "--n", "200", "--n_test", "100", "--p", "5", "--num_trees_mu", "200", "--num_trees_tau", "50", "--num_gfr", "10", "--num_mcmc", "100", "--seed", "-1"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "CMake: Build (dev-quick)"
+    },
+    {
+      "name": "teststochtree (Linux/Container)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/teststochtree",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "CMake: Build (dev)"
+    },
+    {
+      "name": "bart_debug (macOS, Release)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-release-drivers/bart_debug",
+      "args": ["--scenario", "1", "--n", "500", "--n_test", "100", "--p", "5", "--num_trees", "200", "--num_gfr", "10", "--num_mcmc", "100", "--seed", "-1"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake: Build (release-drivers)"
+    },
+    {
+      "name": "bart_debug (Linux/Container, Release)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-release-drivers/bart_debug",
+      "args": ["--scenario", "1", "--n", "500", "--n_test", "100", "--p", "5", "--num_trees", "200", "--num_gfr", "10", "--num_mcmc", "100", "--seed", "-1"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "CMake: Build (release-drivers)"
+    },
+    {
+      "name": "bcf_debug (macOS, Release)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-release-drivers/bcf_debug",
+      "args": ["--scenario", "1", "--n", "200", "--n_test", "100", "--p", "5", "--num_trees_mu", "200", "--num_trees_tau", "50", "--num_gfr", "10", "--num_mcmc", "100", "--seed", "-1"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "CMake: Build (release-drivers)"
+    },
+    {
+      "name": "bcf_debug (Linux/Container, Release)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build-release-drivers/bcf_debug",
+      "args": ["--scenario", "1", "--n", "200", "--n_test", "100", "--p", "5", "--num_trees_mu", "200", "--num_trees_tau", "50", "--num_gfr", "10", "--num_mcmc", "100", "--seed", "-1"],
+      "cwd": "${workspaceFolder}",
+      "MIMode": "gdb",
+      "preLaunchTask": "CMake: Build (release-drivers)"
+    },
+    {
+      "name": "Python Debugger: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal"
+    }
+  ]
+}
