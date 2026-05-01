@@ -192,6 +192,7 @@ struct BCFSamples {
   int num_samples = 0;
   int num_train = 0;
   int num_test = 0;
+  int treatment_dim = 0;
   double y_bar = 0.0;
   double y_std = 0.0;
 };

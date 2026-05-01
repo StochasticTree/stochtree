@@ -130,11 +130,11 @@ class ForestContainer {
    * \param dataset Data object containining training data, including covariates, leaf regression bases, and case weights.
    * \return std::vector<double> Vector of predictions for every forest in the container and every observation in `dataset`.
    */
-  std::vector<double> PredictRaw(ForestDataset& dataset);
+  std::vector<double> PredictRaw(ForestDataset& dataset, bool row_major = true);
   std::vector<double> PredictRaw(ForestDataset& dataset, int forest_num);
   std::vector<double> PredictRawSingleTree(ForestDataset& dataset, int forest_num, int tree_num);
   void PredictInPlace(ForestDataset& dataset, std::vector<double>& output);
-  void PredictRawInPlace(ForestDataset& dataset, std::vector<double>& output);
+  void PredictRawInPlace(ForestDataset& dataset, std::vector<double>& output, bool row_major = true);
   void PredictRawInPlace(ForestDataset& dataset, int forest_num, std::vector<double>& output);
   void PredictRawSingleTreeInPlace(ForestDataset& dataset, int forest_num, int tree_num, std::vector<double>& output);
   void PredictLeafIndicesInplace(Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates,

@@ -58,6 +58,7 @@ StochTree::BCFConfig convert_list_to_bcf_config(cpp11::list config) {
   output.b_sigma2_tau = get_config_scalar_default<double>(config, "b_sigma2_tau", -1.0);
   output.sigma2_tau_init = get_config_scalar_default<double>(config, "sigma2_tau_init", -1.0);
   output.sample_sigma2_leaf_tau = get_config_scalar_default<bool>(config, "sample_sigma2_leaf_tau", false);
+  output.tau_leaf_model_type = static_cast<StochTree::MeanLeafModelType>(get_config_scalar_default<int>(config, "tau_leaf_model_type", 1));
 
   // Variance forest parameters
   output.num_trees_variance = get_config_scalar_default<int>(config, "num_trees_variance", 0);
@@ -258,6 +259,8 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
   output.push_back(cpp11::named_arg("num_train") = num_train_sexp);
   int num_test_sexp = bcf_samples.num_test;
   output.push_back(cpp11::named_arg("num_test") = num_test_sexp);
+  int treatment_dim_sexp = bcf_samples.treatment_dim;
+  output.push_back(cpp11::named_arg("treatment_dim") = treatment_dim_sexp);
   return output;
 }
 

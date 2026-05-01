@@ -1631,7 +1631,7 @@ bcf <- function(
         sigma2_leaf_tau
       },
       "sample_sigma2_leaf_tau" = sample_sigma2_leaf_tau,
-      "mean_leaf_model_type" = leaf_model_tau_forest,
+      "tau_leaf_model_type" = leaf_model_tau_forest,
       "sigma2_leaf_tau_matrix" = if (is.matrix(sigma2_leaf_tau)) {
         as.numeric(sigma2_leaf_tau)
       } else {
@@ -1808,10 +1808,18 @@ bcf <- function(
       bcf_results[['tau_forest_predictions_train']]
     )
     if (has_tau_forest_predictions_train) {
-      dim(bcf_results[['tau_forest_predictions_train']]) <- c(
-        bcf_results[["num_train"]],
-        bcf_results[["num_samples"]]
-      )
+      if (has_multivariate_treatment) {
+        dim(bcf_results[['tau_forest_predictions_train']]) <- c(
+          bcf_results[["num_train"]],
+          bcf_results[["treatment_dim"]],
+          bcf_results[["num_samples"]]
+        )
+      } else {
+        dim(bcf_results[['tau_forest_predictions_train']]) <- c(
+          bcf_results[["num_train"]],
+          bcf_results[["num_samples"]]
+        )
+      }
       result[['tau_hat_train']] <- bcf_results[['tau_forest_predictions_train']] *
         bcf_results[["y_std"]]
     }
@@ -1819,10 +1827,18 @@ bcf <- function(
       bcf_results[['tau_forest_predictions_test']]
     )
     if (has_tau_forest_predictions_test) {
-      dim(bcf_results[['tau_forest_predictions_test']]) <- c(
-        bcf_results[["num_test"]],
-        bcf_results[["num_samples"]]
-      )
+      if (has_multivariate_treatment) {
+        dim(bcf_results[['tau_forest_predictions_test']]) <- c(
+          bcf_results[["num_test"]],
+          bcf_results[["treatment_dim"]],
+          bcf_results[["num_samples"]]
+        )
+      } else {
+        dim(bcf_results[['tau_forest_predictions_test']]) <- c(
+          bcf_results[["num_test"]],
+          bcf_results[["num_samples"]]
+        )
+      }
       result[['tau_hat_test']] <- bcf_results[['tau_forest_predictions_test']] *
         bcf_results[["y_std"]]
     }

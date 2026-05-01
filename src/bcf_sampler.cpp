@@ -78,6 +78,7 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
   }
   samples.num_train = data_.n_train;
   samples.num_test = data_.n_test;
+  samples.treatment_dim = data_.treatment_dim;
   residual_ = std::make_unique<ColumnVector>(data_.y_train, data_.n_train);
   outcome_raw_ = std::make_unique<ColumnVector>(data_.y_train, data_.n_train);
   if (data_.X_test != nullptr) {
@@ -506,7 +507,7 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
     std::vector<double> predictions = samples.mu_forests->Predict(*forest_dataset_test_);
     samples.mu_forest_predictions_test.insert(samples.mu_forest_predictions_test.end(),
                                               predictions.data(), predictions.data() + predictions.size());
-    predictions = samples.tau_forests->PredictRaw(*forest_dataset_test_);
+    predictions = samples.tau_forests->PredictRaw(*forest_dataset_test_, /*row_major=*/false);
     samples.tau_forest_predictions_test.insert(samples.tau_forest_predictions_test.end(),
                                                predictions.data(), predictions.data() + predictions.size());
     if (has_variance_forest_) {
