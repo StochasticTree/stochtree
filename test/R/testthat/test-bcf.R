@@ -1049,3 +1049,43 @@ test_that("Warmstart BCF reuses internal propensity model", {
   expect_equal(dim(m2$y_hat_train), c(n_train, 10))
   expect_equal(dim(m2$y_hat_test),  c(n_test, 10))
 })
+
+test_that("predict.bcfmodel works with data frame X when internal propensity model is used", {
+  skip_on_cran()
+
+  # Regression test for GitHub issue #374: predict.bcfmodel raised
+  # "undefined columns selected" when X was a data frame and the model used
+  # an internal BART propensity. The propensity BART was trained on a
+  # preprocessed matrix (column names x1, x2, ...), but predict was called
+  # with the raw data frame (column names V1, V2, ...) before preprocessing.
+  set.seed(42)
+  n <- 200
+  p_x <- 3
+  X <- matrix(runif(n * p_x, -1, 1), ncol = p_x)
+  Z <- X[, 1] + rnorm(n)
+  y <- 2 * X[, 1] + 0.5 * Z + rnorm(n)
+
+  test_inds <- 1:40
+  train_inds <- 41:n
+  X_train <- as.data.frame(X[train_inds, ])
+  X_test  <- as.data.frame(X[test_inds, ])
+  Z_train <- Z[train_inds]
+  Z_test  <- Z[test_inds]
+  y_train <- y[train_inds]
+
+  # No propensity_train provided — internal propensity model is fitted
+  bcf_model <- bcf(
+    X_train = X_train,
+    y_train = y_train,
+    Z_train = Z_train,
+    num_gfr = 5,
+    num_burnin = 0,
+    num_mcmc = 10
+  )
+
+  # Before the fix this raised "undefined columns selected"
+  expect_no_error(
+    result <- predict(bcf_model, X = X_test, Z = Z_test)
+  )
+  expect_equal(nrow(result$y_hat), length(test_inds))
+})

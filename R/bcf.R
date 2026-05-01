@@ -3608,16 +3608,6 @@ predict.bcfmodel <- function(
   }
 
   # Data checks
-  if (
-    (object$model_params$propensity_covariate != "none") &&
-      (is.null(propensity))
-  ) {
-    if (!object$model_params$internal_propensity_model) {
-      stop("propensity must be provided for this model")
-    }
-    # Compute propensity score using the internal bart model
-    propensity <- rowMeans(predict(object$bart_propensity_model, X)$y_hat)
-  }
   if (nrow(X) != nrow(Z)) {
     stop("X and Z must have the same number of rows")
   }
@@ -3644,9 +3634,22 @@ predict.bcfmodel <- function(
     }
   }
 
-  # Preprocess covariates
+  # Preprocess covariates before any prediction calls that depend on X being
+  # a numeric matrix (e.g. the internal propensity BART model was trained on a
+  # preprocessed matrix, so it expects a matrix, not the raw data frame)
   train_set_metadata <- object$train_set_metadata
   X <- preprocessPredictionData(X, train_set_metadata)
+
+  # Compute propensity score using the internal bart model
+  if (
+    (object$model_params$propensity_covariate != "none") &&
+      (is.null(propensity))
+  ) {
+    if (!object$model_params$internal_propensity_model) {
+      stop("propensity must be provided for this model")
+    }
+    propensity <- rowMeans(predict(object$bart_propensity_model, X)$y_hat)
+  }
 
   # Recode group IDs to integer vector (if passed as, for example, a vector of county names, etc...)
   if (!is.null(rfx_group_ids)) {
