@@ -605,10 +605,10 @@ class TestBCF:
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bcf_model.mu_hat_train.shape == (n_train, num_mcmc)
-        assert bcf_model.tau_hat_train.shape == (n_train, num_mcmc, treatment_dim)
+        assert bcf_model.tau_hat_train.shape == (n_train, treatment_dim, num_mcmc)
         assert bcf_model.y_hat_test.shape == (n_test, num_mcmc)
         assert bcf_model.mu_hat_test.shape == (n_test, num_mcmc)
-        assert bcf_model.tau_hat_test.shape == (n_test, num_mcmc, treatment_dim)
+        assert bcf_model.tau_hat_test.shape == (n_test, treatment_dim, num_mcmc)
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
@@ -617,7 +617,7 @@ class TestBCF:
             bcf_preds["mu_hat"],
             bcf_preds["y_hat"],
         )
-        assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
+        assert tau_hat.shape == (n_test, treatment_dim, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
@@ -625,7 +625,7 @@ class TestBCF:
         tau_hat = bcf_model.predict(
             X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
         )
-        assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
+        assert tau_hat.shape == (n_test, treatment_dim, num_mcmc)
 
         # Run BCF without test set and with propensity score
         with pytest.warns(UserWarning):
@@ -646,7 +646,7 @@ class TestBCF:
         # Assertions
         assert bcf_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bcf_model.mu_hat_train.shape == (n_train, num_mcmc)
-        assert bcf_model.tau_hat_train.shape == (n_train, num_mcmc, treatment_dim)
+        assert bcf_model.tau_hat_train.shape == (n_train, treatment_dim, num_mcmc)
 
         # Check overall prediction method
         bcf_preds = bcf_model.predict(X_test, Z_test, pi_test)
@@ -655,7 +655,7 @@ class TestBCF:
             bcf_preds["mu_hat"],
             bcf_preds["y_hat"],
         )
-        assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
+        assert tau_hat.shape == (n_test, treatment_dim, num_mcmc)
         assert mu_hat.shape == (n_test, num_mcmc)
         assert y_hat.shape == (n_test, num_mcmc)
 
@@ -663,7 +663,7 @@ class TestBCF:
         tau_hat = bcf_model.predict(
             X=X_test, Z=Z_test, propensity=pi_test, terms="cate"
         )
-        assert tau_hat.shape == (n_test, num_mcmc, treatment_dim)
+        assert tau_hat.shape == (n_test, treatment_dim, num_mcmc)
 
         # Run BCF with test set and without propensity score
         with pytest.warns(UserWarning):
