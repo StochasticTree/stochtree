@@ -3190,7 +3190,7 @@ class BCFModel:
                             )
                             tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
                             tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
-                            # Center z by y_bar so tau_0 does not absorb the probit intercept
+                            # Center by y_bar so tau_0 does not absorb the probit intercept
                             resid_for_tau0 = (
                                 (np.squeeze(resid_train) - self.y_bar)
                                 if link_is_probit

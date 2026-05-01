@@ -99,6 +99,7 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         treatment_effect_forest_params={
             "num_trees": num_trees_tau,
             "sample_sigma2_leaf": False,
+            "sample_intercept": False,
         },
         run_cpp=run_cpp,
     )

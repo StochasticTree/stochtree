@@ -97,8 +97,9 @@ run_once <- function(run_cpp, seed = -1) {
     num_mcmc          = num_mcmc,
     prognostic_forest_params = list(num_trees = num_trees_mu),
     treatment_effect_forest_params = list(
-      num_trees        = num_trees_tau,
-      sample_sigma2_leaf = FALSE
+      num_trees          = num_trees_tau,
+      sample_sigma2_leaf = FALSE,
+      sample_intercept   = FALSE
     ),
     general_params = list(
       adaptive_coding = FALSE,
