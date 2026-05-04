@@ -59,6 +59,7 @@ StochTree::BCFConfig convert_list_to_bcf_config(cpp11::list config) {
   output.sigma2_tau_init = get_config_scalar_default<double>(config, "sigma2_tau_init", -1.0);
   output.sample_sigma2_leaf_tau = get_config_scalar_default<bool>(config, "sample_sigma2_leaf_tau", false);
   output.tau_leaf_model_type = static_cast<StochTree::MeanLeafModelType>(get_config_scalar_default<int>(config, "tau_leaf_model_type", 1));
+  output.sample_intercept = get_config_scalar_default<bool>(config, "sample_intercept", true);
 
   // Variance forest parameters
   output.num_trees_variance = get_config_scalar_default<int>(config, "num_trees_variance", 0);
@@ -192,8 +193,8 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
   output.push_back(cpp11::named_arg("variance_forest_predictions_train") = var_preds_train_sexp);
 
   SEXP y_hat_train_sexp = !bcf_samples.y_hat_train.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.y_hat_train.begin(), bcf_samples.y_hat_train.end()))
-                                  : R_NilValue;
+                              ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.y_hat_train.begin(), bcf_samples.y_hat_train.end()))
+                              : R_NilValue;
   output.push_back(cpp11::named_arg("y_hat_train") = y_hat_train_sexp);
 
   SEXP mu_forest_predictions_test_sexp = !bcf_samples.mu_forest_predictions_test.empty()
@@ -212,8 +213,8 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
   output.push_back(cpp11::named_arg("variance_forest_predictions_test") = var_preds_test_sexp);
 
   SEXP y_hat_test_sexp = !bcf_samples.y_hat_test.empty()
-                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.y_hat_test.begin(), bcf_samples.y_hat_test.end()))
-                                  : R_NilValue;
+                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.y_hat_test.begin(), bcf_samples.y_hat_test.end()))
+                             : R_NilValue;
   output.push_back(cpp11::named_arg("y_hat_test") = y_hat_test_sexp);
 
   // RFX predictions

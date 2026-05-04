@@ -2591,6 +2591,7 @@ inline StochTree::BCFConfig convert_dict_to_bcf_config(py::dict config_dict) {
   output.sigma2_tau_init = get_config_scalar_default<double>(config_dict, "sigma2_tau_init", -1.0);
   output.sample_sigma2_leaf_tau = get_config_scalar_default<bool>(config_dict, "sample_sigma2_leaf_tau", false);
   output.tau_leaf_model_type = static_cast<StochTree::MeanLeafModelType>(get_config_scalar_default<int>(config_dict, "tau_leaf_model_type", 0));
+  output.sample_intercept = get_config_scalar_default<bool>(config_dict, "sample_intercept", true);
 
   // Variance forest parameters
   output.num_trees_variance = get_config_scalar_default<int>(config_dict, "num_trees_variance", 0);

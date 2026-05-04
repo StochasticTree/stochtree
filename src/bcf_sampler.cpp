@@ -302,6 +302,26 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
     sample_sigma2_leaf_tau_ = true;
   }
 
+  // Treatment intercept model
+  if (config_.sample_intercept) {
+    if (data_.treatment_dim > 1) {
+      tau_0_vector_.assign(data_.treatment_dim, 0.0);
+      if (config_.tau_0_prior_var_multivariate.empty()) {
+        config_.tau_0_prior_var_multivariate.assign(data_.treatment_dim, config_.sigma2_tau_init * config_.num_trees_tau);
+      } else {
+        if ((int)config_.tau_0_prior_var_multivariate.size() != data_.treatment_dim) {
+          Log::Fatal("tau_0_prior_var_multivariate must have treatment_dim = %d elements, but has %zu",
+                     data_.treatment_dim, config_.tau_0_prior_var_multivariate.size());
+        }
+      }
+    } else {
+      tau_0_scalar_ = 0.0;
+      if (config_.tau_0_prior_var_scalar <= 0.0) {
+        config_.tau_0_prior_var_scalar = config_.sigma2_tau_init * config_.num_trees_tau;
+      }
+    }
+  }
+
   // Random effects model
   if (config_.has_random_effects) {
     random_effects_dataset_ = std::make_unique<RandomEffectsDataset>();

@@ -120,6 +120,10 @@ class BCFSampler {
   std::unique_ptr<LeafNodeHomoskedasticVarianceModel> leaf_scale_model_tau_;
   bool sample_sigma2_leaf_tau_ = false;
 
+  // Treatment intercept value (only populated when sample_intercept = true)
+  double tau_0_scalar_;
+  std::vector<double> tau_0_vector_;
+
   /*! GFR iteration visitor for tau forest */
   struct GFROneIterationVisitorTau {
     BCFSampler& sampler;
