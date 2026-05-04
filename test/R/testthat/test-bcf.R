@@ -1089,3 +1089,64 @@ test_that("predict.bcfmodel works with data frame X when internal propensity mod
   )
   expect_equal(nrow(result$y_hat), length(test_inds))
 })
+
+test_that("predict(terms='tau') == tau_hat_test, tau==cate without treatment RFX, y_hat decomposition holds", {
+  skip_on_cran()
+
+  set.seed(42)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), nrow = n)
+  pi_x <- 0.4 + 0.2 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  mu_x <- 1 + 2 * X[, 1]
+  tau_x <- 0.5 + X[, 2]
+  y <- mu_x + tau_x * Z + rnorm(n)
+
+  n_train <- 160
+  train_inds <- seq_len(n_train)
+  test_inds  <- seq(n_train + 1, n)
+  X_train <- X[train_inds, ]; X_test <- X[test_inds, ]
+  Z_train <- Z[train_inds];   Z_test <- Z[test_inds]
+  y_train <- y[train_inds]
+  pi_train <- pi_x[train_inds]; pi_test <- pi_x[test_inds]
+
+  # Fit BCF with sample_intercept = TRUE (default)
+  bcf_model <- bcf(
+    X_train = X_train, Z_train = Z_train, y_train = y_train,
+    propensity_train = pi_train, X_test = X_test, Z_test = Z_test,
+    propensity_test = pi_test, num_gfr = 5, num_burnin = 0, num_mcmc = 10
+  )
+
+  # predict(terms = "tau") must match tau_hat_test exactly
+  tau_from_predict <- predict(bcf_model, X = X_test, Z = Z_test,
+                              propensity = pi_test, terms = "tau")
+  expect_equal(tau_from_predict, bcf_model$tau_hat_test)
+
+  # predict(terms = "tau") == predict(terms = "cate") when no treatment RFX
+  cate_from_predict <- predict(bcf_model, X = X_test, Z = Z_test,
+                               propensity = pi_test, terms = "cate")
+  expect_equal(tau_from_predict, cate_from_predict)
+
+  # y_hat_test = mu_hat_test + Z_test * tau_hat_test (stored attributes decompose)
+  expected_y <- bcf_model$mu_hat_test + sweep(bcf_model$tau_hat_test, 1, as.numeric(Z_test), "*")
+  expect_equal(bcf_model$y_hat_test, expected_y)
+
+  # y_hat_train = mu_hat_train + Z_train * tau_hat_train
+  expected_y_train <- bcf_model$mu_hat_train + sweep(bcf_model$tau_hat_train, 1, as.numeric(Z_train), "*")
+  expect_equal(bcf_model$y_hat_train, expected_y_train)
+
+  # With sample_intercept = FALSE, tau includes only the forest; decomposition still holds
+  bcf_no_int <- bcf(
+    X_train = X_train, Z_train = Z_train, y_train = y_train,
+    propensity_train = pi_train, X_test = X_test, Z_test = Z_test,
+    propensity_test = pi_test, num_gfr = 5, num_burnin = 0, num_mcmc = 10,
+    treatment_effect_forest_params = list(sample_intercept = FALSE)
+  )
+  tau_no_int <- predict(bcf_no_int, X = X_test, Z = Z_test,
+                        propensity = pi_test, terms = "tau")
+  expect_equal(tau_no_int, bcf_no_int$tau_hat_test)
+  expected_y_no_int <- bcf_no_int$mu_hat_test +
+    sweep(bcf_no_int$tau_hat_test, 1, as.numeric(Z_test), "*")
+  expect_equal(bcf_no_int$y_hat_test, expected_y_no_int)
+})

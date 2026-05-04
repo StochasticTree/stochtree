@@ -2973,34 +2973,30 @@ class BCFModel:
             self.tau_hat_train = self.tau_hat_train * adaptive_coding_weights
             self.mu_hat_train = self.mu_hat_train + np.squeeze(control_adj_train)
         self.tau_hat_train = np.squeeze(self.tau_hat_train * self.y_std)
-        # tau_hat_train stores the forest-only component tau(X); compute cate_train
-        # (tau_0 + tau(X)) separately for the treatment term used in y_hat
+        # Fold tau_0 into tau_hat_train so the attribute holds the full CATE (tau_0 + tau(X))
         if self.sample_tau_0:
             tau_0_vec = self.tau_0_samples[0, :]  # num_samples vector (scalar treatment)
             if self.adaptive_coding:
                 # CATE = (b_1 - b_0) * (tau_0 + tau(X)); control adj to mu = b_0 * (tau_0 + tau(X))
-                cate_train = self.tau_hat_train + (
+                self.tau_hat_train = self.tau_hat_train + (
                     (self.b1_samples - self.b0_samples) * tau_0_vec * self.y_std
                 )
                 self.mu_hat_train = self.mu_hat_train + (
                     self.b0_samples * tau_0_vec * self.y_std
                 )
             elif self.multivariate_treatment:
-                cate_train = self.tau_hat_train.copy()
                 for j in range(p_tau0):
-                    cate_train[:, :, j] = cate_train[:, :, j] + (
+                    self.tau_hat_train[:, :, j] = self.tau_hat_train[:, :, j] + (
                         self.tau_0_samples[j, :] * self.y_std
                     )
             else:
-                cate_train = self.tau_hat_train + tau_0_vec * self.y_std
-        else:
-            cate_train = self.tau_hat_train
+                self.tau_hat_train = self.tau_hat_train + tau_0_vec * self.y_std
         if self.multivariate_treatment:
             treatment_term_train = np.multiply(
-                np.atleast_3d(Z_train).swapaxes(1, 2), cate_train
+                np.atleast_3d(Z_train).swapaxes(1, 2), self.tau_hat_train
             ).sum(axis=2)
         else:
-            treatment_term_train = Z_train * np.squeeze(cate_train)
+            treatment_term_train = Z_train * np.squeeze(self.tau_hat_train)
         self.y_hat_train = self.mu_hat_train + treatment_term_train
         if self.has_test:
             mu_raw_test = self.forest_container_mu.forest_container_cpp.Predict(
@@ -3020,31 +3016,28 @@ class BCFModel:
                 self.tau_hat_test = self.tau_hat_test * adaptive_coding_weights_test
                 self.mu_hat_test = self.mu_hat_test + np.squeeze(control_adj_test)
             self.tau_hat_test = np.squeeze(self.tau_hat_test * self.y_std)
-            # tau_hat_test stores forest-only tau(X); compute cate_test for y_hat
+            # Fold tau_0 into tau_hat_test so the attribute holds the full CATE (tau_0 + tau(X))
             if self.sample_tau_0:
                 if self.adaptive_coding:
-                    cate_test = self.tau_hat_test + (
+                    self.tau_hat_test = self.tau_hat_test + (
                         (self.b1_samples - self.b0_samples) * tau_0_vec * self.y_std
                     )
                     self.mu_hat_test = self.mu_hat_test + (
                         self.b0_samples * tau_0_vec * self.y_std
                     )
                 elif self.multivariate_treatment:
-                    cate_test = self.tau_hat_test.copy()
                     for j in range(p_tau0):
-                        cate_test[:, :, j] = cate_test[:, :, j] + (
+                        self.tau_hat_test[:, :, j] = self.tau_hat_test[:, :, j] + (
                             self.tau_0_samples[j, :] * self.y_std
                         )
                 else:
-                    cate_test = self.tau_hat_test + tau_0_vec * self.y_std
-            else:
-                cate_test = self.tau_hat_test
+                    self.tau_hat_test = self.tau_hat_test + tau_0_vec * self.y_std
             if self.multivariate_treatment:
                 treatment_term_test = np.multiply(
-                    np.atleast_3d(Z_test).swapaxes(1, 2), cate_test
+                    np.atleast_3d(Z_test).swapaxes(1, 2), self.tau_hat_test
                 ).sum(axis=2)
             else:
-                treatment_term_test = Z_test * np.squeeze(cate_test)
+                treatment_term_test = Z_test * np.squeeze(self.tau_hat_test)
             self.y_hat_test = self.mu_hat_test + treatment_term_test
 
         # TODO: make rfx_preds_train and rfx_preds_test persistent properties
@@ -3140,7 +3133,17 @@ class BCFModel:
         type : str, optional
             Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
         terms : str, optional
-            Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "mu", "cate", "tau", "rfx", "variance_forest", or "all". If a model has random effects fit with either "intercept_only" or "intercept_plus_treatment" model_spec, then "prognostic_function" refers to the predictions of the prognostic forest plus the random intercept and "cate" refers to the predictions of the treatment effect forest plus the random slope on the treatment variable. For these models, the forest predictions alone can be requested via "mu" (prognostic forest) and "tau" (treatment effect forest). In all other cases, "mu" will return exactly the same result as "prognostic_function" and "tau" will return exactly the same result as "cate". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
+            Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "mu", "cate", "tau", "rfx", "variance_forest", or "all".
+
+            The treatment effect terms follow a three-level hierarchy:
+
+            - ``"tau"`` returns ``tau_0 + tau(X)``: the parametric treatment intercept (if sampled) plus the treatment forest. This matches ``model.tau_hat_train`` / ``model.tau_hat_test``.
+            - ``"cate"`` additionally folds in the random slope on treatment when random effects are fit with ``rfx_model_spec="intercept_plus_treatment"``; otherwise it is identical to ``"tau"``.
+            - The raw forest-only component (without ``tau_0``) is not directly returned by this method; use ``model.forest_container_tau`` to access it.
+
+            Similarly for the prognostic term: ``"mu"`` returns the prognostic forest only, while ``"prognostic_function"`` additionally folds in the random intercept when ``rfx_model_spec`` is ``"intercept_only"`` or ``"intercept_plus_treatment"``; otherwise the two are identical.
+
+            If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is requested, the request will simply be ignored. If none of the requested terms are present in a model, this function will return ``None`` along with a warning. Default: "all".
         scale : str, optional
             Scale on which to return predictions. Options are "linear" (the default), which returns predictions on the original outcome scale, and "probit", which returns predictions on the probit (latent) scale. Only applicable for models fit with probit link.
 
@@ -3485,7 +3488,7 @@ class BCFModel:
                 if predict_mu_forest:
                     mu_x = norm.cdf(mu_x_forest)
                 if predict_tau_forest:
-                    tau_x = norm.cdf(tau_x_forest)
+                    tau_x = norm.cdf(cate_x_forest)
                 if predict_prog_function:
                     prognostic_function = norm.cdf(prognostic_function)
                 if predict_cate_function:
@@ -3500,7 +3503,7 @@ class BCFModel:
                 if predict_mu_forest:
                     mu_x = mu_x_forest
                 if predict_tau_forest:
-                    tau_x = tau_x_forest
+                    tau_x = cate_x_forest
                 if predict_prog_function:
                     prognostic_function = prognostic_function
                 if predict_cate_function:
@@ -3722,7 +3725,17 @@ class BCFModel:
         rfx_basis : np.array, optional
             Optional matrix of basis function evaluations for random effects. Required if the requested term includes random effects.
         terms : str, optional
-            Character string specifying the model term(s) for which to compute intervals. Options for BCF models are `"prognostic_function"`, `"mu"`, `"cate"`, `"tau"`, `"tau_0"`, `"variance_forest"`, `"rfx"`, or `"y_hat"`. Defaults to `"all"`. Note that `"mu"` is only different from `"prognostic_function"` if random effects are included with a model spec of `"intercept_only"` or `"intercept_plus_treatment"` and `"tau"` is only different from `"cate"` if random effects are included with a model spec of `"intercept_plus_treatment"`. `"tau_0"` is only available when the model was fit with `sample_intercept = True`.
+            Which model terms to include in the interval. This can be a single term or a list of model terms. Options include ``"y_hat"``, ``"prognostic_function"``, ``"mu"``, ``"cate"``, ``"tau"``, ``"rfx"``, ``"variance_forest"``, or ``"all"``.
+
+            The treatment effect terms follow a three-level hierarchy:
+
+            - ``"tau"`` returns ``tau_0 + tau(X)``: the parametric treatment intercept (if sampled) plus the treatment forest. This matches ``model.tau_hat_train`` / ``model.tau_hat_test``.
+            - ``"cate"`` additionally folds in the random slope on treatment when random effects are fit with ``rfx_model_spec="intercept_plus_treatment"``; otherwise it is identical to ``"tau"``.
+            - The raw forest-only component (without ``tau_0``) is not directly returned by this method; use ``model.forest_container_tau`` to access it.
+
+            Similarly for the prognostic term: ``"mu"`` returns the prognostic forest only, while ``"prognostic_function"`` additionally folds in the random intercept when ``rfx_model_spec`` is ``"intercept_only"`` or ``"intercept_plus_treatment"``; otherwise the two are identical.
+
+            Default: ``"all"``.
         scale : str, optional
             Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Defaults to `"linear"`.
         level : float, optional
