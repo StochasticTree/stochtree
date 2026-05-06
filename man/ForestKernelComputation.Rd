@@ -66,7 +66,7 @@ This function group offers utilities for evaluating this kernel.
 
 \code{computeForestLeafIndices} computes and return a vector representation of a forest's
 leaf predictions for every observation in a dataset.
-The resulting vector has a "row-major" format that can be easily re-represented as
+The resulting vector has a "tree-major" format that can be easily re-represented as
 as a CSR sparse matrix: elements are organized so that the first \code{n} elements
 correspond to leaf predictions for all \code{n} observations in a dataset for the
 first tree in an ensemble, the next \code{n} elements correspond to predictions for
