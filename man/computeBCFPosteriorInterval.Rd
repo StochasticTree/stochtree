@@ -19,7 +19,16 @@ computeBCFPosteriorInterval(
 \arguments{
 \item{model_object}{A fitted BCF model object of class \code{bcfmodel}.}
 
-\item{terms}{A character string specifying the model term(s) for which to compute intervals. Options for BCF models are \code{"prognostic_function"}, \code{"mu"}, \code{"cate"}, \code{"tau"}, \code{"variance_forest"}, \code{"rfx"}, or \code{"y_hat"}. Note that \code{"mu"} is only different from \code{"prognostic_function"} if random effects are included with a model spec of \code{"intercept_only"} or \code{"intercept_plus_treatment"} and \code{"tau"} is only different from \code{"cate"} if random effects are included with a model spec of \code{"intercept_plus_treatment"}.}
+\item{terms}{A character string specifying the model term(s) for which to compute intervals. Options are \code{"prognostic_function"}, \code{"mu"}, \code{"cate"}, \code{"tau"}, \code{"variance_forest"}, \code{"rfx"}, or \code{"y_hat"}.
+
+The treatment effect terms follow a three-level hierarchy:
+\itemize{
+\item \code{"tau"} returns \code{tau_0 + tau(X)}: the parametric treatment intercept (if sampled) plus the treatment forest. This matches \code{model$tau_hat_train} / \code{model$tau_hat_test}.
+\item \code{"cate"} additionally folds in the random slope on treatment when random effects are fit with \code{rfx_model_spec = "intercept_plus_treatment"}; otherwise it is identical to \code{"tau"}.
+\item The raw forest-only component (without \code{tau_0}) is not directly returned by this method; use \code{model$forests_tau} to access it.
+}
+
+Similarly for the prognostic term: \code{"mu"} returns the prognostic forest only, while \code{"prognostic_function"} additionally folds in the random intercept when \code{rfx_model_spec} is \code{"intercept_only"} or \code{"intercept_plus_treatment"}; otherwise the two are identical.}
 
 \item{level}{A numeric value between 0 and 1 specifying the credible interval level (default is 0.95 for a 95\% credible interval).}
 
