@@ -3576,7 +3576,8 @@ predict.bcfmodel <- function(
   predict_mu_forest_intermediate <- ((predict_y_hat || predict_prog_function) &&
     has_mu_forest)
   predict_tau_forest_intermediate <- ((predict_y_hat ||
-    predict_cate_function) &&
+    predict_cate_function ||
+    (object$model_params$adaptive_coding && (predict_mu_forest || predict_prog_function))) &&
     has_tau_forest)
 
   # Make sure covariates are matrix or data frame

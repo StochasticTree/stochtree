@@ -3242,7 +3242,8 @@ class BCFModel:
             predict_y_hat or predict_prog_function
         ) and has_mu_forest
         predict_tau_forest_intermediate = (
-            predict_y_hat or predict_cate_function
+            predict_y_hat or predict_cate_function or
+            (self.adaptive_coding and (predict_mu_forest or predict_prog_function))
         ) and has_tau_forest
 
         if not self.is_sampled():
