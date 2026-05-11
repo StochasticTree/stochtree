@@ -531,14 +531,16 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
     samples.mu_forest_predictions_test.insert(samples.mu_forest_predictions_test.end(),
                                               predictions.data(), predictions.data() + predictions.size());
     predictions = samples.tau_forests->PredictRaw(*forest_dataset_test_, /*row_major=*/false);
-    // Add tau_0 to the treatment effect function predictions if it was sampled
+    // Add tau_0 to the treatment effect function predictions if it was sampled.
+    // tau_0_samples layout: col-major (treatment dim k, sample j) -> j * treatment_dim + k.
+    // For treatment_dim==1 this collapses to samples.tau_0_samples[j].
     if (sample_tau_0_) {
       const int treatment_dim = data_.treatment_dim;
       for (int j = 0; j < samples.num_samples; j++) {
         for (int k = 0; k < treatment_dim; k++) {
           for (int i = 0; i < data_.n_test; i++) {
             const int idx = j * data_.n_test * treatment_dim + data_.n_test * k + i;
-            predictions[idx] += tau_0_vector_[k * samples.num_samples + j];
+            predictions[idx] += samples.tau_0_samples[j * treatment_dim + k];
           }
         }
       }
@@ -633,16 +635,16 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
         /*num_threads=*/config_.num_threads);
   }
 
+  // Parametric treatment intercept term
+  if (sample_tau_0_) {
+    SampleParametricTreatmentEffect();
+  }
+
   // Treatment effect forest
   if (gfr) {
     std::visit(GFROneIterationVisitorTau{*this, samples, keep_sample}, tau_leaf_model_);
   } else {
     std::visit(MCMCOneIterationVisitorTau{*this, samples, keep_sample}, tau_leaf_model_);
-  }
-
-  // Parametric treatment intercept term
-  if (sample_tau_0_) {
-    SampleParametricTreatmentEffect();
   }
 
   // Update raw tau(x): sum leaf values across trees for each dimension of the tau leaf.

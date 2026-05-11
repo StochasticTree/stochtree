@@ -2017,12 +2017,13 @@ bcf <- function(
     }
     if (sample_tau_0) {
       dim(bcf_results[['tau_0_samples']]) <- c(
-        bcf_results[["num_samples"]],
         ncol(Z_train),
+        bcf_results[["num_samples"]]
       )
       result[["tau_0_samples"]] = bcf_results[[
         "tau_0_samples"
-      ]]
+      ]] *
+        bcf_results[["y_std"]]
     }
     if (internal_propensity_model) {
       result[["bart_propensity_model"]] = bart_model_propensity
