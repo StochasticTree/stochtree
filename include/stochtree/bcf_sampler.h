@@ -55,6 +55,9 @@ class BCFSampler {
   /*! Internal sample runner function */
   void RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample, bool write_snapshot = false);
 
+  /*! Internal function to sample parametric treatment effect "intercept" term (tau_0 in stochtree nomenclature) */
+  void SampleParametricTreatmentEffect();
+
   /*! Internal reference to config and data state */
   BCFConfig& config_;
   BCFData& data_;
@@ -120,9 +123,10 @@ class BCFSampler {
   std::unique_ptr<LeafNodeHomoskedasticVarianceModel> leaf_scale_model_tau_;
   bool sample_sigma2_leaf_tau_ = false;
 
-  // Treatment intercept value (only populated when sample_intercept = true)
+  // Treatment intercept value (only populated when sample_tau_0 = true)
   double tau_0_scalar_;
   std::vector<double> tau_0_vector_;
+  bool sample_tau_0_ = false;
 
   /*! GFR iteration visitor for tau forest */
   struct GFROneIterationVisitorTau {

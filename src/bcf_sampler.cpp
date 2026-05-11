@@ -1,16 +1,18 @@
 /*! Copyright (c) 2026 by stochtree authors */
 #include <stochtree/bcf.h>
 #include <stochtree/bcf_sampler.h>
+#include <stochtree/data.h>
 #include <stochtree/distributions.h>
 #include <stochtree/leaf_model.h>
+#include <stochtree/linear_regression.h>
 #include <stochtree/meta.h>
 #include <stochtree/probit.h>
+#include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 #include <memory>
 #include <random>
-#include "stochtree/data.h"
-#include "stochtree/random_effects.h"
+#include <variant>
 
 namespace StochTree {
 
@@ -303,7 +305,8 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
   }
 
   // Treatment intercept model
-  if (config_.sample_intercept) {
+  if (config_.sample_tau_0) {
+    sample_tau_0_ = true;
     if (data_.treatment_dim > 1) {
       tau_0_vector_.assign(data_.treatment_dim, 0.0);
       if (config_.tau_0_prior_var_multivariate.empty()) {
@@ -528,6 +531,18 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
     samples.mu_forest_predictions_test.insert(samples.mu_forest_predictions_test.end(),
                                               predictions.data(), predictions.data() + predictions.size());
     predictions = samples.tau_forests->PredictRaw(*forest_dataset_test_, /*row_major=*/false);
+    // Add tau_0 to the treatment effect function predictions if it was sampled
+    if (sample_tau_0_) {
+      const int treatment_dim = data_.treatment_dim;
+      for (int j = 0; j < samples.num_samples; j++) {
+        for (int k = 0; k < treatment_dim; k++) {
+          for (int i = 0; i < data_.n_test; i++) {
+            const int idx = j * data_.n_test * treatment_dim + data_.n_test * k + i;
+            predictions[idx] += tau_0_vector_[k * samples.num_samples + j];
+          }
+        }
+      }
+    }
     samples.tau_forest_predictions_test.insert(samples.tau_forest_predictions_test.end(),
                                                predictions.data(), predictions.data() + predictions.size());
     if (has_variance_forest_) {
@@ -600,7 +615,7 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
 }
 
 void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample, bool write_snapshot) {
-  // mu forest
+  // Prognostic forest
   if (gfr) {
     GFRSampleOneIter<GaussianConstantLeafModel, GaussianConstantSuffStat>(
         *mu_forest_, *mu_forest_tracker_, *samples.mu_forests, mu_leaf_model_,
@@ -618,20 +633,34 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
         /*num_threads=*/config_.num_threads);
   }
 
-  // tau forest
+  // Treatment effect forest
   if (gfr) {
     std::visit(GFROneIterationVisitorTau{*this, samples, keep_sample}, tau_leaf_model_);
   } else {
     std::visit(MCMCOneIterationVisitorTau{*this, samples, keep_sample}, tau_leaf_model_);
   }
+
+  // Parametric treatment intercept term
+  if (sample_tau_0_) {
+    SampleParametricTreatmentEffect();
+  }
+
   // Update raw tau(x): sum leaf values across trees for each dimension of the tau leaf.
   // Uses node IDs already cached in the tracker — no tree traversal needed.
   // Stored col-major: tau_raw_sum_preds_[k * n_train + i] matches postprocess_samples indexing.
   const int tau_dim = data_.treatment_dim;
   const int data_dim = data_.n_train;
+  double tau_0 = 0.0;
   for (int k = 0; k < tau_dim; k++) {
+    if (sample_tau_0_) {
+      if (data_.treatment_dim > 1) {
+        tau_0 = tau_0_vector_[k];
+      } else {
+        tau_0 = tau_0_scalar_;
+      }
+    }
     for (int i = 0; i < data_dim; i++) {
-      tau_raw_sum_preds_[k * data_dim + i] = 0.0;
+      tau_raw_sum_preds_[k * data_dim + i] = tau_0;
       for (int j = 0; j < config_.num_trees_tau; j++) {
         data_size_t leaf = tau_forest_tracker_->GetNodeId(i, j);
         tau_raw_sum_preds_[k * data_dim + i] += tau_forest_->GetTree(j)->LeafValue(leaf, k);
@@ -639,6 +668,7 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
     }
   }
 
+  // Variance forest term
   if (has_variance_forest_) {
     if (gfr) {
       GFRSampleOneIter<LogLinearVarianceLeafModel, LogLinearVarianceSuffStat>(
@@ -658,59 +688,105 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
     }
   }
 
+  // Latent continuous outcome for probit link
   if (config_.link_function == LinkFunction::Probit) {
+    // Add mu(x) + Z*tau(x) + rfx to model_preds_ for each training observation, then sample the latent outcome given the observed binary outcome and the model prediction
     AddModelTermsForProbit(model_preds_.data(), mu_forest_tracker_.get(), tau_forest_tracker_.get(), random_effects_tracker_.get(), data_.n_train);
+    // If tau_0 is sampled, then add it to model_preds_ as well
+    if (sample_tau_0_) {
+      if (data_.treatment_dim > 1) {
+        for (int i = 0; i < data_.n_train; i++) {
+          for (int k = 0; k < data_.treatment_dim; k++) {
+            model_preds_[i] += data_.treatment_train[data_.n_train * k + i] * tau_0_vector_[k];
+          }
+        }
+      } else {
+        for (int i = 0; i < data_.n_train; i++) {
+          model_preds_[i] += tau_0_scalar_ * data_.treatment_train[i];
+        }
+      }
+    }
+    // Sample latent outcome into outcome_raw_ (overwriting the previous iteration's raw predictions, which are not needed for the probit likelihood)
     sample_probit_latent_outcome(rng_, outcome_raw_->GetData().data(), model_preds_.data(),
                                  residual_->GetData().data(), samples.y_bar, data_.n_train);
   }
 
+  // Global error scale
   if (sample_sigma2_global_) {
     global_variance_ = var_model_->SampleVarianceParameter(
         residual_->GetData(), config_.a_sigma2_global, config_.b_sigma2_global, rng_);
   }
 
+  // Prognostic forest leaf scale
   if (sample_sigma2_leaf_mu_) {
     leaf_scale_mu_ = leaf_scale_model_mu_->SampleVarianceParameter(
         mu_forest_.get(), config_.a_sigma2_mu, config_.b_sigma2_mu, rng_);
     mu_leaf_model_.SetScale(leaf_scale_mu_);
   }
 
+  // Treatment effect forest leaf scale
+  if (sample_sigma2_leaf_tau_) {
+    leaf_scale_tau_ = leaf_scale_model_tau_->SampleVarianceParameter(
+        tau_forest_.get(), config_.a_sigma2_tau, config_.b_sigma2_tau, rng_);
+    std::visit(ScaleUpdateVisitor{*this, leaf_scale_tau_}, tau_leaf_model_);
+  }
+
   // Gibbs updates for random effects model
   if (has_random_effects_) {
     random_effects_model_->SampleRandomEffects(*random_effects_dataset_, *residual_, *random_effects_tracker_, global_variance_, rng_);
+    // NOTE: we keep this code in the random effects sampling block (as opposed to the parameter / prediction storage block below) to mirror the way that forests are retained within a sampling step
     if (keep_sample) {
       samples.rfx_container->AddSample(*random_effects_model_);
-      for (int i = 0; i < data_.n_train; i++) {
-        samples.rfx_predictions_train.push_back(random_effects_tracker_->GetPrediction(i));
-      }
     }
   }
 
   if (keep_sample) {
     // Add parameter and prediction samples
     samples.num_samples++;
+    // Global error variance
     if (sample_sigma2_global_) samples.global_error_variance_samples.push_back(global_variance_);
+    // Prognostic forest leaf scale
     if (sample_sigma2_leaf_mu_) samples.leaf_scale_mu_samples.push_back(leaf_scale_mu_);
+    // Treatment effect forest leaf scale
     if (sample_sigma2_leaf_tau_) samples.leaf_scale_tau_samples.push_back(leaf_scale_tau_);
+    // Treatment intercept
+    if (sample_tau_0_) {
+      if (data_.treatment_dim > 1) {
+        samples.tau_0_samples.insert(samples.tau_0_samples.end(), tau_0_vector_.begin(), tau_0_vector_.end());
+      } else {
+        samples.tau_0_samples.push_back(tau_0_scalar_);
+      }
+    }
+    // Prognostic forest predictions
     double* mu_forest_preds_train = mu_forest_tracker_->GetSumPredictions();
     samples.mu_forest_predictions_train.insert(samples.mu_forest_predictions_train.end(),
                                                mu_forest_preds_train,
                                                mu_forest_preds_train + samples.num_train);
+    // Treatment effect predictions
     samples.tau_forest_predictions_train.insert(samples.tau_forest_predictions_train.end(),
                                                 tau_raw_sum_preds_.begin(), tau_raw_sum_preds_.end());
+    // Variance forest predictions
     if (has_variance_forest_) {
       double* variance_forest_preds_train = variance_forest_tracker_->GetSumPredictions();
       samples.variance_forest_predictions_train.insert(samples.variance_forest_predictions_train.end(),
                                                        variance_forest_preds_train,
                                                        variance_forest_preds_train + samples.num_train);
     }
+    // Random effects predictions
+    if (has_random_effects_) {
+      for (int i = 0; i < data_.n_train; i++) {
+        samples.rfx_predictions_train.push_back(random_effects_tracker_->GetPrediction(i));
+      }
+    }
   }
 
   if (write_snapshot) {
     GFRSnapshot snap;
+    // Forests
     snap.mu_forest = std::make_unique<TreeEnsemble>(*mu_forest_);
     snap.tau_forest = std::make_unique<TreeEnsemble>(*tau_forest_);
     if (has_variance_forest_) snap.variance_forest = std::make_unique<TreeEnsemble>(*variance_forest_);
+    // Scale parameters
     snap.sigma2 = global_variance_;
     snap.leaf_scale_mu = leaf_scale_mu_;
     if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
@@ -718,14 +794,17 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
     } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression) {
       snap.leaf_scale_tau = leaf_scale_tau_;
     }
+    // Residual
     snap.residual.clear();
     snap.residual.resize(data_.n_train);
     snap.residual.assign(residual_->GetData().data(), residual_->GetData().data() + data_.n_train);
+    // Variance weights (from variance forest)
     if (has_variance_forest_) {
       snap.variance_weights.clear();
       snap.variance_weights.resize(data_.n_train);
       snap.variance_weights.assign(forest_dataset_->GetVarWeights().data(), forest_dataset_->GetVarWeights().data() + data_.n_train);
     }
+    // Random effects terms
     if (config_.has_random_effects) {
       snap.rfx_working_parameter = random_effects_model_->GetWorkingParameter();
       snap.rfx_group_parameters = random_effects_model_->GetGroupParameters();
@@ -806,6 +885,74 @@ void BCFSampler::RestoreStateFromGFRSnapshot(BCFSamples& samples, int snapshot_i
     leaf_scale_tau_multivariate_ = snap.leaf_scale_tau_multivariate;
   } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression || config_.tau_leaf_model_type == MeanLeafModelType::GaussianConstant) {
     leaf_scale_tau_ = snap.leaf_scale_tau;
+  }
+}
+
+void BCFSampler::SampleParametricTreatmentEffect() {
+  // Determine whether treatment is univariate, bivariate, or multivariate
+  const int tau_dim = data_.treatment_dim;
+  const int n_train = data_.n_train;
+  if (tau_dim == 1) {
+    // Dispatch univariate specialization of regression sampler
+    // Add tau_0 * Z to residual to get partial residual
+    double* partial_resid_ptr = residual_->GetData().data();
+    for (int i = 0; i < n_train; i++) {
+      partial_resid_ptr[i] += data_.treatment_train[i] * tau_0_scalar_;
+    }
+    // Sample tau_0 via sample_univariate_gaussian_regression_coefficient
+    double tau_0_update = sample_univariate_gaussian_regression_coefficient(partial_resid_ptr, data_.treatment_train, global_variance_, config_.tau_0_prior_var_scalar, n_train, rng_);
+    tau_0_scalar_ = tau_0_update;
+    // Subtract tau_0 * Z from partial residual
+    for (int i = 0; i < n_train; i++) {
+      partial_resid_ptr[i] -= data_.treatment_train[i] * tau_0_scalar_;
+    }
+  } else if (tau_dim == 2) {
+    // Add tau_0 * Z to residual to get partial residual
+    double* partial_resid_ptr = residual_->GetData().data();
+    for (int i = 0; i < n_train; i++) {
+      for (int k = 0; k < 2; k++) {
+        partial_resid_ptr[i] += data_.treatment_train[k * n_train + i] * tau_0_vector_[k];
+      }
+    }
+    // Dispatch bivariate specialization of regression sampler (with diagonal covariance)
+    std::vector<double> tau_0_update(2, 0.0);
+    sample_diagonal_bivariate_gaussian_regression_coefficients(tau_0_update.data(), partial_resid_ptr, data_.treatment_train, data_.treatment_train + n_train, global_variance_, config_.tau_0_prior_var_multivariate[0], config_.tau_0_prior_var_multivariate[1], n_train, rng_);
+    // Push results back to tau_0_vector_
+    tau_0_vector_[0] = tau_0_update[0];
+    tau_0_vector_[1] = tau_0_update[1];
+    // Subtract tau_0 * Z from partial residual
+    for (int i = 0; i < n_train; i++) {
+      for (int k = 0; k < 2; k++) {
+        partial_resid_ptr[i] -= data_.treatment_train[k * n_train + i] * tau_0_vector_[k];
+      }
+    }
+  } else {
+    // Dispatch general-purpose multivariate regression sampler, which returns parameters as an Eigen::VectorXd
+    // Add tau_0 * Z to residual to get partial residual
+    double* partial_resid_ptr = residual_->GetData().data();
+    for (int i = 0; i < n_train; i++) {
+      for (int k = 0; k < tau_dim; k++) {
+        partial_resid_ptr[i] += data_.treatment_train[k * n_train + i] * tau_0_vector_[k];
+      }
+    }
+    // Wrap an Eigen map around the partial residual, treatment, and prior covariance for efficient vectorized operations
+    Eigen::Map<Eigen::VectorXd> partial_resid(partial_resid_ptr, n_train);
+    Eigen::Map<const Eigen::MatrixXd> treatment(data_.treatment_train, n_train, tau_dim);
+    // Construct diagonal prior covariance matrix from config_.tau_0_prior_var_multivariate
+    Eigen::Map<const Eigen::VectorXd> tau_0_prior_var_vec(config_.tau_0_prior_var_multivariate.data(), tau_dim);
+    const Eigen::MatrixXd tau_0_prior_cov = tau_0_prior_var_vec.asDiagonal();
+    // Sample tau_0 via sample_general_gaussian_regression_coefficients
+    Eigen::VectorXd tau_0_update = sample_general_gaussian_regression_coefficients(partial_resid, treatment, global_variance_, tau_0_prior_cov, n_train, rng_);
+    // Push results back to tau_0_vector_
+    for (int k = 0; k < tau_dim; k++) {
+      tau_0_vector_[k] = tau_0_update[k];
+    }
+    // Subtract tau_0 * Z from partial residual
+    for (int i = 0; i < n_train; i++) {
+      for (int k = 0; k < tau_dim; k++) {
+        partial_resid_ptr[i] -= data_.treatment_train[k * n_train + i] * tau_0_vector_[k];
+      }
+    }
   }
 }
 

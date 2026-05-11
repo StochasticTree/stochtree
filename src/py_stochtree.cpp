@@ -2591,7 +2591,8 @@ inline StochTree::BCFConfig convert_dict_to_bcf_config(py::dict config_dict) {
   output.sigma2_tau_init = get_config_scalar_default<double>(config_dict, "sigma2_tau_init", -1.0);
   output.sample_sigma2_leaf_tau = get_config_scalar_default<bool>(config_dict, "sample_sigma2_leaf_tau", false);
   output.tau_leaf_model_type = static_cast<StochTree::MeanLeafModelType>(get_config_scalar_default<int>(config_dict, "tau_leaf_model_type", 0));
-  output.sample_intercept = get_config_scalar_default<bool>(config_dict, "sample_intercept", true);
+  output.sample_tau_0 = get_config_scalar_default<bool>(config_dict, "sample_tau_0", true);
+  output.tau_0_prior_var_scalar = get_config_scalar_default<double>(config_dict, "tau_0_prior_var_scalar", -1.0);
 
   // Variance forest parameters
   output.num_trees_variance = get_config_scalar_default<int>(config_dict, "num_trees_variance", 0);
@@ -2640,6 +2641,9 @@ inline StochTree::BCFConfig convert_dict_to_bcf_config(py::dict config_dict) {
   }
   if (config_dict.contains("sigma2_leaf_tau_matrix")) {
     output.sigma2_leaf_tau_matrix = config_dict["sigma2_leaf_tau_matrix"].cast<std::vector<double>>();
+  }
+  if (config_dict.contains("tau_0_prior_var_multivariate")) {
+    output.tau_0_prior_var_multivariate = config_dict["tau_0_prior_var_multivariate"].cast<std::vector<double>>();
   }
   if (config_dict.contains("rfx_working_parameter_mean_prior")) {
     py::array_t<double, py::array::f_style | py::array::forcecast> arr =
@@ -2873,6 +2877,16 @@ inline py::dict convert_bcf_results_to_dict(
     py::array_t<double> array(input_vec.size());
     std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
     output["leaf_scale_tau_samples"] = array;
+  }
+
+  // tau_0 samples
+  if (results_raw.tau_0_samples.empty()) {
+    output["tau_0_samples"] = py::none();
+  } else {
+    auto input_vec = results_raw.tau_0_samples;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["tau_0_samples"] = array;
   }
 
   // Unpack RFX predictions

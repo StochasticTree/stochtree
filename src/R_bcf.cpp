@@ -59,7 +59,8 @@ StochTree::BCFConfig convert_list_to_bcf_config(cpp11::list config) {
   output.sigma2_tau_init = get_config_scalar_default<double>(config, "sigma2_tau_init", -1.0);
   output.sample_sigma2_leaf_tau = get_config_scalar_default<bool>(config, "sample_sigma2_leaf_tau", false);
   output.tau_leaf_model_type = static_cast<StochTree::MeanLeafModelType>(get_config_scalar_default<int>(config, "tau_leaf_model_type", 1));
-  output.sample_intercept = get_config_scalar_default<bool>(config, "sample_intercept", true);
+  output.sample_tau_0 = get_config_scalar_default<bool>(config, "sample_tau_0", true);
+  output.tau_0_prior_var_scalar = get_config_scalar_default<double>(config, "tau_0_prior_var_scalar", -1.0);
 
   // Variance forest parameters
   output.num_trees_variance = get_config_scalar_default<int>(config, "num_trees_variance", 0);
@@ -118,6 +119,11 @@ StochTree::BCFConfig convert_list_to_bcf_config(cpp11::list config) {
   if (!Rf_isNull(sigma2_leaf_tau_matrix_raw)) {
     cpp11::doubles sigma2_leaf_tau_matrix_r_vec(sigma2_leaf_tau_matrix_raw);
     output.sigma2_leaf_tau_matrix.assign(sigma2_leaf_tau_matrix_r_vec.begin(), sigma2_leaf_tau_matrix_r_vec.end());
+  }
+  SEXP tau_0_prior_var_raw = static_cast<SEXP>(config["tau_0_prior_var_multivariate"]);
+  if (!Rf_isNull(tau_0_prior_var_raw)) {
+    cpp11::doubles tau_0_prior_var_r_vec(tau_0_prior_var_raw);
+    output.tau_0_prior_var_multivariate.assign(tau_0_prior_var_r_vec.begin(), tau_0_prior_var_r_vec.end());
   }
   SEXP var_weights_variance_raw = static_cast<SEXP>(config["var_weights_variance"]);
   if (!Rf_isNull(var_weights_variance_raw)) {
@@ -243,6 +249,11 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
                                  ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.leaf_scale_tau_samples.begin(), bcf_samples.leaf_scale_tau_samples.end()))
                                  : R_NilValue;
   output.push_back(cpp11::named_arg("leaf_scale_tau_samples") = leaf_scale_tau_sexp);
+
+  SEXP tau_0_samples_sexp = !bcf_samples.tau_0_samples.empty()
+                                ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.tau_0_samples.begin(), bcf_samples.tau_0_samples.end()))
+                                : R_NilValue;
+  output.push_back(cpp11::named_arg("tau_0_samples") = tau_0_samples_sexp);
 
   SEXP adaptive_coding_samples_sexp = !bcf_samples.adaptive_coding_samples.empty()
                                           ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.adaptive_coding_samples.begin(), bcf_samples.adaptive_coding_samples.end()))

@@ -1514,8 +1514,6 @@ bcf <- function(
     "binary_treatment" = binary_treatment,
     "multivariate_treatment" = has_multivariate_treatment,
     "adaptive_coding" = adaptive_coding,
-    "sample_tau_0" = sample_tau_0,
-    "tau_0_prior_var" = if (sample_tau_0) tau_0_prior_var else NULL,
     "internal_propensity_model" = internal_propensity_model,
     "num_gfr" = num_gfr,
     "num_burnin" = num_burnin,
@@ -1634,6 +1632,17 @@ bcf <- function(
       "tau_leaf_model_type" = leaf_model_tau_forest,
       "sigma2_leaf_tau_matrix" = if (is.matrix(sigma2_leaf_tau)) {
         as.numeric(sigma2_leaf_tau)
+      } else {
+        NULL
+      },
+      "sample_tau_0" = sample_tau_0,
+      "tau_0_prior_var_scalar" = if (is.matrix(tau_0_prior_var)) {
+        NULL
+      } else {
+        tau_0_prior_var
+      },
+      "tau_0_prior_var_multivariate" = if (is.matrix(tau_0_prior_var)) {
+        as.numeric(tau_0_prior_var)
       } else {
         NULL
       },
@@ -1775,7 +1784,9 @@ bcf <- function(
       "b_forest" = bcf_results[["scale_variance_forest"]],
       "outcome_mean" = bcf_results[["y_bar"]],
       "outcome_scale" = bcf_results[["y_std"]],
-      "num_samples" = bcf_results[["num_samples"]]
+      "num_samples" = bcf_results[["num_samples"]],
+      "sample_tau_0" = sample_tau_0,
+      "tau_0_prior_var" = if (sample_tau_0) tau_0_prior_var else NULL
     )
     model_params <- c(model_params_r, model_params_cpp)
     result[["model_params"]] <- model_params
@@ -1791,7 +1802,8 @@ bcf <- function(
         bcf_results[["num_samples"]]
       )
       result[["mu_hat_train"]] <- bcf_results[['mu_forest_predictions_train']] *
-        bcf_results[["y_std"]] + bcf_results[["y_bar"]]
+        bcf_results[["y_std"]] +
+        bcf_results[["y_bar"]]
     }
     has_mu_forest_predictions_test <- !is.null(
       bcf_results[['mu_forest_predictions_test']]
@@ -1802,7 +1814,8 @@ bcf <- function(
         bcf_results[["num_samples"]]
       )
       result[["mu_hat_test"]] <- bcf_results[['mu_forest_predictions_test']] *
-        bcf_results[["y_std"]] + bcf_results[["y_bar"]]
+        bcf_results[["y_std"]] +
+        bcf_results[["y_bar"]]
     }
     has_tau_forest_predictions_train <- !is.null(
       bcf_results[['tau_forest_predictions_train']]
@@ -1820,7 +1833,9 @@ bcf <- function(
           bcf_results[["num_samples"]]
         )
       }
-      result[['tau_hat_train']] <- bcf_results[['tau_forest_predictions_train']] *
+      result[['tau_hat_train']] <- bcf_results[[
+        'tau_forest_predictions_train'
+      ]] *
         bcf_results[["y_std"]]
     }
     has_tau_forest_predictions_test <- !is.null(
@@ -1998,6 +2013,15 @@ bcf <- function(
     if (sample_sigma2_leaf_tau) {
       result[["sigma2_leaf_tau_samples"]] = bcf_results[[
         "leaf_scale_tau_samples"
+      ]]
+    }
+    if (sample_tau_0) {
+      dim(bcf_results[['tau_0_samples']]) <- c(
+        bcf_results[["num_samples"]],
+        ncol(Z_train),
+      )
+      result[["tau_0_samples"]] = bcf_results[[
+        "tau_0_samples"
       ]]
     }
     if (internal_propensity_model) {
@@ -3785,7 +3809,7 @@ bcf <- function(
     }
 
     # Return results as a list
-    model_params_r_calibrated <- list(
+    model_params_r_post_sampler <- list(
       "initial_sigma2" = sigma2_init,
       "initial_sigma2_leaf_mu" = sigma2_leaf_mu,
       "initial_sigma2_leaf_tau" = sigma2_leaf_tau,
@@ -3795,9 +3819,11 @@ bcf <- function(
       "b_forest" = b_forest,
       "outcome_mean" = y_bar_train,
       "outcome_scale" = y_std_train,
-      "num_samples" = num_retained_samples
+      "num_samples" = num_retained_samples,
+      "sample_tau_0" = sample_tau_0,
+      "tau_0_prior_var" = if (sample_tau_0) tau_0_prior_var else NULL
     )
-    model_params <- c(model_params_r, model_params_r_calibrated)
+    model_params <- c(model_params_r, model_params_r_post_sampler)
     result <- list(
       "forests_mu" = forest_samples_mu,
       "forests_tau" = forest_samples_tau,

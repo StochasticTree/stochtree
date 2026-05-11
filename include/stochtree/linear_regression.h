@@ -10,7 +10,6 @@
 #include <stochtree/normal_sampler.h>
 
 #include <random>
-#include "Eigen/src/Core/Matrix.h"
 
 namespace StochTree {
 
@@ -142,7 +141,7 @@ static void sample_diagonal_bivariate_gaussian_regression_coefficients(double* o
  * \param n Number of observations
  * \param gen Random number generator
  */
-static Eigen::VectorXd sample_general_gaussian_regression_coefficients(Eigen::VectorXd& y, Eigen::MatrixXd& X, double error_variance, Eigen::MatrixXd& prior_variance, int n, std::mt19937& gen) {
+static Eigen::VectorXd sample_general_gaussian_regression_coefficients(const Eigen::Ref<const Eigen::VectorXd>& y, const Eigen::Ref<const Eigen::MatrixXd>& X, double error_variance, const Eigen::Ref<const Eigen::MatrixXd>& prior_variance, int n, std::mt19937& gen) {
   int p = X.cols();
   Eigen::MatrixXd inv_prior_var = prior_variance.inverse();
   Eigen::MatrixXd XtX = X.transpose() * X;

@@ -104,9 +104,9 @@ struct BCFConfig {
   bool sample_sigma2_leaf_tau = false;                                                      // whether to sample treatment effect forest leaf scale (if false, it will be fixed at sigma2_tau_init)
   std::vector<int> sweep_update_indices_tau;                                                // indices of trees to update in a given sweep (should be subset of [0, num_trees - 1])
   MeanLeafModelType tau_leaf_model_type = MeanLeafModelType::GaussianUnivariateRegression;  // leaf model type for treatment effect forest
-  bool sample_intercept = true;                                                             // whether or not to sample an intercept term on the treatment, additive to the covariate-dependent treatment effect forest
-  double tau_0_prior_var_scalar = -1.0;                                                     // scalar-valued prior variance for treatment intercept (only relevant when sample_intercept=true; -1 is a sentinel value that triggers a data-informed calibration)
-  std::vector<double> tau_0_prior_var_multivariate;                                         // vector-valued prior variance for treatment intercept in multivariate treatment case (only relevant when sample_intercept=true; should be of length treatment_dim; empty = use data-informed calibration)
+  bool sample_tau_0 = true;                                                                 // whether or not to sample an intercept term on the treatment, additive to the covariate-dependent treatment effect forest
+  double tau_0_prior_var_scalar = -1.0;                                                     // scalar-valued prior variance for treatment intercept (only relevant when sample_tau_0=true; -1 is a sentinel value that triggers a data-informed calibration)
+  std::vector<double> tau_0_prior_var_multivariate;                                         // vector-valued prior variance for treatment intercept in multivariate treatment case (only relevant when sample_tau_0=true; should be of length treatment_dim; empty = use data-informed calibration)
 
   // Variance forest parameters
   int num_trees_variance = 0;                      // number of trees in the variance forest
@@ -184,8 +184,8 @@ struct BCFSamples {
   // Posterior samples of test set RFX predictions (num_samples x n_test, stored column-major)
   std::vector<double> rfx_predictions_test;
 
-  // Treatment intercept samples (num_samples x treatment_dim, stored column-major; only populated when rfx_model_spec == InterceptPlusTreatment)
-  std::vector<double> adaptive_coding_samples;
+  // Treatment intercept samples (num_samples x treatment_dim, stored column-major; only populated when sample_tau_0=true)
+  std::vector<double> tau_0_samples;
 
   // Adaptive coding parameter samples (num_samples x 2, stored column-major, with b0 / control parameter in the first column and b1 / treatment parameter in the second column)
   std::vector<double> adaptive_coding_samples;
