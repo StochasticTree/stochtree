@@ -528,6 +528,64 @@ class TestPredict:
                 terms=["variance_forest"],
             )
 
+    def test_bcf_tau_cate_decomposition(self):
+        """predict(terms='tau') == tau_hat_test, tau==cate without treatment RFX,
+        and y_hat = mu_hat + Z * tau_hat for stored train/test attributes."""
+        rng = np.random.default_rng(42)
+        n = 200
+        p = 5
+        X = rng.uniform(size=(n, p))
+        pi_x = 0.4 + 0.2 * X[:, 0]
+        Z = rng.binomial(1, pi_x).astype(float)
+        mu_x = 1 + 2 * X[:, 0]
+        tau_x = 0.5 + X[:, 1]
+        y = mu_x + tau_x * Z + rng.normal(size=n)
+        train_inds, test_inds = train_test_split(np.arange(n), test_size=0.2, random_state=0)
+        X_train, X_test = X[train_inds], X[test_inds]
+        Z_train, Z_test = Z[train_inds], Z[test_inds]
+        y_train = y[train_inds]
+        pi_train, pi_test = pi_x[train_inds], pi_x[test_inds]
+
+        # Fit BCF with sample_intercept=True (default)
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=X_train, Z_train=Z_train, y_train=y_train,
+            propensity_train=pi_train, X_test=X_test, Z_test=Z_test,
+            propensity_test=pi_test, num_gfr=5, num_burnin=0, num_mcmc=10,
+        )
+
+        # predict(terms="tau") must match tau_hat_test exactly
+        tau_from_predict = bcf_model.predict(X=X_test, Z=Z_test, propensity=pi_test, terms="tau")
+        np.testing.assert_allclose(tau_from_predict, bcf_model.tau_hat_test)
+
+        # predict(terms="tau") == predict(terms="cate") when no treatment RFX
+        cate_from_predict = bcf_model.predict(X=X_test, Z=Z_test, propensity=pi_test, terms="cate")
+        np.testing.assert_allclose(tau_from_predict, cate_from_predict)
+
+        # y_hat_test = mu_hat_test + Z_test * tau_hat_test (stored attributes decompose)
+        expected_y = bcf_model.mu_hat_test + Z_test[:, None] * bcf_model.tau_hat_test
+        np.testing.assert_allclose(bcf_model.y_hat_test, expected_y)
+
+        # y_hat_train = mu_hat_train + Z_train * tau_hat_train
+        expected_y_train = bcf_model.mu_hat_train + Z_train[:, None] * bcf_model.tau_hat_train
+        np.testing.assert_allclose(bcf_model.y_hat_train, expected_y_train)
+
+        # With sample_intercept=False, tau includes only the forest; mean ATE still recoverable
+        bcf_no_intercept = BCFModel()
+        bcf_no_intercept.sample(
+            X_train=X_train, Z_train=Z_train, y_train=y_train,
+            propensity_train=pi_train, X_test=X_test, Z_test=Z_test,
+            propensity_test=pi_test, num_gfr=5, num_burnin=0, num_mcmc=10,
+            treatment_effect_forest_params={"sample_intercept": False},
+        )
+        tau_no_intercept = bcf_no_intercept.predict(
+            X=X_test, Z=Z_test, propensity=pi_test, terms="tau"
+        )
+        np.testing.assert_allclose(tau_no_intercept, bcf_no_intercept.tau_hat_test)
+        # y_hat decomposition still holds without tau_0
+        expected_y_no_int = bcf_no_intercept.mu_hat_test + Z_test[:, None] * bcf_no_intercept.tau_hat_test
+        np.testing.assert_allclose(bcf_no_intercept.y_hat_test, expected_y_no_int)
+
     def test_bart_cloglog_binary_interval_and_contrast(self):
         # Generate binary cloglog data
         rng = np.random.default_rng(42)

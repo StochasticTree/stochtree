@@ -4,8 +4,10 @@
 
 ## Bug Fixes
 
-## Documentation and Other Maintenance
+* Fixed BCF prediction bug for prognostic function and mu(X) when adaptive coding is used and the tau(x) forest is not also requested by a prediction call [#377](https://github.com/StochasticTree/stochtree/pull/377)
+* Fixed R BCF prediction bug when covariates are passed as dataframes and an internal propensity is sampled [#374](https://github.com/StochasticTree/stochtree/issues/374)
 
+## Documentation and Other Maintenance
 
 # stochtree 0.4.2
 

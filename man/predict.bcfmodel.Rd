@@ -34,7 +34,18 @@ that were not in the training set.}
 
 \item{type}{(Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BCF model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".}
 
-\item{terms}{(Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "prognostic_function", "mu", "cate", "tau", "rfx", "variance_forest", or "all". If a model doesn't have random effects or variance forest predictions, but one of those terms is request, the request will simply be ignored. If a model has random effects fit with either "intercept_only" or "intercept_plus_treatment" model_spec, then "prognostic_function" refers to the predictions of the prognostic forest plus the random intercept and "cate" refers to the predictions of the treatment effect forest plus the random slope on the treatment variable. For these models, the forest predictions alone can be requested via "mu" (prognostic forest) and "tau" (treatment effect forest). In all other cases, "mu" will return exactly the same result as "prognostic_function" and "tau" will return exactly the same result as "cate". If none of the requested terms are present in a model, this function will return \code{NULL} along with a warning. Default: "all".}
+\item{terms}{(Optional) Which model terms to include in the prediction. Options include \code{"y_hat"}, \code{"prognostic_function"}, \code{"mu"}, \code{"cate"}, \code{"tau"}, \code{"rfx"}, \code{"variance_forest"}, or \code{"all"}.
+
+The treatment effect terms follow a three-level hierarchy:
+\itemize{
+\item \code{"tau"} returns \code{tau_0 + tau(X)}: the parametric treatment intercept (if sampled) plus the treatment forest. This matches \code{model$tau_hat_train} / \code{model$tau_hat_test}.
+\item \code{"cate"} additionally folds in the random slope on treatment when random effects are fit with \code{rfx_model_spec = "intercept_plus_treatment"}; otherwise it is identical to \code{"tau"}.
+\item The raw forest-only component (without \code{tau_0}) is not directly returned by this method; use \code{model$forests_tau} to access it.
+}
+
+Similarly for the prognostic term: \code{"mu"} returns the prognostic forest only, while \code{"prognostic_function"} additionally folds in the random intercept when \code{rfx_model_spec} is \code{"intercept_only"} or \code{"intercept_plus_treatment"}; otherwise the two are identical.
+
+If a model doesn't have random effects or variance forest predictions but one of those terms is requested, the request will simply be ignored. If none of the requested terms are present, this function will return \code{NULL} along with a warning. Default: \code{"all"}.}
 
 \item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
 
