@@ -2992,8 +2992,9 @@ class BCFModel:
             else:
                 self.tau_hat_train = self.tau_hat_train + tau_0_vec * self.y_std
         if self.multivariate_treatment:
-            # tau_hat_train: (n, treatment_dim, num_samples); sum over treatment_dim axis
-            treatment_term_train = (Z_train[:, :, np.newaxis] * self.tau_hat_train).sum(axis=1)
+            treatment_term_train = np.multiply(
+                np.atleast_3d(Z_train).swapaxes(1, 2), self.tau_hat_train
+            ).sum(axis=2)
         else:
             treatment_term_train = Z_train * np.squeeze(self.tau_hat_train)
         self.y_hat_train = self.mu_hat_train + treatment_term_train
@@ -3032,8 +3033,9 @@ class BCFModel:
                 else:
                     self.tau_hat_test = self.tau_hat_test + tau_0_vec * self.y_std
             if self.multivariate_treatment:
-                # tau_hat_test: (n, treatment_dim, num_samples); sum over treatment_dim axis
-                treatment_term_test = (Z_test[:, :, np.newaxis] * self.tau_hat_test).sum(axis=1)
+                treatment_term_test = np.multiply(
+                    np.atleast_3d(Z_test).swapaxes(1, 2), self.tau_hat_test
+                ).sum(axis=2)
             else:
                 treatment_term_test = Z_test * np.squeeze(self.tau_hat_test)
             self.y_hat_test = self.mu_hat_test + treatment_term_test
@@ -3377,8 +3379,9 @@ class BCFModel:
             else:
                 cate_x_forest = tau_x_forest
             if Z.shape[1] > 1:
-                # cate_x_forest: (n, treatment_dim, num_samples); sum over treatment_dim axis
-                treatment_term = (np.atleast_3d(Z) * cate_x_forest).sum(axis=1)
+                treatment_term = np.multiply(
+                    np.atleast_3d(Z).swapaxes(1, 2), cate_x_forest
+                ).sum(axis=2)
             else:
                 treatment_term = Z * np.squeeze(cate_x_forest)
 
@@ -3512,11 +3515,11 @@ class BCFModel:
             if predict_mu_forest:
                 mu_x = np.mean(mu_x, axis=1)
             if predict_tau_forest:
-                tau_x = np.mean(tau_x, axis=2 if self.multivariate_treatment else 1)
+                tau_x = np.mean(tau_x, axis=1)
             if predict_prog_function:
                 prognostic_function = np.mean(prognostic_function, axis=1)
             if predict_cate_function:
-                cate = np.mean(cate, axis=2 if self.multivariate_treatment else 1)
+                cate = np.mean(cate, axis=1)
             if predict_rfx:
                 rfx_preds = np.mean(rfx_preds, axis=1)
             if predict_y_hat:
