@@ -647,8 +647,9 @@ class BCFModel:
                     "observation_weights are not compatible with cloglog link functions."
                 )
             if self.include_variance_forest:
-                warnings.warn(
-                    "Results may be unreliable when observation_weights are deployed alongside a variance forest model."
+                raise ValueError(
+                    "observation_weights are not compatible with a variance forest model. "
+                    "Use either observation_weights or a variance forest, not both."
                 )
 
         # Check data inputs
