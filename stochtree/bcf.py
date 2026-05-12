@@ -3498,69 +3498,69 @@ class BCFModel:
                 treatment_term_test = Z_test * np.squeeze(cate_test)
             self.y_hat_test = self.mu_hat_test + treatment_term_test
 
-            # TODO: make rfx_preds_train and rfx_preds_test persistent properties
-            if self.has_rfx:
-                rfx_preds_train = (
-                    self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train)
+        # TODO: make rfx_preds_train and rfx_preds_test persistent properties
+        if self.has_rfx:
+            rfx_preds_train = (
+                self.rfx_container.predict(rfx_group_ids_train, rfx_basis_train)
+                * self.y_std
+            )
+            if has_rfx_test:
+                rfx_preds_test = (
+                    self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test)
                     * self.y_std
                 )
-                if has_rfx_test:
-                    rfx_preds_test = (
-                        self.rfx_container.predict(rfx_group_ids_test, rfx_basis_test)
-                        * self.y_std
-                    )
-                self.y_hat_train = self.y_hat_train + rfx_preds_train
-                if self.has_test:
-                    self.y_hat_test = self.y_hat_test + rfx_preds_test
+            self.y_hat_train = self.y_hat_train + rfx_preds_train
+            if self.has_test:
+                self.y_hat_test = self.y_hat_test + rfx_preds_test
 
+        if self.sample_sigma2_global:
+            self.global_var_samples = self.global_var_samples * self.y_std * self.y_std
+
+        if self.sample_sigma2_leaf_mu:
+            self.leaf_scale_mu_samples = self.leaf_scale_mu_samples
+
+        if self.sample_sigma2_leaf_tau:
+            self.leaf_scale_tau_samples = self.leaf_scale_tau_samples
+
+        if self.adaptive_coding:
+            self.b0_samples = self.b0_samples
+            self.b1_samples = self.b1_samples
+
+        if self.sample_tau_0:
+            self.tau_0_samples = self.tau_0_samples * self.y_std
+
+        if self.include_variance_forest:
             if self.sample_sigma2_global:
-                self.global_var_samples = self.global_var_samples * self.y_std * self.y_std
-
-            if self.sample_sigma2_leaf_mu:
-                self.leaf_scale_mu_samples = self.leaf_scale_mu_samples
-
-            if self.sample_sigma2_leaf_tau:
-                self.leaf_scale_tau_samples = self.leaf_scale_tau_samples
-
-            if self.adaptive_coding:
-                self.b0_samples = self.b0_samples
-                self.b1_samples = self.b1_samples
-
-            if self.sample_tau_0:
-                self.tau_0_samples = self.tau_0_samples * self.y_std
-
-            if self.include_variance_forest:
+                self.sigma2_x_train = np.empty_like(sigma2_x_train_raw)
+                for i in range(self.num_samples):
+                    self.sigma2_x_train[:, i] = (
+                        np.exp(sigma2_x_train_raw[:, i]) * self.global_var_samples[i]
+                    )
+            else:
+                self.sigma2_x_train = (
+                    np.exp(sigma2_x_train_raw)
+                    * self.sigma2_init
+                    * self.y_std
+                    * self.y_std
+                )
+            if self.has_test:
+                sigma2_x_test_raw = (
+                    self.forest_container_variance.forest_container_cpp.Predict(
+                        forest_dataset_test.dataset_cpp
+                    )
+                )
                 if self.sample_sigma2_global:
-                    self.sigma2_x_train = np.empty_like(sigma2_x_train_raw)
+                    self.sigma2_x_test = np.empty_like(sigma2_x_test_raw)
                     for i in range(self.num_samples):
-                        self.sigma2_x_train[:, i] = (
-                            np.exp(sigma2_x_train_raw[:, i]) * self.global_var_samples[i]
+                        self.sigma2_x_test[:, i] = (
+                            sigma2_x_test_raw[:, i] * self.global_var_samples[i]
                         )
                 else:
-                    self.sigma2_x_train = (
-                        np.exp(sigma2_x_train_raw)
-                        * self.sigma2_init
-                        * self.y_std
-                        * self.y_std
+                    self.sigma2_x_test = (
+                        sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
                     )
-                if self.has_test:
-                    sigma2_x_test_raw = (
-                        self.forest_container_variance.forest_container_cpp.Predict(
-                            forest_dataset_test.dataset_cpp
-                        )
-                    )
-                    if self.sample_sigma2_global:
-                        self.sigma2_x_test = np.empty_like(sigma2_x_test_raw)
-                        for i in range(self.num_samples):
-                            self.sigma2_x_test[:, i] = (
-                                sigma2_x_test_raw[:, i] * self.global_var_samples[i]
-                            )
-                    else:
-                        self.sigma2_x_test = (
-                            sigma2_x_test_raw * self.sigma2_init * self.y_std * self.y_std
-                        )
-            
-            return self
+
+        return self
 
     def predict(
         self,
