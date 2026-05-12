@@ -3444,7 +3444,7 @@ class BCFModel:
                 cate_train = self.tau_hat_train + tau_0_vec * self.y_std
         else:
             cate_train = self.tau_hat_train
-        self.tau_hat_train = cate_train
+        self.tau_hat_train = cate_train.transpose(0, 2, 1) if self.multivariate_treatment else cate_train
         if self.multivariate_treatment:
             treatment_term_train = np.multiply(
                 np.atleast_3d(Z_train).swapaxes(1, 2), cate_train
@@ -3489,7 +3489,7 @@ class BCFModel:
                     cate_test = self.tau_hat_test + tau_0_vec * self.y_std
             else:
                 cate_test = self.tau_hat_test
-            self.tau_hat_test = cate_test
+            self.tau_hat_test = cate_test.transpose(0, 2, 1) if self.multivariate_treatment else cate_test
             if self.multivariate_treatment:
                 treatment_term_test = np.multiply(
                     np.atleast_3d(Z_test).swapaxes(1, 2), cate_test
