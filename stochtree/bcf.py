@@ -2047,6 +2047,12 @@ class BCFModel:
                 self.leaf_scale_mu_samples = bcf_results["leaf_scale_mu_samples"]
             if self.sample_sigma2_leaf_tau:
                 self.leaf_scale_tau_samples = bcf_results["leaf_scale_tau_samples"]
+            if self.sample_tau_0:
+                tau_0_raw = bcf_results["tau_0_samples"]
+                if tau_0_raw is not None:
+                    self.tau_0_samples = tau_0_raw.reshape(
+                        self.treatment_dim, bcf_results["num_samples"], order="F"
+                    ) * self.y_std
 
             # Unpack other model metadata
             self.num_samples = bcf_results["num_samples"]
@@ -3438,6 +3444,7 @@ class BCFModel:
                 cate_train = self.tau_hat_train + tau_0_vec * self.y_std
         else:
             cate_train = self.tau_hat_train
+        self.tau_hat_train = cate_train
         if self.multivariate_treatment:
             treatment_term_train = np.multiply(
                 np.atleast_3d(Z_train).swapaxes(1, 2), cate_train
@@ -3482,6 +3489,7 @@ class BCFModel:
                     cate_test = self.tau_hat_test + tau_0_vec * self.y_std
             else:
                 cate_test = self.tau_hat_test
+            self.tau_hat_test = cate_test
             if self.multivariate_treatment:
                 treatment_term_test = np.multiply(
                     np.atleast_3d(Z_test).swapaxes(1, 2), cate_test
