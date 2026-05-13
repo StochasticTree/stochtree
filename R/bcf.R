@@ -1585,6 +1585,9 @@ bcf <- function(
       "random_seed" = random_seed,
       "keep_gfr" = keep_gfr,
       "keep_burnin" = keep_burnin,
+      "adaptive_coding" = adaptive_coding,
+      "b_0_init" = b_0,
+      "b_1_init" = b_1,
       "a_sigma2_global" = a_global,
       "b_sigma2_global" = b_global,
       "sigma2_global_init" = sigma2_init,
@@ -2024,6 +2027,14 @@ bcf <- function(
         "tau_0_samples"
       ]] *
         bcf_results[["y_std"]]
+    }
+    if (adaptive_coding) {
+      result[["b0_samples"]] = bcf_results[[
+        "b0_samples"
+      ]]
+      result[["b1_samples"]] = bcf_results[[
+        "b1_samples"
+      ]]
     }
     if (internal_propensity_model) {
       result[["bart_propensity_model"]] = bart_model_propensity

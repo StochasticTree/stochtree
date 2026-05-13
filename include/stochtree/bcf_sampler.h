@@ -58,6 +58,9 @@ class BCFSampler {
   /*! Internal function to sample parametric treatment effect "intercept" term (tau_0 in stochtree nomenclature) */
   void SampleParametricTreatmentEffect();
 
+  /*! Internal function to sample adaptive coding parameters for binary treatment */
+  void SampleAdaptiveCodingParameters();
+
   /*! Internal reference to config and data state */
   BCFConfig& config_;
   BCFData& data_;
@@ -123,10 +126,17 @@ class BCFSampler {
   std::unique_ptr<LeafNodeHomoskedasticVarianceModel> leaf_scale_model_tau_;
   bool sample_sigma2_leaf_tau_ = false;
 
-  // Treatment intercept value (only populated when sample_tau_0 = true)
+  // Treatment intercept term
   double tau_0_scalar_;
   std::vector<double> tau_0_vector_;
   bool sample_tau_0_ = false;
+
+  // Adaptive coding parameters
+  double b_0_;
+  double b_1_;
+  bool adaptive_coding_;
+  std::vector<double> tau_basis_vector_train_;
+  std::vector<double> tau_basis_vector_test_;
 
   /*! GFR iteration visitor for tau forest */
   struct GFROneIterationVisitorTau {
@@ -223,6 +233,17 @@ class BCFSampler {
     double leaf_scale_mu;
     double leaf_scale_tau;
     std::vector<double> leaf_scale_tau_multivariate;
+
+    // Treatment intercept
+    double tau_0_scalar;
+    std::vector<double> tau_0_vector;
+
+    // Adaptive coding
+    double b_0;
+    double b_1;
+
+    // Basis implied by adaptive coding when present (only populated when adaptive_coding=true and only used for the training set -- for test set, we reconstruct at prediction time anyway)
+    std::vector<double> tau_basis_train;
 
     // Residual (incorporates forest + RFX contributions for a given sampler iteration)
     std::vector<double> residual;

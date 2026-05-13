@@ -1776,6 +1776,8 @@ class BCFModel:
                 "keep_gfr": keep_gfr,
                 "keep_burnin": keep_burnin,
                 "adaptive_coding": self.adaptive_coding,
+                "b_0_init": b_0,
+                "b_1_init": b_1,
                 "a_sigma2_global": a_global,
                 "b_sigma2_global": b_global,
                 "sigma2_global_init": 1.0,  # TODO: calibrate this before
@@ -2053,6 +2055,9 @@ class BCFModel:
                     self.tau_0_samples = tau_0_raw.reshape(
                         self.treatment_dim, bcf_results["num_samples"], order="F"
                     ) * self.y_std
+            if self.adaptive_coding:
+                self.b0_samples = bcf_results["b0_samples"]
+                self.b1_samples = bcf_results["b1_samples"]
 
             # Unpack other model metadata
             self.num_samples = bcf_results["num_samples"]

@@ -62,6 +62,8 @@ struct BCFConfig {
   bool keep_gfr = true;                                 // whether or not to keep GFR samples or simply use them to warm-start an MCMC chain
   bool keep_burnin = false;                             // whether or not to keep "burn-in" MCMC samples (largely a debugging flag)
   bool adaptive_coding = false;                         // whether or not to use adaptive coding for the BCF model
+  double b_0_init = 0.0;                                // initial value for the b_0 parameter in the adaptive coding scheme (only relevant if adaptive_coding=true)
+  double b_1_init = 1.0;                                // initial value for the b_1 parameter in the adaptive coding scheme (only relevant if adaptive_coding=true)
 
   // Global error variance parameters
   double a_sigma2_global = 0.0;      // shape parameter for inverse gamma prior on global error variance
@@ -138,28 +140,28 @@ struct BCFConfig {
 };
 
 struct BCFSamples {
-  // Posterior samples of training set outcome predictions (num_samples x n_train, stored column-major)
+  // Posterior samples of training set outcome predictions (n_train x num_samples, stored column-major)
   std::vector<double> y_hat_train;
 
-  // Posterior samples of training set prognostic forest predictions (num_samples x n_train, stored column-major)
+  // Posterior samples of training set prognostic forest predictions (n_train x num_samples, stored column-major)
   std::vector<double> mu_forest_predictions_train;
 
-  // Posterior samples of training set treatment effect forest predictions (num_samples x n_train, stored column-major)
+  // Posterior samples of training set treatment effect forest predictions (n_train x num_samples, stored column-major)
   std::vector<double> tau_forest_predictions_train;
 
-  // Posterior samples of training set variance forest predictions (num_samples x n_train, stored column-major)
+  // Posterior samples of training set variance forest predictions (n_train x num_samples, stored column-major)
   std::vector<double> variance_forest_predictions_train;
 
-  // Posterior samples of test set outcome predictions (num_samples x n_train, stored column-major)
+  // Posterior samples of test set outcome predictions (n_test x num_samples, stored column-major)
   std::vector<double> y_hat_test;
 
-  // Posterior samples of test set prognostic forest predictions (num_samples x n_test, stored column-major)
+  // Posterior samples of test set prognostic forest predictions (n_test x num_samples, stored column-major)
   std::vector<double> mu_forest_predictions_test;
 
-  // Posterior samples of test set treatment effect forest predictions (num_samples x n_test, stored column-major)
+  // Posterior samples of test set treatment effect forest predictions (n_test x num_samples, stored column-major)
   std::vector<double> tau_forest_predictions_test;
 
-  // Posterior samples of test set variance forest predictions (num_samples x n_test, stored column-major)
+  // Posterior samples of test set variance forest predictions (n_test x num_samples, stored column-major)
   std::vector<double> variance_forest_predictions_test;
 
   // Posterior samples of global error variance (num_samples)
@@ -178,17 +180,18 @@ struct BCFSamples {
   // Pointer to sampled variance forests
   std::unique_ptr<ForestContainer> variance_forests;
 
-  // Posterior samples of training set RFX predictions (num_samples x n_train, stored column-major)
+  // Posterior samples of training set RFX predictions (n_train x num_samples, stored column-major)
   std::vector<double> rfx_predictions_train;
 
-  // Posterior samples of test set RFX predictions (num_samples x n_test, stored column-major)
+  // Posterior samples of test set RFX predictions (n_test x num_samples, stored column-major)
   std::vector<double> rfx_predictions_test;
 
-  // Treatment intercept samples (num_samples x treatment_dim, stored column-major; only populated when sample_tau_0=true)
+  // Treatment intercept samples (treatment_dim x num_samples, stored column-major; only populated when sample_tau_0=true)
   std::vector<double> tau_0_samples;
 
-  // Adaptive coding parameter samples (num_samples x 2, stored column-major, with b0 / control parameter in the first column and b1 / treatment parameter in the second column)
-  std::vector<double> adaptive_coding_samples;
+  // Adaptive coding parameter samples
+  std::vector<double> b0_samples;
+  std::vector<double> b1_samples;
 
   // Pointer to random effects sample container and label mapping
   std::unique_ptr<RandomEffectsContainer> rfx_container;

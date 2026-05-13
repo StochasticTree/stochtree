@@ -2554,6 +2554,8 @@ inline StochTree::BCFConfig convert_dict_to_bcf_config(py::dict config_dict) {
   output.keep_gfr = get_config_scalar_default<bool>(config_dict, "keep_gfr", 0);
   output.keep_burnin = get_config_scalar_default<bool>(config_dict, "keep_burnin", 0);
   output.adaptive_coding = get_config_scalar_default<bool>(config_dict, "adaptive_coding", 0);
+  output.b_0_init = get_config_scalar_default<double>(config_dict, "b_0_init", 0.0);
+  output.b_1_init = get_config_scalar_default<double>(config_dict, "b_1_init", 1.0);
 
   // Global error variance parameters
   output.a_sigma2_global = get_config_scalar_default<double>(config_dict, "a_sigma2_global", 0.0);
@@ -2887,6 +2889,26 @@ inline py::dict convert_bcf_results_to_dict(
     py::array_t<double> array(input_vec.size());
     std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
     output["tau_0_samples"] = array;
+  }
+
+  // adaptive coding samples
+  // b0
+  if (results_raw.b0_samples.empty()) {
+    output["b0_samples"] = py::none();
+  } else {
+    auto input_vec = results_raw.b0_samples;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["b0_samples"] = array;
+  }
+  // b1
+  if (results_raw.b1_samples.empty()) {
+    output["b1_samples"] = py::none();
+  } else {
+    auto input_vec = results_raw.b1_samples;
+    py::array_t<double> array(input_vec.size());
+    std::copy(input_vec.begin(), input_vec.end(), array.mutable_data());
+    output["b1_samples"] = array;
   }
 
   // Unpack RFX predictions

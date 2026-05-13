@@ -22,6 +22,8 @@ StochTree::BCFConfig convert_list_to_bcf_config(cpp11::list config) {
   output.keep_gfr = get_config_scalar_default<bool>(config, "keep_gfr", true);
   output.keep_burnin = get_config_scalar_default<bool>(config, "keep_burnin", false);
   output.adaptive_coding = get_config_scalar_default<bool>(config, "adaptive_coding", false);
+  output.b_0_init = get_config_scalar_default<double>(config, "b_0_init", 0.0);
+  output.b_1_init = get_config_scalar_default<double>(config, "b_1_init", 1.0);
 
   // Global error variance parameters
   output.a_sigma2_global = get_config_scalar_default<double>(config, "a_sigma2_global", 0.0);
@@ -255,10 +257,15 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
                                 : R_NilValue;
   output.push_back(cpp11::named_arg("tau_0_samples") = tau_0_samples_sexp);
 
-  SEXP adaptive_coding_samples_sexp = !bcf_samples.adaptive_coding_samples.empty()
-                                          ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.adaptive_coding_samples.begin(), bcf_samples.adaptive_coding_samples.end()))
-                                          : R_NilValue;
-  output.push_back(cpp11::named_arg("adaptive_coding_samples") = adaptive_coding_samples_sexp);
+  SEXP b0_samples_sexp = !bcf_samples.b0_samples.empty()
+                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.b0_samples.begin(), bcf_samples.b0_samples.end()))
+                             : R_NilValue;
+  output.push_back(cpp11::named_arg("b0_samples") = b0_samples_sexp);
+
+  SEXP b1_samples_sexp = !bcf_samples.b1_samples.empty()
+                             ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.b1_samples.begin(), bcf_samples.b1_samples.end()))
+                             : R_NilValue;
+  output.push_back(cpp11::named_arg("b1_samples") = b1_samples_sexp);
 
   // Metadata about the model that was sampled
   double y_bar_sexp = bcf_samples.y_bar;

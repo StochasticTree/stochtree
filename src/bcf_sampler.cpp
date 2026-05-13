@@ -69,11 +69,31 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
     config_.sample_sigma2_leaf_tau = false;
   }
 
+  // Adaptive coding model
+  if (config_.adaptive_coding) {
+    if (data_.treatment_dim != 1) {
+      Log::Fatal("Adaptive coding is currently only supported for binary treatments (treatment_dim=1)");
+    }
+    adaptive_coding_ = true;
+    b_0_ = config_.b_0_init;
+    b_1_ = config_.b_1_init;
+  }
+
   // Load data from BARTData object into ForestDataset object
   forest_dataset_ = std::make_unique<ForestDataset>();
   forest_dataset_->AddCovariates(data_.X_train, data_.n_train, data_.p, /*row_major=*/false);
   if (data_.treatment_train != nullptr) {
-    forest_dataset_->AddBasis(data_.treatment_train, data_.n_train, data_.treatment_dim, /*row_major=*/false);
+    if (adaptive_coding_) {
+      // Basis becomes b_0 * (1-Z) + b_1 * Z
+      tau_basis_vector_train_.resize(data_.n_train);
+      for (int i = 0; i < data_.n_train; i++) {
+        double z = data_.treatment_train[i];
+        tau_basis_vector_train_[i] = b_0_ * (1.0 - z) + b_1_ * z;
+      }
+      forest_dataset_->AddBasis(tau_basis_vector_train_.data(), data_.n_train, data_.treatment_dim, /*row_major=*/false);
+    } else {
+      forest_dataset_->AddBasis(data_.treatment_train, data_.n_train, data_.treatment_dim, /*row_major=*/false);
+    }
   }
   if (data_.obs_weights_train != nullptr) {
     forest_dataset_->AddVarianceWeights(data_.obs_weights_train, data_.n_train);
@@ -87,7 +107,17 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
     forest_dataset_test_ = std::make_unique<ForestDataset>();
     forest_dataset_test_->AddCovariates(data_.X_test, data_.n_test, data_.p, /*row_major=*/false);
     if (data_.treatment_test != nullptr) {
-      forest_dataset_test_->AddBasis(data_.treatment_test, data_.n_test, data_.treatment_dim, /*row_major=*/false);
+      if (adaptive_coding_) {
+        // Basis becomes b_0 * (1-Z) + b_1 * Z
+        tau_basis_vector_test_.resize(data_.n_test);
+        for (int i = 0; i < data_.n_test; i++) {
+          double z = data_.treatment_test[i];
+          tau_basis_vector_test_[i] = b_0_ * (1.0 - z) + b_1_ * z;
+        }
+        forest_dataset_test_->AddBasis(tau_basis_vector_test_.data(), data_.n_test, data_.treatment_dim, /*row_major=*/false);
+      } else {
+        forest_dataset_test_->AddBasis(data_.treatment_test, data_.n_test, data_.treatment_dim, /*row_major=*/false);
+      }
     }
     if (data_.obs_weights_test != nullptr) {
       forest_dataset_test_->AddVarianceWeights(data_.obs_weights_test, data_.n_test);
@@ -527,10 +557,8 @@ void BCFSampler::run_mcmc_chains(BCFSamples& samples, int num_chains, int num_bu
 void BCFSampler::postprocess_samples(BCFSamples& samples) {
   // Unpack test set predictions for mean and variance forest
   if (has_test_) {
-    std::vector<double> predictions = samples.mu_forests->Predict(*forest_dataset_test_);
-    samples.mu_forest_predictions_test.insert(samples.mu_forest_predictions_test.end(),
-                                              predictions.data(), predictions.data() + predictions.size());
-    predictions = samples.tau_forests->PredictRaw(*forest_dataset_test_, /*row_major=*/false);
+    std::vector<double> mu_predictions = samples.mu_forests->Predict(*forest_dataset_test_);
+    std::vector<double> tau_predictions = samples.tau_forests->PredictRaw(*forest_dataset_test_, /*row_major=*/false);
     // Add tau_0 to the treatment effect function predictions if it was sampled.
     // tau_0_samples layout: col-major (treatment dim k, sample j) -> j * treatment_dim + k.
     // For treatment_dim==1 this collapses to samples.tau_0_samples[j].
@@ -540,13 +568,35 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
         for (int k = 0; k < treatment_dim; k++) {
           for (int i = 0; i < data_.n_test; i++) {
             const int idx = j * data_.n_test * treatment_dim + data_.n_test * k + i;
-            predictions[idx] += samples.tau_0_samples[j * treatment_dim + k];
+            tau_predictions[idx] += samples.tau_0_samples[j * treatment_dim + k];
           }
         }
       }
     }
+    // Handle adaptive coding correctly:
+    // When treatment is b_0 (1-Z) + b_1 Z, the conditional mean model:
+    //      mu(x) + [tau_0 + tau(x)] * (b_0 * (1-Z) + b_1 * Z)
+    // turns into
+    //      [mu(x) + b_0 * (tau_0 + tau(x))] + (tau_0 + tau(x)) * (b_1 - b_0) * Z
+    // So the treatment effect function that gets multiplied by Z is actually (b_1 - b_0) * (tau_0 + tau(x))
+    // and the prognostic function has an added contribution of b_0 * (tau_0 + tau(x))
+    if (adaptive_coding_) {
+      for (int i = 0; i < samples.num_samples; i++) {
+        double b_0 = samples.b0_samples[i];
+        double b_1 = samples.b1_samples[i];
+        for (int j = 0; j < data_.n_test; j++) {
+          const int idx = i * data_.n_test + j;
+          // Add b_0 * (tau_0 + tau(x)) to the prognostic function predictions
+          mu_predictions[idx] += b_0 * tau_predictions[idx];
+          // Scale tau_predictions by (b_1 - b_0)
+          tau_predictions[idx] *= (b_1 - b_0);
+        }
+      }
+    }
+    samples.mu_forest_predictions_test.insert(samples.mu_forest_predictions_test.end(),
+                                              mu_predictions.data(), mu_predictions.data() + mu_predictions.size());
     samples.tau_forest_predictions_test.insert(samples.tau_forest_predictions_test.end(),
-                                               predictions.data(), predictions.data() + predictions.size());
+                                               tau_predictions.data(), tau_predictions.data() + tau_predictions.size());
     if (has_variance_forest_) {
       std::vector<double> predictions = samples.variance_forests->Predict(*forest_dataset_test_);
       samples.variance_forest_predictions_test.insert(samples.variance_forest_predictions_test.end(),
@@ -670,6 +720,11 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
     }
   }
 
+  // Adaptive coding parameters
+  if (adaptive_coding_) {
+    SampleAdaptiveCodingParameters();
+  }
+
   // Variance forest term
   if (has_variance_forest_) {
     if (gfr) {
@@ -703,8 +758,9 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
           }
         }
       } else {
+        const double* treatment_ptr = adaptive_coding_ ? tau_basis_vector_train_.data() : data_.treatment_train;
         for (int i = 0; i < data_.n_train; i++) {
-          model_preds_[i] += tau_0_scalar_ * data_.treatment_train[i];
+          model_preds_[i] += tau_0_scalar_ * treatment_ptr[i];
         }
       }
     }
@@ -759,14 +815,32 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
         samples.tau_0_samples.push_back(tau_0_scalar_);
       }
     }
-    // Prognostic forest predictions
+    // Adaptive coding parameters
+    if (adaptive_coding_) {
+      samples.b0_samples.push_back(b_0_);
+      samples.b1_samples.push_back(b_1_);
+    }
+    // Prognostic and treatment forest predictions
     double* mu_forest_preds_train = mu_forest_tracker_->GetSumPredictions();
-    samples.mu_forest_predictions_train.insert(samples.mu_forest_predictions_train.end(),
-                                               mu_forest_preds_train,
-                                               mu_forest_preds_train + samples.num_train);
-    // Treatment effect predictions
-    samples.tau_forest_predictions_train.insert(samples.tau_forest_predictions_train.end(),
-                                                tau_raw_sum_preds_.begin(), tau_raw_sum_preds_.end());
+    if (adaptive_coding_) {
+      // TODO: refactor this or at least cache to avoid unnecessary malloc
+      std::vector<double> mu_adj(data_.n_train);
+      std::vector<double> tau_adj(data_.n_train);
+      for (int i = 0; i < data_.n_train; i++) {
+        mu_adj[i] = mu_forest_preds_train[i] + b_0_ * tau_raw_sum_preds_[i];
+        tau_adj[i] = tau_raw_sum_preds_[i] * (b_1_ - b_0_);
+      }
+      samples.mu_forest_predictions_train.insert(samples.mu_forest_predictions_train.end(),
+                                                 mu_adj.begin(), mu_adj.end());
+      samples.tau_forest_predictions_train.insert(samples.tau_forest_predictions_train.end(),
+                                                  tau_adj.begin(), tau_adj.end());
+    } else {
+      samples.mu_forest_predictions_train.insert(samples.mu_forest_predictions_train.end(),
+                                                 mu_forest_preds_train,
+                                                 mu_forest_preds_train + samples.num_train);
+      samples.tau_forest_predictions_train.insert(samples.tau_forest_predictions_train.end(),
+                                                  tau_raw_sum_preds_.begin(), tau_raw_sum_preds_.end());
+    }
     // Variance forest predictions
     if (has_variance_forest_) {
       double* variance_forest_preds_train = variance_forest_tracker_->GetSumPredictions();
@@ -795,6 +869,19 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
       snap.leaf_scale_tau_multivariate = leaf_scale_tau_multivariate_;
     } else if (config_.tau_leaf_model_type == MeanLeafModelType::GaussianUnivariateRegression) {
       snap.leaf_scale_tau = leaf_scale_tau_;
+    }
+    // Treatment intercept
+    if (sample_tau_0_) {
+      if (data_.treatment_dim > 1) {
+        snap.tau_0_vector = tau_0_vector_;
+      } else {
+        snap.tau_0_scalar = tau_0_scalar_;
+      }
+    }
+    // Adaptive coding
+    if (adaptive_coding_) {
+      snap.b_0 = b_0_;
+      snap.b_1 = b_1_;
     }
     // Residual
     snap.residual.clear();
@@ -898,15 +985,16 @@ void BCFSampler::SampleParametricTreatmentEffect() {
     // Dispatch univariate specialization of regression sampler
     // Add tau_0 * Z to residual to get partial residual
     double* partial_resid_ptr = residual_->GetData().data();
+    double* treatment_ptr = adaptive_coding_ ? tau_basis_vector_train_.data() : data_.treatment_train;
     for (int i = 0; i < n_train; i++) {
-      partial_resid_ptr[i] += data_.treatment_train[i] * tau_0_scalar_;
+      partial_resid_ptr[i] += treatment_ptr[i] * tau_0_scalar_;
     }
     // Sample tau_0 via sample_univariate_gaussian_regression_coefficient
-    double tau_0_update = sample_univariate_gaussian_regression_coefficient(partial_resid_ptr, data_.treatment_train, global_variance_, config_.tau_0_prior_var_scalar, n_train, rng_);
+    double tau_0_update = sample_univariate_gaussian_regression_coefficient(partial_resid_ptr, treatment_ptr, global_variance_, config_.tau_0_prior_var_scalar, n_train, rng_);
     tau_0_scalar_ = tau_0_update;
     // Subtract tau_0 * Z from partial residual
     for (int i = 0; i < n_train; i++) {
-      partial_resid_ptr[i] -= data_.treatment_train[i] * tau_0_scalar_;
+      partial_resid_ptr[i] -= treatment_ptr[i] * tau_0_scalar_;
     }
   } else if (tau_dim == 2) {
     // Add tau_0 * Z to residual to get partial residual
@@ -954,6 +1042,72 @@ void BCFSampler::SampleParametricTreatmentEffect() {
       for (int k = 0; k < tau_dim; k++) {
         partial_resid_ptr[i] -= data_.treatment_train[k * n_train + i] * tau_0_vector_[k];
       }
+    }
+  }
+}
+
+void BCFSampler::SampleAdaptiveCodingParameters() {
+  // Extract data dimensions and pointers
+  const int n = data_.n_train;
+  double* resid_ptr = residual_->GetData().data();
+  double* treatment_ptr = data_.treatment_train;
+
+  // Add [b_0 * (1-Z) + b_1 * Z] * tau(x) to residual to get partial residual
+  std::vector<double> partial_resid(n, 0.0);
+  for (int i = 0; i < n; i++) {
+    partial_resid[i] = resid_ptr[i] + tau_raw_sum_preds_[i] * tau_basis_vector_train_[i];
+  }
+
+  // Compute sufficient statistics for b_0 and b_1
+  double xtx_control = 0.0;    // sum of squared regression basis for control group: sum of (1-Z)^2 * tau(x)^2
+  double xtx_treatment = 0.0;  // sum of squared regression basis for treatment group: sum of Z^2 * tau(x)^2
+  double xty_control = 0.0;    // sum of (1-Z) * tau(x) * y
+  double xty_treatment = 0.0;  // sum of Z * tau(x) * y
+  for (int i = 0; i < n; i++) {
+    double x_i = tau_raw_sum_preds_[i];
+    double y_i = partial_resid[i];
+    double z_i = treatment_ptr[i];
+    if (z_i == 0.0) {
+      xtx_control += x_i * x_i;
+      xty_control += x_i * y_i;
+    } else if (z_i == 1.0) {
+      xtx_treatment += x_i * x_i;
+      xty_treatment += x_i * y_i;
+    }
+  }
+
+  // Perform regression Gibbs update for b_0 and b_1
+  // We use a fixed prior of b_0, b_1 ~ N(0, 1/2) (independent across b_0 and b_1)
+  const double prior_var = 0.5;
+  double posterior_var_control = global_variance_ / (xtx_control + (global_variance_ / prior_var));
+  double posterior_var_treatment = global_variance_ / (xtx_treatment + (global_variance_ / prior_var));
+  double posterior_mean_control = xty_control / (xtx_control + (global_variance_ / prior_var));
+  double posterior_mean_treatment = xty_treatment / (xtx_treatment + (global_variance_ / prior_var));
+  b_0_ = sample_standard_normal(posterior_mean_control, std::sqrt(posterior_var_control), rng_);
+  b_1_ = sample_standard_normal(posterior_mean_treatment, std::sqrt(posterior_var_treatment), rng_);
+
+  // Update basis
+  std::vector<double> prev_tau_basis = tau_basis_vector_train_;
+  for (int i = 0; i < n; i++) {
+    double z = treatment_ptr[i];
+    tau_basis_vector_train_[i] = (b_0_ * (1.0 - z) + b_1_ * z);
+  }
+  forest_dataset_->UpdateBasis(tau_basis_vector_train_.data(), n, 1, false);
+  if (has_test_ && data_.treatment_test != nullptr) {
+    for (int i = 0; i < data_.n_test; i++) {
+      double z = data_.treatment_test[i];
+      tau_basis_vector_test_[i] = (b_0_ * (1.0 - z) + b_1_ * z);
+    }
+    forest_dataset_test_->UpdateBasis(tau_basis_vector_test_.data(), data_.n_test, 1, false);
+  }
+
+  // Propagate basis changes through to the trackers
+  UpdateResidualNewBasis(*tau_forest_tracker_, *forest_dataset_, *residual_, tau_forest_.get());
+
+  // If a tau_0 treatment intercept term is sampled, we must also subtract tau_0 * (new_basis - old_basis) from the residual
+  if (sample_tau_0_) {
+    for (int i = 0; i < n; i++) {
+      resid_ptr[i] += tau_0_scalar_ * (tau_basis_vector_train_[i] - prev_tau_basis[i]);
     }
   }
 }
