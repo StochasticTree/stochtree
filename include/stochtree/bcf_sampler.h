@@ -242,9 +242,6 @@ class BCFSampler {
     double b_0;
     double b_1;
 
-    // Basis implied by adaptive coding when present (only populated when adaptive_coding=true and only used for the training set -- for test set, we reconstruct at prediction time anyway)
-    std::vector<double> tau_basis_train;
-
     // Residual (incorporates forest + RFX contributions for a given sampler iteration)
     std::vector<double> residual;
 

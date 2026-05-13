@@ -914,6 +914,34 @@ void BCFSampler::RestoreStateFromGFRSnapshot(BCFSamples& samples, int snapshot_i
   mu_forest_->ReconstituteFromForest(*snap.mu_forest);
   mu_forest_tracker_->ReconstituteFromForest(*snap.mu_forest, *forest_dataset_, *residual_, true);
   mu_forest_tracker_->UpdatePredictions(mu_forest_.get(), *forest_dataset_.get());
+
+  // Adaptive coding parameters and their implied basis
+  if (adaptive_coding_) {
+    b_0_ = snap.b_0;
+    b_1_ = snap.b_1;
+    for (int i = 0; i < data_.n_train; i++) {
+      double z = data_.treatment_train[i];
+      tau_basis_vector_train_[i] = b_0_ * (1 - z) + b_1_ * z;
+    }
+    forest_dataset_->UpdateBasis(tau_basis_vector_train_.data(), /*num_row=*/data_.n_train, /*num_col=*/1, /*row_major=*/false);
+    if (has_test_ && data_.treatment_test != nullptr) {
+      for (int i = 0; i < data_.n_test; i++) {
+        double z = data_.treatment_test[i];
+        tau_basis_vector_test_[i] = b_0_ * (1 - z) + b_1_ * z;
+      }
+      forest_dataset_test_->UpdateBasis(tau_basis_vector_test_.data(), /*num_row=*/data_.n_test, /*num_col=*/1, /*row_major=*/false);
+    }
+  }
+
+  // Treatment intercept
+  if (sample_tau_0_) {
+    if (data_.treatment_dim > 1) {
+      tau_0_vector_ = snap.tau_0_vector;
+    } else {
+      tau_0_scalar_ = snap.tau_0_scalar;
+    }
+  }
+
   // Treatment effect forest
   std::visit(TauForestResetVisitor{*this, samples, *snap.tau_forest}, tau_leaf_model_);
 
