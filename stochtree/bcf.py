@@ -3452,7 +3452,7 @@ class BCFModel:
         self.tau_hat_train = cate_train.transpose(0, 2, 1) if self.multivariate_treatment else cate_train
         if self.multivariate_treatment:
             treatment_term_train = np.multiply(
-                np.atleast_3d(Z_train).swapaxes(1, 2), self.tau_hat_train
+                np.atleast_3d(Z_train).swapaxes(1, 2), cate_train
             ).sum(axis=2)
         else:
             treatment_term_train = Z_train * np.squeeze(cate_train)
@@ -3497,7 +3497,7 @@ class BCFModel:
             self.tau_hat_test = cate_test.transpose(0, 2, 1) if self.multivariate_treatment else cate_test
             if self.multivariate_treatment:
                 treatment_term_test = np.multiply(
-                    np.atleast_3d(Z_test).swapaxes(1, 2), self.tau_hat_test
+                    np.atleast_3d(Z_test).swapaxes(1, 2), cate_test
                 ).sum(axis=2)
             else:
                 treatment_term_test = Z_test * np.squeeze(cate_test)
@@ -3850,8 +3850,8 @@ class BCFModel:
                 cate_x_forest = tau_x_forest
             if Z.shape[1] > 1:
                 treatment_term = np.multiply(
-                    np.atleast_3d(Z).swapaxes(1, 2), cate_x_forest
-                ).sum(axis=2)
+                    Z[:, :, np.newaxis], cate_x_forest
+                ).sum(axis=1)
             else:
                 treatment_term = Z * np.squeeze(cate_x_forest)
 
