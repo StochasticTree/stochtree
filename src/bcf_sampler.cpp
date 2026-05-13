@@ -555,6 +555,33 @@ void BCFSampler::run_mcmc_chains(BCFSamples& samples, int num_chains, int num_bu
 }
 
 void BCFSampler::postprocess_samples(BCFSamples& samples) {
+  // Compute outcome predictions on the linear (link) scale: E[eta|X,Z] = mu(X) + Z*tau(X) + rfx
+  // tau_forest_predictions stores raw tau(x) (no z multiplication), so we multiply by z here.
+  // Callers that need probability-scale predictions (probit, cloglog) apply the inverse link themselves.
+  samples.y_hat_train.resize(data_.n_train * samples.num_samples);
+  double mu_term, tau_term, y_term;
+  const int treatment_dim = data_.treatment_dim;
+  for (int j = 0; j < samples.num_samples; j++) {
+    for (int i = 0; i < data_.n_train; i++) {
+      // Data index for the two terms that are guaranteed to be univariate - mu(x) and y_hat
+      const int k = j * data_.n_train + i;
+      mu_term = samples.mu_forest_predictions_train[k];
+      if (treatment_dim > 1) {
+        tau_term = 0;
+        for (int treatment_idx = 0; treatment_idx < treatment_dim; treatment_idx++) {
+          // Starting data index for multivariate treatment case, where tau(x) is col-major with dimensions (n_train, treatment_dim, num_samples)
+          const int k_tau = j * data_.n_train * treatment_dim + data_.n_train * treatment_idx + i;
+          tau_term += samples.tau_forest_predictions_train[k_tau] * data_.treatment_train[data_.n_train * treatment_idx + i];
+        }
+      } else {
+        tau_term = samples.tau_forest_predictions_train[k] * data_.treatment_train[i];
+      }
+      y_term = mu_term + tau_term;
+      if (has_random_effects_) y_term += samples.rfx_predictions_train[k];
+      samples.y_hat_train[k] = y_term * samples.y_std + samples.y_bar;
+    }
+  }
+
   // Unpack test set predictions for mean and variance forest
   if (has_test_) {
     std::vector<double> mu_predictions = samples.mu_forests->Predict(*forest_dataset_test_);
@@ -613,33 +640,6 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
       }
       samples.rfx_predictions_test.resize(data_.n_test * samples.num_samples);
       samples.rfx_container->Predict(rfx_dataset_test, *samples.rfx_label_mapper, samples.rfx_predictions_test);
-    }
-
-    // Compute outcome predictions on the linear (link) scale: E[eta|X,Z] = mu(X) + Z*tau(X) + rfx
-    // tau_forest_predictions stores raw tau(x) (no z multiplication), so we multiply by z here.
-    // Callers that need probability-scale predictions (probit, cloglog) apply the inverse link themselves.
-    samples.y_hat_train.resize(data_.n_train * samples.num_samples);
-    double mu_term, tau_term, y_term;
-    const int treatment_dim = data_.treatment_dim;
-    for (int j = 0; j < samples.num_samples; j++) {
-      for (int i = 0; i < data_.n_train; i++) {
-        // Data index for the two terms that are guaranteed to be univariate - mu(x) and y_hat
-        const int k = j * data_.n_train + i;
-        mu_term = samples.mu_forest_predictions_train[k];
-        if (treatment_dim > 1) {
-          tau_term = 0;
-          for (int treatment_idx = 0; treatment_idx < treatment_dim; treatment_idx++) {
-            // Starting data index for multivariate treatment case, where tau(x) is col-major with dimensions (n_train, treatment_dim, num_samples)
-            const int k_tau = j * data_.n_train * treatment_dim + data_.n_train * treatment_idx + i;
-            tau_term += samples.tau_forest_predictions_train[k_tau] * data_.treatment_train[data_.n_train * treatment_idx + i];
-          }
-        } else {
-          tau_term = samples.tau_forest_predictions_train[k] * data_.treatment_train[i];
-        }
-        y_term = mu_term + tau_term;
-        if (has_random_effects_) y_term += samples.rfx_predictions_train[k];
-        samples.y_hat_train[k] = y_term * samples.y_std + samples.y_bar;
-      }
     }
 
     samples.y_hat_test.resize(data_.n_test * samples.num_samples);
@@ -1135,7 +1135,7 @@ void BCFSampler::SampleAdaptiveCodingParameters() {
   // If a tau_0 treatment intercept term is sampled, we must also subtract tau_0 * (new_basis - old_basis) from the residual
   if (sample_tau_0_) {
     for (int i = 0; i < n; i++) {
-      resid_ptr[i] += tau_0_scalar_ * (tau_basis_vector_train_[i] - prev_tau_basis[i]);
+      resid_ptr[i] -= tau_0_scalar_ * (tau_basis_vector_train_[i] - prev_tau_basis[i]);
     }
   }
 }

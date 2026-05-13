@@ -134,7 +134,7 @@ class BCFSampler {
   // Adaptive coding parameters
   double b_0_;
   double b_1_;
-  bool adaptive_coding_;
+  bool adaptive_coding_ = false;
   std::vector<double> tau_basis_vector_train_;
   std::vector<double> tau_basis_vector_test_;
 

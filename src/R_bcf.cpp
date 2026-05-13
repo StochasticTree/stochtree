@@ -260,12 +260,12 @@ cpp11::writable::list convert_bcf_results_to_list(StochTree::BCFSamples& bcf_sam
   SEXP b0_samples_sexp = !bcf_samples.b0_samples.empty()
                              ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.b0_samples.begin(), bcf_samples.b0_samples.end()))
                              : R_NilValue;
-  output.push_back(cpp11::named_arg("b0_samples") = b0_samples_sexp);
+  output.push_back(cpp11::named_arg("b_0_samples") = b0_samples_sexp);
 
   SEXP b1_samples_sexp = !bcf_samples.b1_samples.empty()
                              ? static_cast<SEXP>(cpp11::writable::doubles(bcf_samples.b1_samples.begin(), bcf_samples.b1_samples.end()))
                              : R_NilValue;
-  output.push_back(cpp11::named_arg("b1_samples") = b1_samples_sexp);
+  output.push_back(cpp11::named_arg("b_1_samples") = b1_samples_sexp);
 
   // Metadata about the model that was sampled
   double y_bar_sexp = bcf_samples.y_bar;

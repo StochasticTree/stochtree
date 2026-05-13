@@ -2029,11 +2029,11 @@ bcf <- function(
         bcf_results[["y_std"]]
     }
     if (adaptive_coding) {
-      result[["b0_samples"]] = bcf_results[[
-        "b0_samples"
+      result[["b_0_samples"]] = bcf_results[[
+        "b_0_samples"
       ]]
-      result[["b1_samples"]] = bcf_results[[
-        "b1_samples"
+      result[["b_1_samples"]] = bcf_results[[
+        "b_1_samples"
       ]]
     }
     if (internal_propensity_model) {
