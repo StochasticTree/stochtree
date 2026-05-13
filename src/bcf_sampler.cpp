@@ -909,6 +909,23 @@ void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample
 void BCFSampler::RestoreStateFromGFRSnapshot(BCFSamples& samples, int snapshot_index) {
   GFRSnapshot& snap = gfr_snapshots_[snapshot_index];
 
+  // Remove the contribution of tau_0 from the residual before all forest-based state restoration, which modifies the residual in-place
+  if (sample_tau_0_) {
+    double* resid_ptr = residual_->GetData().data();
+    if (data_.treatment_dim == 1) {
+      const double* previous_basis = adaptive_coding_ ? tau_basis_vector_train_.data() : data_.treatment_train;
+      for (int i = 0; i < data_.n_train; i++) {
+        resid_ptr[i] += tau_0_scalar_ * previous_basis[i];
+      }
+    } else {
+      for (int i = 0; i < data_.n_train; i++) {
+        for (int k = 0; k < data_.treatment_dim; k++) {
+          resid_ptr[i] += data_.treatment_train[k * data_.n_train + i] * tau_0_vector_[k];
+        }
+      }
+    }
+  }
+
   // Restore mu and tau forest state
   // Prognostic forest
   mu_forest_->ReconstituteFromForest(*snap.mu_forest);
@@ -939,6 +956,23 @@ void BCFSampler::RestoreStateFromGFRSnapshot(BCFSamples& samples, int snapshot_i
       tau_0_vector_ = snap.tau_0_vector;
     } else {
       tau_0_scalar_ = snap.tau_0_scalar;
+    }
+  }
+
+  // Remove tau_0 from residual
+  if (sample_tau_0_) {
+    double* resid_ptr = residual_->GetData().data();
+    if (data_.treatment_dim == 1) {
+      const double* current_basis = adaptive_coding_ ? tau_basis_vector_train_.data() : data_.treatment_train;
+      for (int i = 0; i < data_.n_train; i++) {
+        resid_ptr[i] -= tau_0_scalar_ * current_basis[i];
+      }
+    } else {
+      for (int i = 0; i < data_.n_train; i++) {
+        for (int k = 0; k < data_.treatment_dim; k++) {
+          resid_ptr[i] -= data_.treatment_train[k * data_.n_train + i] * tau_0_vector_[k];
+        }
+      }
     }
   }
 
