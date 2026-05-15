@@ -12,6 +12,7 @@
 #include <stochtree/leaf_model.h>
 #include <stochtree/meta.h>
 #include <stochtree/partition_tracker.h>
+#include <stochtree/prediction.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/ordinal_sampler.h>
@@ -266,6 +267,8 @@ class ForestContainerCpp {
     is_exponentiated_ = is_exponentiated;
   }
   ~ForestContainerCpp() {}
+
+  StochTree::ForestContainer* GetPtr() { return forest_samples_.get(); }
 
   void CombineForests(py::array_t<int> forest_inds) {
     int num_forests = forest_inds.size();
@@ -1510,6 +1513,9 @@ class RandomEffectsContainerCpp {
       : rfx_container_(std::move(ptr)) {}
 
   ~RandomEffectsContainerCpp() {}
+
+  StochTree::RandomEffectsContainer* GetPtr() { return rfx_container_.get(); }
+
   void SetComponentsAndGroups(int num_components, int num_groups) {
     rfx_container_->SetNumComponents(num_components);
     rfx_container_->SetNumGroups(num_groups);
@@ -1648,6 +1654,9 @@ class RandomEffectsLabelMapperCpp {
       : rfx_label_mapper_(std::move(ptr)) {}
 
   ~RandomEffectsLabelMapperCpp() {}
+
+  StochTree::LabelMapper* GetPtr() { return rfx_label_mapper_.get(); }
+
   void LoadFromTracker(RandomEffectsTrackerCpp& rfx_tracker) {
     StochTree::RandomEffectsTracker* internal_tracker = rfx_tracker.GetTracker();
     rfx_label_mapper_->LoadFromLabelMap(internal_tracker->GetLabelMap());
@@ -2953,6 +2962,70 @@ inline py::dict convert_bcf_results_to_dict(
   return output;
 }
 
+inline py::dict convert_bcf_preds_to_dict(StochTree::BCFPredictionResult& results_raw) {
+  py::dict output;
+
+  // Move prediction samples
+
+  if (results_raw.y_hat.empty()) {
+    output["y_hat"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.y_hat.size());
+    std::copy(results_raw.y_hat.begin(), results_raw.y_hat.end(), array.mutable_data());
+    output["y_hat"] = array;
+  }
+
+  if (results_raw.mu_x.empty()) {
+    output["mu_x"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.mu_x.size());
+    std::copy(results_raw.mu_x.begin(), results_raw.mu_x.end(), array.mutable_data());
+    output["mu_x"] = array;
+  }
+
+  if (results_raw.tau_x.empty()) {
+    output["tau_x"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.tau_x.size());
+    std::copy(results_raw.tau_x.begin(), results_raw.tau_x.end(), array.mutable_data());
+    output["tau_x"] = array;
+  }
+
+  if (results_raw.prognostic_function.empty()) {
+    output["prognostic_function"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.prognostic_function.size());
+    std::copy(results_raw.prognostic_function.begin(), results_raw.prognostic_function.end(), array.mutable_data());
+    output["prognostic_function"] = array;
+  }
+
+  if (results_raw.cate.empty()) {
+    output["cate"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.cate.size());
+    std::copy(results_raw.cate.begin(), results_raw.cate.end(), array.mutable_data());
+    output["cate"] = array;
+  }
+
+  if (results_raw.conditional_variance.empty()) {
+    output["conditional_variance"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.conditional_variance.size());
+    std::copy(results_raw.conditional_variance.begin(), results_raw.conditional_variance.end(), array.mutable_data());
+    output["conditional_variance"] = array;
+  }
+
+  if (results_raw.random_effects.empty()) {
+    output["random_effects"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.random_effects.size());
+    std::copy(results_raw.random_effects.begin(), results_raw.random_effects.end(), array.mutable_data());
+    output["random_effects"] = array;
+  }
+
+  return output;
+}
+
 void add_config_to_bcf_result_dict(py::dict& result, StochTree::BCFConfig& config) {
   // Unpack more metadata about the model that was sampled
   result["sigma2_init"] = config.sigma2_global_init;
@@ -3014,6 +3087,141 @@ py::dict bcf_sample_cpp(
   py::dict bcf_results = convert_bcf_results_to_dict(bcf_results_raw, bcf_config);
   add_config_to_bcf_result_dict(bcf_results, bcf_config);
   return bcf_results;
+}
+
+py::dict bcf_predict_cpp(
+    py::dict bcf_model_dict,
+    py::object X,
+    py::object Z,
+    int n,
+    int p,
+    int treatment_dim,
+    py::object obs_weights,
+    py::object rfx_group_ids,
+    py::object rfx_basis,
+    int rfx_num_groups,
+    int rfx_basis_dim,
+    bool posterior,
+    int scale,
+    bool predict_y_hat,
+    bool predict_mu_x,
+    bool predict_tau_x,
+    bool predict_prognostic_function,
+    bool predict_cate,
+    bool predict_conditional_variance,
+    bool predict_random_effects) {
+  // Pre-convert test data to F-contiguous at function scope so the buffers outlive bcf_data
+  // and the predict_bcf_model call. convert_numpy_to_bcf_data casts inside if-blocks, so its
+  // temporaries are freed before predict_bcf_model runs -- these function-scope arrays prevent that.
+  using FArray = py::array_t<double, py::array::f_style | py::array::forcecast>;
+  using IArray = py::array_t<int,    py::array::f_style | py::array::forcecast>;
+  FArray X_farr, Z_farr, obs_weights_farr, rfx_basis_farr;
+  IArray rfx_group_ids_iarr;
+  if (!X.is_none())           X_farr            = X.cast<FArray>();
+  if (!Z.is_none())           Z_farr            = Z.cast<FArray>();
+  if (!obs_weights.is_none()) obs_weights_farr  = obs_weights.cast<FArray>();
+  if (!rfx_group_ids.is_none()) rfx_group_ids_iarr = rfx_group_ids.cast<IArray>();
+  if (!rfx_basis.is_none())   rfx_basis_farr    = rfx_basis.cast<FArray>();
+
+  // Unpack pointers to input data to BCFData object -- use only the "test" data fields as this is what the predict function expects
+  StochTree::BCFData bcf_data = convert_numpy_to_bcf_data(
+      /*X_train=*/py::none(), /*Z_train=*/py::none(), /*y_train=*/py::none(),
+      /*X_test=*/X.is_none() ? py::object(py::none()) : py::object(X_farr),
+      /*Z_test=*/Z.is_none() ? py::object(py::none()) : py::object(Z_farr),
+      /*n_train=*/0, /*n_test=*/n, /*p=*/p, /*treatment_dim=*/treatment_dim,
+      /*obs_weights_train=*/py::none(),
+      /*obs_weights_test=*/obs_weights.is_none() ? py::object(py::none()) : py::object(obs_weights_farr),
+      /*rfx_group_ids_train=*/py::none(),
+      /*rfx_group_ids_test=*/rfx_group_ids.is_none() ? py::object(py::none()) : py::object(rfx_group_ids_iarr),
+      /*rfx_basis_train=*/py::none(),
+      /*rfx_basis_test=*/rfx_basis.is_none() ? py::object(py::none()) : py::object(rfx_basis_farr),
+      /*rfx_num_groups=*/rfx_num_groups, /*rfx_basis_dim=*/rfx_basis_dim);
+
+  // Load the BCF model and config from the model list
+  StochTree::BCFPredictionInput pred_input;
+
+  py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast> global_error_variance_array, leaf_mu_variance_array, leaf_tau_variance_array, b0_samples_array, b1_samples_array, tau_0_samples_array;
+  if (bcf_model_dict.contains("sigma2_global_samples") && !bcf_model_dict["sigma2_global_samples"].is_none()) {
+    global_error_variance_array = bcf_model_dict["sigma2_global_samples"].cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    pred_input.global_error_variance_samples = static_cast<double*>(global_error_variance_array.mutable_data());
+  }
+  if (bcf_model_dict.contains("sigma2_leaf_mu_samples") && !bcf_model_dict["sigma2_leaf_mu_samples"].is_none()) {
+    leaf_mu_variance_array = bcf_model_dict["sigma2_leaf_mu_samples"].cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    pred_input.leaf_scale_mu_samples = static_cast<double*>(leaf_mu_variance_array.mutable_data());
+  }
+  if (bcf_model_dict.contains("sigma2_leaf_tau_samples") && !bcf_model_dict["sigma2_leaf_tau_samples"].is_none()) {
+    leaf_tau_variance_array = bcf_model_dict["sigma2_leaf_tau_samples"].cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    pred_input.leaf_scale_tau_samples = static_cast<double*>(leaf_tau_variance_array.mutable_data());
+  }
+  if (bcf_model_dict.contains("b0_samples") && !bcf_model_dict["b0_samples"].is_none()) {
+    b0_samples_array = bcf_model_dict["b0_samples"].cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    pred_input.b0_samples = static_cast<double*>(b0_samples_array.mutable_data());
+  }
+  if (bcf_model_dict.contains("b1_samples") && !bcf_model_dict["b1_samples"].is_none()) {
+    b1_samples_array = bcf_model_dict["b1_samples"].cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    pred_input.b1_samples = static_cast<double*>(b1_samples_array.mutable_data());
+  }
+  if (bcf_model_dict.contains("tau_0_samples") && !bcf_model_dict["tau_0_samples"].is_none()) {
+    tau_0_samples_array = bcf_model_dict["tau_0_samples"].cast<py::array_t<double, pybind11::array::f_style | pybind11::array::forcecast>>();
+    pred_input.tau_0_samples = static_cast<double*>(tau_0_samples_array.mutable_data());
+  }
+  if (bcf_model_dict.contains("mu_forests") && !bcf_model_dict["mu_forests"].is_none()) {
+    pred_input.mu_forests = bcf_model_dict["mu_forests"].cast<ForestContainerCpp*>()->GetPtr();
+  }
+  if (bcf_model_dict.contains("tau_forests") && !bcf_model_dict["tau_forests"].is_none()) {
+    pred_input.tau_forests = bcf_model_dict["tau_forests"].cast<ForestContainerCpp*>()->GetPtr();
+  }
+  if (bcf_model_dict.contains("variance_forests") && !bcf_model_dict["variance_forests"].is_none()) {
+    pred_input.variance_forests = bcf_model_dict["variance_forests"].cast<ForestContainerCpp*>()->GetPtr();
+  }
+  if (bcf_model_dict.contains("rfx_container") && !bcf_model_dict["rfx_container"].is_none()) {
+    pred_input.rfx_container = bcf_model_dict["rfx_container"].cast<RandomEffectsContainerCpp*>()->GetPtr();
+  }
+  if (bcf_model_dict.contains("rfx_label_mapper") && !bcf_model_dict["rfx_label_mapper"].is_none()) {
+    pred_input.rfx_label_mapper = bcf_model_dict["rfx_label_mapper"].cast<RandomEffectsLabelMapperCpp*>()->GetPtr();
+  }
+  pred_input.num_samples = bcf_model_dict["num_samples"].cast<int>();
+  pred_input.num_obs = n;
+  pred_input.treatment_dim = treatment_dim;
+  pred_input.y_bar = bcf_model_dict["y_bar"].cast<double>();
+  pred_input.y_std = bcf_model_dict["y_std"].cast<double>();
+  pred_input.has_variance_forest = bcf_model_dict["include_variance_forest"].cast<bool>();
+  pred_input.has_rfx = bcf_model_dict["has_rfx"].cast<bool>();
+  std::string rfx_model_spec_str = "";
+  if (bcf_model_dict.contains("rfx_model_spec") && !bcf_model_dict["rfx_model_spec"].is_none()) {
+    rfx_model_spec_str = bcf_model_dict["rfx_model_spec"].cast<std::string>();
+  }
+  if (rfx_model_spec_str == "intercept_only") {
+    pred_input.rfx_model_spec = StochTree::BCFRFXModelSpec::InterceptOnly;
+  } else if (rfx_model_spec_str == "intercept_plus_treatment") {
+    pred_input.rfx_model_spec = StochTree::BCFRFXModelSpec::InterceptPlusTreatment;
+  } else {
+    pred_input.rfx_model_spec = StochTree::BCFRFXModelSpec::Custom;
+  }
+  pred_input.adaptive_coding = bcf_model_dict["adaptive_coding"].cast<bool>();
+  pred_input.sample_tau_0 = bcf_model_dict["sample_tau_0"].cast<bool>();
+  pred_input.pred_type = posterior ? StochTree::BCFPredType::kPosterior : StochTree::BCFPredType::kMean;
+  if (scale == 0) {
+    pred_input.pred_scale = StochTree::BCFPredScale::kLinear;
+  } else if (scale == 1) {
+    pred_input.pred_scale = StochTree::BCFPredScale::kProbability;
+  } else {
+    pred_input.pred_scale = StochTree::BCFPredScale::kClass;
+  }
+  pred_input.pred_terms.y_hat = predict_y_hat;
+  pred_input.pred_terms.mu_x = predict_mu_x;
+  pred_input.pred_terms.tau_x = predict_tau_x;
+  pred_input.pred_terms.prognostic_function = predict_prognostic_function;
+  pred_input.pred_terms.cate = predict_cate;
+  pred_input.pred_terms.conditional_variance = predict_conditional_variance;
+  pred_input.pred_terms.random_effects = predict_random_effects;
+
+  // Run the prediction function
+  StochTree::BCFPredictionResult pred_results = predict_bcf_model(bcf_data, pred_input);
+
+  // Unpack outputs
+  py::dict output = convert_bcf_preds_to_dict(pred_results);
+  return output;
 }
 
 py::array_t<int> cppComputeForestContainerLeafIndices(ForestContainerCpp& forest_container, py::array_t<double>& covariates, py::array_t<int>& forest_nums) {
@@ -3187,6 +3395,28 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("num_chains"),
         py::arg("adaptive_coding"),
         py::arg("config_input"));
+
+  m.def("bcf_predict_cpp", &bcf_predict_cpp, "Run BCF predictions in C++",
+        py::arg("bcf_model_dict"),
+        py::arg("X"),
+        py::arg("Z"),
+        py::arg("n"),
+        py::arg("p"),
+        py::arg("treatment_dim"),
+        py::arg("obs_weights") = py::none(),
+        py::arg("rfx_group_ids") = py::none(),
+        py::arg("rfx_basis") = py::none(),
+        py::arg("rfx_num_groups"),
+        py::arg("rfx_basis_dim"),
+        py::arg("posterior"),
+        py::arg("scale"),
+        py::arg("predict_y_hat"),
+        py::arg("predict_mu_x"),
+        py::arg("predict_tau_x"),
+        py::arg("predict_prognostic_function"),
+        py::arg("predict_cate"),
+        py::arg("predict_conditional_variance"),
+        py::arg("predict_random_effects"));
 
   py::class_<JsonCpp>(m, "JsonCpp")
       .def(py::init<>())

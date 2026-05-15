@@ -186,7 +186,7 @@ BCFPredictionResult predict_bcf_model(BCFData& data, BCFPredictionInput& model_r
   if (need_rfx) {
     rfx.resize(num_obs * num_samples);
   }
-  if (model_refs.pred_terms.conditional_variance) {
+  if (need_variance_forest) {
     variance_forest.resize(num_obs * num_samples);
   }
   if (model_refs.pred_terms.y_hat) {
@@ -334,7 +334,7 @@ BCFPredictionResult predict_bcf_model(BCFData& data, BCFPredictionInput& model_r
       }
     }
   }
-  if (model_refs.pred_terms.conditional_variance) {
+  if (need_variance_forest) {
     variance_forest = model_refs.variance_forests->Predict(forest_dataset);
   }
   if (model_refs.pred_terms.y_hat) {
@@ -372,7 +372,7 @@ BCFPredictionResult predict_bcf_model(BCFData& data, BCFPredictionInput& model_r
   if (model_refs.pred_terms.y_hat) {
     location_scale_adjust_predictions(y_hat, model_refs.y_bar, model_refs.y_std);
   }
-  if (model_refs.pred_terms.conditional_variance) {
+  if (need_variance_forest) {
     location_scale_adjust_predictions(variance_forest, 0.0, model_refs.y_std * model_refs.y_std);
   }
 
@@ -441,7 +441,7 @@ BCFPredictionResult predict_bcf_model(BCFData& data, BCFPredictionInput& model_r
       output.cate = std::move(cate);
     }
   }
-  if (model_refs.pred_terms.conditional_variance) {
+  if (need_variance_forest) {
     if (model_refs.pred_type == BCFPredType::kMean) {
       average_col_major_2d(variance_forest, output.conditional_variance, num_obs, num_samples);
     } else {

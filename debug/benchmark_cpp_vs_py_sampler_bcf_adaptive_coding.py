@@ -3,7 +3,7 @@
 Exercises SampleAdaptiveCodingParameters() for binary treatment.  Verifies:
   - The C++ path runs without error.
   - b_0_samples and b_1_samples are populated with the right shape.
-  - mu_hat + Z * tau_hat == y_hat (internal decomposition check).
+  - mu_hat + Z * tau_hat == y_hat (internal decomposition check on train set).
   - CATE RMSE (cpp) is close to CATE RMSE (python) -- large differences indicate
     a residual accounting bug in SampleAdaptiveCodingParameters or the
     mu/tau prediction split.
@@ -105,9 +105,6 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         Z_train=Z_train,
         y_train=y_train,
         propensity_train=pi_train,
-        X_test=X_test,
-        Z_test=Z_test,
-        propensity_test=pi_test,
         num_gfr=num_gfr,
         num_burnin=num_burnin,
         num_mcmc=num_mcmc,
@@ -121,24 +118,30 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         treatment_effect_forest_params={"num_trees": num_trees_tau},
         run_cpp=run_cpp,
     )
-    elapsed = time.perf_counter() - t0
+    elapsed_sample = time.perf_counter() - t0
 
-    # Internal consistency: y_hat == mu_hat + Z * tau_hat
+    # Internal consistency check on train set (still available on the model object)
     max_decomp_err_train = float(np.max(np.abs(
         m.y_hat_train - (m.mu_hat_train + Z_train[:, None] * m.tau_hat_train)
     )))
-    max_decomp_err_test = float(np.max(np.abs(
-        m.y_hat_test - (m.mu_hat_test + Z_test[:, None] * m.tau_hat_test)
-    )))
 
-    yhat   = m.y_hat_test.mean(axis=1)
-    tauhat = m.tau_hat_test.mean(axis=1)
+    t1 = time.perf_counter()
+    preds = m.predict(X=X_test, Z=Z_test, propensity=pi_test, run_cpp=run_cpp)
+    elapsed_predict = time.perf_counter() - t1
+
+    yhat   = preds["y_hat"].mean(axis=1)
+    tauhat = preds["tau_hat"].mean(axis=1)
+
+    max_decomp_err_test = float(np.max(np.abs(
+        preds["y_hat"] - (preds["mu_hat"] + Z_test[:, None] * preds["tau_hat"])
+    )))
 
     b0_mean = float(np.mean(m.b0_samples))
     b1_mean = float(np.mean(m.b1_samples))
 
     return {
-        "elapsed":              elapsed,
+        "elapsed_sample":       elapsed_sample,
+        "elapsed_predict":      elapsed_predict,
         "b0_mean":              b0_mean,
         "b1_mean":              b1_mean,
         "b0_shape":             m.b0_samples.shape,
@@ -174,11 +177,14 @@ for i, seed in enumerate(seeds, 1):
     results_py.append(run_once(run_cpp=False, seed=seed))
 
 def summarise(results):
-    keys = ["elapsed", "b0_mean", "b1_mean",
+    keys = ["elapsed_sample", "elapsed_predict", "b0_mean", "b1_mean",
             "max_decomp_err_train", "max_decomp_err_test",
             "rmse_y", "rmse_f", "rmse_tau"]
     out = {k: float(np.mean([r[k] for r in results])) for k in keys}
-    out["elapsed_sd"] = float(np.std([r["elapsed"] for r in results], ddof=1))
+    out["elapsed"] = out["elapsed_sample"] + out["elapsed_predict"]
+    out["elapsed_sd"] = float(np.std(
+        [r["elapsed_sample"] + r["elapsed_predict"] for r in results], ddof=1
+    ))
     out["b0_shape"]   = results[0]["b0_shape"]
     out["b1_shape"]   = results[0]["b1_shape"]
     return out
@@ -190,14 +196,15 @@ print("\n--- Results ---")
 print(f"b0_samples shape  cpp={s_cpp['b0_shape']}  py={s_py['b0_shape']}")
 print(f"b1_samples shape  cpp={s_cpp['b1_shape']}  py={s_py['b1_shape']}")
 print()
-print(f"{'Sampler':<22}  {'Time (s)':>8}  {'SD':>6}  "
+print(f"{'Sampler':<22}  {'Total (s)':>9}  {'Samp (s)':>9}  {'Pred (s)':>9}  {'SD':>6}  "
       f"{'b_0 mean':>8}  {'b_1 mean':>8}  "
       f"{'max_decomp_tr':>13}  {'max_decomp_te':>13}  "
       f"{'RMSE(y)':>8}  {'RMSE(f)':>8}  {'RMSE(tau)':>10}")
-print("-" * 120)
+print("-" * 140)
 for label, s in [("cpp (run_cpp=True)", s_cpp), ("py  (run_cpp=False)", s_py)]:
     print(
-        f"{label:<22}  {s['elapsed']:>8.3f}  {s['elapsed_sd']:>6.3f}  "
+        f"{label:<22}  {s['elapsed']:>9.3f}  {s['elapsed_sample']:>9.3f}  "
+        f"{s['elapsed_predict']:>9.3f}  {s['elapsed_sd']:>6.3f}  "
         f"{s['b0_mean']:>8.4f}  {s['b1_mean']:>8.4f}  "
         f"{s['max_decomp_err_train']:>13.2e}  {s['max_decomp_err_test']:>13.2e}  "
         f"{s['rmse_y']:>8.4f}  {s['rmse_f']:>8.4f}  {s['rmse_tau']:>10.4f}"

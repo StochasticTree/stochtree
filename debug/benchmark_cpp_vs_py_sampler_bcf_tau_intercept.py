@@ -123,9 +123,6 @@ def run_once_univariate(run_cpp: bool, seed: int) -> dict:
         Z_train=Z_train_u,
         y_train=y_train_u,
         propensity_train=pi_train_u,
-        X_test=X_test_u,
-        Z_test=Z_test_u,
-        propensity_test=pi_test_u,
         num_gfr=num_gfr,
         num_burnin=num_burnin,
         num_mcmc=num_mcmc,
@@ -142,19 +139,24 @@ def run_once_univariate(run_cpp: bool, seed: int) -> dict:
         },
         run_cpp=run_cpp,
     )
-    elapsed = time.perf_counter() - t0
+    elapsed_sample = time.perf_counter() - t0
 
-    # tau_0_samples shape: (1, num_mcmc) for univariate
-    tau_0_shape = getattr(m, "tau_0_samples", None)
-    tau_0_mean = float(np.mean(m.tau_0_samples)) if tau_0_shape is not None else float("nan")
+    # tau_0_samples comes from the model object (set at sample time)
+    tau_0_samples = getattr(m, "tau_0_samples", None)
+    tau_0_mean = float(np.mean(m.tau_0_samples)) if tau_0_samples is not None else float("nan")
 
-    y_hat   = m.y_hat_test.mean(axis=1)
-    tau_hat = m.tau_hat_test.mean(axis=1)
+    t1 = time.perf_counter()
+    preds = m.predict(X=X_test_u, Z=Z_test_u, propensity=pi_test_u, run_cpp=run_cpp)
+    elapsed_predict = time.perf_counter() - t1
+
+    y_hat   = preds["y_hat"].mean(axis=1)
+    tau_hat = preds["tau_hat"].mean(axis=1)
 
     return {
-        "elapsed":   elapsed,
-        "tau_0_mean": tau_0_mean,
-        "tau_0_shape": tuple(m.tau_0_samples.shape) if tau_0_shape is not None else None,
+        "elapsed_sample":  elapsed_sample,
+        "elapsed_predict": elapsed_predict,
+        "tau_0_mean":  tau_0_mean,
+        "tau_0_shape": tuple(m.tau_0_samples.shape) if tau_0_samples is not None else None,
         "rmse_y":    float(np.sqrt(np.mean((y_hat   - y_test_u)   ** 2))),
         "rmse_f":    float(np.sqrt(np.mean((y_hat   - f_test_u)   ** 2))),
         "rmse_tau":  float(np.sqrt(np.mean((tau_hat - tau_test_u) ** 2))),
@@ -171,9 +173,6 @@ def run_once_multivariate(run_cpp: bool, seed: int) -> dict:
         Z_train=Z_train_mv,
         y_train=y_train_mv,
         propensity_train=pi_train_mv,
-        X_test=X_test_mv,
-        Z_test=Z_test_mv,
-        propensity_test=pi_test_mv,
         num_gfr=num_gfr,
         num_burnin=num_burnin,
         num_mcmc=num_mcmc,
@@ -190,21 +189,27 @@ def run_once_multivariate(run_cpp: bool, seed: int) -> dict:
         },
         run_cpp=run_cpp,
     )
-    elapsed = time.perf_counter() - t0
+    elapsed_sample = time.perf_counter() - t0
 
-    # tau_0_samples shape: (2, num_mcmc) for treatment_dim=2
+    # tau_0_samples: (treatment_dim, num_mcmc) for multivariate
     tau_0_samples = getattr(m, "tau_0_samples", None)
     tau_0_mean = (
         m.tau_0_samples.mean(axis=1).tolist() if tau_0_samples is not None else [float("nan")] * 2
     )
 
-    tau_hat1 = m.tau_hat_test[:, 0, :].mean(axis=1)
-    tau_hat2 = m.tau_hat_test[:, 1, :].mean(axis=1)
-    y_hat    = m.y_hat_test.mean(axis=1)
+    t1 = time.perf_counter()
+    preds = m.predict(X=X_test_mv, Z=Z_test_mv, propensity=pi_test_mv, run_cpp=run_cpp)
+    elapsed_predict = time.perf_counter() - t1
+
+    # tau_hat is (n, treatment_dim, num_samples) for multivariate treatment
+    tau_hat1 = preds["tau_hat"][:, 0, :].mean(axis=1)
+    tau_hat2 = preds["tau_hat"][:, 1, :].mean(axis=1)
+    y_hat    = preds["y_hat"].mean(axis=1)
 
     return {
-        "elapsed":    elapsed,
-        "tau_0_mean": tau_0_mean,
+        "elapsed_sample":  elapsed_sample,
+        "elapsed_predict": elapsed_predict,
+        "tau_0_mean":  tau_0_mean,
         "tau_0_shape": tuple(m.tau_0_samples.shape) if tau_0_samples is not None else None,
         "rmse_y":     float(np.sqrt(np.mean((y_hat    - y_test_mv)         ** 2))),
         "rmse_f":     float(np.sqrt(np.mean((y_hat    - f_test_mv)         ** 2))),
@@ -236,9 +241,12 @@ for i, seed in enumerate(seeds, 1):
     results_py_u.append(run_once_univariate(run_cpp=False, seed=seed))
 
 def summarise_u(results):
-    keys = ["elapsed", "rmse_y", "rmse_f", "rmse_tau"]
+    keys = ["elapsed_sample", "elapsed_predict", "rmse_y", "rmse_f", "rmse_tau"]
     out = {k: float(np.mean([r[k] for r in results])) for k in keys}
-    out["elapsed_sd"]  = float(np.std([r["elapsed"]    for r in results], ddof=1))
+    out["elapsed"] = out["elapsed_sample"] + out["elapsed_predict"]
+    out["elapsed_sd"]  = float(np.std(
+        [r["elapsed_sample"] + r["elapsed_predict"] for r in results], ddof=1
+    ))
     out["tau_0_mean"]  = float(np.mean([r["tau_0_mean"] for r in results]))
     out["tau_0_shape"] = results[0]["tau_0_shape"]
     return out
@@ -249,13 +257,14 @@ s_py_u  = summarise_u(results_py_u)
 print("\n--- Univariate Results ---")
 print(f"tau_0_samples shape  cpp={s_cpp_u['tau_0_shape']}  py={s_py_u['tau_0_shape']}")
 print(
-    f"{'Sampler':<22}  {'Time (s)':>8}  {'SD':>8}  "
+    f"{'Sampler':<22}  {'Total (s)':>9}  {'Samp (s)':>9}  {'Pred (s)':>9}  {'SD':>8}  "
     f"{'tau_0 mean':>10}  {'RMSE(y)':>9}  {'RMSE(f)':>9}  {'RMSE(tau)':>10}"
 )
-print("-" * 90)
+print("-" * 108)
 for label, s in [("cpp (run_cpp=True)", s_cpp_u), ("py  (run_cpp=False)", s_py_u)]:
     print(
-        f"{label:<22}  {s['elapsed']:>8.3f}  {s['elapsed_sd']:>8.3f}  "
+        f"{label:<22}  {s['elapsed']:>9.3f}  {s['elapsed_sample']:>9.3f}  "
+        f"{s['elapsed_predict']:>9.3f}  {s['elapsed_sd']:>8.3f}  "
         f"{s['tau_0_mean']:>10.4f}  {s['rmse_y']:>9.4f}  {s['rmse_f']:>9.4f}  {s['rmse_tau']:>10.4f}"
     )
 print(f"True tau_0:  {TRUE_TAU0_UNIVARIATE:.4f}")
@@ -291,9 +300,12 @@ for i, seed in enumerate(seeds, 1):
     results_py_mv.append(run_once_multivariate(run_cpp=False, seed=seed))
 
 def summarise_mv(results):
-    keys = ["elapsed", "rmse_y", "rmse_f", "rmse_tau1", "rmse_tau2"]
+    keys = ["elapsed_sample", "elapsed_predict", "rmse_y", "rmse_f", "rmse_tau1", "rmse_tau2"]
     out = {k: float(np.mean([r[k] for r in results])) for k in keys}
-    out["elapsed_sd"]   = float(np.std([r["elapsed"] for r in results], ddof=1))
+    out["elapsed"] = out["elapsed_sample"] + out["elapsed_predict"]
+    out["elapsed_sd"]   = float(np.std(
+        [r["elapsed_sample"] + r["elapsed_predict"] for r in results], ddof=1
+    ))
     out["tau_0_mean_0"] = float(np.mean([r["tau_0_mean"][0] for r in results]))
     out["tau_0_mean_1"] = float(np.mean([r["tau_0_mean"][1] for r in results]))
     out["tau_0_shape"]  = results[0]["tau_0_shape"]
@@ -305,14 +317,15 @@ s_py_mv  = summarise_mv(results_py_mv)
 print("\n--- Multivariate Results ---")
 print(f"tau_0_samples shape  cpp={s_cpp_mv['tau_0_shape']}  py={s_py_mv['tau_0_shape']}")
 print(
-    f"{'Sampler':<22}  {'Time (s)':>8}  {'SD':>8}  "
+    f"{'Sampler':<22}  {'Total (s)':>9}  {'Samp (s)':>9}  {'Pred (s)':>9}  {'SD':>8}  "
     f"{'tau_0[0]':>9}  {'tau_0[1]':>9}  "
     f"{'RMSE(y)':>8}  {'RMSE(f)':>8}  {'RMSE(tau1)':>10}  {'RMSE(tau2)':>10}"
 )
-print("-" * 105)
+print("-" * 125)
 for label, s in [("cpp (run_cpp=True)", s_cpp_mv), ("py  (run_cpp=False)", s_py_mv)]:
     print(
-        f"{label:<22}  {s['elapsed']:>8.3f}  {s['elapsed_sd']:>8.3f}  "
+        f"{label:<22}  {s['elapsed']:>9.3f}  {s['elapsed_sample']:>9.3f}  "
+        f"{s['elapsed_predict']:>9.3f}  {s['elapsed_sd']:>8.3f}  "
         f"{s['tau_0_mean_0']:>9.4f}  {s['tau_0_mean_1']:>9.4f}  "
         f"{s['rmse_y']:>8.4f}  {s['rmse_f']:>8.4f}  {s['rmse_tau1']:>10.4f}  {s['rmse_tau2']:>10.4f}"
     )

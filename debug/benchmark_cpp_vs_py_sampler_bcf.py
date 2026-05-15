@@ -87,9 +87,6 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         Z_train=Z_train,
         y_train=y_train,
         propensity_train=pi_train,
-        X_test=X_test,
-        Z_test=Z_test,
-        propensity_test=pi_test,
         num_gfr=num_gfr,
         num_burnin=num_burnin,
         num_mcmc=num_mcmc,
@@ -106,13 +103,18 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         },
         run_cpp=run_cpp,
     )
-    elapsed = time.perf_counter() - t0
+    elapsed_sample = time.perf_counter() - t0
 
-    y_hat   = m.y_hat_test.mean(axis=1)
-    tau_hat = m.tau_hat_test.mean(axis=1)
+    t1 = time.perf_counter()
+    preds = m.predict(X=X_test, Z=Z_test, propensity=pi_test, run_cpp=run_cpp)
+    elapsed_predict = time.perf_counter() - t1
+
+    y_hat   = preds["y_hat"].mean(axis=1)
+    tau_hat = preds["tau_hat"].mean(axis=1)
 
     return {
-        "elapsed":  elapsed,
+        "elapsed_sample":  elapsed_sample,
+        "elapsed_predict": elapsed_predict,
         "rmse_y":   float(np.sqrt(np.mean((y_hat   - y_test)   ** 2))),
         "rmse_f":   float(np.sqrt(np.mean((y_hat   - f_test)   ** 2))),
         "rmse_tau": float(np.sqrt(np.mean((tau_hat - tau_test) ** 2))),
@@ -140,9 +142,12 @@ for i, seed in enumerate(seeds, 1):
 # Summarise
 # ---------------------------------------------------------------------------
 def summarise(results: list) -> dict:
-    keys = ["elapsed", "rmse_y", "rmse_f", "rmse_tau"]
+    keys = ["elapsed_sample", "elapsed_predict", "rmse_y", "rmse_f", "rmse_tau"]
     out = {k: float(np.mean([r[k] for r in results])) for k in keys}
-    out["elapsed_sd"] = float(np.std([r["elapsed"] for r in results], ddof=1))
+    out["elapsed"] = out["elapsed_sample"] + out["elapsed_predict"]
+    out["elapsed_sd"] = float(np.std(
+        [r["elapsed_sample"] + r["elapsed_predict"] for r in results], ddof=1
+    ))
     return out
 
 s_cpp = summarise(results_cpp)
@@ -151,13 +156,14 @@ rows  = [("cpp (run_cpp=True)", s_cpp), ("py  (run_cpp=False)", s_py)]
 
 print("\n--- Results ---")
 print(
-    f"{'Sampler':<22}  {'Time (s)':>10}  {'SD':>10}  "
+    f"{'Sampler':<22}  {'Total (s)':>10}  {'Samp (s)':>10}  {'Pred (s)':>10}  {'SD':>8}  "
     f"{'RMSE (obs)':>12}  {'RMSE (f)':>12}  {'RMSE (tau)':>12}"
 )
-print("-" * 84)
+print("-" * 104)
 for label, s in rows:
     print(
-        f"{label:<22}  {s['elapsed']:>10.3f}  {s['elapsed_sd']:>10.3f}  "
+        f"{label:<22}  {s['elapsed']:>10.3f}  {s['elapsed_sample']:>10.3f}  "
+        f"{s['elapsed_predict']:>10.3f}  {s['elapsed_sd']:>8.3f}  "
         f"{s['rmse_y']:>12.4f}  {s['rmse_f']:>12.4f}  {s['rmse_tau']:>12.4f}"
     )
 

@@ -84,9 +84,6 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         Z_train=Z_train,
         y_train=y_train,
         propensity_train=pi_train,
-        X_test=X_test,
-        Z_test=Z_test,
-        propensity_test=pi_test,
         num_gfr=num_gfr,
         num_burnin=num_burnin,
         num_mcmc=num_mcmc,
@@ -103,15 +100,21 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         },
         run_cpp=run_cpp,
     )
-    elapsed = time.perf_counter() - t0
+    elapsed_sample = time.perf_counter() - t0
 
-    mu_hat   = m.mu_hat_test.mean(axis=1)
-    tau_hat1 = m.tau_hat_test[:, 0, :].mean(axis=1)
-    tau_hat2 = m.tau_hat_test[:, 1, :].mean(axis=1)
-    y_hat    = m.y_hat_test.mean(axis=1)
+    t1 = time.perf_counter()
+    preds = m.predict(X=X_test, Z=Z_test, propensity=pi_test, run_cpp=run_cpp)
+    elapsed_predict = time.perf_counter() - t1
+
+    mu_hat   = preds["mu_hat"].mean(axis=1)
+    # tau_hat is (n, treatment_dim, num_samples) for multivariate treatment
+    tau_hat1 = preds["tau_hat"][:, 0, :].mean(axis=1)
+    tau_hat2 = preds["tau_hat"][:, 1, :].mean(axis=1)
+    y_hat    = preds["y_hat"].mean(axis=1)
 
     return {
-        "elapsed":  elapsed,
+        "elapsed_sample":  elapsed_sample,
+        "elapsed_predict": elapsed_predict,
         "rmse_y":   float(np.sqrt(np.mean((y_hat    - y_test)         ** 2))),
         "rmse_f":   float(np.sqrt(np.mean((y_hat    - f_test)         ** 2))),
         "rmse_mu":  float(np.sqrt(np.mean((mu_hat   - mu_test)        ** 2))),
@@ -141,9 +144,12 @@ for i, seed in enumerate(seeds, 1):
 # Summarise
 # ---------------------------------------------------------------------------
 def summarise(results: list) -> dict:
-    keys = ["elapsed", "rmse_y", "rmse_f", "rmse_mu", "rmse_tau1", "rmse_tau2"]
+    keys = ["elapsed_sample", "elapsed_predict", "rmse_y", "rmse_f", "rmse_mu", "rmse_tau1", "rmse_tau2"]
     out = {k: float(np.mean([r[k] for r in results])) for k in keys}
-    out["elapsed_sd"] = float(np.std([r["elapsed"] for r in results], ddof=1))
+    out["elapsed"] = out["elapsed_sample"] + out["elapsed_predict"]
+    out["elapsed_sd"] = float(np.std(
+        [r["elapsed_sample"] + r["elapsed_predict"] for r in results], ddof=1
+    ))
     return out
 
 s_cpp = summarise(results_cpp)
@@ -152,14 +158,15 @@ rows  = [("cpp (run_cpp=True)", s_cpp), ("py  (run_cpp=False)", s_py)]
 
 print("\n--- Results ---")
 print(
-    f"{'Sampler':<22}  {'Time (s)':>8}  {'SD':>8}  "
+    f"{'Sampler':<22}  {'Total (s)':>9}  {'Samp (s)':>9}  {'Pred (s)':>9}  {'SD':>8}  "
     f"{'RMSE(y)':>9}  {'RMSE(f)':>9}  {'RMSE(mu)':>9}  "
     f"{'RMSE(tau1)':>10}  {'RMSE(tau2)':>10}"
 )
-print("-" * 97)
+print("-" * 115)
 for label, s in rows:
     print(
-        f"{label:<22}  {s['elapsed']:>8.3f}  {s['elapsed_sd']:>8.3f}  "
+        f"{label:<22}  {s['elapsed']:>9.3f}  {s['elapsed_sample']:>9.3f}  "
+        f"{s['elapsed_predict']:>9.3f}  {s['elapsed_sd']:>8.3f}  "
         f"{s['rmse_y']:>9.4f}  {s['rmse_f']:>9.4f}  {s['rmse_mu']:>9.4f}  "
         f"{s['rmse_tau1']:>10.4f}  {s['rmse_tau2']:>10.4f}"
     )

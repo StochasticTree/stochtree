@@ -88,9 +88,6 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         Z_train=Z_train,
         y_train=y_train,
         propensity_train=pi_train,
-        X_test=X_test,
-        Z_test=Z_test,
-        propensity_test=pi_test,
         num_gfr=num_gfr,
         num_burnin=num_burnin,
         num_mcmc=num_mcmc,
@@ -111,23 +108,36 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         },
         run_cpp=run_cpp,
     )
-    elapsed = time.perf_counter() - t0
+    elapsed_sample = time.perf_counter() - t0
 
-    # mu_hat_test, tau_hat_test: (n_test, num_samples) — latent scale
-    mu_hat  = m.mu_hat_test   # (n_test, num_samples)
-    tau_hat = m.tau_hat_test  # (n_test, num_samples)
+    # Request latent-scale mu and tau (scale="linear", no probit transform applied)
+    t1 = time.perf_counter()
+    preds = m.predict(
+        X=X_test, Z=Z_test, propensity=pi_test,
+        terms=["mu", "tau"], scale="linear", run_cpp=run_cpp
+    )
+    elapsed_predict = time.perf_counter() - t1
+
+    # mu_hat, tau_hat: (n_test, num_samples) — latent scale
+    mu_hat  = preds["mu_hat"]   # (n_test, num_samples)
+    tau_hat = preds["tau_hat"]  # (n_test, num_samples)
 
     # P(Y=1 | X, Z, sample s) = Phi(mu_hat[i,s] + tau_hat[i,s] * Z_test[i])
     linear_pred = mu_hat + tau_hat * Z_test[:, np.newaxis]
-    p_hat_samples = norm.cdf(linear_pred)             # (n_test, num_samples)
-    p_hat_mean    = p_hat_samples.mean(axis=1)        # (n_test,)
+    p_hat_samples = norm.cdf(linear_pred)          # (n_test, num_samples)
+    p_hat_mean    = p_hat_samples.mean(axis=1)     # (n_test,)
 
-    tau_hat_mean  = tau_hat.mean(axis=1)              # (n_test,)
+    tau_hat_mean  = tau_hat.mean(axis=1)           # (n_test,)
 
-    brier = float(np.mean((p_hat_mean - y_test) ** 2))
+    brier    = float(np.mean((p_hat_mean - y_test) ** 2))
     rmse_tau = float(np.sqrt(np.mean((tau_hat_mean - tau_test) ** 2)))
 
-    return {"elapsed": elapsed, "brier": brier, "rmse_tau": rmse_tau}
+    return {
+        "elapsed_sample":  elapsed_sample,
+        "elapsed_predict": elapsed_predict,
+        "brier":    brier,
+        "rmse_tau": rmse_tau,
+    }
 
 # ---------------------------------------------------------------------------
 # Run benchmarks
@@ -151,9 +161,12 @@ for i, seed in enumerate(seeds, 1):
 # Summarise
 # ---------------------------------------------------------------------------
 def summarise(results: list) -> dict:
-    keys = ["elapsed", "brier", "rmse_tau"]
+    keys = ["elapsed_sample", "elapsed_predict", "brier", "rmse_tau"]
     out = {k: float(np.mean([r[k] for r in results])) for k in keys}
-    out["elapsed_sd"] = float(np.std([r["elapsed"] for r in results], ddof=1))
+    out["elapsed"] = out["elapsed_sample"] + out["elapsed_predict"]
+    out["elapsed_sd"] = float(np.std(
+        [r["elapsed_sample"] + r["elapsed_predict"] for r in results], ddof=1
+    ))
     return out
 
 s_cpp = summarise(results_cpp)
@@ -162,13 +175,14 @@ rows  = [("cpp (run_cpp=True)", s_cpp), ("py  (run_cpp=False)", s_py)]
 
 print("\n--- Results ---")
 print(
-    f"{'Sampler':<22}  {'Time (s)':>10}  {'SD':>10}  "
+    f"{'Sampler':<22}  {'Total (s)':>10}  {'Samp (s)':>10}  {'Pred (s)':>10}  {'SD':>10}  "
     f"{'Brier':>10}  {'RMSE (tau)':>12}"
 )
-print("-" * 72)
+print("-" * 92)
 for label, s in rows:
     print(
-        f"{label:<22}  {s['elapsed']:>10.3f}  {s['elapsed_sd']:>10.3f}  "
+        f"{label:<22}  {s['elapsed']:>10.3f}  {s['elapsed_sample']:>10.3f}  "
+        f"{s['elapsed_predict']:>10.3f}  {s['elapsed_sd']:>10.3f}  "
         f"{s['brier']:>10.4f}  {s['rmse_tau']:>12.4f}"
     )
 

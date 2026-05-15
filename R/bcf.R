@@ -4227,48 +4227,78 @@ predict.bcfmodel <- function(
   p <- ncol(X_combined)
   treatment_dim <- ncol(Z)
   obs_weights <- NULL
-  rfx_num_groups <- if (!is.null(rfx_group_ids)) length(unique(rfx_group_ids)) else 0L
+  rfx_num_groups <- if (!is.null(rfx_group_ids)) {
+    length(unique(rfx_group_ids))
+  } else {
+    0L
+  }
   rfx_basis_dim <- if (!is.null(rfx_basis)) ncol(rfx_basis) else 0L
 
-  scale_int <- switch(scale, "linear" = 0L, "probability" = 1L, "class" = 2L, 0L)
+  scale_int <- switch(
+    scale,
+    "linear" = 0L,
+    "probability" = 1L,
+    "class" = 2L,
+    0L
+  )
 
   # Build a flat list of model components for bcf_predict_cpp, since the bcfmodel
   # object uses R6 wrappers and nested model_params that C++ cannot navigate directly.
-  has_variance_forest_model <- isTRUE(object$model_params$include_variance_forest)
+  has_variance_forest_model <- isTRUE(
+    object$model_params$include_variance_forest
+  )
   variance_forest_ptr <- NULL
   if (has_variance_forest_model) {
-    if (!is.null(object$variance_forests)) {
-      variance_forest_ptr <- object$variance_forests$forest_container_ptr
-    } else if (!is.null(object$forests_variance)) {
+    if (!is.null(object$forests_variance)) {
       variance_forest_ptr <- object$forests_variance$forest_container_ptr
     }
   }
   has_rfx_model <- isTRUE(object$model_params$has_rfx)
-  bcf_model_flat <- list(
-    mu_forests            = if (!is.null(object$forests_mu))  object$forests_mu$forest_container_ptr  else NULL,
-    tau_forests           = if (!is.null(object$forests_tau)) object$forests_tau$forest_container_ptr else NULL,
-    variance_forests      = variance_forest_ptr,
-    rfx_container         = if (has_rfx_model) object$rfx_samples$rfx_container_ptr  else NULL,
-    rfx_label_mapper      = if (has_rfx_model) object$rfx_samples$label_mapper_ptr    else NULL,
+  bcf_model_list <- list(
+    mu_forests = if (!is.null(object$forests_mu)) {
+      object$forests_mu$forest_container_ptr
+    } else {
+      NULL
+    },
+    tau_forests = if (!is.null(object$forests_tau)) {
+      object$forests_tau$forest_container_ptr
+    } else {
+      NULL
+    },
+    variance_forests = variance_forest_ptr,
+    rfx_container = if (has_rfx_model) {
+      object$rfx_samples$rfx_container_ptr
+    } else {
+      NULL
+    },
+    rfx_label_mapper = if (has_rfx_model) {
+      object$rfx_samples$label_mapper_ptr
+    } else {
+      NULL
+    },
     sigma2_global_samples = object$sigma2_global_samples,
     sigma2_leaf_mu_samples = object$sigma2_leaf_mu_samples,
     sigma2_leaf_tau_samples = object$sigma2_leaf_tau_samples,
-    b0_samples            = object$b_0_samples,
-    b1_samples            = object$b_1_samples,
-    tau_0_samples         = object$tau_0_samples,
-    num_samples           = as.integer(object$model_params$num_samples),
-    y_bar                 = as.double(object$model_params$outcome_mean),
-    y_std                 = as.double(object$model_params$outcome_scale),
+    b0_samples = object$b_0_samples,
+    b1_samples = object$b_1_samples,
+    tau_0_samples = object$tau_0_samples,
+    num_samples = as.integer(object$model_params$num_samples),
+    y_bar = as.double(object$model_params$outcome_mean),
+    y_std = as.double(object$model_params$outcome_scale),
     include_variance_forest = has_variance_forest_model,
-    has_rfx               = has_rfx_model,
-    rfx_model_spec        = if (has_rfx_model) object$model_params$rfx_model_spec else "",
-    adaptive_coding       = isTRUE(object$model_params$adaptive_coding),
-    sample_tau_0          = isTRUE(object$model_params$sample_tau_0)
+    has_rfx = has_rfx_model,
+    rfx_model_spec = if (has_rfx_model) {
+      object$model_params$rfx_model_spec
+    } else {
+      ""
+    },
+    adaptive_coding = isTRUE(object$model_params$adaptive_coding),
+    sample_tau_0 = isTRUE(object$model_params$sample_tau_0)
   )
 
   if (run_cpp) {
     output <- bcf_predict_cpp(
-      bcf_model_list = bcf_model_flat,
+      bcf_model_list = bcf_model_list,
       X = X_combined,
       Z = Z,
       n = n,
@@ -4294,29 +4324,63 @@ predict.bcfmodel <- function(
     # so we drop the trailing singleton to return a plain vector.
     num_samples_raw <- as.integer(object$model_params$num_samples)
     num_samples_output <- if (type == "posterior") num_samples_raw else 1L
-    reshape_cpp_pred <- function(v, ncols) {
-      if (is.null(v)) return(NULL)
-      if (ncols == 1L) return(as.vector(v))
+    reshape_cpp_pred_2d <- function(v, dim1, dim2) {
+      if (is.null(v)) {
+        return(NULL)
+      }
+      if (dim2 == 1L) {
+        return(as.vector(v))
+      }
       m <- v
-      dim(m) <- c(n, ncols)
+      dim(m) <- c(dim1, dim2)
       m
     }
-    reshape_cpp_pred_3d <- function(v, d2, ncols) {
-      if (is.null(v)) return(NULL)
-      if (d2 == 1L && ncols == 1L) return(as.vector(v))
-      if (d2 == 1L) {
-        m <- v; dim(m) <- c(n, ncols); return(m)
+    reshape_cpp_pred_3d <- function(v, dim1, dim2, dim3) {
+      if (is.null(v)) {
+        return(NULL)
       }
-      a <- v; dim(a) <- c(n, d2, ncols); a
+      if (dim2 == 1L && dim3 == 1L) {
+        return(as.vector(v))
+      }
+      if (dim3 == 1L) {
+        m <- v
+        dim(m) <- c(dim1, dim2)
+        return(m)
+      }
+      a <- v
+      dim(a) <- c(dim1, dim2, dim3)
+      a
     }
     result <- list(
-      y_hat                      = reshape_cpp_pred(output$y_hat, num_samples_output),
-      mu_hat                     = reshape_cpp_pred(output$mu_x, num_samples_output),
-      tau_hat                    = reshape_cpp_pred_3d(output$tau_x, treatment_dim, num_samples_output),
-      prognostic_function        = reshape_cpp_pred(output$prognostic_function, num_samples_output),
-      cate                       = reshape_cpp_pred_3d(output$cate, treatment_dim, num_samples_output),
-      rfx_predictions            = reshape_cpp_pred(output$random_effects, num_samples_output),
-      variance_forest_predictions = reshape_cpp_pred(output$conditional_variance, num_samples_output)
+      y_hat = reshape_cpp_pred_2d(output$y_hat, n, num_samples_output),
+      mu_hat = reshape_cpp_pred_2d(output$mu_x, n, num_samples_output),
+      tau_hat = reshape_cpp_pred_3d(
+        output$tau_x,
+        n,
+        treatment_dim,
+        num_samples_output
+      ),
+      prognostic_function = reshape_cpp_pred_2d(
+        output$prognostic_function,
+        n,
+        num_samples_output
+      ),
+      cate = reshape_cpp_pred_3d(
+        output$cate,
+        n,
+        treatment_dim,
+        num_samples_output
+      ),
+      rfx_predictions = reshape_cpp_pred_2d(
+        output$random_effects,
+        n,
+        num_samples_output
+      ),
+      variance_forest_predictions = reshape_cpp_pred_2d(
+        output$conditional_variance,
+        n,
+        num_samples_output
+      )
     )
     return(result)
   } else {

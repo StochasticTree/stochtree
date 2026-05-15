@@ -33,7 +33,7 @@ from .utils import (
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
-from stochtree_cpp import bcf_sample_cpp
+from stochtree_cpp import bcf_sample_cpp, bcf_predict_cpp
 
 
 class BCFModel:
@@ -1808,6 +1808,10 @@ class BCFModel:
                 "b_sigma2_tau": b_leaf_tau,
                 "sigma2_tau_init": sigma2_leaf_tau if isinstance(sigma2_leaf_tau, float) else -1.0,
                 "sample_sigma2_leaf_tau": sample_sigma2_leaf_tau,
+                "sample_tau_0": self.sample_tau_0,
+                "tau_0_prior_var_scalar": tau_0_prior_var
+                if (self.sample_tau_0 and not self.multivariate_treatment and tau_0_prior_var is not None)
+                else None,
                 "tau_leaf_model_type": leaf_model_tau,
                 "sigma2_leaf_tau_matrix": sigma2_leaf_tau.flatten(order="F")
                 if isinstance(sigma2_leaf_tau, np.ndarray)
@@ -3577,6 +3581,7 @@ class BCFModel:
         type: str = "posterior",
         terms: Union[list[str], str] = "all",
         scale: str = "linear",
+        run_cpp: bool = False,
     ) -> Union[dict[str, np.array], np.array]:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.
@@ -3611,6 +3616,8 @@ class BCFModel:
             If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is requested, the request will simply be ignored. If none of the requested terms are present in a model, this function will return ``None`` along with a warning. Default: "all".
         scale : str, optional
             Scale on which to return predictions. Options are "linear" (the default), which returns predictions on the original outcome scale, and "probit", which returns predictions on the probit (latent) scale. Only applicable for models fit with probit link.
+        run_cpp : bool, optional
+            Whether to run the prediction entirely in C++ or handle much of the pre/post-processing in Python. Default: `False`
 
         Returns
         -------
@@ -3663,30 +3670,28 @@ class BCFModel:
                 raise ValueError(
                     f"term '{term}' was requested. Valid terms are 'y_hat', 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', and 'all'"
                 )
-        has_mu_forest = True
-        has_tau_forest = True
         has_variance_forest = self.include_variance_forest
         has_rfx = self.has_rfx
-        has_y_hat = has_mu_forest or has_tau_forest or has_rfx
-        predict_y_hat = (has_y_hat and ("y_hat" in terms)) or (
-            has_y_hat and ("all" in terms)
-        )
-        predict_mu_forest = (has_mu_forest and ("mu" in terms)) or (
-            has_mu_forest and ("all" in terms)
-        )
-        predict_tau_forest = (has_tau_forest and ("tau" in terms)) or (
-            has_tau_forest and ("all" in terms)
-        )
-        predict_prog_function = (
-            has_mu_forest and ("prognostic_function" in terms)
-        ) or (has_mu_forest and ("all" in terms))
-        predict_cate_function = (has_tau_forest and ("cate" in terms)) or (
-            has_tau_forest and ("all" in terms)
-        )
-        predict_rfx = (has_rfx and ("rfx" in terms)) or (has_rfx and ("all" in terms))
-        predict_variance_forest = (
-            has_variance_forest and ("variance_forest" in terms)
-        ) or (has_variance_forest and ("all" in terms))
+        predict_y_hat = ("y_hat" in terms) or ("all" in terms)
+        predict_mu_forest = ("mu" in terms) or ("all" in terms)
+        predict_tau_forest = ("tau" in terms) or ("all" in terms)
+        predict_prog_function = ("prognostic_function" in terms) or ("all" in terms)
+        predict_cate_function = ("cate" in terms) or ("all" in terms)
+        predict_rfx = ("rfx" in terms) or ("all" in terms)
+        predict_variance_forest = ("variance_forest" in terms) or ("all" in terms)
+        # Warn for individually requested terms that weren't fit
+        unavailable_terms = []
+        if predict_rfx and not has_rfx:
+            unavailable_terms.append("rfx")
+            predict_rfx = False
+        if predict_variance_forest and not has_variance_forest:
+            unavailable_terms.append("variance_forest")
+            predict_variance_forest = False
+        if unavailable_terms:
+            term_str = ", ".join(unavailable_terms)
+            warnings.warn(
+                f"Requested term(s) '{term_str}' were not fit in this model and will be excluded from predictions"
+            )
         predict_count = (
             predict_y_hat
             + predict_mu_forest
@@ -3702,25 +3707,7 @@ class BCFModel:
                 f"None of the requested model terms, {term_list}, were fit in this model"
             )
             return None
-        predict_rfx_intermediate = predict_y_hat and has_rfx
-        predict_rfx_raw = (predict_prog_function and has_rfx and rfx_intercept) or (
-            predict_cate_function and has_rfx and rfx_intercept_plus_treatment
-        )
-        predict_mu_forest_intermediate = (
-            predict_y_hat or predict_prog_function
-        ) and has_mu_forest
-        predict_tau_forest_intermediate = (
-            predict_y_hat or predict_cate_function or
-            (self.adaptive_coding and (predict_mu_forest or predict_prog_function))
-        ) and has_tau_forest
-
-        if not self.is_sampled():
-            msg = (
-                "This BCFModel instance is not fitted yet. Call 'fit' with "
-                "appropriate arguments before using this model."
-            )
-            raise NotSampledError(msg)
-
+        
         # Convert everything to standard shape (2-dimensional)
         if X.ndim == 1:
             X = np.expand_dims(X, 1)
@@ -3782,267 +3769,386 @@ class BCFModel:
         else:
             X_combined = np.c_[covariates_processed, propensity]
 
-        # Forest dataset
-        forest_dataset_test = Dataset()
-        forest_dataset_test.add_covariates(X_combined)
-        forest_dataset_test.add_basis(Z)
+        # Dimensions needed by both the C++ and R predict paths
+        n, p = X_combined.shape
+        treatment_dim = Z.shape[1]
+        obs_weights = None
+        rfx_num_groups = len(np.unique(rfx_group_ids)) if rfx_group_ids is not None else 0
+        rfx_basis_dim = rfx_basis.shape[1] if rfx_basis is not None else 0
 
-        # Compute predictions from the variance forest (if included)
-        if predict_variance_forest:
-            sigma2_x_raw = self.forest_container_variance.forest_container_cpp.Predict(
-                forest_dataset_test.dataset_cpp
-            )
-            if self.sample_sigma2_global:
-                sigma2_x = np.empty_like(sigma2_x_raw)
-                for i in range(self.num_samples):
-                    sigma2_x[:, i] = sigma2_x_raw[:, i] * self.global_var_samples[i]
-            else:
-                sigma2_x = sigma2_x_raw * self.sigma2_init * self.y_std * self.y_std
-            if predict_mean:
-                sigma2_x = np.mean(sigma2_x, axis=1)
+        scale_int = {
+            "linear": 0,
+            "probability": 1,
+            "class": 2
+        }.get(scale, 0)
 
-        # Prognostic forest predictions
-        if predict_mu_forest or predict_mu_forest_intermediate:
-            mu_raw = self.forest_container_mu.forest_container_cpp.Predict(
-                forest_dataset_test.dataset_cpp
-            )
-            mu_x_forest = mu_raw * self.y_std + self.y_bar
+        if run_cpp:
+            # Build a dictionary of model components that can be ingested and unpacked by bcf_predict_cpp
+            variance_forest_ptr = None
+            if has_variance_forest:
+                if self.forest_container_variance is not None:
+                    variance_forest_ptr = self.forest_container_variance.forest_container_cpp
+            bcf_model_dict = {
+              "mu_forests": self.forest_container_mu.forest_container_cpp if self.forest_container_mu is not None else None,
+              "tau_forests": self.forest_container_tau.forest_container_cpp if self.forest_container_tau is not None else None,
+              "variance_forests": variance_forest_ptr,
+              "rfx_container": self.rfx_container.rfx_container_cpp if has_rfx else None,
+              "rfx_label_mapper": self.rfx_container.rfx_label_mapper_cpp if has_rfx else None,
+              "sigma2_global_samples": getattr(self, "global_var_samples", None),
+              "sigma2_leaf_mu_samples": getattr(self, "leaf_scale_mu_samples", None),
+              "sigma2_leaf_tau_samples": getattr(self, "leaf_scale_tau_samples", None),
+              "b0_samples": getattr(self, "b0_samples", None),
+              "b1_samples": getattr(self, "b1_samples", None),
+              "tau_0_samples": getattr(self, "tau_0_samples", None),
+              "num_samples": int(self.num_samples),
+              "y_bar": float(self.y_bar),
+              "y_std": float(self.y_std),
+              "include_variance_forest": has_variance_forest,
+              "has_rfx": has_rfx,
+              "rfx_model_spec": self.rfx_model_spec if has_rfx else "",
+              "adaptive_coding": self.adaptive_coding,
+              "sample_tau_0": self.sample_tau_0
+            }
+            n, p = X_combined.shape
+            treatment_dim = Z.shape[1]
 
-        # Treatment effect forest predictions
-        if predict_tau_forest or predict_tau_forest_intermediate:
-            tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(
-                forest_dataset_test.dataset_cpp
+            output = bcf_predict_cpp(
+                bcf_model_dict = bcf_model_dict,
+                X = X_combined,
+                Z = Z,
+                n = n,
+                p = p,
+                treatment_dim = treatment_dim,
+                obs_weights = obs_weights,
+                rfx_group_ids = rfx_group_ids,
+                rfx_basis = rfx_basis,
+                rfx_num_groups = rfx_num_groups,
+                rfx_basis_dim = rfx_basis_dim,
+                posterior = type == "posterior",
+                scale = scale_int,
+                predict_y_hat = predict_y_hat,
+                predict_mu_x = predict_mu_forest,
+                predict_tau_x = predict_tau_forest,
+                predict_prognostic_function = predict_prog_function,
+                predict_cate = predict_cate_function,
+                predict_conditional_variance = predict_variance_forest,
+                predict_random_effects = predict_rfx
             )
-            if self.adaptive_coding:
-                adaptive_coding_weights = np.expand_dims(
-                    self.b1_samples - self.b0_samples, axis=(0, 2)
+
+            # Reshape flat C++ output vectors to 2d or 3d arrays (n x num_samples) or (n x treatment_dim x num_samples) 
+            # and rename fields to match the Python predict path. For type="mean", num_samples_output=1 return a 1d or 2d array.
+            num_samples_raw = self.num_samples
+            num_samples_output = num_samples_raw if type == "posterior" else 1
+            def reshape_cpp_pred_2d(v, dim1, dim2):
+                if v is None:
+                    return None
+                if dim2 == 1:
+                    return v.flatten()
+                return np.reshape(v, (dim1, dim2), order='F')
+            def reshape_cpp_pred_3d(v, dim1, dim2, dim3):
+                if v is None:
+                    return None
+                if dim2 == 1 and dim3 == 1:
+                    return v.flatten()
+                if dim3 == 1:
+                    return np.reshape(v, (dim1, dim2), order='F')
+                if dim2 == 1:
+                    # Univariate treatment: squeeze to (n, num_samples) to match the Python path
+                    return np.reshape(v, (dim1, dim3), order='F')
+                return np.reshape(v, (dim1, dim2, dim3), order='F')
+            
+            result = {
+                "y_hat": reshape_cpp_pred_2d(output["y_hat"], n, num_samples_output),
+                "mu_hat": reshape_cpp_pred_2d(output["mu_x"], n, num_samples_output),
+                "tau_hat": reshape_cpp_pred_3d(output["tau_x"], n, treatment_dim, num_samples_output),
+                "prognostic_function": reshape_cpp_pred_2d(output["prognostic_function"], n, num_samples_output),
+                "cate": reshape_cpp_pred_3d(output["cate"], n, treatment_dim, num_samples_output),
+                "rfx_predictions": reshape_cpp_pred_2d(output["random_effects"], n, num_samples_output),
+                "variance_forest_predictions": reshape_cpp_pred_2d(output["conditional_variance"], n, num_samples_output)
+            }
+            return result
+        else:
+            # Unpacking which terms to predict
+            predict_rfx_intermediate = predict_y_hat and has_rfx
+            predict_rfx_raw = (predict_prog_function and has_rfx and rfx_intercept) or (
+                predict_cate_function and has_rfx and rfx_intercept_plus_treatment
+            )
+            predict_mu_forest_intermediate = (
+                predict_y_hat or predict_prog_function
+            )
+            predict_tau_forest_intermediate = (
+                predict_y_hat or predict_cate_function or
+                (self.adaptive_coding and (predict_mu_forest or predict_prog_function))
+            )
+
+            if not self.is_sampled():
+                msg = (
+                    "This BCFModel instance is not fitted yet. Call 'fit' with "
+                    "appropriate arguments before using this model."
                 )
-                if predict_mu_forest or predict_mu_forest_intermediate:
-                    b0_weights = np.expand_dims(self.b0_samples, axis=(0, 2))
-                    control_adj = tau_raw * b0_weights * self.y_std
-                    mu_x_forest = mu_x_forest + np.squeeze(control_adj)
-                tau_raw = tau_raw * adaptive_coding_weights
-            tau_x_forest = np.squeeze(tau_raw * self.y_std)
-            if self.multivariate_treatment:
-                # PredictRaw returns (n, num_samples, treatment_dim);
-                # transpose to canonical (n, treatment_dim, num_samples)
-                tau_x_forest = tau_x_forest.transpose(0, 2, 1)
-            # tau_x_forest is the forest-only component tau(X); compute cate_x_forest
-            # (tau_0 + tau(X)) for the "cate" term and treatment_term used in y_hat
-            if getattr(self, "sample_tau_0", False) and hasattr(self, "tau_0_samples"):
-                tau_0_vec = self.tau_0_samples[0, :]
+                raise NotSampledError(msg)
+
+            # Forest dataset
+            forest_dataset_test = Dataset()
+            forest_dataset_test.add_covariates(X_combined)
+            forest_dataset_test.add_basis(Z)
+
+            # Compute predictions from the variance forest (if included)
+            if predict_variance_forest and has_variance_forest:
+                sigma2_x_raw = self.forest_container_variance.forest_container_cpp.Predict(
+                    forest_dataset_test.dataset_cpp
+                )
+                if self.sample_sigma2_global:
+                    sigma2_x = np.empty_like(sigma2_x_raw)
+                    for i in range(self.num_samples):
+                        sigma2_x[:, i] = sigma2_x_raw[:, i] * self.global_var_samples[i]
+                else:
+                    sigma2_x = sigma2_x_raw * self.sigma2_init * self.y_std * self.y_std
+                if predict_mean:
+                    sigma2_x = np.mean(sigma2_x, axis=1)
+
+            # Prognostic forest predictions
+            if predict_mu_forest or predict_mu_forest_intermediate:
+                mu_raw = self.forest_container_mu.forest_container_cpp.Predict(
+                    forest_dataset_test.dataset_cpp
+                )
+                mu_x_forest = mu_raw * self.y_std + self.y_bar
+
+            # Treatment effect forest predictions
+            if predict_tau_forest or predict_tau_forest_intermediate:
+                tau_raw = self.forest_container_tau.forest_container_cpp.PredictRaw(
+                    forest_dataset_test.dataset_cpp
+                )
                 if self.adaptive_coding:
-                    cate_x_forest = tau_x_forest + (
-                        (self.b1_samples - self.b0_samples) * tau_0_vec
+                    adaptive_coding_weights = np.expand_dims(
+                        self.b1_samples - self.b0_samples, axis=(0, 2)
                     )
                     if predict_mu_forest or predict_mu_forest_intermediate:
-                        mu_x_forest = mu_x_forest + (self.b0_samples * tau_0_vec)
-                elif Z.shape[1] > 1:
-                    p_tau0 = Z.shape[1]
-                    cate_x_forest = tau_x_forest.copy()
-                    for j in range(p_tau0):
-                        cate_x_forest[:, j, :] = (
-                            cate_x_forest[:, j, :] + (self.tau_0_samples[j, :])
+                        b0_weights = np.expand_dims(self.b0_samples, axis=(0, 2))
+                        control_adj = tau_raw * b0_weights * self.y_std
+                        mu_x_forest = mu_x_forest + np.squeeze(control_adj)
+                    tau_raw = tau_raw * adaptive_coding_weights
+                tau_x_forest = np.squeeze(tau_raw * self.y_std)
+                if self.multivariate_treatment:
+                    # PredictRaw returns (n, num_samples, treatment_dim);
+                    # transpose to canonical (n, treatment_dim, num_samples)
+                    tau_x_forest = tau_x_forest.transpose(0, 2, 1)
+                # tau_x_forest is the forest-only component tau(X); compute cate_x_forest
+                # (tau_0 + tau(X)) for the "cate" term and treatment_term used in y_hat
+                if getattr(self, "sample_tau_0", False) and hasattr(self, "tau_0_samples"):
+                    tau_0_vec = self.tau_0_samples[0, :]
+                    if self.adaptive_coding:
+                        cate_x_forest = tau_x_forest + (
+                            (self.b1_samples - self.b0_samples) * tau_0_vec
                         )
+                        if predict_mu_forest or predict_mu_forest_intermediate:
+                            mu_x_forest = mu_x_forest + (self.b0_samples * tau_0_vec)
+                    elif Z.shape[1] > 1:
+                        p_tau0 = Z.shape[1]
+                        cate_x_forest = tau_x_forest.copy()
+                        for j in range(p_tau0):
+                            cate_x_forest[:, j, :] = (
+                                cate_x_forest[:, j, :] + (self.tau_0_samples[j, :])
+                            )
+                    else:
+                        cate_x_forest = tau_x_forest + tau_0_vec
                 else:
-                    cate_x_forest = tau_x_forest + tau_0_vec
-            else:
-                cate_x_forest = tau_x_forest
-            if Z.shape[1] > 1:
-                treatment_term = np.multiply(
-                    Z[:, :, np.newaxis], cate_x_forest
-                ).sum(axis=1)
-            else:
-                treatment_term = Z * np.squeeze(cate_x_forest)
+                    cate_x_forest = tau_x_forest
+                if Z.shape[1] > 1:
+                    treatment_term = np.multiply(
+                        Z[:, :, np.newaxis], cate_x_forest
+                    ).sum(axis=1)
+                else:
+                    treatment_term = Z * np.squeeze(cate_x_forest)
 
-        # Random effects data checks
-        if has_rfx:
-            if rfx_group_ids is None:
-                raise ValueError(
-                    "rfx_group_ids must be provided if rfx_basis is provided"
-                )
-
-            if self.rfx_model_spec == "custom":
-                if rfx_basis is None:
+            # Random effects data checks
+            if has_rfx:
+                if rfx_group_ids is None:
                     raise ValueError(
-                        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
-                    )
-            elif self.rfx_model_spec == "intercept_only":
-                if rfx_basis is None:
-                    rfx_basis = np.ones(shape=(X.shape[0], 1))
-            elif self.rfx_model_spec == "intercept_plus_treatment":
-                if rfx_basis is None:
-                    rfx_basis = np.concatenate(
-                        (np.ones(shape=(X.shape[0], 1)), Z), axis=1
+                        "rfx_group_ids must be provided if rfx_basis is provided"
                     )
 
-            if rfx_basis.ndim == 1:
-                rfx_basis = np.expand_dims(rfx_basis, 1)
-            if rfx_basis.shape[0] != X.shape[0]:
-                raise ValueError("X and rfx_basis must have the same number of rows")
-            if rfx_basis.shape[1] != self.num_rfx_basis:
-                raise ValueError(
-                    "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
+                if self.rfx_model_spec == "custom":
+                    if rfx_basis is None:
+                        raise ValueError(
+                            "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+                        )
+                elif self.rfx_model_spec == "intercept_only":
+                    if rfx_basis is None:
+                        rfx_basis = np.ones(shape=(X.shape[0], 1))
+                elif self.rfx_model_spec == "intercept_plus_treatment":
+                    if rfx_basis is None:
+                        rfx_basis = np.concatenate(
+                            (np.ones(shape=(X.shape[0], 1)), Z), axis=1
+                        )
+
+                if rfx_basis.ndim == 1:
+                    rfx_basis = np.expand_dims(rfx_basis, 1)
+                if rfx_basis.shape[0] != X.shape[0]:
+                    raise ValueError("X and rfx_basis must have the same number of rows")
+                if rfx_basis.shape[1] != self.num_rfx_basis:
+                    raise ValueError(
+                        "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
+                    )
+
+            # Convert rfx_group_ids to their corresponding array position indices in the random effects parameter sample arrays
+            if rfx_group_ids is not None:
+                rfx_group_id_indices = self.rfx_container.map_group_ids_to_array_indices(
+                    rfx_group_ids
                 )
 
-        # Convert rfx_group_ids to their corresponding array position indices in the random effects parameter sample arrays
-        if rfx_group_ids is not None:
-            rfx_group_id_indices = self.rfx_container.map_group_ids_to_array_indices(
-                rfx_group_ids
-            )
-
-        # Random effects predictions
-        if predict_rfx or predict_rfx_intermediate:
-            rfx_preds = (
-                self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
-            )
-
-        # Extract "raw" rfx predictions for each rfx basis term if needed
-        if predict_rfx_raw:
-            # Extract the raw RFX samples and scale by train set outcome standard deviation
-            rfx_samples_raw = self.rfx_container.extract_parameter_samples()
-            rfx_beta_draws = rfx_samples_raw["beta_samples"] * self.y_std
-
-            # Construct an array with the appropriate group random effects arranged for each observation
-            if rfx_beta_draws.ndim == 3:
-                rfx_predictions_raw = np.empty(
-                    shape=(X.shape[0], rfx_beta_draws.shape[0], rfx_beta_draws.shape[2])
-                )
-                for i in range(X.shape[0]):
-                    rfx_predictions_raw[i, :, :] = rfx_beta_draws[
-                        :, rfx_group_id_indices[i], :
-                    ]
-            elif rfx_beta_draws.ndim == 2:
-                rfx_predictions_raw = np.empty(
-                    shape=(X.shape[0], 1, rfx_beta_draws.shape[1])
-                )
-                for i in range(X.shape[0]):
-                    rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
-                        rfx_group_id_indices[i], :
-                    ]
-            else:
-                raise ValueError(
-                    "Unexpected number of dimensions in extracted random effects samples"
+            # Random effects predictions
+            if (predict_rfx or predict_rfx_intermediate) and has_rfx:
+                rfx_preds = (
+                    self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
                 )
 
-        # Add raw RFX predictions to mu and tau if warranted by the RFX model spec
-        if predict_prog_function:
-            if mu_prog_separate:
-                prognostic_function = mu_x_forest + np.squeeze(
-                    rfx_predictions_raw[:, 0, :]
-                )
-            else:
-                prognostic_function = mu_x_forest
-        if predict_cate_function:
-            if tau_cate_separate:
-                cate = cate_x_forest + np.squeeze(rfx_predictions_raw[:, 1:, :])
-            else:
-                cate = cate_x_forest
+            # Extract "raw" rfx predictions for each rfx basis term if needed
+            if predict_rfx_raw:
+                # Extract the raw RFX samples and scale by train set outcome standard deviation
+                rfx_samples_raw = self.rfx_container.extract_parameter_samples()
+                rfx_beta_draws = rfx_samples_raw["beta_samples"] * self.y_std
 
-        # Combine into y hat predictions
-        needs_mean_term_preds = (
-            predict_y_hat
-            or predict_mu_forest
-            or predict_prog_function
-            or predict_tau_forest
-            or predict_cate_function
-            or predict_rfx
-        )
-        if needs_mean_term_preds:
-            if probability_scale:
-                if has_rfx:
-                    if predict_y_hat:
-                        y_hat = norm.cdf(mu_x_forest + treatment_term + rfx_preds)
-                    if predict_rfx:
-                        rfx_preds = norm.cdf(rfx_preds)
+                # Construct an array with the appropriate group random effects arranged for each observation
+                if rfx_beta_draws.ndim == 3:
+                    rfx_predictions_raw = np.empty(
+                        shape=(X.shape[0], rfx_beta_draws.shape[0], rfx_beta_draws.shape[2])
+                    )
+                    for i in range(X.shape[0]):
+                        rfx_predictions_raw[i, :, :] = rfx_beta_draws[
+                            :, rfx_group_id_indices[i], :
+                        ]
+                elif rfx_beta_draws.ndim == 2:
+                    rfx_predictions_raw = np.empty(
+                        shape=(X.shape[0], 1, rfx_beta_draws.shape[1])
+                    )
+                    for i in range(X.shape[0]):
+                        rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
+                            rfx_group_id_indices[i], :
+                        ]
                 else:
-                    if predict_y_hat:
-                        y_hat = norm.cdf(mu_x_forest + treatment_term)
-                if predict_mu_forest:
-                    mu_x = norm.cdf(mu_x_forest)
-                if predict_tau_forest:
-                    tau_x = norm.cdf(cate_x_forest)
-                if predict_prog_function:
-                    prognostic_function = norm.cdf(prognostic_function)
-                if predict_cate_function:
-                    cate = norm.cdf(cate)
-            else:
-                if has_rfx:
-                    if predict_y_hat:
-                        y_hat = mu_x_forest + treatment_term + rfx_preds
+                    raise ValueError(
+                        "Unexpected number of dimensions in extracted random effects samples"
+                    )
+
+            # Add raw RFX predictions to mu and tau if warranted by the RFX model spec
+            if predict_prog_function:
+                if mu_prog_separate:
+                    prognostic_function = mu_x_forest + np.squeeze(
+                        rfx_predictions_raw[:, 0, :]
+                    )
                 else:
-                    if predict_y_hat:
-                        y_hat = mu_x_forest + treatment_term
+                    prognostic_function = mu_x_forest
+            if predict_cate_function:
+                if tau_cate_separate:
+                    cate = cate_x_forest + np.squeeze(rfx_predictions_raw[:, 1:, :])
+                else:
+                    cate = cate_x_forest
+
+            # Combine into y hat predictions
+            needs_mean_term_preds = (
+                predict_y_hat
+                or predict_mu_forest
+                or predict_prog_function
+                or predict_tau_forest
+                or predict_cate_function
+                or predict_rfx
+            )
+            if needs_mean_term_preds:
+                if probability_scale:
+                    if has_rfx:
+                        if predict_y_hat:
+                            y_hat = norm.cdf(mu_x_forest + treatment_term + rfx_preds)
+                        if predict_rfx:
+                            rfx_preds = norm.cdf(rfx_preds)
+                    else:
+                        if predict_y_hat:
+                            y_hat = norm.cdf(mu_x_forest + treatment_term)
+                    if predict_mu_forest:
+                        mu_x = norm.cdf(mu_x_forest)
+                    if predict_tau_forest:
+                        tau_x = norm.cdf(cate_x_forest)
+                    if predict_prog_function:
+                        prognostic_function = norm.cdf(prognostic_function)
+                    if predict_cate_function:
+                        cate = norm.cdf(cate)
+                else:
+                    if has_rfx:
+                        if predict_y_hat:
+                            y_hat = mu_x_forest + treatment_term + rfx_preds
+                    else:
+                        if predict_y_hat:
+                            y_hat = mu_x_forest + treatment_term
+                    if predict_mu_forest:
+                        mu_x = mu_x_forest
+                    if predict_tau_forest:
+                        tau_x = cate_x_forest
+                    if predict_prog_function:
+                        prognostic_function = prognostic_function
+                    if predict_cate_function:
+                        cate = cate
+
+            # Collapse to posterior mean predictions if requested
+            if predict_mean:
                 if predict_mu_forest:
-                    mu_x = mu_x_forest
+                    mu_x = np.mean(mu_x, axis=1)
                 if predict_tau_forest:
-                    tau_x = cate_x_forest
+                    tau_x = np.mean(tau_x, axis=1)
                 if predict_prog_function:
-                    prognostic_function = prognostic_function
+                    prognostic_function = np.mean(prognostic_function, axis=1)
                 if predict_cate_function:
-                    cate = cate
+                    cate = np.mean(cate, axis=1)
+                if predict_rfx and has_rfx:
+                    rfx_preds = np.mean(rfx_preds, axis=1)
+                if predict_y_hat:
+                    y_hat = np.mean(y_hat, axis=1)
 
-        # Collapse to posterior mean predictions if requested
-        if predict_mean:
-            if predict_mu_forest:
-                mu_x = np.mean(mu_x, axis=1)
-            if predict_tau_forest:
-                tau_x = np.mean(tau_x, axis=1)
-            if predict_prog_function:
-                prognostic_function = np.mean(prognostic_function, axis=1)
-            if predict_cate_function:
-                cate = np.mean(cate, axis=1)
-            if predict_rfx:
-                rfx_preds = np.mean(rfx_preds, axis=1)
-            if predict_y_hat:
-                y_hat = np.mean(y_hat, axis=1)
-
-        if predict_count == 1:
-            if predict_y_hat:
-                return y_hat
-            elif predict_mu_forest:
-                return mu_x
-            elif predict_prog_function:
-                return prognostic_function
-            elif predict_tau_forest:
-                return tau_x
-            elif predict_cate_function:
-                return cate
-            elif predict_rfx:
-                return rfx_preds
-            elif predict_variance_forest:
-                return sigma2_x
-        else:
-            result = dict()
-            if predict_y_hat:
-                result["y_hat"] = y_hat
+            if predict_count == 1:
+                if predict_y_hat:
+                    return y_hat
+                elif predict_mu_forest:
+                    return mu_x
+                elif predict_prog_function:
+                    return prognostic_function
+                elif predict_tau_forest:
+                    return tau_x
+                elif predict_cate_function:
+                    return cate
+                elif predict_rfx:
+                    return rfx_preds
+                elif predict_variance_forest:
+                    return sigma2_x
             else:
-                result["y_hat"] = None
-            if predict_mu_forest:
-                result["mu_hat"] = mu_x
-            else:
-                result["mu_hat"] = None
-            if predict_tau_forest:
-                result["tau_hat"] = tau_x
-            else:
-                result["tau_hat"] = None
-            if predict_prog_function:
-                result["prognostic_function"] = prognostic_function
-            else:
-                result["prognostic_function"] = None
-            if predict_cate_function:
-                result["cate"] = cate
-            else:
-                result["cate"] = None
-            if predict_rfx:
-                result["rfx_predictions"] = rfx_preds
-            else:
-                result["rfx_predictions"] = None
-            if predict_variance_forest:
-                result["variance_forest_predictions"] = sigma2_x
-            else:
-                result["variance_forest_predictions"] = None
-            return result
+                result = dict()
+                if predict_y_hat:
+                    result["y_hat"] = y_hat
+                else:
+                    result["y_hat"] = None
+                if predict_mu_forest:
+                    result["mu_hat"] = mu_x
+                else:
+                    result["mu_hat"] = None
+                if predict_tau_forest:
+                    result["tau_hat"] = tau_x
+                else:
+                    result["tau_hat"] = None
+                if predict_prog_function:
+                    result["prognostic_function"] = prognostic_function
+                else:
+                    result["prognostic_function"] = None
+                if predict_cate_function:
+                    result["cate"] = cate
+                else:
+                    result["cate"] = None
+                if predict_rfx and has_rfx:
+                    result["rfx_predictions"] = rfx_preds
+                else:
+                    result["rfx_predictions"] = None
+                if predict_variance_forest and has_variance_forest:
+                    result["variance_forest_predictions"] = sigma2_x
+                else:
+                    result["variance_forest_predictions"] = None
+                return result
 
     def compute_contrast(
         self,
