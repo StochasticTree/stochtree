@@ -41,5 +41,6 @@ OBJECTS = \
     leaf_model.o \
     ordinal_sampler.o \
     partition_tracker.o \
+    prediction.o \
     random_effects.o \
     tree.o

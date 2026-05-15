@@ -7,9 +7,9 @@
 
 #include <memory>
 #include <vector>
-#include "stochtree/random_effects.h"
 #include <stochtree/container.h>
 #include <stochtree/meta.h>
+#include <stochtree/random_effects.h>
 
 namespace StochTree {
 

@@ -89,9 +89,6 @@ run_once <- function(run_cpp, num_gfr, num_mcmc, seed = -1) {
     Z_train = Z_train,
     y_train = y_train,
     propensity_train = pi_train,
-    X_test = X_test,
-    Z_test = Z_test,
-    propensity_test = pi_test,
     num_gfr = num_gfr,
     num_burnin = 0,
     num_mcmc = num_mcmc,
@@ -108,16 +105,33 @@ run_once <- function(run_cpp, num_gfr, num_mcmc, seed = -1) {
     ),
     run_cpp = run_cpp
   )
-  elapsed <- (proc.time() - t0)[["elapsed"]]
+  elapsed_sample <- (proc.time() - t0)[["elapsed"]]
 
-  yhat <- rowMeans(m$y_hat_test)
-  tauhat <- rowMeans(m$tau_hat_test)
+  t1 <- proc.time()
+  preds <- predict(
+    m,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    run_cpp = run_cpp
+  )
+  elapsed_predict <- (proc.time() - t1)[["elapsed"]]
+
+  yhat <- rowMeans(preds$y_hat)
+  tauhat <- rowMeans(preds$tau_hat)
 
   rmse_y <- sqrt(mean((yhat - y_test)^2))
   rmse_f <- sqrt(mean((yhat - f_test)^2))
   rmse_tau <- sqrt(mean((tauhat - tau_test)^2))
 
-  list(elapsed = elapsed, rmse_y = rmse_y, rmse_f = rmse_f, rmse_tau = rmse_tau)
+  list(
+    elapsed = elapsed_sample + elapsed_predict,
+    elapsed_sample = elapsed_sample,
+    elapsed_predict = elapsed_predict,
+    rmse_y = rmse_y,
+    rmse_f = rmse_f,
+    rmse_tau = rmse_tau
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -155,6 +169,8 @@ for (i in seq_len(n_reps)) {
 # ---------------------------------------------------------------------------
 summarise <- function(results, label) {
   elapsed <- sapply(results, `[[`, "elapsed")
+  elapsed_sample <- sapply(results, `[[`, "elapsed_sample")
+  elapsed_predict <- sapply(results, `[[`, "elapsed_predict")
   rmse_y <- sapply(results, `[[`, "rmse_y")
   rmse_f <- sapply(results, `[[`, "rmse_f")
   rmse_tau <- sapply(results, `[[`, "rmse_tau")
@@ -162,6 +178,8 @@ summarise <- function(results, label) {
     sampler = label,
     elapsed_mean = mean(elapsed),
     elapsed_sd = sd(elapsed),
+    elapsed_sample_mean = mean(elapsed_sample),
+    elapsed_predict_mean = mean(elapsed_predict),
     rmse_y_mean = mean(rmse_y),
     rmse_f_mean = mean(rmse_f),
     rmse_tau_mean = mean(rmse_tau),
@@ -176,20 +194,24 @@ res <- rbind(
 
 cat("\n--- Results ---\n")
 cat(sprintf(
-  "%-22s  %10s  %10s  %12s  %12s  %12s\n",
+  "%-22s  %10s  %10s  %10s  %10s  %12s  %12s  %12s\n",
   "Sampler",
-  "Time (s)",
+  "Total (s)",
+  "Sample (s)",
+  "Predict (s)",
   "  SD",
   "RMSE (obs)",
   "RMSE (f)",
   "RMSE (tau)"
 ))
-cat(strrep("-", 84), "\n")
+cat(strrep("-", 108), "\n")
 for (i in seq_len(nrow(res))) {
   cat(sprintf(
-    "%-22s  %10.3f  %10.3f  %12.4f  %12.4f  %12.4f\n",
+    "%-22s  %10.3f  %10.3f  %11.3f  %10.3f  %12.4f  %12.4f  %12.4f\n",
     res$sampler[i],
     res$elapsed_mean[i],
+    res$elapsed_sample_mean[i],
+    res$elapsed_predict_mean[i],
     res$elapsed_sd[i],
     res$rmse_y_mean[i],
     res$rmse_f_mean[i],

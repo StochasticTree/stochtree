@@ -365,20 +365,20 @@ void BCFSampler::InitializeState(BCFSamples& samples) {
       if (config_.rfx_model_spec == BCFRFXModelSpec::InterceptOnly) {
         // If no basis is provided, add an intercept basis (column of 1s)
         // TODO: do we need to do this before we determine rfx_basis_dim and initialize the RFX data structures?
-        std::vector<double> intercept_basis(data_.n_train, 1.0);
-        random_effects_dataset_->AddBasis(intercept_basis.data(), data_.n_train, 1, /*row_major=*/false);
+        std::vector<double> rfx_basis(data_.n_train, 1.0);
+        random_effects_dataset_->AddBasis(rfx_basis.data(), data_.n_train, 1, /*row_major=*/false);
         // Override rfx_basis_dim to 1 for intercept-only model the basis is a 1-dimensional vector of ones
         data_.rfx_basis_dim = 1;
       } else if (config_.rfx_model_spec == BCFRFXModelSpec::InterceptPlusTreatment) {
         // If no basis is provided, add an intercept basis (column of 1s) and the treatment variable(s) as the basis
         // TODO: do we need to do this before we determine rfx_basis_dim and initialize the RFX data structures?
-        std::vector<double> intercept_basis(data_.n_train * (1 + data_.treatment_dim), 1.0);
+        std::vector<double> rfx_basis(data_.n_train * (1 + data_.treatment_dim), 1.0);
         for (int i = 0; i < data_.n_train; i++) {
           for (int j = 0; j < data_.treatment_dim; j++) {
-            intercept_basis[(j + 1) * data_.n_train + i] = data_.treatment_train[j * data_.n_train + i];
+            rfx_basis[(j + 1) * data_.n_train + i] = data_.treatment_train[j * data_.n_train + i];
           }
         }
-        random_effects_dataset_->AddBasis(intercept_basis.data(), data_.n_train, 1 + data_.treatment_dim, /*row_major=*/false);
+        random_effects_dataset_->AddBasis(rfx_basis.data(), data_.n_train, 1 + data_.treatment_dim, /*row_major=*/false);
         // Override rfx_basis_dim to 1 for intercept-only model the basis is a 1-dimensional vector of ones
         data_.rfx_basis_dim = 1 + data_.treatment_dim;
       } else {
@@ -634,9 +634,23 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
       rfx_dataset_test.AddGroupLabels(data_.rfx_group_ids_test, data_.n_test);
       if (data_.rfx_basis_test != nullptr) {
         rfx_dataset_test.AddBasis(data_.rfx_basis_test, data_.n_test, data_.rfx_basis_dim, /*row_major=*/false);
+      } else if (config_.rfx_model_spec == BCFRFXModelSpec::InterceptOnly) {
+        std::vector<double> rfx_basis(data_.n_test, 1.0);
+        rfx_dataset_test.AddBasis(rfx_basis.data(), data_.n_test, 1, /*row_major=*/false);
+      } else if (config_.rfx_model_spec == BCFRFXModelSpec::InterceptPlusTreatment) {
+        // Column-major rfx basis
+        std::vector<double> rfx_basis(data_.n_test * (1 + data_.treatment_dim));
+        for (int i = 0; i < data_.n_test; i++) {
+          rfx_basis[i] = 1.0;
+        }
+        for (int j = 0; j < data_.treatment_dim; j++) {
+          for (int i = 0; i < data_.n_test; i++) {
+            rfx_basis[(j + 1) * data_.n_test + i] = data_.treatment_test[j * data_.n_test + i];
+          }
+        }
+        rfx_dataset_test.AddBasis(rfx_basis.data(), data_.n_test, 1 + data_.treatment_dim, /*row_major=*/false);
       } else {
-        std::vector<double> ones(data_.n_test, 1.0);
-        rfx_dataset_test.AddBasis(ones.data(), data_.n_test, 1, /*row_major=*/false);
+        Log::Fatal("BCF model random effects term was not sampled with intercept_only or intercept_plus_treatment specification, but not random effect basis was provided for prediction");
       }
       samples.rfx_predictions_test.resize(data_.n_test * samples.num_samples);
       samples.rfx_container->Predict(rfx_dataset_test, *samples.rfx_label_mapper, samples.rfx_predictions_test);

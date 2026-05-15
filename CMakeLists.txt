@@ -141,6 +141,7 @@ file(
   src/leaf_model.cpp
   src/ordinal_sampler.cpp
   src/partition_tracker.cpp
+  src/prediction.cpp
   src/random_effects.cpp
   src/tree.cpp
 )

@@ -14,13 +14,12 @@
 #include <stochtree/partition_tracker.h>
 #include <stochtree/prior.h>
 #include <stochtree/probit.h>
+#include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 #include <memory>
 #include <variant>
 #include <vector>
-#include "stochtree/ordinal_sampler.h"
-#include "stochtree/random_effects.h"
 
 namespace StochTree {
 
