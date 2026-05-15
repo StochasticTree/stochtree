@@ -97,9 +97,6 @@ run_once <- function(run_cpp, seed = -1) {
     Z_train          = Z_train,
     y_train          = y_train,
     propensity_train = pi_train,
-    X_test           = X_test,
-    Z_test           = Z_test,
-    propensity_test  = pi_test,
     num_gfr          = num_gfr,
     num_burnin       = num_burnin,
     num_mcmc         = num_mcmc,
@@ -113,21 +110,27 @@ run_once <- function(run_cpp, seed = -1) {
     ),
     run_cpp = run_cpp
   )
-  elapsed <- (proc.time() - t0)[["elapsed"]]
+  elapsed_sample <- (proc.time() - t0)[["elapsed"]]
+
+  t1 <- proc.time()
+  preds <- predict(m, X = X_test, Z = Z_test, propensity = pi_test, run_cpp = run_cpp)
+  elapsed_predict <- (proc.time() - t1)[["elapsed"]]
 
   # Internal consistency: y_hat == mu_hat + Z * tau_hat
   max_decomp_err_train <- max(abs(
     m$y_hat_train - (m$mu_hat_train + Z_train * m$tau_hat_train)
   ))
   max_decomp_err_test <- max(abs(
-    m$y_hat_test - (m$mu_hat_test + Z_test * m$tau_hat_test)
+    preds$y_hat - (preds$mu_hat + Z_test * preds$tau_hat)
   ))
 
-  yhat   <- rowMeans(m$y_hat_test)
-  tauhat <- rowMeans(m$tau_hat_test)
+  yhat   <- rowMeans(preds$y_hat)
+  tauhat <- rowMeans(preds$tau_hat)
 
   list(
-    elapsed              = elapsed,
+    elapsed              = elapsed_sample + elapsed_predict,
+    elapsed_sample       = elapsed_sample,
+    elapsed_predict      = elapsed_predict,
     b0_mean              = mean(m$b_0_samples),
     b1_mean              = mean(m$b_1_samples),
     b0_length            = length(m$b_0_samples),
@@ -170,6 +173,8 @@ summarise <- function(results, label) {
     sampler              = label,
     elapsed_mean         = mean(sapply(results, `[[`, "elapsed")),
     elapsed_sd           = sd(sapply(results, `[[`, "elapsed")),
+    elapsed_sample_mean  = mean(sapply(results, `[[`, "elapsed_sample")),
+    elapsed_predict_mean = mean(sapply(results, `[[`, "elapsed_predict")),
     b0_mean              = mean(sapply(results, `[[`, "b0_mean")),
     b1_mean              = mean(sapply(results, `[[`, "b1_mean")),
     max_decomp_err_train = mean(sapply(results, `[[`, "max_decomp_err_train")),
@@ -193,17 +198,19 @@ cat(sprintf("b_1_samples length  cpp=%d  R=%d\n",
   results_cpp[[1]]$b1_length, results_r[[1]]$b1_length))
 cat("\n")
 cat(sprintf(
-  "%-22s  %8s  %6s  %8s  %8s  %13s  %13s  %8s  %8s  %10s\n",
-  "Sampler", "Time (s)", "SD",
+  "%-22s  %8s  %8s  %8s  %6s  %8s  %8s  %13s  %13s  %8s  %8s  %10s\n",
+  "Sampler", "Total (s)", "Samp (s)", "Pred (s)", "SD",
   "b_0 mean", "b_1 mean",
   "max_decomp_tr", "max_decomp_te",
   "RMSE(y)", "RMSE(f)", "RMSE(tau)"
 ))
-cat(strrep("-", 120), "\n")
+cat(strrep("-", 140), "\n")
 for (i in seq_len(nrow(res))) {
   cat(sprintf(
-    "%-22s  %8.3f  %6.3f  %8.4f  %8.4f  %13.2e  %13.2e  %8.4f  %8.4f  %10.4f\n",
-    res$sampler[i], res$elapsed_mean[i], res$elapsed_sd[i],
+    "%-22s  %8.3f  %8.3f  %8.3f  %6.3f  %8.4f  %8.4f  %13.2e  %13.2e  %8.4f  %8.4f  %10.4f\n",
+    res$sampler[i], res$elapsed_mean[i],
+    res$elapsed_sample_mean[i], res$elapsed_predict_mean[i],
+    res$elapsed_sd[i],
     res$b0_mean[i], res$b1_mean[i],
     res$max_decomp_err_train[i], res$max_decomp_err_test[i],
     res$rmse_y[i], res$rmse_f[i], res$rmse_tau[i]

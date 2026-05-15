@@ -3920,6 +3920,7 @@ bcf <- function(
 #'
 #'   If a model doesn't have random effects or variance forest predictions but one of those terms is requested, the request will simply be ignored. If none of the requested terms are present, this function will return `NULL` along with a warning. Default: `"all"`.
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
+#' @param run_cpp (Optional) Whether to use the C++ predict implementation. Default: `FALSE`.
 #' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
@@ -4267,7 +4268,7 @@ predict.bcfmodel <- function(
 
   if (run_cpp) {
     output <- bcf_predict_cpp(
-      bcf_model = bcf_model_flat,
+      bcf_model_list = bcf_model_flat,
       X = X_combined,
       Z = Z,
       n = n,

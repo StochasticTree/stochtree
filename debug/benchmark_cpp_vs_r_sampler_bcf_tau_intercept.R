@@ -117,9 +117,6 @@ run_once_univariate <- function(run_cpp, seed = -1) {
     Z_train          = Z_train_u,
     y_train          = y_train_u,
     propensity_train = pi_train_u,
-    X_test           = X_test_u,
-    Z_test           = Z_test_u,
-    propensity_test  = pi_test_u,
     num_gfr          = num_gfr,
     num_burnin       = num_burnin,
     num_mcmc         = num_mcmc,
@@ -136,21 +133,27 @@ run_once_univariate <- function(run_cpp, seed = -1) {
     ),
     run_cpp = run_cpp
   )
-  elapsed <- (proc.time() - t0)[["elapsed"]]
+  elapsed_sample <- (proc.time() - t0)[["elapsed"]]
+
+  t1 <- proc.time()
+  preds <- predict(m, X = X_test_u, Z = Z_test_u, propensity = pi_test_u, run_cpp = run_cpp)
+  elapsed_predict <- (proc.time() - t1)[["elapsed"]]
 
   tau_0_shape <- if (!is.null(m$tau_0_samples)) dim(m$tau_0_samples) else NULL
   tau_0_mean  <- if (!is.null(m$tau_0_samples)) mean(m$tau_0_samples) else NA_real_
 
-  yhat   <- rowMeans(m$y_hat_test)
-  tauhat <- rowMeans(m$tau_hat_test)
+  yhat   <- rowMeans(preds$y_hat)
+  tauhat <- rowMeans(preds$tau_hat)
 
   list(
-    elapsed    = elapsed,
-    tau_0_mean = tau_0_mean,
-    tau_0_shape = tau_0_shape,
-    rmse_y     = sqrt(mean((yhat   - y_test_u)   ^ 2)),
-    rmse_f     = sqrt(mean((yhat   - f_test_u)   ^ 2)),
-    rmse_tau   = sqrt(mean((tauhat - tau_test_u) ^ 2))
+    elapsed         = elapsed_sample + elapsed_predict,
+    elapsed_sample  = elapsed_sample,
+    elapsed_predict = elapsed_predict,
+    tau_0_mean      = tau_0_mean,
+    tau_0_shape     = tau_0_shape,
+    rmse_y          = sqrt(mean((yhat   - y_test_u)   ^ 2)),
+    rmse_f          = sqrt(mean((yhat   - f_test_u)   ^ 2)),
+    rmse_tau        = sqrt(mean((tauhat - tau_test_u) ^ 2))
   )
 }
 
@@ -164,9 +167,6 @@ run_once_multivariate <- function(run_cpp, seed = -1) {
     Z_train          = Z_train_mv,
     y_train          = y_train_mv,
     propensity_train = pi_train_mv,
-    X_test           = X_test_mv,
-    Z_test           = Z_test_mv,
-    propensity_test  = pi_test_mv,
     num_gfr          = num_gfr,
     num_burnin       = num_burnin,
     num_mcmc         = num_mcmc,
@@ -183,25 +183,31 @@ run_once_multivariate <- function(run_cpp, seed = -1) {
     ),
     run_cpp = run_cpp
   )
-  elapsed <- (proc.time() - t0)[["elapsed"]]
+  elapsed_sample <- (proc.time() - t0)[["elapsed"]]
+
+  t1 <- proc.time()
+  preds <- predict(m, X = X_test_mv, Z = Z_test_mv, propensity = pi_test_mv, run_cpp = run_cpp)
+  elapsed_predict <- (proc.time() - t1)[["elapsed"]]
 
   tau_0_shape  <- if (!is.null(m$tau_0_samples)) dim(m$tau_0_samples) else NULL
   tau_0_mean_0 <- if (!is.null(m$tau_0_samples)) mean(m$tau_0_samples[1, ]) else NA_real_
   tau_0_mean_1 <- if (!is.null(m$tau_0_samples)) mean(m$tau_0_samples[2, ]) else NA_real_
 
-  yhat    <- rowMeans(m$y_hat_test)
-  tauhat1 <- rowMeans(m$tau_hat_test[, 1, ])
-  tauhat2 <- rowMeans(m$tau_hat_test[, 2, ])
+  yhat    <- rowMeans(preds$y_hat)
+  tauhat1 <- rowMeans(preds$tau_hat[, 1, ])
+  tauhat2 <- rowMeans(preds$tau_hat[, 2, ])
 
   list(
-    elapsed      = elapsed,
-    tau_0_mean_0 = tau_0_mean_0,
-    tau_0_mean_1 = tau_0_mean_1,
-    tau_0_shape  = tau_0_shape,
-    rmse_y       = sqrt(mean((yhat    - y_test_mv)          ^ 2)),
-    rmse_f       = sqrt(mean((yhat    - f_test_mv)          ^ 2)),
-    rmse_tau1    = sqrt(mean((tauhat1 - tau_test_mv[, 1])   ^ 2)),
-    rmse_tau2    = sqrt(mean((tauhat2 - tau_test_mv[, 2])   ^ 2))
+    elapsed         = elapsed_sample + elapsed_predict,
+    elapsed_sample  = elapsed_sample,
+    elapsed_predict = elapsed_predict,
+    tau_0_mean_0    = tau_0_mean_0,
+    tau_0_mean_1    = tau_0_mean_1,
+    tau_0_shape     = tau_0_shape,
+    rmse_y          = sqrt(mean((yhat    - y_test_mv)          ^ 2)),
+    rmse_f          = sqrt(mean((yhat    - f_test_mv)          ^ 2)),
+    rmse_tau1       = sqrt(mean((tauhat1 - tau_test_mv[, 1])   ^ 2)),
+    rmse_tau2       = sqrt(mean((tauhat2 - tau_test_mv[, 2])   ^ 2))
   )
 }
 

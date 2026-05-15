@@ -89,9 +89,6 @@ run_once <- function(run_cpp, seed = -1) {
     Z_train           = Z_train,
     y_train           = y_train,
     propensity_train  = pi_train,
-    X_test            = X_test,
-    Z_test            = Z_test,
-    propensity_test   = pi_test,
     num_gfr           = num_gfr,
     num_burnin        = num_burnin,
     num_mcmc          = num_mcmc,
@@ -112,11 +109,19 @@ run_once <- function(run_cpp, seed = -1) {
     ),
     run_cpp = run_cpp
   )
-  elapsed <- (proc.time() - t0)[["elapsed"]]
+  elapsed_sample <- (proc.time() - t0)[["elapsed"]]
 
-  # mu_hat_test, tau_hat_test: (n_test, num_samples) — latent scale
-  mu_hat  <- m$mu_hat_test   # n_test x num_samples
-  tau_hat <- m$tau_hat_test  # n_test x num_samples
+  # Request latent-scale mu and tau (scale = "linear", no probit transform applied)
+  t1 <- proc.time()
+  preds <- predict(
+    m, X = X_test, Z = Z_test, propensity = pi_test,
+    terms = c("mu", "tau"), scale = "linear", run_cpp = run_cpp
+  )
+  elapsed_predict <- (proc.time() - t1)[["elapsed"]]
+
+  # mu_hat, tau_hat: (n_test, num_samples) — latent scale
+  mu_hat  <- preds$mu_hat   # n_test x num_samples
+  tau_hat <- preds$tau_hat  # n_test x num_samples
 
   # P(Y=1 | X, Z, sample s) = Phi(mu_hat[i,s] + tau_hat[i,s] * Z_test[i])
   linear_pred    <- mu_hat + tau_hat * Z_test  # broadcasts Z_test over columns
@@ -128,7 +133,13 @@ run_once <- function(run_cpp, seed = -1) {
   brier    <- mean((p_hat_mean - y_test)^2)
   rmse_tau <- sqrt(mean((tau_hat_mean - tau_test)^2))
 
-  list(elapsed = elapsed, brier = brier, rmse_tau = rmse_tau)
+  list(
+    elapsed         = elapsed_sample + elapsed_predict,
+    elapsed_sample  = elapsed_sample,
+    elapsed_predict = elapsed_predict,
+    brier           = brier,
+    rmse_tau        = rmse_tau
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -157,12 +168,14 @@ for (i in seq_len(n_reps)) {
 summarise <- function(results, label) {
   get <- function(key) sapply(results, `[[`, key)
   data.frame(
-    sampler      = label,
-    elapsed_mean = mean(get("elapsed")),
-    elapsed_sd   = sd(get("elapsed")),
-    brier_mean   = mean(get("brier")),
-    rmse_tau_mean = mean(get("rmse_tau")),
-    row.names    = NULL
+    sampler              = label,
+    elapsed_mean         = mean(get("elapsed")),
+    elapsed_sd           = sd(get("elapsed")),
+    elapsed_sample_mean  = mean(get("elapsed_sample")),
+    elapsed_predict_mean = mean(get("elapsed_predict")),
+    brier_mean           = mean(get("brier")),
+    rmse_tau_mean        = mean(get("rmse_tau")),
+    row.names            = NULL
   )
 }
 
@@ -173,15 +186,17 @@ res <- rbind(
 
 cat("\n--- Results ---\n")
 cat(sprintf(
-  "%-22s  %10s  %10s  %10s  %12s\n",
-  "Sampler", "Time (s)", "SD", "Brier", "RMSE (tau)"
+  "%-22s  %10s  %10s  %10s  %10s  %10s  %12s\n",
+  "Sampler", "Total (s)", "Samp (s)", "Pred (s)", "SD", "Brier", "RMSE (tau)"
 ))
-cat(strrep("-", 72), "\n")
+cat(strrep("-", 92), "\n")
 for (i in seq_len(nrow(res))) {
   cat(sprintf(
-    "%-22s  %10.3f  %10.3f  %10.4f  %12.4f\n",
+    "%-22s  %10.3f  %10.3f  %10.3f  %10.3f  %10.4f  %12.4f\n",
     res$sampler[i],
     res$elapsed_mean[i],
+    res$elapsed_sample_mean[i],
+    res$elapsed_predict_mean[i],
     res$elapsed_sd[i],
     res$brier_mean[i],
     res$rmse_tau_mean[i]
