@@ -1,0 +1,14 @@
+---
+# Fallback compile flags for files not captured by compile_commands.json
+# (e.g. R wrapper files when BUILD_PYTHON=OFF, or before cmake has been run).
+# Files compiled by cmake use compile_commands.json and ignore these flags.
+CompileFlags:
+  Add:
+    - "-std=c++17"
+    - "-Iinclude"
+    - "-Ideps/boost_math/include"
+    - "-Ideps/eigen"
+    - "-Ideps/fast_double_parser/include"
+    - "-Ideps/fmt/include"
+    - "-Ideps/pybind11/include"
+  Compiler: clang++

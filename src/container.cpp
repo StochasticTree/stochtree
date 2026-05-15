@@ -48,7 +48,7 @@ void ForestContainer::InitializeRoot(double leaf_value) {
   CHECK_EQ(forests_.size(), 0);
   forests_.resize(1);
   forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_, is_exponentiated_));
-  // NOTE: not setting num_samples = 1, since we are just initializing constant root 
+  // NOTE: not setting num_samples = 1, since we are just initializing constant root
   // nodes and the forest still needs to be sampled by either MCMC or GFR
   num_samples_ = 0;
   SetLeafValue(0, leaf_value);
@@ -60,7 +60,7 @@ void ForestContainer::InitializeRoot(std::vector<double>& leaf_vector) {
   CHECK_EQ(forests_.size(), 0);
   forests_.resize(1);
   forests_[0].reset(new TreeEnsemble(num_trees_, output_dimension_, is_leaf_constant_, is_exponentiated_));
-  // NOTE: not setting num_samples = 1, since we are just initializing constant root 
+  // NOTE: not setting num_samples = 1, since we are just initializing constant root
   // nodes and the forest still needs to be sampled by either MCMC or GFR
   num_samples_ = 0;
   SetLeafVector(0, leaf_vector);
@@ -78,17 +78,17 @@ void ForestContainer::AddSamples(int num_samples) {
 
 std::vector<double> ForestContainer::Predict(ForestDataset& dataset) {
   data_size_t n = dataset.NumObservations();
-  data_size_t total_output_size = n*num_samples_;
+  data_size_t total_output_size = n * num_samples_;
   std::vector<double> output(total_output_size);
   PredictInPlace(dataset, output);
   return output;
 }
 
-std::vector<double> ForestContainer::PredictRaw(ForestDataset& dataset) {
+std::vector<double> ForestContainer::PredictRaw(ForestDataset& dataset, bool row_major) {
   data_size_t n = dataset.NumObservations();
   data_size_t total_output_size = n * output_dimension_ * num_samples_;
   std::vector<double> output(total_output_size);
-  PredictRawInPlace(dataset, output);
+  PredictRawInPlace(dataset, output, row_major);
   return output;
 }
 
@@ -110,7 +110,7 @@ std::vector<double> ForestContainer::PredictRawSingleTree(ForestDataset& dataset
 
 void ForestContainer::PredictInPlace(ForestDataset& dataset, std::vector<double>& output) {
   data_size_t n = dataset.NumObservations();
-  data_size_t total_output_size = n*num_samples_;
+  data_size_t total_output_size = n * num_samples_;
   CHECK_EQ(total_output_size, output.size());
   data_size_t offset = 0;
   for (int i = 0; i < num_samples_; i++) {
@@ -120,14 +120,14 @@ void ForestContainer::PredictInPlace(ForestDataset& dataset, std::vector<double>
   }
 }
 
-void ForestContainer::PredictRawInPlace(ForestDataset& dataset, std::vector<double>& output) {
+void ForestContainer::PredictRawInPlace(ForestDataset& dataset, std::vector<double>& output, bool row_major) {
   data_size_t n = dataset.NumObservations();
   data_size_t total_output_size = n * output_dimension_ * num_samples_;
   CHECK_EQ(total_output_size, output.size());
   data_size_t offset = 0;
   for (int i = 0; i < num_samples_; i++) {
     auto num_trees = forests_[i]->NumTrees();
-    forests_[i]->PredictRawInplace(dataset, output, 0, num_trees, offset);
+    forests_[i]->PredictRawInplace(dataset, output, 0, num_trees, offset, row_major);
     offset += n * output_dimension_;
   }
 }
@@ -146,14 +146,13 @@ void ForestContainer::PredictRawSingleTreeInPlace(ForestDataset& dataset, int fo
   data_size_t total_output_size = n * output_dimension_;
   CHECK_EQ(total_output_size, output.size());
   data_size_t offset = 0;
-  forests_[forest_num]->PredictRawInplace(dataset, output, tree_num, tree_num+1, offset);
+  forests_[forest_num]->PredictRawInplace(dataset, output, tree_num, tree_num + 1, offset);
 }
 
 void ForestContainer::PredictLeafIndicesInplace(
-  Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates, 
-  Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& output, 
-  std::vector<int>& forest_indices, int num_trees, data_size_t n
-) {
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& covariates,
+    Eigen::Map<Eigen::Matrix<int, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>>& output,
+    std::vector<int>& forest_indices, int num_trees, data_size_t n) {
   int num_forests = forest_indices.size();
   int forest_id;
   for (int i = 0; i < num_forests; i++) {
@@ -177,7 +176,7 @@ json ForestContainer::to_json() {
     forest_label = "forest_" + std::to_string(i);
     result_obj.emplace(forest_label, forests_[i]->to_json());
   }
-  
+
   return result_obj;
 }
 
@@ -222,4 +221,4 @@ void ForestContainer::append_from_json(const json& forest_container_json) {
   this->num_samples_ += new_num_samples;
 }
 
-} // namespace StochTree
+}  // namespace StochTree

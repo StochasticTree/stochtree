@@ -9,6 +9,7 @@ def _get_stochtree_version() -> str:
     """Return the current stochtree package version, or 'dev' for editable installs."""
     try:
         from importlib.metadata import version, PackageNotFoundError
+
         return version("stochtree")
     except Exception:
         return "dev"
@@ -62,7 +63,9 @@ def _infer_stochtree_version(json_string: str) -> str:
     return "unknown"
 
 
-def _set_output_defaults(outcome: str = "continuous", link: str = None) -> Tuple[str, str]:
+def _set_output_defaults(
+    outcome: str = "continuous", link: str = None
+) -> Tuple[str, str]:
     if outcome is None:
         raise ValueError("Outcome must be specified")
     if link is None:
@@ -77,13 +80,19 @@ def _set_output_defaults(outcome: str = "continuous", link: str = None) -> Tuple
 
 def _validate_outcome_model(outcome: str, link: str):
     if outcome not in ["continuous", "binary", "ordinal"]:
-        raise ValueError("Outcome type must be one of 'continuous', 'binary', or 'ordinal'")
+        raise ValueError(
+            "Outcome type must be one of 'continuous', 'binary', or 'ordinal'"
+        )
     if link not in ["identity", "probit", "cloglog"]:
-        raise ValueError("Link function must be one of 'identity', 'probit', or 'cloglog'")
+        raise ValueError(
+            "Link function must be one of 'identity', 'probit', or 'cloglog'"
+        )
     if outcome == "continuous" and link != "identity":
         raise ValueError("Link function must be 'identity' for continuous models")
     if outcome == "binary" and link not in ["probit", "cloglog"]:
-        raise ValueError("Link function must be 'probit' or 'cloglog' for binary models")
+        raise ValueError(
+            "Link function must be 'probit' or 'cloglog' for binary models"
+        )
     if outcome == "ordinal" and link != "cloglog":
         raise ValueError("Link function must be 'cloglog' for ordinal models")
 
@@ -488,9 +497,7 @@ def _class_probs_to_survival_probs(
         A 3D array of shape (n_obs, num_categories - 1, num_samples) containing
         survival probabilities P(Y > k) for k = 1, ..., K-1.
     """
-    output = np.full(
-        (probs.shape[0], probs.shape[1] - 1, probs.shape[2]), np.nan
-    )
+    output = np.full((probs.shape[0], probs.shape[1] - 1, probs.shape[2]), np.nan)
     for i in range(1, num_categories):
         output[:, i - 1, :] = np.sum(probs[:, i:num_categories, :], axis=1)
     return output
@@ -517,6 +524,7 @@ def _compute_sample_dim(predictions: np.ndarray, num_samples: int) -> int:
     matches = [i for i, s in enumerate(term_shape) if s == num_samples]
     if len(matches) > 1:
         import warnings
+
         warnings.warn(
             "Multiple posterior dimensions matching the number of posterior draws "
             "found in the array, using the last one as the MCMC index"
