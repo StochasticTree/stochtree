@@ -99,7 +99,11 @@ run_once <- function(run_cpp, seed) {
     num_gfr = num_gfr,
     num_burnin = num_burnin,
     num_mcmc = num_mcmc,
-    general_params = list(random_seed = seed, sample_sigma2_global = FALSE, num_chains = num_chains),
+    general_params = list(
+      random_seed = seed,
+      sample_sigma2_global = FALSE,
+      num_chains = num_chains
+    ),
     mean_forest_params = list(num_trees = num_trees_mean),
     variance_forest_params = list(num_trees = num_trees_variance),
     run_cpp = run_cpp

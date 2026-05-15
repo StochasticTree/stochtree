@@ -32,51 +32,57 @@ n <- 2000
 p <- 5
 snr <- 2.0
 
-X    <- matrix(runif(n * p), ncol = p)
+X <- matrix(runif(n * p), ncol = p)
 pi_x <- cbind(0.25 + 0.5 * X[, 1], 0.75 - 0.5 * X[, 2])
 mu_x <- pi_x[, 1] * 5 + pi_x[, 2] * 2 + 2 * X[, 3]
 tau_x <- cbind(X[, 2], X[, 3])
-Z    <- matrix(
+Z <- matrix(
   as.numeric(matrix(runif(n * 2), ncol = 2) < pi_x),
   ncol = 2
 )
 E_XZ <- mu_x + rowSums(Z * tau_x)
-y    <- E_XZ + rnorm(n, sd = sd(E_XZ) / snr)
+y <- E_XZ + rnorm(n, sd = sd(E_XZ) / snr)
 
-test_frac  <- 0.2
-n_test     <- round(test_frac * n)
-n_train    <- n - n_test
-test_inds  <- sort(sample(seq_len(n), n_test, replace = FALSE))
+test_frac <- 0.2
+n_test <- round(test_frac * n)
+n_train <- n - n_test
+test_inds <- sort(sample(seq_len(n), n_test, replace = FALSE))
 train_inds <- setdiff(seq_len(n), test_inds)
 
-X_train  <- X[train_inds, ]
-X_test   <- X[test_inds, ]
-Z_train  <- Z[train_inds, ]
-Z_test   <- Z[test_inds, ]
+X_train <- X[train_inds, ]
+X_test <- X[test_inds, ]
+Z_train <- Z[train_inds, ]
+Z_test <- Z[test_inds, ]
 pi_train <- pi_x[train_inds, ]
-pi_test  <- pi_x[test_inds, ]
-y_train  <- y[train_inds]
-y_test   <- y[test_inds]
-mu_test  <- mu_x[test_inds]
+pi_test <- pi_x[test_inds, ]
+y_train <- y[train_inds]
+y_test <- y[test_inds]
+mu_test <- mu_x[test_inds]
 tau_test <- tau_x[test_inds, ]
-f_test   <- mu_test + rowSums(Z_test * tau_test)
+f_test <- mu_test + rowSums(Z_test * tau_test)
 
 # ---------------------------------------------------------------------------
 # Benchmark settings
 # ---------------------------------------------------------------------------
-num_gfr       <- 10
-num_burnin    <- 0
-num_mcmc      <- 100
-num_trees_mu  <- 200
+num_gfr <- 10
+num_burnin <- 0
+num_mcmc <- 100
+num_trees_mu <- 200
 num_trees_tau <- 50
-n_reps        <- 3
+n_reps <- 3
 
 cat(sprintf(
   "n_train=%d  n_test=%d  p=%d  treatment_dim=2\nmu_trees=%d  tau_trees=%d  num_gfr=%d  num_burnin=%d  num_mcmc=%d  num_chains=%d  reps=%d\n\n",
-  n_train, n_test, p,
-  num_trees_mu, num_trees_tau,
-  num_gfr, num_burnin, num_mcmc,
-  num_chains, n_reps
+  n_train,
+  n_test,
+  p,
+  num_trees_mu,
+  num_trees_tau,
+  num_gfr,
+  num_burnin,
+  num_mcmc,
+  num_chains,
+  n_reps
 ))
 
 # ---------------------------------------------------------------------------
@@ -85,47 +91,53 @@ cat(sprintf(
 run_once <- function(run_cpp, seed = -1) {
   t0 <- proc.time()
   m <- bcf(
-    X_train           = X_train,
-    Z_train           = Z_train,
-    y_train           = y_train,
-    propensity_train  = pi_train,
-    num_gfr           = num_gfr,
-    num_burnin        = num_burnin,
-    num_mcmc          = num_mcmc,
+    X_train = X_train,
+    Z_train = Z_train,
+    y_train = y_train,
+    propensity_train = pi_train,
+    num_gfr = num_gfr,
+    num_burnin = num_burnin,
+    num_mcmc = num_mcmc,
     prognostic_forest_params = list(num_trees = num_trees_mu),
     treatment_effect_forest_params = list(
-      num_trees          = num_trees_tau,
+      num_trees = num_trees_tau,
       sample_sigma2_leaf = FALSE,
-      sample_intercept   = FALSE
+      sample_intercept = FALSE
     ),
     general_params = list(
       adaptive_coding = FALSE,
-      random_seed     = seed,
-      num_chains      = num_chains
+      random_seed = seed,
+      num_chains = num_chains
     ),
     run_cpp = run_cpp
   )
   elapsed_sample <- (proc.time() - t0)[["elapsed"]]
 
   t1 <- proc.time()
-  preds <- predict(m, X = X_test, Z = Z_test, propensity = pi_test, run_cpp = run_cpp)
+  preds <- predict(
+    m,
+    X = X_test,
+    Z = Z_test,
+    propensity = pi_test,
+    run_cpp = run_cpp
+  )
   elapsed_predict <- (proc.time() - t1)[["elapsed"]]
 
-  y_hat    <- rowMeans(preds$y_hat)
-  mu_hat   <- rowMeans(preds$mu_hat)
+  y_hat <- rowMeans(preds$y_hat)
+  mu_hat <- rowMeans(preds$mu_hat)
   # tau_hat: array(n_test, treatment_dim, num_samples)
   tau_hat1 <- apply(preds$tau_hat[, 1, ], 1, mean)
   tau_hat2 <- apply(preds$tau_hat[, 2, ], 1, mean)
 
   list(
-    elapsed         = elapsed_sample + elapsed_predict,
-    elapsed_sample  = elapsed_sample,
+    elapsed = elapsed_sample + elapsed_predict,
+    elapsed_sample = elapsed_sample,
     elapsed_predict = elapsed_predict,
-    rmse_y    = sqrt(mean((y_hat    - y_test)         ^ 2)),
-    rmse_f    = sqrt(mean((y_hat    - f_test)         ^ 2)),
-    rmse_mu   = sqrt(mean((mu_hat   - mu_test)        ^ 2)),
-    rmse_tau1 = sqrt(mean((tau_hat1 - tau_test[, 1])  ^ 2)),
-    rmse_tau2 = sqrt(mean((tau_hat2 - tau_test[, 2])  ^ 2))
+    rmse_y = sqrt(mean((y_hat - y_test)^2)),
+    rmse_f = sqrt(mean((y_hat - f_test)^2)),
+    rmse_mu = sqrt(mean((mu_hat - mu_test)^2)),
+    rmse_tau1 = sqrt(mean((tau_hat1 - tau_test[, 1])^2)),
+    rmse_tau2 = sqrt(mean((tau_hat2 - tau_test[, 2])^2))
   )
 }
 
@@ -135,7 +147,7 @@ run_once <- function(run_cpp, seed = -1) {
 seeds <- 1000 + seq_len(n_reps)
 
 results_cpp <- vector("list", n_reps)
-results_r   <- vector("list", n_reps)
+results_r <- vector("list", n_reps)
 
 cat("Running C++ sampler (run_cpp = TRUE)...\n")
 for (i in seq_len(n_reps)) {
@@ -155,30 +167,38 @@ for (i in seq_len(n_reps)) {
 summarise <- function(results, label) {
   get <- function(key) sapply(results, `[[`, key)
   data.frame(
-    sampler              = label,
-    elapsed_mean         = mean(get("elapsed")),
-    elapsed_sd           = sd(get("elapsed")),
-    elapsed_sample_mean  = mean(get("elapsed_sample")),
+    sampler = label,
+    elapsed_mean = mean(get("elapsed")),
+    elapsed_sd = sd(get("elapsed")),
+    elapsed_sample_mean = mean(get("elapsed_sample")),
     elapsed_predict_mean = mean(get("elapsed_predict")),
-    rmse_y_mean          = mean(get("rmse_y")),
-    rmse_f_mean          = mean(get("rmse_f")),
-    rmse_mu_mean         = mean(get("rmse_mu")),
-    rmse_tau1_mean       = mean(get("rmse_tau1")),
-    rmse_tau2_mean       = mean(get("rmse_tau2")),
+    rmse_y_mean = mean(get("rmse_y")),
+    rmse_f_mean = mean(get("rmse_f")),
+    rmse_mu_mean = mean(get("rmse_mu")),
+    rmse_tau1_mean = mean(get("rmse_tau1")),
+    rmse_tau2_mean = mean(get("rmse_tau2")),
     row.names = NULL
   )
 }
 
 res <- rbind(
   summarise(results_cpp, "cpp (run_cpp=TRUE)"),
-  summarise(results_r,   "R   (run_cpp=FALSE)")
+  summarise(results_r, "R   (run_cpp=FALSE)")
 )
 
 cat("\n--- Results ---\n")
 cat(sprintf(
   "%-22s  %8s  %8s  %8s  %8s  %9s  %9s  %9s  %10s  %10s\n",
-  "Sampler", "Total (s)", "Samp (s)", "Pred (s)", "SD",
-  "RMSE(y)", "RMSE(f)", "RMSE(mu)", "RMSE(tau1)", "RMSE(tau2)"
+  "Sampler",
+  "Total (s)",
+  "Samp (s)",
+  "Pred (s)",
+  "SD",
+  "RMSE(y)",
+  "RMSE(f)",
+  "RMSE(mu)",
+  "RMSE(tau1)",
+  "RMSE(tau2)"
 ))
 cat(strrep("-", 115), "\n")
 for (i in seq_len(nrow(res))) {
@@ -201,9 +221,9 @@ speedup <- res$elapsed_mean[2] / res$elapsed_mean[1]
 cat(sprintf("\nSpeedup (R / C++): %.2fx\n", speedup))
 cat(sprintf(
   "RMSE delta (cpp - R):  y=%.4f  f=%.4f  mu=%.4f  tau1=%.4f  tau2=%.4f\n",
-  res$rmse_y_mean[1]    - res$rmse_y_mean[2],
-  res$rmse_f_mean[1]    - res$rmse_f_mean[2],
-  res$rmse_mu_mean[1]   - res$rmse_mu_mean[2],
+  res$rmse_y_mean[1] - res$rmse_y_mean[2],
+  res$rmse_f_mean[1] - res$rmse_f_mean[2],
+  res$rmse_mu_mean[1] - res$rmse_mu_mean[2],
   res$rmse_tau1_mean[1] - res$rmse_tau1_mean[2],
   res$rmse_tau2_mean[1] - res$rmse_tau2_mean[2]
 ))
