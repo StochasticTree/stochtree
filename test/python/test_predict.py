@@ -915,6 +915,62 @@ class TestPredict:
         assert ppd1.shape == (n_test, num_mcmc)
         assert set(np.unique(ppd1)).issubset(set(range(1, n_categories + 1)))
 
+    def test_bart_cloglog_ordinal_probability_transform_k4(self):
+        rng = np.random.default_rng(123)
+        n = 500; p = 3; n_categories = 4
+        X = rng.uniform(size=(n, p))
+        beta = np.full(p, 1 / np.sqrt(p))
+        true_lambda = X @ beta
+        # Balanced cutpoints: ~25% per category so all 4 are reliably observed.
+        # Unbalanced cutpoints give ~0.3% K=4 probability, often no K=4 training obs.
+        gamma_true = np.array([-2.1, -1.7, -1.2])
+
+        true_probs = np.zeros((n, n_categories))
+        surv_prod = np.ones(n)
+        for k in range(n_categories - 1):
+            S_k = np.exp(-np.exp(gamma_true[k] + true_lambda))
+            true_probs[:, k] = surv_prod * (1.0 - S_k)
+            surv_prod = surv_prod * S_k
+        true_probs[:, n_categories - 1] = surv_prod
+
+        y = np.array([rng.choice(np.arange(1, n_categories+1), p=true_probs[i,:])
+                      for i in range(n)]).astype(float)
+
+        train_inds, test_inds = train_test_split(np.arange(n), test_size=0.2, random_state=42)
+        X_train = X[train_inds, :]; X_test = X[test_inds, :]
+        y_train = y[train_inds]; n_test = X_test.shape[0]; num_mcmc = 10
+
+        bart_model = BARTModel()
+        bart_model.sample(X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0,
+            num_mcmc=num_mcmc, general_params={"sample_sigma2_global": False,
+                "outcome_model": OutcomeModel(outcome="ordinal", link="cloglog")})
+
+        def assemble_probs(f_hat, gamma_samples, K):
+            n, S = f_hat.shape
+            p_manual = np.zeros((n, K, S))
+            surv_prod = np.ones((n, S))
+            for k in range(K - 1):
+                S_k = np.exp(-np.exp(f_hat + gamma_samples[k, :]))
+                p_manual[:, k, :] = surv_prod * (1.0 - S_k)
+                surv_prod = surv_prod * S_k
+            p_manual[:, K - 1, :] = surv_prod
+            return p_manual
+
+        gamma_samples = bart_model.cloglog_cutpoint_samples  # (K-1, num_mcmc)
+        assert gamma_samples.shape == (n_categories - 1, num_mcmc)
+
+        f_hat = bart_model.predict(X=X_test, scale="linear", terms="mean_forest")
+        assert f_hat.shape == (n_test, num_mcmc)
+
+        p_manual = assemble_probs(f_hat, gamma_samples, n_categories)
+        p_model = bart_model.predict(X=X_test, scale="probability", terms="y_hat")
+        assert p_model.shape == (n_test, n_categories, num_mcmc)
+
+        np.testing.assert_allclose(p_manual, p_model, atol=1e-10)
+        assert np.all(p_model >= 0)
+        row_sums = p_model.sum(axis=1)
+        np.testing.assert_allclose(row_sums, np.ones((n_test, num_mcmc)), atol=1e-10)
+
     def test_bart_gaussian_interval_and_contrast(self):
         # Generate gaussian data
         rng = np.random.default_rng(42)

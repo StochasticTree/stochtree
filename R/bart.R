@@ -2854,58 +2854,18 @@ predict.bartmodel <- function(
     } else if (is_ordinal_cloglog) {
       cloglog_num_categories <- object$model_params$cloglog_num_categories
       cloglog_cutpoint_samples <- object$cloglog_cutpoint_samples
-      mean_forest_probabilities <- array(
-        NA_real_,
-        dim = c(
-          nrow(X),
-          cloglog_num_categories,
-          object$model_params$num_samples
-        )
-      )
-      for (j in 1:cloglog_num_categories) {
-        if (j == 1) {
-          mean_forest_probabilities[, j, ] <- (1 -
-            exp(
-              -exp(
-                sweep(
-                  mean_forest_predictions,
-                  2,
-                  cloglog_cutpoint_samples[j, ],
-                  "+"
-                )
-              )
-            ))
-        } else if (j == cloglog_num_categories) {
-          mean_forest_probabilities[, j, ] <- 1 -
-            apply(
-              mean_forest_probabilities[, 1:(j - 1), , drop = FALSE],
-              c(1, 3),
-              sum
-            )
-        } else {
-          mean_forest_probabilities[, j, ] <- (exp(
-            -exp(
-              sweep(
-                mean_forest_predictions,
-                2,
-                cloglog_cutpoint_samples[j - 1, ],
-                "+"
-              )
-            )
-          ) *
-            (1 -
-              exp(
-                -exp(
-                  sweep(
-                    mean_forest_predictions,
-                    2,
-                    cloglog_cutpoint_samples[j, ],
-                    "+"
-                  )
-                )
-              )))
-        }
+      n_obs_pred <- nrow(X)
+      n_samp_pred <- object$model_params$num_samples
+      mean_forest_probabilities <- array(NA_real_, dim = c(n_obs_pred, cloglog_num_categories, n_samp_pred))
+      # Sequential ordinal cloglog: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
+      # S_k = exp(-exp(gamma_k + f)), running survival product across k.
+      survival_product <- matrix(1.0, nrow = n_obs_pred, ncol = n_samp_pred)
+      for (k in seq_len(cloglog_num_categories - 1)) {
+        S_k <- exp(-exp(sweep(mean_forest_predictions, 2, cloglog_cutpoint_samples[k, ], "+")))
+        mean_forest_probabilities[, k, ] <- survival_product * (1 - S_k)
+        survival_product <- survival_product * S_k
       }
+      mean_forest_probabilities[, cloglog_num_categories, ] <- survival_product
       if (predict_y_hat) {
         y_hat <- mean_forest_probabilities
       }
