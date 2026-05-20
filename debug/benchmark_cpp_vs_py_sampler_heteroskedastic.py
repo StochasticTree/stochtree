@@ -88,7 +88,6 @@ def run_once(run_cpp: bool, seed: int) -> dict:
     m.sample(
         X_train=X_train,
         y_train=y_train,
-        X_test=X_test,
         num_gfr=num_gfr,
         num_burnin=num_burnin,
         num_mcmc=num_mcmc,
@@ -101,18 +100,22 @@ def run_once(run_cpp: bool, seed: int) -> dict:
         variance_forest_params={"num_trees": num_trees_variance},
         run_cpp=run_cpp,
     )
-    elapsed = time.perf_counter() - t0
+    elapsed_sample = time.perf_counter() - t0
+
+    t1 = time.perf_counter()
+    preds = m.predict(X=X_test, run_cpp=run_cpp)
+    elapsed_predict = time.perf_counter() - t1
 
     # mean-forest RMSE vs. true f(X) – only defined when a mean forest was fitted
     if num_trees_mean > 0:
-        f_hat = m.y_hat_test.mean(axis=1)
+        f_hat = preds["y_hat"].mean(axis=1)
         rmse_f = float(np.sqrt(np.mean((f_hat - f_test) ** 2)))
     else:
         rmse_f = float("nan")
-    # sigma2_x_test has shape (n_test, num_mcmc); take posterior mean of cond. std dev
-    s_hat = np.sqrt(m.sigma2_x_test).mean(axis=1)
+    # variance_forest_predictions has shape (n_test, num_mcmc); posterior mean of cond. std dev
+    s_hat = np.sqrt(preds["variance_forest_predictions"]).mean(axis=1)
     rmse_s = float(np.sqrt(np.mean((s_hat - s_test) ** 2)))
-    return {"elapsed": elapsed, "rmse_f": rmse_f, "rmse_s": rmse_s}
+    return {"elapsed_sample": elapsed_sample, "elapsed_predict": elapsed_predict, "rmse_f": rmse_f, "rmse_s": rmse_s}
 
 # ---------------------------------------------------------------------------
 # Run benchmarks
@@ -136,15 +139,13 @@ for i, seed in enumerate(seeds, 1):
 # Summarise
 # ---------------------------------------------------------------------------
 def summarise(results: list) -> dict:
-    elapsed = [r["elapsed"] for r in results]
-    rmse_f  = [r["rmse_f"]  for r in results]
-    rmse_s  = [r["rmse_s"]  for r in results]
-    return {
-        "elapsed_mean": float(np.mean(elapsed)),
-        "elapsed_sd":   float(np.std(elapsed, ddof=1)),
-        "rmse_f_mean":  float(np.nanmean(rmse_f)),
-        "rmse_s_mean":  float(np.mean(rmse_s)),
-    }
+    keys = ["elapsed_sample", "elapsed_predict", "rmse_f", "rmse_s"]
+    out = {k: float(np.nanmean([r[k] for r in results])) for k in keys}
+    out["elapsed"] = out["elapsed_sample"] + out["elapsed_predict"]
+    out["elapsed_sd"] = float(np.std(
+        [r["elapsed_sample"] + r["elapsed_predict"] for r in results], ddof=1
+    ))
+    return out
 
 s_cpp = summarise(results_cpp)
 s_py  = summarise(results_py)
@@ -152,18 +153,20 @@ rows  = [("cpp (run_cpp=True)", s_cpp), ("py  (run_cpp=False)", s_py)]
 
 print("\n--- Results ---")
 print(
-    f"{'Sampler':<22}  {'Time (s)':>10}  {'SD':>10}  {'RMSE f(X)':>12}  {'RMSE s(X)':>12}"
+    f"{'Sampler':<22}  {'Total (s)':>10}  {'Samp (s)':>10}  {'Pred (s)':>10}  {'SD':>8}  "
+    f"{'RMSE f(X)':>12}  {'RMSE s(X)':>12}"
 )
-print("-" * 74)
+print("-" * 96)
 for label, s in rows:
     print(
-        f"{label:<22}  {s['elapsed_mean']:>10.3f}  {s['elapsed_sd']:>10.3f}"
-        f"  {s['rmse_f_mean']:>12.4f}  {s['rmse_s_mean']:>12.4f}"
+        f"{label:<22}  {s['elapsed']:>10.3f}  {s['elapsed_sample']:>10.3f}  "
+        f"{s['elapsed_predict']:>10.3f}  {s['elapsed_sd']:>8.3f}  "
+        f"{s['rmse_f']:>12.4f}  {s['rmse_s']:>12.4f}"
     )
 
-speedup = s_py["elapsed_mean"] / s_cpp["elapsed_mean"]
+speedup = s_py["elapsed"] / s_cpp["elapsed"]
 print(f"\nSpeedup (py / cpp): {speedup:.2f}x")
 print(
-    f"RMSE f(X) delta (cpp - py): {s_cpp['rmse_f_mean'] - s_py['rmse_f_mean']:.4f}\n"
-    f"RMSE s(X) delta (cpp - py): {s_cpp['rmse_s_mean'] - s_py['rmse_s_mean']:.4f}"
+    f"RMSE f(X) delta (cpp - py): {s_cpp['rmse_f'] - s_py['rmse_f']:.4f}\n"
+    f"RMSE s(X) delta (cpp - py): {s_cpp['rmse_s'] - s_py['rmse_s']:.4f}"
 )

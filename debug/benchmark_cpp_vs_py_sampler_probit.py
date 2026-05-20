@@ -72,7 +72,6 @@ def run_once(run_cpp: bool, num_gfr: int, num_mcmc: int, seed: int) -> dict:
     m.sample(
         X_train=X_train,
         y_train=y_train,
-        X_test=X_test,
         num_gfr=num_gfr,
         num_burnin=0,
         num_mcmc=num_mcmc,
@@ -85,16 +84,18 @@ def run_once(run_cpp: bool, num_gfr: int, num_mcmc: int, seed: int) -> dict:
         },
         run_cpp=run_cpp,
     )
-    elapsed = time.perf_counter() - t0
+    elapsed_sample = time.perf_counter() - t0
 
-    # Posterior-mean predicted probability on the test set
-    preds = m.predict(X=X_test, scale="probability")
+    t1 = time.perf_counter()
+    preds = m.predict(X=X_test, scale="probability", run_cpp=run_cpp)
+    elapsed_predict = time.perf_counter() - t1
+
     p_hat = preds["y_hat"].mean(axis=1)  # (n_test,)
 
-    brier  = float(np.mean((p_hat - y_test) ** 2))       # Brier score
-    rmse_p = float(np.sqrt(np.mean((p_hat - p_test) ** 2)))  # RMSE vs pnorm(f_X)
+    brier  = float(np.mean((p_hat - y_test) ** 2))
+    rmse_p = float(np.sqrt(np.mean((p_hat - p_test) ** 2)))
 
-    return {"elapsed": elapsed, "brier": brier, "rmse_p": rmse_p}
+    return {"elapsed_sample": elapsed_sample, "elapsed_predict": elapsed_predict, "brier": brier, "rmse_p": rmse_p}
 
 # ---------------------------------------------------------------------------
 # Run benchmarks
@@ -118,15 +119,13 @@ for i, seed in enumerate(seeds, 1):
 # Summarise
 # ---------------------------------------------------------------------------
 def summarise(results: list) -> dict:
-    elapsed = [r["elapsed"] for r in results]
-    brier   = [r["brier"]   for r in results]
-    rmse_p  = [r["rmse_p"]  for r in results]
-    return {
-        "elapsed_mean": np.mean(elapsed),
-        "elapsed_sd":   np.std(elapsed, ddof=1),
-        "brier_mean":   np.mean(brier),
-        "rmse_p_mean":  np.mean(rmse_p),
-    }
+    keys = ["elapsed_sample", "elapsed_predict", "brier", "rmse_p"]
+    out = {k: float(np.mean([r[k] for r in results])) for k in keys}
+    out["elapsed"] = out["elapsed_sample"] + out["elapsed_predict"]
+    out["elapsed_sd"] = float(np.std(
+        [r["elapsed_sample"] + r["elapsed_predict"] for r in results], ddof=1
+    ))
+    return out
 
 s_cpp = summarise(results_cpp)
 s_py  = summarise(results_py)
@@ -134,19 +133,20 @@ rows  = [("cpp (run_cpp=True)", s_cpp), ("py  (run_cpp=False)", s_py)]
 
 print("\n--- Results ---")
 print(
-    f"{'Sampler':<22}  {'Time (s)':>10}  {'SD':>10}  "
+    f"{'Sampler':<22}  {'Total (s)':>10}  {'Samp (s)':>10}  {'Pred (s)':>10}  {'SD':>8}  "
     f"{'Brier':>12}  {'RMSE (vs pnorm)':>16}"
 )
-print("-" * 76)
+print("-" * 98)
 for label, s in rows:
     print(
-        f"{label:<22}  {s['elapsed_mean']:>10.3f}  {s['elapsed_sd']:>10.3f}"
-        f"  {s['brier_mean']:>12.4f}  {s['rmse_p_mean']:>16.4f}"
+        f"{label:<22}  {s['elapsed']:>10.3f}  {s['elapsed_sample']:>10.3f}  "
+        f"{s['elapsed_predict']:>10.3f}  {s['elapsed_sd']:>8.3f}  "
+        f"{s['brier']:>12.4f}  {s['rmse_p']:>16.4f}"
     )
 
-speedup = s_py["elapsed_mean"] / s_cpp["elapsed_mean"]
+speedup = s_py["elapsed"] / s_cpp["elapsed"]
 print(f"\nSpeedup (py / cpp): {speedup:.2f}x")
 print(
-    f"Brier delta (cpp - py):  {s_cpp['brier_mean']  - s_py['brier_mean']:.4f}\n"
-    f"RMSE-p delta (cpp - py): {s_cpp['rmse_p_mean'] - s_py['rmse_p_mean']:.4f}"
+    f"Brier delta (cpp - py):  {s_cpp['brier']  - s_py['brier']:.4f}\n"
+    f"RMSE-p delta (cpp - py): {s_cpp['rmse_p'] - s_py['rmse_p']:.4f}"
 )

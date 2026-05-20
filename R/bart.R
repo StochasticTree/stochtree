@@ -3249,14 +3249,22 @@ predict.bartmodel <- function(
           cloglog_num_classes_out,
           num_samples_output
         )
+      } else if (is_ordinal_cloglog && class_scale) {
+        # C++ class_transform_multiclass uses 0-indexed labels; match slow path (which.max = 1-indexed)
+        reshape_cpp_pred_2d(output$y_hat, n, num_samples_output) + 1L
       } else {
         reshape_cpp_pred_2d(output$y_hat, n, num_samples_output)
       },
-      mean_forest_predictions = reshape_cpp_pred_2d(
-        output$mean_forest_predictions,
-        n,
-        num_samples_output
-      ),
+      mean_forest_predictions = if (is_ordinal_cloglog && probability_scale) {
+        reshape_cpp_pred_3d(
+          output$mean_forest_predictions,
+          n,
+          cloglog_num_classes_out,
+          num_samples_output
+        )
+      } else {
+        reshape_cpp_pred_2d(output$mean_forest_predictions, n, num_samples_output)
+      },
       rfx_predictions = reshape_cpp_pred_2d(
         output$rfx_predictions,
         n,

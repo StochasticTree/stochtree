@@ -1689,6 +1689,13 @@ class RandomEffectsLabelMapperCpp {
     }
     return result;
   }
+  py::array_t<int> GetUniqueGroupIds() {
+    std::vector<int>& keys = rfx_label_mapper_->Keys();
+    auto result = py::array_t<int>(py::detail::any_container<py::ssize_t>({(py::ssize_t)keys.size()}));
+    auto accessor = result.mutable_unchecked<1>();
+    for (int i = 0; i < (int)keys.size(); i++) accessor(i) = keys[i];
+    return result;
+  }
 
  private:
   std::unique_ptr<StochTree::LabelMapper> rfx_label_mapper_;
@@ -2962,6 +2969,177 @@ inline py::dict convert_bcf_results_to_dict(
   return output;
 }
 
+inline py::dict convert_bart_preds_to_dict(StochTree::BARTPredictionResult& results_raw) {
+  py::dict output;
+
+  // Move prediction samples
+
+  if (results_raw.y_hat.empty()) {
+    output["y_hat"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.y_hat.size());
+    std::copy(results_raw.y_hat.begin(), results_raw.y_hat.end(), array.mutable_data());
+    output["y_hat"] = array;
+  }
+
+  if (results_raw.mean_forest_predictions.empty()) {
+    output["mean_forest_predictions"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.mean_forest_predictions.size());
+    std::copy(results_raw.mean_forest_predictions.begin(), results_raw.mean_forest_predictions.end(), array.mutable_data());
+    output["mean_forest_predictions"] = array;
+  }
+
+  if (results_raw.variance_forest_predictions.empty()) {
+    output["variance_forest_predictions"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.variance_forest_predictions.size());
+    std::copy(results_raw.variance_forest_predictions.begin(), results_raw.variance_forest_predictions.end(), array.mutable_data());
+    output["variance_forest_predictions"] = array;
+  }
+
+  if (results_raw.rfx_predictions.empty()) {
+    output["rfx_predictions"] = py::none();
+  } else {
+    py::array_t<double> array(results_raw.rfx_predictions.size());
+    std::copy(results_raw.rfx_predictions.begin(), results_raw.rfx_predictions.end(), array.mutable_data());
+    output["rfx_predictions"] = array;
+  }
+
+  return output;
+}
+
+py::dict bart_predict_cpp(
+    py::dict bart_model_dict,
+    py::object X,
+    py::object leaf_basis,
+    int n,
+    int p,
+    int num_basis,
+    py::object obs_weights,
+    py::object rfx_group_ids,
+    py::object rfx_basis,
+    int rfx_num_groups,
+    int rfx_basis_dim,
+    bool posterior,
+    int scale,
+    bool predict_y_hat,
+    bool predict_mean_forest,
+    bool predict_variance_forest,
+    bool predict_random_effects) {
+  // Pre-convert all numpy inputs to F-contiguous at function scope so the raw pointers
+  // stored in BARTData outlive the convert_numpy_to_bart_data call.
+  using FArray = py::array_t<double, py::array::f_style | py::array::forcecast>;
+  using IArray = py::array_t<int, py::array::f_style | py::array::forcecast>;
+  FArray X_farr, leaf_basis_farr, obs_weights_farr, rfx_basis_farr;
+  IArray rfx_group_ids_iarr;
+  if (!X.is_none()) X_farr = X.cast<FArray>();
+  if (!leaf_basis.is_none()) leaf_basis_farr = leaf_basis.cast<FArray>();
+  if (!obs_weights.is_none()) obs_weights_farr = obs_weights.cast<FArray>();
+  if (!rfx_group_ids.is_none()) rfx_group_ids_iarr = rfx_group_ids.cast<IArray>();
+  if (!rfx_basis.is_none()) rfx_basis_farr = rfx_basis.cast<FArray>();
+
+  // Build BARTData with test-only fields
+  StochTree::BARTData bart_data = convert_numpy_to_bart_data(
+      /*X_train=*/py::none(),
+      /*y_train=*/py::none(),
+      /*X_test=*/X.is_none() ? py::object(py::none()) : py::object(X_farr),
+      /*n_train=*/0,
+      /*n_test=*/n,
+      /*p=*/p,
+      /*basis_train=*/py::none(),
+      /*basis_test=*/leaf_basis.is_none() ? py::object(py::none()) : py::object(leaf_basis_farr),
+      /*basis_dim=*/num_basis,
+      /*obs_weights_train=*/py::none(),
+      /*obs_weights_test=*/obs_weights.is_none() ? py::object(py::none()) : py::object(obs_weights_farr),
+      /*rfx_group_ids_train=*/py::none(),
+      /*rfx_group_ids_test=*/rfx_group_ids.is_none() ? py::object(py::none()) : py::object(rfx_group_ids_iarr),
+      /*rfx_basis_train=*/py::none(),
+      /*rfx_basis_test=*/rfx_basis.is_none() ? py::object(py::none()) : py::object(rfx_basis_farr),
+      /*rfx_num_groups=*/rfx_num_groups,
+      /*rfx_basis_dim=*/rfx_basis_dim);
+
+  // Build BARTPredictionInput from the model dict
+  StochTree::BARTPredictionInput pred_input;
+
+  py::array_t<double, py::array::f_style | py::array::forcecast> global_var_arr, leaf_scale_arr, cloglog_cutpoints_arr;
+  if (bart_model_dict.contains("sigma2_global_samples") && !bart_model_dict["sigma2_global_samples"].is_none()) {
+    global_var_arr = bart_model_dict["sigma2_global_samples"].cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+    pred_input.global_error_variance_samples = static_cast<double*>(global_var_arr.mutable_data());
+  }
+  if (bart_model_dict.contains("sigma2_leaf_samples") && !bart_model_dict["sigma2_leaf_samples"].is_none()) {
+    leaf_scale_arr = bart_model_dict["sigma2_leaf_samples"].cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+    pred_input.leaf_scale_samples = static_cast<double*>(leaf_scale_arr.mutable_data());
+  }
+  if (bart_model_dict.contains("mean_forests") && !bart_model_dict["mean_forests"].is_none()) {
+    pred_input.mean_forests = bart_model_dict["mean_forests"].cast<ForestContainerCpp*>()->GetPtr();
+  }
+  if (bart_model_dict.contains("variance_forests") && !bart_model_dict["variance_forests"].is_none()) {
+    pred_input.variance_forests = bart_model_dict["variance_forests"].cast<ForestContainerCpp*>()->GetPtr();
+  }
+  if (bart_model_dict.contains("rfx_container") && !bart_model_dict["rfx_container"].is_none()) {
+    pred_input.rfx_container = bart_model_dict["rfx_container"].cast<RandomEffectsContainerCpp*>()->GetPtr();
+  }
+  if (bart_model_dict.contains("rfx_label_mapper") && !bart_model_dict["rfx_label_mapper"].is_none()) {
+    pred_input.rfx_label_mapper = bart_model_dict["rfx_label_mapper"].cast<RandomEffectsLabelMapperCpp*>()->GetPtr();
+  }
+  if (bart_model_dict.contains("cloglog_cutpoint_samples") && !bart_model_dict["cloglog_cutpoint_samples"].is_none()) {
+    cloglog_cutpoints_arr = bart_model_dict["cloglog_cutpoint_samples"].cast<py::array_t<double, py::array::f_style | py::array::forcecast>>();
+    pred_input.cloglog_cutpoint_samples = static_cast<double*>(cloglog_cutpoints_arr.mutable_data());
+  }
+  pred_input.cloglog_num_classes = bart_model_dict.contains("cloglog_num_classes") ? bart_model_dict["cloglog_num_classes"].cast<int>() : 0;
+  pred_input.num_samples = bart_model_dict["num_samples"].cast<int>();
+  pred_input.num_obs = n;
+  pred_input.num_basis = num_basis;
+  pred_input.y_bar = bart_model_dict["y_bar"].cast<double>();
+  pred_input.y_std = bart_model_dict["y_std"].cast<double>();
+  pred_input.has_variance_forest = bart_model_dict["include_variance_forest"].cast<bool>();
+  pred_input.has_rfx = bart_model_dict["has_rfx"].cast<bool>();
+  {
+    std::string rfx_spec_str = "";
+    if (bart_model_dict.contains("rfx_model_spec") && !bart_model_dict["rfx_model_spec"].is_none()) {
+      rfx_spec_str = bart_model_dict["rfx_model_spec"].cast<std::string>();
+    }
+    pred_input.rfx_model_spec = (rfx_spec_str == "intercept_only")
+                                    ? StochTree::BARTRFXModelSpec::InterceptOnly
+                                    : StochTree::BARTRFXModelSpec::Custom;
+  }
+  {
+    std::string link_str = bart_model_dict.contains("link_function") ? bart_model_dict["link_function"].cast<std::string>() : "identity";
+    if (link_str == "probit")
+      pred_input.link_function = StochTree::LinkFunction::Probit;
+    else if (link_str == "cloglog")
+      pred_input.link_function = StochTree::LinkFunction::Cloglog;
+    else
+      pred_input.link_function = StochTree::LinkFunction::Identity;
+  }
+  {
+    std::string outcome_str = bart_model_dict.contains("outcome_type") ? bart_model_dict["outcome_type"].cast<std::string>() : "continuous";
+    if (outcome_str == "binary")
+      pred_input.outcome_type = StochTree::OutcomeType::Binary;
+    else if (outcome_str == "ordinal")
+      pred_input.outcome_type = StochTree::OutcomeType::Ordinal;
+    else
+      pred_input.outcome_type = StochTree::OutcomeType::Continuous;
+  }
+  pred_input.pred_type = posterior ? StochTree::PredType::kPosterior : StochTree::PredType::kMean;
+  if (scale == 0)
+    pred_input.pred_scale = StochTree::PredScale::kLinear;
+  else if (scale == 1)
+    pred_input.pred_scale = StochTree::PredScale::kProbability;
+  else
+    pred_input.pred_scale = StochTree::PredScale::kClass;
+  pred_input.pred_terms.y_hat = predict_y_hat;
+  pred_input.pred_terms.mean_forest = predict_mean_forest;
+  pred_input.pred_terms.variance_forest = predict_variance_forest;
+  pred_input.pred_terms.random_effects = predict_random_effects;
+
+  // Run prediction
+  StochTree::BARTPredictionResult pred_results = predict_bart_model(bart_data, pred_input);
+
+  return convert_bart_preds_to_dict(pred_results);
+}
+
 inline py::dict convert_bcf_preds_to_dict(StochTree::BCFPredictionResult& results_raw) {
   py::dict output;
 
@@ -3114,14 +3292,14 @@ py::dict bcf_predict_cpp(
   // and the predict_bcf_model call. convert_numpy_to_bcf_data casts inside if-blocks, so its
   // temporaries are freed before predict_bcf_model runs -- these function-scope arrays prevent that.
   using FArray = py::array_t<double, py::array::f_style | py::array::forcecast>;
-  using IArray = py::array_t<int,    py::array::f_style | py::array::forcecast>;
+  using IArray = py::array_t<int, py::array::f_style | py::array::forcecast>;
   FArray X_farr, Z_farr, obs_weights_farr, rfx_basis_farr;
   IArray rfx_group_ids_iarr;
-  if (!X.is_none())           X_farr            = X.cast<FArray>();
-  if (!Z.is_none())           Z_farr            = Z.cast<FArray>();
-  if (!obs_weights.is_none()) obs_weights_farr  = obs_weights.cast<FArray>();
+  if (!X.is_none()) X_farr = X.cast<FArray>();
+  if (!Z.is_none()) Z_farr = Z.cast<FArray>();
+  if (!obs_weights.is_none()) obs_weights_farr = obs_weights.cast<FArray>();
   if (!rfx_group_ids.is_none()) rfx_group_ids_iarr = rfx_group_ids.cast<IArray>();
-  if (!rfx_basis.is_none())   rfx_basis_farr    = rfx_basis.cast<FArray>();
+  if (!rfx_basis.is_none()) rfx_basis_farr = rfx_basis.cast<FArray>();
 
   // Unpack pointers to input data to BCFData object -- use only the "test" data fields as this is what the predict function expects
   StochTree::BCFData bcf_data = convert_numpy_to_bcf_data(
@@ -3200,13 +3378,13 @@ py::dict bcf_predict_cpp(
   }
   pred_input.adaptive_coding = bcf_model_dict["adaptive_coding"].cast<bool>();
   pred_input.sample_tau_0 = bcf_model_dict["sample_tau_0"].cast<bool>();
-  pred_input.pred_type = posterior ? StochTree::BCFPredType::kPosterior : StochTree::BCFPredType::kMean;
+  pred_input.pred_type = posterior ? StochTree::PredType::kPosterior : StochTree::PredType::kMean;
   if (scale == 0) {
-    pred_input.pred_scale = StochTree::BCFPredScale::kLinear;
+    pred_input.pred_scale = StochTree::PredScale::kLinear;
   } else if (scale == 1) {
-    pred_input.pred_scale = StochTree::BCFPredScale::kProbability;
+    pred_input.pred_scale = StochTree::PredScale::kProbability;
   } else {
-    pred_input.pred_scale = StochTree::BCFPredScale::kClass;
+    pred_input.pred_scale = StochTree::PredScale::kClass;
   }
   pred_input.pred_terms.y_hat = predict_y_hat;
   pred_input.pred_terms.mu_x = predict_mu_x;
@@ -3395,6 +3573,25 @@ PYBIND11_MODULE(stochtree_cpp, m) {
         py::arg("num_chains"),
         py::arg("adaptive_coding"),
         py::arg("config_input"));
+
+  m.def("bart_predict_cpp", &bart_predict_cpp, "Run BART predictions in C++",
+        py::arg("bart_model_dict"),
+        py::arg("X"),
+        py::arg("leaf_basis") = py::none(),
+        py::arg("n"),
+        py::arg("p"),
+        py::arg("num_basis") = 0,
+        py::arg("obs_weights") = py::none(),
+        py::arg("rfx_group_ids") = py::none(),
+        py::arg("rfx_basis") = py::none(),
+        py::arg("rfx_num_groups") = 0,
+        py::arg("rfx_basis_dim") = 0,
+        py::arg("posterior"),
+        py::arg("scale"),
+        py::arg("predict_y_hat"),
+        py::arg("predict_mean_forest"),
+        py::arg("predict_variance_forest"),
+        py::arg("predict_random_effects"));
 
   m.def("bcf_predict_cpp", &bcf_predict_cpp, "Run BCF predictions in C++",
         py::arg("bcf_model_dict"),
@@ -3659,7 +3856,8 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("LoadFromJson", &RandomEffectsLabelMapperCpp::LoadFromJson)
       .def("GetLabelMapper", &RandomEffectsLabelMapperCpp::GetLabelMapper)
       .def("MapGroupIdToArrayIndex", &RandomEffectsLabelMapperCpp::MapGroupIdToArrayIndex)
-      .def("MapMultipleGroupIdsToArrayIndices", &RandomEffectsLabelMapperCpp::MapMultipleGroupIdsToArrayIndices);
+      .def("MapMultipleGroupIdsToArrayIndices", &RandomEffectsLabelMapperCpp::MapMultipleGroupIdsToArrayIndices)
+      .def("GetUniqueGroupIds", &RandomEffectsLabelMapperCpp::GetUniqueGroupIds);
 
   py::class_<RandomEffectsModelCpp>(m, "RandomEffectsModelCpp")
       .def(py::init<int, int>())

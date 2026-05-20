@@ -81,25 +81,31 @@ def run_once(run_cpp: bool, seed: int) -> dict:
     m.sample(
         X_train=X_train,
         y_train=y_train,
-        X_test=X_test,
         num_gfr=num_gfr,
         num_burnin=num_burnin,
         num_mcmc=num_mcmc,
         rfx_group_ids_train=group_ids_train,
-        rfx_group_ids_test=group_ids_test,
         rfx_basis_train=rfx_basis_train,
-        rfx_basis_test=rfx_basis_test,
         mean_forest_params={"num_trees": num_trees},
         general_params={"random_seed": seed, "num_chains": num_chains},
         run_cpp=run_cpp,
     )
-    elapsed = time.perf_counter() - t0
+    elapsed_sample = time.perf_counter() - t0
 
-    y_hat = m.y_hat_test.mean(axis=1)
+    t1 = time.perf_counter()
+    preds = m.predict(
+        X=X_test,
+        rfx_group_ids=group_ids_test,
+        rfx_basis=rfx_basis_test,
+        run_cpp=run_cpp,
+    )
+    elapsed_predict = time.perf_counter() - t1
+
+    y_hat = preds["y_hat"].mean(axis=1)
     rmse_y   = float(np.sqrt(np.mean((y_hat - y_test)  ** 2)))
     rmse_mu  = float(np.sqrt(np.mean((y_hat - mu_test) ** 2)))
 
-    return {"elapsed": elapsed, "rmse_y": rmse_y, "rmse_mu": rmse_mu}
+    return {"elapsed_sample": elapsed_sample, "elapsed_predict": elapsed_predict, "rmse_y": rmse_y, "rmse_mu": rmse_mu}
 
 # ---------------------------------------------------------------------------
 # Run benchmarks
@@ -123,15 +129,13 @@ for i, seed in enumerate(seeds, 1):
 # Summarise
 # ---------------------------------------------------------------------------
 def summarise(results: list) -> dict:
-    elapsed = [r["elapsed"] for r in results]
-    rmse_y  = [r["rmse_y"]  for r in results]
-    rmse_mu = [r["rmse_mu"] for r in results]
-    return {
-        "elapsed_mean": np.mean(elapsed),
-        "elapsed_sd":   np.std(elapsed, ddof=1),
-        "rmse_y_mean":  np.mean(rmse_y),
-        "rmse_mu_mean": np.mean(rmse_mu),
-    }
+    keys = ["elapsed_sample", "elapsed_predict", "rmse_y", "rmse_mu"]
+    out = {k: float(np.mean([r[k] for r in results])) for k in keys}
+    out["elapsed"] = out["elapsed_sample"] + out["elapsed_predict"]
+    out["elapsed_sd"] = float(np.std(
+        [r["elapsed_sample"] + r["elapsed_predict"] for r in results], ddof=1
+    ))
+    return out
 
 s_cpp = summarise(results_cpp)
 s_py  = summarise(results_py)
@@ -139,19 +143,20 @@ rows  = [("cpp (run_cpp=True)", s_cpp), ("py  (run_cpp=False)", s_py)]
 
 print("\n--- Results ---")
 print(
-    f"{'Sampler':<22}  {'Time (s)':>10}  {'SD':>10}  "
+    f"{'Sampler':<22}  {'Total (s)':>10}  {'Samp (s)':>10}  {'Pred (s)':>10}  {'SD':>8}  "
     f"{'RMSE (y)':>10}  {'RMSE (mu)':>10}"
 )
-print("-" * 70)
+print("-" * 92)
 for label, s in rows:
     print(
-        f"{label:<22}  {s['elapsed_mean']:>10.3f}  {s['elapsed_sd']:>10.3f}"
-        f"  {s['rmse_y_mean']:>10.4f}  {s['rmse_mu_mean']:>10.4f}"
+        f"{label:<22}  {s['elapsed']:>10.3f}  {s['elapsed_sample']:>10.3f}  "
+        f"{s['elapsed_predict']:>10.3f}  {s['elapsed_sd']:>8.3f}  "
+        f"{s['rmse_y']:>10.4f}  {s['rmse_mu']:>10.4f}"
     )
 
-speedup = s_py["elapsed_mean"] / s_cpp["elapsed_mean"]
+speedup = s_py["elapsed"] / s_cpp["elapsed"]
 print(f"\nSpeedup (py / cpp): {speedup:.2f}x")
 print(
-    f"RMSE-y  delta (cpp - py): {s_cpp['rmse_y_mean']  - s_py['rmse_y_mean']:.4f}\n"
-    f"RMSE-mu delta (cpp - py): {s_cpp['rmse_mu_mean'] - s_py['rmse_mu_mean']:.4f}"
+    f"RMSE-y  delta (cpp - py): {s_cpp['rmse_y']  - s_py['rmse_y']:.4f}\n"
+    f"RMSE-mu delta (cpp - py): {s_cpp['rmse_mu'] - s_py['rmse_mu']:.4f}"
 )

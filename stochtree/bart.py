@@ -39,7 +39,7 @@ from .utils import (
     _posterior_predictive_heuristic_multiplier,
     _summarize_interval,
 )
-from stochtree_cpp import bart_sample_cpp
+from stochtree_cpp import bart_sample_cpp, bart_predict_cpp
 
 
 class BARTModel:
@@ -1377,8 +1377,10 @@ class BARTModel:
 
             # Unpack RFX results
             if self.has_rfx:
-                self.rfx_container = bart_results["rfx_container"]
-                self.rfx_label_mapper = bart_results["rfx_label_mapper"]
+                self.rfx_container = RandomEffectsContainer()
+                self.rfx_container.rfx_container_cpp = bart_results["rfx_container"]
+                self.rfx_container.rfx_label_mapper_cpp = bart_results["rfx_label_mapper"]
+                self.rfx_container.rfx_group_ids = bart_results["rfx_label_mapper"].GetUniqueGroupIds()
                 rfx_preds_train = (
                     bart_results["rfx_predictions_train"].reshape(
                         self.n_train, bart_results["num_samples"], order="F"
@@ -2586,6 +2588,7 @@ class BARTModel:
         type: str = "posterior",
         terms: Union[list[str], str] = "all",
         scale: str = "linear",
+        run_cpp: bool = False,
     ) -> Union[np.array, tuple]:
         """Return predictions from every forest sampled (either / both of mean and variance).
         Return type is either a single array of predictions, if a BART model only includes a
@@ -2607,6 +2610,8 @@ class BARTModel:
             Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
         scale : str, optional
             Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, "probability", which transforms predictions into category probabilities, and "class", which returns the predicted class label. "probability" and "class" are only valid for models fit with a probit or cloglog outcome model. Default: "linear".
+        run_cpp : bool, optional
+            Whether to use the C++ predict implementation. Default: False.
 
         Returns
         -------
@@ -2762,41 +2767,6 @@ class BARTModel:
         else:
             X_processed = self._covariate_preprocessor.transform(X)
 
-        # Dataset construction
-        pred_dataset = Dataset()
-        pred_dataset.add_covariates(X_processed)
-        if leaf_basis is not None:
-            pred_dataset.add_basis(leaf_basis)
-
-        # Variance forest predictions
-        if predict_variance_forest:
-            variance_pred_raw = (
-                self.forest_container_variance.forest_container_cpp.Predict(
-                    pred_dataset.dataset_cpp
-                )
-            )
-            if self.sample_sigma2_global:
-                variance_forest_predictions = np.empty_like(variance_pred_raw)
-                for i in range(self.num_samples):
-                    variance_forest_predictions[:, i] = (
-                        variance_pred_raw[:, i] * self.global_var_samples[i]
-                    )
-            else:
-                variance_forest_predictions = (
-                    variance_pred_raw * self.sigma2_init * self.y_std * self.y_std
-                )
-            if predict_mean:
-                variance_forest_predictions = np.mean(
-                    variance_forest_predictions, axis=1
-                )
-
-        # Forest predictions
-        if predict_mean_forest or predict_mean_forest_intermediate:
-            mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(
-                pred_dataset.dataset_cpp
-            )
-            mean_forest_predictions = mean_pred_raw * self.y_std + self.y_bar
-
         # Random effects data checks
         if predict_rfx and rfx_group_ids is None:
             raise ValueError(
@@ -2811,144 +2781,285 @@ class BARTModel:
                 raise ValueError(
                     "Random effects basis has a different dimension than the basis used to train this model"
                 )
+        
+        if run_cpp:
+            # Convert prediction scale info to integer code for easy conversion to enum in C++
+            scale_int = 0 if not probability_scale and not class_scale else (1 if probability_scale else 2)
 
-        # Convert rfx_group_ids to their corresponding array position indices in the random effects parameter sample arrays
-        if rfx_group_ids is not None:
-            rfx_group_id_indices = self.rfx_container.map_group_ids_to_array_indices(
-                rfx_group_ids
+            # # Convert cloglog cutpoint samples to fortran (column-major) array if present and not already aligned as such
+            # cloglog_cutpoints = getattr(self, "cloglog_cutpoint_samples", None)
+            # if cloglog_cutpoints is not None:
+            #     cloglog_cutpoints = np.asfortranarray(cloglog_cutpoints)
+
+            # Construct dictionary of model components to pass to C++ prediction function, with None for any components not present in the model
+            bart_model_dict = {
+                "mean_forests": self.forest_container_mean.forest_container_cpp if self.include_mean_forest else None,
+                "variance_forests": self.forest_container_variance.forest_container_cpp if self.include_variance_forest else None,
+                "rfx_container": self.rfx_container.rfx_container_cpp if has_rfx else None,
+                "rfx_label_mapper": self.rfx_container.rfx_label_mapper_cpp if has_rfx else None,
+                "sigma2_global_samples": self.global_var_samples if self.global_var_samples else None,
+                "sigma2_leaf_samples": self.leaf_scale_samples if self.global_var_samples else None,
+                "cloglog_cutpoint_samples": np.asfortranarray(self.cloglog_cutpoint_samples) if self.cloglog_cutpoint_samples else None,
+                "cloglog_num_classes": int(self.cloglog_num_categories) if is_cloglog else None,
+                "num_samples": int(self.num_samples),
+                "y_bar": float(self.y_bar),
+                "y_std": float(self.y_std),
+                "include_variance_forest": has_variance_forest,
+                "has_rfx": has_rfx,
+                "rfx_model_spec": self.rfx_model_spec if has_rfx else "",
+                "link_function": self.outcome_model.link,
+                "outcome_type": self.outcome_model.outcome,
+            }
+
+            # Data dimensions
+            n, p = X_processed.shape
+            num_basis = self.num_basis if self.has_basis else 0
+            rfx_basis_dim = self.num_rfx_basis if has_rfx else 0
+
+            # Call the C++ prediction function, returning results as a dictionary
+            output = bart_predict_cpp(
+                bart_model_dict=bart_model_dict,
+                X=np.asfortranarray(X_processed),
+                leaf_basis=np.asfortranarray(leaf_basis) if leaf_basis is not None else None,
+                n=n,
+                p=p,
+                num_basis=num_basis,
+                rfx_group_ids=rfx_group_ids.astype(np.int32) if rfx_group_ids is not None else None,
+                rfx_basis=np.asfortranarray(rfx_basis) if rfx_basis is not None else None,
+                rfx_num_groups=self.rfx_container.num_groups() if has_rfx else 0,
+                rfx_basis_dim=rfx_basis_dim,
+                posterior=(type == "posterior"),
+                scale=scale_int,
+                predict_y_hat=predict_y_hat,
+                predict_mean_forest=predict_mean_forest,
+                predict_variance_forest=predict_variance_forest,
+                predict_random_effects=predict_rfx,
             )
 
-        # Random effects predictions
-        if predict_rfx or predict_rfx_intermediate:
-            if rfx_basis is not None:
-                rfx_predictions = (
-                    self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
-                )
+            num_samples_output = self.num_samples if type == "posterior" else 1
+            ordinal_cloglog_prob = is_ordinal_cloglog and probability_scale
+            cloglog_num_categories = self.cloglog_num_categories if ordinal_cloglog_prob else 1
+
+            def reshape_cpp_pred_2d(v):
+                if v is None:
+                    return None
+                if num_samples_output == 1:
+                    return v.flatten()
+                return np.reshape(v, (n, num_samples_output), order="F")
+
+            def reshape_cpp_pred_ordinal_prob(v):
+                if v is None:
+                    return None
+                if num_samples_output == 1:
+                    return np.reshape(v, (n, cloglog_num_categories), order="F")
+                return np.reshape(v, (n, cloglog_num_categories, num_samples_output), order="F")
+
+            if ordinal_cloglog_prob:
+                y_hat_r = reshape_cpp_pred_ordinal_prob(output["y_hat"])
+                mfp_r = reshape_cpp_pred_ordinal_prob(output["mean_forest_predictions"])
+            elif class_scale and is_ordinal_cloglog:
+                # C++ class_transform_multiclass uses 0-indexed labels; match slow path (1-indexed)
+                y_hat_r = reshape_cpp_pred_2d(output["y_hat"])
+                if y_hat_r is not None:
+                    y_hat_r = y_hat_r + 1
+                mfp_r = reshape_cpp_pred_2d(output["mean_forest_predictions"])
             else:
-                # Sanity check -- this branch should only occur if rfx_model_spec == "intercept_only"
-                if not rfx_intercept:
-                    raise ValueError(
-                        "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
-                    )
+                y_hat_r = reshape_cpp_pred_2d(output["y_hat"])
+                mfp_r = reshape_cpp_pred_2d(output["mean_forest_predictions"])
 
-                # Extract the raw RFX samples and scale by train set outcome standard deviation
-                rfx_samples_raw = self.rfx_container.extract_parameter_samples()
-                rfx_beta_draws = rfx_samples_raw["beta_samples"] * self.y_std
+            rfx_r = reshape_cpp_pred_2d(output["rfx_predictions"])
+            vfp_r = reshape_cpp_pred_2d(output["variance_forest_predictions"])
 
-                # Construct an array with the appropriate group random effects arranged for each observation
-                n_train = X.shape[0]
-                if rfx_beta_draws.ndim != 2:
-                    raise ValueError(
-                        "BART models fit with random intercept models should only yield 2 dimensional random effect sample matrices"
-                    )
-                else:
-                    rfx_predictions_raw = np.empty(
-                        shape=(n_train, 1, rfx_beta_draws.shape[1])
-                    )
-                    for i in range(n_train):
-                        rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
-                            rfx_group_id_indices[i], :
-                        ]
-                rfx_predictions = np.squeeze(rfx_predictions_raw[:, 0, :])
-
-        # Combine into y hat predictions
-        if probability_scale or class_scale:
-            if is_probit:
-                if predict_y_hat and has_mean_forest and has_rfx:
-                    y_hat = norm.cdf(mean_forest_predictions + rfx_predictions)
-                elif predict_y_hat and has_mean_forest:
-                    y_hat = norm.cdf(mean_forest_predictions)
-                elif predict_y_hat and has_rfx:
-                    y_hat = norm.cdf(rfx_predictions)
-                if (
-                    predict_mean_forest or predict_mean_forest_intermediate
-                ) and has_mean_forest:
-                    mean_forest_predictions = norm.cdf(mean_forest_predictions)
-                if (predict_rfx or predict_rfx_intermediate) and has_rfx:
-                    rfx_predictions = norm.cdf(rfx_predictions)
-            elif is_binary_cloglog:
-                mean_forest_predictions = np.exp(-np.exp(mean_forest_predictions))
+            if predict_count == 1:
                 if predict_y_hat:
-                    y_hat = mean_forest_predictions
-            elif is_ordinal_cloglog:
-                cloglog_num_categories = self.cloglog_num_categories
-                cloglog_cutpoint_samples = self.cloglog_cutpoint_samples
-                n_obs = X.shape[0]
-                num_samples = self.num_samples
-                # Sequential ordinal cloglog: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
-                # S_k = exp(-exp(gamma_k + f)), running survival product across k.
-                mean_forest_probabilities = np.empty(
-                    (n_obs, cloglog_num_categories, num_samples)
-                )
-                cumulative_survival = np.ones((n_obs, num_samples))
-                for k in range(cloglog_num_categories - 1):
-                    S_k = np.exp(-np.exp(mean_forest_predictions + cloglog_cutpoint_samples[k, :]))
-                    mean_forest_probabilities[:, k, :] = cumulative_survival * (1.0 - S_k)
-                    cumulative_survival = cumulative_survival * S_k
-                mean_forest_probabilities[:, cloglog_num_categories - 1, :] = cumulative_survival
-                if predict_y_hat:
-                    y_hat = mean_forest_probabilities
-                mean_forest_predictions = mean_forest_probabilities
+                    return y_hat_r
+                elif predict_mean_forest:
+                    return mfp_r
+                elif predict_rfx:
+                    return rfx_r
+                elif predict_variance_forest:
+                    return vfp_r
+            else:
+                return {
+                    "y_hat": y_hat_r if predict_y_hat else None,
+                    "mean_forest_predictions": mfp_r if predict_mean_forest else None,
+                    "rfx_predictions": rfx_r if predict_rfx else None,
+                    "variance_forest_predictions": vfp_r if predict_variance_forest else None,
+                }
+
         else:
-            if predict_y_hat and has_mean_forest and has_rfx:
-                y_hat = mean_forest_predictions + rfx_predictions
-            elif predict_y_hat and has_mean_forest:
-                y_hat = mean_forest_predictions
-            elif predict_y_hat and has_rfx:
-                y_hat = rfx_predictions
+            # Dataset construction
+            pred_dataset = Dataset()
+            pred_dataset.add_covariates(X_processed)
+            if leaf_basis is not None:
+                pred_dataset.add_basis(leaf_basis)
 
-        # Collapse to posterior mean predictions if requested
-        if predict_mean:
-            if predict_mean_forest:
-                if is_ordinal_cloglog and probability_scale:
-                    mean_forest_predictions = np.mean(mean_forest_predictions, axis=2)
-                else:
-                    mean_forest_predictions = np.mean(mean_forest_predictions, axis=1)
-            if predict_rfx:
-                rfx_predictions = np.mean(rfx_predictions, axis=1)
-            if predict_y_hat:
-                if is_ordinal_cloglog and probability_scale:
-                    y_hat = np.mean(y_hat, axis=2)
-                else:
-                    y_hat = np.mean(y_hat, axis=1)
-
-        # Convert probabilities to classes if requested
-        if class_scale:
-            if is_ordinal_cloglog:
-                # For each (obs, sample), pick category with highest probability
-                # y_hat is (n_obs, n_categories, n_samples)
-                y_hat = np.argmax(y_hat, axis=1) + 1  # 1-indexed classes
-            else:
-                y_hat = np.where(y_hat < 0.5, 0, 1)
-
-        if predict_count == 1:
-            if predict_y_hat:
-                return y_hat
-            elif predict_mean_forest:
-                return mean_forest_predictions
-            elif predict_rfx:
-                return rfx_predictions
-            elif predict_variance_forest:
-                return variance_forest_predictions
-        else:
-            result = dict()
-            if predict_y_hat:
-                result["y_hat"] = y_hat
-            else:
-                result["y_hat"] = None
-            if predict_mean_forest:
-                result["mean_forest_predictions"] = mean_forest_predictions
-            else:
-                result["mean_forest_predictions"] = None
-            if predict_rfx:
-                result["rfx_predictions"] = rfx_predictions
-            else:
-                result["rfx_predictions"] = None
+            # Variance forest predictions
             if predict_variance_forest:
-                result["variance_forest_predictions"] = variance_forest_predictions
+                variance_pred_raw = (
+                    self.forest_container_variance.forest_container_cpp.Predict(
+                        pred_dataset.dataset_cpp
+                    )
+                )
+                if self.sample_sigma2_global:
+                    variance_forest_predictions = np.empty_like(variance_pred_raw)
+                    for i in range(self.num_samples):
+                        variance_forest_predictions[:, i] = (
+                            variance_pred_raw[:, i] * self.global_var_samples[i]
+                        )
+                else:
+                    variance_forest_predictions = (
+                        variance_pred_raw * self.sigma2_init * self.y_std * self.y_std
+                    )
+                if predict_mean:
+                    variance_forest_predictions = np.mean(
+                        variance_forest_predictions, axis=1
+                    )
+
+            # Forest predictions
+            if predict_mean_forest or predict_mean_forest_intermediate:
+                mean_pred_raw = self.forest_container_mean.forest_container_cpp.Predict(
+                    pred_dataset.dataset_cpp
+                )
+                mean_forest_predictions = mean_pred_raw * self.y_std + self.y_bar
+
+            # Convert rfx_group_ids to their corresponding array position indices in the random effects parameter sample arrays
+            if rfx_group_ids is not None:
+                rfx_group_id_indices = self.rfx_container.map_group_ids_to_array_indices(
+                    rfx_group_ids
+                )
+
+            # Random effects predictions
+            if predict_rfx or predict_rfx_intermediate:
+                if rfx_basis is not None:
+                    rfx_predictions = (
+                        self.rfx_container.predict(rfx_group_ids, rfx_basis) * self.y_std
+                    )
+                else:
+                    # Sanity check -- this branch should only occur if rfx_model_spec == "intercept_only"
+                    if not rfx_intercept:
+                        raise ValueError(
+                            "A user-provided basis (`rfx_basis`) must be provided when the model was sampled with a random effects model spec set to 'custom'"
+                        )
+
+                    # Extract the raw RFX samples and scale by train set outcome standard deviation
+                    rfx_samples_raw = self.rfx_container.extract_parameter_samples()
+                    rfx_beta_draws = rfx_samples_raw["beta_samples"] * self.y_std
+
+                    # Construct an array with the appropriate group random effects arranged for each observation
+                    n_train = X.shape[0]
+                    if rfx_beta_draws.ndim != 2:
+                        raise ValueError(
+                            "BART models fit with random intercept models should only yield 2 dimensional random effect sample matrices"
+                        )
+                    else:
+                        rfx_predictions_raw = np.empty(
+                            shape=(n_train, 1, rfx_beta_draws.shape[1])
+                        )
+                        for i in range(n_train):
+                            rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
+                                rfx_group_id_indices[i], :
+                            ]
+                    rfx_predictions = np.squeeze(rfx_predictions_raw[:, 0, :])
+
+            # Combine into y hat predictions
+            if probability_scale or class_scale:
+                if is_probit:
+                    if predict_y_hat and has_mean_forest and has_rfx:
+                        y_hat = norm.cdf(mean_forest_predictions + rfx_predictions)
+                    elif predict_y_hat and has_mean_forest:
+                        y_hat = norm.cdf(mean_forest_predictions)
+                    elif predict_y_hat and has_rfx:
+                        y_hat = norm.cdf(rfx_predictions)
+                    if (
+                        predict_mean_forest or predict_mean_forest_intermediate
+                    ) and has_mean_forest:
+                        mean_forest_predictions = norm.cdf(mean_forest_predictions)
+                    if (predict_rfx or predict_rfx_intermediate) and has_rfx:
+                        rfx_predictions = norm.cdf(rfx_predictions)
+                elif is_binary_cloglog:
+                    mean_forest_predictions = np.exp(-np.exp(mean_forest_predictions))
+                    if predict_y_hat:
+                        y_hat = mean_forest_predictions
+                elif is_ordinal_cloglog:
+                    cloglog_num_categories = self.cloglog_num_categories
+                    cloglog_cutpoint_samples = self.cloglog_cutpoint_samples
+                    n_obs = X.shape[0]
+                    num_samples = self.num_samples
+                    # Sequential ordinal cloglog: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
+                    # S_k = exp(-exp(gamma_k + f)), running survival product across k.
+                    mean_forest_probabilities = np.empty(
+                        (n_obs, cloglog_num_categories, num_samples)
+                    )
+                    cumulative_survival = np.ones((n_obs, num_samples))
+                    for k in range(cloglog_num_categories - 1):
+                        S_k = np.exp(-np.exp(mean_forest_predictions + cloglog_cutpoint_samples[k, :]))
+                        mean_forest_probabilities[:, k, :] = cumulative_survival * (1.0 - S_k)
+                        cumulative_survival = cumulative_survival * S_k
+                    mean_forest_probabilities[:, cloglog_num_categories - 1, :] = cumulative_survival
+                    if predict_y_hat:
+                        y_hat = mean_forest_probabilities
+                    mean_forest_predictions = mean_forest_probabilities
             else:
-                result["variance_forest_predictions"] = None
-            return result
+                if predict_y_hat and has_mean_forest and has_rfx:
+                    y_hat = mean_forest_predictions + rfx_predictions
+                elif predict_y_hat and has_mean_forest:
+                    y_hat = mean_forest_predictions
+                elif predict_y_hat and has_rfx:
+                    y_hat = rfx_predictions
+
+            # Collapse to posterior mean predictions if requested
+            if predict_mean:
+                if predict_mean_forest:
+                    if is_ordinal_cloglog and probability_scale:
+                        mean_forest_predictions = np.mean(mean_forest_predictions, axis=2)
+                    else:
+                        mean_forest_predictions = np.mean(mean_forest_predictions, axis=1)
+                if predict_rfx:
+                    rfx_predictions = np.mean(rfx_predictions, axis=1)
+                if predict_y_hat:
+                    if is_ordinal_cloglog and probability_scale:
+                        y_hat = np.mean(y_hat, axis=2)
+                    else:
+                        y_hat = np.mean(y_hat, axis=1)
+
+            # Convert probabilities to classes if requested
+            if class_scale:
+                if is_ordinal_cloglog:
+                    # For each (obs, sample), pick category with highest probability
+                    # y_hat is (n_obs, n_categories, n_samples)
+                    y_hat = np.argmax(y_hat, axis=1) + 1  # 1-indexed classes
+                else:
+                    y_hat = np.where(y_hat < 0.5, 0, 1)
+
+            if predict_count == 1:
+                if predict_y_hat:
+                    return y_hat
+                elif predict_mean_forest:
+                    return mean_forest_predictions
+                elif predict_rfx:
+                    return rfx_predictions
+                elif predict_variance_forest:
+                    return variance_forest_predictions
+            else:
+                result = dict()
+                if predict_y_hat:
+                    result["y_hat"] = y_hat
+                else:
+                    result["y_hat"] = None
+                if predict_mean_forest:
+                    result["mean_forest_predictions"] = mean_forest_predictions
+                else:
+                    result["mean_forest_predictions"] = None
+                if predict_rfx:
+                    result["rfx_predictions"] = rfx_predictions
+                else:
+                    result["rfx_predictions"] = None
+                if predict_variance_forest:
+                    result["variance_forest_predictions"] = variance_forest_predictions
+                else:
+                    result["variance_forest_predictions"] = None
+                return result
 
     def compute_contrast(
         self,
