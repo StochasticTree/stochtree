@@ -8,6 +8,7 @@
 #include <stochtree/meta.h>
 #include <stochtree/ordinal_sampler.h>
 #include <stochtree/partition_tracker.h>
+#include <stochtree/prediction.h>
 #include <stochtree/random_effects.h>
 #include <stochtree/tree_sampler.h>
 #include <cpp11.hpp>

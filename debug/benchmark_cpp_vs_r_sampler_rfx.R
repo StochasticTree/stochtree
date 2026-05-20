@@ -76,25 +76,38 @@ run_once <- function(run_cpp, seed = -1) {
   m <- bart(
     X_train             = X_train,
     y_train             = y_train,
-    X_test              = X_test,
     num_gfr             = num_gfr,
     num_burnin          = num_burnin,
     num_mcmc            = num_mcmc,
     rfx_group_ids_train = group_ids_train,
-    rfx_group_ids_test  = group_ids_test,
     rfx_basis_train     = rfx_basis_train,
-    rfx_basis_test      = rfx_basis_test,
     mean_forest_params  = list(num_trees = num_trees),
     general_params      = list(random_seed = seed, num_chains = num_chains),
     run_cpp             = run_cpp
   )
-  elapsed <- (proc.time() - t0)[["elapsed"]]
+  elapsed_sample <- (proc.time() - t0)[["elapsed"]]
 
-  y_hat <- rowMeans(m$y_hat_test)
+  t1 <- proc.time()
+  preds <- predict(
+    m,
+    X             = X_test,
+    rfx_group_ids = group_ids_test,
+    rfx_basis     = rfx_basis_test,
+    run_cpp       = run_cpp
+  )
+  elapsed_predict <- (proc.time() - t1)[["elapsed"]]
+
+  y_hat <- rowMeans(preds$y_hat)
   rmse_y  <- sqrt(mean((y_hat - y_test)^2))
   rmse_mu <- sqrt(mean((y_hat - mu_test)^2))
 
-  list(elapsed = elapsed, rmse_y = rmse_y, rmse_mu = rmse_mu)
+  list(
+    elapsed         = elapsed_sample + elapsed_predict,
+    elapsed_sample  = elapsed_sample,
+    elapsed_predict = elapsed_predict,
+    rmse_y          = rmse_y,
+    rmse_mu         = rmse_mu
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -121,16 +134,20 @@ for (i in seq_len(n_reps)) {
 # Summarise
 # ---------------------------------------------------------------------------
 summarise <- function(results, label) {
-  elapsed <- sapply(results, `[[`, "elapsed")
-  rmse_y  <- sapply(results, `[[`, "rmse_y")
-  rmse_mu <- sapply(results, `[[`, "rmse_mu")
+  elapsed         <- sapply(results, `[[`, "elapsed")
+  elapsed_sample  <- sapply(results, `[[`, "elapsed_sample")
+  elapsed_predict <- sapply(results, `[[`, "elapsed_predict")
+  rmse_y          <- sapply(results, `[[`, "rmse_y")
+  rmse_mu         <- sapply(results, `[[`, "rmse_mu")
   data.frame(
-    sampler      = label,
-    elapsed_mean = mean(elapsed),
-    elapsed_sd   = sd(elapsed),
-    rmse_y_mean  = mean(rmse_y),
-    rmse_mu_mean = mean(rmse_mu),
-    row.names    = NULL
+    sampler              = label,
+    elapsed_mean         = mean(elapsed),
+    elapsed_sd           = sd(elapsed),
+    elapsed_sample_mean  = mean(elapsed_sample),
+    elapsed_predict_mean = mean(elapsed_predict),
+    rmse_y_mean          = mean(rmse_y),
+    rmse_mu_mean         = mean(rmse_mu),
+    row.names            = NULL
   )
 }
 
@@ -141,14 +158,15 @@ res <- rbind(
 
 cat("\n--- Results ---\n")
 cat(sprintf(
-  "%-22s  %10s  %10s  %10s  %10s\n",
-  "Sampler", "Time (s)", "SD", "RMSE (y)", "RMSE (mu)"
+  "%-22s  %10s  %10s  %11s  %10s  %10s  %10s\n",
+  "Sampler", "Total (s)", "Sample (s)", "Predict (s)", "SD", "RMSE (y)", "RMSE (mu)"
 ))
-cat(strrep("-", 70), "\n")
+cat(strrep("-", 90), "\n")
 for (i in seq_len(nrow(res))) {
   cat(sprintf(
-    "%-22s  %10.3f  %10.3f  %10.4f  %10.4f\n",
-    res$sampler[i], res$elapsed_mean[i], res$elapsed_sd[i],
+    "%-22s  %10.3f  %10.3f  %11.3f  %10.3f  %10.4f  %10.4f\n",
+    res$sampler[i], res$elapsed_mean[i], res$elapsed_sample_mean[i],
+    res$elapsed_predict_mean[i], res$elapsed_sd[i],
     res$rmse_y_mean[i], res$rmse_mu_mean[i]
   ))
 }

@@ -12,9 +12,7 @@
 #include <stochtree/tree_sampler.h>
 #include <stochtree/variance_model.h>
 #include <Eigen/Dense>
-#include <memory>
-#include <random>
-#include <variant>
+#include "stochtree/log.h"
 
 namespace StochTree {
 
@@ -24,9 +22,70 @@ void location_scale_adjust_predictions(std::vector<double>& predictions, double 
   }
 }
 
-void transform_probit_predictions(std::vector<double>& predictions) {
+void probability_transform_probit_predictions(std::vector<double>& predictions) {
   for (double& pred : predictions) {
     pred = norm_cdf(pred);
+  }
+}
+
+void probability_transform_binary_cloglog_predictions(std::vector<double>& predictions) {
+  for (double& pred : predictions) {
+    pred = std::exp(-std::exp(pred));
+  }
+}
+
+void probability_transform_ordinal_cloglog_predictions(std::vector<double>& predictions, std::vector<double>& output, double* cutpoints, int num_obs, int num_classes, int num_samples) {
+  // Sequential ordinal cloglog model: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
+  // where S_k = exp(-exp(cutpoint_k + eta)).  The last class absorbs the
+  // remaining survival probability: P(Y=K-1) = prod_{j<K-1} S_j.
+  for (int j = 0; j < num_samples; j++) {
+    for (int i = 0; i < num_obs; i++) {
+      double eta = predictions[j * num_obs + i];
+      double cumulative_survival = 1.0;
+      double cumulative_prob = 0.0;
+      for (int k = 0; k < num_classes - 1; k++) {
+        double cutpoint = cutpoints[j * (num_classes - 1) + k];
+        double S_k = std::exp(-std::exp(cutpoint + eta));
+        double prob_k = cumulative_survival * (1.0 - S_k);
+        output[j * num_classes * num_obs + k * num_obs + i] = prob_k;
+        cumulative_prob += prob_k;
+        cumulative_survival *= S_k;
+      }
+      output[j * num_classes * num_obs + (num_classes - 1) * num_obs + i] = 1.0 - cumulative_prob;
+    }
+  }
+}
+
+void class_transform_binary_outcome_predictions(std::vector<double>& predictions) {
+  for (double& pred : predictions) {
+    pred = pred >= 0.5 ? 1.0 : 0.0;
+  }
+}
+
+/*!
+ * \brief Assumes that class probabilities are stored in a column-major format in `predictions`, with dimensions num_obs x num_classes x num_samples, and transforms these into class predictions by taking the class with the highest predicted probability for each observation and sample.
+ * The output is stored in `output`, which should be a pre-allocated vector of size num_obs x num_samples, also in column-major format (i.e., all predictions for the first sample are stored contiguously, followed by all predictions for the second sample, etc.).
+ *
+ * \param predictions Vector of class probabilities in column-major format with dimensions num_obs x num_classes x num_samples
+ * \param output Pre-allocated vector to store class predictions in column-major format with dimensions num_obs x num_samples
+ * \param num_obs Number of observations
+ * \param num_classes Number of classes
+ * \param num_samples Number of samples
+ */
+void class_transform_multiclass_outcome_predictions(std::vector<double>& predictions, std::vector<double>& output, int num_obs, int num_classes, int num_samples) {
+  for (int j = 0; j < num_samples; j++) {
+    for (int i = 0; i < num_obs; i++) {
+      int predicted_class = 0;
+      double max_prob = predictions[j * num_classes * num_obs + 0 * num_obs + i];
+      for (int k = 1; k < num_classes; k++) {
+        double prob_k = predictions[j * num_classes * num_obs + k * num_obs + i];
+        if (prob_k > max_prob) {
+          max_prob = prob_k;
+          predicted_class = k;
+        }
+      }
+      output[j * num_obs + i] = static_cast<double>(predicted_class);
+    }
   }
 }
 
@@ -106,6 +165,226 @@ void average_col_major_3d(std::vector<double>& input, std::vector<double>& outpu
 }
 
 /*!
+ * The return value, BARTPredictionResult, is a struct that contains many optional data fields
+ * stored as std::vectors that are left empty if a model term is not requested by the prediction call.
+ *
+ * In some cases, model terms need to be computed even if not directly requested.
+ * For example, the conditional outcome mean (y_hat) requires mean forest and any random effects predictions.
+ * In the case that a term is needed as an intermediate computation but not requested as an output, we
+ * compute it internally and not return it.
+ */
+BARTPredictionResult predict_bart_model(BARTData& data, BARTPredictionInput& model_refs) {
+  // Initialize a prediction result object
+  BARTPredictionResult output{};
+
+  // Key input / output dimensions
+  const int num_samples = model_refs.num_samples;
+  const int num_obs = model_refs.num_obs;
+  // const int num_basis = model_refs.num_basis;
+
+  // Key model components
+  const bool has_mean_forest = model_refs.mean_forests != nullptr;
+  const bool has_variance_forest = model_refs.has_variance_forest;
+  const bool has_rfx = model_refs.has_rfx;
+  const bool rfx_custom = model_refs.rfx_model_spec == BARTRFXModelSpec::Custom;
+  // const bool rfx_intercept = model_refs.rfx_model_spec == BARTRFXModelSpec::InterceptOnly;
+
+  // Input data / config checks
+  if (has_rfx) {
+    if (rfx_custom && data.rfx_basis_test == nullptr) {
+      Log::Fatal("Model includes random effects with custom basis, but no random effect basis was provided in the test data for prediction");
+    }
+  }
+  if (model_refs.pred_scale == PredScale::kClass && model_refs.pred_type == PredType::kMean) {
+    Log::Fatal("Taking the posterior mean of integer-valued class predictions is not an informative quantity, so this combination of pred_scale and pred_type is not supported directly by stochtree's prediction capabilities. If you do wish to obtain a posterior mean of class label predictions, we recommend predicting the class label posterior and then taking the average across MCMC samples in the resulting array");
+  }
+
+  // Model output details:
+  // - num_samples_output refers to the posterior sample dimension, which is num_samples for posterior predictions and 1 for posterior mean transformations
+  // - each of the need_* fields are true if a term needs to be computed en route to the user's requested outputs
+  int num_samples_output = 1;
+  if (model_refs.pred_type == PredType::kPosterior) {
+    num_samples_output = num_samples;
+  }
+  bool need_mean = has_mean_forest && (model_refs.pred_terms.y_hat || model_refs.pred_terms.mean_forest);
+  bool need_rfx = has_rfx && (model_refs.pred_terms.y_hat || model_refs.pred_terms.random_effects);
+  bool need_variance_forest = has_variance_forest && model_refs.pred_terms.variance_forest;
+
+  // Resize any output vectors to be returned to users
+  const bool probability_scale = model_refs.pred_scale == PredScale::kProbability;
+  const bool class_scale = model_refs.pred_scale == PredScale::kClass;
+  const bool ordinal_cloglog_prob_scale = probability_scale && model_refs.link_function == LinkFunction::Cloglog && model_refs.outcome_type == OutcomeType::Ordinal;
+  if (model_refs.pred_terms.y_hat) output.y_hat.resize(num_obs * (ordinal_cloglog_prob_scale ? model_refs.cloglog_num_classes : 1) * num_samples_output);
+  if (model_refs.pred_terms.mean_forest) output.mean_forest_predictions.resize(num_obs * (ordinal_cloglog_prob_scale ? model_refs.cloglog_num_classes : 1) * num_samples_output);
+  if (model_refs.pred_terms.variance_forest) output.variance_forest_predictions.resize(num_obs * num_samples_output);
+  if (model_refs.pred_terms.random_effects) output.rfx_predictions.resize(num_obs * num_samples_output);
+
+  // Initialize temporary containers needed to compute the requested predictions
+  std::vector<double> mean_forest;
+  std::vector<double> rfx;
+  std::vector<double> variance_forest;
+  std::vector<double> y_hat;
+  if (need_mean) {
+    mean_forest.resize(num_obs * num_samples);
+  }
+  if (need_rfx) {
+    rfx.resize(num_obs * num_samples);
+  }
+  if (need_variance_forest) {
+    variance_forest.resize(num_obs * num_samples);
+  }
+  if (model_refs.pred_terms.y_hat) {
+    y_hat.resize(num_obs * num_samples);
+  }
+
+  // Construct ForestDataset -- use the "test" fields
+  ForestDataset forest_dataset{};
+  forest_dataset.AddCovariates(data.X_test, data.n_test, data.p, /*row_major=*/false);
+  if (data.basis_test != nullptr) {
+    forest_dataset.AddBasis(data.basis_test, data.n_test, data.basis_dim, /*row_major=*/false);
+  }
+
+  if (need_mean) {
+    // Predict from mean forest
+    mean_forest = model_refs.mean_forests->Predict(forest_dataset);
+  }
+
+  // Compute overall random effects predictions
+  if (need_rfx) {
+    RandomEffectsDataset rfx_dataset;
+    rfx_dataset.AddGroupLabels(data.rfx_group_ids_test, num_obs);
+    if (data.rfx_basis_test != nullptr) {
+      rfx_dataset.AddBasis(data.rfx_basis_test, num_obs, data.rfx_basis_dim, /*row_major=*/false);
+    } else if (model_refs.rfx_model_spec == BARTRFXModelSpec::InterceptOnly) {
+      std::vector<double> rfx_basis(data.n_test, 1.0);
+      rfx_dataset.AddBasis(rfx_basis.data(), num_obs, 1, /*row_major=*/false);
+    } else {
+      Log::Fatal("BART model random effects term was not sampled with intercept_only or intercept_plus_treatment specification, but not random effect basis was provided for prediction");
+    }
+    model_refs.rfx_container->Predict(rfx_dataset, *model_refs.rfx_label_mapper, rfx);
+  }
+
+  if (need_variance_forest) {
+    variance_forest = model_refs.variance_forests->Predict(forest_dataset);
+  }
+  if (model_refs.pred_terms.y_hat) {
+    // y_hat is default initialized to 0, so we can just add the mean forest and random effects predictions as needed
+    for (int i = 0; i < num_obs; i++) {
+      if (need_mean) {
+        for (int j = 0; j < num_samples; j++) {
+          y_hat[j * num_obs + i] += mean_forest[j * num_obs + i];
+        }
+      }
+      if (need_rfx) {
+        for (int j = 0; j < num_samples; j++) {
+          y_hat[j * num_obs + i] += rfx[j * num_obs + i];
+        }
+      }
+    }
+  }
+
+  // Scale the outputs
+  if (model_refs.pred_terms.mean_forest) {
+    location_scale_adjust_predictions(mean_forest, model_refs.y_bar, model_refs.y_std);
+  }
+  if (model_refs.pred_terms.random_effects) {
+    location_scale_adjust_predictions(rfx, 0.0, model_refs.y_std);
+  }
+  if (model_refs.pred_terms.y_hat) {
+    location_scale_adjust_predictions(y_hat, model_refs.y_bar, model_refs.y_std);
+  }
+  if (need_variance_forest) {
+    location_scale_adjust_predictions(variance_forest, 0.0, model_refs.y_std * model_refs.y_std);
+  }
+
+  // Transform if necessary (e.g. for probit models)
+  if (model_refs.link_function == LinkFunction::Probit) {
+    if (model_refs.pred_terms.mean_forest && probability_scale) {
+      probability_transform_probit_predictions(mean_forest);
+    }
+    if (model_refs.pred_terms.random_effects && probability_scale) {
+      probability_transform_probit_predictions(rfx);
+    }
+    if (model_refs.pred_terms.y_hat && (probability_scale || class_scale)) {
+      probability_transform_probit_predictions(y_hat);
+      if (class_scale) {
+        class_transform_binary_outcome_predictions(y_hat);
+      }
+    }
+  } else if (model_refs.link_function == LinkFunction::Cloglog) {
+    if (model_refs.outcome_type == OutcomeType::Binary) {
+      if (model_refs.pred_terms.mean_forest && probability_scale) {
+        probability_transform_binary_cloglog_predictions(mean_forest);
+      }
+      // NOTE: RFX not compatible with cloglog link, so we skip RFX transformation
+      if (model_refs.pred_terms.y_hat && (probability_scale || class_scale)) {
+        probability_transform_binary_cloglog_predictions(y_hat);
+        if (class_scale) {
+          class_transform_binary_outcome_predictions(y_hat);
+        }
+      }
+    } else if (model_refs.outcome_type == OutcomeType::Ordinal) {
+      if (model_refs.pred_terms.mean_forest && probability_scale) {
+        std::vector<double> mean_forest_prob(num_obs * num_samples * model_refs.cloglog_num_classes);
+        probability_transform_ordinal_cloglog_predictions(mean_forest, mean_forest_prob, model_refs.cloglog_cutpoint_samples, num_obs, model_refs.cloglog_num_classes, num_samples);
+        mean_forest = std::move(mean_forest_prob);
+      }
+      if (model_refs.pred_terms.y_hat && (probability_scale || class_scale)) {
+        std::vector<double> y_hat_prob(num_obs * num_samples * model_refs.cloglog_num_classes);
+        probability_transform_ordinal_cloglog_predictions(y_hat, y_hat_prob, model_refs.cloglog_cutpoint_samples, num_obs, model_refs.cloglog_num_classes, num_samples);
+        if (model_refs.pred_scale == PredScale::kClass) {
+          class_transform_multiclass_outcome_predictions(y_hat_prob, y_hat, num_obs, model_refs.cloglog_num_classes, num_samples);
+        } else {
+          y_hat = std::move(y_hat_prob);
+        }
+      }
+    }
+  }
+
+  // Unpack into returned outputs, aggregating if necessary
+  if (model_refs.pred_terms.mean_forest) {
+    if (model_refs.pred_type == PredType::kMean) {
+      if (model_refs.pred_scale == PredScale::kProbability && model_refs.outcome_type == OutcomeType::Ordinal && model_refs.link_function == LinkFunction::Cloglog) {
+        average_col_major_3d(mean_forest, output.mean_forest_predictions, /*dim1=*/num_obs, /*dim2=*/model_refs.cloglog_num_classes, /*dim3=*/num_samples, /*dim_average=*/2);
+      } else {
+        average_col_major_2d(mean_forest, output.mean_forest_predictions, /*num_rows=*/num_obs, /*num_cols=*/num_samples);
+      }
+    } else {
+      output.mean_forest_predictions = std::move(mean_forest);
+    }
+  }
+  if (need_variance_forest) {
+    if (model_refs.pred_type == PredType::kMean) {
+      // NOTE: variance forest not compatible with ordinal cloglog model so we don't need to worry about 3d averaging here
+      average_col_major_2d(variance_forest, output.variance_forest_predictions, /*num_rows=*/num_obs, /*num_cols=*/num_samples);
+    } else {
+      output.variance_forest_predictions = std::move(variance_forest);
+    }
+  }
+  if (model_refs.pred_terms.random_effects) {
+    if (model_refs.pred_type == PredType::kMean) {
+      // NOTE: random effects not compatible with ordinal cloglog model so we don't need to worry about 3d averaging here
+      average_col_major_2d(rfx, output.rfx_predictions, /*num_rows=*/num_obs, /*num_cols=*/num_samples);
+    } else {
+      output.rfx_predictions = std::move(rfx);
+    }
+  }
+  if (model_refs.pred_terms.y_hat) {
+    if (model_refs.pred_type == PredType::kMean) {
+      if (model_refs.pred_scale == PredScale::kProbability && model_refs.outcome_type == OutcomeType::Ordinal && model_refs.link_function == LinkFunction::Cloglog) {
+        average_col_major_3d(y_hat, output.y_hat, /*dim1=*/num_obs, /*dim2=*/model_refs.cloglog_num_classes, /*dim3=*/num_samples, /*dim_average=*/2);
+      } else {
+        average_col_major_2d(y_hat, output.y_hat, /*num_rows=*/num_obs, /*num_cols=*/num_samples);
+      }
+    } else {
+      output.y_hat = std::move(y_hat);
+    }
+  }
+
+  return output;
+}
+
+/*!
  * The return value, BCFPRedictionResult, is a struct that contains many optional data fields
  * stored as std::vectors that are left empty if a model term is not requested by the prediction call.
  *
@@ -136,11 +415,12 @@ BCFPredictionResult predict_bcf_model(BCFData& data, BCFPredictionInput& model_r
   // - num_samples_output refers to the posterior sample dimension, which is num_samples for posterior predictions and 1 for posterior mean transformations
   // - each of the need_* fields are true if a term needs to be computed en route to the user's requested outputs
   int num_samples_output = 1;
-  if (model_refs.pred_type == BCFPredType::kPosterior) {
+  if (model_refs.pred_type == PredType::kPosterior) {
     num_samples_output = num_samples;
   }
-  bool need_mu = model_refs.pred_terms.y_hat || model_refs.pred_terms.mu_x || model_refs.pred_terms.prognostic_function;
-  bool need_tau = model_refs.pred_terms.y_hat || model_refs.pred_terms.tau_x || model_refs.pred_terms.cate || (model_refs.adaptive_coding && need_mu);
+  bool need_tau_interm = model_refs.pred_terms.y_hat || model_refs.pred_terms.tau_x || model_refs.pred_terms.cate;
+  bool need_mu = model_refs.pred_terms.y_hat || model_refs.pred_terms.mu_x || model_refs.pred_terms.prognostic_function || (model_refs.adaptive_coding && need_tau_interm);
+  bool need_tau = need_tau_interm || (model_refs.adaptive_coding && need_mu);
   bool need_rfx = has_rfx && (model_refs.pred_terms.y_hat || model_refs.pred_terms.random_effects);
   bool need_rfx_intercept = has_rfx && rfx_intercept && model_refs.pred_terms.prognostic_function;
   bool need_rfx_treatment = has_rfx && rfx_treatment && model_refs.pred_terms.cate;
@@ -377,39 +657,39 @@ BCFPredictionResult predict_bcf_model(BCFData& data, BCFPredictionInput& model_r
   }
 
   // Transform if necessary (e.g. for probit models)
-  const bool probability_scale = model_refs.pred_scale == BCFPredScale::kProbability;
-  const bool class_scale = model_refs.pred_scale == BCFPredScale::kClass;
+  // NOTE: if we support cloglog or ordinal probit BCF in the future (likely),
+  // we must add more link function guards to this block of code
+  const bool probability_scale = model_refs.pred_scale == PredScale::kProbability;
+  const bool class_scale = model_refs.pred_scale == PredScale::kClass;
   if (model_refs.pred_terms.mu_x && probability_scale) {
-    transform_probit_predictions(mu_x);
+    probability_transform_probit_predictions(mu_x);
   }
   if (model_refs.pred_terms.prognostic_function && probability_scale) {
-    transform_probit_predictions(prognostic_function);
+    probability_transform_probit_predictions(prognostic_function);
   }
   if (model_refs.pred_terms.tau_x && probability_scale) {
-    transform_probit_predictions(tau_x);
+    probability_transform_probit_predictions(tau_x);
   }
   if (model_refs.pred_terms.cate && probability_scale) {
-    transform_probit_predictions(cate);
+    probability_transform_probit_predictions(cate);
   }
   if (model_refs.pred_terms.y_hat && (probability_scale || class_scale)) {
-    transform_probit_predictions(y_hat);
+    probability_transform_probit_predictions(y_hat);
     if (class_scale) {
-      for (double& pred : y_hat) {
-        pred = pred >= 0.5 ? 1.0 : 0.0;
-      }
+      class_transform_binary_outcome_predictions(y_hat);
     }
   }
 
   // Unpack into returned outputs, aggregating if necessary
   if (model_refs.pred_terms.mu_x) {
-    if (model_refs.pred_type == BCFPredType::kMean) {
+    if (model_refs.pred_type == PredType::kMean) {
       average_col_major_2d(mu_x, output.mu_x, num_obs, num_samples);
     } else {
       output.mu_x = std::move(mu_x);
     }
   }
   if (model_refs.pred_terms.tau_x) {
-    if (model_refs.pred_type == BCFPredType::kMean) {
+    if (model_refs.pred_type == PredType::kMean) {
       if (num_treatment == 1) {
         // If only one treatment, tau_x is num_obs by num_samples, so average across samples in columns
         average_col_major_2d(tau_x, output.tau_x, /*num_rows=*/num_obs, /*num_cols=*/num_samples);
@@ -422,14 +702,14 @@ BCFPredictionResult predict_bcf_model(BCFData& data, BCFPredictionInput& model_r
     }
   }
   if (model_refs.pred_terms.prognostic_function) {
-    if (model_refs.pred_type == BCFPredType::kMean) {
+    if (model_refs.pred_type == PredType::kMean) {
       average_col_major_2d(prognostic_function, output.prognostic_function, num_obs, num_samples);
     } else {
       output.prognostic_function = std::move(prognostic_function);
     }
   }
   if (model_refs.pred_terms.cate) {
-    if (model_refs.pred_type == BCFPredType::kMean) {
+    if (model_refs.pred_type == PredType::kMean) {
       if (num_treatment == 1) {
         // If only one treatment, cate is num_obs by num_samples, so average across samples in columns
         average_col_major_2d(cate, output.cate, /*num_rows=*/num_obs, /*num_cols=*/num_samples);
@@ -442,21 +722,21 @@ BCFPredictionResult predict_bcf_model(BCFData& data, BCFPredictionInput& model_r
     }
   }
   if (need_variance_forest) {
-    if (model_refs.pred_type == BCFPredType::kMean) {
+    if (model_refs.pred_type == PredType::kMean) {
       average_col_major_2d(variance_forest, output.conditional_variance, num_obs, num_samples);
     } else {
       output.conditional_variance = std::move(variance_forest);
     }
   }
   if (model_refs.pred_terms.random_effects) {
-    if (model_refs.pred_type == BCFPredType::kMean) {
+    if (model_refs.pred_type == PredType::kMean) {
       average_col_major_2d(rfx, output.random_effects, num_obs, num_samples);
     } else {
       output.random_effects = std::move(rfx);
     }
   }
   if (model_refs.pred_terms.y_hat) {
-    if (model_refs.pred_type == BCFPredType::kMean) {
+    if (model_refs.pred_type == PredType::kMean) {
       average_col_major_2d(y_hat, output.y_hat, num_obs, num_samples);
     } else {
       output.y_hat = std::move(y_hat);

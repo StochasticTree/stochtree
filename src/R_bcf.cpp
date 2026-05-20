@@ -518,13 +518,13 @@ cpp11::writable::list bcf_predict_cpp(
   }
   pred_input.adaptive_coding = (bool)Rf_asLogical(bcf_model_list["adaptive_coding"]);
   pred_input.sample_tau_0 = (bool)Rf_asLogical(bcf_model_list["sample_tau_0"]);
-  pred_input.pred_type = posterior ? StochTree::BCFPredType::kPosterior : StochTree::BCFPredType::kMean;
+  pred_input.pred_type = posterior ? StochTree::PredType::kPosterior : StochTree::PredType::kMean;
   if (scale == 0) {
-    pred_input.pred_scale = StochTree::BCFPredScale::kLinear;
+    pred_input.pred_scale = StochTree::PredScale::kLinear;
   } else if (scale == 1) {
-    pred_input.pred_scale = StochTree::BCFPredScale::kProbability;
+    pred_input.pred_scale = StochTree::PredScale::kProbability;
   } else {
-    pred_input.pred_scale = StochTree::BCFPredScale::kClass;
+    pred_input.pred_scale = StochTree::PredScale::kClass;
   }
   pred_input.pred_terms.y_hat = predict_y_hat;
   pred_input.pred_terms.mu_x = predict_mu_x;

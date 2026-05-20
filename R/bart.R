@@ -2916,6 +2916,7 @@ bart <- function(
 #' @param type (Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
 #' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, "probability", which transforms predictions into class probabilities for models with discrete outcomes, and "class", which returns predicted outcome categories for discrete outcome models. "probability" is only valid for outcome models with `outcome == 'binary'` or `outcome == 'ordinal'`. For binary outcomes, this will return the probability that `y == 1`, and for ordinal outcomes, this will return probabilities for each outcome label. Default: "linear".
+#' @param run_cpp (Optional) Whether to use the C++ predict implementation. Default: `FALSE`.
 #' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
@@ -2954,6 +2955,7 @@ predict.bartmodel <- function(
   type = "posterior",
   terms = "all",
   scale = "linear",
+  run_cpp = FALSE,
   ...
 ) {
   # Handle mean function scale
@@ -3127,255 +3129,339 @@ predict.bartmodel <- function(
     }
   }
 
-  # Create prediction dataset
-  if (!is.null(leaf_basis)) {
-    prediction_dataset <- createForestDataset(X, leaf_basis)
-  } else {
-    prediction_dataset <- createForestDataset(X)
-  }
-
-  # Compute variance forest predictions
-  if (predict_variance_forest) {
-    s_x_raw <- object$variance_forests$predict(prediction_dataset)
-  }
-
-  # Scale variance forest predictions
-  num_samples <- object$model_params$num_samples
-  y_std <- object$model_params$outcome_scale
-  y_bar <- object$model_params$outcome_mean
-  sigma2_init <- object$model_params$sigma2_init
-  if (predict_variance_forest) {
-    if (object$model_params$sample_sigma2_global) {
-      sigma2_global_samples <- object$sigma2_global_samples
-      variance_forest_predictions <- sapply(1:num_samples, function(i) {
-        s_x_raw[, i] * sigma2_global_samples[i]
-      })
+  bart_model_list <- list(
+    mean_forests = if (!is.null(object$mean_forests)) {
+      object$mean_forests$forest_container_ptr
     } else {
-      variance_forest_predictions <- s_x_raw * sigma2_init * y_std * y_std
-    }
-    if (predict_mean) {
-      variance_forest_predictions <- rowMeans(variance_forest_predictions)
-    }
-  }
-
-  # Compute mean forest predictions
-  if (predict_mean_forest || predict_mean_forest_intermediate) {
-    mean_forest_predictions <- object$mean_forests$predict(
-      prediction_dataset
-    ) *
-      y_std +
-      y_bar
-  }
-
-  # Compute rfx predictions (if needed)
-  if (predict_rfx || predict_rfx_intermediate) {
-    if (!is.null(rfx_basis)) {
-      rfx_predictions <- object$rfx_samples$predict(
-        rfx_group_ids,
-        rfx_basis
-      ) *
-        y_std
+      NULL
+    },
+    variance_forests = if (!is.null(object$variance_forests)) {
+      object$variance_forests$forest_container_ptr
     } else {
-      # Sanity check -- this branch should only occur if rfx_model_spec == "intercept_only"
-      if (!rfx_intercept) {
-        stop(
-          "rfx_basis must be provided for random effects models with random slopes"
-        )
-      }
+      NULL
+    },
+    rfx_container = if (has_rfx) {
+      object$rfx_samples$rfx_container_ptr
+    } else {
+      NULL
+    },
+    rfx_label_mapper = if (has_rfx) {
+      object$rfx_samples$label_mapper_ptr
+    } else {
+      NULL
+    },
+    sigma2_global_samples = object$sigma2_global_samples,
+    sigma2_leaf_samples = object$sigma2_leaf_samples,
+    num_samples = as.integer(object$model_params$num_samples),
+    y_bar = as.double(object$model_params$outcome_mean),
+    y_std = as.double(object$model_params$outcome_scale),
+    include_variance_forest = has_variance_forest,
+    has_rfx = has_rfx,
+    rfx_model_spec = if (has_rfx) {
+      object$model_params$rfx_model_spec
+    } else {
+      ""
+    },
+    link_function = object$model_params$outcome_model$link,
+    outcome_type = object$model_params$outcome_model$outcome,
+    cloglog_num_classes = if (!is.null(object$model_params$num_classes_cloglog)) {
+      as.integer(object$model_params$num_classes_cloglog)
+    } else if (!is.null(object$model_params$cloglog_num_categories)) {
+      as.integer(object$model_params$cloglog_num_categories)
+    } else {
+      0L
+    },
+    cloglog_cutpoint_samples = object$cloglog_cutpoint_samples
+  )
 
-      # Extract the raw RFX samples and scale by train set outcome standard deviation
-      rfx_param_list <- object$rfx_samples$extract_parameter_samples()
-      rfx_beta_draws <- rfx_param_list$beta_samples * y_std
+  # Dimensions and integer-coded scale needed by the C++ predict path
+  n <- nrow(X)
+  p <- ncol(X)
+  num_basis <- if (!is.null(leaf_basis)) ncol(leaf_basis) else 0L
+  rfx_num_groups <- if (!is.null(rfx_group_ids)) length(unique(rfx_group_ids)) else 0L
+  rfx_basis_dim <- if (!is.null(rfx_basis)) ncol(rfx_basis) else 0L
+  scale_int <- switch(scale, "linear" = 0L, "probability" = 1L, "class" = 2L)
 
-      # Promote to an array with consistent dimensions when there's one rfx term
-      if (length(dim(rfx_beta_draws)) == 2) {
-        dim(rfx_beta_draws) <- c(1, dim(rfx_beta_draws))
-      }
-
-      # Construct a matrix with the appropriate group random effects arranged for each observation
-      rfx_predictions_raw <- array(
-        NA,
-        dim = c(
-          nrow(X),
-          ncol(rfx_basis),
-          object$model_params$num_samples
-        )
+  if (run_cpp) {
+    output <- bart_predict_cpp(
+      bart_model_list = bart_model_list,
+      X = X,
+      leaf_basis = leaf_basis,
+      n = n,
+      p = p,
+      num_basis = num_basis,
+      obs_weights = NULL,
+      rfx_group_ids = rfx_group_ids,
+      rfx_basis = rfx_basis,
+      rfx_num_groups = rfx_num_groups,
+      rfx_basis_dim = rfx_basis_dim,
+      posterior = type == "posterior",
+      scale = scale_int,
+      predict_y_hat = predict_y_hat,
+      predict_mean_forest = predict_mean_forest,
+      predict_variance_forest = predict_variance_forest,
+      predict_random_effects = predict_rfx
+    )
+    # Reshape flat C++ output vectors to matrices (n x num_samples) and rename
+    # fields to match the R predict path.  For type="mean", num_samples_output=1
+    # so we drop the trailing singleton to return a plain vector.
+    num_samples_raw <- as.integer(object$model_params$num_samples)
+    num_samples_output <- if (type == "posterior") num_samples_raw else 1L
+    reshape_cpp_pred_2d <- function(v, dim1, dim2) {
+      if (is.null(v)) return(NULL)
+      if (dim2 == 1L) return(as.vector(v))
+      m <- v
+      dim(m) <- c(dim1, dim2)
+      m
+    }
+    reshape_cpp_pred_3d <- function(v, dim1, dim2, dim3) {
+      if (is.null(v)) return(NULL)
+      a <- v
+      dim(a) <- c(dim1, dim2, dim3)
+      a
+    }
+    cloglog_num_classes_out <- if (!is.null(object$model_params$cloglog_num_categories)) {
+      as.integer(object$model_params$cloglog_num_categories)
+    } else if (!is.null(object$model_params$num_classes_cloglog)) {
+      as.integer(object$model_params$num_classes_cloglog)
+    } else {
+      0L
+    }
+    result <- list(
+      y_hat = if (is_ordinal_cloglog && probability_scale) {
+        reshape_cpp_pred_3d(output$y_hat, n, cloglog_num_classes_out, num_samples_output)
+      } else {
+        reshape_cpp_pred_2d(output$y_hat, n, num_samples_output)
+      },
+      mean_forest_predictions = reshape_cpp_pred_2d(
+        output$mean_forest_predictions, n, num_samples_output
+      ),
+      rfx_predictions = reshape_cpp_pred_2d(
+        output$rfx_predictions, n, num_samples_output
+      ),
+      variance_forest_predictions = reshape_cpp_pred_2d(
+        output$variance_forest_predictions, n, num_samples_output
       )
-      for (i in 1:nrow(X)) {
-        rfx_predictions_raw[i, , ] <-
-          rfx_beta_draws[, rfx_group_ids[i], ]
-      }
-
-      # Intercept-only model, so the random effect prediction is simply the
-      # value of the respective group's intercept coefficient for each observation
-      rfx_predictions = rfx_predictions_raw[, 1, ]
-    }
-  }
-
-  # Combine into y hat predictions
-  if (probability_scale) {
-    if (is_probit) {
-      if (predict_y_hat) {
-        if (has_mean_forest && has_rfx) {
-          y_hat <- pnorm(mean_forest_predictions + rfx_predictions)
-          mean_forest_predictions <- pnorm(mean_forest_predictions)
-          rfx_predictions <- pnorm(rfx_predictions)
-        } else if (has_mean_forest) {
-          y_hat <- pnorm(mean_forest_predictions)
-          mean_forest_predictions <- pnorm(mean_forest_predictions)
-        } else if (has_rfx) {
-          y_hat <- pnorm(rfx_predictions)
-          rfx_predictions <- pnorm(rfx_predictions)
-        }
-      } else {
-        if (has_mean_forest && has_rfx) {
-          mean_forest_predictions <- pnorm(mean_forest_predictions)
-          rfx_predictions <- pnorm(rfx_predictions)
-        } else if (has_mean_forest) {
-          mean_forest_predictions <- pnorm(mean_forest_predictions)
-        } else if (has_rfx) {
-          rfx_predictions <- pnorm(rfx_predictions)
-        }
-      }
-    } else if (is_binary_cloglog) {
-      mean_forest_predictions <- exp(-exp(mean_forest_predictions))
-      if (predict_y_hat) {
-        y_hat <- mean_forest_predictions
-      }
-    } else if (is_ordinal_cloglog) {
-      cloglog_num_categories <- object$model_params$cloglog_num_categories
-      cloglog_cutpoint_samples <- object$cloglog_cutpoint_samples
-      mean_forest_probabilities <- array(
-        NA_real_,
-        dim = c(
-          nrow(X),
-          cloglog_num_categories,
-          object$model_params$num_samples
-        )
-      )
-      for (j in 1:cloglog_num_categories) {
-        if (j == 1) {
-          mean_forest_probabilities[, j, ] <- (1 -
-            exp(
-              -exp(
-                sweep(
-                  mean_forest_predictions,
-                  2,
-                  cloglog_cutpoint_samples[j, ],
-                  "+"
-                )
-              )
-            ))
-        } else if (j == cloglog_num_categories) {
-          mean_forest_probabilities[, j, ] <- 1 -
-            apply(
-              mean_forest_probabilities[, 1:(j - 1), , drop = FALSE],
-              c(1, 3),
-              sum
-            )
-        } else {
-          mean_forest_probabilities[, j, ] <- (exp(
-            -exp(
-              sweep(
-                mean_forest_predictions,
-                2,
-                cloglog_cutpoint_samples[j - 1, ],
-                "+"
-              )
-            )
-          ) *
-            (1 -
-              exp(
-                -exp(
-                  sweep(
-                    mean_forest_predictions,
-                    2,
-                    cloglog_cutpoint_samples[j, ],
-                    "+"
-                  )
-                )
-              )))
-        }
-      }
-      if (predict_y_hat) {
-        y_hat <- mean_forest_probabilities
-      }
-      mean_forest_predictions <- mean_forest_probabilities
-    }
-  } else {
-    if (predict_y_hat && has_mean_forest && has_rfx) {
-      y_hat <- mean_forest_predictions + rfx_predictions
-    } else if (predict_y_hat && has_mean_forest) {
-      y_hat <- mean_forest_predictions
-    } else if (predict_y_hat && has_rfx) {
-      y_hat <- rfx_predictions
-    }
-  }
-
-  # Collapse to posterior mean predictions if requested
-  if (predict_mean) {
-    if (predict_mean_forest) {
-      if (is_ordinal_cloglog && probability_scale) {
-        mean_forest_predictions <- apply(mean_forest_predictions, c(1, 2), mean)
-      } else {
-        mean_forest_predictions <- rowMeans(mean_forest_predictions)
-      }
-    }
-    if (predict_rfx) {
-      # Note: random effects not supported for cloglog, so we don't have to handle the ordinal / cloglog case here
-      rfx_predictions <- rowMeans(rfx_predictions)
-    }
-    if (predict_y_hat) {
-      if (is_ordinal_cloglog && probability_scale) {
-        y_hat <- apply(y_hat, c(1, 2), mean)
-      } else {
-        y_hat <- rowMeans(y_hat)
-      }
-    }
-  }
-
-  # Convert probabilities to classes if requested
-  if (class_scale) {
-    if (is_ordinal_cloglog) {
-      y_hat <- apply(y_hat, c(1, 3), which.max)
-    } else {
-      y_hat <- ifelse(y_hat < 0.5, 0, 1)
-    }
-  }
-
-  if (predict_count == 1) {
-    if (predict_y_hat) {
-      return(y_hat)
-    } else if (predict_mean_forest) {
-      return(mean_forest_predictions)
-    } else if (predict_rfx) {
-      return(rfx_predictions)
-    } else if (predict_variance_forest) {
-      return(variance_forest_predictions)
-    }
-  } else {
-    result <- list()
-    if (predict_y_hat) {
-      result[["y_hat"]] = y_hat
-    } else {
-      result[["y_hat"]] <- NULL
-    }
-    if (predict_mean_forest) {
-      result[["mean_forest_predictions"]] = mean_forest_predictions
-    } else {
-      result[["mean_forest_predictions"]] <- NULL
-    }
-    if (predict_rfx) {
-      result[["rfx_predictions"]] = rfx_predictions
-    } else {
-      result[["rfx_predictions"]] <- NULL
-    }
-    if (predict_variance_forest) {
-      result[["variance_forest_predictions"]] = variance_forest_predictions
-    } else {
-      result[["variance_forest_predictions"]] <- NULL
-    }
+    )
     return(result)
+  } else {
+    # Create prediction dataset
+    if (!is.null(leaf_basis)) {
+      prediction_dataset <- createForestDataset(X, leaf_basis)
+    } else {
+      prediction_dataset <- createForestDataset(X)
+    }
+
+    # Compute variance forest predictions
+    if (predict_variance_forest) {
+      s_x_raw <- object$variance_forests$predict(prediction_dataset)
+    }
+
+    # Scale variance forest predictions
+    num_samples <- object$model_params$num_samples
+    y_std <- object$model_params$outcome_scale
+    y_bar <- object$model_params$outcome_mean
+    sigma2_init <- object$model_params$sigma2_init
+    if (predict_variance_forest) {
+      if (object$model_params$sample_sigma2_global) {
+        sigma2_global_samples <- object$sigma2_global_samples
+        variance_forest_predictions <- sapply(1:num_samples, function(i) {
+          s_x_raw[, i] * sigma2_global_samples[i]
+        })
+      } else {
+        variance_forest_predictions <- s_x_raw * sigma2_init * y_std * y_std
+      }
+      if (predict_mean) {
+        variance_forest_predictions <- rowMeans(variance_forest_predictions)
+      }
+    }
+
+    # Compute mean forest predictions
+    if (predict_mean_forest || predict_mean_forest_intermediate) {
+      mean_forest_predictions <- object$mean_forests$predict(
+        prediction_dataset
+      ) *
+        y_std +
+        y_bar
+    }
+
+    # Compute rfx predictions (if needed)
+    if (predict_rfx || predict_rfx_intermediate) {
+      if (!is.null(rfx_basis)) {
+        rfx_predictions <- object$rfx_samples$predict(
+          rfx_group_ids,
+          rfx_basis
+        ) *
+          y_std
+      } else {
+        # Sanity check -- this branch should only occur if rfx_model_spec == "intercept_only"
+        if (!rfx_intercept) {
+          stop(
+            "rfx_basis must be provided for random effects models with random slopes"
+          )
+        }
+
+        # Extract the raw RFX samples and scale by train set outcome standard deviation
+        rfx_param_list <- object$rfx_samples$extract_parameter_samples()
+        rfx_beta_draws <- rfx_param_list$beta_samples * y_std
+
+        # Promote to an array with consistent dimensions when there's one rfx term
+        if (length(dim(rfx_beta_draws)) == 2) {
+          dim(rfx_beta_draws) <- c(1, dim(rfx_beta_draws))
+        }
+
+        # Construct a matrix with the appropriate group random effects arranged for each observation
+        rfx_predictions_raw <- array(
+          NA,
+          dim = c(
+            nrow(X),
+            ncol(rfx_basis),
+            object$model_params$num_samples
+          )
+        )
+        for (i in 1:nrow(X)) {
+          rfx_predictions_raw[i, , ] <-
+            rfx_beta_draws[, rfx_group_ids[i], ]
+        }
+
+        # Intercept-only model, so the random effect prediction is simply the
+        # value of the respective group's intercept coefficient for each observation
+        rfx_predictions = rfx_predictions_raw[, 1, ]
+      }
+    }
+
+    # Combine into y hat predictions
+    if (probability_scale) {
+      if (is_probit) {
+        if (predict_y_hat) {
+          if (has_mean_forest && has_rfx) {
+            y_hat <- pnorm(mean_forest_predictions + rfx_predictions)
+            mean_forest_predictions <- pnorm(mean_forest_predictions)
+            rfx_predictions <- pnorm(rfx_predictions)
+          } else if (has_mean_forest) {
+            y_hat <- pnorm(mean_forest_predictions)
+            mean_forest_predictions <- pnorm(mean_forest_predictions)
+          } else if (has_rfx) {
+            y_hat <- pnorm(rfx_predictions)
+            rfx_predictions <- pnorm(rfx_predictions)
+          }
+        } else {
+          if (has_mean_forest && has_rfx) {
+            mean_forest_predictions <- pnorm(mean_forest_predictions)
+            rfx_predictions <- pnorm(rfx_predictions)
+          } else if (has_mean_forest) {
+            mean_forest_predictions <- pnorm(mean_forest_predictions)
+          } else if (has_rfx) {
+            rfx_predictions <- pnorm(rfx_predictions)
+          }
+        }
+      } else if (is_binary_cloglog) {
+        mean_forest_predictions <- exp(-exp(mean_forest_predictions))
+        if (predict_y_hat) {
+          y_hat <- mean_forest_predictions
+        }
+      } else if (is_ordinal_cloglog) {
+        cloglog_num_categories <- object$model_params$cloglog_num_categories
+        cloglog_cutpoint_samples <- object$cloglog_cutpoint_samples
+        n_obs_pred <- nrow(X)
+        n_samp_pred <- object$model_params$num_samples
+        mean_forest_probabilities <- array(
+          NA_real_,
+          dim = c(n_obs_pred, cloglog_num_categories, n_samp_pred)
+        )
+        # Sequential ordinal cloglog: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
+        # S_k = exp(-exp(cutpoint_k + f)), running product maintained across k.
+        survival_product <- matrix(1.0, nrow = n_obs_pred, ncol = n_samp_pred)
+        for (k in seq_len(cloglog_num_categories - 1)) {
+          S_k <- exp(-exp(sweep(mean_forest_predictions, 2, cloglog_cutpoint_samples[k, ], "+")))
+          mean_forest_probabilities[, k, ] <- survival_product * (1 - S_k)
+          survival_product <- survival_product * S_k
+        }
+        mean_forest_probabilities[, cloglog_num_categories, ] <- survival_product
+        if (predict_y_hat) {
+          y_hat <- mean_forest_probabilities
+        }
+        mean_forest_predictions <- mean_forest_probabilities
+      }
+    } else {
+      if (predict_y_hat && has_mean_forest && has_rfx) {
+        y_hat <- mean_forest_predictions + rfx_predictions
+      } else if (predict_y_hat && has_mean_forest) {
+        y_hat <- mean_forest_predictions
+      } else if (predict_y_hat && has_rfx) {
+        y_hat <- rfx_predictions
+      }
+    }
+
+    # Collapse to posterior mean predictions if requested
+    if (predict_mean) {
+      if (predict_mean_forest) {
+        if (is_ordinal_cloglog && probability_scale) {
+          mean_forest_predictions <- apply(
+            mean_forest_predictions,
+            c(1, 2),
+            mean
+          )
+        } else {
+          mean_forest_predictions <- rowMeans(mean_forest_predictions)
+        }
+      }
+      if (predict_rfx) {
+        # Note: random effects not supported for cloglog, so we don't have to handle the ordinal / cloglog case here
+        rfx_predictions <- rowMeans(rfx_predictions)
+      }
+      if (predict_y_hat) {
+        if (is_ordinal_cloglog && probability_scale) {
+          y_hat <- apply(y_hat, c(1, 2), mean)
+        } else {
+          y_hat <- rowMeans(y_hat)
+        }
+      }
+    }
+
+    # Convert probabilities to classes if requested
+    if (class_scale) {
+      if (is_ordinal_cloglog) {
+        y_hat <- apply(y_hat, c(1, 3), which.max)
+      } else {
+        y_hat <- ifelse(y_hat < 0.5, 0, 1)
+      }
+    }
+
+    if (predict_count == 1) {
+      if (predict_y_hat) {
+        return(y_hat)
+      } else if (predict_mean_forest) {
+        return(mean_forest_predictions)
+      } else if (predict_rfx) {
+        return(rfx_predictions)
+      } else if (predict_variance_forest) {
+        return(variance_forest_predictions)
+      }
+    } else {
+      result <- list()
+      if (predict_y_hat) {
+        result[["y_hat"]] = y_hat
+      } else {
+        result[["y_hat"]] <- NULL
+      }
+      if (predict_mean_forest) {
+        result[["mean_forest_predictions"]] = mean_forest_predictions
+      } else {
+        result[["mean_forest_predictions"]] <- NULL
+      }
+      if (predict_rfx) {
+        result[["rfx_predictions"]] = rfx_predictions
+      } else {
+        result[["rfx_predictions"]] <- NULL
+      }
+      if (predict_variance_forest) {
+        result[["variance_forest_predictions"]] = variance_forest_predictions
+      } else {
+        result[["variance_forest_predictions"]] <- NULL
+      }
+      return(result)
+    }
   }
 }
 

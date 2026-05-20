@@ -86,25 +86,38 @@ cat(sprintf(
 run_once <- function(run_cpp, seed) {
   t0 <- proc.time()
   m <- bart(
-    X_train = X_train,
-    y_train = y_train,
+    X_train          = X_train,
+    y_train          = y_train,
     leaf_basis_train = basis_train,
-    X_test = X_test,
-    leaf_basis_test = basis_test,
-    num_gfr = num_gfr,
-    num_burnin = num_burnin,
-    num_mcmc = num_mcmc,
-    general_params = list(random_seed = seed, num_chains = num_chains),
+    num_gfr          = num_gfr,
+    num_burnin       = num_burnin,
+    num_mcmc         = num_mcmc,
+    general_params   = list(random_seed = seed, num_chains = num_chains),
     mean_forest_params = list(num_trees = num_trees),
-    run_cpp = run_cpp
+    run_cpp          = run_cpp
   )
-  elapsed <- (proc.time() - t0)[["elapsed"]]
+  elapsed_sample <- (proc.time() - t0)[["elapsed"]]
 
-  yhat <- rowMeans(m$y_hat_test)
-  rmse <- sqrt(mean((yhat - y_test)^2))
+  t1 <- proc.time()
+  preds <- predict(
+    m,
+    X          = X_test,
+    leaf_basis = basis_test,
+    run_cpp    = run_cpp
+  )
+  elapsed_predict <- (proc.time() - t1)[["elapsed"]]
+
+  yhat   <- rowMeans(preds$y_hat)
+  rmse   <- sqrt(mean((yhat - y_test)^2))
   rmse_f <- sqrt(mean((yhat - f_test)^2))
 
-  list(elapsed = elapsed, rmse = rmse, rmse_f = rmse_f)
+  list(
+    elapsed         = elapsed_sample + elapsed_predict,
+    elapsed_sample  = elapsed_sample,
+    elapsed_predict = elapsed_predict,
+    rmse            = rmse,
+    rmse_f          = rmse_f
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -131,16 +144,20 @@ for (i in seq_len(n_reps)) {
 # Summarise
 # ---------------------------------------------------------------------------
 summarise <- function(results, label) {
-  elapsed <- sapply(results, `[[`, "elapsed")
-  rmse <- sapply(results, `[[`, "rmse")
-  rmse_f <- sapply(results, `[[`, "rmse_f")
+  elapsed         <- sapply(results, `[[`, "elapsed")
+  elapsed_sample  <- sapply(results, `[[`, "elapsed_sample")
+  elapsed_predict <- sapply(results, `[[`, "elapsed_predict")
+  rmse            <- sapply(results, `[[`, "rmse")
+  rmse_f          <- sapply(results, `[[`, "rmse_f")
   data.frame(
-    sampler = label,
-    elapsed_mean = mean(elapsed),
-    elapsed_sd = sd(elapsed),
-    rmse_mean = mean(rmse),
-    rmse_f_mean = mean(rmse_f),
-    row.names = NULL
+    sampler              = label,
+    elapsed_mean         = mean(elapsed),
+    elapsed_sd           = sd(elapsed),
+    elapsed_sample_mean  = mean(elapsed_sample),
+    elapsed_predict_mean = mean(elapsed_predict),
+    rmse_mean            = mean(rmse),
+    rmse_f_mean          = mean(rmse_f),
+    row.names            = NULL
   )
 }
 
@@ -151,22 +168,16 @@ res <- rbind(
 
 cat("\n--- Results ---\n")
 cat(sprintf(
-  "%-22s  %10s  %10s  %12s  %13s\n",
-  "Sampler",
-  "Time (s)",
-  "SD",
-  "RMSE (obs)",
-  "RMSE f(X,Z)"
+  "%-22s  %10s  %10s  %11s  %10s  %12s  %13s\n",
+  "Sampler", "Total (s)", "Sample (s)", "Predict (s)", "SD", "RMSE (obs)", "RMSE f(X,Z)"
 ))
-cat(strrep("-", 74), "\n")
+cat(strrep("-", 94), "\n")
 for (i in seq_len(nrow(res))) {
   cat(sprintf(
-    "%-22s  %10.3f  %10.3f  %12.4f  %13.4f\n",
-    res$sampler[i],
-    res$elapsed_mean[i],
-    res$elapsed_sd[i],
-    res$rmse_mean[i],
-    res$rmse_f_mean[i]
+    "%-22s  %10.3f  %10.3f  %11.3f  %10.3f  %12.4f  %13.4f\n",
+    res$sampler[i], res$elapsed_mean[i], res$elapsed_sample_mean[i],
+    res$elapsed_predict_mean[i], res$elapsed_sd[i],
+    res$rmse_mean[i], res$rmse_f_mean[i]
   ))
 }
 

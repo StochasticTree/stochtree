@@ -2873,43 +2873,17 @@ class BARTModel:
             elif is_ordinal_cloglog:
                 cloglog_num_categories = self.cloglog_num_categories
                 cloglog_cutpoint_samples = self.cloglog_cutpoint_samples
-                n_obs = X.shape[0] if isinstance(X, np.ndarray) else X.shape[0]
+                n_obs = X.shape[0]
                 num_samples = self.num_samples
-                # Compute category probabilities: (n_obs, n_categories, n_samples)
-                mean_forest_probabilities = np.empty((
-                    n_obs,
-                    cloglog_num_categories,
-                    num_samples,
-                ))
-                for j in range(cloglog_num_categories):
-                    if j == 0:
-                        # P(Y=1) = 1 - exp(-exp(eta + gamma_1))
-                        mean_forest_probabilities[:, j, :] = 1.0 - np.exp(
-                            -np.exp(
-                                mean_forest_predictions + cloglog_cutpoint_samples[j, :]
-                            )
-                        )
-                    elif j == cloglog_num_categories - 1:
-                        # P(Y=K) = 1 - sum(P(Y=1),...,P(Y=K-1))
-                        mean_forest_probabilities[:, j, :] = 1.0 - np.sum(
-                            mean_forest_probabilities[:, :j, :], axis=1
-                        )
-                    else:
-                        # P(Y=j) = exp(-exp(eta + gamma_{j-1})) * (1 - exp(-exp(eta + gamma_j)))
-                        mean_forest_probabilities[:, j, :] = np.exp(
-                            -np.exp(
-                                mean_forest_predictions
-                                + cloglog_cutpoint_samples[j - 1, :]
-                            )
-                        ) * (
-                            1.0
-                            - np.exp(
-                                -np.exp(
-                                    mean_forest_predictions
-                                    + cloglog_cutpoint_samples[j, :]
-                                )
-                            )
-                        )
+                # Sequential ordinal cloglog: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
+                # S_k = exp(-exp(gamma_k + f)), running survival product across k.
+                mean_forest_probabilities = np.empty((n_obs, cloglog_num_categories, num_samples))
+                cumulative_survival = np.ones((n_obs, num_samples))
+                for k in range(cloglog_num_categories - 1):
+                    S_k = np.exp(-np.exp(mean_forest_predictions + cloglog_cutpoint_samples[k, :]))
+                    mean_forest_probabilities[:, k, :] = cumulative_survival * (1.0 - S_k)
+                    cumulative_survival = cumulative_survival * S_k
+                mean_forest_probabilities[:, cloglog_num_categories - 1, :] = cumulative_survival
                 if predict_y_hat:
                     y_hat = mean_forest_probabilities
                 mean_forest_predictions = mean_forest_probabilities

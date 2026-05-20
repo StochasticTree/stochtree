@@ -95,7 +95,6 @@ run_once <- function(run_cpp, seed) {
   m <- bart(
     X_train = X_train,
     y_train = y_train,
-    X_test = X_test,
     num_gfr = num_gfr,
     num_burnin = num_burnin,
     num_mcmc = num_mcmc,
@@ -108,22 +107,34 @@ run_once <- function(run_cpp, seed) {
     variance_forest_params = list(num_trees = num_trees_variance),
     run_cpp = run_cpp
   )
-  elapsed <- (proc.time() - t0)[["elapsed"]]
+  elapsed_sample <- (proc.time() - t0)[["elapsed"]]
 
-  # Mean-forest RMSE -- only defined when a mean forest was fitted
+  t1 <- proc.time()
+  preds <- predict(
+    m,
+    X       = X_test,
+    terms   = c("y_hat", "variance_forest"),
+    run_cpp = run_cpp
+  )
+  elapsed_predict <- (proc.time() - t1)[["elapsed"]]
+
   if (num_trees_mean > 0) {
-    f_hat <- rowMeans(m$y_hat_test)
+    f_hat  <- rowMeans(preds$y_hat)
     rmse_f <- sqrt(mean((f_hat - f_test)^2))
   } else {
     rmse_f <- NA_real_
   }
 
-  # Variance-forest RMSE of estimated conditional std dev vs. true s(X)
-  sigma2_x_hat_test <- extractParameter(m, "sigma2_x_test")
-  s_hat <- rowMeans(sqrt(sigma2_x_hat_test))
+  s_hat  <- rowMeans(sqrt(preds$variance_forest_predictions))
   rmse_s <- sqrt(mean((s_hat - s_test)^2))
 
-  list(elapsed = elapsed, rmse_f = rmse_f, rmse_s = rmse_s)
+  list(
+    elapsed         = elapsed_sample + elapsed_predict,
+    elapsed_sample  = elapsed_sample,
+    elapsed_predict = elapsed_predict,
+    rmse_f          = rmse_f,
+    rmse_s          = rmse_s
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -150,16 +161,20 @@ for (i in seq_len(n_reps)) {
 # Summarise
 # ---------------------------------------------------------------------------
 summarise <- function(results, label) {
-  elapsed <- sapply(results, `[[`, "elapsed")
-  rmse_f <- sapply(results, `[[`, "rmse_f")
-  rmse_s <- sapply(results, `[[`, "rmse_s")
+  elapsed         <- sapply(results, `[[`, "elapsed")
+  elapsed_sample  <- sapply(results, `[[`, "elapsed_sample")
+  elapsed_predict <- sapply(results, `[[`, "elapsed_predict")
+  rmse_f          <- sapply(results, `[[`, "rmse_f")
+  rmse_s          <- sapply(results, `[[`, "rmse_s")
   data.frame(
-    sampler = label,
-    elapsed_mean = mean(elapsed),
-    elapsed_sd = sd(elapsed),
-    rmse_f_mean = mean(rmse_f, na.rm = TRUE),
-    rmse_s_mean = mean(rmse_s),
-    row.names = NULL
+    sampler              = label,
+    elapsed_mean         = mean(elapsed),
+    elapsed_sd           = sd(elapsed),
+    elapsed_sample_mean  = mean(elapsed_sample),
+    elapsed_predict_mean = mean(elapsed_predict),
+    rmse_f_mean          = mean(rmse_f, na.rm = TRUE),
+    rmse_s_mean          = mean(rmse_s),
+    row.names            = NULL
   )
 }
 
@@ -170,25 +185,16 @@ res <- rbind(
 
 cat("\n--- Results ---\n")
 cat(sprintf(
-  "%-22s  %10s  %10s  %12s  %12s\n",
-  "Sampler",
-  "Time (s)",
-  "SD",
-  "RMSE f(X)",
-  "RMSE s(X)"
+  "%-22s  %10s  %10s  %11s  %10s  %12s  %12s\n",
+  "Sampler", "Total (s)", "Sample (s)", "Predict (s)", "SD", "RMSE f(X)", "RMSE s(X)"
 ))
-cat(strrep("-", 74), "\n")
+cat(strrep("-", 94), "\n")
 for (i in seq_len(nrow(res))) {
   cat(sprintf(
-    "%-22s  %10.3f  %10.3f  %12s  %12.4f\n",
-    res$sampler[i],
-    res$elapsed_mean[i],
-    res$elapsed_sd[i],
-    if (is.nan(res$rmse_f_mean[i])) {
-      "nan"
-    } else {
-      sprintf("%.4f", res$rmse_f_mean[i])
-    },
+    "%-22s  %10.3f  %10.3f  %11.3f  %10.3f  %12s  %12.4f\n",
+    res$sampler[i], res$elapsed_mean[i], res$elapsed_sample_mean[i],
+    res$elapsed_predict_mean[i], res$elapsed_sd[i],
+    if (is.nan(res$rmse_f_mean[i])) "nan" else sprintf("%.4f", res$rmse_f_mean[i]),
     res$rmse_s_mean[i]
   ))
 }

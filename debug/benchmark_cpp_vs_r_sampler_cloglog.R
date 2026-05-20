@@ -75,7 +75,6 @@ run_once <- function(run_cpp, seed = -1) {
   m <- bart(
     X_train = X_train,
     y_train = y_train,
-    X_test = X_test,
     num_gfr = num_gfr,
     num_burnin = num_burnin,
     num_mcmc = num_mcmc,
@@ -91,25 +90,35 @@ run_once <- function(run_cpp, seed = -1) {
     ),
     run_cpp = run_cpp
   )
-  elapsed <- (proc.time() - t0)[["elapsed"]]
+  elapsed_sample <- (proc.time() - t0)[["elapsed"]]
 
-  # Posterior-mean predicted probability on the test set
-  p_hat_mat <- predict(
+  t1 <- proc.time()
+  preds <- predict(
     m,
-    X = X_test,
-    type = "posterior",
-    terms = "y_hat",
-    scale = "probability"
+    X       = X_test,
+    type    = "posterior",
+    terms   = "y_hat",
+    scale   = "probability",
+    run_cpp = run_cpp
   )
+  elapsed_predict <- (proc.time() - t1)[["elapsed"]]
+
+  p_hat_mat <- if (is.list(preds)) preds$y_hat else preds
   if (is.null(dim(p_hat_mat))) {
     p_hat_mat <- matrix(p_hat_mat, ncol = 1)
   }
   p_hat <- rowMeans(p_hat_mat)
 
-  brier <- mean((p_hat - y_test)^2) # Brier score (lower is better)
-  rmse_p <- sqrt(mean((p_hat - p_test)^2)) # RMSE vs. true cloglog probabilities
+  brier  <- mean((p_hat - y_test)^2)
+  rmse_p <- sqrt(mean((p_hat - p_test)^2))
 
-  list(elapsed = elapsed, brier = brier, rmse_p = rmse_p)
+  list(
+    elapsed         = elapsed_sample + elapsed_predict,
+    elapsed_sample  = elapsed_sample,
+    elapsed_predict = elapsed_predict,
+    brier           = brier,
+    rmse_p          = rmse_p
+  )
 }
 
 # ---------------------------------------------------------------------------
@@ -136,16 +145,20 @@ for (i in seq_len(n_reps)) {
 # Summarise
 # ---------------------------------------------------------------------------
 summarise <- function(results, label) {
-  elapsed <- sapply(results, `[[`, "elapsed")
-  brier <- sapply(results, `[[`, "brier")
+  elapsed         <- sapply(results, `[[`, "elapsed")
+  elapsed_sample  <- sapply(results, `[[`, "elapsed_sample")
+  elapsed_predict <- sapply(results, `[[`, "elapsed_predict")
+  brier  <- sapply(results, `[[`, "brier")
   rmse_p <- sapply(results, `[[`, "rmse_p")
   data.frame(
-    sampler = label,
-    elapsed_mean = mean(elapsed),
-    elapsed_sd = sd(elapsed),
-    brier_mean = mean(brier),
-    rmse_p_mean = mean(rmse_p),
-    row.names = NULL
+    sampler              = label,
+    elapsed_mean         = mean(elapsed),
+    elapsed_sd           = sd(elapsed),
+    elapsed_sample_mean  = mean(elapsed_sample),
+    elapsed_predict_mean = mean(elapsed_predict),
+    brier_mean           = mean(brier),
+    rmse_p_mean          = mean(rmse_p),
+    row.names            = NULL
   )
 }
 
@@ -156,22 +169,16 @@ res <- rbind(
 
 cat("\n--- Results ---\n")
 cat(sprintf(
-  "%-22s  %10s  %10s  %12s  %15s\n",
-  "Sampler",
-  "Time (s)",
-  "SD",
-  "Brier",
-  "RMSE (vs truth)"
+  "%-22s  %10s  %10s  %11s  %10s  %12s  %15s\n",
+  "Sampler", "Total (s)", "Sample (s)", "Predict (s)", "SD", "Brier", "RMSE (vs truth)"
 ))
-cat(strrep("-", 75), "\n")
+cat(strrep("-", 97), "\n")
 for (i in seq_len(nrow(res))) {
   cat(sprintf(
-    "%-22s  %10.3f  %10.3f  %12.4f  %15.4f\n",
-    res$sampler[i],
-    res$elapsed_mean[i],
-    res$elapsed_sd[i],
-    res$brier_mean[i],
-    res$rmse_p_mean[i]
+    "%-22s  %10.3f  %10.3f  %11.3f  %10.3f  %12.4f  %15.4f\n",
+    res$sampler[i], res$elapsed_mean[i], res$elapsed_sample_mean[i],
+    res$elapsed_predict_mean[i], res$elapsed_sd[i],
+    res$brier_mean[i], res$rmse_p_mean[i]
   ))
 }
 

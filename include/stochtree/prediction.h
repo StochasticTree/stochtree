@@ -15,7 +15,7 @@
 namespace StochTree {
 
 /*! \brief Determines whether posterior predictions are returned as-is or pre-aggregated. */
-enum class BCFPredType {
+enum class PredType {
   kPosterior,
   kMean
 };
@@ -30,11 +30,106 @@ enum class BCFPredType {
  *
  * Only valid for binary / ordinal outcome models.
  */
-enum class BCFPredScale {
+enum class PredScale {
   kLinear,
   kProbability,
   kClass
 };
+
+/*! \brief Selector for model terms that should be predicted. */
+struct BARTPredTerms {
+  bool y_hat = true;
+  bool mean_forest = false;
+  bool variance_forest = false;
+  bool random_effects = false;
+};
+
+/*! \brief Struct returning BART model predictions
+ *
+ * \details The BART prediction routine can return predictions of one or more model terms,
+ * and this struct serves as a "container" for model predictions. All observation-specific
+ * prediction terms can be:
+ *   1. Pre-aggregated (type = mean) or contain the entire posterior (type = posterior)
+ *   2. Linear scale, probability scale or class predictions (for binary / ordinal outcomes)
+ */
+struct BARTPredictionResult {
+  // Outcome conditional mean
+  std::vector<double> y_hat;
+
+  // Covariate-dependent prognostic term (mu(x))
+  std::vector<double> mean_forest_predictions;
+
+  // Conditional variance term
+  std::vector<double> variance_forest_predictions;
+
+  // Random effects predictions
+  std::vector<double> rfx_predictions;
+};
+
+/*! \brief Inputs to the BART prediction routine
+ *
+ * \details Model outputs from a sampled BART model are unpacked into arrays / external pointers
+ * in both R and Python, rather than retained as a reference to a pure-C++ object. In order to
+ * provide those terms back to C++ for prediction, there are three options:
+ *  1. Refactor the codebase so that the R and Python interfaces retain an external pointer to a
+ *     `BARTSamples` object. This might be the best long-term approach, but in the near term would
+ *     require a lot of changes.
+ *  2. Copy all of the model outputs back into a `BARTSamples` format and then write the BART prediction
+ *     routine to operate directly on BARTSamples. This requires copying arrays of parameter samples
+ *     at minimum. None of these samples scale with the size of the training or test data, so this
+ *     might not be prohibitive, but nonetheless, we can likely get by with approach 3:
+ *  3. Pass a struct containing raw pointers / references to all model terms, along with requisite dimension information,
+ *     write the BART prediction routine to operate on this reference-based struct.
+ */
+struct BARTPredictionInput {
+  // Posterior samples of global error variance (num_samples)
+  double* global_error_variance_samples = nullptr;
+
+  // Posterior samples of leaf scale (num_samples)
+  double* leaf_scale_samples = nullptr;
+
+  // Pointer to sampled mean forests
+  ForestContainer* mean_forests = nullptr;
+
+  // Pointer to sampled variance forests
+  ForestContainer* variance_forests = nullptr;
+
+  // Pointer to random effects sample container and label mapping
+  RandomEffectsContainer* rfx_container = nullptr;
+  LabelMapper* rfx_label_mapper = nullptr;
+
+  // Cloglog metadata and parameter samples
+  double* cloglog_cutpoint_samples = nullptr;
+  int cloglog_num_classes = 0;
+
+  // Metadata about the samples / model (e.g., number of samples, burn-in, etc.) could be added here as needed
+  int num_samples = 0;
+  int num_obs = 0;
+  int num_basis = 0;
+  double y_bar = 0.0;
+  double y_std = 0.0;
+  bool has_variance_forest = false;
+  bool has_rfx = false;
+  BARTRFXModelSpec rfx_model_spec;
+  PredType pred_type = PredType::kPosterior;
+  BARTPredTerms pred_terms;
+  PredScale pred_scale = PredScale::kLinear;
+  LinkFunction link_function = LinkFunction::Identity;
+  OutcomeType outcome_type = OutcomeType::Continuous;
+};
+
+/*! \brief BART prediction function
+ *
+ * \details Accepts BARTData and a struct of references to BART model terms (BARTPredictionInput)
+ *
+ * BARTPredictionInput dictates the model terms for which predictions are computed / returned
+ * and any transformations done before returning (i.e. pre-aggregation, probit function transformation).
+ *
+ * \param data Struct wrapping pointers to prediction data from R / Python
+ * \param model_refs Struct wrapping pointers to model terms / parameters and metadata
+ * \return BARTPredictionResult struct containing prediction vectors
+ */
+BARTPredictionResult predict_bart_model(BARTData& data, BARTPredictionInput& model_refs);
 
 /*! \brief Selector for model terms that should be predicted. */
 struct BCFPredTerms {
@@ -134,9 +229,9 @@ struct BCFPredictionInput {
   BCFRFXModelSpec rfx_model_spec;
   bool adaptive_coding = false;
   bool sample_tau_0 = false;
-  BCFPredType pred_type = BCFPredType::kPosterior;
+  PredType pred_type = PredType::kPosterior;
   BCFPredTerms pred_terms;
-  BCFPredScale pred_scale = BCFPredScale::kLinear;
+  PredScale pred_scale = PredScale::kLinear;
 };
 
 /*! \brief BCF prediction function

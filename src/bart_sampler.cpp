@@ -22,18 +22,32 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
   // Validate y_train values match the expected support for discrete link functions
   if (config_.link_function == LinkFunction::Probit) {
     for (int i = 0; i < data_.n_train; i++) {
+      if (std::floor(data_.y_train[i]) != data_.y_train[i]) {
+        Log::Fatal("Outcomes must be integers for probit link model");
+      }
       if (data_.y_train[i] != 0.0 && data_.y_train[i] != 1.0) {
-        Log::Fatal("Outcomes must be 0 or 1 for probit link function");
+        Log::Fatal("Outcomes must be 0 or 1 for probit link model");
       }
     }
   } else if (config_.link_function == LinkFunction::Cloglog) {
     for (int i = 0; i < data_.n_train; i++) {
       if (std::floor(data_.y_train[i]) != data_.y_train[i]) {
-        Log::Fatal("Outcomes must be integers for cloglog link function");
+        Log::Fatal("Outcomes must be integers for cloglog link model");
       }
-      if (data_.y_train[i] < 0.0) {
-        Log::Fatal("Outcomes must be 0-indexed for cloglog link function; remap before calling the sampler");
+      if (config_.outcome_type == OutcomeType::Binary && (data_.y_train[i] < 0.0 || data_.y_train[i] > 1.0)) {
+        Log::Fatal("Outcomes must be between 0 and 1 for binary cloglog link model");
+      } else if (config_.outcome_type == OutcomeType::Ordinal && (data_.y_train[i] < 0.0 || data_.y_train[i] >= config_.num_classes_cloglog)) {
+        Log::Fatal("Outcomes must be integers between 0 and num_classes_cloglog - 1 for ordinal cloglog link model");
       }
+    }
+    if (config_.outcome_type != OutcomeType::Binary && config_.outcome_type != OutcomeType::Ordinal) {
+      Log::Fatal("Cloglog link function is only supported for binary and ordinal outcomes");
+    }
+    if (config_.num_classes_cloglog <= 1) {
+      Log::Fatal("num_classes_cloglog must be greater than 1 for cloglog link function");
+    }
+    if (config_.has_random_effects) {
+      Log::Fatal("Random effects are not currently supported with the cloglog link function");
     }
   }
 
