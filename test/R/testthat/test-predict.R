@@ -1047,6 +1047,65 @@ test_that("BART cloglog ordinal: sample posterior predictive", {
   expect_true(all(ppd1 %in% 1:n_categories))
 })
 
+test_that("BART cloglog ordinal: probability transform correctness (K=4)", {
+  skip_on_cran()
+  set.seed(123)
+  n <- 500; p <- 3; n_categories <- 4L
+  X <- matrix(runif(n * p), ncol = p)
+  beta <- rep(1 / sqrt(p), p)
+  true_lambda <- X %*% beta
+  # Balanced cutpoints: ~25% per category so all 4 are reliably observed.
+  # Unbalanced cutpoints give ~0.3% K=4 probability, often no K=4 training obs.
+  gamma_true <- c(-2.1, -1.7, -1.2)
+
+  true_probs <- matrix(0, nrow = n, ncol = n_categories)
+  surv_prod <- rep(1.0, n)
+  for (k in seq_len(n_categories - 1)) {
+    S_k <- exp(-exp(gamma_true[k] + true_lambda))
+    true_probs[, k] <- surv_prod * (1 - S_k)
+    surv_prod <- surv_prod * S_k
+  }
+  true_probs[, n_categories] <- surv_prod
+
+  y <- sapply(1:n, function(i) sample(1:n_categories, 1, prob = true_probs[i, ]))
+  n_test <- round(0.2*n); test_inds <- sort(sample(1:n, n_test, replace=FALSE))
+  train_inds <- (1:n)[!((1:n) %in% test_inds)]
+  X_train <- X[train_inds,]; X_test <- X[test_inds,]; y_train <- y[train_inds]
+  num_mcmc <- 10
+
+  bart_model <- suppressWarnings(bart(
+    X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=num_mcmc,
+    general_params=list(sample_sigma2_global=FALSE,
+      outcome_model=OutcomeModel(outcome="ordinal", link="cloglog"))))
+
+  assemble_probs <- function(f_hat, gamma_samples, K) {
+    S <- ncol(f_hat); n <- nrow(f_hat)
+    p_manual <- array(0, dim = c(n, K, S))
+    surv_prod <- matrix(1.0, nrow = n, ncol = S)
+    for (k in seq_len(K - 1)) {
+      S_k <- exp(-exp(sweep(f_hat, 2, gamma_samples[k, ], "+")))
+      p_manual[, k, ] <- surv_prod * (1 - S_k)
+      surv_prod <- surv_prod * S_k
+    }
+    p_manual[, K, ] <- surv_prod
+    p_manual
+  }
+
+  gamma_samples <- bart_model$cloglog_cutpoint_samples
+  K <- bart_model$model_params$cloglog_num_categories
+  expect_equal(K, 4L)
+
+  f_hat_r <- predict(bart_model, X=X_test, scale="linear", terms="mean_forest")
+  expect_equal(dim(f_hat_r), c(n_test, num_mcmc))
+  p_manual_r <- assemble_probs(f_hat_r, gamma_samples, K)
+  p_model_r <- predict(bart_model, X=X_test, scale="probability", terms="y_hat")
+  expect_equal(dim(p_model_r), c(n_test, n_categories, num_mcmc))
+  expect_equal(p_manual_r, p_model_r, tolerance=1e-10)
+  expect_true(all(p_model_r >= 0))
+  row_sums_r <- apply(p_model_r, c(1,3), sum)
+  expect_equal(row_sums_r, matrix(1, nrow=n_test, ncol=num_mcmc), tolerance=1e-10)
+})
+
 test_that("BART gaussian: posterior interval and contrast", {
   # Generate gaussian data
   set.seed(42)
