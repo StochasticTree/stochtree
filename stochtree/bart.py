@@ -2877,7 +2877,9 @@ class BARTModel:
                 num_samples = self.num_samples
                 # Sequential ordinal cloglog: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
                 # S_k = exp(-exp(gamma_k + f)), running survival product across k.
-                mean_forest_probabilities = np.empty((n_obs, cloglog_num_categories, num_samples))
+                mean_forest_probabilities = np.empty(
+                    (n_obs, cloglog_num_categories, num_samples)
+                )
                 cumulative_survival = np.ones((n_obs, num_samples))
                 for k in range(cloglog_num_categories - 1):
                     S_k = np.exp(-np.exp(mean_forest_predictions + cloglog_cutpoint_samples[k, :]))

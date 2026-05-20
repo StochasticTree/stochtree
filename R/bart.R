@@ -3164,7 +3164,9 @@ predict.bartmodel <- function(
     },
     link_function = object$model_params$outcome_model$link,
     outcome_type = object$model_params$outcome_model$outcome,
-    cloglog_num_classes = if (!is.null(object$model_params$num_classes_cloglog)) {
+    cloglog_num_classes = if (
+      !is.null(object$model_params$num_classes_cloglog)
+    ) {
       as.integer(object$model_params$num_classes_cloglog)
     } else if (!is.null(object$model_params$cloglog_num_categories)) {
       as.integer(object$model_params$cloglog_num_categories)
@@ -3178,7 +3180,11 @@ predict.bartmodel <- function(
   n <- nrow(X)
   p <- ncol(X)
   num_basis <- if (!is.null(leaf_basis)) ncol(leaf_basis) else 0L
-  rfx_num_groups <- if (!is.null(rfx_group_ids)) length(unique(rfx_group_ids)) else 0L
+  rfx_num_groups <- if (!is.null(rfx_group_ids)) {
+    length(unique(rfx_group_ids))
+  } else {
+    0L
+  }
   rfx_basis_dim <- if (!is.null(rfx_basis)) ncol(rfx_basis) else 0L
   scale_int <- switch(scale, "linear" = 0L, "probability" = 1L, "class" = 2L)
 
@@ -3208,19 +3214,27 @@ predict.bartmodel <- function(
     num_samples_raw <- as.integer(object$model_params$num_samples)
     num_samples_output <- if (type == "posterior") num_samples_raw else 1L
     reshape_cpp_pred_2d <- function(v, dim1, dim2) {
-      if (is.null(v)) return(NULL)
-      if (dim2 == 1L) return(as.vector(v))
+      if (is.null(v)) {
+        return(NULL)
+      }
+      if (dim2 == 1L) {
+        return(as.vector(v))
+      }
       m <- v
       dim(m) <- c(dim1, dim2)
       m
     }
     reshape_cpp_pred_3d <- function(v, dim1, dim2, dim3) {
-      if (is.null(v)) return(NULL)
+      if (is.null(v)) {
+        return(NULL)
+      }
       a <- v
       dim(a) <- c(dim1, dim2, dim3)
       a
     }
-    cloglog_num_classes_out <- if (!is.null(object$model_params$cloglog_num_categories)) {
+    cloglog_num_classes_out <- if (
+      !is.null(object$model_params$cloglog_num_categories)
+    ) {
       as.integer(object$model_params$cloglog_num_categories)
     } else if (!is.null(object$model_params$num_classes_cloglog)) {
       as.integer(object$model_params$num_classes_cloglog)
@@ -3229,18 +3243,29 @@ predict.bartmodel <- function(
     }
     result <- list(
       y_hat = if (is_ordinal_cloglog && probability_scale) {
-        reshape_cpp_pred_3d(output$y_hat, n, cloglog_num_classes_out, num_samples_output)
+        reshape_cpp_pred_3d(
+          output$y_hat,
+          n,
+          cloglog_num_classes_out,
+          num_samples_output
+        )
       } else {
         reshape_cpp_pred_2d(output$y_hat, n, num_samples_output)
       },
       mean_forest_predictions = reshape_cpp_pred_2d(
-        output$mean_forest_predictions, n, num_samples_output
+        output$mean_forest_predictions,
+        n,
+        num_samples_output
       ),
       rfx_predictions = reshape_cpp_pred_2d(
-        output$rfx_predictions, n, num_samples_output
+        output$rfx_predictions,
+        n,
+        num_samples_output
       ),
       variance_forest_predictions = reshape_cpp_pred_2d(
-        output$variance_forest_predictions, n, num_samples_output
+        output$variance_forest_predictions,
+        n,
+        num_samples_output
       )
     )
     return(result)
@@ -3370,14 +3395,23 @@ predict.bartmodel <- function(
           dim = c(n_obs_pred, cloglog_num_categories, n_samp_pred)
         )
         # Sequential ordinal cloglog: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
-        # S_k = exp(-exp(cutpoint_k + f)), running product maintained across k.
+        # S_k = exp(-exp(gamma_k + f)), running survival product across k.
         survival_product <- matrix(1.0, nrow = n_obs_pred, ncol = n_samp_pred)
         for (k in seq_len(cloglog_num_categories - 1)) {
-          S_k <- exp(-exp(sweep(mean_forest_predictions, 2, cloglog_cutpoint_samples[k, ], "+")))
+          S_k <- exp(
+            -exp(sweep(
+              mean_forest_predictions,
+              2,
+              cloglog_cutpoint_samples[k, ],
+              "+"
+            ))
+          )
           mean_forest_probabilities[, k, ] <- survival_product * (1 - S_k)
           survival_product <- survival_product * S_k
         }
-        mean_forest_probabilities[, cloglog_num_categories, ] <- survival_product
+        mean_forest_probabilities[,
+          cloglog_num_categories,
+        ] <- survival_product
         if (predict_y_hat) {
           y_hat <- mean_forest_probabilities
         }
