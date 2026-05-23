@@ -13,7 +13,7 @@
   type = "posterior",
   terms = "all",
   scale = "linear",
-  run_cpp = FALSE,
+  run_cpp = TRUE,
   ...
 )
 }
@@ -36,7 +36,7 @@ that were not in the training set.}
 
 \item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, "probability", which transforms predictions into class probabilities for models with discrete outcomes, and "class", which returns predicted outcome categories for discrete outcome models. "probability" is only valid for outcome models with \code{outcome == 'binary'} or \code{outcome == 'ordinal'}. For binary outcomes, this will return the probability that \code{y == 1}, and for ordinal outcomes, this will return probabilities for each outcome label. Default: "linear".}
 
-\item{run_cpp}{(Optional) Whether to use the C++ predict implementation. Default: \code{FALSE}.}
+\item{run_cpp}{(Optional) Whether to use the C++ predict implementation. Default: \code{TRUE}.}
 
 \item{...}{(Optional) Other prediction parameters.}
 }

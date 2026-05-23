@@ -24,7 +24,7 @@ bart(
   mean_forest_params = list(),
   variance_forest_params = list(),
   random_effects_params = list(),
-  run_cpp = FALSE
+  run_cpp = TRUE
 )
 }
 \arguments{
@@ -140,7 +140,7 @@ referred to internally in the C++ layer as "variance weights" (\code{var_weights
 \item \code{variance_prior_scale} Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 }}
 
-\item{run_cpp}{Whether or not to run the core C++ sampler. Default \code{FALSE}, but will eventually be set to \code{TRUE}.}
+\item{run_cpp}{Whether or not to run the core C++ sampler. Default \code{TRUE}.}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
