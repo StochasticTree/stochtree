@@ -1866,9 +1866,9 @@ class BCFModel:
 
             # Convert arrays to F-contiguous (column-major) before calling C++.
             # convert_numpy_to_bart_data stores raw pointers into these arrays; if
-            # pybind11 has to make an F-contiguous copy (because the input is C-order)
-            # that copy is destroyed when the helper returns, leaving a dangling pointer.
-            # Passing already-F-contiguous arrays causes pybind11 to return a view of
+            # pybind11 has to make a copy (wrong dtype or order) that copy is destroyed
+            # when the helper returns, leaving a dangling pointer.
+            # Passing already-correct arrays causes pybind11 to return a view of
             # the original, which remains alive in this Python scope.
             X_train_cpp = np.asfortranarray(X_train_processed)
             # y_train_remapped = y_train - np.min(y_train) if link_is_cloglog else y_train
@@ -1877,6 +1877,20 @@ class BCFModel:
             X_test_cpp = np.asfortranarray(X_test_processed) if self.has_test else None
             Z_train_cpp = np.asfortranarray(Z_train)
             Z_test_cpp = np.asfortranarray(Z_test) if self.has_test else None
+            # rfx group IDs must be int32: pybind11 casts int64→int32 via a temporary
+            # inside convert_numpy_to_bart_data, making the returned raw pointer dangle.
+            rfx_group_ids_train_cpp = (
+                rfx_group_ids_train.astype(np.int32) if rfx_group_ids_train is not None else None
+            )
+            rfx_group_ids_test_cpp = (
+                rfx_group_ids_test.astype(np.int32) if rfx_group_ids_test is not None else None
+            )
+            rfx_basis_train_cpp = (
+                np.asfortranarray(rfx_basis_train) if rfx_basis_train is not None else None
+            )
+            rfx_basis_test_cpp = (
+                np.asfortranarray(rfx_basis_test) if rfx_basis_test is not None else None
+            )
 
             # Run the BCF sampler from C++
             bcf_results = bcf_sample_cpp(
@@ -1893,10 +1907,10 @@ class BCFModel:
                 if observation_weights is not None
                 else None,
                 obs_weights_test=None,
-                rfx_group_ids_train=rfx_group_ids_train,
-                rfx_group_ids_test=rfx_group_ids_test,
-                rfx_basis_train=rfx_basis_train,
-                rfx_basis_test=rfx_basis_test,
+                rfx_group_ids_train=rfx_group_ids_train_cpp,
+                rfx_group_ids_test=rfx_group_ids_test_cpp,
+                rfx_basis_train=rfx_basis_train_cpp,
+                rfx_basis_test=rfx_basis_test_cpp,
                 rfx_num_groups=num_rfx_groups if self.has_rfx else 0,
                 rfx_basis_dim=self.num_rfx_basis if self.has_rfx else 0,
                 num_gfr=num_gfr,

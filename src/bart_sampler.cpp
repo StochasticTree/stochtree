@@ -92,6 +92,9 @@ void BARTSampler::InitializeState(BARTSamples& samples) {
       samples.y_std = 1.0;
       samples.y_bar = norm_inv_cdf(y_mean);
       init_val_mean_ = 0.0;
+      if (config_.mean_leaf_model_type == MeanLeafModelType::GaussianMultivariateRegression) {
+        init_val_mean_vec_.assign(config_.leaf_dim_mean, 0.0);
+      }
     } else if (config_.link_function == LinkFunction::Cloglog) {
       // Initialize forests to 0, no scaling or location shifting of the outcome
       // Outcomes are expected to already be 0-indexed by the caller
@@ -504,6 +507,23 @@ void BARTSampler::postprocess_samples(BARTSamples& samples) {
       samples.rfx_predictions_test.resize(data_.n_test * samples.num_samples);
       samples.rfx_container->Predict(rfx_dataset_test, *samples.rfx_label_mapper, samples.rfx_predictions_test);
     }
+  }
+
+  // Convert variance forest predictions and global error variance from
+  // standardized space to original outcome scale.
+  // - Train predictions come from ForestTracker::GetSumPredictions() (log-scale leaf sums),
+  //   so apply exp() then multiply by y_std^2.
+  // - Test predictions come from ForestContainer::Predict() with is_exponentiated_=true,
+  //   which already applies exp() internally, so just multiply by y_std^2.
+  // - Global error variance samples are in standardized space; multiply by y_std^2.
+  if (has_variance_forest_) {
+    double y_std2 = samples.y_std * samples.y_std;
+    for (double& v : samples.variance_forest_predictions_train) v = std::exp(v) * y_std2;
+    for (double& v : samples.variance_forest_predictions_test)  v *= y_std2;
+  }
+  if (sample_sigma2_global_) {
+    double y_std2 = samples.y_std * samples.y_std;
+    for (double& v : samples.global_error_variance_samples) v *= y_std2;
   }
 }
 

@@ -157,7 +157,7 @@ NULL
 #'   - `variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'   - `variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'
-#' @param run_cpp Whether or not to run the core C++ sampler. Default `FALSE`, but will eventually be set to `TRUE`.
+#' @param run_cpp Whether or not to run the core C++ sampler. Default `TRUE`.
 #'
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
@@ -206,7 +206,7 @@ bart <- function(
   mean_forest_params = list(),
   variance_forest_params = list(),
   random_effects_params = list(),
-  run_cpp = FALSE
+  run_cpp = TRUE
 ) {
   # Update general BART parameters
   general_params_default <- list(
@@ -1406,24 +1406,18 @@ bart <- function(
         bart_results[["num_train"]],
         bart_results[["num_samples"]]
       )
-      y_std_cpp <- bart_results[["y_std"]]
       result[["sigma2_x_hat_train"]] <- bart_results[[
         "variance_forest_predictions_train"
-      ]] *
-        y_std_cpp *
-        y_std_cpp
+      ]]
     }
     if (has_variance_forest_predictions_test) {
       dim(bart_results[['variance_forest_predictions_test']]) <- c(
         bart_results[["num_test"]],
         bart_results[["num_samples"]]
       )
-      y_std_cpp <- bart_results[["y_std"]]
       result[["sigma2_x_hat_test"]] <- bart_results[[
         "variance_forest_predictions_test"
-      ]] *
-        y_std_cpp *
-        y_std_cpp
+      ]]
     }
     if (
       has_variance_forest_predictions_train ||
@@ -1489,9 +1483,22 @@ bart <- function(
       result[["rfx_unique_group_ids"]] = levels(group_ids_factor)
     }
 
-    # Unpack cloglog model terms
-    has_cloglog_cutpoint_samples <- !is.null(
-      bart_results[['cloglog_cutpoint_samples']]
+    # Unpack global error variance samples (already scaled to original space by C++)
+    if (!is.null(bart_results[["global_error_variance_samples"]])) {
+      result[["sigma2_global_samples"]] <- bart_results[[
+        "global_error_variance_samples"
+      ]]
+    }
+
+    # Unpack leaf scale samples (already in standardized space; store as-is)
+    if (!is.null(bart_results[["leaf_scale_samples"]])) {
+      result[["sigma2_leaf_samples"]] <- bart_results[["leaf_scale_samples"]]
+    }
+
+    # Unpack cloglog model terms (cutpoints only apply to ordinal cloglog, not binary)
+    has_cloglog_cutpoint_samples <- (
+      !is.null(bart_results[['cloglog_cutpoint_samples']]) &&
+      !outcome_is_binary
     )
     if (has_cloglog_cutpoint_samples) {
       dim(bart_results[['cloglog_cutpoint_samples']]) <- c(
@@ -2916,7 +2923,7 @@ bart <- function(
 #' @param type (Optional) Type of prediction to return. Options are "mean", which averages the predictions from every draw of a BART model, and "posterior", which returns the entire matrix of posterior predictions. Default: "posterior".
 #' @param terms (Optional) Which model terms to include in the prediction. This can be a single term or a list of model terms. Options include "y_hat", "mean_forest", "rfx", "variance_forest", or "all". If a model doesn't have mean forest, random effects, or variance forest predictions, but one of those terms is request, the request will simply be ignored. If none of the requested terms are present in a model, this function will return `NULL` along with a warning. Default: "all".
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, "probability", which transforms predictions into class probabilities for models with discrete outcomes, and "class", which returns predicted outcome categories for discrete outcome models. "probability" is only valid for outcome models with `outcome == 'binary'` or `outcome == 'ordinal'`. For binary outcomes, this will return the probability that `y == 1`, and for ordinal outcomes, this will return probabilities for each outcome label. Default: "linear".
-#' @param run_cpp (Optional) Whether to use the C++ predict implementation. Default: `FALSE`.
+#' @param run_cpp (Optional) Whether to use the C++ predict implementation. Default: `TRUE`.
 #' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
@@ -2955,7 +2962,7 @@ predict.bartmodel <- function(
   type = "posterior",
   terms = "all",
   scale = "linear",
-  run_cpp = FALSE,
+  run_cpp = TRUE,
   ...
 ) {
   # Handle mean function scale
@@ -3276,6 +3283,12 @@ predict.bartmodel <- function(
         num_samples_output
       )
     )
+    if (predict_count == 1) {
+      if (predict_y_hat) return(result[["y_hat"]])
+      if (predict_mean_forest) return(result[["mean_forest_predictions"]])
+      if (predict_rfx) return(result[["rfx_predictions"]])
+      if (predict_variance_forest) return(result[["variance_forest_predictions"]])
+    }
     return(result)
   } else {
     # Create prediction dataset

@@ -102,7 +102,7 @@ class BARTModel:
         mean_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
         random_effects_params: Optional[Dict[str, Any]] = None,
-        run_cpp: bool = False,
+        run_cpp: bool = True,
     ) -> None:
         """Runs a BART sampler on provided training set. Predictions will be cached for the training set and (if provided) the test set.
         Does not require a leaf regression basis.
@@ -178,7 +178,7 @@ class BARTModel:
             than there are samples in `previous_model_json`, a warning will be
             raised and only the last sample will be used.
         run_cpp : bool, optional
-            Whether to run the C++ implementation of the BART sampler. Defaults to `False`.
+            Whether to run the C++ implementation of the BART sampler. Defaults to `True`.
 
 
         Returns
@@ -1279,9 +1279,9 @@ class BARTModel:
 
             # Convert arrays to F-contiguous (column-major) before calling C++.
             # convert_numpy_to_bart_data stores raw pointers into these arrays; if
-            # pybind11 has to make an F-contiguous copy (because the input is C-order)
-            # that copy is destroyed when the helper returns, leaving a dangling pointer.
-            # Passing already-F-contiguous arrays causes pybind11 to return a view of
+            # pybind11 has to make a copy (wrong dtype or wrong order) that copy is
+            # destroyed when the helper returns, leaving a dangling pointer.
+            # Passing already-correct arrays causes pybind11 to return a view of
             # the original, which remains alive in this Python scope.
             X_train_cpp = np.asfortranarray(X_train_processed)
             y_train_remapped = y_train - np.min(y_train) if link_is_cloglog else y_train
@@ -1294,6 +1294,20 @@ class BARTModel:
                 np.asfortranarray(leaf_basis_test)
                 if self.has_basis and self.has_test
                 else None
+            )
+            # rfx group IDs must be int32: pybind11 casts int64→int32 via a temporary
+            # inside convert_numpy_to_bart_data, making the returned raw pointer dangle.
+            rfx_group_ids_train_cpp = (
+                rfx_group_ids_train.astype(np.int32) if rfx_group_ids_train is not None else None
+            )
+            rfx_group_ids_test_cpp = (
+                rfx_group_ids_test.astype(np.int32) if rfx_group_ids_test is not None else None
+            )
+            rfx_basis_train_cpp = (
+                np.asfortranarray(rfx_basis_train) if rfx_basis_train is not None else None
+            )
+            rfx_basis_test_cpp = (
+                np.asfortranarray(rfx_basis_test) if rfx_basis_test is not None else None
             )
 
             # Run the BART sampler from C++
@@ -1311,10 +1325,10 @@ class BARTModel:
                 if observation_weights is not None
                 else None,
                 obs_weights_test=None,
-                rfx_group_ids_train=rfx_group_ids_train,
-                rfx_group_ids_test=rfx_group_ids_test,
-                rfx_basis_train=rfx_basis_train,
-                rfx_basis_test=rfx_basis_test,
+                rfx_group_ids_train=rfx_group_ids_train_cpp,
+                rfx_group_ids_test=rfx_group_ids_test_cpp,
+                rfx_basis_train=rfx_basis_train_cpp,
+                rfx_basis_test=rfx_basis_test_cpp,
                 rfx_num_groups=num_rfx_groups if self.has_rfx else 0,
                 rfx_basis_dim=self.num_rfx_basis if self.has_rfx else 0,
                 num_gfr=num_gfr,
@@ -1413,19 +1427,13 @@ class BARTModel:
                 self.forest_container_variance.forest_container_cpp = bart_results[
                     "forest_container_variance"
                 ]
-                variance_forest_preds_train = bart_results[
+                self.sigma2_x_train = bart_results[
                     "variance_forest_predictions_train"
                 ].reshape(self.n_train, bart_results["num_samples"], order="F")
-                self.sigma2_x_train = (
-                    variance_forest_preds_train * self.y_std * self.y_std
-                )
                 if self.has_test:
-                    variance_forest_preds_test = bart_results[
+                    self.sigma2_x_test = bart_results[
                         "variance_forest_predictions_test"
                     ].reshape(self.n_test, bart_results["num_samples"], order="F")
-                    self.sigma2_x_test = (
-                        variance_forest_preds_test * self.y_std * self.y_std
-                    )
 
             # Unpack parameter samples
             self.sample_sigma2_global = sample_sigma2_global
@@ -1438,11 +1446,12 @@ class BARTModel:
                 self.leaf_scale_samples = bart_results["leaf_scale_samples"]
             if link_is_cloglog:
                 self.cloglog_num_categories = cloglog_num_categories
-                self.cloglog_cutpoint_samples = bart_results[
-                    "cloglog_cutpoint_samples"
-                ].reshape(
-                    cloglog_num_categories - 1, bart_results["num_samples"], order="F"
-                )
+                if not outcome_is_binary:
+                    self.cloglog_cutpoint_samples = bart_results[
+                        "cloglog_cutpoint_samples"
+                    ].reshape(
+                        cloglog_num_categories - 1, bart_results["num_samples"], order="F"
+                    )
 
             # Unpack other model metadata
             self.num_samples = bart_results["num_samples"]
@@ -2588,7 +2597,7 @@ class BARTModel:
         type: str = "posterior",
         terms: Union[list[str], str] = "all",
         scale: str = "linear",
-        run_cpp: bool = False,
+        run_cpp: bool = True,
     ) -> Union[np.array, tuple]:
         """Return predictions from every forest sampled (either / both of mean and variance).
         Return type is either a single array of predictions, if a BART model only includes a
@@ -2611,7 +2620,7 @@ class BARTModel:
         scale : str, optional
             Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, "probability", which transforms predictions into category probabilities, and "class", which returns the predicted class label. "probability" and "class" are only valid for models fit with a probit or cloglog outcome model. Default: "linear".
         run_cpp : bool, optional
-            Whether to use the C++ predict implementation. Default: False.
+            Whether to use the C++ predict implementation. Default: True.
 
         Returns
         -------
@@ -2797,10 +2806,9 @@ class BARTModel:
                 "variance_forests": self.forest_container_variance.forest_container_cpp if self.include_variance_forest else None,
                 "rfx_container": self.rfx_container.rfx_container_cpp if has_rfx else None,
                 "rfx_label_mapper": self.rfx_container.rfx_label_mapper_cpp if has_rfx else None,
-                "sigma2_global_samples": self.global_var_samples if self.global_var_samples else None,
-                "sigma2_leaf_samples": self.leaf_scale_samples if self.global_var_samples else None,
-                "cloglog_cutpoint_samples": np.asfortranarray(self.cloglog_cutpoint_samples) if self.cloglog_cutpoint_samples else None,
-                "cloglog_num_classes": int(self.cloglog_num_categories) if is_cloglog else None,
+                "sigma2_global_samples": getattr(self, 'global_var_samples', None),
+                "sigma2_leaf_samples": getattr(self, 'leaf_scale_samples', None),
+                "cloglog_cutpoint_samples": np.asfortranarray(self.cloglog_cutpoint_samples) if getattr(self, 'cloglog_cutpoint_samples', None) is not None else None,
                 "num_samples": int(self.num_samples),
                 "y_bar": float(self.y_bar),
                 "y_std": float(self.y_std),
@@ -2810,11 +2818,13 @@ class BARTModel:
                 "link_function": self.outcome_model.link,
                 "outcome_type": self.outcome_model.outcome,
             }
+            if is_cloglog:
+                bart_model_dict["cloglog_num_classes"] = int(self.cloglog_num_categories)
 
             # Data dimensions
             n, p = X_processed.shape
-            num_basis = self.num_basis if self.has_basis else 0
-            rfx_basis_dim = self.num_rfx_basis if has_rfx else 0
+            num_basis = int(self.num_basis) if self.has_basis else 0
+            rfx_basis_dim = int(self.num_rfx_basis) if has_rfx else 0
 
             # Call the C++ prediction function, returning results as a dictionary
             output = bart_predict_cpp(

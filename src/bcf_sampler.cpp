@@ -17,7 +17,6 @@
 namespace StochTree {
 
 void AddModelTermsForProbit(double* outcome_preds, ForestTracker* mu_forest_tracker, ForestTracker* tau_forest_tracker, RandomEffectsTracker* random_effects_tracker, int n) {
-  // TODO: Add treatment intercept contribution when that's added to this implementation
   double* mu_preds = mu_forest_tracker->GetSumPredictions();
   double* tau_preds = tau_forest_tracker->GetSumPredictions();
   if (random_effects_tracker != nullptr) {

@@ -1149,28 +1149,24 @@ test_that("BART cloglog ordinal: probability transform correctness (K=4)", {
   )
 
   # --- C++ path (run_cpp = TRUE) ---
-  cpp_linear <- predict(
+  f_hat_cpp <- predict(
     bart_model,
     X = X_test,
     scale = "linear",
     terms = "mean_forest",
     run_cpp = TRUE
   )
-  expect_true(is.list(cpp_linear))
-  f_hat_cpp <- cpp_linear$mean_forest_predictions
   expect_equal(dim(f_hat_cpp), c(n_test, num_mcmc))
 
   p_manual_cpp <- assemble_probs(f_hat_cpp, gamma_samples, n_categories)
 
-  cpp_prob <- predict(
+  p_model_cpp <- predict(
     bart_model,
     X = X_test,
     scale = "probability",
     terms = "y_hat",
     run_cpp = TRUE
   )
-  expect_true(is.list(cpp_prob))
-  p_model_cpp <- cpp_prob$y_hat
   expect_equal(dim(p_model_cpp), c(n_test, n_categories, num_mcmc))
 
   expect_equal(p_manual_cpp, p_model_cpp, tolerance = 1e-10)
