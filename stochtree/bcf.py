@@ -108,7 +108,7 @@ class BCFModel:
         treatment_effect_forest_params: Optional[Dict[str, Any]] = None,
         variance_forest_params: Optional[Dict[str, Any]] = None,
         random_effects_params: Optional[Dict[str, Any]] = None,
-        run_cpp: bool = False,
+        run_cpp: bool = True,
     ) -> None:
         """Runs a BCF sampler on provided training set. Outcome predictions and estimates of the prognostic and treatment effect functions
         will be cached for the training set and (if provided) the test set.
@@ -3595,7 +3595,7 @@ class BCFModel:
         type: str = "posterior",
         terms: Union[list[str], str] = "all",
         scale: str = "linear",
-        run_cpp: bool = False,
+        run_cpp: bool = True,
     ) -> Union[dict[str, np.array], np.array]:
         """Predict outcome model components (CATE function and prognostic function) as well as overall outcome for every provided observation.
         Predicted outcomes are computed as `yhat = mu_x + Z*tau_x` where mu_x is a sample of the prognostic function and tau_x is a sample of the treatment effect (CATE) function.

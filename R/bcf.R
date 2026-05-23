@@ -188,7 +188,7 @@ NULL
 #'   - `variance_prior_shape` Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'   - `variance_prior_scale` Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: `1`.
 #'
-#' @param run_cpp Whether or not to run the core C++ sampler. Default `FALSE`, but will eventually be set to `TRUE`.
+#' @param run_cpp Whether or not to run the core C++ sampler. Default `TRUE`.
 #'
 #' @return List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).
 #' @export
@@ -262,7 +262,7 @@ bcf <- function(
   treatment_effect_forest_params = list(),
   variance_forest_params = list(),
   random_effects_params = list(),
-  run_cpp = FALSE
+  run_cpp = TRUE
 ) {
   # Update general BCF parameters
   general_params_default <- list(
@@ -3920,7 +3920,7 @@ bcf <- function(
 #'
 #'   If a model doesn't have random effects or variance forest predictions but one of those terms is requested, the request will simply be ignored. If none of the requested terms are present, this function will return `NULL` along with a warning. Default: `"all"`.
 #' @param scale (Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing `y == 1`. "probability" is only valid for models fit with a probit outcome model. Default: "linear".
-#' @param run_cpp (Optional) Whether to use the C++ predict implementation. Default: `FALSE`.
+#' @param run_cpp (Optional) Whether to use the C++ predict implementation. Default: `TRUE`.
 #' @param ... (Optional) Other prediction parameters.
 #'
 #' @return List of prediction matrices or single prediction matrix / vector, depending on the terms requested.
@@ -3982,7 +3982,7 @@ predict.bcfmodel <- function(
   type = "posterior",
   terms = "all",
   scale = "linear",
-  run_cpp = FALSE,
+  run_cpp = TRUE,
   ...
 ) {
   # Handle mean function scale
