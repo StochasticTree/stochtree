@@ -2007,19 +2007,18 @@ class BCFModel:
 
             # Unpack RFX results
             if self.has_rfx:
-                self.rfx_container = bcf_results["rfx_container"]
-                self.rfx_label_mapper = bcf_results["rfx_label_mapper"]
+                rfx_wrapper = RandomEffectsContainer()
+                rfx_wrapper.rfx_container_cpp = bcf_results["rfx_container"]
+                rfx_wrapper.rfx_label_mapper_cpp = bcf_results["rfx_label_mapper"]
+                rfx_wrapper.rfx_group_ids = bcf_results["rfx_label_mapper"].GetUniqueGroupIds()
+                self.rfx_container = rfx_wrapper
                 rfx_preds_train = (
                     bcf_results["rfx_predictions_train"].reshape(
                         self.n_train, bcf_results["num_samples"], order="F"
                     )
                     * self.y_std
                 )
-                self.y_hat_train = (
-                    self.y_hat_train + rfx_preds_train
-                    if self.include_mean_forest
-                    else rfx_preds_train
-                )
+                self.y_hat_train = self.y_hat_train + rfx_preds_train
                 if self.has_test:
                     rfx_preds_test = (
                         bcf_results["rfx_predictions_test"].reshape(
@@ -2027,11 +2026,7 @@ class BCFModel:
                         )
                         * self.y_std
                     )
-                    self.y_hat_test = (
-                        self.y_hat_test + rfx_preds_test
-                        if self.include_mean_forest
-                        else rfx_preds_test
-                    )
+                    self.y_hat_test = self.y_hat_test + rfx_preds_test
 
             # Unpack variance forest results
             if self.include_variance_forest:
@@ -2044,25 +2039,19 @@ class BCFModel:
                 variance_forest_preds_train = bcf_results[
                     "variance_forest_predictions_train"
                 ].reshape(self.n_train, bcf_results["num_samples"], order="F")
-                self.sigma2_x_train = (
-                    variance_forest_preds_train * self.y_std * self.y_std
-                )
+                self.sigma2_x_train = variance_forest_preds_train
                 if self.has_test:
                     variance_forest_preds_test = bcf_results[
                         "variance_forest_predictions_test"
                     ].reshape(self.n_test, bcf_results["num_samples"], order="F")
-                    self.sigma2_x_test = (
-                        variance_forest_preds_test * self.y_std * self.y_std
-                    )
+                    self.sigma2_x_test = variance_forest_preds_test
 
             # Unpack parameter samples
             self.sample_sigma2_global = sample_sigma2_global
             self.sample_sigma2_leaf_mu = sample_sigma2_leaf_mu
             self.sample_sigma2_leaf_tau = sample_sigma2_leaf_tau
             if self.sample_sigma2_global:
-                self.global_var_samples = (
-                    bcf_results["global_var_samples"] * self.y_std * self.y_std
-                )
+                self.global_var_samples = bcf_results["global_var_samples"]
             if self.sample_sigma2_leaf_mu:
                 self.leaf_scale_mu_samples = bcf_results["leaf_scale_mu_samples"]
             if self.sample_sigma2_leaf_tau:
@@ -3880,6 +3869,21 @@ class BCFModel:
                 "rfx_predictions": reshape_cpp_pred_2d(output["random_effects"], n, num_samples_output),
                 "variance_forest_predictions": reshape_cpp_pred_2d(output["conditional_variance"], n, num_samples_output)
             }
+            if predict_count == 1:
+                if predict_y_hat:
+                    return result["y_hat"]
+                elif predict_mu_forest:
+                    return result["mu_hat"]
+                elif predict_prog_function:
+                    return result["prognostic_function"]
+                elif predict_tau_forest:
+                    return result["tau_hat"]
+                elif predict_cate_function:
+                    return result["cate"]
+                elif predict_rfx:
+                    return result["rfx_predictions"]
+                elif predict_variance_forest:
+                    return result["variance_forest_predictions"]
             return result
         else:
             # Unpacking which terms to predict

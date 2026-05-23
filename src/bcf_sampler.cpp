@@ -677,6 +677,23 @@ void BCFSampler::postprocess_samples(BCFSamples& samples) {
       }
     }
   }
+
+  // Convert variance forest predictions and global error variance from
+  // standardized space to original outcome scale.
+  // - Train predictions come from ForestTracker::GetSumPredictions() (log-scale leaf sums),
+  //   so apply exp() then multiply by y_std^2.
+  // - Test predictions come from ForestContainer::Predict() with is_exponentiated_=true,
+  //   which already applies exp() internally, so just multiply by y_std^2.
+  // - Global error variance samples are in standardized space; multiply by y_std^2.
+  if (has_variance_forest_) {
+    double y_std2 = samples.y_std * samples.y_std;
+    for (double& v : samples.variance_forest_predictions_train) v = std::exp(v) * y_std2;
+    for (double& v : samples.variance_forest_predictions_test)  v *= y_std2;
+  }
+  if (sample_sigma2_global_) {
+    double y_std2 = samples.y_std * samples.y_std;
+    for (double& v : samples.global_error_variance_samples) v *= y_std2;
+  }
 }
 
 void BCFSampler::RunOneIteration(BCFSamples& samples, bool gfr, bool keep_sample, bool write_snapshot) {

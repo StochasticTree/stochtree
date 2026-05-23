@@ -1778,7 +1778,7 @@ bcf <- function(
     )
     result <- list()
     model_params_cpp <- list(
-      "sigma2_init" = bcf_results[["sigma2_global_init"]],
+      "initial_sigma2" = bcf_results[["sigma2_global_init"]],
       "sigma2_leaf_mu" = bcf_results[["sigma2_mu_init"]],
       "sigma2_leaf_tau" = bcf_results[["sigma2_tau_init"]],
       "b_leaf_mu" = bcf_results[["b_sigma2_mu"]],
@@ -1917,24 +1917,18 @@ bcf <- function(
         bcf_results[["num_train"]],
         bcf_results[["num_samples"]]
       )
-      y_std_cpp <- bcf_results[["y_std"]]
       result[["sigma2_x_hat_train"]] <- bcf_results[[
         "variance_forest_predictions_train"
-      ]] *
-        y_std_cpp *
-        y_std_cpp
+      ]]
     }
     if (has_variance_forest_predictions_test) {
       dim(bcf_results[['variance_forest_predictions_test']]) <- c(
         bcf_results[["num_test"]],
         bcf_results[["num_samples"]]
       )
-      y_std_cpp <- bcf_results[["y_std"]]
       result[["sigma2_x_hat_test"]] <- bcf_results[[
         "variance_forest_predictions_test"
-      ]] *
-        y_std_cpp *
-        y_std_cpp
+      ]]
     }
 
     # Unpack variance forest pointers
@@ -1951,7 +1945,7 @@ bcf <- function(
       variance_forests_r$forest_container_ptr <- bcf_results[[
         "variance_forests"
       ]]
-      result[["variance_forests"]] <- variance_forests_r
+      result[["forests_variance"]] <- variance_forests_r
     }
 
     # Unpack RFX predictions if they were returned
@@ -4347,6 +4341,11 @@ predict.bcfmodel <- function(
         dim(m) <- c(dim1, dim2)
         return(m)
       }
+      if (dim2 == 1L) {
+        m <- v
+        dim(m) <- c(dim1, dim3)
+        return(m)
+      }
       a <- v
       dim(a) <- c(dim1, dim2, dim3)
       a
@@ -4382,6 +4381,15 @@ predict.bcfmodel <- function(
         num_samples_output
       )
     )
+    if (predict_count == 1L) {
+      if (predict_y_hat) return(result[["y_hat"]])
+      if (predict_mu_forest) return(result[["mu_hat"]])
+      if (predict_prog_function) return(result[["prognostic_function"]])
+      if (predict_tau_forest) return(result[["tau_hat"]])
+      if (predict_cate_function) return(result[["cate"]])
+      if (predict_rfx) return(result[["rfx_predictions"]])
+      if (predict_variance_forest) return(result[["variance_forest_predictions"]])
+    }
     return(result)
   } else {
     predict_rfx_intermediate <- (predict_y_hat && has_rfx)
