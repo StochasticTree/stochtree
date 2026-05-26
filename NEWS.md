@@ -1,4 +1,4 @@
-# stochtree 0.4.3-dev
+# stochtree 0.4.3
 
 ## Bug Fixes
 
