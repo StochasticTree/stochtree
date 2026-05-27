@@ -701,9 +701,9 @@ class BARTModel:
         # Covariate preprocessing
         self._covariate_preprocessor = CovariatePreprocessor()
         self._covariate_preprocessor.fit(X_train)
-        X_train_processed = self._covariate_preprocessor.transform(X_train)
+        X_train_processed = self._covariate_preprocessor.transform(X_train).astype(np.float64)
         if X_test is not None:
-            X_test_processed = self._covariate_preprocessor.transform(X_test)
+            X_test_processed = self._covariate_preprocessor.transform(X_test).astype(np.float64)
         feature_types = np.asarray(
             self._covariate_preprocessor._processed_feature_types
         )
@@ -1288,10 +1288,10 @@ class BARTModel:
             y_train_cpp = np.asfortranarray(y_train_remapped, dtype=np.float64)
             X_test_cpp = np.asfortranarray(X_test_processed) if self.has_test else None
             basis_train_cpp = (
-                np.asfortranarray(leaf_basis_train) if self.has_basis else None
+                np.asfortranarray(leaf_basis_train.astype(np.float64)) if self.has_basis else None
             )
             basis_test_cpp = (
-                np.asfortranarray(leaf_basis_test)
+                np.asfortranarray(leaf_basis_test.astype(np.float64))
                 if self.has_basis and self.has_test
                 else None
             )
@@ -1304,10 +1304,10 @@ class BARTModel:
                 rfx_group_ids_test.astype(np.int32) if rfx_group_ids_test is not None else None
             )
             rfx_basis_train_cpp = (
-                np.asfortranarray(rfx_basis_train) if rfx_basis_train is not None else None
+                np.asfortranarray(rfx_basis_train.astype(np.float64)) if rfx_basis_train is not None else None
             )
             rfx_basis_test_cpp = (
-                np.asfortranarray(rfx_basis_test) if rfx_basis_test is not None else None
+                np.asfortranarray(rfx_basis_test.astype(np.float64)) if rfx_basis_test is not None else None
             )
 
             # Run the BART sampler from C++

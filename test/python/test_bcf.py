@@ -1159,6 +1159,9 @@ class TestBCFFloat32:
         assert bcf_model.y_hat_test.shape == (self.n_test, self.num_mcmc)
         assert bcf_model.tau_hat_train.shape == (self.n_train, self.num_mcmc)
         assert bcf_model.tau_hat_test.shape == (self.n_test, self.num_mcmc)
+        preds = bcf_model.predict(X=self.X_test, Z=self.Z_test, propensity=self.pi_test)
+        assert preds["y_hat"].shape == (self.n_test, self.num_mcmc)
+        assert preds["tau_hat"].shape == (self.n_test, self.num_mcmc)
 
     def test_bcf_float32_with_propensity_matches_float64(self):
         common = dict(num_gfr=5, num_burnin=0, num_mcmc=self.num_mcmc, general_params={"random_seed": 1})
@@ -1175,6 +1178,10 @@ class TestBCFFloat32:
                      Z_test=self.Z_test.astype(np.float64),
                      propensity_test=self.pi_test.astype(np.float64), **common)
         np.testing.assert_allclose(bcf32.y_hat_train, bcf64.y_hat_train, rtol=1e-4)
+        pred32 = bcf32.predict(X=self.X_test, Z=self.Z_test, propensity=self.pi_test)
+        pred64 = bcf32.predict(X=self.X_test.astype(np.float64), Z=self.Z_test.astype(np.float64),
+                               propensity=self.pi_test.astype(np.float64))
+        np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-4)
 
     def test_bcf_float32_no_propensity(self):
         """float32 Z, y, X with internal propensity estimation."""
@@ -1191,6 +1198,8 @@ class TestBCFFloat32:
         )
         assert bcf_model.y_hat_train.shape == (self.n_train, self.num_mcmc)
         assert bcf_model.y_hat_test.shape == (self.n_test, self.num_mcmc)
+        preds = bcf_model.predict(X=self.X_test, Z=self.Z_test)
+        assert preds["y_hat"].shape == (self.n_test, self.num_mcmc)
 
     def test_bcf_float32_no_propensity_matches_float64(self):
         common = dict(num_gfr=5, num_burnin=0, num_mcmc=self.num_mcmc, general_params={"random_seed": 1})
@@ -1204,6 +1213,9 @@ class TestBCFFloat32:
                      X_test=self.X_test.astype(np.float64),
                      Z_test=self.Z_test.astype(np.float64), **common)
         np.testing.assert_allclose(bcf32.y_hat_train, bcf64.y_hat_train, rtol=1e-4)
+        pred32 = bcf32.predict(X=self.X_test, Z=self.Z_test)
+        pred64 = bcf32.predict(X=self.X_test.astype(np.float64), Z=self.Z_test.astype(np.float64))
+        np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-4)
 
     def test_bcf_float32_rfx(self):
         """float32 rfx_basis_train and rfx_basis_test."""
@@ -1232,6 +1244,9 @@ class TestBCFFloat32:
         )
         assert bcf_model.y_hat_train.shape == (self.n_train, self.num_mcmc)
         assert bcf_model.y_hat_test.shape == (self.n_test, self.num_mcmc)
+        preds = bcf_model.predict(X=self.X_test, Z=self.Z_test, propensity=self.pi_test,
+                                   rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test)
+        assert preds["y_hat"].shape == (self.n_test, self.num_mcmc)
 
     def test_bcf_float32_rfx_matches_float64(self):
         rng = np.random.default_rng(7)
@@ -1256,3 +1271,9 @@ class TestBCFFloat32:
                      rfx_basis_train=rfx_basis_train.astype(np.float64),
                      rfx_basis_test=rfx_basis_test.astype(np.float64), **common)
         np.testing.assert_allclose(bcf32.y_hat_train, bcf64.y_hat_train, rtol=1e-4)
+        pred32 = bcf32.predict(X=self.X_test, Z=self.Z_test, propensity=self.pi_test,
+                               rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test)
+        pred64 = bcf32.predict(X=self.X_test.astype(np.float64), Z=self.Z_test.astype(np.float64),
+                               propensity=self.pi_test.astype(np.float64),
+                               rfx_group_ids=group_ids_test, rfx_basis=rfx_basis_test.astype(np.float64))
+        np.testing.assert_allclose(pred32["y_hat"], pred64["y_hat"], rtol=1e-4)
