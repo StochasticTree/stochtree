@@ -1079,7 +1079,7 @@ class BARTModel:
                         current_leaf_scale,
                         2.0 / num_trees_mean,
                     )
-                elif isinstance(sigma2_leaf, float):
+                elif isinstance(sigma2_leaf, (float, np.floating)):
                     current_leaf_scale = np.zeros(
                         (self.num_basis, self.num_basis), dtype=float
                     )
@@ -1105,7 +1105,7 @@ class BARTModel:
             else:
                 if sigma2_leaf is None:
                     current_leaf_scale = np.array([[2.0 / num_trees_mean]])
-                elif isinstance(sigma2_leaf, float):
+                elif isinstance(sigma2_leaf, (float, np.floating)):
                     current_leaf_scale = np.array([[sigma2_leaf]])
                 elif isinstance(sigma2_leaf, np.ndarray):
                     if sigma2_leaf.ndim != 2:
@@ -1186,7 +1186,7 @@ class BARTModel:
                             current_leaf_scale,
                             np.squeeze(np.var(resid_train)) / num_trees_mean,
                         )
-                    elif isinstance(sigma2_leaf, float):
+                    elif isinstance(sigma2_leaf, (float, np.floating)):
                         current_leaf_scale = np.zeros(
                             (self.num_basis, self.num_basis), dtype=float
                         )
@@ -1214,7 +1214,7 @@ class BARTModel:
                         current_leaf_scale = np.array([
                             [np.squeeze(np.var(resid_train)) / num_trees_mean]
                         ])
-                    elif isinstance(sigma2_leaf, float):
+                    elif isinstance(sigma2_leaf, (float, np.floating)):
                         current_leaf_scale = np.array([[sigma2_leaf]])
                     elif isinstance(sigma2_leaf, np.ndarray):
                         if sigma2_leaf.ndim != 2:

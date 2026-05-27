@@ -31,7 +31,7 @@ class ForestDatasetCpp {
   }
   ~ForestDatasetCpp() {}
 
-  void AddCovariates(py::array_t<double> covariate_matrix, data_size_t num_row, int num_col, bool row_major) {
+  void AddCovariates(py::array_t<double, py::array::forcecast> covariate_matrix, data_size_t num_row, int num_col, bool row_major) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(covariate_matrix.mutable_data());
     
@@ -39,15 +39,15 @@ class ForestDatasetCpp {
     dataset_->AddCovariates(data_ptr, num_row, num_col, row_major);
   }
 
-  void AddBasis(py::array_t<double> basis_matrix, data_size_t num_row, int num_col, bool row_major) {
+  void AddBasis(py::array_t<double, py::array::forcecast> basis_matrix, data_size_t num_row, int num_col, bool row_major) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(basis_matrix.mutable_data());
-    
+
     // Load covariates
     dataset_->AddBasis(data_ptr, num_row, num_col, row_major);
   }
 
-  void UpdateBasis(py::array_t<double> basis_matrix, data_size_t num_row, int num_col, bool row_major) {
+  void UpdateBasis(py::array_t<double, py::array::forcecast> basis_matrix, data_size_t num_row, int num_col, bool row_major) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(basis_matrix.mutable_data());
     
@@ -55,15 +55,15 @@ class ForestDatasetCpp {
     dataset_->UpdateBasis(data_ptr, num_row, num_col, row_major);
   }
 
-  void AddVarianceWeights(py::array_t<double> weight_vector, data_size_t num_row) {
+  void AddVarianceWeights(py::array_t<double, py::array::forcecast> weight_vector, data_size_t num_row) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(weight_vector.mutable_data());
-    
+
     // Load covariates
     dataset_->AddVarianceWeights(data_ptr, num_row);
   }
 
-  void UpdateVarianceWeights(py::array_t<double> weight_vector, data_size_t num_row, bool exponentiate) {
+  void UpdateVarianceWeights(py::array_t<double, py::array::forcecast> weight_vector, data_size_t num_row, bool exponentiate) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(weight_vector.mutable_data());
     
@@ -166,7 +166,7 @@ class ForestDatasetCpp {
 
 class ResidualCpp {
  public:
-  ResidualCpp(py::array_t<double> residual_array, data_size_t num_row) {
+  ResidualCpp(py::array_t<double, py::array::forcecast> residual_array, data_size_t num_row) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(residual_array.mutable_data());
     
@@ -194,21 +194,21 @@ class ResidualCpp {
     return result;
   }
 
-  void ReplaceData(py::array_t<double> new_vector, data_size_t num_row) {
+  void ReplaceData(py::array_t<double, py::array::forcecast> new_vector, data_size_t num_row) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(new_vector.mutable_data());
     // Overwrite data in residual_
     residual_->OverwriteData(data_ptr, num_row);
   }
 
-  void AddToData(py::array_t<double> update_vector, data_size_t num_row) {
+  void AddToData(py::array_t<double, py::array::forcecast> update_vector, data_size_t num_row) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(update_vector.mutable_data());
     // Add to data in residual_
     residual_->AddToData(data_ptr, num_row);
   }
 
-  void SubtractFromData(py::array_t<double> update_vector, data_size_t num_row) {
+  void SubtractFromData(py::array_t<double, py::array::forcecast> update_vector, data_size_t num_row) {
     // Extract pointer to contiguous block of memory
     double* data_ptr = static_cast<double*>(update_vector.mutable_data());
     // Subtract from data in residual_
@@ -458,7 +458,7 @@ class ForestContainerCpp {
     }
   }
 
-  void AddSampleVector(py::array_t<double> leaf_vector) {
+  void AddSampleVector(py::array_t<double, py::array::forcecast> leaf_vector) {
     if (forest_samples_->OutputDimension() != leaf_vector.size()) {
       StochTree::Log::Fatal("leaf_vector must match forest leaf dimension");
     }
@@ -474,9 +474,9 @@ class ForestContainerCpp {
     }
   }
 
-  void AddNumericSplitVector(int forest_num, int tree_num, int leaf_num, int feature_num, 
-                             double split_threshold, py::array_t<double> left_leaf_vector, 
-                             py::array_t<double> right_leaf_vector) {
+  void AddNumericSplitVector(int forest_num, int tree_num, int leaf_num, int feature_num,
+                             double split_threshold, py::array_t<double, py::array::forcecast> left_leaf_vector,
+                             py::array_t<double, py::array::forcecast> right_leaf_vector) {
     if (forest_samples_->OutputDimension() != left_leaf_vector.size()) {
       StochTree::Log::Fatal("left_leaf_vector must match forest leaf dimension");
     }
@@ -872,8 +872,8 @@ class ForestCpp {
     tree->ExpandNode(leaf_num, feature_num, split_threshold, left_leaf_value, right_leaf_value);
   }
 
-  void AddNumericSplitVector(int tree_num, int leaf_num, int feature_num, double split_threshold, 
-                             py::array_t<double> left_leaf_vector, py::array_t<double> right_leaf_vector) {
+  void AddNumericSplitVector(int tree_num, int leaf_num, int feature_num, double split_threshold,
+                             py::array_t<double, py::array::forcecast> left_leaf_vector, py::array_t<double, py::array::forcecast> right_leaf_vector) {
     if (forest_->OutputDimension() != left_leaf_vector.size()) {
       StochTree::Log::Fatal("left_leaf_vector must match forest leaf dimension");
     }
@@ -1108,9 +1108,9 @@ class ForestSamplerCpp {
     tracker_->ReconstituteFromForest(*forest_ptr, *data_ptr, *residual_ptr, is_mean_model);
   }
 
-  void SampleOneIteration(ForestContainerCpp& forest_samples, ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng, 
-                          py::array_t<int> feature_types, py::array_t<int> sweep_update_indices, int cutpoint_grid_size, py::array_t<double> leaf_model_scale_input, 
-                          py::array_t<double> variable_weights, double a_forest, double b_forest, double global_variance, 
+  void SampleOneIteration(ForestContainerCpp& forest_samples, ForestCpp& forest, ForestDatasetCpp& dataset, ResidualCpp& residual, RngCpp& rng,
+                          py::array_t<int> feature_types, py::array_t<int> sweep_update_indices, int cutpoint_grid_size, py::array_t<double, py::array::forcecast> leaf_model_scale_input,
+                          py::array_t<double, py::array::forcecast> variable_weights, double a_forest, double b_forest, double global_variance,
                           int leaf_model_int, int num_features_subsample, bool keep_forest = true, bool gfr = true, int num_threads = -1) {
     // Refactoring completely out of the Python interface.
     // Intention to refactor out of the C++ interface in the future.
@@ -1199,8 +1199,8 @@ class ForestSamplerCpp {
     }
   }
 
-  void InitializeForestModel(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestCpp& forest, 
-                             int leaf_model_int, py::array_t<double> initial_values) {
+  void InitializeForestModel(ForestDatasetCpp& dataset, ResidualCpp& residual, ForestCpp& forest,
+                             int leaf_model_int, py::array_t<double, py::array::forcecast> initial_values) {
     // Convert leaf model type to enum
     StochTree::ModelType model_type;
     if (leaf_model_int == 0) model_type = StochTree::ModelType::kConstantLeafGaussian;
@@ -1412,19 +1412,19 @@ class RandomEffectsDatasetCpp {
     }
     rfx_dataset_->AddGroupLabels(group_labels_vec);
   }
-  void AddBasis(py::array_t<double> basis, data_size_t num_row, int num_col, bool row_major) {
+  void AddBasis(py::array_t<double, py::array::forcecast> basis, data_size_t num_row, int num_col, bool row_major) {
     double* basis_data_ptr = static_cast<double*>(basis.mutable_data());
     rfx_dataset_->AddBasis(basis_data_ptr, num_row, num_col, row_major);
   }
-  void AddVarianceWeights(py::array_t<double> weights, data_size_t num_row) {
+  void AddVarianceWeights(py::array_t<double, py::array::forcecast> weights, data_size_t num_row) {
     double* weight_data_ptr = static_cast<double*>(weights.mutable_data());
     rfx_dataset_->AddVarianceWeights(weight_data_ptr, num_row);
   }
-  void UpdateBasis(py::array_t<double> basis, data_size_t num_row, int num_col, bool row_major) {
+  void UpdateBasis(py::array_t<double, py::array::forcecast> basis, data_size_t num_row, int num_col, bool row_major) {
     double* basis_data_ptr = static_cast<double*>(basis.mutable_data());
     rfx_dataset_->UpdateBasis(basis_data_ptr, num_row, num_col, row_major);
   }
-  void UpdateVarianceWeights(py::array_t<double> weights, data_size_t num_row, bool exponentiate) {
+  void UpdateVarianceWeights(py::array_t<double, py::array::forcecast> weights, data_size_t num_row, bool exponentiate) {
     double* weight_data_ptr = static_cast<double*>(weights.mutable_data());
     rfx_dataset_->UpdateVarWeights(weight_data_ptr, num_row, exponentiate);
   }
@@ -2318,7 +2318,7 @@ PYBIND11_MODULE(stochtree_cpp, m) {
     .def("GetAuxiliaryDataVector", &ForestDatasetCpp::GetAuxiliaryDataVector);
 
   py::class_<ResidualCpp>(m, "ResidualCpp")
-    .def(py::init<py::array_t<double>,data_size_t>())
+    .def(py::init<py::array_t<double, py::array::forcecast>,data_size_t>())
     .def("GetResidualArray", &ResidualCpp::GetResidualArray)
     .def("ReplaceData", &ResidualCpp::ReplaceData)
     .def("AddToData", &ResidualCpp::AddToData)
