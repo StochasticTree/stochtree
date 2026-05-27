@@ -4102,46 +4102,6 @@ saveBARTModelToJson <- function(object) {
     jsonobj$add_forest(object$variance_forests)
   }
 
-  # Add metadata
-  jsonobj$add_scalar(
-    "num_numeric_vars",
-    object$train_set_metadata$num_numeric_vars
-  )
-  jsonobj$add_scalar(
-    "num_ordered_cat_vars",
-    object$train_set_metadata$num_ordered_cat_vars
-  )
-  jsonobj$add_scalar(
-    "num_unordered_cat_vars",
-    object$train_set_metadata$num_unordered_cat_vars
-  )
-  if (object$train_set_metadata$num_numeric_vars > 0) {
-    jsonobj$add_string_vector(
-      "numeric_vars",
-      object$train_set_metadata$numeric_vars
-    )
-  }
-  if (object$train_set_metadata$num_ordered_cat_vars > 0) {
-    jsonobj$add_string_vector(
-      "ordered_cat_vars",
-      object$train_set_metadata$ordered_cat_vars
-    )
-    jsonobj$add_string_list(
-      "ordered_unique_levels",
-      object$train_set_metadata$ordered_unique_levels
-    )
-  }
-  if (object$train_set_metadata$num_unordered_cat_vars > 0) {
-    jsonobj$add_string_vector(
-      "unordered_cat_vars",
-      object$train_set_metadata$unordered_cat_vars
-    )
-    jsonobj$add_string_list(
-      "unordered_unique_levels",
-      object$train_set_metadata$unordered_unique_levels
-    )
-  }
-
   # Add version stamp and global parameters
   jsonobj$add_string("stochtree_version", getStochtreeVersion())
   jsonobj$add_scalar("outcome_scale", object$model_params$outcome_scale)
@@ -4307,46 +4267,6 @@ createBARTModelFromJson <- function(json_object) {
       "forest_0"
     )
   }
-
-  # Unpack metadata
-  train_set_metadata = list()
-  train_set_metadata[["num_numeric_vars"]] <- json_object$get_scalar(
-    "num_numeric_vars"
-  )
-  train_set_metadata[["num_ordered_cat_vars"]] <- json_object$get_scalar(
-    "num_ordered_cat_vars"
-  )
-  train_set_metadata[["num_unordered_cat_vars"]] <- json_object$get_scalar(
-    "num_unordered_cat_vars"
-  )
-  if (train_set_metadata[["num_numeric_vars"]] > 0) {
-    train_set_metadata[["numeric_vars"]] <- json_object$get_string_vector(
-      "numeric_vars"
-    )
-  }
-  if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
-    train_set_metadata[[
-      "ordered_cat_vars"
-    ]] <- json_object$get_string_vector("ordered_cat_vars")
-    train_set_metadata[[
-      "ordered_unique_levels"
-    ]] <- json_object$get_string_list(
-      "ordered_unique_levels",
-      train_set_metadata[["ordered_cat_vars"]]
-    )
-  }
-  if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
-    train_set_metadata[[
-      "unordered_cat_vars"
-    ]] <- json_object$get_string_vector("unordered_cat_vars")
-    train_set_metadata[[
-      "unordered_unique_levels"
-    ]] <- json_object$get_string_list(
-      "unordered_unique_levels",
-      train_set_metadata[["unordered_cat_vars"]]
-    )
-  }
-  output[["train_set_metadata"]] <- train_set_metadata
 
   # Unpack model params
   model_params = list()
@@ -4604,46 +4524,6 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
       "forest_0"
     )
   }
-
-  # Unpack metadata
-  train_set_metadata = list()
-  train_set_metadata[["num_numeric_vars"]] <- json_object_default$get_scalar(
-    "num_numeric_vars"
-  )
-  train_set_metadata[[
-    "num_ordered_cat_vars"
-  ]] <- json_object_default$get_scalar("num_ordered_cat_vars")
-  train_set_metadata[[
-    "num_unordered_cat_vars"
-  ]] <- json_object_default$get_scalar("num_unordered_cat_vars")
-  if (train_set_metadata[["num_numeric_vars"]] > 0) {
-    train_set_metadata[[
-      "numeric_vars"
-    ]] <- json_object_default$get_string_vector("numeric_vars")
-  }
-  if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
-    train_set_metadata[[
-      "ordered_cat_vars"
-    ]] <- json_object_default$get_string_vector("ordered_cat_vars")
-    train_set_metadata[[
-      "ordered_unique_levels"
-    ]] <- json_object_default$get_string_list(
-      "ordered_unique_levels",
-      train_set_metadata[["ordered_cat_vars"]]
-    )
-  }
-  if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
-    train_set_metadata[[
-      "unordered_cat_vars"
-    ]] <- json_object_default$get_string_vector("unordered_cat_vars")
-    train_set_metadata[[
-      "unordered_unique_levels"
-    ]] <- json_object_default$get_string_list(
-      "unordered_unique_levels",
-      train_set_metadata[["unordered_cat_vars"]]
-    )
-  }
-  output[["train_set_metadata"]] <- train_set_metadata
 
   # Unpack model params
   model_params = list()
@@ -4954,46 +4834,6 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
       "forest_0"
     )
   }
-
-  # Unpack metadata
-  train_set_metadata = list()
-  train_set_metadata[["num_numeric_vars"]] <- json_object_default$get_scalar(
-    "num_numeric_vars"
-  )
-  train_set_metadata[[
-    "num_ordered_cat_vars"
-  ]] <- json_object_default$get_scalar("num_ordered_cat_vars")
-  train_set_metadata[[
-    "num_unordered_cat_vars"
-  ]] <- json_object_default$get_scalar("num_unordered_cat_vars")
-  if (train_set_metadata[["num_numeric_vars"]] > 0) {
-    train_set_metadata[[
-      "numeric_vars"
-    ]] <- json_object_default$get_string_vector("numeric_vars")
-  }
-  if (train_set_metadata[["num_ordered_cat_vars"]] > 0) {
-    train_set_metadata[[
-      "ordered_cat_vars"
-    ]] <- json_object_default$get_string_vector("ordered_cat_vars")
-    train_set_metadata[[
-      "ordered_unique_levels"
-    ]] <- json_object_default$get_string_list(
-      "ordered_unique_levels",
-      train_set_metadata[["ordered_cat_vars"]]
-    )
-  }
-  if (train_set_metadata[["num_unordered_cat_vars"]] > 0) {
-    train_set_metadata[[
-      "unordered_cat_vars"
-    ]] <- json_object_default$get_string_vector("unordered_cat_vars")
-    train_set_metadata[[
-      "unordered_unique_levels"
-    ]] <- json_object_default$get_string_list(
-      "unordered_unique_levels",
-      train_set_metadata[["unordered_cat_vars"]]
-    )
-  }
-  output[["train_set_metadata"]] <- train_set_metadata
 
   # Unpack model params
   model_params = list()
