@@ -210,7 +210,7 @@ def _check_is_numeric(input: Union[int, float]) -> bool:
     bool
         True if integer, False otherwise
     """
-    if not isinstance(input, (int, float)):
+    if not isinstance(input, (int, float, np.floating)):
         return False
     else:
         return True

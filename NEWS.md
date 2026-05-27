@@ -1,15 +1,12 @@
-# stochtree 0.4.3-dev
-
-## New Features
+# stochtree 0.4.3
 
 ## Bug Fixes
 
+* Safely handle / cast `float32` inputs in python BART / BCF [#389](https://github.com/StochasticTree/stochtree/issues/389)
 * Fix ordinal cloglog probability transform for K>=4 categories [#382](https://github.com/StochasticTree/stochtree/pull/382)
 * Fixed bug that separated homogeneous parametric treatment effect term (`tau_0`) from treatment effect forest predictions (`tau(x)`), only including the latter in `tau` for BCF predictions when a parametric term is included in the model [#377](https://github.com/StochasticTree/stochtree/pull/377)
 * Fixed BCF prediction bug for prognostic function and mu(X) when adaptive coding is used and the tau(x) forest is not also requested by a prediction call [#377](https://github.com/StochasticTree/stochtree/pull/377)
 * Fixed R BCF prediction bug when covariates are passed as dataframes and an internal propensity is sampled [#374](https://github.com/StochasticTree/stochtree/issues/374)
-
-## Documentation and Other Maintenance
 
 # stochtree 0.4.2
 

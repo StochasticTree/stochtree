@@ -1620,3 +1620,136 @@ class TestBART:
         assert np.all(np.isfinite(preds_mean_prob))
         assert np.all((preds_mean_prob >= 0.0) & (preds_mean_prob <= 1.0))
         assert np.allclose(preds_mean_prob.sum(axis=1), 1.0, atol=1e-6)
+
+
+class TestBARTFloat32:
+    """Tests that float32 inputs are accepted and produce valid results (GH #389)."""
+
+    def setup_method(self):
+        rng = np.random.default_rng(42)
+        n, p = 100, 5
+        X = rng.uniform(0, 1, (n, p)).astype(np.float32)
+        y = (X[:, 0] * 3 + rng.normal(0, 0.5, n)).astype(np.float32)
+        idx = np.arange(n)
+        train, test = idx[:80], idx[80:]
+        self.X_train = X[train]
+        self.X_test = X[test]
+        self.y_train = y[train]
+        self.n_train = 80
+        self.n_test = 20
+        self.num_mcmc = 10
+
+    def test_bart_float32_runs(self):
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            num_gfr=5,
+            num_burnin=0,
+            num_mcmc=self.num_mcmc,
+        )
+        assert bart_model.y_hat_train.shape == (self.n_train, self.num_mcmc)
+        assert bart_model.y_hat_test.shape == (self.n_test, self.num_mcmc)
+
+    def test_bart_float32_matches_float64(self):
+        """float32 and float64 inputs with the same seed should produce close results."""
+        bart32 = BARTModel()
+        bart32.sample(
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            num_gfr=5,
+            num_burnin=0,
+            num_mcmc=self.num_mcmc,
+            general_params={"random_seed": 1},
+        )
+        bart64 = BARTModel()
+        bart64.sample(
+            X_train=self.X_train.astype(np.float64),
+            y_train=self.y_train.astype(np.float64),
+            X_test=self.X_test.astype(np.float64),
+            num_gfr=5,
+            num_burnin=0,
+            num_mcmc=self.num_mcmc,
+            general_params={"random_seed": 1},
+        )
+        np.testing.assert_allclose(bart32.y_hat_train, bart64.y_hat_train, rtol=1e-5)
+
+    def test_bart_float32_leaf_basis(self):
+        rng = np.random.default_rng(7)
+        basis_train = rng.uniform(0, 1, (self.n_train, 1)).astype(np.float32)
+        basis_test = rng.uniform(0, 1, (self.n_test, 1)).astype(np.float32)
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=self.X_train,
+            y_train=self.y_train,
+            leaf_basis_train=basis_train,
+            X_test=self.X_test,
+            leaf_basis_test=basis_test,
+            num_gfr=5,
+            num_burnin=0,
+            num_mcmc=self.num_mcmc,
+        )
+        assert bart_model.y_hat_train.shape == (self.n_train, self.num_mcmc)
+        assert bart_model.y_hat_test.shape == (self.n_test, self.num_mcmc)
+
+    def test_bart_float32_leaf_basis_matches_float64(self):
+        rng = np.random.default_rng(7)
+        basis_train = rng.uniform(0, 1, (self.n_train, 1)).astype(np.float32)
+        basis_test = rng.uniform(0, 1, (self.n_test, 1)).astype(np.float32)
+        common = dict(num_gfr=5, num_burnin=0, num_mcmc=self.num_mcmc, general_params={"random_seed": 1})
+        bart32 = BARTModel()
+        bart32.sample(X_train=self.X_train, y_train=self.y_train,
+                      leaf_basis_train=basis_train, X_test=self.X_test,
+                      leaf_basis_test=basis_test, **common)
+        bart64 = BARTModel()
+        bart64.sample(X_train=self.X_train.astype(np.float64),
+                      y_train=self.y_train.astype(np.float64),
+                      leaf_basis_train=basis_train.astype(np.float64),
+                      X_test=self.X_test.astype(np.float64),
+                      leaf_basis_test=basis_test.astype(np.float64), **common)
+        np.testing.assert_allclose(bart32.y_hat_train, bart64.y_hat_train, rtol=1e-5)
+
+    def test_bart_float32_rfx(self):
+        rng = np.random.default_rng(7)
+        n_groups = 4
+        group_ids_train = rng.integers(0, n_groups, self.n_train)
+        group_ids_test = rng.integers(0, n_groups, self.n_test)
+        rfx_basis_train = np.ones((self.n_train, 1), dtype=np.float32)
+        rfx_basis_test = np.ones((self.n_test, 1), dtype=np.float32)
+        bart_model = BARTModel()
+        bart_model.sample(
+            X_train=self.X_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            rfx_group_ids_train=group_ids_train,
+            rfx_basis_train=rfx_basis_train,
+            rfx_group_ids_test=group_ids_test,
+            rfx_basis_test=rfx_basis_test,
+            num_gfr=5,
+            num_burnin=0,
+            num_mcmc=self.num_mcmc,
+        )
+        assert bart_model.y_hat_train.shape == (self.n_train, self.num_mcmc)
+        assert bart_model.y_hat_test.shape == (self.n_test, self.num_mcmc)
+
+    def test_bart_float32_rfx_matches_float64(self):
+        rng = np.random.default_rng(7)
+        n_groups = 4
+        group_ids_train = rng.integers(0, n_groups, self.n_train)
+        group_ids_test = rng.integers(0, n_groups, self.n_test)
+        rfx_basis_train = np.ones((self.n_train, 1), dtype=np.float32)
+        rfx_basis_test = np.ones((self.n_test, 1), dtype=np.float32)
+        common = dict(rfx_group_ids_train=group_ids_train, rfx_group_ids_test=group_ids_test,
+                      num_gfr=5, num_burnin=0, num_mcmc=self.num_mcmc, general_params={"random_seed": 1})
+        bart32 = BARTModel()
+        bart32.sample(X_train=self.X_train, y_train=self.y_train, X_test=self.X_test,
+                      rfx_basis_train=rfx_basis_train, rfx_basis_test=rfx_basis_test, **common)
+        bart64 = BARTModel()
+        bart64.sample(X_train=self.X_train.astype(np.float64),
+                      y_train=self.y_train.astype(np.float64),
+                      X_test=self.X_test.astype(np.float64),
+                      rfx_basis_train=rfx_basis_train.astype(np.float64),
+                      rfx_basis_test=rfx_basis_test.astype(np.float64), **common)
+        np.testing.assert_allclose(bart32.y_hat_train, bart64.y_hat_train, rtol=1e-4)

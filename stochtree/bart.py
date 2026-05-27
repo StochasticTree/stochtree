@@ -1473,72 +1473,72 @@ class BARTModel:
                 # Set initial values of root nodes to 0.0 (in probit scale)
                 init_val_mean = 0.0
 
-                # Calibrate priors for sigma^2 and tau
-                # Set sigma2_init to 1, ignoring default provided
-                sigma2_init = 1.0
-                current_sigma2 = sigma2_init
-                self.sigma2_init = sigma2_init
-                # Skip variance_forest_init, since variance forests are not supported with probit link
-                b_leaf = 1.0 / num_trees_mean if b_leaf is None else b_leaf
-                if self.has_basis:
-                    if sigma2_leaf is None:
-                        current_leaf_scale = np.zeros(
-                            (self.num_basis, self.num_basis), dtype=float
-                        )
-                        np.fill_diagonal(
-                            current_leaf_scale,
-                            2.0 / num_trees_mean,
-                        )
-                    elif isinstance(sigma2_leaf, float):
-                        current_leaf_scale = np.zeros(
-                            (self.num_basis, self.num_basis), dtype=float
-                        )
-                        np.fill_diagonal(current_leaf_scale, sigma2_leaf)
-                    elif isinstance(sigma2_leaf, np.ndarray):
-                        if sigma2_leaf.ndim != 2:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                            )
-                        if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                            )
-                        if sigma2_leaf.shape[0] != self.num_basis:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
-                            )
-                        current_leaf_scale = sigma2_leaf
-                    else:
+            # Calibrate priors for sigma^2 and tau
+            # Set sigma2_init to 1, ignoring default provided
+            sigma2_init = 1.0
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
+            # Skip variance_forest_init, since variance forests are not supported with probit link
+            b_leaf = 1.0 / num_trees_mean if b_leaf is None else b_leaf
+            if self.has_basis:
+                if sigma2_leaf is None:
+                    current_leaf_scale = np.zeros(
+                        (self.num_basis, self.num_basis), dtype=float
+                    )
+                    np.fill_diagonal(
+                        current_leaf_scale,
+                        2.0 / num_trees_mean,
+                    )
+                elif isinstance(sigma2_leaf, (float, np.floating)):
+                    current_leaf_scale = np.zeros(
+                        (self.num_basis, self.num_basis), dtype=float
+                    )
+                    np.fill_diagonal(current_leaf_scale, sigma2_leaf)
+                elif isinstance(sigma2_leaf, np.ndarray):
+                    if sigma2_leaf.ndim != 2:
                         raise ValueError(
-                            "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
+                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                         )
+                    if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
+                        raise ValueError(
+                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                        )
+                    if sigma2_leaf.shape[0] != self.num_basis:
+                        raise ValueError(
+                            "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
+                        )
+                    current_leaf_scale = sigma2_leaf
                 else:
-                    if sigma2_leaf is None:
-                        current_leaf_scale = np.array([[2.0 / num_trees_mean]])
-                    elif isinstance(sigma2_leaf, float):
-                        current_leaf_scale = np.array([[sigma2_leaf]])
-                    elif isinstance(sigma2_leaf, np.ndarray):
-                        if sigma2_leaf.ndim != 2:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                            )
-                        if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
-                            raise ValueError(
-                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                            )
-                        if sigma2_leaf.shape[0] != 1:
-                            raise ValueError(
-                                "sigma2_leaf must be a 1x1 numpy array for this leaf model"
-                            )
-                        current_leaf_scale = sigma2_leaf
-                    else:
+                    raise ValueError(
+                        "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
+                    )
+            else:
+                if sigma2_leaf is None:
+                    current_leaf_scale = np.array([[2.0 / num_trees_mean]])
+                elif isinstance(sigma2_leaf, (float, np.floating)):
+                    current_leaf_scale = np.array([[sigma2_leaf]])
+                elif isinstance(sigma2_leaf, np.ndarray):
+                    if sigma2_leaf.ndim != 2:
                         raise ValueError(
-                            "sigma2_leaf must be either a scalar or a 2d numpy array"
+                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                         )
-            elif link_is_cloglog:
-                # Fix offset to 0 and scale to 1
-                self.y_bar = 0
-                self.y_std = 1
+                    if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
+                        raise ValueError(
+                            "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                        )
+                    if sigma2_leaf.shape[0] != 1:
+                        raise ValueError(
+                            "sigma2_leaf must be a 1x1 numpy array for this leaf model"
+                        )
+                    current_leaf_scale = sigma2_leaf
+                else:
+                    raise ValueError(
+                        "sigma2_leaf must be either a scalar or a 2d numpy array"
+                    )
+        elif link_is_cloglog:
+            # Fix offset to 0 and scale to 1
+            self.y_bar = 0
+            self.y_std = 1
 
                 # Remap outcomes to start from 0
                 resid_train = y_train - np.min(unique_outcomes)
@@ -1580,107 +1580,144 @@ class BARTModel:
                 # Compute initial value of root nodes in mean forest
                 init_val_mean = np.squeeze(np.mean(resid_train))
 
-                # Calibrate priors for global sigma^2 and sigma2_leaf
-                if not sigma2_init:
-                    sigma2_init = 1.0 * np.var(resid_train)
-                if not variance_forest_leaf_init:
-                    variance_forest_leaf_init = 0.6 * np.var(resid_train)
-                current_sigma2 = sigma2_init
-                self.sigma2_init = sigma2_init
-                if self.include_mean_forest:
-                    b_leaf = (
-                        np.squeeze(np.var(resid_train)) / num_trees_mean
-                        if b_leaf is None
-                        else b_leaf
-                    )
-                    if self.has_basis:
-                        if sigma2_leaf is None:
-                            current_leaf_scale = np.zeros(
-                                (self.num_basis, self.num_basis), dtype=float
-                            )
-                            np.fill_diagonal(
-                                current_leaf_scale,
-                                np.squeeze(np.var(resid_train)) / num_trees_mean,
-                            )
-                        elif isinstance(sigma2_leaf, float):
-                            current_leaf_scale = np.zeros(
-                                (self.num_basis, self.num_basis), dtype=float
-                            )
-                            np.fill_diagonal(current_leaf_scale, sigma2_leaf)
-                        elif isinstance(sigma2_leaf, np.ndarray):
-                            if sigma2_leaf.ndim != 2:
-                                raise ValueError(
-                                    "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                                )
-                            if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
-                                raise ValueError(
-                                    "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                                )
-                            if sigma2_leaf.shape[0] != self.num_basis:
-                                raise ValueError(
-                                    "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
-                                )
-                            current_leaf_scale = sigma2_leaf
-                        else:
+            # Calibrate priors for global sigma^2 and sigma2_leaf
+            if not sigma2_init:
+                sigma2_init = 1.0 * np.var(resid_train)
+            if not variance_forest_leaf_init:
+                variance_forest_leaf_init = 0.6 * np.var(resid_train)
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
+            if self.include_mean_forest:
+                b_leaf = (
+                    np.squeeze(np.var(resid_train)) / num_trees_mean
+                    if b_leaf is None
+                    else b_leaf
+                )
+                if self.has_basis:
+                    if sigma2_leaf is None:
+                        current_leaf_scale = np.zeros(
+                            (self.num_basis, self.num_basis), dtype=float
+                        )
+                        np.fill_diagonal(
+                            current_leaf_scale,
+                            np.squeeze(np.var(resid_train)) / num_trees_mean,
+                        )
+                    elif isinstance(sigma2_leaf, (float, np.floating)):
+                        current_leaf_scale = np.zeros(
+                            (self.num_basis, self.num_basis), dtype=float
+                        )
+                        np.fill_diagonal(current_leaf_scale, sigma2_leaf)
+                    elif isinstance(sigma2_leaf, np.ndarray):
+                        if sigma2_leaf.ndim != 2:
                             raise ValueError(
-                                "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
+                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                             )
-                    else:
-                        if sigma2_leaf is None:
-                            current_leaf_scale = np.array([
-                                [np.squeeze(np.var(resid_train)) / num_trees_mean]
-                            ])
-                        elif isinstance(sigma2_leaf, float):
-                            current_leaf_scale = np.array([[sigma2_leaf]])
-                        elif isinstance(sigma2_leaf, np.ndarray):
-                            if sigma2_leaf.ndim != 2:
-                                raise ValueError(
-                                    "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                                )
-                            if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
-                                raise ValueError(
-                                    "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
-                                )
-                            if sigma2_leaf.shape[0] != 1:
-                                raise ValueError(
-                                    "sigma2_leaf must be a 1x1 numpy array for this leaf model"
-                                )
-                            current_leaf_scale = sigma2_leaf
-                        else:
+                        if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
                             raise ValueError(
-                                "sigma2_leaf must be either a scalar or a 2d numpy array"
+                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
                             )
-                else:
-                    current_leaf_scale = np.array([[1.0]])
-                if self.include_variance_forest:
-                    if not a_forest:
-                        a_forest = num_trees_variance / a_0**2 + 0.5
-                    if not b_forest:
-                        b_forest = num_trees_variance / a_0**2
-                else:
-                    if not a_forest:
-                        a_forest = 1.0
-                    if not b_forest:
-                        b_forest = 1.0
-                self.shape_variance_forest = a_forest
-                self.scale_variance_forest = b_forest
-
-            # Set up random effects structures
-            if self.has_rfx:
-                # Prior parameters
-                if rfx_working_parameter_prior_mean is None:
-                    if num_rfx_components == 1:
-                        alpha_init = np.array([0.0], dtype=float)
-                    elif num_rfx_components > 1:
-                        alpha_init = np.zeros(num_rfx_components, dtype=float)
+                        if sigma2_leaf.shape[0] != self.num_basis:
+                            raise ValueError(
+                                "sigma2_leaf must be a 2d symmetric numpy array with its dimensionality matching the basis dimension"
+                            )
+                        current_leaf_scale = sigma2_leaf
                     else:
                         raise ValueError(
-                            "There must be at least 1 random effect component"
+                            "sigma2_leaf must be either a scalar or a 2d symmetric numpy array"
                         )
                 else:
-                    alpha_init = _expand_dims_1d(
-                        rfx_working_parameter_prior_mean, num_rfx_components
+                    if sigma2_leaf is None:
+                        current_leaf_scale = np.array([
+                            [np.squeeze(np.var(resid_train)) / num_trees_mean]
+                        ])
+                    elif isinstance(sigma2_leaf, (float, np.floating)):
+                        current_leaf_scale = np.array([[sigma2_leaf]])
+                    elif isinstance(sigma2_leaf, np.ndarray):
+                        if sigma2_leaf.ndim != 2:
+                            raise ValueError(
+                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            )
+                        if sigma2_leaf.shape[0] != sigma2_leaf.shape[1]:
+                            raise ValueError(
+                                "sigma2_leaf must be a 2d symmetric numpy array if provided in matrix form"
+                            )
+                        if sigma2_leaf.shape[0] != 1:
+                            raise ValueError(
+                                "sigma2_leaf must be a 1x1 numpy array for this leaf model"
+                            )
+                        current_leaf_scale = sigma2_leaf
+                    else:
+                        raise ValueError(
+                            "sigma2_leaf must be either a scalar or a 2d numpy array"
+                        )
+            else:
+                current_leaf_scale = np.array([[1.0]])
+            if self.include_variance_forest:
+                if not a_forest:
+                    a_forest = num_trees_variance / a_0**2 + 0.5
+                if not b_forest:
+                    b_forest = num_trees_variance / a_0**2
+            else:
+                if not a_forest:
+                    a_forest = 1.0
+                if not b_forest:
+                    b_forest = 1.0
+
+        # Runtime checks on RFX group ids
+        self.has_rfx = False
+        has_rfx_test = False
+        if rfx_group_ids_train is not None:
+            self.has_rfx = True
+            if rfx_group_ids_test is not None:
+                has_rfx_test = True
+                if not np.all(np.isin(rfx_group_ids_test, rfx_group_ids_train)):
+                    raise ValueError(
+                        "All random effect group labels provided in rfx_group_ids_test must be present in rfx_group_ids_train"
                     )
+
+        # Handle the rfx basis matrices
+        self.has_rfx_basis = False
+        self.num_rfx_basis = 0
+        if self.has_rfx:
+            if self.rfx_model_spec == "custom":
+                if rfx_basis_train is None:
+                    raise ValueError(
+                        "rfx_basis_train must be provided when rfx_model_spec = 'custom'"
+                    )
+            elif self.rfx_model_spec == "intercept_only":
+                if rfx_basis_train is None:
+                    rfx_basis_train = np.ones((rfx_group_ids_train.shape[0], 1))
+            self.has_rfx_basis = True
+            self.num_rfx_basis = rfx_basis_train.shape[1]
+            num_rfx_groups = np.unique(rfx_group_ids_train).shape[0]
+            num_rfx_components = rfx_basis_train.shape[1]
+            if num_rfx_groups == 1:
+                warnings.warn(
+                    "Only one group was provided for random effect sampling, so the random effects model is likely overkill"
+                )
+        if has_rfx_test:
+            if self.rfx_model_spec == "custom":
+                if rfx_basis_test is None:
+                    raise ValueError(
+                        "rfx_basis_test must be provided when rfx_model_spec = 'custom' and a test set is provided"
+                    )
+            elif self.rfx_model_spec == "intercept_only":
+                if rfx_basis_test is None:
+                    rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
+        # Set up random effects structures
+        if self.has_rfx:
+            # Prior parameters
+            if rfx_working_parameter_prior_mean is None:
+                if num_rfx_components == 1:
+                    alpha_init = np.array([0.0], dtype=float)
+                elif num_rfx_components > 1:
+                    alpha_init = np.zeros(num_rfx_components, dtype=float)
+                else:
+                    raise ValueError("There must be at least 1 random effect component")
+            else:
+                alpha_init = _expand_dims_1d(
+                    rfx_working_parameter_prior_mean, num_rfx_components
+                )
 
                 if rfx_group_parameter_prior_mean is None:
                     xi_init = np.tile(

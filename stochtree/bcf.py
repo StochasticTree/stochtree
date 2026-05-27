@@ -728,6 +728,8 @@ class BCFModel:
                 propensity_train = np.expand_dims(propensity_train, 1)
         if y_train.ndim == 1:
             y_train = np.expand_dims(y_train, 1)
+        if not np.issubdtype(y_train.dtype, np.float64):
+            y_train = y_train.astype(np.float64)
         if X_test is not None:
             if isinstance(X_test, np.ndarray):
                 if X_test.ndim == 1:
@@ -877,7 +879,7 @@ class BCFModel:
 
         # Check parameters
         if sigma2_leaf_tau is not None:
-            if not isinstance(sigma2_leaf_tau, float) and not isinstance(
+            if not isinstance(sigma2_leaf_tau, (float, np.floating)) and not isinstance(
                 sigma2_leaf_tau, np.ndarray
             ):
                 raise ValueError("sigma2_leaf_tau must be a float or numpy array")
@@ -1478,10 +1480,8 @@ class BCFModel:
 
         # Validate tau_0_prior_var if sample_tau_0 is True
         if self.sample_tau_0 and tau_0_prior_var is not None:
-            if not isinstance(tau_0_prior_var, (int, float)) or tau_0_prior_var <= 0:
-                raise ValueError(
-                    "tau_0_prior_var must be a single positive numeric value"
-                )
+            if not isinstance(tau_0_prior_var, (int, float, np.floating)) or tau_0_prior_var <= 0:
+                raise ValueError("tau_0_prior_var must be a single positive numeric value")
 
         # Sampling sigma2_leaf_tau will be ignored for multivariate treatments
         if sample_sigma2_leaf_tau and self.multivariate_treatment:
@@ -2085,70 +2085,70 @@ class BCFModel:
                 # Set initial value for the mu forest
                 init_mu = 0.0
 
-                # Calibrate priors for sigma^2 and tau
-                # Set sigma2_init to 1, ignoring default provided
-                sigma2_init = 1.0
-                current_sigma2 = sigma2_init
-                self.sigma2_init = sigma2_init
-                # Skip variance_forest_init, since variance forests are not supported with probit link
-                b_leaf_mu = 1.0 / num_trees_mu if b_leaf_mu is None else b_leaf_mu
-                b_leaf_tau = 1.0 / (2 * num_trees_tau) if b_leaf_tau is None else b_leaf_tau
-                sigma2_leaf_mu = (
-                    1 / num_trees_mu if sigma2_leaf_mu is None else sigma2_leaf_mu
-                )
-                if isinstance(sigma2_leaf_mu, float):
-                    current_leaf_scale_mu = np.array([[sigma2_leaf_mu]])
-                else:
-                    raise ValueError("sigma2_leaf_mu must be a scalar")
-                # Calibrate prior so that P(abs(tau(X)) < delta_max / dnorm(0)) = p
-                # Use p = 0.9 as an internal default rather than adding another
-                # user-facing "parameter" of the binary outcome BCF prior.
-                # Can be overriden by specifying `sigma2_leaf_init` in
-                # treatment_effect_forest_params.
-                p = 0.6827
-                q_quantile = norm.ppf((p + 1) / 2.0)
-                sigma2_leaf_tau = (
-                    ((delta_max / (q_quantile * norm.pdf(0))) ** 2) / num_trees_tau
-                    if sigma2_leaf_tau is None
-                    else sigma2_leaf_tau
-                )
-                if self.multivariate_treatment:
-                    if not isinstance(sigma2_leaf_tau, np.ndarray):
-                        sigma2_leaf_tau = np.diagflat(
-                            np.repeat(sigma2_leaf_tau, self.treatment_dim)
-                        )
-                if isinstance(sigma2_leaf_tau, float):
-                    if Z_train.shape[1] > 1:
-                        current_leaf_scale_tau = np.zeros(
-                            (Z_train.shape[1], Z_train.shape[1]), dtype=float
-                        )
-                        np.fill_diagonal(current_leaf_scale_tau, sigma2_leaf_tau)
-                    else:
-                        current_leaf_scale_tau = np.array([[sigma2_leaf_tau]])
-                elif isinstance(sigma2_leaf_tau, np.ndarray):
-                    if sigma2_leaf_tau.ndim != 2:
-                        raise ValueError(
-                            "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
-                        )
-                    if sigma2_leaf_tau.shape[0] != sigma2_leaf_tau.shape[1]:
-                        raise ValueError(
-                            "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
-                        )
-                    if sigma2_leaf_tau.shape[0] != Z_train.shape[1]:
-                        raise ValueError(
-                            "sigma2_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
-                        )
-                    current_leaf_scale_tau = sigma2_leaf_tau
-                else:
-                    raise ValueError("sigma2_leaf_tau must be a scalar or a 2d numpy array")
+            # Calibrate priors for sigma^2 and tau
+            # Set sigma2_init to 1, ignoring default provided
+            sigma2_init = 1.0
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
+            # Skip variance_forest_init, since variance forests are not supported with probit link
+            b_leaf_mu = 1.0 / num_trees_mu if b_leaf_mu is None else b_leaf_mu
+            b_leaf_tau = 1.0 / (2 * num_trees_tau) if b_leaf_tau is None else b_leaf_tau
+            sigma2_leaf_mu = (
+                1 / num_trees_mu if sigma2_leaf_mu is None else sigma2_leaf_mu
+            )
+            if isinstance(sigma2_leaf_mu, (float, np.floating)):
+                current_leaf_scale_mu = np.array([[sigma2_leaf_mu]])
             else:
-                # Standardize if requested
-                if self.standardize:
-                    self.y_bar = np.squeeze(np.mean(y_train))
-                    self.y_std = np.squeeze(np.std(y_train))
+                raise ValueError("sigma2_leaf_mu must be a scalar")
+            # Calibrate prior so that P(abs(tau(X)) < delta_max / dnorm(0)) = p
+            # Use p = 0.9 as an internal default rather than adding another
+            # user-facing "parameter" of the binary outcome BCF prior.
+            # Can be overriden by specifying `sigma2_leaf_init` in
+            # treatment_effect_forest_params.
+            p = 0.6827
+            q_quantile = norm.ppf((p + 1) / 2.0)
+            sigma2_leaf_tau = (
+                ((delta_max / (q_quantile * norm.pdf(0))) ** 2) / num_trees_tau
+                if sigma2_leaf_tau is None
+                else sigma2_leaf_tau
+            )
+            if self.multivariate_treatment:
+                if not isinstance(sigma2_leaf_tau, np.ndarray):
+                    sigma2_leaf_tau = np.diagflat(
+                        np.repeat(sigma2_leaf_tau, self.treatment_dim)
+                    )
+            if isinstance(sigma2_leaf_tau, (float, np.floating)):
+                if Z_train.shape[1] > 1:
+                    current_leaf_scale_tau = np.zeros(
+                        (Z_train.shape[1], Z_train.shape[1]), dtype=float
+                    )
+                    np.fill_diagonal(current_leaf_scale_tau, sigma2_leaf_tau)
                 else:
-                    self.y_bar = 0
-                    self.y_std = 1
+                    current_leaf_scale_tau = np.array([[sigma2_leaf_tau]])
+            elif isinstance(sigma2_leaf_tau, np.ndarray):
+                if sigma2_leaf_tau.ndim != 2:
+                    raise ValueError(
+                        "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                    )
+                if sigma2_leaf_tau.shape[0] != sigma2_leaf_tau.shape[1]:
+                    raise ValueError(
+                        "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                    )
+                if sigma2_leaf_tau.shape[0] != Z_train.shape[1]:
+                    raise ValueError(
+                        "sigma2_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
+                    )
+                current_leaf_scale_tau = sigma2_leaf_tau
+            else:
+                raise ValueError("sigma2_leaf_tau must be a scalar or a 2d numpy array")
+        else:
+            # Standardize if requested
+            if self.standardize:
+                self.y_bar = np.squeeze(np.mean(y_train))
+                self.y_std = np.squeeze(np.std(y_train))
+            else:
+                self.y_bar = 0
+                self.y_std = 1
 
                 # Compute residual value
                 resid_train = (y_train - self.y_bar) / self.y_std
@@ -2156,76 +2156,76 @@ class BCFModel:
                 # Compute initial value of root nodes in mean forest
                 init_mu = np.squeeze(np.mean(resid_train))
 
-                # Calibrate priors for global sigma^2 and sigma2_leaf
-                if not sigma2_init:
-                    sigma2_init = 1.0 * np.var(resid_train)
-                if not variance_forest_leaf_init:
-                    variance_forest_leaf_init = 0.6 * np.var(resid_train)
-                current_sigma2 = sigma2_init
-                self.sigma2_init = sigma2_init
-                b_leaf_mu = (
-                    np.squeeze(np.var(resid_train)) / num_trees_mu
-                    if b_leaf_mu is None
-                    else b_leaf_mu
-                )
-                b_leaf_tau = (
-                    np.squeeze(np.var(resid_train)) / (2 * num_trees_tau)
-                    if b_leaf_tau is None
-                    else b_leaf_tau
-                )
-                sigma2_leaf_mu = (
-                    np.squeeze(2 * np.var(resid_train)) / num_trees_mu
-                    if sigma2_leaf_mu is None
-                    else sigma2_leaf_mu
-                )
-                if isinstance(sigma2_leaf_mu, float):
-                    current_leaf_scale_mu = np.array([[sigma2_leaf_mu]])
+            # Calibrate priors for global sigma^2 and sigma2_leaf
+            if not sigma2_init:
+                sigma2_init = 1.0 * np.var(resid_train)
+            if not variance_forest_leaf_init:
+                variance_forest_leaf_init = 0.6 * np.var(resid_train)
+            current_sigma2 = sigma2_init
+            self.sigma2_init = sigma2_init
+            b_leaf_mu = (
+                np.squeeze(np.var(resid_train)) / num_trees_mu
+                if b_leaf_mu is None
+                else b_leaf_mu
+            )
+            b_leaf_tau = (
+                np.squeeze(np.var(resid_train)) / (2 * num_trees_tau)
+                if b_leaf_tau is None
+                else b_leaf_tau
+            )
+            sigma2_leaf_mu = (
+                np.squeeze(2 * np.var(resid_train)) / num_trees_mu
+                if sigma2_leaf_mu is None
+                else sigma2_leaf_mu
+            )
+            if isinstance(sigma2_leaf_mu, (float, np.floating)):
+                current_leaf_scale_mu = np.array([[sigma2_leaf_mu]])
+            else:
+                raise ValueError("sigma2_leaf_mu must be a scalar")
+            sigma2_leaf_tau = (
+                np.squeeze(0.5 * np.var(resid_train)) / (num_trees_tau)
+                if sigma2_leaf_tau is None
+                else sigma2_leaf_tau
+            )
+            if self.multivariate_treatment:
+                if not isinstance(sigma2_leaf_tau, np.ndarray):
+                    sigma2_leaf_tau = np.diagflat(
+                        np.repeat(sigma2_leaf_tau, self.treatment_dim)
+                    )
+            if isinstance(sigma2_leaf_tau, (float, np.floating)):
+                if Z_train.shape[1] > 1:
+                    current_leaf_scale_tau = np.zeros(
+                        (Z_train.shape[1], Z_train.shape[1]), dtype=float
+                    )
+                    np.fill_diagonal(current_leaf_scale_tau, sigma2_leaf_tau)
                 else:
-                    raise ValueError("sigma2_leaf_mu must be a scalar")
-                sigma2_leaf_tau = (
-                    np.squeeze(0.5 * np.var(resid_train)) / (num_trees_tau)
-                    if sigma2_leaf_tau is None
-                    else sigma2_leaf_tau
-                )
-                if self.multivariate_treatment:
-                    if not isinstance(sigma2_leaf_tau, np.ndarray):
-                        sigma2_leaf_tau = np.diagflat(
-                            np.repeat(sigma2_leaf_tau, self.treatment_dim)
-                        )
-                if isinstance(sigma2_leaf_tau, float):
-                    if Z_train.shape[1] > 1:
-                        current_leaf_scale_tau = np.zeros(
-                            (Z_train.shape[1], Z_train.shape[1]), dtype=float
-                        )
-                        np.fill_diagonal(current_leaf_scale_tau, sigma2_leaf_tau)
-                    else:
-                        current_leaf_scale_tau = np.array([[sigma2_leaf_tau]])
-                elif isinstance(sigma2_leaf_tau, np.ndarray):
-                    if sigma2_leaf_tau.ndim != 2:
-                        raise ValueError(
-                            "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
-                        )
-                    if sigma2_leaf_tau.shape[0] != sigma2_leaf_tau.shape[1]:
-                        raise ValueError(
-                            "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
-                        )
-                    if sigma2_leaf_tau.shape[0] != Z_train.shape[1]:
-                        raise ValueError(
-                            "sigma2_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
-                        )
-                    current_leaf_scale_tau = sigma2_leaf_tau
-                else:
-                    raise ValueError("sigma2_leaf_tau must be a scalar or a 2d numpy array")
-                if self.include_variance_forest:
-                    if not a_forest:
-                        a_forest = num_trees_variance / a_0**2 + 0.5
-                    if not b_forest:
-                        b_forest = num_trees_variance / a_0**2
-                else:
-                    if not a_forest:
-                        a_forest = 1.0
-                    if not b_forest:
-                        b_forest = 1.0
+                    current_leaf_scale_tau = np.array([[sigma2_leaf_tau]])
+            elif isinstance(sigma2_leaf_tau, np.ndarray):
+                if sigma2_leaf_tau.ndim != 2:
+                    raise ValueError(
+                        "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                    )
+                if sigma2_leaf_tau.shape[0] != sigma2_leaf_tau.shape[1]:
+                    raise ValueError(
+                        "sigma2_leaf_tau must be a 2d symmetric numpy array if provided in matrix form"
+                    )
+                if sigma2_leaf_tau.shape[0] != Z_train.shape[1]:
+                    raise ValueError(
+                        "sigma2_leaf_tau must be a 2d numpy array with dimension matching that of the treatment vector"
+                    )
+                current_leaf_scale_tau = sigma2_leaf_tau
+            else:
+                raise ValueError("sigma2_leaf_tau must be a scalar or a 2d numpy array")
+            if self.include_variance_forest:
+                if not a_forest:
+                    a_forest = num_trees_variance / a_0**2 + 0.5
+                if not b_forest:
+                    b_forest = num_trees_variance / a_0**2
+            else:
+                if not a_forest:
+                    a_forest = 1.0
+                if not b_forest:
+                    b_forest = 1.0
 
             # Set up random effects structures
             if self.has_rfx:
@@ -2317,23 +2317,23 @@ class BCFModel:
                 )
             sample_counter = -1
 
-            # Prepare adaptive coding structure
-            if self.adaptive_coding:
-                if np.size(b_0) > 1 or np.size(b_1) > 1:
-                    raise ValueError("b_0 and b_1 must be single numeric values")
-                if not (isinstance(b_0, (int, float)) or isinstance(b_1, (int, float))):
-                    raise ValueError("b_0 and b_1 must be numeric values")
-                self.b0_samples = np.empty(self.num_samples, dtype=np.float64)
-                self.b1_samples = np.empty(self.num_samples, dtype=np.float64)
-                current_b_0 = b_0
-                current_b_1 = b_1
-                tau_basis_train = (1 - Z_train) * current_b_0 + Z_train * current_b_1
-                if self.has_test:
-                    tau_basis_test = (1 - Z_test) * current_b_0 + Z_test * current_b_1
-            else:
-                tau_basis_train = Z_train
-                if self.has_test:
-                    tau_basis_test = Z_test
+        # Prepare adaptive coding structure
+        if self.adaptive_coding:
+            if np.size(b_0) > 1 or np.size(b_1) > 1:
+                raise ValueError("b_0 and b_1 must be single numeric values")
+            if not (isinstance(b_0, (int, float, np.floating)) or isinstance(b_1, (int, float, np.floating))):
+                raise ValueError("b_0 and b_1 must be numeric values")
+            self.b0_samples = np.empty(self.num_samples, dtype=np.float64)
+            self.b1_samples = np.empty(self.num_samples, dtype=np.float64)
+            current_b_0 = b_0
+            current_b_1 = b_1
+            tau_basis_train = (1 - Z_train) * current_b_0 + Z_train * current_b_1
+            if self.has_test:
+                tau_basis_test = (1 - Z_test) * current_b_0 + Z_test * current_b_1
+        else:
+            tau_basis_train = Z_train
+            if self.has_test:
+                tau_basis_test = Z_test
 
             # Prepare tau_0 (global treatment effect intercept) structure
             if self.sample_tau_0:
