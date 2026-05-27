@@ -1114,3 +1114,145 @@ class TestBCF:
         # Output shapes should be correct
         assert m2.y_hat_train.shape == (n_train, 10)
         assert m2.y_hat_test.shape == (n - n_train, 10)
+
+
+class TestBCFFloat32:
+    """Tests that float32 inputs are accepted for all BCF array parameters (GH #389)."""
+
+    def setup_method(self):
+        rng = np.random.default_rng(42)
+        n = 200
+        p_X = 5
+        X = rng.uniform(0, 1, (n, p_X)).astype(np.float32)
+        pi_X = (0.25 + 0.5 * X[:, 0]).astype(np.float32)
+        Z = rng.binomial(1, pi_X.astype(float), n).astype(np.float32)
+        y = (pi_X * 3 + Z * 0.5 + rng.normal(0, 0.3, n)).astype(np.float32)
+        idx = np.arange(n)
+        train, test = idx[:150], idx[150:]
+        self.X_train = X[train]
+        self.X_test = X[test]
+        self.Z_train = Z[train]
+        self.Z_test = Z[test]
+        self.y_train = y[train]
+        self.pi_train = pi_X[train]
+        self.pi_test = pi_X[test]
+        self.n_train = 150
+        self.n_test = 50
+        self.num_mcmc = 10
+
+    def test_bcf_float32_with_propensity(self):
+        """float32 Z, y, X, and explicit propensity."""
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=self.X_train,
+            Z_train=self.Z_train,
+            y_train=self.y_train,
+            propensity_train=self.pi_train,
+            X_test=self.X_test,
+            Z_test=self.Z_test,
+            propensity_test=self.pi_test,
+            num_gfr=5,
+            num_burnin=0,
+            num_mcmc=self.num_mcmc,
+        )
+        assert bcf_model.y_hat_train.shape == (self.n_train, self.num_mcmc)
+        assert bcf_model.y_hat_test.shape == (self.n_test, self.num_mcmc)
+        assert bcf_model.tau_hat_train.shape == (self.n_train, self.num_mcmc)
+        assert bcf_model.tau_hat_test.shape == (self.n_test, self.num_mcmc)
+
+    def test_bcf_float32_with_propensity_matches_float64(self):
+        common = dict(num_gfr=5, num_burnin=0, num_mcmc=self.num_mcmc, general_params={"random_seed": 1})
+        bcf32 = BCFModel()
+        bcf32.sample(X_train=self.X_train, Z_train=self.Z_train, y_train=self.y_train,
+                     propensity_train=self.pi_train, X_test=self.X_test,
+                     Z_test=self.Z_test, propensity_test=self.pi_test, **common)
+        bcf64 = BCFModel()
+        bcf64.sample(X_train=self.X_train.astype(np.float64),
+                     Z_train=self.Z_train.astype(np.float64),
+                     y_train=self.y_train.astype(np.float64),
+                     propensity_train=self.pi_train.astype(np.float64),
+                     X_test=self.X_test.astype(np.float64),
+                     Z_test=self.Z_test.astype(np.float64),
+                     propensity_test=self.pi_test.astype(np.float64), **common)
+        np.testing.assert_allclose(bcf32.y_hat_train, bcf64.y_hat_train, rtol=1e-4)
+
+    def test_bcf_float32_no_propensity(self):
+        """float32 Z, y, X with internal propensity estimation."""
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=self.X_train,
+            Z_train=self.Z_train,
+            y_train=self.y_train,
+            X_test=self.X_test,
+            Z_test=self.Z_test,
+            num_gfr=5,
+            num_burnin=0,
+            num_mcmc=self.num_mcmc,
+        )
+        assert bcf_model.y_hat_train.shape == (self.n_train, self.num_mcmc)
+        assert bcf_model.y_hat_test.shape == (self.n_test, self.num_mcmc)
+
+    def test_bcf_float32_no_propensity_matches_float64(self):
+        common = dict(num_gfr=5, num_burnin=0, num_mcmc=self.num_mcmc, general_params={"random_seed": 1})
+        bcf32 = BCFModel()
+        bcf32.sample(X_train=self.X_train, Z_train=self.Z_train, y_train=self.y_train,
+                     X_test=self.X_test, Z_test=self.Z_test, **common)
+        bcf64 = BCFModel()
+        bcf64.sample(X_train=self.X_train.astype(np.float64),
+                     Z_train=self.Z_train.astype(np.float64),
+                     y_train=self.y_train.astype(np.float64),
+                     X_test=self.X_test.astype(np.float64),
+                     Z_test=self.Z_test.astype(np.float64), **common)
+        np.testing.assert_allclose(bcf32.y_hat_train, bcf64.y_hat_train, rtol=1e-4)
+
+    def test_bcf_float32_rfx(self):
+        """float32 rfx_basis_train and rfx_basis_test."""
+        rng = np.random.default_rng(7)
+        n_groups = 4
+        group_ids_train = rng.integers(0, n_groups, self.n_train)
+        group_ids_test = rng.integers(0, n_groups, self.n_test)
+        rfx_basis_train = np.ones((self.n_train, 1), dtype=np.float32)
+        rfx_basis_test = np.ones((self.n_test, 1), dtype=np.float32)
+        bcf_model = BCFModel()
+        bcf_model.sample(
+            X_train=self.X_train,
+            Z_train=self.Z_train,
+            y_train=self.y_train,
+            propensity_train=self.pi_train,
+            X_test=self.X_test,
+            Z_test=self.Z_test,
+            propensity_test=self.pi_test,
+            rfx_group_ids_train=group_ids_train,
+            rfx_basis_train=rfx_basis_train,
+            rfx_group_ids_test=group_ids_test,
+            rfx_basis_test=rfx_basis_test,
+            num_gfr=5,
+            num_burnin=0,
+            num_mcmc=self.num_mcmc,
+        )
+        assert bcf_model.y_hat_train.shape == (self.n_train, self.num_mcmc)
+        assert bcf_model.y_hat_test.shape == (self.n_test, self.num_mcmc)
+
+    def test_bcf_float32_rfx_matches_float64(self):
+        rng = np.random.default_rng(7)
+        n_groups = 4
+        group_ids_train = rng.integers(0, n_groups, self.n_train)
+        group_ids_test = rng.integers(0, n_groups, self.n_test)
+        rfx_basis_train = np.ones((self.n_train, 1), dtype=np.float32)
+        rfx_basis_test = np.ones((self.n_test, 1), dtype=np.float32)
+        common = dict(propensity_train=self.pi_train, propensity_test=self.pi_test,
+                      rfx_group_ids_train=group_ids_train, rfx_group_ids_test=group_ids_test,
+                      num_gfr=5, num_burnin=0, num_mcmc=self.num_mcmc, general_params={"random_seed": 1})
+        bcf32 = BCFModel()
+        bcf32.sample(X_train=self.X_train, Z_train=self.Z_train, y_train=self.y_train,
+                     X_test=self.X_test, Z_test=self.Z_test,
+                     rfx_basis_train=rfx_basis_train, rfx_basis_test=rfx_basis_test, **common)
+        bcf64 = BCFModel()
+        bcf64.sample(X_train=self.X_train.astype(np.float64),
+                     Z_train=self.Z_train.astype(np.float64),
+                     y_train=self.y_train.astype(np.float64),
+                     X_test=self.X_test.astype(np.float64),
+                     Z_test=self.Z_test.astype(np.float64),
+                     rfx_basis_train=rfx_basis_train.astype(np.float64),
+                     rfx_basis_test=rfx_basis_test.astype(np.float64), **common)
+        np.testing.assert_allclose(bcf32.y_hat_train, bcf64.y_hat_train, rtol=1e-4)

@@ -708,6 +708,8 @@ class BCFModel:
                 propensity_train = np.expand_dims(propensity_train, 1)
         if y_train.ndim == 1:
             y_train = np.expand_dims(y_train, 1)
+        if not np.issubdtype(y_train.dtype, np.float64):
+            y_train = y_train.astype(np.float64)
         if X_test is not None:
             if isinstance(X_test, np.ndarray):
                 if X_test.ndim == 1:
@@ -853,7 +855,7 @@ class BCFModel:
 
         # Check parameters
         if sigma2_leaf_tau is not None:
-            if not isinstance(sigma2_leaf_tau, float) and not isinstance(
+            if not isinstance(sigma2_leaf_tau, (float, np.floating)) and not isinstance(
                 sigma2_leaf_tau, np.ndarray
             ):
                 raise ValueError("sigma2_leaf_tau must be a float or numpy array")
@@ -1454,7 +1456,7 @@ class BCFModel:
 
         # Validate tau_0_prior_var if sample_tau_0 is True
         if self.sample_tau_0 and tau_0_prior_var is not None:
-            if not isinstance(tau_0_prior_var, (int, float)) or tau_0_prior_var <= 0:
+            if not isinstance(tau_0_prior_var, (int, float, np.floating)) or tau_0_prior_var <= 0:
                 raise ValueError("tau_0_prior_var must be a single positive numeric value")
 
         # Sampling sigma2_leaf_tau will be ignored for multivariate treatments
@@ -1636,7 +1638,7 @@ class BCFModel:
             sigma2_leaf_mu = (
                 1 / num_trees_mu if sigma2_leaf_mu is None else sigma2_leaf_mu
             )
-            if isinstance(sigma2_leaf_mu, float):
+            if isinstance(sigma2_leaf_mu, (float, np.floating)):
                 current_leaf_scale_mu = np.array([[sigma2_leaf_mu]])
             else:
                 raise ValueError("sigma2_leaf_mu must be a scalar")
@@ -1657,7 +1659,7 @@ class BCFModel:
                     sigma2_leaf_tau = np.diagflat(
                         np.repeat(sigma2_leaf_tau, self.treatment_dim)
                     )
-            if isinstance(sigma2_leaf_tau, float):
+            if isinstance(sigma2_leaf_tau, (float, np.floating)):
                 if Z_train.shape[1] > 1:
                     current_leaf_scale_tau = np.zeros(
                         (Z_train.shape[1], Z_train.shape[1]), dtype=float
@@ -1718,7 +1720,7 @@ class BCFModel:
                 if sigma2_leaf_mu is None
                 else sigma2_leaf_mu
             )
-            if isinstance(sigma2_leaf_mu, float):
+            if isinstance(sigma2_leaf_mu, (float, np.floating)):
                 current_leaf_scale_mu = np.array([[sigma2_leaf_mu]])
             else:
                 raise ValueError("sigma2_leaf_mu must be a scalar")
@@ -1732,7 +1734,7 @@ class BCFModel:
                     sigma2_leaf_tau = np.diagflat(
                         np.repeat(sigma2_leaf_tau, self.treatment_dim)
                     )
-            if isinstance(sigma2_leaf_tau, float):
+            if isinstance(sigma2_leaf_tau, (float, np.floating)):
                 if Z_train.shape[1] > 1:
                     current_leaf_scale_tau = np.zeros(
                         (Z_train.shape[1], Z_train.shape[1]), dtype=float
@@ -1944,7 +1946,7 @@ class BCFModel:
         if self.adaptive_coding:
             if np.size(b_0) > 1 or np.size(b_1) > 1:
                 raise ValueError("b_0 and b_1 must be single numeric values")
-            if not (isinstance(b_0, (int, float)) or isinstance(b_1, (int, float))):
+            if not (isinstance(b_0, (int, float, np.floating)) or isinstance(b_1, (int, float, np.floating))):
                 raise ValueError("b_0 and b_1 must be numeric values")
             self.b0_samples = np.empty(self.num_samples, dtype=np.float64)
             self.b1_samples = np.empty(self.num_samples, dtype=np.float64)
