@@ -4717,7 +4717,6 @@ class BCFModel:
         bcf_json.add_string("outcome", self.outcome_model.outcome, "outcome_model")
         bcf_json.add_string("link", self.outcome_model.link, "outcome_model")
         bcf_json.add_string("rfx_model_spec", self.rfx_model_spec)
-        bcf_json.add_string("rfx_model_spec", self.rfx_model_spec)
 
         # Add parameter samples
         if self.sample_sigma2_global:
