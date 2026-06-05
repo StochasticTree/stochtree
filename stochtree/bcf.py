@@ -304,7 +304,7 @@ class BCFModel:
             "keep_gfr": False,
             "keep_every": 1,
             "num_chains": 1,
-            "outcome_model": OutcomeModel(outcome = "continuous", link = "identity"),
+            "outcome_model": OutcomeModel(outcome="continuous", link="identity"),
             "probit_outcome_model": False,
             "num_threads": -1,
         }
@@ -491,17 +491,17 @@ class BCFModel:
             raise ValueError(
                 "type must either be 'custom', 'intercept_only', 'intercept_plus_treatment'"
             )
-        
+
         # Raise a deprecation warning to use `outcome_model` if `probit_outcome_model = TRUE` is specified
         if self.probit_outcome_model:
             warnings.warn(
                 "Specifying a probit link through `general_params = {'probit_outcome_model': True}` is deprecated and will be removed in a future version. Please use `general_params = {outcome_model = OutcomeModel(outcome = 'binary', link = 'probit')}` instead.",
-                DeprecationWarning
+                DeprecationWarning,
             )
         # TODO: think about validation and deprecation flow for probit_outcome_model
         # outcome_model_specified = True if "outcome_model" in general_params.keys() and general_params["outcome_model"] else False
         # probit_specified = True if "probit_outcome_model" in general_params.keys() and general_params["probit_outcome_model"] else False
-        
+
         # Unpack outcome model details
         link_is_linear = False
         link_is_probit = False
@@ -509,20 +509,34 @@ class BCFModel:
         outcome_is_continuous = False
         outcome_is_binary = False
         outcome_is_ordinal = False
-        if self.outcome_model.outcome == "continuous" and self.outcome_model.link == "identity":
+        if (
+            self.outcome_model.outcome == "continuous"
+            and self.outcome_model.link == "identity"
+        ):
             link_is_linear = True
             outcome_is_continuous = True
-        elif self.outcome_model.outcome == "binary" and self.outcome_model.link == "probit":
+        elif (
+            self.outcome_model.outcome == "binary"
+            and self.outcome_model.link == "probit"
+        ):
             link_is_probit = True
             outcome_is_binary = True
-        elif self.outcome_model.outcome == "binary" and self.outcome_model.link == "cloglog":
+        elif (
+            self.outcome_model.outcome == "binary"
+            and self.outcome_model.link == "cloglog"
+        ):
             link_is_cloglog = True
             outcome_is_binary = True
-        elif self.outcome_model.outcome == "ordinal" and self.outcome_model.link == "cloglog":
+        elif (
+            self.outcome_model.outcome == "ordinal"
+            and self.outcome_model.link == "cloglog"
+        ):
             link_is_cloglog = True
             outcome_is_ordinal = True
         else:
-            raise ValueError(f"Invalid outcome model specification, outcome = {self.outcome_model.outcome}, link = {self.outcome_model.link}")
+            raise ValueError(
+                f"Invalid outcome model specification, outcome = {self.outcome_model.outcome}, link = {self.outcome_model.link}"
+            )
 
         # Override keep_gfr if there are no MCMC samples
         if num_mcmc == 0:
@@ -633,7 +647,9 @@ class BCFModel:
                 raise ValueError("observation_weights must be a numpy array")
             observation_weights_ = np.squeeze(observation_weights)
             if observation_weights_.ndim != 1:
-                raise ValueError("observation_weights must be a 1-dimensional numpy array")
+                raise ValueError(
+                    "observation_weights must be a 1-dimensional numpy array"
+                )
             if np.any(observation_weights_ < 0):
                 raise ValueError("observation_weights cannot have any negative values")
             if np.all(observation_weights_ == 0) and num_gfr > 0:
@@ -768,7 +784,11 @@ class BCFModel:
         # Raise a warning if the data have ties and only GFR is being run
         if (num_gfr > 0) and (num_burnin == 0) and (num_mcmc == 0):
             num_values, num_cov_orig = X_train.shape
-            max_grid_size = floor(num_values / cutpoint_grid_size) if num_values > cutpoint_grid_size else 1
+            max_grid_size = (
+                floor(num_values / cutpoint_grid_size)
+                if num_values > cutpoint_grid_size
+                else 1
+            )
             x_is_df = isinstance(X_train, pd.DataFrame)
             covs_warning_1 = []
             covs_warning_2 = []
@@ -1443,7 +1463,7 @@ class BCFModel:
             self.binary_treatment = np.unique(Z_train).size == 2
             if self.binary_treatment:
                 unique_treatments = np.squeeze(np.unique(Z_train)).tolist()
-                if not all(i in [0,1] for i in unique_treatments):
+                if not all(i in [0, 1] for i in unique_treatments):
                     self.binary_treatment = False
 
         # Adaptive coding will be ignored for continuous / ordered categorical treatments
@@ -1456,8 +1476,13 @@ class BCFModel:
 
         # Validate tau_0_prior_var if sample_tau_0 is True
         if self.sample_tau_0 and tau_0_prior_var is not None:
-            if not isinstance(tau_0_prior_var, (int, float, np.floating)) or tau_0_prior_var <= 0:
-                raise ValueError("tau_0_prior_var must be a single positive numeric value")
+            if (
+                not isinstance(tau_0_prior_var, (int, float, np.floating))
+                or tau_0_prior_var <= 0
+            ):
+                raise ValueError(
+                    "tau_0_prior_var must be a single positive numeric value"
+                )
 
         # Sampling sigma2_leaf_tau will be ignored for multivariate treatments
         if sample_sigma2_leaf_tau and self.multivariate_treatment:
@@ -1482,12 +1507,16 @@ class BCFModel:
                 # after JSON round-trip deserialization.
                 self.bart_propensity_model = previous_bcf_model.bart_propensity_model
                 propensity_train = np.expand_dims(
-                    self.bart_propensity_model.predict(X=X_train_processed, terms="y_hat", type="mean"),
+                    self.bart_propensity_model.predict(
+                        X=X_train_processed, terms="y_hat", type="mean"
+                    ),
                     1,
                 )
                 if self.has_test:
                     propensity_test = np.expand_dims(
-                        self.bart_propensity_model.predict(X=X_test_processed, terms="y_hat", type="mean"),
+                        self.bart_propensity_model.predict(
+                            X=X_test_processed, terms="y_hat", type="mean"
+                        ),
                         1,
                     )
                 self.internal_propensity_model = True
@@ -1507,7 +1536,9 @@ class BCFModel:
                         general_params={"random_seed": random_seed},
                     )
                     propensity_test = np.expand_dims(
-                        self.bart_propensity_model.predict(X=X_test_processed, terms="y_hat", type="mean"),
+                        self.bart_propensity_model.predict(
+                            X=X_test_processed, terms="y_hat", type="mean"
+                        ),
                         1,
                     )
                 else:
@@ -1520,14 +1551,16 @@ class BCFModel:
                         general_params={"random_seed": random_seed},
                     )
                 propensity_train = np.expand_dims(
-                    self.bart_propensity_model.predict(X=X_train_processed, terms="y_hat", type="mean"),
+                    self.bart_propensity_model.predict(
+                        X=X_train_processed, terms="y_hat", type="mean"
+                    ),
                     1,
                 )
                 self.internal_propensity_model = True
         else:
             self.internal_propensity_model = False
-        
-                # Runtime checks on RFX group ids
+
+            # Runtime checks on RFX group ids
         self.has_rfx = False
         has_rfx_test = False
         if rfx_group_ids_train is not None:
@@ -1605,7 +1638,7 @@ class BCFModel:
                 raise ValueError(
                     "We do not support heteroskedasticity with a probit link"
                 )
-        
+
         # Runtime checks for variance forest
         if self.include_variance_forest:
             if sample_sigma2_global:
@@ -1946,7 +1979,10 @@ class BCFModel:
         if self.adaptive_coding:
             if np.size(b_0) > 1 or np.size(b_1) > 1:
                 raise ValueError("b_0 and b_1 must be single numeric values")
-            if not (isinstance(b_0, (int, float, np.floating)) or isinstance(b_1, (int, float, np.floating))):
+            if not (
+                isinstance(b_0, (int, float, np.floating))
+                or isinstance(b_1, (int, float, np.floating))
+            ):
                 raise ValueError("b_0 and b_1 must be numeric values")
             self.b0_samples = np.empty(self.num_samples, dtype=np.float64)
             self.b1_samples = np.empty(self.num_samples, dtype=np.float64)
@@ -2198,13 +2234,23 @@ class BCFModel:
 
                 # Sample tau_0 (global treatment effect intercept, if requested)
                 if self.sample_tau_0:
-                    mu_x_tau0 = np.squeeze(active_forest_mu.predict_raw(forest_dataset_train))
+                    mu_x_tau0 = np.squeeze(
+                        active_forest_mu.predict_raw(forest_dataset_train)
+                    )
                     tau_x_raw_tau0 = active_forest_tau.predict_raw(forest_dataset_train)
-                    Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
+                    Z_basis = (
+                        tau_basis_train.reshape(-1, 1)
+                        if tau_basis_train.ndim == 1
+                        else tau_basis_train
+                    )
                     tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
                     tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
                     # Center z by y_bar so tau_0 does not absorb the probit intercept
-                    resid_for_tau0 = (np.squeeze(resid_train) - self.y_bar) if link_is_probit else np.squeeze(resid_train)
+                    resid_for_tau0 = (
+                        (np.squeeze(resid_train) - self.y_bar)
+                        if link_is_probit
+                        else np.squeeze(resid_train)
+                    )
                     partial_resid_tau0 = resid_for_tau0 - mu_x_tau0 - tau_x_full
                     if self.has_rfx:
                         partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
@@ -2212,10 +2258,16 @@ class BCFModel:
                         )
                     Ztr = Z_basis.T @ partial_resid_tau0
                     ZtZ_current = Z_basis.T @ Z_basis
-                    Sigma_post = np.linalg.inv(ZtZ_current / current_sigma2 + np.eye(p_tau0) / tau_0_prior_var)
+                    Sigma_post = np.linalg.inv(
+                        ZtZ_current / current_sigma2 + np.eye(p_tau0) / tau_0_prior_var
+                    )
                     mu_post = Sigma_post @ Ztr / current_sigma2
-                    tau_0_new = self.rng.multivariate_normal(mean=mu_post, cov=Sigma_post)
-                    residual_train.add_vector(-np.squeeze(Z_basis @ (tau_0_new - tau_0)))
+                    tau_0_new = self.rng.multivariate_normal(
+                        mean=mu_post, cov=Sigma_post
+                    )
+                    residual_train.add_vector(
+                        -np.squeeze(Z_basis @ (tau_0_new - tau_0))
+                    )
                     tau_0 = tau_0_new
                     if keep_sample:
                         self.tau_0_samples[:, sample_counter] = tau_0
@@ -2245,7 +2297,9 @@ class BCFModel:
                         active_forest_tau.predict_raw(forest_dataset_train)
                     )
                     # Center z by y_bar so coding regression does not absorb the probit intercept
-                    resid_for_coding = (resid_train - self.y_bar) if link_is_probit else resid_train
+                    resid_for_coding = (
+                        (resid_train - self.y_bar) if link_is_probit else resid_train
+                    )
                     partial_resid_train = np.squeeze(resid_for_coding - mu_x)
                     if self.has_rfx:
                         rfx_pred = np.squeeze(
@@ -2253,14 +2307,24 @@ class BCFModel:
                         )
                         partial_resid_train = partial_resid_train - rfx_pred
                     # Use tau_total = tau_0 + tau(X) for sufficient stats when sample_tau_0
-                    tau_x_for_coding = (tau_x + tau_0[0]) if self.sample_tau_0 else tau_x
-                    s_tt0 = np.sum(tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 0))
-                    s_tt1 = np.sum(tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 1))
+                    tau_x_for_coding = (
+                        (tau_x + tau_0[0]) if self.sample_tau_0 else tau_x
+                    )
+                    s_tt0 = np.sum(
+                        tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 0)
+                    )
+                    s_tt1 = np.sum(
+                        tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 1)
+                    )
                     s_ty0 = np.sum(
-                        tau_x_for_coding * partial_resid_train * (np.squeeze(Z_train) == 0)
+                        tau_x_for_coding
+                        * partial_resid_train
+                        * (np.squeeze(Z_train) == 0)
                     )
                     s_ty1 = np.sum(
-                        tau_x_for_coding * partial_resid_train * (np.squeeze(Z_train) == 1)
+                        tau_x_for_coding
+                        * partial_resid_train
+                        * (np.squeeze(Z_train) == 1)
                     )
                     current_b_0 = self.rng.normal(
                         loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -2429,7 +2493,11 @@ class BCFModel:
                         # Correct residual for tau_0 component of the basis change
                         if self.sample_tau_0:
                             residual_train.add_vector(
-                                -(np.squeeze(tau_basis_train) - np.squeeze(tau_basis_train_old)) * tau_0[0]
+                                -(
+                                    np.squeeze(tau_basis_train)
+                                    - np.squeeze(tau_basis_train_old)
+                                )
+                                * tau_0[0]
                             )
                     # Reset tau_0 intercept and correct the running residual
                     if self.sample_tau_0:
@@ -2542,15 +2610,24 @@ class BCFModel:
                         # Correct residual for tau_0 component of the basis change
                         if self.sample_tau_0:
                             residual_train.add_vector(
-                                -(np.squeeze(tau_basis_train) - np.squeeze(tau_basis_train_old)) * tau_0[0]
+                                -(
+                                    np.squeeze(tau_basis_train)
+                                    - np.squeeze(tau_basis_train_old)
+                                )
+                                * tau_0[0]
                             )
                     # Reset tau_0 intercept and correct the running residual
                     if self.sample_tau_0:
-                        prev_tau_0_samples = getattr(previous_bcf_model, "tau_0_samples", None)
+                        prev_tau_0_samples = getattr(
+                            previous_bcf_model, "tau_0_samples", None
+                        )
                         if prev_tau_0_samples is not None:
                             tau_0_old = tau_0.copy()
                             # tau_0_samples in previous model are in original scale; convert back
-                            tau_0 = (prev_tau_0_samples[:, warmstart_index] / previous_bcf_model.y_std).copy()
+                            tau_0 = (
+                                prev_tau_0_samples[:, warmstart_index]
+                                / previous_bcf_model.y_std
+                            ).copy()
                             Z_basis_ws = (
                                 tau_basis_train.reshape(-1, 1)
                                 if tau_basis_train.ndim == 1
@@ -2651,7 +2728,10 @@ class BCFModel:
                         # Correct residual for tau_0 component of the basis change
                         if self.sample_tau_0:
                             residual_train.add_vector(
-                                -(np.squeeze(tau_basis_train) - np.squeeze(tau_basis_train_old))
+                                -(
+                                    np.squeeze(tau_basis_train)
+                                    - np.squeeze(tau_basis_train_old)
+                                )
                                 * tau_0[0]
                             )
                     # Reset tau_0 to initial value (0) and correct the running residual
@@ -2729,7 +2809,9 @@ class BCFModel:
                         resid_train[y_train[:, 0] == 1, 0] = mu1 + norm.ppf(u1)
 
                         # Update outcome: center z by y_bar before passing to forests
-                        new_outcome = np.squeeze(resid_train) - self.y_bar - outcome_pred
+                        new_outcome = (
+                            np.squeeze(resid_train) - self.y_bar - outcome_pred
+                        )
                         residual_train.update_data(new_outcome)
 
                     # Sample the prognostic forest
@@ -2774,13 +2856,25 @@ class BCFModel:
 
                     # Sample tau_0 (global treatment effect intercept, if requested)
                     if self.sample_tau_0:
-                        mu_x_tau0 = np.squeeze(active_forest_mu.predict_raw(forest_dataset_train))
-                        tau_x_raw_tau0 = active_forest_tau.predict_raw(forest_dataset_train)
-                        Z_basis = tau_basis_train.reshape(-1, 1) if tau_basis_train.ndim == 1 else tau_basis_train
+                        mu_x_tau0 = np.squeeze(
+                            active_forest_mu.predict_raw(forest_dataset_train)
+                        )
+                        tau_x_raw_tau0 = active_forest_tau.predict_raw(
+                            forest_dataset_train
+                        )
+                        Z_basis = (
+                            tau_basis_train.reshape(-1, 1)
+                            if tau_basis_train.ndim == 1
+                            else tau_basis_train
+                        )
                         tau_x_raw_2d = tau_x_raw_tau0.reshape(self.n_train, -1)
                         tau_x_full = np.sum(Z_basis * tau_x_raw_2d, axis=1)
                         # Center z by y_bar so tau_0 does not absorb the probit intercept
-                        resid_for_tau0 = (np.squeeze(resid_train) - self.y_bar) if link_is_probit else np.squeeze(resid_train)
+                        resid_for_tau0 = (
+                            (np.squeeze(resid_train) - self.y_bar)
+                            if link_is_probit
+                            else np.squeeze(resid_train)
+                        )
                         partial_resid_tau0 = resid_for_tau0 - mu_x_tau0 - tau_x_full
                         if self.has_rfx:
                             partial_resid_tau0 = partial_resid_tau0 - np.squeeze(
@@ -2788,10 +2882,17 @@ class BCFModel:
                             )
                         Ztr = Z_basis.T @ partial_resid_tau0
                         ZtZ_current = Z_basis.T @ Z_basis
-                        Sigma_post = np.linalg.inv(ZtZ_current / current_sigma2 + np.eye(p_tau0) / tau_0_prior_var)
+                        Sigma_post = np.linalg.inv(
+                            ZtZ_current / current_sigma2
+                            + np.eye(p_tau0) / tau_0_prior_var
+                        )
                         mu_post = Sigma_post @ Ztr / current_sigma2
-                        tau_0_new = self.rng.multivariate_normal(mean=mu_post, cov=Sigma_post)
-                        residual_train.add_vector(-np.squeeze(Z_basis @ (tau_0_new - tau_0)))
+                        tau_0_new = self.rng.multivariate_normal(
+                            mean=mu_post, cov=Sigma_post
+                        )
+                        residual_train.add_vector(
+                            -np.squeeze(Z_basis @ (tau_0_new - tau_0))
+                        )
                         tau_0 = tau_0_new
                         if keep_sample:
                             self.tau_0_samples[:, sample_counter] = tau_0
@@ -2821,7 +2922,11 @@ class BCFModel:
                             active_forest_tau.predict_raw(forest_dataset_train)
                         )
                         # Center z by y_bar so coding regression does not absorb the probit intercept
-                        resid_for_coding = (resid_train - self.y_bar) if link_is_probit else resid_train
+                        resid_for_coding = (
+                            (resid_train - self.y_bar)
+                            if link_is_probit
+                            else resid_train
+                        )
                         partial_resid_train = np.squeeze(resid_for_coding - mu_x)
                         if self.has_rfx:
                             rfx_pred = np.squeeze(
@@ -2829,14 +2934,28 @@ class BCFModel:
                             )
                             partial_resid_train = partial_resid_train - rfx_pred
                         # Use tau_total = tau_0 + tau(X) for sufficient stats when sample_tau_0
-                        tau_x_for_coding = (tau_x + tau_0[0]) if self.sample_tau_0 else tau_x
-                        s_tt0 = np.sum(tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 0))
-                        s_tt1 = np.sum(tau_x_for_coding * tau_x_for_coding * (np.squeeze(Z_train) == 1))
+                        tau_x_for_coding = (
+                            (tau_x + tau_0[0]) if self.sample_tau_0 else tau_x
+                        )
+                        s_tt0 = np.sum(
+                            tau_x_for_coding
+                            * tau_x_for_coding
+                            * (np.squeeze(Z_train) == 0)
+                        )
+                        s_tt1 = np.sum(
+                            tau_x_for_coding
+                            * tau_x_for_coding
+                            * (np.squeeze(Z_train) == 1)
+                        )
                         s_ty0 = np.sum(
-                            tau_x_for_coding * partial_resid_train * (np.squeeze(Z_train) == 0)
+                            tau_x_for_coding
+                            * partial_resid_train
+                            * (np.squeeze(Z_train) == 0)
                         )
                         s_ty1 = np.sum(
-                            tau_x_for_coding * partial_resid_train * (np.squeeze(Z_train) == 1)
+                            tau_x_for_coding
+                            * partial_resid_train
+                            * (np.squeeze(Z_train) == 1)
                         )
                         current_b_0 = self.rng.normal(
                             loc=(s_ty0 / (s_tt0 + 2 * current_sigma2)),
@@ -2978,7 +3097,9 @@ class BCFModel:
         self.tau_hat_train = np.squeeze(self.tau_hat_train * self.y_std)
         # Fold tau_0 into tau_hat_train so the attribute holds the full CATE (tau_0 + tau(X))
         if self.sample_tau_0:
-            tau_0_vec = self.tau_0_samples[0, :]  # num_samples vector (scalar treatment)
+            tau_0_vec = self.tau_0_samples[
+                0, :
+            ]  # num_samples vector (scalar treatment)
             if self.adaptive_coding:
                 # CATE = (b_1 - b_0) * (tau_0 + tau(X)); control adj to mu = b_0 * (tau_0 + tau(X))
                 self.tau_hat_train = self.tau_hat_train + (
@@ -3159,7 +3280,10 @@ class BCFModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
+        is_probit = (
+            self.outcome_model.link == "probit"
+            and self.outcome_model.outcome == "binary"
+        )
         if (scale == "probability") and (not is_probit):
             raise ValueError(
                 "scale cannot be 'probability' for models not fit with a probit link"
@@ -3245,8 +3369,9 @@ class BCFModel:
             predict_y_hat or predict_prog_function
         ) and has_mu_forest
         predict_tau_forest_intermediate = (
-            predict_y_hat or predict_cate_function or
-            (self.adaptive_coding and (predict_mu_forest or predict_prog_function))
+            predict_y_hat
+            or predict_cate_function
+            or (self.adaptive_coding and (predict_mu_forest or predict_prog_function))
         ) and has_tau_forest
 
         if not self.is_sampled():
@@ -3367,15 +3492,13 @@ class BCFModel:
                         (self.b1_samples - self.b0_samples) * tau_0_vec
                     )
                     if predict_mu_forest or predict_mu_forest_intermediate:
-                        mu_x_forest = mu_x_forest + (
-                            self.b0_samples * tau_0_vec
-                        )
+                        mu_x_forest = mu_x_forest + (self.b0_samples * tau_0_vec)
                 elif Z.shape[1] > 1:
                     p_tau0 = Z.shape[1]
                     cate_x_forest = tau_x_forest.copy()
                     for j in range(p_tau0):
-                        cate_x_forest[:, :, j] = cate_x_forest[:, :, j] + (
-                            self.tau_0_samples[j, :]
+                        cate_x_forest[:, :, j] = (
+                            cate_x_forest[:, :, j] + (self.tau_0_samples[j, :])
                         )
                 else:
                     cate_x_forest = tau_x_forest + tau_0_vec
@@ -3417,7 +3540,7 @@ class BCFModel:
                 raise ValueError(
                     "rfx_basis must have the same number of columns as the random effects basis used to sample this model"
                 )
-            
+
         # Convert rfx_group_ids to their corresponding array position indices in the random effects parameter sample arrays
         if rfx_group_ids is not None:
             rfx_group_id_indices = self.rfx_container.map_group_ids_to_array_indices(
@@ -3450,7 +3573,9 @@ class BCFModel:
                     shape=(X.shape[0], 1, rfx_beta_draws.shape[1])
                 )
                 for i in range(X.shape[0]):
-                    rfx_predictions_raw[i, 0, :] = rfx_beta_draws[rfx_group_id_indices[i], :]
+                    rfx_predictions_raw[i, 0, :] = rfx_beta_draws[
+                        rfx_group_id_indices[i], :
+                    ]
             else:
                 raise ValueError(
                     "Unexpected number of dimensions in extracted random effects samples"
@@ -3639,7 +3764,10 @@ class BCFModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
+        is_probit = (
+            self.outcome_model.link == "probit"
+            and self.outcome_model.outcome == "binary"
+        )
         if (scale == "probability") and (not is_probit):
             raise ValueError(
                 "scale cannot be 'probability' for models not fit with a probit outcome model"
@@ -3759,7 +3887,10 @@ class BCFModel:
             raise ValueError("scale must be a string")
         if scale not in ["linear", "probability"]:
             raise ValueError("scale must either be 'linear' or 'probability'")
-        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
+        is_probit = (
+            self.outcome_model.link == "probit"
+            and self.outcome_model.outcome == "binary"
+        )
         if (scale == "probability") and (not is_probit):
             raise ValueError(
                 "scale cannot be 'probability' for models not fit with a probit link"
@@ -3793,7 +3924,9 @@ class BCFModel:
                     f"term '{term}' was requested. Valid terms are 'prognostic_function', 'mu', 'cate', 'tau', 'rfx', 'variance_forest', 'y_hat', and 'all'"
                 )
         predict_terms = terms
-        needs_covariates_intermediate = ("y_hat" in predict_terms) or ("all" in predict_terms)
+        needs_covariates_intermediate = ("y_hat" in predict_terms) or (
+            "all" in predict_terms
+        )
         needs_covariates = (
             ("prognostic_function" in predict_terms)
             or ("cate" in predict_terms)
@@ -3928,7 +4061,10 @@ class BCFModel:
             raise ValueError("Model has not yet been sampled")
 
         # Determine whether the outcome is continuous (Gaussian) or binary (probit-link)
-        is_probit = self.outcome_model.link == "probit" and self.outcome_model.outcome == "binary"
+        is_probit = (
+            self.outcome_model.link == "probit"
+            and self.outcome_model.outcome == "binary"
+        )
 
         # Check that all the necessary inputs were provided for interval computation
         needs_covariates = True
@@ -4096,6 +4232,8 @@ class BCFModel:
         bcf_json.add_scalar("keep_every", self.keep_every)
         bcf_json.add_scalar("num_samples", self.num_samples)
         bcf_json.add_boolean("adaptive_coding", self.adaptive_coding)
+        bcf_json.add_boolean("binary_treatment", self.binary_treatment)
+        bcf_json.add_scalar("treatment_dim", self.treatment_dim)
         bcf_json.add_boolean("sample_tau_0", self.sample_tau_0)
         bcf_json.add_string("propensity_covariate", self.propensity_covariate)
         bcf_json.add_boolean(
@@ -4104,7 +4242,6 @@ class BCFModel:
         bcf_json.add_boolean("probit_outcome_model", self.probit_outcome_model)
         bcf_json.add_string("outcome", self.outcome_model.outcome, "outcome_model")
         bcf_json.add_string("link", self.outcome_model.link, "outcome_model")
-        bcf_json.add_string("rfx_model_spec", self.rfx_model_spec)
         bcf_json.add_string("rfx_model_spec", self.rfx_model_spec)
 
         # Add parameter samples
@@ -4227,6 +4364,34 @@ class BCFModel:
             )
         self.num_samples = int(bcf_json.get_scalar("num_samples"))
         self.adaptive_coding = bcf_json.get_boolean("adaptive_coding")
+        if "binary_treatment" in _raw:
+            self.binary_treatment = bcf_json.get_boolean("binary_treatment")
+        else:
+            # Legacy JSON written before binary_treatment was serialized.
+            # Recover via sample-time invariants: multivariate treatment is
+            # never binary, and adaptive_coding is forced off unless the
+            # treatment is binary (so adaptive_coding implies binary). A
+            # univariate, default-coded treatment is ambiguous from JSON alone
+            # (it would require the original Z_train), so default to False.
+            if self.multivariate_treatment:
+                self.binary_treatment = False
+            else:
+                self.binary_treatment = bool(self.adaptive_coding)
+            warnings.warn(
+                f"Field 'binary_treatment' not found in BCF JSON "
+                f"(inferred version: {_ver}). Inferred binary_treatment="
+                f"{self.binary_treatment} from other JSON fields."
+            )
+        if "treatment_dim" in _raw:
+            self.treatment_dim = int(bcf_json.get_scalar("treatment_dim"))
+        else:
+            self.treatment_dim = 1
+            if self.multivariate_treatment:
+                warnings.warn(
+                    f"Field 'treatment_dim' not found in BCF JSON "
+                    f"(inferred version: {_ver}) for a multivariate-treatment "
+                    f"model. Defaulting to 1."
+                )
         if "sample_tau_0" in _raw:
             self.sample_tau_0 = bcf_json.get_boolean("sample_tau_0")
         else:
@@ -4264,7 +4429,9 @@ class BCFModel:
                 f"Subfolder 'outcome_model' not found in BCF JSON "
                 f"(inferred version: {_ver}). Defaulting to outcome='continuous', link='identity'."
             )
-        self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
+        self.outcome_model = OutcomeModel(
+            outcome=outcome_model_outcome, link=outcome_model_link
+        )
         if "rfx_model_spec" in _raw:
             self.rfx_model_spec = bcf_json.get_string("rfx_model_spec")
         else:
@@ -4304,7 +4471,9 @@ class BCFModel:
 
         # Unpack covariate preprocessor
         if "covariate_preprocessor" in _raw:
-            covariate_preprocessor_string = bcf_json.get_string("covariate_preprocessor")
+            covariate_preprocessor_string = bcf_json.get_string(
+                "covariate_preprocessor"
+            )
             self._covariate_preprocessor = CovariatePreprocessor()
             self._covariate_preprocessor.from_json(covariate_preprocessor_string)
         else:
@@ -4442,6 +4611,32 @@ class BCFModel:
                 f"(inferred version: {_ver}). Defaulting to 1."
             )
         self.adaptive_coding = json_object_default.get_boolean("adaptive_coding")
+        if "binary_treatment" in _raw_default:
+            self.binary_treatment = json_object_default.get_boolean("binary_treatment")
+        else:
+            # Legacy JSON written before binary_treatment was serialized; see
+            # from_json for the inference rationale (adaptive_coding implies
+            # binary, multivariate is never binary, univariate default-coded is
+            # ambiguous and defaults to False).
+            if self.multivariate_treatment:
+                self.binary_treatment = False
+            else:
+                self.binary_treatment = bool(self.adaptive_coding)
+            warnings.warn(
+                f"Field 'binary_treatment' not found in BCF JSON "
+                f"(inferred version: {_ver}). Inferred binary_treatment="
+                f"{self.binary_treatment} from other JSON fields."
+            )
+        if "treatment_dim" in _raw_default:
+            self.treatment_dim = int(json_object_default.get_scalar("treatment_dim"))
+        else:
+            self.treatment_dim = 1
+            if self.multivariate_treatment:
+                warnings.warn(
+                    f"Field 'treatment_dim' not found in BCF JSON "
+                    f"(inferred version: {_ver}) for a multivariate-treatment "
+                    f"model. Defaulting to 1."
+                )
         if "sample_tau_0" in _raw_default:
             self.sample_tau_0 = json_object_default.get_boolean("sample_tau_0")
         else:
@@ -4474,7 +4669,9 @@ class BCFModel:
                 f"(inferred version: {_ver}). Defaulting to False."
             )
         if "outcome_model" in _raw_default:
-            outcome_model_outcome = json_object_default.get_string("outcome", "outcome_model")
+            outcome_model_outcome = json_object_default.get_string(
+                "outcome", "outcome_model"
+            )
             outcome_model_link = json_object_default.get_string("link", "outcome_model")
         else:
             outcome_model_outcome = "continuous"
@@ -4483,7 +4680,9 @@ class BCFModel:
                 f"Subfolder 'outcome_model' not found in BCF JSON "
                 f"(inferred version: {_ver}). Defaulting to outcome='continuous', link='identity'."
             )
-        self.outcome_model = OutcomeModel(outcome=outcome_model_outcome, link=outcome_model_link)
+        self.outcome_model = OutcomeModel(
+            outcome=outcome_model_outcome, link=outcome_model_link
+        )
         if "rfx_model_spec" in _raw_default:
             self.rfx_model_spec = json_object_default.get_string("rfx_model_spec")
         else:
@@ -4626,7 +4825,7 @@ class BCFModel:
             return True
         else:
             return False
-    
+
     def extract_parameter(self, term: str) -> np.array:
         """
         Extract a vector, matrix or array of parameter samples from a BCF model by name.
@@ -4645,7 +4844,7 @@ class BCFModel:
         - Treatment effect intercept: `"tau_0"`, `"treatment_intercept"`, `"tau_intercept"`
         - In-sample variance forest predictions: `"sigma2_x_train"`, `"var_x_train"`
         - Test set variance forest predictions: `"sigma2_x_test"`, `"var_x_test"`
-        
+
         Parameters
         ----------
         term : str
@@ -4662,88 +4861,114 @@ class BCFModel:
             if self.sample_sigma2_global:
                 return self.global_var_samples
             else:
-                raise ValueError("This model does not have global variance parameter samples")
+                raise ValueError(
+                    "This model does not have global variance parameter samples"
+                )
 
         if term in ["sigma2_leaf_mu", "leaf_scale_mu", "mu_leaf_scale"]:
             if self.sample_sigma2_leaf_mu:
                 return self.leaf_scale_mu_samples
             else:
-                raise ValueError("This model does not have prognostic forest leaf variance parameter samples")
+                raise ValueError(
+                    "This model does not have prognostic forest leaf variance parameter samples"
+                )
 
         if term in ["sigma2_leaf_tau", "leaf_scale_tau", "tau_leaf_scale"]:
             if self.sample_sigma2_leaf_tau:
                 return self.leaf_scale_tau_samples
             else:
-                raise ValueError("This model does not have treatment effect forest leaf variance parameter samples")
+                raise ValueError(
+                    "This model does not have treatment effect forest leaf variance parameter samples"
+                )
 
         if term in ["adaptive_coding"]:
             if self.adaptive_coding:
                 return np.vstack([self.b0_samples, self.b1_samples])
             else:
-                raise ValueError("This model does not have adaptive coding parameter samples")
+                raise ValueError(
+                    "This model does not have adaptive coding parameter samples"
+                )
 
         if term in ["y_hat_train"]:
             yht = getattr(self, "y_hat_train", None)
             if yht is not None:
                 return yht
             else:
-                raise ValueError("This model does not have in-sample mean function prediction samples")
+                raise ValueError(
+                    "This model does not have in-sample mean function prediction samples"
+                )
 
         if term in ["y_hat_test"]:
             yht = getattr(self, "y_hat_test", None)
             if yht is not None:
                 return yht
             else:
-                raise ValueError("This model does not have test set mean function prediction samples")
+                raise ValueError(
+                    "This model does not have test set mean function prediction samples"
+                )
 
         if term in ["tau_hat_train", "cate_train"]:
             tht = getattr(self, "tau_hat_train", None)
             if tht is not None:
                 return tht
             else:
-                raise ValueError("This model does not have in-sample treatment effect forest predictions")
+                raise ValueError(
+                    "This model does not have in-sample treatment effect forest predictions"
+                )
 
         if term in ["tau_hat_test", "cate_test"]:
             tht = getattr(self, "tau_hat_test", None)
             if tht is not None:
                 return tht
             else:
-                raise ValueError("This model does not have test set treatment effect forest predictions")
+                raise ValueError(
+                    "This model does not have test set treatment effect forest predictions"
+                )
 
         if term in ["mu_hat_train", "prognostic_function_train"]:
             mht = getattr(self, "mu_hat_train", None)
             if mht is not None:
                 return mht
             else:
-                raise ValueError("This model does not have in-sample prognostic function predictions")
+                raise ValueError(
+                    "This model does not have in-sample prognostic function predictions"
+                )
 
         if term in ["mu_hat_test", "prognostic_function_test"]:
             mht = getattr(self, "mu_hat_test", None)
             if mht is not None:
                 return mht
             else:
-                raise ValueError("This model does not have test set prognostic function predictions")
+                raise ValueError(
+                    "This model does not have test set prognostic function predictions"
+                )
 
         if term in ["sigma2_x_train", "var_x_train"]:
             s2x = getattr(self, "sigma2_x_train", None)
             if s2x is not None:
                 return s2x
             else:
-                raise ValueError("This model does not have in-sample variance forest predictions")
+                raise ValueError(
+                    "This model does not have in-sample variance forest predictions"
+                )
 
         if term in ["sigma2_x_test", "var_x_test"]:
             s2x = getattr(self, "sigma2_x_test", None)
             if s2x is not None:
                 return s2x
             else:
-                raise ValueError("This model does not have test set variance forest predictions")
+                raise ValueError(
+                    "This model does not have test set variance forest predictions"
+                )
 
         if term in ["tau_0", "treatment_intercept", "tau_intercept"]:
             t0 = getattr(self, "tau_0_samples", None)
             if t0 is not None:
                 return t0
             else:
-                raise ValueError("This model does not have treatment effect intercept (tau_0) samples")
+                raise ValueError(
+                    "This model does not have treatment effect intercept (tau_0) samples"
+                )
 
         raise ValueError(f"term {term} is not a valid BCF model term")
 
@@ -4752,7 +4977,7 @@ class BCFModel:
         Summarize a BCF fit with a description of the model that was fit and numeric summaries of any sampled quantities
 
         Prints summary directly to the console with no return type.
-        
+
         Returns
         -------
         None
@@ -4776,7 +5001,7 @@ class BCFModel:
             output_str += f"Summary of sigma^2 posterior: "
             output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
             for p, q in zip(probs, quantiles_sigma2):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Leaf scale mu
         if self.sample_sigma2_leaf_mu:
@@ -4788,7 +5013,7 @@ class BCFModel:
             output_str += f"Summary of prognostic forest leaf scale posterior: "
             output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
             for p, q in zip(probs, quantiles_sigma2):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Leaf scale tau
         if self.sample_sigma2_leaf_tau:
@@ -4800,7 +5025,7 @@ class BCFModel:
             output_str += f"Summary of treatment effect forest leaf scale posterior: "
             output_str += f"{n_samples} samples, mean = {mean_sigma2:.3f}, standard deviation = {sd_sigma2:.3f}, quantiles:\n"
             for p, q in zip(probs, quantiles_sigma2):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Adaptive coding parameters
         if self.adaptive_coding:
@@ -4816,10 +5041,10 @@ class BCFModel:
             output_str += f"Summary of adaptive coding parameters: \n{n_samples} samples, mean (control) = {mean_b0:.3f}, mean (treated) = {mean_b1:.3f}, standard deviation (control) = {sd_b0:.3f}, standard deviation (treated) = {sd_b1:.3f}\n"
             output_str += "quantiles (control):\n"
             for p, q in zip(probs, quantiles_b0):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
             output_str += "\nquantiles (treated):\n"
             for p, q in zip(probs, quantiles_b1):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Treatment effect intercept (tau_0)
         if self.sample_tau_0:
@@ -4830,10 +5055,12 @@ class BCFModel:
                 mean_tau_0 = np.mean(tau_0_vec)
                 sd_tau_0 = np.std(tau_0_vec)
                 quantiles_tau_0 = np.quantile(tau_0_vec, probs)
-                output_str += f"Summary of treatment effect intercept (tau_0) posterior: "
+                output_str += (
+                    f"Summary of treatment effect intercept (tau_0) posterior: "
+                )
                 output_str += f"{n_samples} samples, mean = {mean_tau_0:.3f}, standard deviation = {sd_tau_0:.3f}, quantiles:\n"
                 for p, q in zip(probs, quantiles_tau_0):
-                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                    output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # In-sample predictions
         yht = getattr(self, "y_hat_train", None)
@@ -4845,7 +5072,7 @@ class BCFModel:
             quantiles_y_hat_train = np.quantile(y_hat_train_mean, probs)
             output_str += f"Summary of in-sample posterior mean predictions: \n{n_y_hat_train} observations, mean = {mean_y_hat_train:.3f}, standard deviation = {sd_y_hat_train:.3f}, quantiles:\n"
             for p, q in zip(probs, quantiles_y_hat_train):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Test-set predictions
         yht = getattr(self, "y_hat_test", None)
@@ -4857,10 +5084,8 @@ class BCFModel:
             quantiles_y_hat_test = np.quantile(y_hat_test_mean, probs)
             output_str += f"Summary of test-set posterior mean predictions: \n{n_y_hat_test} observations, mean = {mean_y_hat_test:.3f}, standard deviation = {sd_y_hat_test:.3f}, quantiles:\n"
             for p, q in zip(probs, quantiles_y_hat_test):
-                output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
-        
-        
-        
+                output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
+
         # In-sample treatment effect function estimates
         tauhat_train = getattr(self, "tau_hat_train", None)
         if tauhat_train is not None:
@@ -4872,7 +5097,7 @@ class BCFModel:
                 output_str += f"Summary of in-sample posterior mean CATEs: \n{n_tau_hat_train} observations, mean = {mean_tau_hat_train:.3f}, standard deviation = {sd_tau_hat_train:.3f}, quantiles:\n"
                 quantiles_tau_hat_train = np.quantile(tau_hat_train_mean, probs)
                 for p, q in zip(probs, quantiles_tau_hat_train):
-                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                    output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Test set treatment effect function estimates
         tauhat_test = getattr(self, "tau_hat_test", None)
@@ -4885,12 +5110,12 @@ class BCFModel:
                 output_str += f"Summary of test-set posterior mean CATEs: \n{n_tau_hat_test} observations, mean = {mean_tau_hat_test:.3f}, standard deviation = {sd_tau_hat_test:.3f}, quantiles:\n"
                 quantiles_tau_hat_test = np.quantile(tau_hat_test_mean, probs)
                 for p, q in zip(probs, quantiles_tau_hat_test):
-                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                    output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
 
         # Random effects
         if self.has_rfx:
             rfx_samples = self.rfx_container.extract_parameter_samples()
-            rfx_beta_samples = rfx_samples['beta_samples']
+            rfx_beta_samples = rfx_samples["beta_samples"]
             if rfx_beta_samples.ndim > 2:
                 reduce_axes = tuple(range(1, rfx_beta_samples.ndim))
                 rfx_component_means = np.mean(rfx_beta_samples, axis=reduce_axes)
@@ -4900,23 +5125,23 @@ class BCFModel:
                 output_str += "Random effects summary of variance components across groups and posterior draws:\n"
                 output_str += f"Variance component means: {means_str}\n"
                 output_str += f"Variance component standard deviations: {sds_str}\n"
-                rfx_quantiles = np.quantile(
-                    rfx_beta_samples, probs, axis=reduce_axes
-                ).T
+                rfx_quantiles = np.quantile(rfx_beta_samples, probs, axis=reduce_axes).T
                 output_str += "Variance component quantiles:\n"
                 for i in range(rfx_quantiles.shape[0]):
-                    output_str += f"  Component {i+1}:\n"
+                    output_str += f"  Component {i + 1}:\n"
                     for p, q in zip(probs, rfx_quantiles[i, :]):
-                        output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                        output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
             else:
                 rfx_component_means = np.mean(rfx_beta_samples)
                 rfx_component_sds = np.std(rfx_beta_samples)
-                output_str += f"Random effects overall mean: {rfx_component_means:.3f}\n"
+                output_str += (
+                    f"Random effects overall mean: {rfx_component_means:.3f}\n"
+                )
                 output_str += f"Random effects overall standard deviation: {rfx_component_sds:.3f}\n"
                 output_str += "Random effects overall quantiles:\n"
                 rfx_quantiles = np.quantile(rfx_beta_samples, probs)
                 for p, q in zip(probs, rfx_quantiles):
-                    output_str += f"  {p*100:5.1f}%: {q:.3f}\n"
+                    output_str += f"  {p * 100:5.1f}%: {q:.3f}\n"
         print(output_str)
 
     def __str__(self) -> str:
@@ -4973,19 +5198,17 @@ class BCFModel:
                     "in lieu of user-provided propensity scores"
                 )
             else:
-                output_str += "\nUser-provided propensity scores were included in the model"
+                output_str += (
+                    "\nUser-provided propensity scores were included in the model"
+                )
             # Random effects details
             if self.has_rfx:
                 if self.rfx_model_spec == "custom":
                     output_str += "\nRandom effects were fit with a user-supplied basis"
                 elif self.rfx_model_spec == "intercept_only":
-                    output_str += (
-                        "\nRandom effects were fit with an 'intercept-only' parameterization"
-                    )
+                    output_str += "\nRandom effects were fit with an 'intercept-only' parameterization"
                 elif self.rfx_model_spec == "intercept_plus_treatment":
-                    output_str += (
-                        "\nRandom effects were fit with an 'intercept-plus-treatment' parameterization"
-                    )
+                    output_str += "\nRandom effects were fit with an 'intercept-plus-treatment' parameterization"
             # Sampler details
             output_str += (
                 f"\nThe sampler was run for {self.num_gfr} GFR iterations, with {self.num_chains} "

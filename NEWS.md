@@ -2,6 +2,7 @@
 
 ## Bug Fixes
 
+* Fix serialization / deserialization roundtrip bugs in BART and BCF [#393](https://github.com/StochasticTree/stochtree/issues/393)
 * Safely handle / cast `float32` inputs in python BART / BCF [#389](https://github.com/StochasticTree/stochtree/issues/389)
 * Fix ordinal cloglog probability transform for K>=4 categories [#382](https://github.com/StochasticTree/stochtree/pull/382)
 * Fixed bug that separated homogeneous parametric treatment effect term (`tau_0`) from treatment effect forest predictions (`tau(x)`), only including the latter in `tau` for BCF predictions when a parametric term is included in the model [#377](https://github.com/StochasticTree/stochtree/pull/377)

@@ -3577,7 +3577,8 @@ predict.bcfmodel <- function(
     has_mu_forest)
   predict_tau_forest_intermediate <- ((predict_y_hat ||
     predict_cate_function ||
-    (object$model_params$adaptive_coding && (predict_mu_forest || predict_prog_function))) &&
+    (object$model_params$adaptive_coding &&
+      (predict_mu_forest || predict_prog_function))) &&
     has_tau_forest)
 
   # Make sure covariates are matrix or data frame
@@ -4836,6 +4837,11 @@ saveBCFModelToJson <- function(object) {
     object$model_params$multivariate_treatment
   )
   jsonobj$add_boolean("adaptive_coding", object$model_params$adaptive_coding)
+  jsonobj$add_boolean(
+    "binary_treatment",
+    object$model_params$binary_treatment
+  )
+  jsonobj$add_scalar("treatment_dim", object$model_params$treatment_dim)
   jsonobj$add_boolean("sample_tau_0", object$model_params$sample_tau_0)
   jsonobj$add_boolean(
     "internal_propensity_model",
@@ -4953,6 +4959,32 @@ saveBCFModelToJsonString <- function(object) {
   return(jsonobj$return_json_string())
 }
 
+# Recover `binary_treatment` for legacy BCF JSON written before the field was
+# serialized. Two sample-time invariants make this exact in most cases:
+#   * multivariate treatment is never binary, and
+#   * adaptive_coding is forced FALSE unless the treatment is binary, so
+#     adaptive_coding == TRUE implies binary_treatment == TRUE.
+# A univariate, default-coded treatment is genuinely ambiguous from JSON alone
+# (it would require the original Z_train), so we conservatively return FALSE.
+# Reads directly from the JSON object so it does not depend on the order in
+# which the calling load path populates model_params.
+.inferBinaryTreatmentFromJson <- function(json_obj, has_field_fn) {
+  multivariate <- if (has_field_fn("multivariate_treatment")) {
+    json_obj$get_boolean("multivariate_treatment")
+  } else {
+    FALSE
+  }
+  if (isTRUE(multivariate)) {
+    return(FALSE)
+  }
+  adaptive <- if (has_field_fn("adaptive_coding")) {
+    json_obj$get_boolean("adaptive_coding")
+  } else {
+    FALSE
+  }
+  isTRUE(adaptive)
+}
+
 #' @title Convert JSON to BCF Model
 #' @param json_object Object of type `CppJson` containing Json representation of a BCF model
 #' @export
@@ -5065,6 +5097,35 @@ createBCFModelFromJson <- function(json_object) {
   model_params[["adaptive_coding"]] <- json_object$get_boolean(
     "adaptive_coding"
   )
+  if (has_field("binary_treatment")) {
+    model_params[["binary_treatment"]] <- json_object$get_boolean(
+      "binary_treatment"
+    )
+  } else {
+    model_params[["binary_treatment"]] <- .inferBinaryTreatmentFromJson(
+      json_object,
+      has_field
+    )
+    warning(sprintf(
+      "Field 'binary_treatment' not found in BCF JSON (inferred version: %s). Inferred binary_treatment=%s from other JSON fields.",
+      .ver,
+      model_params[["binary_treatment"]]
+    ))
+  }
+  if (has_field("treatment_dim")) {
+    model_params[["treatment_dim"]] <- json_object$get_scalar("treatment_dim")
+  } else {
+    model_params[["treatment_dim"]] <- 1
+    if (
+      has_field("multivariate_treatment") &&
+        isTRUE(json_object$get_boolean("multivariate_treatment"))
+    ) {
+      warning(sprintf(
+        "Field 'treatment_dim' not found in BCF JSON (inferred version: %s) for a multivariate-treatment model. Defaulting to 1.",
+        .ver
+      ))
+    }
+  }
   if (has_field("sample_tau_0")) {
     model_params[["sample_tau_0"]] <- json_object$get_boolean("sample_tau_0")
   } else {
@@ -5437,6 +5498,37 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   model_params[["adaptive_coding"]] <- json_object_default$get_boolean(
     "adaptive_coding"
   )
+  if (has_field("binary_treatment")) {
+    model_params[["binary_treatment"]] <- json_object_default$get_boolean(
+      "binary_treatment"
+    )
+  } else {
+    model_params[["binary_treatment"]] <- .inferBinaryTreatmentFromJson(
+      json_object_default,
+      has_field
+    )
+    warning(sprintf(
+      "Field 'binary_treatment' not found in BCF JSON (inferred version: %s). Inferred binary_treatment=%s from other JSON fields.",
+      .ver,
+      model_params[["binary_treatment"]]
+    ))
+  }
+  if (has_field("treatment_dim")) {
+    model_params[["treatment_dim"]] <- json_object_default$get_scalar(
+      "treatment_dim"
+    )
+  } else {
+    model_params[["treatment_dim"]] <- 1
+    if (
+      has_field("multivariate_treatment") &&
+        isTRUE(json_object_default$get_boolean("multivariate_treatment"))
+    ) {
+      warning(sprintf(
+        "Field 'treatment_dim' not found in BCF JSON (inferred version: %s) for a multivariate-treatment model. Defaulting to 1.",
+        .ver
+      ))
+    }
+  }
   if (has_field("sample_tau_0")) {
     model_params[["sample_tau_0"]] <- json_object_default$get_boolean(
       "sample_tau_0"
@@ -5897,6 +5989,37 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   model_params[["adaptive_coding"]] <- json_object_default$get_boolean(
     "adaptive_coding"
   )
+  if (has_field("binary_treatment")) {
+    model_params[["binary_treatment"]] <- json_object_default$get_boolean(
+      "binary_treatment"
+    )
+  } else {
+    model_params[["binary_treatment"]] <- .inferBinaryTreatmentFromJson(
+      json_object_default,
+      has_field
+    )
+    warning(sprintf(
+      "Field 'binary_treatment' not found in BCF JSON (inferred version: %s). Inferred binary_treatment=%s from other JSON fields.",
+      .ver,
+      model_params[["binary_treatment"]]
+    ))
+  }
+  if (has_field("treatment_dim")) {
+    model_params[["treatment_dim"]] <- json_object_default$get_scalar(
+      "treatment_dim"
+    )
+  } else {
+    model_params[["treatment_dim"]] <- 1
+    if (
+      has_field("multivariate_treatment") &&
+        isTRUE(json_object_default$get_boolean("multivariate_treatment"))
+    ) {
+      warning(sprintf(
+        "Field 'treatment_dim' not found in BCF JSON (inferred version: %s) for a multivariate-treatment model. Defaulting to 1.",
+        .ver
+      ))
+    }
+  }
   if (has_field("sample_tau_0")) {
     model_params[["sample_tau_0"]] <- json_object_default$get_boolean(
       "sample_tau_0"

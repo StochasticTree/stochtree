@@ -219,13 +219,16 @@ preprocessTrainMatrix <- function(input_matrix) {
     stop("covariates provided must be a matrix")
   }
 
-  # Unpack metadata (assuming all variables are numeric)
-  names(input_matrix) <- paste0("x", 1:ncol(input_matrix))
-  df_vars <- names(input_matrix)
+  # Unpack metadata (assuming all variables are numeric). Use colnames(), not
+  # names(): names<- on a matrix sets per-element names over all n*ncol cells
+  # (padding with NA), which corrupted numeric_vars into an x1..xp prefix
+  # followed by a long NA tail and bloated the serialized JSON.
+  colnames(input_matrix) <- paste0("x", 1:ncol(input_matrix))
+  df_vars <- colnames(input_matrix)
   num_ordered_cat_vars <- 0
   num_unordered_cat_vars <- 0
   num_numeric_vars <- ncol(input_matrix)
-  numeric_vars <- names(input_matrix)
+  numeric_vars <- colnames(input_matrix)
   feature_types <- rep(0, ncol(input_matrix))
 
   # Unpack data
