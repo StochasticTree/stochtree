@@ -2856,12 +2856,22 @@ predict.bartmodel <- function(
       cloglog_cutpoint_samples <- object$cloglog_cutpoint_samples
       n_obs_pred <- nrow(X)
       n_samp_pred <- object$model_params$num_samples
-      mean_forest_probabilities <- array(NA_real_, dim = c(n_obs_pred, cloglog_num_categories, n_samp_pred))
+      mean_forest_probabilities <- array(
+        NA_real_,
+        dim = c(n_obs_pred, cloglog_num_categories, n_samp_pred)
+      )
       # Sequential ordinal cloglog: P(Y=k) = prod_{j<k} S_j * (1 - S_k)
       # S_k = exp(-exp(gamma_k + f)), running survival product across k.
       survival_product <- matrix(1.0, nrow = n_obs_pred, ncol = n_samp_pred)
       for (k in seq_len(cloglog_num_categories - 1)) {
-        S_k <- exp(-exp(sweep(mean_forest_predictions, 2, cloglog_cutpoint_samples[k, ], "+")))
+        S_k <- exp(
+          -exp(sweep(
+            mean_forest_predictions,
+            2,
+            cloglog_cutpoint_samples[k, ],
+            "+"
+          ))
+        )
         mean_forest_probabilities[, k, ] <- survival_product * (1 - S_k)
         survival_product <- survival_product * S_k
       }
@@ -3696,6 +3706,21 @@ saveBARTModelToJsonString <- function(object) {
   return(jsonobj$return_json_string())
 }
 
+# Reconstruct mean-forest leaf-model metadata that is not serialized directly.
+# These fields are fully determined by num_basis (a basis/regression leaf model
+# has num_basis > 0), so we derive them on load rather than store redundant
+# copies. Restoring them keeps print()/summary()/predict() working on a
+# reloaded model (they were previously NULL and errored).
+.reconstructBartLeafModelFields <- function(model_params) {
+  num_basis <- model_params[["num_basis"]]
+  has_basis <- isTRUE(num_basis > 0)
+  model_params[["has_basis"]] <- has_basis
+  model_params[["leaf_regression"]] <- has_basis
+  model_params[["is_leaf_constant"]] <- !has_basis
+  model_params[["leaf_dimension"]] <- if (has_basis) num_basis else 1
+  model_params
+}
+
 #' @title Convert JSON to BART Model
 #' @rdname BARTSerialization
 #' @param json_object Object of type `CppJson` containing Json representation of a BART model
@@ -3817,6 +3842,7 @@ createBARTModelFromJson <- function(json_object) {
     NA_real_
   }
   model_params[["num_basis"]] <- json_object$get_scalar("num_basis")
+  model_params <- .reconstructBartLeafModelFields(model_params)
   model_params[["requires_basis"]] <- json_object$get_boolean("requires_basis")
 
   if (has_field("num_chains")) {
@@ -4122,6 +4148,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
     NA_real_
   }
   model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
+  model_params <- .reconstructBartLeafModelFields(model_params)
   model_params[["requires_basis"]] <- json_object_default$get_boolean(
     "requires_basis"
   )
@@ -4472,6 +4499,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
     NA_real_
   }
   model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
+  model_params <- .reconstructBartLeafModelFields(model_params)
   model_params[["requires_basis"]] <- json_object_default$get_boolean(
     "requires_basis"
   )
