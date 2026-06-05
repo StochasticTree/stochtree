@@ -225,7 +225,7 @@ class BCFModel:
         - **num_chains** (*int*): How many independent MCMC chains should be sampled. If ``num_mcmc = 0``, this is ignored. If ``num_gfr = 0``, each chain is run from root for ``num_mcmc * keep_every + num_burnin`` iterations with ``num_mcmc`` samples retained. If ``num_gfr > 0``, each chain is initialized from a separate GFR ensemble, requiring ``num_gfr >= num_chains``. Defaults to ``1``. When ``num_chains > 1``, samples from all chains are stored consecutively (chain 1 first, then chain 2, etc.). See the multi-chain vignettes for details.
         - **outcome_model** (*stochtree.OutcomeModel*): An object of class ``OutcomeModel`` specifying the outcome model. Default: ``OutcomeModel(outcome="continuous", link="identity")``. Pre-empts the deprecated ``probit_outcome_model`` parameter if specified.
         - **probit_outcome_model** (*bool*): Deprecated in favor of ``outcome_model``. Whether or not the outcome should be modeled as explicitly binary via a probit link. If ``True``, ``y`` must only contain the values ``0`` and ``1``. Default: ``False``.
-        - **num_threads** (*int*): Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to ``1`` if OpenMP is unavailable, otherwise to the maximum number of available threads.
+        - **num_threads** (*int*): Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to ``1`` (single-threaded). Set to ``-1`` to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than ``1``.
 
         **prognostic_forest_params keys**
 
@@ -306,7 +306,7 @@ class BCFModel:
             "num_chains": 1,
             "outcome_model": OutcomeModel(outcome="continuous", link="identity"),
             "probit_outcome_model": False,
-            "num_threads": -1,
+            "num_threads": 1,
         }
         general_params_updated = _preprocess_params(
             general_params_default, general_params
