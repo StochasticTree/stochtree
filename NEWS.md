@@ -1,10 +1,8 @@
-# stochtree 0.4.4-dev
-
-## New Features
-
-## Bug Fixes
+# stochtree 0.4.4
 
 ## Documentation and Other Maintenance
+
+* Switch sampling default to single-threaded execution (`num_threads = 1`) in both R and Python [#396](https://github.com/StochasticTree/stochtree/pull/396). This prevents CRAN pre-checks from failing due to limitations on core usage and also avoid unintentional default interaction with users' own multi-core setups.
 
 # stochtree 0.4.3
 
