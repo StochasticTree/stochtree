@@ -398,3 +398,119 @@ test_that("BCF legacy JSON (no binary_treatment/treatment_dim) infers them (GH #
   expect_equal(bcf_legacy$model_params$treatment_dim, 1)
   expect_error(capture.output(print(bcf_legacy)), NA)
 })
+
+# Assert the reconstructed leaf-model fields and that print()/summary() work.
+expect_bart_leaf_fields_ok <- function(reloaded, has_basis, leaf_dim, label) {
+  mp <- reloaded$model_params
+  expect_equal(mp$has_basis, has_basis, info = label)
+  expect_equal(mp$leaf_regression, has_basis, info = label)
+  expect_equal(mp$is_leaf_constant, !has_basis, info = label)
+  expect_equal(mp$leaf_dimension, leaf_dim, info = label)
+  expect_error(capture.output(print(reloaded)), NA)
+  expect_error(capture.output(summary(reloaded)), NA)
+}
+
+test_that("BART round-trip reconstructs leaf-model fields and supports print/summary", {
+  skip_on_cran()
+
+  set.seed(396)
+  n <- 200
+  X <- matrix(runif(n * 5), ncol = 5)
+  y <- X[, 1] + rnorm(n)
+
+  # Constant-leaf model: has_basis = FALSE, leaf_dimension = 1
+  m_const <- bart(
+    X_train = X, y_train = y, num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+  json_const <- saveBARTModelToJsonString(m_const)
+  expect_bart_leaf_fields_ok(
+    createBARTModelFromJsonString(json_const), FALSE, 1, "constant/string"
+  )
+  expect_bart_leaf_fields_ok(
+    createBARTModelFromCombinedJsonString(list(json_const)),
+    FALSE, 1, "constant/combined"
+  )
+
+  # Regression-leaf (basis) model: has_basis = TRUE, leaf_dimension = ncol(W)
+  W <- matrix(runif(n * 2), ncol = 2)
+  m_reg <- bart(
+    X_train = X, leaf_basis_train = W, y_train = y,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+  json_reg <- saveBARTModelToJsonString(m_reg)
+  expect_bart_leaf_fields_ok(
+    createBARTModelFromJsonString(json_reg), TRUE, 2, "regression/string"
+  )
+  expect_bart_leaf_fields_ok(
+    createBARTModelFromCombinedJsonString(list(json_reg)),
+    TRUE, 2, "regression/combined"
+  )
+})
+
+test_that("BART multi-chain and combined round-trips reconstruct fields", {
+  skip_on_cran()
+
+  set.seed(397)
+  n <- 200
+  X <- matrix(runif(n * 5), ncol = 5)
+  y <- X[, 1] + rnorm(n)
+
+  # Multi-chain single model (num_chains = 2): samples stored consecutively.
+  m_mc <- bart(
+    X_train = X, y_train = y, num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+    general_params = list(num_chains = 2)
+  )
+  expect_equal(m_mc$model_params$num_chains, 2)
+  reloaded_mc <- createBARTModelFromJsonString(saveBARTModelToJsonString(m_mc))
+  expect_equal(reloaded_mc$model_params$num_chains, 2)
+  expect_bart_leaf_fields_ok(reloaded_mc, FALSE, 1, "bart/multichain")
+
+  # Combine two separately-sampled models via the combined-string loader.
+  m_a <- bart(X_train = X, y_train = y, num_gfr = 0, num_burnin = 0, num_mcmc = 10)
+  m_b <- bart(X_train = X, y_train = y, num_gfr = 0, num_burnin = 0, num_mcmc = 10)
+  combined <- createBARTModelFromCombinedJsonString(
+    list(saveBARTModelToJsonString(m_a), saveBARTModelToJsonString(m_b))
+  )
+  expect_bart_leaf_fields_ok(combined, FALSE, 1, "bart/combined-two")
+  expect_equal(combined$model_params$num_samples, 20)
+})
+
+test_that("BCF multi-chain and combined round-trips preserve contract fields", {
+  skip_on_cran()
+
+  set.seed(398)
+  n <- 300
+  X <- matrix(runif(n * 5), ncol = 5)
+  pi_x <- 0.25 + 0.5 * X[, 1]
+  Z <- rbinom(n, 1, pi_x)
+  y <- pi_x * 5 + Z * X[, 2] * 2 + rnorm(n)
+
+  # Multi-chain single model (supplied propensity).
+  m_mc <- bcf(
+    X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+    general_params = list(num_chains = 2)
+  )
+  expect_equal(m_mc$model_params$num_chains, 2)
+  expect_bcf_roundtrip_ok(
+    m_mc, createBCFModelFromJsonString(saveBCFModelToJsonString(m_mc)),
+    "bcf/multichain"
+  )
+
+  # Combine two separately-sampled models (num_samples is the sum).
+  m_a <- bcf(
+    X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+  m_b <- bcf(
+    X_train = X, Z_train = Z, y_train = y, propensity_train = pi_x,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+  combined <- createBCFModelFromCombinedJsonString(
+    list(saveBCFModelToJsonString(m_a), saveBCFModelToJsonString(m_b))
+  )
+  expect_true(combined$model_params$binary_treatment)
+  expect_equal(combined$model_params$treatment_dim, 1)
+  expect_equal(combined$model_params$num_samples, 20)
+  expect_error(capture.output(print(combined)), NA)
+})

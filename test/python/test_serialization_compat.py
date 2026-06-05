@@ -382,3 +382,98 @@ class TestBCFFieldRoundtrip:
         assert m2.treatment_dim == 2
         # The multivariate branch of __str__ dereferences treatment_dim.
         assert "2 dimensions" in str(m2)
+
+    def test_multichain_and_combined_roundtrip(self):
+        """num_chains>1 round-trip and from_json_string_list of two models."""
+        rng = np.random.default_rng(398)
+        n, p = 300, 5
+        X = rng.uniform(size=(n, p))
+        pi_x = 0.25 + 0.5 * X[:, 0]
+        Z = rng.binomial(1, pi_x).astype(float)
+        y = pi_x * 5 + Z * X[:, 1] * 2 + rng.normal(size=n)
+
+        def fit(seed=None, num_chains=1):
+            m = BCFModel()
+            m.sample(
+                X_train=X, Z_train=Z, y_train=y, propensity_train=pi_x,
+                num_gfr=0, num_burnin=0, num_mcmc=10,
+                general_params={"num_chains": num_chains},
+            )
+            return m
+
+        # Multi-chain single model.
+        m_mc = fit(num_chains=2)
+        assert m_mc.num_chains == 2
+        m_rt = BCFModel()
+        m_rt.from_json(m_mc.to_json())
+        self._assert_contract(m_mc, m_rt, "bcf/multichain")
+
+        # Combine two separately-sampled models (num_samples is the sum).
+        m_a, m_b = fit(), fit()
+        combined = BCFModel()
+        combined.from_json_string_list([m_a.to_json(), m_b.to_json()])
+        assert combined.binary_treatment == m_a.binary_treatment
+        assert combined.treatment_dim == m_a.treatment_dim
+        assert combined.num_samples == 20
+        assert isinstance(str(combined), str)
+
+
+class TestBARTFieldRoundtrip:
+    """BART round-trip of leaf-model fields across load paths and chains."""
+
+    def _check(self, original, reloaded, label):
+        for attr in ("has_basis", "num_basis", "num_chains"):
+            assert hasattr(reloaded, attr), f"{label}: missing '{attr}'"
+            assert getattr(reloaded, attr) == getattr(original, attr), (
+                f"{label}: '{attr}' changed across round-trip"
+            )
+        assert isinstance(str(reloaded), str)
+
+    def test_constant_and_regression_roundtrip(self):
+        rng = np.random.default_rng(396)
+        n, p = 200, 5
+        X = rng.uniform(size=(n, p))
+        y = X[:, 0] + rng.normal(size=n)
+
+        m_const = BARTModel()
+        m_const.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10)
+        assert m_const.has_basis is False
+        r = BARTModel()
+        r.from_json(m_const.to_json())
+        self._check(m_const, r, "constant")
+
+        W = rng.uniform(size=(n, 2))
+        m_reg = BARTModel()
+        m_reg.sample(
+            X_train=X, leaf_basis_train=W, y_train=y,
+            num_gfr=0, num_burnin=0, num_mcmc=10,
+        )
+        assert m_reg.has_basis is True
+        r2 = BARTModel()
+        r2.from_json(m_reg.to_json())
+        self._check(m_reg, r2, "regression")
+
+    def test_multichain_and_combined_roundtrip(self):
+        rng = np.random.default_rng(397)
+        n, p = 200, 5
+        X = rng.uniform(size=(n, p))
+        y = X[:, 0] + rng.normal(size=n)
+
+        m_mc = BARTModel()
+        m_mc.sample(
+            X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10,
+            general_params={"num_chains": 2},
+        )
+        assert m_mc.num_chains == 2
+        r = BARTModel()
+        r.from_json(m_mc.to_json())
+        self._check(m_mc, r, "bart/multichain")
+
+        m_a = BARTModel()
+        m_a.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10)
+        m_b = BARTModel()
+        m_b.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10)
+        combined = BARTModel()
+        combined.from_json_string_list([m_a.to_json(), m_b.to_json()])
+        assert combined.num_samples == 20
+        assert isinstance(str(combined), str)
