@@ -255,3 +255,51 @@
 #     X_preprocessed <- preprocessPredictionDataFrame(cov_df, metadata)
 #     expect_equal(X_preprocessed, cov_mat)
 # })
+
+test_that("Matrix preprocessor produces clean numeric_vars (no NA tail)", {
+  skip_on_cran()
+
+  set.seed(1)
+  cov_mat <- matrix(rnorm(40 * 4), ncol = 4)
+  md <- preprocessTrainData(cov_mat)$metadata
+
+  expect_equal(md$num_numeric_vars, 4)
+  # numeric_vars must be exactly the p column names, not a names() vector
+  # padded out to n * ncol with NA (the bug this guards against).
+  expect_equal(md$numeric_vars, paste0("x", 1:4))
+  expect_length(md$numeric_vars, 4)
+  expect_false(anyNA(md$numeric_vars))
+})
+
+test_that("Matrix preprocessor JSON round-trip preserves clean numeric_vars", {
+  skip_on_cran()
+
+  set.seed(2)
+  cov_mat <- matrix(rnorm(60 * 3), ncol = 3)
+  md <- preprocessTrainData(cov_mat)$metadata
+
+  md_roundtrip <- createPreprocessorFromJsonString(
+    savePreprocessorToJsonString(md)
+  )
+  expect_equal(md_roundtrip$numeric_vars, paste0("x", 1:3))
+  expect_length(md_roundtrip$numeric_vars, 3)
+  expect_false(anyNA(md_roundtrip$numeric_vars))
+})
+
+test_that("Matrix-trained BART preprocessor has clean numeric_vars after reload", {
+  skip_on_cran()
+
+  set.seed(3)
+  n <- 200
+  X <- matrix(rnorm(n * 4), ncol = 4)
+  y <- X[, 1] + 0.5 * X[, 2] + rnorm(n)
+  bart_model <- bart(
+    X_train = X, y_train = y,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 10
+  )
+  reloaded <- createBARTModelFromJsonString(saveBARTModelToJsonString(bart_model))
+
+  nv <- reloaded$train_set_metadata$numeric_vars
+  expect_equal(nv, paste0("x", 1:4))
+  expect_false(anyNA(nv))
+})

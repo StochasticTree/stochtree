@@ -270,3 +270,115 @@ class TestBCFBackwardCompat:
         m.from_json(json_str)
         preds, n = self._predict(m)
         assert preds["y_hat"].shape[0] == n
+
+    def test_missing_binary_treatment_is_inferred(self):
+        """Legacy JSON without 'binary_treatment' infers it from adaptive_coding.
+
+        adaptive_coding is only permitted for a binary treatment, so a legacy
+        model with adaptive_coding=True must be recovered as binary_treatment.
+        The checked-in fixture predates the field, so it exercises this path.
+        """
+        fixture_obj = _load_fixture("bcf_mcmc.json")
+        assert "binary_treatment" not in fixture_obj
+        assert fixture_obj.get("adaptive_coding") is True
+        json_str = _to_json_string(fixture_obj)
+
+        m = BCFModel()
+        _, warns = _collect_warnings(m.from_json, json_str)
+        assert m.binary_treatment is True
+        assert any("binary_treatment" in w for w in warns)
+        # The reloaded model must be printable (GH #393 failure mode).
+        assert isinstance(str(m), str)
+
+    def test_missing_treatment_dim_defaults_to_one(self):
+        """Legacy JSON without 'treatment_dim' defaults to 1 (univariate)."""
+        fixture_obj = _load_fixture("bcf_mcmc.json")
+        assert "treatment_dim" not in fixture_obj
+        assert fixture_obj.get("multivariate_treatment") is False
+        json_str = _to_json_string(fixture_obj)
+
+        m = BCFModel()
+        m.from_json(json_str)
+        assert m.treatment_dim == 1
+
+
+# Attributes the BCF JSON contract must preserve across a round-trip: the
+# metadata/flags consumed by __str__/summary/predict. Prior hyperparameters are
+# intentionally not serialized (they fall back to defaults), so they are
+# excluded here on purpose.
+_BCF_MUST_SURVIVE_ATTRS = [
+    "binary_treatment",
+    "multivariate_treatment",
+    "treatment_dim",
+    "adaptive_coding",
+    "sample_tau_0",
+    "internal_propensity_model",
+    "propensity_covariate",
+    "include_variance_forest",
+    "has_rfx",
+    "standardize",
+    "num_samples",
+]
+
+
+class TestBCFFieldRoundtrip:
+    """Live (sample -> to_json -> from_json) round-trip of the contract fields.
+
+    Unlike the fixture tests, this also exercises the to_json side, and covers
+    both load paths (from_json and from_json_string_list).
+    """
+
+    def _assert_contract(self, original, reloaded, label):
+        for attr in _BCF_MUST_SURVIVE_ATTRS:
+            assert hasattr(reloaded, attr), f"{label}: missing attribute '{attr}'"
+            assert getattr(reloaded, attr) == getattr(original, attr), (
+                f"{label}: attribute '{attr}' changed across round-trip"
+            )
+        # Behavioral smoke: str() must not raise (this is what GH #393 hit).
+        assert isinstance(str(reloaded), str)
+
+    def test_binary_internal_propensity_roundtrip(self):
+        """The exact GH #393 config: binary treatment + internal propensity."""
+        rng = np.random.default_rng(393)
+        n, p = 300, 5
+        X = rng.uniform(size=(n, p))
+        pi_x = 0.25 + 0.5 * X[:, 0]
+        Z = rng.binomial(1, pi_x).astype(float)
+        y = pi_x * 5 + Z * X[:, 1] * 2 + rng.normal(size=n)
+
+        m = BCFModel()
+        # No propensity supplied -> internal propensity model is built.
+        m.sample(X_train=X, Z_train=Z, y_train=y,
+                 num_gfr=10, num_burnin=0, num_mcmc=10)
+        assert m.binary_treatment is True
+        assert m.internal_propensity_model is True
+
+        json_str = m.to_json()
+        m2 = BCFModel()
+        m2.from_json(json_str)
+        self._assert_contract(m, m2, "from_json")
+
+        m3 = BCFModel()
+        m3.from_json_string_list([json_str])
+        self._assert_contract(m, m3, "from_json_string_list")
+
+    def test_multivariate_treatment_dim_roundtrip(self):
+        """Multivariate treatment preserves treatment_dim and prints (latent #393)."""
+        rng = np.random.default_rng(395)
+        n, p = 300, 5
+        X = rng.uniform(size=(n, p))
+        Z = rng.normal(size=(n, 2))
+        pi = np.full((n, 2), 0.5)
+        y = X[:, 0] + Z[:, 0] * 0.5 + Z[:, 1] * 0.3 + rng.normal(size=n)
+
+        m = BCFModel()
+        m.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                 num_gfr=10, num_burnin=0, num_mcmc=10)
+        assert m.multivariate_treatment is True
+        assert m.treatment_dim == 2
+
+        m2 = BCFModel()
+        m2.from_json(m.to_json())
+        assert m2.treatment_dim == 2
+        # The multivariate branch of __str__ dereferences treatment_dim.
+        assert "2 dimensions" in str(m2)
