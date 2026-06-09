@@ -1,7 +1,14 @@
+# stochtree 0.4.5.9000
+
+## Documentation and Other Maintenance
+
+* Switch sampling default to single-threaded execution (`num_threads = 1`) in both R and Python [#396](https://github.com/StochasticTree/stochtree/pull/396). This prevents CRAN pre-checks from failing due to limitations on core usage and also avoid unintentional default interaction with users' own multi-core setups.
+
 # stochtree 0.4.3
 
 ## Bug Fixes
 
+* Fix serialization / deserialization roundtrip bugs in BART and BCF [#393](https://github.com/StochasticTree/stochtree/issues/393)
 * Safely handle / cast `float32` inputs in python BART / BCF [#389](https://github.com/StochasticTree/stochtree/issues/389)
 * Fix ordinal cloglog probability transform for K>=4 categories [#382](https://github.com/StochasticTree/stochtree/pull/382)
 * Fixed bug that separated homogeneous parametric treatment effect term (`tau_0`) from treatment effect forest predictions (`tau(x)`), only including the latter in `tau` for BCF predictions when a parametric term is included in the model [#377](https://github.com/StochasticTree/stochtree/pull/377)

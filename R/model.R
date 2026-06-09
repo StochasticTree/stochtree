@@ -87,7 +87,7 @@ ForestModel <- R6::R6Class(
     #' @param rng Wrapper around C++ random number generator
     #' @param forest_model_config ForestModelConfig object containing forest model parameters and settings
     #' @param global_model_config GlobalModelConfig object containing global model parameters and settings
-    #' @param num_threads Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's system, this will default to `1`, otherwise to the maximum number of available threads.
+    #' @param num_threads Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to `1` (single-threaded). Set to `-1` to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than `1`.
     #' @param keep_forest (Optional) Whether the updated forest sample should be saved to `forest_samples`. Default: `TRUE`.
     #' @param gfr (Optional) Whether or not the forest should be sampled using the "grow-from-root" (GFR) algorithm. Default: `TRUE`.
     sample_one_iteration = function(
@@ -98,7 +98,7 @@ ForestModel <- R6::R6Class(
       rng,
       forest_model_config,
       global_model_config,
-      num_threads = -1,
+      num_threads = 1,
       keep_forest = TRUE,
       gfr = TRUE
     ) {

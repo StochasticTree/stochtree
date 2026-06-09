@@ -229,7 +229,7 @@ class BCFModel:
         - **num_chains** (*int*): How many independent MCMC chains should be sampled. If ``num_mcmc = 0``, this is ignored. If ``num_gfr = 0``, each chain is run from root for ``num_mcmc * keep_every + num_burnin`` iterations with ``num_mcmc`` samples retained. If ``num_gfr > 0``, each chain is initialized from a separate GFR ensemble, requiring ``num_gfr >= num_chains``. Defaults to ``1``. When ``num_chains > 1``, samples from all chains are stored consecutively (chain 1 first, then chain 2, etc.). See the multi-chain vignettes for details.
         - **outcome_model** (*stochtree.OutcomeModel*): An object of class ``OutcomeModel`` specifying the outcome model. Default: ``OutcomeModel(outcome="continuous", link="identity")``. Pre-empts the deprecated ``probit_outcome_model`` parameter if specified.
         - **probit_outcome_model** (*bool*): Deprecated in favor of ``outcome_model``. Whether or not the outcome should be modeled as explicitly binary via a probit link. If ``True``, ``y`` must only contain the values ``0`` and ``1``. Default: ``False``.
-        - **num_threads** (*int*): Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to ``1`` if OpenMP is unavailable, otherwise to the maximum number of available threads.
+        - **num_threads** (*int*): Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to ``1`` (single-threaded). Set to ``-1`` to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than ``1``.
 
         **prognostic_forest_params keys**
 
@@ -309,8 +309,9 @@ class BCFModel:
             "keep_every": 1,
             "num_chains": 1,
             "outcome_model": OutcomeModel(outcome="continuous", link="identity"),
+            "outcome_model": OutcomeModel(outcome="continuous", link="identity"),
             "probit_outcome_model": False,
-            "num_threads": -1,
+            "num_threads": 1,
         }
         general_params_updated = _preprocess_params(
             general_params_default, general_params
@@ -1488,8 +1489,13 @@ class BCFModel:
 
         # Validate tau_0_prior_var if sample_tau_0 is True
         if self.sample_tau_0 and tau_0_prior_var is not None:
-            if not isinstance(tau_0_prior_var, (int, float, np.floating)) or tau_0_prior_var <= 0:
-                raise ValueError("tau_0_prior_var must be a single positive numeric value")
+            if (
+                not isinstance(tau_0_prior_var, (int, float, np.floating))
+                or tau_0_prior_var <= 0
+            ):
+                raise ValueError(
+                    "tau_0_prior_var must be a single positive numeric value"
+                )
 
         # Sampling sigma2_leaf_tau will be ignored for multivariate treatments
         if sample_sigma2_leaf_tau and self.multivariate_treatment:
@@ -2329,7 +2335,10 @@ class BCFModel:
         if self.adaptive_coding:
             if np.size(b_0) > 1 or np.size(b_1) > 1:
                 raise ValueError("b_0 and b_1 must be single numeric values")
-            if not (isinstance(b_0, (int, float, np.floating)) or isinstance(b_1, (int, float, np.floating))):
+            if not (
+                isinstance(b_0, (int, float, np.floating))
+                or isinstance(b_1, (int, float, np.floating))
+            ):
                 raise ValueError("b_0 and b_1 must be numeric values")
             self.b0_samples = np.empty(self.num_samples, dtype=np.float64)
             self.b1_samples = np.empty(self.num_samples, dtype=np.float64)
@@ -3445,7 +3454,9 @@ class BCFModel:
         # tau_hat_train stores the forest-only component tau(X); compute cate_train
         # (tau_0 + tau(X)) separately for the treatment term used in y_hat
         if self.sample_tau_0:
-            tau_0_vec = self.tau_0_samples[0, :]  # num_samples vector (scalar treatment)
+            tau_0_vec = self.tau_0_samples[
+                0, :
+            ]  # num_samples vector (scalar treatment)
             if self.adaptive_coding:
                 # CATE = (b_1 - b_0) * (tau_0 + tau(X)); control adj to mu = b_0 * (tau_0 + tau(X))
                 cate_train = self.tau_hat_train + (
@@ -3718,7 +3729,26 @@ class BCFModel:
                 f"None of the requested model terms, {term_list}, were fit in this model"
             )
             return None
-        
+        predict_rfx_intermediate = predict_y_hat and has_rfx
+        predict_rfx_raw = (predict_prog_function and has_rfx and rfx_intercept) or (
+            predict_cate_function and has_rfx and rfx_intercept_plus_treatment
+        )
+        predict_mu_forest_intermediate = (
+            predict_y_hat or predict_prog_function
+        ) and has_mu_forest
+        predict_tau_forest_intermediate = (
+            predict_y_hat
+            or predict_cate_function
+            or (self.adaptive_coding and (predict_mu_forest or predict_prog_function))
+        ) and has_tau_forest
+
+        if not self.is_sampled():
+            msg = (
+                "This BCFModel instance is not fitted yet. Call 'fit' with "
+                "appropriate arguments before using this model."
+            )
+            raise NotSampledError(msg)
+
         # Convert everything to standard shape (2-dimensional)
         if X.ndim == 1:
             X = np.expand_dims(X, 1)
@@ -4708,6 +4738,8 @@ class BCFModel:
         bcf_json.add_scalar("keep_every", self.keep_every)
         bcf_json.add_scalar("num_samples", self.num_samples)
         bcf_json.add_boolean("adaptive_coding", self.adaptive_coding)
+        bcf_json.add_boolean("binary_treatment", self.binary_treatment)
+        bcf_json.add_scalar("treatment_dim", self.treatment_dim)
         bcf_json.add_boolean("sample_tau_0", self.sample_tau_0)
         bcf_json.add_string("propensity_covariate", self.propensity_covariate)
         bcf_json.add_boolean(
@@ -4838,6 +4870,34 @@ class BCFModel:
             )
         self.num_samples = int(bcf_json.get_scalar("num_samples"))
         self.adaptive_coding = bcf_json.get_boolean("adaptive_coding")
+        if "binary_treatment" in _raw:
+            self.binary_treatment = bcf_json.get_boolean("binary_treatment")
+        else:
+            # Legacy JSON written before binary_treatment was serialized.
+            # Recover via sample-time invariants: multivariate treatment is
+            # never binary, and adaptive_coding is forced off unless the
+            # treatment is binary (so adaptive_coding implies binary). A
+            # univariate, default-coded treatment is ambiguous from JSON alone
+            # (it would require the original Z_train), so default to False.
+            if self.multivariate_treatment:
+                self.binary_treatment = False
+            else:
+                self.binary_treatment = bool(self.adaptive_coding)
+            warnings.warn(
+                f"Field 'binary_treatment' not found in BCF JSON "
+                f"(inferred version: {_ver}). Inferred binary_treatment="
+                f"{self.binary_treatment} from other JSON fields."
+            )
+        if "treatment_dim" in _raw:
+            self.treatment_dim = int(bcf_json.get_scalar("treatment_dim"))
+        else:
+            self.treatment_dim = 1
+            if self.multivariate_treatment:
+                warnings.warn(
+                    f"Field 'treatment_dim' not found in BCF JSON "
+                    f"(inferred version: {_ver}) for a multivariate-treatment "
+                    f"model. Defaulting to 1."
+                )
         if "sample_tau_0" in _raw:
             self.sample_tau_0 = bcf_json.get_boolean("sample_tau_0")
         else:
@@ -5057,6 +5117,32 @@ class BCFModel:
                 f"(inferred version: {_ver}). Defaulting to 1."
             )
         self.adaptive_coding = json_object_default.get_boolean("adaptive_coding")
+        if "binary_treatment" in _raw_default:
+            self.binary_treatment = json_object_default.get_boolean("binary_treatment")
+        else:
+            # Legacy JSON written before binary_treatment was serialized; see
+            # from_json for the inference rationale (adaptive_coding implies
+            # binary, multivariate is never binary, univariate default-coded is
+            # ambiguous and defaults to False).
+            if self.multivariate_treatment:
+                self.binary_treatment = False
+            else:
+                self.binary_treatment = bool(self.adaptive_coding)
+            warnings.warn(
+                f"Field 'binary_treatment' not found in BCF JSON "
+                f"(inferred version: {_ver}). Inferred binary_treatment="
+                f"{self.binary_treatment} from other JSON fields."
+            )
+        if "treatment_dim" in _raw_default:
+            self.treatment_dim = int(json_object_default.get_scalar("treatment_dim"))
+        else:
+            self.treatment_dim = 1
+            if self.multivariate_treatment:
+                warnings.warn(
+                    f"Field 'treatment_dim' not found in BCF JSON "
+                    f"(inferred version: {_ver}) for a multivariate-treatment "
+                    f"model. Defaulting to 1."
+                )
         if "sample_tau_0" in _raw_default:
             self.sample_tau_0 = json_object_default.get_boolean("sample_tau_0")
         else:

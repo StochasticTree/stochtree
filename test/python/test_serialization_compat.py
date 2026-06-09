@@ -270,3 +270,210 @@ class TestBCFBackwardCompat:
         m.from_json(json_str)
         preds, n = self._predict(m)
         assert preds["y_hat"].shape[0] == n
+
+    def test_missing_binary_treatment_is_inferred(self):
+        """Legacy JSON without 'binary_treatment' infers it from adaptive_coding.
+
+        adaptive_coding is only permitted for a binary treatment, so a legacy
+        model with adaptive_coding=True must be recovered as binary_treatment.
+        The checked-in fixture predates the field, so it exercises this path.
+        """
+        fixture_obj = _load_fixture("bcf_mcmc.json")
+        assert "binary_treatment" not in fixture_obj
+        assert fixture_obj.get("adaptive_coding") is True
+        json_str = _to_json_string(fixture_obj)
+
+        m = BCFModel()
+        _, warns = _collect_warnings(m.from_json, json_str)
+        assert m.binary_treatment is True
+        assert any("binary_treatment" in w for w in warns)
+        # The reloaded model must be printable (GH #393 failure mode).
+        assert isinstance(str(m), str)
+
+    def test_missing_treatment_dim_defaults_to_one(self):
+        """Legacy JSON without 'treatment_dim' defaults to 1 (univariate)."""
+        fixture_obj = _load_fixture("bcf_mcmc.json")
+        assert "treatment_dim" not in fixture_obj
+        assert fixture_obj.get("multivariate_treatment") is False
+        json_str = _to_json_string(fixture_obj)
+
+        m = BCFModel()
+        m.from_json(json_str)
+        assert m.treatment_dim == 1
+
+
+# Attributes the BCF JSON contract must preserve across a round-trip: the
+# metadata/flags consumed by __str__/summary/predict. Prior hyperparameters are
+# intentionally not serialized (they fall back to defaults), so they are
+# excluded here on purpose.
+_BCF_MUST_SURVIVE_ATTRS = [
+    "binary_treatment",
+    "multivariate_treatment",
+    "treatment_dim",
+    "adaptive_coding",
+    "sample_tau_0",
+    "internal_propensity_model",
+    "propensity_covariate",
+    "include_variance_forest",
+    "has_rfx",
+    "standardize",
+    "num_samples",
+]
+
+
+class TestBCFFieldRoundtrip:
+    """Live (sample -> to_json -> from_json) round-trip of the contract fields.
+
+    Unlike the fixture tests, this also exercises the to_json side, and covers
+    both load paths (from_json and from_json_string_list).
+    """
+
+    def _assert_contract(self, original, reloaded, label):
+        for attr in _BCF_MUST_SURVIVE_ATTRS:
+            assert hasattr(reloaded, attr), f"{label}: missing attribute '{attr}'"
+            assert getattr(reloaded, attr) == getattr(original, attr), (
+                f"{label}: attribute '{attr}' changed across round-trip"
+            )
+        # Behavioral smoke: str() must not raise (this is what GH #393 hit).
+        assert isinstance(str(reloaded), str)
+
+    def test_binary_internal_propensity_roundtrip(self):
+        """The exact GH #393 config: binary treatment + internal propensity."""
+        rng = np.random.default_rng(393)
+        n, p = 300, 5
+        X = rng.uniform(size=(n, p))
+        pi_x = 0.25 + 0.5 * X[:, 0]
+        Z = rng.binomial(1, pi_x).astype(float)
+        y = pi_x * 5 + Z * X[:, 1] * 2 + rng.normal(size=n)
+
+        m = BCFModel()
+        # No propensity supplied -> internal propensity model is built.
+        m.sample(X_train=X, Z_train=Z, y_train=y,
+                 num_gfr=10, num_burnin=0, num_mcmc=10)
+        assert m.binary_treatment is True
+        assert m.internal_propensity_model is True
+
+        json_str = m.to_json()
+        m2 = BCFModel()
+        m2.from_json(json_str)
+        self._assert_contract(m, m2, "from_json")
+
+        m3 = BCFModel()
+        m3.from_json_string_list([json_str])
+        self._assert_contract(m, m3, "from_json_string_list")
+
+    def test_multivariate_treatment_dim_roundtrip(self):
+        """Multivariate treatment preserves treatment_dim and prints (latent #393)."""
+        rng = np.random.default_rng(395)
+        n, p = 300, 5
+        X = rng.uniform(size=(n, p))
+        Z = rng.normal(size=(n, 2))
+        pi = np.full((n, 2), 0.5)
+        y = X[:, 0] + Z[:, 0] * 0.5 + Z[:, 1] * 0.3 + rng.normal(size=n)
+
+        m = BCFModel()
+        m.sample(X_train=X, Z_train=Z, y_train=y, propensity_train=pi,
+                 num_gfr=10, num_burnin=0, num_mcmc=10)
+        assert m.multivariate_treatment is True
+        assert m.treatment_dim == 2
+
+        m2 = BCFModel()
+        m2.from_json(m.to_json())
+        assert m2.treatment_dim == 2
+        # The multivariate branch of __str__ dereferences treatment_dim.
+        assert "2 dimensions" in str(m2)
+
+    def test_multichain_and_combined_roundtrip(self):
+        """num_chains>1 round-trip and from_json_string_list of two models."""
+        rng = np.random.default_rng(398)
+        n, p = 300, 5
+        X = rng.uniform(size=(n, p))
+        pi_x = 0.25 + 0.5 * X[:, 0]
+        Z = rng.binomial(1, pi_x).astype(float)
+        y = pi_x * 5 + Z * X[:, 1] * 2 + rng.normal(size=n)
+
+        def fit(seed=None, num_chains=1):
+            m = BCFModel()
+            m.sample(
+                X_train=X, Z_train=Z, y_train=y, propensity_train=pi_x,
+                num_gfr=0, num_burnin=0, num_mcmc=10,
+                general_params={"num_chains": num_chains},
+            )
+            return m
+
+        # Multi-chain single model.
+        m_mc = fit(num_chains=2)
+        assert m_mc.num_chains == 2
+        m_rt = BCFModel()
+        m_rt.from_json(m_mc.to_json())
+        self._assert_contract(m_mc, m_rt, "bcf/multichain")
+
+        # Combine two separately-sampled models (num_samples is the sum).
+        m_a, m_b = fit(), fit()
+        combined = BCFModel()
+        combined.from_json_string_list([m_a.to_json(), m_b.to_json()])
+        assert combined.binary_treatment == m_a.binary_treatment
+        assert combined.treatment_dim == m_a.treatment_dim
+        assert combined.num_samples == 20
+        assert isinstance(str(combined), str)
+
+
+class TestBARTFieldRoundtrip:
+    """BART round-trip of leaf-model fields across load paths and chains."""
+
+    def _check(self, original, reloaded, label):
+        for attr in ("has_basis", "num_basis", "num_chains"):
+            assert hasattr(reloaded, attr), f"{label}: missing '{attr}'"
+            assert getattr(reloaded, attr) == getattr(original, attr), (
+                f"{label}: '{attr}' changed across round-trip"
+            )
+        assert isinstance(str(reloaded), str)
+
+    def test_constant_and_regression_roundtrip(self):
+        rng = np.random.default_rng(396)
+        n, p = 200, 5
+        X = rng.uniform(size=(n, p))
+        y = X[:, 0] + rng.normal(size=n)
+
+        m_const = BARTModel()
+        m_const.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10)
+        assert m_const.has_basis is False
+        r = BARTModel()
+        r.from_json(m_const.to_json())
+        self._check(m_const, r, "constant")
+
+        W = rng.uniform(size=(n, 2))
+        m_reg = BARTModel()
+        m_reg.sample(
+            X_train=X, leaf_basis_train=W, y_train=y,
+            num_gfr=0, num_burnin=0, num_mcmc=10,
+        )
+        assert m_reg.has_basis is True
+        r2 = BARTModel()
+        r2.from_json(m_reg.to_json())
+        self._check(m_reg, r2, "regression")
+
+    def test_multichain_and_combined_roundtrip(self):
+        rng = np.random.default_rng(397)
+        n, p = 200, 5
+        X = rng.uniform(size=(n, p))
+        y = X[:, 0] + rng.normal(size=n)
+
+        m_mc = BARTModel()
+        m_mc.sample(
+            X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10,
+            general_params={"num_chains": 2},
+        )
+        assert m_mc.num_chains == 2
+        r = BARTModel()
+        r.from_json(m_mc.to_json())
+        self._check(m_mc, r, "bart/multichain")
+
+        m_a = BARTModel()
+        m_a.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10)
+        m_b = BARTModel()
+        m_b.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=10)
+        combined = BARTModel()
+        combined.from_json_string_list([m_a.to_json(), m_b.to_json()])
+        assert combined.num_samples == 20
+        assert isinstance(str(combined), str)

@@ -115,7 +115,7 @@ NULL
 #'   - `verbose` Whether or not to print progress during the sampling loops. Default: `FALSE`.
 #'   - `outcome_model` A structured `OutcomeModel` object that specifies the outcome type and desired link function. This argument pre-empts the legacy (deprecated) `probit_outcome_model` option. Default: `OutcomeModel(outcome='continuous', link='identity')`.
 #'   - `probit_outcome_model` Deprecated in favor of `outcome_model`. Whether or not the outcome should be modeled as explicitly binary via a probit link. If `TRUE`, `y` must only contain the values `0` and `1`. Default: `FALSE`.
-#'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. If OpenMP is not available on a user's setup, this will default to `1`, otherwise to the maximum number of available threads.
+#'   - `num_threads` Number of threads to use in the GFR and MCMC algorithms, as well as prediction. Defaults to `1` (single-threaded). Set to `-1` to use the maximum number of available threads, or a positive integer for a specific count. OpenMP must be available for values other than `1`.
 #'
 #' @param mean_forest_params (Optional) A list of mean forest model parameters, each of which has a default value processed internally, so this argument list is optional.
 #'
@@ -225,7 +225,7 @@ bart <- function(
     verbose = FALSE,
     outcome_model = OutcomeModel(outcome = "continuous", link = "identity"),
     probit_outcome_model = FALSE,
-    num_threads = -1
+    num_threads = 1
   )
   general_params_updated <- preprocessParams(
     general_params_default,
@@ -1496,10 +1496,10 @@ bart <- function(
     }
 
     # Unpack cloglog model terms (cutpoints only apply to ordinal cloglog, not binary)
-    has_cloglog_cutpoint_samples <- (
-      !is.null(bart_results[['cloglog_cutpoint_samples']]) &&
-      !outcome_is_binary
-    )
+    has_cloglog_cutpoint_samples <- (!is.null(bart_results[[
+      'cloglog_cutpoint_samples'
+    ]]) &&
+      !outcome_is_binary)
     if (has_cloglog_cutpoint_samples) {
       dim(bart_results[['cloglog_cutpoint_samples']]) <- c(
         cloglog_num_categories - 1,
@@ -3270,7 +3270,11 @@ predict.bartmodel <- function(
           num_samples_output
         )
       } else {
-        reshape_cpp_pred_2d(output$mean_forest_predictions, n, num_samples_output)
+        reshape_cpp_pred_2d(
+          output$mean_forest_predictions,
+          n,
+          num_samples_output
+        )
       },
       rfx_predictions = reshape_cpp_pred_2d(
         output$rfx_predictions,
@@ -3284,10 +3288,18 @@ predict.bartmodel <- function(
       )
     )
     if (predict_count == 1) {
-      if (predict_y_hat) return(result[["y_hat"]])
-      if (predict_mean_forest) return(result[["mean_forest_predictions"]])
-      if (predict_rfx) return(result[["rfx_predictions"]])
-      if (predict_variance_forest) return(result[["variance_forest_predictions"]])
+      if (predict_y_hat) {
+        return(result[["y_hat"]])
+      }
+      if (predict_mean_forest) {
+        return(result[["mean_forest_predictions"]])
+      }
+      if (predict_rfx) {
+        return(result[["rfx_predictions"]])
+      }
+      if (predict_variance_forest) {
+        return(result[["variance_forest_predictions"]])
+      }
     }
     return(result)
   } else {
@@ -4228,6 +4240,21 @@ saveBARTModelToJsonString <- function(object) {
   return(jsonobj$return_json_string())
 }
 
+# Reconstruct mean-forest leaf-model metadata that is not serialized directly.
+# These fields are fully determined by num_basis (a basis/regression leaf model
+# has num_basis > 0), so we derive them on load rather than store redundant
+# copies. Restoring them keeps print()/summary()/predict() working on a
+# reloaded model (they were previously NULL and errored).
+.reconstructBartLeafModelFields <- function(model_params) {
+  num_basis <- model_params[["num_basis"]]
+  has_basis <- isTRUE(num_basis > 0)
+  model_params[["has_basis"]] <- has_basis
+  model_params[["leaf_regression"]] <- has_basis
+  model_params[["is_leaf_constant"]] <- !has_basis
+  model_params[["leaf_dimension"]] <- if (has_basis) num_basis else 1
+  model_params
+}
+
 #' @title Convert JSON to BART Model
 #' @rdname BARTSerialization
 #' @param json_object Object of type `CppJson` containing Json representation of a BART model
@@ -4309,6 +4336,7 @@ createBARTModelFromJson <- function(json_object) {
     NA_real_
   }
   model_params[["num_basis"]] <- json_object$get_scalar("num_basis")
+  model_params <- .reconstructBartLeafModelFields(model_params)
   model_params[["requires_basis"]] <- json_object$get_boolean("requires_basis")
 
   if (has_field("num_chains")) {
@@ -4574,6 +4602,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
     NA_real_
   }
   model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
+  model_params <- .reconstructBartLeafModelFields(model_params)
   model_params[["requires_basis"]] <- json_object_default$get_boolean(
     "requires_basis"
   )
@@ -4884,6 +4913,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
     NA_real_
   }
   model_params[["num_basis"]] <- json_object_default$get_scalar("num_basis")
+  model_params <- .reconstructBartLeafModelFields(model_params)
   model_params[["requires_basis"]] <- json_object_default$get_boolean(
     "requires_basis"
   )
