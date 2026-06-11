@@ -939,6 +939,36 @@ test_that("Cloglog Ordinal BART", {
     )
   })
   expect_equal(length(preds_mean), n_test)
+
+  # Predict class probabilities (posterior mean over samples for each category)
+  expect_no_error({
+    preds_prob <- predict(
+      bart_model,
+      X = X_test,
+      type = "mean",
+      scale = "probability",
+      terms = "y_hat"
+    )
+  })
+  expect_equal(nrow(preds_prob), n_test)
+  expect_equal(ncol(preds_prob), n_categories)
+  # Probabilities for each observation should sum to 1 across categories
+  expect_true(all(abs(rowSums(preds_prob) - 1) < 1e-8))
+
+  # Predict class labels (regression test for GH #399)
+  expect_no_error({
+    preds_class <- predict(
+      bart_model,
+      X = X_test,
+      type = "posterior",
+      scale = "class",
+      terms = "y_hat"
+    )
+  })
+  # One class label per (observation, posterior sample)
+  expect_equal(nrow(preds_class), n_test)
+  expect_equal(ncol(preds_class), 10)
+  expect_true(all(preds_class >= 1 & preds_class <= n_categories))
 })
 
 test_that("Cloglog Ordinal BART with GFR", {

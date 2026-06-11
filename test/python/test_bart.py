@@ -1489,6 +1489,8 @@ class TestBART:
             X=X_test, type="posterior", scale="probability", terms="y_hat"
         )
         assert preds_prob.shape == (n_test, n_categories, num_mcmc)
+        # Category probabilities should sum to 1 for each (observation, sample)
+        assert np.allclose(preds_prob.sum(axis=1), 1.0)
 
         # Predict posterior mean on linear scale
         preds_mean = bart_model.predict(
@@ -1501,6 +1503,8 @@ class TestBART:
             X=X_test, type="mean", scale="probability", terms="y_hat"
         )
         assert preds_mean_prob.shape == (n_test, n_categories)
+        # Category probabilities should sum to 1 for each observation
+        assert np.allclose(preds_mean_prob.sum(axis=1), 1.0)
 
         # Predict class labels
         preds_class = bart_model.predict(
