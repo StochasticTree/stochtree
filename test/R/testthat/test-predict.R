@@ -1048,16 +1048,22 @@ test_that("BART cloglog ordinal: sample posterior predictive", {
 })
 
 test_that("BART cloglog ordinal: probability transform correctness (K=4)", {
+  # K=4 is the minimal case that exposes cumulative-product bugs;
+  # K=3 is accidentally correct via the residual-last-class formula.
   skip_on_cran()
   set.seed(123)
-  n <- 500; p <- 3; n_categories <- 4L
+  n <- 500
+  p <- 3
+  n_categories <- 4L
   X <- matrix(runif(n * p), ncol = p)
   beta <- rep(1 / sqrt(p), p)
   true_lambda <- X %*% beta
   # Balanced cutpoints: ~25% per category so all 4 are reliably observed.
-  # Unbalanced cutpoints give ~0.3% K=4 probability, often no K=4 training obs.
+  # Unbalanced cutpoints (e.g., c(-2, -0.5, 0.5)) give ~0.3% K=4 probability
+  # and can produce no K=4 training observations, which would degrade to K=3.
   gamma_true <- c(-2.1, -1.7, -1.2)
 
+  # Sequential DGP: P(Y=k) = prod_{j<k} S_j * (1-S_k), S_k = exp(-exp(gamma_k + f))
   true_probs <- matrix(0, nrow = n, ncol = n_categories)
   surv_prod <- rep(1.0, n)
   for (k in seq_len(n_categories - 1)) {
@@ -1067,43 +1073,113 @@ test_that("BART cloglog ordinal: probability transform correctness (K=4)", {
   }
   true_probs[, n_categories] <- surv_prod
 
-  y <- sapply(1:n, function(i) sample(1:n_categories, 1, prob = true_probs[i, ]))
-  n_test <- round(0.2*n); test_inds <- sort(sample(1:n, n_test, replace=FALSE))
+  y <- sapply(1:n, function(i) {
+    sample(1:n_categories, 1, prob = true_probs[i, ])
+  })
+
+  test_set_pct <- 0.2
+  n_test <- round(test_set_pct * n)
+  test_inds <- sort(sample(1:n, n_test, replace = FALSE))
   train_inds <- (1:n)[!((1:n) %in% test_inds)]
-  X_train <- X[train_inds,]; X_test <- X[test_inds,]; y_train <- y[train_inds]
+  X_train <- X[train_inds, ]
+  X_test <- X[test_inds, ]
+  y_train <- y[train_inds]
   num_mcmc <- 10
 
-  bart_model <- suppressWarnings(bart(
-    X_train=X_train, y_train=y_train, num_gfr=10, num_burnin=0, num_mcmc=num_mcmc,
-    general_params=list(sample_sigma2_global=FALSE,
-      outcome_model=OutcomeModel(outcome="ordinal", link="cloglog"))))
+  bart_model <- bart(
+    X_train = X_train,
+    y_train = y_train,
+    num_gfr = 10,
+    num_burnin = 0,
+    num_mcmc = num_mcmc,
+    general_params = list(
+      sample_sigma2_global = FALSE,
+      outcome_model = OutcomeModel(outcome = "ordinal", link = "cloglog")
+    )
+  )
 
+  # Helper: manually assemble class probabilities from forest + cutpoints.
   assemble_probs <- function(f_hat, gamma_samples, K) {
-    S <- ncol(f_hat); n <- nrow(f_hat)
+    S <- ncol(f_hat)
+    n <- nrow(f_hat)
     p_manual <- array(0, dim = c(n, K, S))
-    surv_prod <- matrix(1.0, nrow = n, ncol = S)
-    for (k in seq_len(K - 1)) {
-      S_k <- exp(-exp(sweep(f_hat, 2, gamma_samples[k, ], "+")))
-      p_manual[, k, ] <- surv_prod * (1 - S_k)
-      surv_prod <- surv_prod * S_k
+    for (s in seq_len(S)) {
+      surv_prod <- rep(1.0, n)
+      for (k in seq_len(K - 1)) {
+        S_k <- exp(-exp(gamma_samples[k, s] + f_hat[, s]))
+        p_manual[, k, s] <- surv_prod * (1 - S_k)
+        surv_prod <- surv_prod * S_k
+      }
+      p_manual[, K, s] <- surv_prod
     }
-    p_manual[, K, ] <- surv_prod
     p_manual
   }
 
-  gamma_samples <- bart_model$cloglog_cutpoint_samples
-  K <- bart_model$model_params$cloglog_num_categories
-  expect_equal(K, 4L)
+  gamma_samples <- bart_model$cloglog_cutpoint_samples # (K-1) x num_mcmc
+  expect_equal(dim(gamma_samples), c(n_categories - 1L, num_mcmc))
 
-  f_hat_r <- predict(bart_model, X=X_test, scale="linear", terms="mean_forest")
+  # --- R path (run_cpp = FALSE) ---
+  f_hat_r <- predict(
+    bart_model,
+    X = X_test,
+    scale = "linear",
+    terms = "mean_forest",
+    run_cpp = FALSE
+  )
   expect_equal(dim(f_hat_r), c(n_test, num_mcmc))
-  p_manual_r <- assemble_probs(f_hat_r, gamma_samples, K)
-  p_model_r <- predict(bart_model, X=X_test, scale="probability", terms="y_hat")
+
+  p_manual_r <- assemble_probs(f_hat_r, gamma_samples, n_categories)
+
+  p_model_r <- predict(
+    bart_model,
+    X = X_test,
+    scale = "probability",
+    terms = "y_hat",
+    run_cpp = FALSE
+  )
   expect_equal(dim(p_model_r), c(n_test, n_categories, num_mcmc))
-  expect_equal(p_manual_r, p_model_r, tolerance=1e-10)
+
+  expect_equal(p_manual_r, p_model_r, tolerance = 1e-10)
   expect_true(all(p_model_r >= 0))
-  row_sums_r <- apply(p_model_r, c(1,3), sum)
-  expect_equal(row_sums_r, matrix(1, nrow=n_test, ncol=num_mcmc), tolerance=1e-10)
+  row_sums_r <- apply(p_model_r, c(1, 3), sum)
+  expect_equal(
+    row_sums_r,
+    matrix(1, nrow = n_test, ncol = num_mcmc),
+    tolerance = 1e-10
+  )
+
+  # --- C++ path (run_cpp = TRUE) ---
+  f_hat_cpp <- predict(
+    bart_model,
+    X = X_test,
+    scale = "linear",
+    terms = "mean_forest",
+    run_cpp = TRUE
+  )
+  expect_equal(dim(f_hat_cpp), c(n_test, num_mcmc))
+
+  p_manual_cpp <- assemble_probs(f_hat_cpp, gamma_samples, n_categories)
+
+  p_model_cpp <- predict(
+    bart_model,
+    X = X_test,
+    scale = "probability",
+    terms = "y_hat",
+    run_cpp = TRUE
+  )
+  expect_equal(dim(p_model_cpp), c(n_test, n_categories, num_mcmc))
+
+  expect_equal(p_manual_cpp, p_model_cpp, tolerance = 1e-10)
+  expect_true(all(p_model_cpp >= 0))
+  row_sums_cpp <- apply(p_model_cpp, c(1, 3), sum)
+  expect_equal(
+    row_sums_cpp,
+    matrix(1, nrow = n_test, ncol = num_mcmc),
+    tolerance = 1e-10
+  )
+
+  # Both paths must agree
+  expect_equal(p_model_r, p_model_cpp, tolerance = 1e-10)
 })
 
 test_that("BART gaussian: posterior interval and contrast", {

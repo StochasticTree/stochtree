@@ -56,6 +56,7 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
+        run_cpp=True,
         )
 
         # Assertions
@@ -71,6 +72,7 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
+        run_cpp=True,
         )
 
         # Assertions
@@ -160,6 +162,7 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
+        run_cpp=True,
         )
 
         # Assertions
@@ -177,6 +180,7 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
+        run_cpp=True,
         )
 
         # Assertions
@@ -269,6 +273,7 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+            run_cpp=True,
             )
 
         # Assertions
@@ -287,6 +292,7 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+            run_cpp=True,
             )
 
         # Assertions
@@ -384,6 +390,7 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+            run_cpp=True,
             )
 
         # Assertions
@@ -402,6 +409,7 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+            run_cpp=True,
             )
 
         # Assertions
@@ -511,6 +519,7 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
+            run_cpp=True,
             )
 
         # Assertions
@@ -531,6 +540,7 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
+            run_cpp=True,
             )
 
         # Assertions
@@ -631,6 +641,7 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
+            run_cpp=True,
             )
 
         # Assertions
@@ -651,6 +662,7 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
+            run_cpp=True,
             )
 
         # Assertions
@@ -770,6 +782,7 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+            run_cpp=True,
             )
         rfx_preds_train = bart_model.rfx_container.predict(
             group_labels_train, rfx_basis_train
@@ -795,6 +808,7 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
+            run_cpp=True,
             )
         rfx_preds_train_2 = bart_model_2.rfx_container.predict(
             group_labels_train, rfx_basis_train
@@ -936,6 +950,7 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
+            run_cpp=True,
             )
         rfx_preds_train = bart_model.rfx_container.predict(
             group_labels_train, rfx_basis_train
@@ -963,6 +978,7 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
+            run_cpp=True,
             )
         rfx_preds_train_2 = bart_model_2.rfx_container.predict(
             group_labels_train, rfx_basis_train
@@ -1100,6 +1116,7 @@ class TestBART:
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
             general_params=general_params,
+        run_cpp=True,
         )
 
         # Specify scalar rfx parameters
@@ -1127,6 +1144,7 @@ class TestBART:
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
             random_effects_params=rfx_params,
+        run_cpp=True,
         )
 
         # Specify all relevant rfx parameters as vectors
@@ -1154,6 +1172,7 @@ class TestBART:
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
             random_effects_params=rfx_params,
+        run_cpp=True,
         )
 
         # Fit a simpler intercept-only RFX model
@@ -1171,6 +1190,7 @@ class TestBART:
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
             random_effects_params=rfx_params,
+        run_cpp=True,
         )
         preds = bart_model_4.predict(
             X=X_test,
@@ -1232,8 +1252,9 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"), 
-                            "sample_sigma2_global": False}
+            general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"),
+                            "sample_sigma2_global": False},
+            run_cpp=True,
         )
 
         # Assertions
@@ -1249,8 +1270,9 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-            general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"), 
-                            "sample_sigma2_global": False}
+            general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"),
+                            "sample_sigma2_global": False},
+            run_cpp=True,
         )
 
         # Assertions
@@ -1321,6 +1343,7 @@ class TestBART:
                 "sample_sigma2_global": False,
                 "num_chains": 1,
             },
+        run_cpp=True,
         )
 
         # Check model outputs
@@ -1402,6 +1425,7 @@ class TestBART:
                 "sample_sigma2_global": False,
                 "num_chains": 1,
             },
+        run_cpp=True,
         )
 
         # Check model outputs
@@ -1410,6 +1434,16 @@ class TestBART:
         assert not hasattr(bart_model, 'cloglog_cutpoint_samples') or bart_model.cloglog_cutpoint_samples is None
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
+
+        # Structural validity: GFR cloglog warm-starts with unconverged latent variables,
+        # making correlation-based checks unreliable across platforms and seeds. Instead
+        # verify that predictions are finite and in a valid range — corrupted residuals
+        # from a reconstitute_from_forest bug would produce NaN or extreme clipping.
+        p_hat_mean = bart_model.predict(
+            X=X_test, type="mean", scale="probability", terms="y_hat"
+        )
+        assert np.all(np.isfinite(p_hat_mean))
+        assert np.all((p_hat_mean >= 0.0) & (p_hat_mean <= 1.0))
 
     def test_cloglog_ordinal_bart(self):
         # RNG
@@ -1466,6 +1500,7 @@ class TestBART:
                 "sample_sigma2_global": False,
                 "num_chains": 1,
             },
+        run_cpp=True,
         )
 
         # Check model outputs
@@ -1568,6 +1603,7 @@ class TestBART:
                 "sample_sigma2_global": False,
                 "num_chains": 1,
             },
+        run_cpp=True,
         )
 
         # Check model outputs
@@ -1577,6 +1613,17 @@ class TestBART:
         assert bart_model.y_hat_train.shape == (n_train, num_mcmc)
         assert bart_model.y_hat_test.shape == (n_test, num_mcmc)
         assert bart_model.cloglog_cutpoint_samples.shape == (2, num_mcmc)
+
+        # Structural validity: GFR cloglog warm-starts with unconverged latent variables,
+        # making correlation-based checks unreliable across platforms and seeds. Instead
+        # verify that predictions are finite and valid — corrupted residuals from a
+        # reconstitute_from_forest bug would produce NaN or extreme clipping.
+        preds_mean_prob = bart_model.predict(
+            X=X_test, type="mean", scale="probability", terms="y_hat"
+        )
+        assert np.all(np.isfinite(preds_mean_prob))
+        assert np.all((preds_mean_prob >= 0.0) & (preds_mean_prob <= 1.0))
+        assert np.allclose(preds_mean_prob.sum(axis=1), 1.0, atol=1e-6)
 
 
 class TestBARTFloat32:

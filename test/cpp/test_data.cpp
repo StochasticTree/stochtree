@@ -8,8 +8,6 @@
 #include <stochtree/log.h>
 #include <stochtree/random.h>
 #include <stochtree/data.h>
-#include <iostream>
-#include <memory>
 
 TEST(Data, ReadFromSmallDatasetRowMajor) {
   // Load test data
@@ -25,14 +23,14 @@ TEST(Data, ReadFromSmallDatasetRowMajor) {
   dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
   dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
   StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
-  
+
   // Compute average value for each feature, compared to their known values
   std::vector<double> total;
   std::vector<double> average;
   total.resize(p, 0.);
   average.resize(p, 0.);
   for (int j = 0; j < p; j++) {
-    for (data_size_t i = 0; i < n; i++) {  
+    for (data_size_t i = 0; i < n; i++) {
       total[j] += dataset.CovariateValue(i, j);
     }
   }
@@ -60,14 +58,14 @@ TEST(Data, ReadFromMediumDatasetRowMajor) {
   dataset.AddCovariates(test_dataset.covariates.data(), n, test_dataset.x_cols, test_dataset.row_major);
   dataset.AddBasis(test_dataset.omega.data(), test_dataset.n, test_dataset.omega_cols, test_dataset.row_major);
   StochTree::ColumnVector residual = StochTree::ColumnVector(test_dataset.outcome.data(), n);
-  
+
   // Compute average value for each feature, compared to their known values
   std::vector<double> total;
   std::vector<double> average;
   total.resize(p, 0.);
   average.resize(p, 0.);
   for (int j = 0; j < p; j++) {
-    for (data_size_t i = 0; i < n; i++) {  
+    for (data_size_t i = 0; i < n; i++) {
       total[j] += dataset.CovariateValue(i, j);
     }
   }
@@ -80,4 +78,3 @@ TEST(Data, ReadFromMediumDatasetRowMajor) {
   EXPECT_NEAR(0.4863596, average[3], 0.0001);
   EXPECT_NEAR(0.4413101, average[4], 0.0001);
 }
-

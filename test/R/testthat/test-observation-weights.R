@@ -149,17 +149,17 @@ test_that("BART: observation_weights with cloglog outcome raises error", {
   )
 })
 
-test_that("BART: observation_weights with variance forest raises warning", {
+test_that("BART: observation_weights with variance forest raises error", {
   skip_on_cran()
   d <- make_bart_data()
-  expect_warning(
+  expect_error(
     bart(
       X_train = d$X_train, y_train = d$y_train,
       observation_weights = rep(1.0, d$n_train),
       num_gfr = 0, num_burnin = 0, num_mcmc = 5,
       variance_forest_params = list(num_trees = 5)
     ),
-    "variance forest"
+    "not compatible with a variance forest"
   )
 })
 

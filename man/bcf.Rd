@@ -26,7 +26,8 @@ bcf(
   prognostic_forest_params = list(),
   treatment_effect_forest_params = list(),
   variance_forest_params = list(),
-  random_effects_params = list()
+  random_effects_params = list(),
+  run_cpp = TRUE
 )
 }
 \arguments{
@@ -94,7 +95,7 @@ Default: \code{NULL}.}
 \item \code{sigma2_global_shape} Shape parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
 \item \code{sigma2_global_scale} Scale parameter in the \code{IG(sigma2_global_shape, sigma2_global_scale)} global error variance model. Default: \code{0}.
 \item \code{variable_weights} Numeric weights reflecting the relative probability of splitting on each variable. Does not need to sum to 1 but cannot be negative. Defaults to \code{rep(1/ncol(X_train), ncol(X_train))} if not set here. Note that if the propensity score is included as a covariate in either forest, its weight will default to \code{1/ncol(X_train)}. A workaround if you wish to provide a custom weight for the propensity score is to include it as a column in \code{X_train} and then set \code{propensity_covariate} to \code{'none'} adjust \code{keep_vars} accordingly for the \code{prognostic} or \code{treatment_effect} forests.
-\item \code{propensity_covariate} Whether to include the propensity score as a covariate in either or both of the forests. Enter \code{"none"} for neither, \code{"prognostic"} for the prognostic forest, \code{"treatment_effect"} for the treatment forest, and \code{"both"} for both forests. If this is not \code{"none"} and a propensity score is not provided, it will be estimated from (\code{X_train}, \code{Z_train}) using \code{stochtree::bart()}. Default: \code{"mu"}.
+\item \code{propensity_covariate} Whether to include the propensity score as a covariate in either or both of the forests. Enter \code{"none"} for neither, \code{"prognostic"} for the prognostic forest, \code{"treatment_effect"} for the treatment forest, and \code{"both"} for both forests. If this is not \code{"none"} and a propensity score is not provided, it will be estimated from (\code{X_train}, \code{Z_train}) using \code{stochtree::bart()}. Default: \code{"prognostic"}.
 \item \code{adaptive_coding} Whether or not to use an "adaptive coding" scheme in which a binary treatment variable is not coded manually as (0,1) or (-1,1) but learned via parameters \code{b_0} and \code{b_1} that attach to the outcome model \verb{[b_0 (1-Z) + b_1 Z] tau(X)}. This is ignored when Z is not binary. Default: \code{FALSE}.
 \item \code{control_coding_init} Initial value of the "control" group coding parameter. This is ignored when Z is not binary. Default: \code{-0.5}.
 \item \code{treated_coding_init} Initial value of the "treatment" group coding parameter. This is ignored when Z is not binary. Default: \code{0.5}.
@@ -173,6 +174,8 @@ Default: \code{NULL}.}
 \item \code{variance_prior_shape} Shape parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 \item \code{variance_prior_scale} Scale parameter for the inverse gamma prior on the variance of the random effects "group parameter." Default: \code{1}.
 }}
+
+\item{run_cpp}{Whether or not to run the core C++ sampler. Default \code{TRUE}.}
 }
 \value{
 List of sampling outputs and a wrapper around the sampled forests (which can be used for in-memory prediction on new data, or serialized to JSON on disk).

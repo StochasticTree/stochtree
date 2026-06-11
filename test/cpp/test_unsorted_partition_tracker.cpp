@@ -5,8 +5,6 @@
 #include <stochtree/log.h>
 #include <stochtree/partition_tracker.h>
 #include <stochtree/tree.h>
-#include <iostream>
-#include <memory>
 #include <vector>
 
 TEST(UnsortedNodeSampleTracker, BasicOperations) {
@@ -40,13 +38,13 @@ TEST(UnsortedNodeSampleTracker, BasicOperations) {
   StochTree::TreeSplit tree_split = StochTree::TreeSplit(0.5);
   node_sample_tracker.PartitionTreeNode(dataset.GetCovariates(), 0, 0, 1, 2, 0, tree_split);
   sample_node_mapper.AddSplit(dataset.GetCovariates(), tree_split, 0, 0, 0, 1, 2);
-  
+
   // Check that node begin and node end haven't changed for root node, but that the indices have been sifted
   ASSERT_EQ(node_sample_tracker.NodeBegin(0, 0), 0);
   ASSERT_EQ(node_sample_tracker.NodeEnd(0, 0), n);
   std::vector<StochTree::data_size_t> expected_result{2, 8, 9, 0, 1, 3, 4, 5, 6, 7};
   ASSERT_EQ(node_sample_tracker.TreeNodeIndices(0, 0), expected_result);
-  
+
   // Check that terminal nodes are updated for for every observation
   ASSERT_EQ(sample_node_mapper.GetNodeId(0, 0), 2);
   ASSERT_EQ(sample_node_mapper.GetNodeId(1, 0), 2);
@@ -58,13 +56,13 @@ TEST(UnsortedNodeSampleTracker, BasicOperations) {
   ASSERT_EQ(sample_node_mapper.GetNodeId(7, 0), 2);
   ASSERT_EQ(sample_node_mapper.GetNodeId(8, 0), 1);
   ASSERT_EQ(sample_node_mapper.GetNodeId(9, 0), 1);
-  
+
   // Check node begin and node end for left node
   ASSERT_EQ(node_sample_tracker.NodeBegin(0, 1), 0);
   ASSERT_EQ(node_sample_tracker.NodeEnd(0, 1), 3);
   expected_result = {2, 8, 9};
   ASSERT_EQ(node_sample_tracker.TreeNodeIndices(0, 1), expected_result);
-  
+
   // Check node begin and node end for right node
   ASSERT_EQ(node_sample_tracker.NodeBegin(0, 2), 3);
   ASSERT_EQ(node_sample_tracker.NodeEnd(0, 2), n);
@@ -81,13 +79,13 @@ TEST(UnsortedNodeSampleTracker, BasicOperations) {
   ASSERT_EQ(node_sample_tracker.NodeEnd(0, 2), n);
   expected_result = {1, 6, 0, 3, 4, 5, 7};
   ASSERT_EQ(node_sample_tracker.TreeNodeIndices(0, 2), expected_result);
-  
+
   // Check node begin and node end for new left node
   ASSERT_EQ(node_sample_tracker.NodeBegin(0, 3), 3);
   ASSERT_EQ(node_sample_tracker.NodeEnd(0, 3), 5);
   expected_result = {1, 6};
   ASSERT_EQ(node_sample_tracker.TreeNodeIndices(0, 3), expected_result);
-  
+
   // Check node begin and node end for new right node
   ASSERT_EQ(node_sample_tracker.NodeBegin(0, 4), 5);
   ASSERT_EQ(node_sample_tracker.NodeEnd(0, 4), n);
