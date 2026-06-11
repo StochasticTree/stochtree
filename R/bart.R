@@ -2822,7 +2822,7 @@ predict.bartmodel <- function(
   }
 
   # Combine into y hat predictions
-  if (probability_scale) {
+  if (probability_scale || class_scale) {
     if (is_probit) {
       if (predict_y_hat) {
         if (has_mean_forest && has_rfx) {

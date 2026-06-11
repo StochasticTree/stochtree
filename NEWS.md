@@ -1,5 +1,11 @@
 # stochtree 0.4.5.9000
 
+## Bug Fixes
+
+* Fix ordinal class prediction bug in R BART [#399](https://github.com/StochasticTree/stochtree/issues/399)
+
+# stochtree 0.4.4
+
 ## Documentation and Other Maintenance
 
 * Switch sampling default to single-threaded execution (`num_threads = 1`) in both R and Python [#396](https://github.com/StochasticTree/stochtree/pull/396). This prevents CRAN pre-checks from failing due to limitations on core usage and also avoid unintentional default interaction with users' own multi-core setups.
