@@ -3694,6 +3694,8 @@ class BCFModel:
                 )
         has_variance_forest = self.include_variance_forest
         has_rfx = self.has_rfx
+        has_mu_forest = self.forest_container_mu is not None
+        has_tau_forest = self.forest_container_tau is not None
         predict_y_hat = ("y_hat" in terms) or ("all" in terms)
         predict_mu_forest = ("mu" in terms) or ("all" in terms)
         predict_tau_forest = ("tau" in terms) or ("all" in terms)
