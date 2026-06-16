@@ -1763,6 +1763,26 @@ class BCFModel:
                 rfx_group_parameter_prior_cov, num_rfx_components
             )
 
+        # Validate delta_max and, for binary (probit) outcomes, calibrate the treatment
+        # effect leaf scale from it when sigma2_leaf_init was not set directly for tau.
+        if (delta_max <= 0) or (delta_max >= 1):
+            raise ValueError("delta_max must be > 0 and < 1")
+        if link_is_probit and sigma2_leaf_tau is None:
+            # Calibrate the prior so that P(|tau(X)| < delta_max / dnorm(0)) = p,
+            # using p = 0.6827 as an internal default (overridden by setting
+            # sigma2_leaf_init in treatment_effect_forest_params).
+            p = 0.6827
+            q_quantile = norm.ppf((p + 1) / 2)
+            sigma2_leaf_tau_scalar = (
+                (delta_max / (q_quantile * norm.pdf(0))) ** 2
+            ) / num_trees_tau
+            if self.multivariate_treatment:
+                sigma2_leaf_tau = np.diag(
+                    np.full(self.treatment_dim, sigma2_leaf_tau_scalar)
+                )
+            else:
+                sigma2_leaf_tau = float(sigma2_leaf_tau_scalar)
+
         # Arrange all config in a large python dictionary
         bcf_config = {
             "standardize_outcome": self.standardize,

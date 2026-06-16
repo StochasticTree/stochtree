@@ -1462,6 +1462,20 @@ bcf <- function(
       )
       sample_sigma2_global <- F
     }
+    # Calibrate the treatment effect leaf scale from delta_max when the user has not
+    # set sigma2_leaf_init directly for the treatment forest.
+    if (is.null(sigma2_leaf_tau)) {
+      # Prior calibrated so that P(abs(tau(X)) < delta_max / dnorm(0)) = p (p = 0.6827)
+      p <- 0.6827
+      q_quantile <- qnorm((p + 1) / 2)
+      sigma2_leaf_tau_scalar <- ((delta_max / (q_quantile * dnorm(0)))^2) /
+        num_trees_tau
+      if (has_multivariate_treatment) {
+        sigma2_leaf_tau <- diag(sigma2_leaf_tau_scalar, ncol(Z_train))
+      } else {
+        sigma2_leaf_tau <- sigma2_leaf_tau_scalar
+      }
+    }
   }
 
   # Runtime checks for variance forest
