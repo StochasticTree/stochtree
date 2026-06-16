@@ -1185,7 +1185,7 @@ class BARTModel:
             "keep_burnin": keep_burnin,
             "a_sigma2_global": a_global,
             "b_sigma2_global": b_global,
-            "sigma2_global_init": 1.0,  # TODO: calibrate this before
+            "sigma2_global_init": sigma2_init,
             "sample_sigma2_global": sample_sigma2_global,
             "num_trees_mean": num_trees_mean,
             "alpha_mean": alpha_mean,
