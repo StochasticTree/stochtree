@@ -2581,7 +2581,8 @@ saveBARTModelToJson <- function(object) {
     jsonobj$add_random_effects(object$rfx_samples)
     jsonobj$add_string_vector(
       "rfx_unique_group_ids",
-      object$rfx_unique_group_ids
+      object$rfx_unique_group_ids,
+      subfolder_name = "random_effects"
     )
   }
 
@@ -2589,7 +2590,7 @@ saveBARTModelToJson <- function(object) {
   preprocessor_metadata_string <- savePreprocessorToJsonString(
     object$train_set_metadata
   )
-  jsonobj$add_string("preprocessor_metadata", preprocessor_metadata_string)
+  jsonobj$add_string("covariate_preprocessor", preprocessor_metadata_string)
 
   return(jsonobj)
 }
@@ -2659,6 +2660,20 @@ saveBARTModelToJsonString <- function(object) {
       "variance_forest",
       subfolder_name = "forests"
     )
+  }
+  # R's legacy preprocessor key -> unified v1 key (no-op for Python v0 JSON,
+  # which already uses `covariate_preprocessor`).
+  json_object$rename_field("preprocessor_metadata", "covariate_preprocessor")
+  # Relocate R's top-level rfx unique group ids into the random_effects subfolder
+  # (no-op for Python v0 JSON, which never wrote this field).
+  if (json_object$contains("rfx_unique_group_ids")) {
+    .rfx_uids <- json_object$get_string_vector("rfx_unique_group_ids")
+    json_object$add_string_vector(
+      "rfx_unique_group_ids",
+      .rfx_uids,
+      subfolder_name = "random_effects"
+    )
+    json_object$erase_field("rfx_unique_group_ids")
   }
 }
 
@@ -2850,15 +2865,16 @@ createBARTModelFromJson <- function(json_object) {
   # Unpack random effects
   if (model_params[["has_rfx"]]) {
     output[["rfx_unique_group_ids"]] <- json_object$get_string_vector(
-      "rfx_unique_group_ids"
+      "rfx_unique_group_ids",
+      subfolder_name = "random_effects"
     )
     output[["rfx_samples"]] <- loadRandomEffectSamplesJson(json_object, 0)
   }
 
   # Unpack covariate preprocessor
-  if (has_field("preprocessor_metadata")) {
+  if (has_field("covariate_preprocessor")) {
     preprocessor_metadata_string <- json_object$get_string(
-      "preprocessor_metadata"
+      "covariate_preprocessor"
     )
     output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
       preprocessor_metadata_string
@@ -2866,7 +2882,7 @@ createBARTModelFromJson <- function(json_object) {
   } else {
     output[["train_set_metadata"]] <- NULL
     warning(paste0(
-      "Field 'preprocessor_metadata' not found in JSON (model appears to have been serialized ",
+      "Field 'covariate_preprocessor' not found in JSON (model appears to have been serialized ",
       "under stochtree ",
       .ver,
       "). DataFrame covariates will not be supported for prediction. ",
@@ -3178,7 +3194,10 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   if (model_params[["has_rfx"]]) {
     output[[
       "rfx_unique_group_ids"
-    ]] <- json_object_default$get_string_vector("rfx_unique_group_ids")
+    ]] <- json_object_default$get_string_vector(
+      "rfx_unique_group_ids",
+      subfolder_name = "random_effects"
+    )
     output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(
       json_object_list,
       0
@@ -3186,9 +3205,9 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   }
 
   # Unpack covariate preprocessor
-  if (has_field("preprocessor_metadata")) {
+  if (has_field("covariate_preprocessor")) {
     preprocessor_metadata_string <- json_object_default$get_string(
-      "preprocessor_metadata"
+      "covariate_preprocessor"
     )
     output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
       preprocessor_metadata_string
@@ -3196,7 +3215,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
   } else {
     output[["train_set_metadata"]] <- NULL
     warning(paste0(
-      "Field 'preprocessor_metadata' not found in JSON (model appears to have been serialized ",
+      "Field 'covariate_preprocessor' not found in JSON (model appears to have been serialized ",
       "under stochtree ",
       .ver,
       "). DataFrame covariates will not be supported for prediction. ",
@@ -3488,7 +3507,10 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
   if (model_params[["has_rfx"]]) {
     output[[
       "rfx_unique_group_ids"
-    ]] <- json_object_default$get_string_vector("rfx_unique_group_ids")
+    ]] <- json_object_default$get_string_vector(
+      "rfx_unique_group_ids",
+      subfolder_name = "random_effects"
+    )
     output[["rfx_samples"]] <- loadRandomEffectSamplesCombinedJson(
       json_object_list,
       0
@@ -3496,9 +3518,9 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
   }
 
   # Unpack covariate preprocessor
-  if (has_field("preprocessor_metadata")) {
+  if (has_field("covariate_preprocessor")) {
     preprocessor_metadata_string <- json_object_default$get_string(
-      "preprocessor_metadata"
+      "covariate_preprocessor"
     )
     output[["train_set_metadata"]] <- createPreprocessorFromJsonString(
       preprocessor_metadata_string
@@ -3506,7 +3528,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
   } else {
     output[["train_set_metadata"]] <- NULL
     warning(paste0(
-      "Field 'preprocessor_metadata' not found in JSON (model appears to have been serialized ",
+      "Field 'covariate_preprocessor' not found in JSON (model appears to have been serialized ",
       "under stochtree ",
       .ver,
       "). DataFrame covariates will not be supported for prediction. ",

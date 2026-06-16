@@ -1236,8 +1236,14 @@ inferStochtreeJsonVersion <- function(json_object) {
     return("<0.3.2")
   }
 
-  # rfx_model_spec and preprocessor_metadata were added in ~0.3.0
-  if (!has_field("rfx_model_spec") || !has_field("preprocessor_metadata")) {
+  # rfx_model_spec and the covariate preprocessor were added in ~0.3.0. The
+  # preprocessor key is `preprocessor_metadata` in legacy R JSON and
+  # `covariate_preprocessor` in v1 / Python JSON, so accept either.
+  if (
+    !has_field("rfx_model_spec") ||
+      (!has_field("preprocessor_metadata") &&
+        !has_field("covariate_preprocessor"))
+  ) {
     return("<0.3.0")
   }
 
