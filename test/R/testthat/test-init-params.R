@@ -91,3 +91,45 @@ test_that("BCF honors delta_max for probit treatment leaf calibration", {
   expect_equal(v_05, expected(0.5), tolerance = 1e-8)
   expect_equal(v_09, expected(0.9), tolerance = 1e-8)
 })
+
+test_that("BART honors observation_weights", {
+  skip_on_cran()
+  set.seed(4)
+  n <- 200
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  y <- X[, 1] + rnorm(n)
+  w <- runif(n, 0.1, 2.0)
+  fit <- function(weights) {
+    bart(
+      X_train = X, y_train = y, X_test = X,
+      num_gfr = 0, num_burnin = 0, num_mcmc = 5,
+      general_params = list(standardize = FALSE, random_seed = 1),
+      observation_weights_train = weights
+    )$y_hat_test
+  }
+  # Non-uniform observation weights must change the fit (same seed).
+  expect_false(isTRUE(all.equal(fit(NULL), fit(w))))
+})
+
+test_that("BCF honors observation_weights", {
+  skip_on_cran()
+  set.seed(5)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  Z <- rbinom(n, 1, 0.5)
+  propensity <- rep(0.5, n)
+  y <- X[, 1] + Z * X[, 2] + rnorm(n)
+  w <- runif(n, 0.1, 2.0)
+  fit <- function(weights) {
+    bcf(
+      X_train = X, Z_train = Z, y_train = y, propensity_train = propensity,
+      X_test = X, Z_test = Z, propensity_test = propensity,
+      num_gfr = 0, num_burnin = 0, num_mcmc = 5,
+      general_params = list(standardize = FALSE, random_seed = 1),
+      observation_weights_train = weights
+    )$y_hat_test
+  }
+  expect_false(isTRUE(all.equal(fit(NULL), fit(w))))
+})

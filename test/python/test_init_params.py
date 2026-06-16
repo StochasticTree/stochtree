@@ -108,3 +108,56 @@ class TestInitParamsHonored:
         assert not np.isclose(v_05, v_09)
         assert np.isclose(v_05, expected(0.5))
         assert np.isclose(v_09, expected(0.9))
+
+    def test_bart_observation_weights_honored(self):
+        rng = np.random.default_rng(4)
+        n, p = 200, 3
+        X = rng.uniform(size=(n, p))
+        y = X[:, 0] + rng.normal(size=n)
+        w = rng.uniform(0.1, 2.0, size=n)
+
+        def fit(weights):
+            m = BARTModel()
+            m.sample(
+                X_train=X,
+                y_train=y,
+                X_test=X,
+                num_gfr=0,
+                num_burnin=0,
+                num_mcmc=5,
+                general_params={"standardize": False, "random_seed": 1},
+                observation_weights_train=weights,
+            )
+            return np.asarray(m.y_hat_test)
+
+        # Non-uniform observation weights must change the fit (same seed).
+        assert not np.allclose(fit(None), fit(w))
+
+    def test_bcf_observation_weights_honored(self):
+        rng = np.random.default_rng(5)
+        n, p = 200, 5
+        X = rng.uniform(size=(n, p))
+        Z = rng.binomial(1, 0.5, size=n).astype(float)
+        propensity = np.full(n, 0.5)
+        y = X[:, 0] + Z * X[:, 1] + rng.normal(size=n)
+        w = rng.uniform(0.1, 2.0, size=n)
+
+        def fit(weights):
+            m = BCFModel()
+            m.sample(
+                X_train=X,
+                Z_train=Z,
+                y_train=y,
+                propensity_train=propensity,
+                X_test=X,
+                Z_test=Z,
+                propensity_test=propensity,
+                num_gfr=0,
+                num_burnin=0,
+                num_mcmc=5,
+                general_params={"standardize": False, "random_seed": 1},
+                observation_weights_train=weights,
+            )
+            return np.asarray(m.y_hat_test)
+
+        assert not np.allclose(fit(None), fit(w))

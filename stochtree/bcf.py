@@ -89,6 +89,7 @@ class BCFModel:
         propensity_test: np.array = None,
         rfx_group_ids_test: np.array = None,
         rfx_basis_test: np.array = None,
+        observation_weights_train: Optional[np.ndarray] = None,
         observation_weights: Optional[np.ndarray] = None,
         num_gfr: int = 5,
         num_burnin: int = 0,
@@ -132,7 +133,7 @@ class BCFModel:
             test set evaluation for group labels that were not in the training set.
         rfx_basis_test : np.array, optional
             Optional test set basis for "random-slope" regression in additive random effects model.
-        observation_weights : np.array, optional
+        observation_weights_train : np.array, optional
             Optional vector of observation weights of length ``n_train``. Weights are applied as
             ``y_i | - ~ N(mu(X_i), sigma^2 / w_i)``, so larger weights increase an observation's
             influence on the fit. All weights must be non-negative. Defaults to ``None`` (all
@@ -141,6 +142,8 @@ class BCFModel:
             not compatible with cloglog link functions. Note: these are referred to internally in
             the C++ layer as "variance weights" (``var_weights``), since they scale the residual
             variance.
+        observation_weights : np.array, optional
+            Deprecated alias for ``observation_weights_train``; will be removed in a future release.
         num_gfr : int, optional
             Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Defaults to `5`.
         num_burnin : int, optional
@@ -603,31 +606,43 @@ class BCFModel:
         # Determine whether conditional variance model will be fit
         self.include_variance_forest = True if num_trees_variance > 0 else False
 
-        # observation_weights validation and compatibility checks
+        # `observation_weights` was renamed to `observation_weights_train`; honor the
+        # deprecated argument for one release cycle.
         if observation_weights is not None:
-            if not isinstance(observation_weights, np.ndarray):
-                raise ValueError("observation_weights must be a numpy array")
-            observation_weights_ = np.squeeze(observation_weights)
-            if observation_weights_.ndim != 1:
+            warnings.warn(
+                "`observation_weights` is deprecated and will be removed in a future "
+                "release; use `observation_weights_train` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if observation_weights_train is None:
+                observation_weights_train = observation_weights
+
+        # observation_weights_train validation and compatibility checks
+        if observation_weights_train is not None:
+            if not isinstance(observation_weights_train, np.ndarray):
+                raise ValueError("observation_weights_train must be a numpy array")
+            observation_weights_train_ = np.squeeze(observation_weights_train)
+            if observation_weights_train_.ndim != 1:
                 raise ValueError(
-                    "observation_weights must be a 1-dimensional numpy array"
+                    "observation_weights_train must be a 1-dimensional numpy array"
                 )
-            if np.any(observation_weights_ < 0):
-                raise ValueError("observation_weights cannot have any negative values")
-            if np.all(observation_weights_ == 0) and num_gfr > 0:
+            if np.any(observation_weights_train_ < 0):
+                raise ValueError("observation_weights_train cannot have any negative values")
+            if np.all(observation_weights_train_ == 0) and num_gfr > 0:
                 raise ValueError(
-                    "observation_weights are all zero (prior sampling mode) but num_gfr > 0. "
+                    "observation_weights_train are all zero (prior sampling mode) but num_gfr > 0. "
                     "GFR warm-start is data-dependent and ill-defined with zero weights. "
-                    "Set num_gfr=0 when using all-zero observation_weights."
+                    "Set num_gfr=0 when using all-zero observation_weights_train."
                 )
             if link_is_cloglog:
                 raise ValueError(
-                    "observation_weights are not compatible with cloglog link functions."
+                    "observation_weights_train are not compatible with cloglog link functions."
                 )
             if self.include_variance_forest:
                 raise ValueError(
-                    "observation_weights are not compatible with a variance forest model. "
-                    "Use either observation_weights or a variance forest, not both."
+                    "observation_weights_train are not compatible with a variance forest model. "
+                    "Use either observation_weights_train or a variance forest, not both."
                 )
 
         # Check data inputs
@@ -1886,8 +1901,8 @@ class BCFModel:
             n_test=X_test_cpp.shape[0] if self.has_test else 0,
             p=X_train_cpp.shape[1],
             treatment_dim=self.treatment_dim,
-            obs_weights_train=observation_weights
-            if observation_weights is not None
+            obs_weights_train=observation_weights_train
+            if observation_weights_train is not None
             else None,
             obs_weights_test=None,
             rfx_group_ids_train=rfx_group_ids_train_cpp,

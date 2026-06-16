@@ -89,11 +89,12 @@ NULL
 #' We do not currently support (but plan to in the near future), test set evaluation for group labels
 #' that were not in the training set.
 #' @param rfx_basis_test (Optional) Test set basis for "random-slope" regression in additive random effects model.
-#' @param observation_weights (Optional) Numeric vector of observation weights of length `nrow(X_train)`. Weights are
+#' @param observation_weights_train (Optional) Numeric vector of observation weights of length `nrow(X_train)`. Weights are
 #'   applied as `y_i | - ~ N(mu(X_i), sigma^2 / w_i)`, so larger weights increase an observation's influence on the fit.
 #'   All weights must be non-negative. Default: `NULL` (all observations equally weighted). Applied to both the
 #'   prognostic and treatment effect forests. Compatible with Gaussian (continuous/identity) and probit outcome models;
 #'   not compatible with cloglog link functions.
+#' @param observation_weights Deprecated alias for `observation_weights_train`; will be removed in a future release.
 #' @param num_gfr Number of "warm-start" iterations run using the grow-from-root algorithm (He and Hahn, 2021). Default: 5.
 #' @param num_burnin Number of "burn-in" iterations of the MCMC sampler. Default: 0.
 #' @param num_mcmc Number of "retained" iterations of the MCMC sampler. Default: 100.
@@ -250,6 +251,7 @@ bcf <- function(
   propensity_test = NULL,
   rfx_group_ids_test = NULL,
   rfx_basis_test = NULL,
+  observation_weights_train = NULL,
   observation_weights = NULL,
   num_gfr = 5,
   num_burnin = 0,
@@ -630,33 +632,44 @@ bcf <- function(
     include_variance_forest = FALSE
   }
 
-  # observation_weights validation and compatibility checks
+  # `observation_weights` was renamed to `observation_weights_train`; honor the
+  # deprecated argument for one release cycle.
   if (!is.null(observation_weights)) {
-    if (!is.numeric(observation_weights)) {
-      stop("observation_weights must be a numeric vector")
+    warning(
+      "`observation_weights` is deprecated and will be removed in a future release; use `observation_weights_train` instead."
+    )
+    if (is.null(observation_weights_train)) {
+      observation_weights_train <- observation_weights
     }
-    if (length(observation_weights) != nrow(X_train)) {
-      stop("length(observation_weights) must equal nrow(X_train)")
+  }
+
+  # observation_weights_train validation and compatibility checks
+  if (!is.null(observation_weights_train)) {
+    if (!is.numeric(observation_weights_train)) {
+      stop("observation_weights_train must be a numeric vector")
     }
-    if (any(observation_weights < 0)) {
-      stop("observation_weights cannot have any negative values")
+    if (length(observation_weights_train) != nrow(X_train)) {
+      stop("length(observation_weights_train) must equal nrow(X_train)")
     }
-    if (all(observation_weights == 0) && num_gfr > 0) {
+    if (any(observation_weights_train < 0)) {
+      stop("observation_weights_train cannot have any negative values")
+    }
+    if (all(observation_weights_train == 0) && num_gfr > 0) {
       stop(
-        "observation_weights are all zero (prior sampling mode) but num_gfr > 0. ",
+        "observation_weights_train are all zero (prior sampling mode) but num_gfr > 0. ",
         "GFR warm-start is data-dependent and ill-defined with zero weights. ",
-        "Set num_gfr = 0 when using all-zero observation_weights."
+        "Set num_gfr = 0 when using all-zero observation_weights_train."
       )
     }
     if (link_is_cloglog) {
       stop(
-        "observation_weights are not compatible with cloglog link functions."
+        "observation_weights_train are not compatible with cloglog link functions."
       )
     }
     if (include_variance_forest) {
       stop(
-        "observation_weights are not compatible with a variance forest model. ",
-        "Use either observation_weights or a variance forest, not both."
+        "observation_weights_train are not compatible with a variance forest model. ",
+        "Use either observation_weights_train or a variance forest, not both."
       )
     }
   }
@@ -1748,16 +1761,8 @@ bcf <- function(
     n_test = if (!is.null(X_test)) nrow(X_test) else 0L,
     p = ncol(X_train),
     treatment_dim = ncol(Z_train),
-    obs_weights_train = if (exists("obs_weights_train")) {
-      obs_weights_train
-    } else {
-      NULL
-    },
-    obs_weights_test = if (exists("obs_weights_test")) {
-      obs_weights_test
-    } else {
-      NULL
-    },
+    obs_weights_train = observation_weights_train,
+    obs_weights_test = NULL,
     rfx_group_ids_train = if (exists("rfx_group_ids_train")) {
       rfx_group_ids_train
     } else {
