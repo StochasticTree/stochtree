@@ -505,19 +505,6 @@ bcf <- function(
     )
   }
 
-  # Set a function-scoped RNG if user provided a random seed
-  custom_rng <- random_seed >= 0
-  has_existing_random_seed <- F
-  if (custom_rng) {
-    # Cache original global environment RNG state (if it exists)
-    if (exists(".Random.seed", envir = .GlobalEnv)) {
-      original_global_seed <- .Random.seed
-      has_existing_random_seed <- T
-    }
-    # Set new seed and store associated RNG state
-    set.seed(random_seed)
-  }
-
   # Check if there are enough GFR samples to seed num_chains samplers
   if (num_gfr > 0) {
     if (num_chains > num_gfr) {
@@ -1344,7 +1331,8 @@ bcf <- function(
         X_test = X_test,
         num_gfr = num_gfr_propensity,
         num_burnin = num_burnin_propensity,
-        num_mcmc = num_mcmc_propensity
+        num_mcmc = num_mcmc_propensity,
+        general_params = list(random_seed = random_seed)
       )
       propensity_train <- predict(
         bart_model_propensity,

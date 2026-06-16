@@ -133,3 +133,24 @@ test_that("BCF honors observation_weights", {
   }
   expect_false(isTRUE(all.equal(fit(NULL), fit(w))))
 })
+
+test_that("BCF internal propensity model is reproducible with random_seed", {
+  skip_on_cran()
+  set.seed(7)
+  n <- 200
+  p <- 5
+  X <- matrix(runif(n * p), ncol = p)
+  Z <- rbinom(n, 1, 0.5)
+  y <- X[, 1] + Z * X[, 2] + rnorm(n)
+  fit <- function() {
+    # No propensity_train -> BCF estimates it with an internal BART model.
+    bcf(
+      X_train = X, Z_train = Z, y_train = y,
+      num_gfr = 0, num_burnin = 0, num_mcmc = 10,
+      general_params = list(random_seed = 99)
+    )$y_hat_train
+  }
+  # With a fixed random_seed, the internally-estimated propensity (and hence the
+  # full fit) must be reproducible across runs.
+  expect_equal(fit(), fit())
+})

@@ -161,3 +161,28 @@ class TestInitParamsHonored:
             return np.asarray(m.y_hat_test)
 
         assert not np.allclose(fit(None), fit(w))
+
+    def test_bcf_internal_propensity_reproducible(self):
+        rng = np.random.default_rng(7)
+        n, p = 200, 5
+        X = rng.uniform(size=(n, p))
+        Z = rng.binomial(1, 0.5, size=n).astype(float)
+        y = X[:, 0] + Z * X[:, 1] + rng.normal(size=n)
+
+        def fit():
+            m = BCFModel()
+            # No propensity_train -> BCF estimates it with an internal BART model.
+            m.sample(
+                X_train=X,
+                Z_train=Z,
+                y_train=y,
+                num_gfr=0,
+                num_burnin=0,
+                num_mcmc=10,
+                general_params={"random_seed": 99},
+            )
+            return np.asarray(m.y_hat_train)
+
+        # The internally-estimated propensity (and hence the full fit) must be
+        # reproducible across runs with a fixed random_seed.
+        np.testing.assert_allclose(fit(), fit())
