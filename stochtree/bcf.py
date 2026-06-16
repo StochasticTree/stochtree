@@ -298,7 +298,6 @@ class BCFModel:
             "keep_every": 1,
             "num_chains": 1,
             "outcome_model": OutcomeModel(outcome="continuous", link="identity"),
-            "outcome_model": OutcomeModel(outcome="continuous", link="identity"),
             "probit_outcome_model": False,
             "num_threads": 1,
         }
@@ -589,48 +588,17 @@ class BCFModel:
                     raise ValueError(
                         "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
                     )
-            previous_model_decrement = True
             if num_chains > previous_model_warmstart_sample_num + 1:
                 warnings.warn(
                     "The number of chains being sampled exceeds the number of previous model samples available from the requested position in `previous_model_json`. All chains will be initialized from the same sample."
                 )
-                previous_model_decrement = False
-            previous_y_scale = previous_bcf_model.y_std
             previous_model_num_samples = previous_bcf_model.num_samples
-            if previous_bcf_model.sample_sigma2_global:
-                previous_global_var_samples = previous_bcf_model.global_var_samples / (
-                    previous_y_scale * previous_y_scale
-                )
-            else:
-                previous_global_var_samples = None
-            if previous_bcf_model.sample_sigma2_leaf_mu:
-                previous_leaf_var_mu_samples = previous_bcf_model.leaf_scale_mu_samples
-            else:
-                previous_leaf_var_mu_samples = None
-            if previous_bcf_model.sample_sigma2_leaf_tau:
-                previous_leaf_var_tau_samples = (
-                    previous_bcf_model.leaf_scale_tau_samples
-                )
-            else:
-                previous_leaf_var_tau_samples = None
-            if previous_bcf_model.adaptive_coding:
-                previous_b0_samples = previous_bcf_model.b0_samples
-                previous_b1_samples = previous_bcf_model.b1_samples
-            else:
-                previous_b0_samples = None
-                previous_b1_samples = None
             if previous_model_warmstart_sample_num + 1 > previous_model_num_samples:
                 raise ValueError(
                     "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
                 )
         else:
-            previous_y_scale = None
-            previous_global_var_samples = None
-            previous_leaf_var_mu_samples = None
-            previous_leaf_var_tau_samples = None
             previous_model_num_samples = 0
-            previous_b0_samples = None
-            previous_b1_samples = None
 
         # Determine whether conditional variance model will be fit
         self.include_variance_forest = True if num_trees_variance > 0 else False
@@ -860,20 +828,12 @@ class BCFModel:
                     "Consider converting binary variables to ordered categorical (i.e. `pd.Categorical(..., ordered = True)`."
                 )
 
-        # Prognostic model details
-        leaf_dimension_mu = 1
-        leaf_model_mu = 0
-
         # Treatment details
         self.treatment_dim = Z_train.shape[1]
         self.multivariate_treatment = True if self.treatment_dim > 1 else False
-        leaf_dimension_tau = self.treatment_dim
         leaf_model_tau = 2 if self.multivariate_treatment else 1
         # treatment_leaf_model = 2 if self.multivariate_treatment else 1
 
-        # Set variance leaf model type (currently only one option)
-        leaf_dimension_variance = 1
-        leaf_model_variance = 3
 
         # Check parameters
         if sigma2_leaf_tau is not None:

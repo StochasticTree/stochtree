@@ -692,7 +692,6 @@ class BARTModel:
         original_var_indices = (
             self._covariate_preprocessor.fetch_original_feature_indices()
         )
-        num_features = len(feature_types)
 
         # Determine whether a test set is provided
         self.has_test = X_test is not None
@@ -944,32 +943,16 @@ class BARTModel:
                     raise ValueError(
                         "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
                     )
-            previous_model_decrement = True
             if num_chains > previous_model_warmstart_sample_num + 1:
                 warnings.warn(
                     "The number of chains being sampled exceeds the number of previous model samples available from the requested position in `previous_model_json`. All chains will be initialized from the same sample."
                 )
-                previous_model_decrement = False
-            previous_y_scale = previous_bart_model.y_std
             previous_model_num_samples = previous_bart_model.num_samples
-            if previous_bart_model.sample_sigma2_global:
-                previous_global_var_samples = previous_bart_model.global_var_samples / (
-                    previous_y_scale * previous_y_scale
-                )
-            else:
-                previous_global_var_samples = None
-            if previous_bart_model.sample_sigma2_leaf:
-                previous_leaf_var_samples = previous_bart_model.leaf_scale_samples
-            else:
-                previous_leaf_var_samples = None
             if previous_model_warmstart_sample_num + 1 > previous_model_num_samples:
                 raise ValueError(
                     "`previous_model_warmstart_sample_num` exceeds the number of samples in `previous_model_json`"
                 )
         else:
-            previous_y_scale = None
-            previous_global_var_samples = None
-            previous_leaf_var_samples = None
             previous_model_num_samples = 0
 
         # Update variable weights if the covariates have been resized (by e.g. one-hot encoding)
@@ -1121,23 +1104,15 @@ class BARTModel:
                 if rfx_basis_test is None:
                     rfx_basis_test = np.ones((rfx_group_ids_test.shape[0], 1))
 
-        # Set variance leaf model type (currently only one option)
-        leaf_model_variance_forest = 3
-        leaf_dimension_variance = 1
-
         # Determine the mean forest leaf model type
         if link_is_cloglog and not self.has_basis:
             leaf_model_mean_forest = 4
-            leaf_dimension_mean = 1
         elif not self.has_basis:
             leaf_model_mean_forest = 0
-            leaf_dimension_mean = 1
         elif self.num_basis == 1:
             leaf_model_mean_forest = 1
-            leaf_dimension_mean = 1
         else:
             leaf_model_mean_forest = 2
-            leaf_dimension_mean = self.num_basis
 
         # Determine cloglog number of classes
         cloglog_num_categories = (
