@@ -3325,11 +3325,11 @@ saveBCFModelToJson <- function(object) {
     stop("This BCF model has not yet been sampled")
   }
 
-  # Add the forests
-  jsonobj$add_forest(object$forests_mu)
-  jsonobj$add_forest(object$forests_tau)
+  # Add the forests under self-describing named keys
+  jsonobj$add_forest(object$forests_mu, "prognostic_forest")
+  jsonobj$add_forest(object$forests_tau, "treatment_forest")
   if (object$model_params$include_variance_forest) {
-    jsonobj$add_forest(object$forests_variance)
+    jsonobj$add_forest(object$forests_variance, "variance_forest")
   }
 
   # Add version stamp and global parameters
@@ -3515,6 +3515,29 @@ saveBCFModelToJsonString <- function(object) {
   isTRUE(adaptive)
 }
 
+# In-place v0 -> v1 migration for a BCF model envelope: positional forest keys ->
+# named keys (forest_0 -> prognostic_forest, forest_1 -> treatment_forest, and when
+# present forest_2 -> variance_forest). The mu/tau forests are always present.
+.migrateBcfJsonV0ToV1 <- function(json_object, loaded_version) {
+  json_object$rename_field(
+    "forest_0",
+    "prognostic_forest",
+    subfolder_name = "forests"
+  )
+  json_object$rename_field(
+    "forest_1",
+    "treatment_forest",
+    subfolder_name = "forests"
+  )
+  if (json_object$get_boolean_or_default("include_variance_forest", FALSE)) {
+    json_object$rename_field(
+      "forest_2",
+      "variance_forest",
+      subfolder_name = "forests"
+    )
+  }
+}
+
 #' @title Convert JSON to BCF Model
 #' @param json_object Object of type `CppJson` containing Json representation of a BCF model
 #' @export
@@ -3525,7 +3548,7 @@ createBCFModelFromJson <- function(json_object) {
 
   # Version inference and presence-check helpers
   .ver <- inferStochtreeJsonVersion(json_object)
-  resolveSchemaVersion(json_object)
+  resolveSchemaVersion(json_object, migrate = .migrateBcfJsonV0ToV1)
   has_field <- function(name) {
     json_contains_field_cpp(json_object$json_ptr, name)
   }
@@ -3533,16 +3556,22 @@ createBCFModelFromJson <- function(json_object) {
     json_contains_field_subfolder_cpp(json_object$json_ptr, subfolder, name)
   }
 
-  # Unpack the forests
-  output[["forests_mu"]] <- loadForestContainerJson(json_object, "forest_0")
-  output[["forests_tau"]] <- loadForestContainerJson(json_object, "forest_1")
+  # Unpack the forests (v1 named keys)
+  output[["forests_mu"]] <- loadForestContainerJson(
+    json_object,
+    "prognostic_forest"
+  )
+  output[["forests_tau"]] <- loadForestContainerJson(
+    json_object,
+    "treatment_forest"
+  )
   include_variance_forest <- json_object$get_boolean(
     "include_variance_forest"
   )
   if (include_variance_forest) {
     output[["forests_variance"]] <- loadForestContainerJson(
       json_object,
-      "forest_2"
+      "variance_forest"
     )
   }
 
@@ -3842,7 +3871,9 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
 
   # Version inference and presence-check helpers
   .ver <- inferStochtreeJsonVersion(json_object_default)
-  resolveSchemaVersion(json_object_default)
+  for (.jo in json_object_list) {
+    resolveSchemaVersion(.jo, migrate = .migrateBcfJsonV0ToV1)
+  }
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }
@@ -3854,14 +3885,14 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
     )
   }
 
-  # Unpack the forests
+  # Unpack the forests (v1 named keys)
   output[["forests_mu"]] <- loadForestContainerCombinedJson(
     json_object_list,
-    "forest_0"
+    "prognostic_forest"
   )
   output[["forests_tau"]] <- loadForestContainerCombinedJson(
     json_object_list,
-    "forest_1"
+    "treatment_forest"
   )
   include_variance_forest <- json_object_default$get_boolean(
     "include_variance_forest"
@@ -3869,7 +3900,7 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
   if (include_variance_forest) {
     output[["forests_variance"]] <- loadForestContainerCombinedJson(
       json_object_list,
-      "forest_2"
+      "variance_forest"
     )
   }
 
@@ -4283,7 +4314,9 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
 
   # Version inference and presence-check helpers
   .ver <- inferStochtreeJsonVersion(json_object_default)
-  resolveSchemaVersion(json_object_default)
+  for (.jo in json_object_list) {
+    resolveSchemaVersion(.jo, migrate = .migrateBcfJsonV0ToV1)
+  }
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }
@@ -4295,14 +4328,14 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
     )
   }
 
-  # Unpack the forests
+  # Unpack the forests (v1 named keys)
   output[["forests_mu"]] <- loadForestContainerCombinedJson(
     json_object_list,
-    "forest_0"
+    "prognostic_forest"
   )
   output[["forests_tau"]] <- loadForestContainerCombinedJson(
     json_object_list,
-    "forest_1"
+    "treatment_forest"
   )
   include_variance_forest <- json_object_default$get_boolean(
     "include_variance_forest"
@@ -4310,7 +4343,7 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
   if (include_variance_forest) {
     output[["forests_variance"]] <- loadForestContainerCombinedJson(
       json_object_list,
-      "forest_2"
+      "variance_forest"
     )
   }
 

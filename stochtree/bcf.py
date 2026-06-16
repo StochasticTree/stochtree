@@ -28,6 +28,20 @@ from .utils import (
 from stochtree_cpp import bcf_sample_cpp, bcf_predict_cpp
 
 
+def _migrate_bcf_v0_to_v1(serializer: JSONSerializer, loaded_version: int) -> None:
+    """In-place v0 -> v1 migration for a BCF model envelope.
+
+    Positional forest keys -> named keys: ``forest_0`` -> ``prognostic_forest``,
+    ``forest_1`` -> ``treatment_forest``, and (when present) ``forest_2`` ->
+    ``variance_forest``. The prognostic (mu) and treatment (tau) forests are always
+    present in a BCF model; the variance forest is optional.
+    """
+    serializer.rename_field("forest_0", "prognostic_forest", subfolder_name="forests")
+    serializer.rename_field("forest_1", "treatment_forest", subfolder_name="forests")
+    if serializer.get_boolean_or_default("include_variance_forest", False):
+        serializer.rename_field("forest_2", "variance_forest", subfolder_name="forests")
+
+
 class BCFModel:
     r"""
     Class that handles sampling, storage, and serialization of stochastic forest models for causal effect estimation. 
@@ -2904,11 +2918,11 @@ class BCFModel:
         # Initialize JSONSerializer object
         bcf_json = JSONSerializer()
 
-        # Add the forests
-        bcf_json.add_forest(self.forest_container_mu)
-        bcf_json.add_forest(self.forest_container_tau)
+        # Add the forests under self-describing named keys
+        bcf_json.add_forest(self.forest_container_mu, "prognostic_forest")
+        bcf_json.add_forest(self.forest_container_tau, "treatment_forest")
         if self.include_variance_forest:
-            bcf_json.add_forest(self.forest_container_variance)
+            bcf_json.add_forest(self.forest_container_variance, "variance_forest")
 
         # Add the rfx
         if self.has_rfx:
@@ -2993,7 +3007,7 @@ class BCFModel:
         # Parse string to a JSON object in C++
         bcf_json = JSONSerializer()
         bcf_json.load_from_json_string(json_string)
-        resolve_schema_version(bcf_json)
+        resolve_schema_version(bcf_json, migrate=_migrate_bcf_v0_to_v1)
         _raw = json.loads(json_string)
         _ver = _infer_stochtree_version(json_string)
 
@@ -3018,21 +3032,19 @@ class BCFModel:
                 f"Field 'multivariate_treatment' not found in BCF JSON "
                 f"(inferred version: {_ver}). Defaulting to False."
             )
-        # TODO: don't just make this a placeholder that we overwrite
+        # v1 forests are stored under self-describing named keys.
         self.forest_container_mu = ForestContainer(0, 0, False, False)
         self.forest_container_mu.forest_container_cpp.LoadFromJson(
-            bcf_json.json_cpp, "forest_0"
+            bcf_json.json_cpp, "prognostic_forest"
         )
-        # TODO: don't just make this a placeholder that we overwrite
         self.forest_container_tau = ForestContainer(0, 0, False, False)
         self.forest_container_tau.forest_container_cpp.LoadFromJson(
-            bcf_json.json_cpp, "forest_1"
+            bcf_json.json_cpp, "treatment_forest"
         )
         if self.include_variance_forest:
-            # TODO: don't just make this a placeholder that we overwrite
             self.forest_container_variance = ForestContainer(0, 0, False, False)
             self.forest_container_variance.forest_container_cpp.LoadFromJson(
-                bcf_json.json_cpp, "forest_2"
+                bcf_json.json_cpp, "variance_forest"
             )
 
         # Unpack random effects
@@ -3210,47 +3222,47 @@ class BCFModel:
 
         # For scalar / preprocessing details which aren't sample-dependent, defer to the first json
         json_object_default = json_object_list[0]
-        resolve_schema_version(json_object_default)
+        for json_object in json_object_list:
+            resolve_schema_version(json_object, migrate=_migrate_bcf_v0_to_v1)
         _raw_default = json.loads(json_string_list[0])
         _ver = _infer_stochtree_version(json_string_list[0])
 
-        # Unpack forests
-        # Mu forest
+        # Unpack forests (v1 named keys)
+        # Prognostic (mu) forest
         self.forest_container_mu = ForestContainer(0, 0, False, False)
         for i in range(len(json_object_list)):
             if i == 0:
                 self.forest_container_mu.forest_container_cpp.LoadFromJson(
-                    json_object_list[i].json_cpp, "forest_0"
+                    json_object_list[i].json_cpp, "prognostic_forest"
                 )
             else:
                 self.forest_container_mu.forest_container_cpp.AppendFromJson(
-                    json_object_list[i].json_cpp, "forest_0"
+                    json_object_list[i].json_cpp, "prognostic_forest"
                 )
-        # Tau forest
+        # Treatment (tau) forest
         self.forest_container_tau = ForestContainer(0, 0, False, False)
         for i in range(len(json_object_list)):
             if i == 0:
                 self.forest_container_tau.forest_container_cpp.LoadFromJson(
-                    json_object_list[i].json_cpp, "forest_1"
+                    json_object_list[i].json_cpp, "treatment_forest"
                 )
             else:
                 self.forest_container_tau.forest_container_cpp.AppendFromJson(
-                    json_object_list[i].json_cpp, "forest_1"
+                    json_object_list[i].json_cpp, "treatment_forest"
                 )
         self.include_variance_forest = json_object_default.get_boolean(
             "include_variance_forest"
         )
         if self.include_variance_forest:
-            # TODO: don't just make this a placeholder that we overwrite
             self.forest_container_variance = ForestContainer(0, 0, False, False)
             for i in range(len(json_object_list)):
                 if i == 0:
                     self.forest_container_variance.forest_container_cpp.LoadFromJson(
-                        json_object_list[i].json_cpp, "forest_2"
+                        json_object_list[i].json_cpp, "variance_forest"
                     )
                 else:
                     self.forest_container_variance.forest_container_cpp.AppendFromJson(
-                        json_object_list[i].json_cpp, "forest_2"
+                        json_object_list[i].json_cpp, "variance_forest"
                     )
 
         # Unpack random effects
