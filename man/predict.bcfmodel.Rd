@@ -14,7 +14,6 @@
   type = "posterior",
   terms = "all",
   scale = "linear",
-  run_cpp = TRUE,
   ...
 )
 }
@@ -49,8 +48,6 @@ Similarly for the prognostic term: \code{"mu"} returns the prognostic forest onl
 If a model doesn't have random effects or variance forest predictions but one of those terms is requested, the request will simply be ignored. If none of the requested terms are present, this function will return \code{NULL} along with a warning. Default: \code{"all"}.}
 
 \item{scale}{(Optional) Scale of mean function predictions. Options are "linear", which returns predictions on the original scale of the mean forest / RFX terms, and "probability", which transforms predictions into a probability of observing \code{y == 1}. "probability" is only valid for models fit with a probit outcome model. Default: "linear".}
-
-\item{run_cpp}{(Optional) Whether to use the C++ predict implementation. Default: \code{TRUE}.}
 
 \item{...}{(Optional) Other prediction parameters.}
 }
