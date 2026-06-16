@@ -56,7 +56,6 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-        run_cpp=True,
         )
 
         # Assertions
@@ -72,7 +71,6 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-        run_cpp=True,
         )
 
         # Assertions
@@ -162,7 +160,6 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-        run_cpp=True,
         )
 
         # Assertions
@@ -180,7 +177,6 @@ class TestBART:
             num_gfr=num_gfr,
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
-        run_cpp=True,
         )
 
         # Assertions
@@ -273,7 +269,6 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
-            run_cpp=True,
             )
 
         # Assertions
@@ -292,7 +287,6 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
-            run_cpp=True,
             )
 
         # Assertions
@@ -390,7 +384,6 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
-            run_cpp=True,
             )
 
         # Assertions
@@ -409,7 +402,6 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
-            run_cpp=True,
             )
 
         # Assertions
@@ -519,7 +511,6 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
-            run_cpp=True,
             )
 
         # Assertions
@@ -540,7 +531,6 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
-            run_cpp=True,
             )
 
         # Assertions
@@ -641,7 +631,6 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
-            run_cpp=True,
             )
 
         # Assertions
@@ -662,7 +651,6 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
-            run_cpp=True,
             )
 
         # Assertions
@@ -782,7 +770,6 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
-            run_cpp=True,
             )
         rfx_preds_train = bart_model.rfx_container.predict(
             group_labels_train, rfx_basis_train
@@ -808,7 +795,6 @@ class TestBART:
                 num_gfr=num_gfr,
                 num_burnin=num_burnin,
                 num_mcmc=num_mcmc,
-            run_cpp=True,
             )
         rfx_preds_train_2 = bart_model_2.rfx_container.predict(
             group_labels_train, rfx_basis_train
@@ -950,7 +936,6 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
-            run_cpp=True,
             )
         rfx_preds_train = bart_model.rfx_container.predict(
             group_labels_train, rfx_basis_train
@@ -978,7 +963,6 @@ class TestBART:
                 num_mcmc=num_mcmc,
                 general_params=general_params,
                 variance_forest_params=variance_forest_params,
-            run_cpp=True,
             )
         rfx_preds_train_2 = bart_model_2.rfx_container.predict(
             group_labels_train, rfx_basis_train
@@ -1116,7 +1100,6 @@ class TestBART:
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
             general_params=general_params,
-        run_cpp=True,
         )
 
         # Specify scalar rfx parameters
@@ -1144,7 +1127,6 @@ class TestBART:
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
             random_effects_params=rfx_params,
-        run_cpp=True,
         )
 
         # Specify all relevant rfx parameters as vectors
@@ -1172,7 +1154,6 @@ class TestBART:
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
             random_effects_params=rfx_params,
-        run_cpp=True,
         )
 
         # Fit a simpler intercept-only RFX model
@@ -1190,7 +1171,6 @@ class TestBART:
             num_burnin=num_burnin,
             num_mcmc=num_mcmc,
             random_effects_params=rfx_params,
-        run_cpp=True,
         )
         preds = bart_model_4.predict(
             X=X_test,
@@ -1254,7 +1234,6 @@ class TestBART:
             num_mcmc=num_mcmc,
             general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"),
                             "sample_sigma2_global": False},
-            run_cpp=True,
         )
 
         # Assertions
@@ -1272,7 +1251,6 @@ class TestBART:
             num_mcmc=num_mcmc,
             general_params={"outcome_model": OutcomeModel(outcome="binary", link="probit"),
                             "sample_sigma2_global": False},
-            run_cpp=True,
         )
 
         # Assertions
@@ -1343,7 +1321,6 @@ class TestBART:
                 "sample_sigma2_global": False,
                 "num_chains": 1,
             },
-        run_cpp=True,
         )
 
         # Check model outputs
@@ -1425,7 +1402,6 @@ class TestBART:
                 "sample_sigma2_global": False,
                 "num_chains": 1,
             },
-        run_cpp=True,
         )
 
         # Check model outputs
@@ -1500,7 +1476,6 @@ class TestBART:
                 "sample_sigma2_global": False,
                 "num_chains": 1,
             },
-        run_cpp=True,
         )
 
         # Check model outputs
@@ -1603,7 +1578,6 @@ class TestBART:
                 "sample_sigma2_global": False,
                 "num_chains": 1,
             },
-        run_cpp=True,
         )
 
         # Check model outputs
