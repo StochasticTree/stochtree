@@ -257,6 +257,36 @@ bool json_contains_field_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, s
 }
 
 [[cpp11::register]]
+void json_erase_field_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string field_name) {
+  if (json_ptr->contains(field_name)) {
+    json_ptr->erase(field_name);
+  }
+}
+
+[[cpp11::register]]
+void json_erase_field_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name) {
+  if (json_ptr->contains(subfolder_name) && json_ptr->at(subfolder_name).contains(field_name)) {
+    json_ptr->at(subfolder_name).erase(field_name);
+  }
+}
+
+[[cpp11::register]]
+void json_rename_field_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string old_name, std::string new_name) {
+  if (json_ptr->contains(old_name)) {
+    (*json_ptr)[new_name] = json_ptr->at(old_name);
+    json_ptr->erase(old_name);
+  }
+}
+
+[[cpp11::register]]
+void json_rename_field_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string old_name, std::string new_name) {
+  if (json_ptr->contains(subfolder_name) && json_ptr->at(subfolder_name).contains(old_name)) {
+    json_ptr->at(subfolder_name)[new_name] = json_ptr->at(subfolder_name).at(old_name);
+    json_ptr->at(subfolder_name).erase(old_name);
+  }
+}
+
+[[cpp11::register]]
 double json_extract_double_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name) {
   return json_ptr->at(subfolder_name).at(field_name);
 }

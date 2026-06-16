@@ -2645,6 +2645,7 @@ createBARTModelFromJson <- function(json_object) {
 
   # Helpers for optional-field presence checks
   .ver <- inferStochtreeJsonVersion(json_object)
+  resolveSchemaVersion(json_object)
   has_field <- function(name) {
     json_contains_field_cpp(json_object$json_ptr, name)
   }
@@ -2897,6 +2898,7 @@ createBARTModelFromCombinedJson <- function(json_object_list) {
 
   # Helpers for optional-field presence checks
   .ver <- inferStochtreeJsonVersion(json_object_default)
+  resolveSchemaVersion(json_object_default)
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }
@@ -3208,6 +3210,7 @@ createBARTModelFromCombinedJsonString <- function(json_string_list) {
 
   # Helpers for optional-field presence checks
   .ver <- inferStochtreeJsonVersion(json_object_default)
+  resolveSchemaVersion(json_object_default)
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }

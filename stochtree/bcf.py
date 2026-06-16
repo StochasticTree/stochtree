@@ -13,7 +13,7 @@ from .bart import BARTModel
 from .forest import ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
 from .random_effects import RandomEffectsContainer
-from .serialization import JSONSerializer, SCHEMA_VERSION
+from .serialization import JSONSerializer, SCHEMA_VERSION, resolve_schema_version
 from .utils import (
     OutcomeModel,
     NotSampledError,
@@ -2993,6 +2993,7 @@ class BCFModel:
         # Parse string to a JSON object in C++
         bcf_json = JSONSerializer()
         bcf_json.load_from_json_string(json_string)
+        resolve_schema_version(bcf_json)
         _raw = json.loads(json_string)
         _ver = _infer_stochtree_version(json_string)
 
@@ -3209,6 +3210,7 @@ class BCFModel:
 
         # For scalar / preprocessing details which aren't sample-dependent, defer to the first json
         json_object_default = json_object_list[0]
+        resolve_schema_version(json_object_default)
         _raw_default = json.loads(json_string_list[0])
         _ver = _infer_stochtree_version(json_string_list[0])
 

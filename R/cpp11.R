@@ -828,6 +828,22 @@ json_contains_field_cpp <- function(json_ptr, field_name) {
   .Call(`_stochtree_json_contains_field_cpp`, json_ptr, field_name)
 }
 
+json_erase_field_cpp <- function(json_ptr, field_name) {
+  invisible(.Call(`_stochtree_json_erase_field_cpp`, json_ptr, field_name))
+}
+
+json_erase_field_subfolder_cpp <- function(json_ptr, subfolder_name, field_name) {
+  invisible(.Call(`_stochtree_json_erase_field_subfolder_cpp`, json_ptr, subfolder_name, field_name))
+}
+
+json_rename_field_cpp <- function(json_ptr, old_name, new_name) {
+  invisible(.Call(`_stochtree_json_rename_field_cpp`, json_ptr, old_name, new_name))
+}
+
+json_rename_field_subfolder_cpp <- function(json_ptr, subfolder_name, old_name, new_name) {
+  invisible(.Call(`_stochtree_json_rename_field_subfolder_cpp`, json_ptr, subfolder_name, old_name, new_name))
+}
+
 json_extract_double_subfolder_cpp <- function(json_ptr, subfolder_name, field_name) {
   .Call(`_stochtree_json_extract_double_subfolder_cpp`, json_ptr, subfolder_name, field_name)
 }

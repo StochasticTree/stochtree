@@ -334,3 +334,22 @@ test_that("BCF loads with multiple missing optional fields simultaneously", {
   # At least the preprocessor_metadata warning should fire
   expect_true(any(grepl("preprocessor|preprocess", warns, ignore.case = TRUE)))
 })
+
+test_that("a future schema_version is refused with a clear error", {
+  skip_on_cran()
+  set.seed(1)
+  n <- 80
+  p <- 3
+  X <- matrix(runif(n * p), ncol = p)
+  y <- X[, 1] + rnorm(n)
+  m <- bart(
+    X_train = X, y_train = y,
+    num_gfr = 0, num_burnin = 0, num_mcmc = 5,
+    general_params = list(random_seed = 1)
+  )
+  js <- saveBARTModelToJsonString(m)
+  # Bump the stamped schema_version to a value this install cannot read.
+  js_future <- sub('("schema_version"\\s*:\\s*)[0-9]+', "\\199", js, perl = TRUE)
+  expect_false(identical(js, js_future)) # confirm the substitution matched
+  expect_error(createBARTModelFromJsonString(js_future), "schema_version")
+})

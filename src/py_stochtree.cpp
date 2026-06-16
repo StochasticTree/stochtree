@@ -2072,6 +2072,32 @@ class JsonCpp {
     }
   }
 
+  void EraseField(std::string field_name) {
+    if (json_->contains(field_name)) {
+      json_->erase(field_name);
+    }
+  }
+
+  void EraseFieldSubfolder(std::string subfolder_name, std::string field_name) {
+    if (json_->contains(subfolder_name) && json_->at(subfolder_name).contains(field_name)) {
+      json_->at(subfolder_name).erase(field_name);
+    }
+  }
+
+  void RenameField(std::string old_name, std::string new_name) {
+    if (json_->contains(old_name)) {
+      (*json_)[new_name] = json_->at(old_name);
+      json_->erase(old_name);
+    }
+  }
+
+  void RenameFieldSubfolder(std::string subfolder_name, std::string old_name, std::string new_name) {
+    if (json_->contains(subfolder_name) && json_->at(subfolder_name).contains(old_name)) {
+      json_->at(subfolder_name)[new_name] = json_->at(subfolder_name).at(old_name);
+      json_->at(subfolder_name).erase(old_name);
+    }
+  }
+
   double ExtractDouble(std::string field_name) {
     return json_->at(field_name);
   }
@@ -3645,6 +3671,10 @@ PYBIND11_MODULE(stochtree_cpp, m) {
       .def("AddRandomEffectsGroupIDs", &JsonCpp::AddRandomEffectsGroupIDs)
       .def("ContainsField", &JsonCpp::ContainsField)
       .def("ContainsFieldSubfolder", &JsonCpp::ContainsFieldSubfolder)
+      .def("EraseField", &JsonCpp::EraseField)
+      .def("EraseFieldSubfolder", &JsonCpp::EraseFieldSubfolder)
+      .def("RenameField", &JsonCpp::RenameField)
+      .def("RenameFieldSubfolder", &JsonCpp::RenameFieldSubfolder)
       .def("ExtractDouble", &JsonCpp::ExtractDouble)
       .def("ExtractDoubleSubfolder", &JsonCpp::ExtractDoubleSubfolder)
       .def("ExtractInteger", &JsonCpp::ExtractInteger)

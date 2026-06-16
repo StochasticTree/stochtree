@@ -1539,6 +1539,38 @@ extern "C" SEXP _stochtree_json_contains_field_cpp(SEXP json_ptr, SEXP field_nam
   END_CPP11
 }
 // serialization.cpp
+void json_erase_field_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string field_name);
+extern "C" SEXP _stochtree_json_erase_field_cpp(SEXP json_ptr, SEXP field_name) {
+  BEGIN_CPP11
+    json_erase_field_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name));
+    return R_NilValue;
+  END_CPP11
+}
+// serialization.cpp
+void json_erase_field_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name);
+extern "C" SEXP _stochtree_json_erase_field_subfolder_cpp(SEXP json_ptr, SEXP subfolder_name, SEXP field_name) {
+  BEGIN_CPP11
+    json_erase_field_subfolder_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(subfolder_name), cpp11::as_cpp<cpp11::decay_t<std::string>>(field_name));
+    return R_NilValue;
+  END_CPP11
+}
+// serialization.cpp
+void json_rename_field_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string old_name, std::string new_name);
+extern "C" SEXP _stochtree_json_rename_field_cpp(SEXP json_ptr, SEXP old_name, SEXP new_name) {
+  BEGIN_CPP11
+    json_rename_field_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(old_name), cpp11::as_cpp<cpp11::decay_t<std::string>>(new_name));
+    return R_NilValue;
+  END_CPP11
+}
+// serialization.cpp
+void json_rename_field_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string old_name, std::string new_name);
+extern "C" SEXP _stochtree_json_rename_field_subfolder_cpp(SEXP json_ptr, SEXP subfolder_name, SEXP old_name, SEXP new_name) {
+  BEGIN_CPP11
+    json_rename_field_subfolder_cpp(cpp11::as_cpp<cpp11::decay_t<cpp11::external_pointer<nlohmann::json>>>(json_ptr), cpp11::as_cpp<cpp11::decay_t<std::string>>(subfolder_name), cpp11::as_cpp<cpp11::decay_t<std::string>>(old_name), cpp11::as_cpp<cpp11::decay_t<std::string>>(new_name));
+    return R_NilValue;
+  END_CPP11
+}
+// serialization.cpp
 double json_extract_double_subfolder_cpp(cpp11::external_pointer<nlohmann::json> json_ptr, std::string subfolder_name, std::string field_name);
 extern "C" SEXP _stochtree_json_extract_double_subfolder_cpp(SEXP json_ptr, SEXP subfolder_name, SEXP field_name) {
   BEGIN_CPP11
@@ -1808,6 +1840,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_json_add_vector_subfolder_cpp",                       (DL_FUNC) &_stochtree_json_add_vector_subfolder_cpp,                        4},
     {"_stochtree_json_contains_field_cpp",                             (DL_FUNC) &_stochtree_json_contains_field_cpp,                              2},
     {"_stochtree_json_contains_field_subfolder_cpp",                   (DL_FUNC) &_stochtree_json_contains_field_subfolder_cpp,                    3},
+    {"_stochtree_json_erase_field_cpp",                                (DL_FUNC) &_stochtree_json_erase_field_cpp,                                 2},
+    {"_stochtree_json_erase_field_subfolder_cpp",                      (DL_FUNC) &_stochtree_json_erase_field_subfolder_cpp,                       3},
     {"_stochtree_json_extract_bool_cpp",                               (DL_FUNC) &_stochtree_json_extract_bool_cpp,                                2},
     {"_stochtree_json_extract_bool_subfolder_cpp",                     (DL_FUNC) &_stochtree_json_extract_bool_subfolder_cpp,                      3},
     {"_stochtree_json_extract_double_cpp",                             (DL_FUNC) &_stochtree_json_extract_double_cpp,                              2},
@@ -1826,6 +1860,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_stochtree_json_load_file_cpp",                                  (DL_FUNC) &_stochtree_json_load_file_cpp,                                   2},
     {"_stochtree_json_load_forest_container_cpp",                      (DL_FUNC) &_stochtree_json_load_forest_container_cpp,                       2},
     {"_stochtree_json_load_string_cpp",                                (DL_FUNC) &_stochtree_json_load_string_cpp,                                 2},
+    {"_stochtree_json_rename_field_cpp",                               (DL_FUNC) &_stochtree_json_rename_field_cpp,                                3},
+    {"_stochtree_json_rename_field_subfolder_cpp",                     (DL_FUNC) &_stochtree_json_rename_field_subfolder_cpp,                      4},
     {"_stochtree_json_save_file_cpp",                                  (DL_FUNC) &_stochtree_json_save_file_cpp,                                   2},
     {"_stochtree_json_save_forest_container_cpp",                      (DL_FUNC) &_stochtree_json_save_forest_container_cpp,                       2},
     {"_stochtree_leaf_dimension_active_forest_cpp",                    (DL_FUNC) &_stochtree_leaf_dimension_active_forest_cpp,                     1},

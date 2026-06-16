@@ -34,6 +34,26 @@ STOCHTREE_SCHEMA_VERSION <- 1L
 # STOCHTREE_SCHEMA_VERSION and add a migrate_v{N}_to_v{N+1} step instead.
 # -----------------------------------------------------------------------------
 
+# Read the envelope schema_version and enforce the RFC 0005 reader rules. Returns
+# the loaded version (0 = legacy / absent). Errors if the model was written by a
+# newer stochtree than this installation supports. A value below the current version
+# is the hook for the migration ladder (no rungs exist yet at version 1; legacy v0
+# models are handled by field-presence default-filling during parsing).
+resolveSchemaVersion <- function(json_object) {
+  loaded <- json_object$get_integer_or_default("schema_version", 0L)
+  if (loaded > STOCHTREE_SCHEMA_VERSION) {
+    stop(sprintf(
+      paste0(
+        "This model was serialized with schema_version=%d, but this installation of ",
+        "stochtree supports up to schema_version=%d. Please upgrade stochtree to load it."
+      ),
+      loaded,
+      STOCHTREE_SCHEMA_VERSION
+    ))
+  }
+  loaded
+}
+
 #' Forest Container Serialization Routines
 #' @name ForestSamplesSerialization
 #' @description
@@ -552,6 +572,41 @@ CppJson <- R6::R6Class(
       } else {
         default
       }
+    },
+
+    #' @description
+    #' Rename a field "old_name" to "new_name" (with optional subfolder). No-op if
+    #' "old_name" is absent. Used by JSON schema migrations (RFC 0005).
+    #' @param old_name Current field name
+    #' @param new_name New field name
+    #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
+    #' @return None
+    rename_field = function(old_name, new_name, subfolder_name = NULL) {
+      if (is.null(subfolder_name)) {
+        json_rename_field_cpp(self$json_ptr, old_name, new_name)
+      } else {
+        json_rename_field_subfolder_cpp(
+          self$json_ptr,
+          subfolder_name,
+          old_name,
+          new_name
+        )
+      }
+      invisible(self)
+    },
+
+    #' @description
+    #' Erase a field "field_name" (with optional subfolder). No-op if absent.
+    #' @param field_name The name of the field to erase
+    #' @param subfolder_name (Optional) Name of the subfolder / hierarchy
+    #' @return None
+    erase_field = function(field_name, subfolder_name = NULL) {
+      if (is.null(subfolder_name)) {
+        json_erase_field_cpp(self$json_ptr, field_name)
+      } else {
+        json_erase_field_subfolder_cpp(self$json_ptr, subfolder_name, field_name)
+      }
+      invisible(self)
     },
 
     #' @description

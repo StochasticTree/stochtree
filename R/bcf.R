@@ -3525,6 +3525,7 @@ createBCFModelFromJson <- function(json_object) {
 
   # Version inference and presence-check helpers
   .ver <- inferStochtreeJsonVersion(json_object)
+  resolveSchemaVersion(json_object)
   has_field <- function(name) {
     json_contains_field_cpp(json_object$json_ptr, name)
   }
@@ -3841,6 +3842,7 @@ createBCFModelFromCombinedJson <- function(json_object_list) {
 
   # Version inference and presence-check helpers
   .ver <- inferStochtreeJsonVersion(json_object_default)
+  resolveSchemaVersion(json_object_default)
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }
@@ -4281,6 +4283,7 @@ createBCFModelFromCombinedJsonString <- function(json_string_list) {
 
   # Version inference and presence-check helpers
   .ver <- inferStochtreeJsonVersion(json_object_default)
+  resolveSchemaVersion(json_object_default)
   has_field <- function(name) {
     json_contains_field_cpp(json_object_default$json_ptr, name)
   }

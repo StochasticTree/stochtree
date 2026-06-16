@@ -477,3 +477,21 @@ class TestBARTFieldRoundtrip:
         combined.from_json_string_list([m_a.to_json(), m_b.to_json()])
         assert combined.num_samples == 20
         assert isinstance(str(combined), str)
+
+
+def test_future_schema_version_raises():
+    """A model stamped with a newer schema_version than this install supports must error."""
+    from stochtree.serialization import SCHEMA_VERSION
+
+    rng = np.random.default_rng(0)
+    X = rng.uniform(size=(80, 3))
+    y = X[:, 0] + rng.normal(size=80)
+    m = BARTModel()
+    m.sample(X_train=X, y_train=y, num_gfr=0, num_burnin=0, num_mcmc=5)
+
+    payload = json.loads(m.to_json())
+    assert payload["schema_version"] == SCHEMA_VERSION
+    payload["schema_version"] = SCHEMA_VERSION + 1
+
+    with pytest.raises(ValueError, match="schema_version"):
+        BARTModel().from_json(json.dumps(payload))

@@ -43,6 +43,28 @@ SCHEMA_VERSION = 1
 # -----------------------------------------------------------------------------
 
 
+def resolve_schema_version(serializer: "JSONSerializer") -> int:
+    """Read the envelope ``schema_version`` and enforce the RFC 0005 reader rules.
+
+    Returns the loaded version (``0`` for a legacy / absent stamp). Behavior vs the
+    current ``SCHEMA_VERSION``:
+
+    - ``loaded > current`` -> hard error (model written by a newer stochtree).
+    - ``loaded == current`` -> parse directly (caller proceeds).
+    - ``0 < loaded < current`` -> caller runs the migration ladder (no rungs exist yet
+      at ``SCHEMA_VERSION == 1``; this is the hook for future ``migrate_vN_to_vN+1``).
+    - ``loaded == 0`` -> legacy model; handled by field-presence default-filling on parse.
+    """
+    loaded = serializer.get_integer_or_default("schema_version", 0)
+    if loaded > SCHEMA_VERSION:
+        raise ValueError(
+            f"This model was serialized with schema_version={loaded}, but this "
+            f"installation of stochtree supports up to schema_version={SCHEMA_VERSION}. "
+            "Please upgrade stochtree to load it."
+        )
+    return loaded
+
+
 class JSONSerializer:
     """
     Class that handles serialization and deserialization of stochastic forest models
@@ -365,6 +387,22 @@ class JSONSerializer:
         if self.contains(field_name, subfolder_name):
             return self.get_string(field_name, subfolder_name)
         return default
+
+    def rename_field(self, old_name, new_name, subfolder_name=None):
+        """Rename ``old_name`` to ``new_name`` (optionally under ``subfolder_name``).
+
+        No-op if ``old_name`` is absent. Used by JSON schema migrations (RFC 0005)."""
+        if subfolder_name is None:
+            self.json_cpp.RenameField(old_name, new_name)
+        else:
+            self.json_cpp.RenameFieldSubfolder(subfolder_name, old_name, new_name)
+
+    def erase_field(self, field_name, subfolder_name=None):
+        """Erase ``field_name`` (optionally under ``subfolder_name``). No-op if absent."""
+        if subfolder_name is None:
+            self.json_cpp.EraseField(field_name)
+        else:
+            self.json_cpp.EraseFieldSubfolder(subfolder_name, field_name)
 
     def get_numeric_vector(
         self, field_name: str, subfolder_name: str = None

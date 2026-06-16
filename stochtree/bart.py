@@ -10,7 +10,7 @@ import pandas as pd
 from .forest import ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
 from .random_effects import RandomEffectsContainer
-from .serialization import JSONSerializer, SCHEMA_VERSION
+from .serialization import JSONSerializer, SCHEMA_VERSION, resolve_schema_version
 from .utils import (
     OutcomeModel,
     NotSampledError,
@@ -2382,6 +2382,7 @@ class BARTModel:
         _ver = _infer_stochtree_version(json_string)
         bart_json = JSONSerializer()
         bart_json.load_from_json_string(json_string)
+        resolve_schema_version(bart_json)
 
         # Unpack forests
         self.include_mean_forest = bart_json.get_boolean("include_mean_forest")
@@ -2552,6 +2553,7 @@ class BARTModel:
 
         # For scalar / preprocessing details which aren't sample-dependent, defer to the first json
         json_object_default = json_object_list[0]
+        resolve_schema_version(json_object_default)
         _raw = json.loads(json_string_list[0])
         _ver = _infer_stochtree_version(json_string_list[0])
 
