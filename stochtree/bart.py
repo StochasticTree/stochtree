@@ -10,7 +10,7 @@ import pandas as pd
 from .forest import ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
 from .random_effects import RandomEffectsContainer
-from .serialization import JSONSerializer
+from .serialization import JSONSerializer, SCHEMA_VERSION
 from .utils import (
     OutcomeModel,
     NotSampledError,
@@ -2315,6 +2315,7 @@ class BARTModel:
 
         # Add version stamp and global parameters
         bart_json.add_string("stochtree_version", _get_stochtree_version())
+        bart_json.add_integer("schema_version", SCHEMA_VERSION)
         bart_json.add_scalar("outcome_scale", self.y_std)
         bart_json.add_scalar("outcome_mean", self.y_bar)
         bart_json.add_boolean("standardize", self.standardize)

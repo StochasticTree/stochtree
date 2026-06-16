@@ -6,6 +6,42 @@ from stochtree_cpp import JsonCpp
 from .forest import ForestContainer
 from .random_effects import RandomEffectsContainer
 
+# -----------------------------------------------------------------------------
+# Serialized model envelope schema version (RFC 0005).
+#
+# Integer identifying the *structure* of the serialized BART/BCF JSON envelope.
+# Bumped ONLY on a breaking change (rename / remove / re-type a field, change a
+# field's meaning, or change a structural convention). Additive, safely-defaulted
+# fields do NOT bump it -- they are handled by "augmentation" on read (see the
+# defaults registry below and the ``get_*_or_default`` helpers on JSONSerializer).
+#
+# Kept in sync with the R ``STOCHTREE_SCHEMA_VERSION`` (R/serialization.R). The two
+# are independent constants by design (each language owns its serde); their
+# agreement is enforced by the cross-platform golden fixtures, not by sharing a value.
+SCHEMA_VERSION = 1
+
+# -----------------------------------------------------------------------------
+# Augmentation defaults registry (schema_version = 1)
+#
+# Every OPTIONAL envelope field that may be ABSENT from a model written by an
+# earlier release at the SAME schema_version must be read with a default that
+# reproduces that model's pre-field behavior. This list is the single source of
+# truth for "which fields need defaulting"; read those fields via
+# ``get_scalar_or_default`` / ``get_boolean_or_default`` / ``get_string_or_default``
+# (never a bare required getter).
+#
+#   field                        default        (behavior when absent)
+#   "outcome"                    "continuous"
+#   "link"                       "identity"
+#   "multivariate_treatment"     False
+#   "internal_propensity_model"  False
+#   "has_rfx_basis"              False
+#   ... (add a row whenever you add an additive field)
+#
+# If a new field has NO behavior-preserving default, it is NOT additive: bump
+# SCHEMA_VERSION and add a migration step instead.
+# -----------------------------------------------------------------------------
+
 
 class JSONSerializer:
     """
@@ -299,6 +335,36 @@ class JSONSerializer:
             return self.json_cpp.ExtractString(field_name)
         else:
             return self.json_cpp.ExtractStringSubfolder(subfolder_name, field_name)
+
+    def contains(self, field_name: str, subfolder_name: str = None) -> bool:
+        """Whether the json object contains ``field_name`` (optionally under ``subfolder_name``)."""
+        if subfolder_name is None:
+            return self.json_cpp.ContainsField(field_name)
+        return self.json_cpp.ContainsFieldSubfolder(subfolder_name, field_name)
+
+    def get_scalar_or_default(self, field_name, default, subfolder_name=None):
+        """Read a numeric field, returning ``default`` if absent (augmentation; see RFC 0005)."""
+        if self.contains(field_name, subfolder_name):
+            return self.get_scalar(field_name, subfolder_name)
+        return default
+
+    def get_integer_or_default(self, field_name, default, subfolder_name=None):
+        """Read an integer field, returning ``default`` if absent."""
+        if self.contains(field_name, subfolder_name):
+            return self.get_integer(field_name, subfolder_name)
+        return default
+
+    def get_boolean_or_default(self, field_name, default, subfolder_name=None):
+        """Read a boolean field, returning ``default`` if absent."""
+        if self.contains(field_name, subfolder_name):
+            return self.get_boolean(field_name, subfolder_name)
+        return default
+
+    def get_string_or_default(self, field_name, default, subfolder_name=None):
+        """Read a string field, returning ``default`` if absent."""
+        if self.contains(field_name, subfolder_name):
+            return self.get_string(field_name, subfolder_name)
+        return default
 
     def get_numeric_vector(
         self, field_name: str, subfolder_name: str = None

@@ -13,7 +13,7 @@ from .bart import BARTModel
 from .forest import ForestContainer
 from .preprocessing import CovariatePreprocessor, _preprocess_params
 from .random_effects import RandomEffectsContainer
-from .serialization import JSONSerializer
+from .serialization import JSONSerializer, SCHEMA_VERSION
 from .utils import (
     OutcomeModel,
     NotSampledError,
@@ -2916,6 +2916,7 @@ class BCFModel:
 
         # Add version stamp and global parameters
         bcf_json.add_string("stochtree_version", _get_stochtree_version())
+        bcf_json.add_integer("schema_version", SCHEMA_VERSION)
         bcf_json.add_scalar("outcome_scale", self.y_std)
         bcf_json.add_scalar("outcome_mean", self.y_bar)
         bcf_json.add_boolean("standardize", self.standardize)
